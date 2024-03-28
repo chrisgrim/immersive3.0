@@ -2,8 +2,6 @@ import { createApp, defineAsyncComponent } from 'vue';
 import '../css/app.css';
 import axios from 'axios';
 
-import VueDayjs from 'vue3-dayjs-plugin'; 
-
 // Define an async component
 const NavSearch = defineAsyncComponent(() => import('./PageComponents/Nav/nav-search.vue'));
 const NavProfile = defineAsyncComponent(() => import('./PageComponents/Nav/nav-profile.vue'));
