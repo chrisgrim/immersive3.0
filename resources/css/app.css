@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-size: 62.5%; /* 10px */
+    font-family: 'Montserrat', sans-serif;
+    height: 100%;
+  }
+  body {
+    font-size: 1.6rem; /* 16px */
+    line-height: 2rem; /* 20px */
+    font-family: 'Montserrat', sans-serif;
+    margin: 0;
+    height: 100%;
+    color: #000; /* Replace with your $font-color value */
+  }
+  p {
+    font-size: 1.6rem; /* 16px */
+    line-height: 2rem; /* 20px */
+    font-family: 'Montserrat', sans-serif;
+    margin: 0;
+    color: #000; /* Replace with your $font-color value */
+    margin-left: 1px;
+  }
+  h1 {
+    font-size: 4.6rem; /* 46px */
+    line-height: 4.6rem; /* 46px */
+    font-family: 'Montserrat', sans-serif;
+    margin: 0;
+    color: #000; /* Replace with your $font-color value */
+    transform: scale(1, 1.05);
+    display: inherit;
+  }
+  h2 {
+    font-size: 3.1rem; /* 31px */
+    line-height: 3.1rem; /* 31px */
+    font-family: 'Montserrat', sans-serif;
+    margin: 0;
+    color: #000; /* Replace with your $font-color value */
+    transform: scale(1, 1.05);
+    display: inherit;
+  }
+  h3 {
+    font-size: 2.4rem; /* 24px */
+    line-height: 2.4rem; /* 24px */
+    font-family: 'Montserrat', sans-serif;
+    margin: 0;
+    color: #000; /* Replace with your $font-color value */
+    font-weight: 500;
+    display: inherit;
+  }
+  h4 {
+    font-size: 2.0rem; /* 20px */
+    line-height: 2.0rem; /* 20px */
+    font-family: 'Montserrat', sans-serif;
+    margin: 0;
+    color: #000; /* Replace with your $font-color value */
+    font-weight: 500;
+    transform: scale(1, 1.05);
+    display: inherit;
+  }
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+  textarea,
+  input,
+  select,
+  button {
+    font-family: 'Montserrat', sans-serif;
+  }
+  button {
+    cursor: pointer;
+  }
+  ul {
+    margin: 0;
+    padding: 0;
+    margin-left: 2rem;
+    font-size: 1.4rem;
+    line-height: initial;
+  }
+  li {
+    margin-top: 0.5rem;
+  }
+  select {
+    appearance: none !important;
+  }
+  input:focus,
+  textarea:focus {
+    outline: none !important;
+    border: 1px solid #008489;
+  }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  blockquote {
+    font-style: italic;
+    margin-inline-start: 2rem;
+    margin-inline-end: 2rem;
+  }
+  main {
+    display: block;
+  }
+  .noscroll {
+    overflow: hidden;
+  }
+}
