@@ -21,12 +21,12 @@
     <div class="py-12 px-8 md:py-16 md:px-0 border-b">
         <div class="flex gap-4 justify-between items-center mb-4">
             <h2 class="inline-block text-3xl md:text-4xl">Experience hosted by
-                <a href="{{ route('organizer.show', $event->organizer->slug) }}">
+                <a href="{{ route('Organizers.show', $event->organizer->slug) }}">
                     {{ $event->organizer->name }}
                 </a>
             </h2>
             @if($event->organizer->thumbImagePath)
-                <a class="min-w-[5rem]" href="{{ route('organizer.show', $event->organizer->slug) }}">
+                <a class="min-w-[5rem]" href="{{ route('Organizers.show', $event->organizer->slug) }}">
                     <picture>
                         <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $event->organizer->thumbImagePath }}">
                         <img class="w-20 h-20 rounded-full float-right" src="{{ config('app.image_url') }}{{ substr($event->organizer->thumbImagePath, 0, -4) }}jpg" alt="Logo of {{ $event->organizer->name }}">

@@ -126,8 +126,7 @@
 		        </ul>
 	    	</div>
 	    </div>
-	    <Login 
-	    	v-if="showLogin" />
+	    <Login v-if="showLogin" />
     </div>
 </template>
 

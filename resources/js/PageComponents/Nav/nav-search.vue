@@ -41,6 +41,8 @@
             	</div>
                 <div class="w-full mx-auto flex relative max-w-5xl mt-8">
 		            <SearchLocation v-if="search==='l'"/>
+                    <SearchGenre v-if="search==='t'"/>
+                    <SearchEvent v-if="search==='e'"/>
 		        </div>
 		        <div class="fixed top-0 left-0 w-full h-full bg-[#00000026] z-[-10]" />
             </div>
@@ -63,10 +65,12 @@
 
 <script>
     import SearchLocation from './Components/location-search.vue'
+    import SearchGenre from './Components/genre-search.vue'
+    import SearchEvent from './Components/events-search.vue'
 
     export default {
 
-        components: { SearchLocation },
+        components: { SearchLocation, SearchGenre, SearchEvent },
 
         data() {
             return {

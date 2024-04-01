@@ -1,7 +1,7 @@
 <section 
     id="organizer" 
     class="py-12 px-8 md:py-16 md:px-0">  
-    <a href="/organizer/{{ $event->organizer->slug }}">
+    <a href="/organizers/{{ $event->organizer->slug }}">
         <div class="flex mb-8 gap-4">
             <div 
                 style="{{ $event->organizer->thumbImagePath ? 'background-image:url(' . config('app.image_url') . substr($event->organizer->thumbImagePath, 0, -4) . 'jpg)' : 'background:' . $event->organizer->hexColor }};"

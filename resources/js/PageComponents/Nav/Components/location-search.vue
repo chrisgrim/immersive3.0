@@ -1,6 +1,6 @@
 <template>
-    <div style="width:100%">
-        <div ref="search" class="w-full z-[10000]">
+    <div style="width:100%" v-click-outside="() => dropdown = false">
+        <div class="w-full z-[10000]">
             <div class="w-full m-auto">
                 <svg class="absolute top-8 left-8 w-8 h-8 fill-black z-[1002]">
                 	<use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
@@ -18,7 +18,6 @@
             </div>
             <ul 
                 class="bg-white relative w-full m-auto overflow-hidden mt-8 p-8 list-none rounded-5xl shadow-custom-7" 
-                ref="dropdown"
                 v-if="dropdown">
                 <li 
                     class="py-4 px-8 flex items-center gap-8 hover:bg-neutral-100" 

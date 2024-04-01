@@ -87,7 +87,7 @@
                         @include('Events.Show.details')
                     </div>
 
-                    <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem]">
+                    <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
                         <vue-show-purchase
                           :mobile="{{ Browser::isMobile() ? 'true' : 'false' }}"
                           :tickets="{{ $tickets }}"
