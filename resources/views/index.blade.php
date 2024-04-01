@@ -1,4 +1,4 @@
-@extends('layouts.master-container')
+@extends('Layouts.master-container')
 
 @section('meta')
     <title>{{config('app.name')}}</title>
@@ -29,7 +29,6 @@
 @section('nav')
 	<nav class="nav w-full m-auto h-32 z-[1001] relative shadow-light">
 		<div class="nav_bar m-auto relative h-full items-center grid gap-0 grid-cols-5 md:px-12 lg:px-32">
-			<!-- Home Button Section -->
             <div class="inline-block relative leading-none col-span-1 z-40">
                 <a 
                     aria-label="Home Button"

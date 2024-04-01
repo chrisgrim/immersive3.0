@@ -2,7 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 	<head>
         @yield('meta')
-		@include('layouts.meta')
+		@include('Layouts.meta')
 	</head>
 	<body id="app">
         <!-- Google Tag Manager (noscript) -->

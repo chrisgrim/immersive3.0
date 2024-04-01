@@ -1,4 +1,4 @@
-@extends('layouts.master-container')
+@extends('Layouts.master-container')
 
 @section('meta')
     
