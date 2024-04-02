@@ -10,6 +10,7 @@ const NavProfile = defineAsyncComponent(() => import('./PageComponents/Nav/nav-p
 const ShowMore = defineAsyncComponent(() => import('./GlobalComponents/show-more.vue'));
 
 const ShowPurchase = defineAsyncComponent(() => import('./PageComponents/EventShow/show-purchase.vue'));
+const ShowMap = defineAsyncComponent(() => import('./PageComponents/EventShow/show-map.vue'));
 
 import { ClickOutsideDirective } from './Directives/ClickOutsideDirective';
 
@@ -25,6 +26,7 @@ app.component('vue-nav-profile', NavProfile);
 app.component('vue-show-more', ShowMore);
 
 app.component('vue-show-purchase', ShowPurchase);
+app.component('vue-show-map', ShowMap);
 
 app.directive('click-outside', ClickOutsideDirective);
 

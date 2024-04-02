@@ -57,9 +57,9 @@
 		                        :alt="user.name + `'s account`">
 		                </template>
 		                <template v-else>
-		                    <h2 class="text-white text-2xl uppercase">
-		                        {{ user.name.charAt(0) }}
-		                    </h2>
+		                    <svg class="w-10 h-10 fill-white">
+			                    <use :xlink:href="`/storage/website-files/icons.svg#ri-user-line`" />
+			                </svg>
 		                </template>
 		            </template>
 		            <!-- If user is a guest -->
@@ -126,7 +126,9 @@
 		        </ul>
 	    	</div>
 	    </div>
-	    <Login v-if="showLogin" />
+	    <Login 
+	    	@close="showLogin = !showLogin"
+	    	v-if="showLogin" />
     </div>
 </template>
 

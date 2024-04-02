@@ -1,6 +1,6 @@
 <template>
     <div class="flex w-full items-center bg-[#000000A3] fixed inset-0 justify-center">
-        <div class="bg-white shadow-light flex-col items-center max-h-[90vh] w-[55rem] rounded-[2rem]">
+        <div class="bg-white shadow-light flex-col items-center max-h-[90vh] w-[55rem] rounded-[2rem] overflow-auto">
             <div class="border-b border-gray-300 flex h-24 justify-evenly p-8 relative w-full">
                 <button 
                 	class="absolute top-5 left-5 flex items-center justify-center w-14 h-14 hover:bg-gray-200 rounded-full"
@@ -47,9 +47,11 @@
 			            <div v-if="v$.user.email.$error" class="validation-error">
 			                <p class="error" v-if="!v$.user.email.serverFailed">The login information doesn't match our records</p>
 			            </div>
+			            <div v-if="serverErrors.length > 0" class="validation-error">
+					        <p class="error" v-for="(error, index) in serverErrors" :key="index">{{ error }}</p>
+					    </div>
 			            <div class="password">
-			                <svg 
-			                    class="w-8 h-8 absolute top-6 right-12"
+			                <svg class="w-8 h-8 absolute top-6 right-12"
 			                    @click="isVisible=!isVisible">
 			                    <use 
 			                        v-if="isVisible" 
@@ -62,9 +64,9 @@
 			        </div>
 			        <div class="field mt-2">
 			            <transition name="fade" mode="out-in">
-			                <template v-if="!forget">
+			                <template v-if="true">
 			                    <button 
-			                        @click="onForget" 
+			                    	@click="forgotPassword"
 			                        class="underline border-none underline text-xl mb-8"
 			                        :class="{ inprogress: disabled}">
 			                        Forgot your password?
@@ -125,22 +127,48 @@
         
         data() {
             return {
-                user: { email:null, password:null, }
+                user: { email:null, password:null, },
+                isVisible: false,
+                isDisabled: false,
+                disabled: false,
+                serverErrors: [] 
             }
         },
 
         methods: {
         	async onSubmit() {
+        		this.serverErrors = []; 
+				const isFormCorrect = await this.v$.$validate();
+				if (!isFormCorrect) return;
 
-        		const isFormCorrect = await this.v$.$validate()
-		      	if (!isFormCorrect) return
-
-                await axios.post(`/login`, this.user)
-                .then( res => {  location.reload() })
-                .catch( err => {
-                	console.log(err)
-                 })
+				try {
+				    const res = await axios.post(`/authenticate`, this.user);
+				    location.reload();
+				} catch (err) {
+	                if (err.response && err.response.data && err.response.data.errors) {
+	                    // Populate serverErrors with Laravel's error messages
+	                    for (const [key, value] of Object.entries(err.response.data.errors)) {
+	                        this.serverErrors.push(...value); // Spread operator to flatten array of messages
+	                    }
+	                } else {
+	                    // Handle unexpected errors
+	                    console.log(err);
+	                    this.serverErrors.push('An unexpected error occurred.'); // Generic error message
+	                }
+				}
             },
+
+            forgotPassword() {
+            	axios.post('/forgot-password', { email: this.user.email })
+                .then(response => {
+                    // Handle response, e.g., showing a success message
+                    alert("Reset link sent! Check your email.");
+                })
+                .catch(error => {
+                    // Handle error, e.g., showing an error message
+                    console.error(error);
+                });
+	        },
             closeWindow() {
                 document.body.classList.remove('noscroll')
                 this.$emit('close', false)
@@ -148,6 +176,10 @@
             hideAlerts() {
                 this.disabled = false;
                 this.alerts = false;
+            },
+            clear(val) {
+                val==='email' ? this.v$.user.email.$touch() : this.v$.user.password.$touch()
+                this.serverErrors = [];
             },
         },
 
