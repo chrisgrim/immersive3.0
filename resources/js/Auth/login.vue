@@ -21,14 +21,13 @@
 			                class="bg-white border border-gray-300 rounded-t-lg text-gray-700 font-montserrat text-base md:text-lg px-4 py-5 relative transition duration-200 w-full focus:rounded-t-lg"
 			                v-model="user.email" 
 			                :class="{ 'error': v$.user.email.$error }"
-			                @input="clear('email')"
+			                @input="clearServerError('email')"
 			                @keyup.enter="onSubmit"
 			                required
 			                placeholder="email" 
 			                autofocus>
-			            <div v-if="v$.user.email.$error" class="validation-error">
-			                <p class="error" v-if="!v$.user.email.required">The email is required</p>
-			            </div>
+			            <p v-if="v$.user.email.$dirty && v$.user.email.required.$invalid" class="text-red-500 text-lg italic">The email is required</p>
+						<p v-if="v$.user.email.$dirty && v$.user.email.email.$invalid" class="text-red-500 text-lg italic">Must be an email</p>
 			        </div>
 			        <div class="field">
 			            <input 
@@ -37,18 +36,14 @@
 			                :type="isVisible ? 'text' : 'password'" 
 			                v-model="user.password"
 			                :class="{'error': v$.user.password.$error || !v$.user.email.serverFailed }"
-			                @input="clear('password')"
+			                @input="clearServerError('password')"
 			                @keyup.enter="onSubmit"
 			                required
 			                placeholder="password">
-			            <div v-if="v$.user.password.$error" class="validation-error">
-			                <p class="error" v-if="!v$.user.password.required">The password is required</p>
-			            </div>
-			            <div v-if="v$.user.email.$error" class="validation-error">
-			                <p class="error" v-if="!v$.user.email.serverFailed">The login information doesn't match our records</p>
-			            </div>
-			            <div v-if="serverErrors.length > 0" class="validation-error">
-					        <p class="error" v-for="(error, index) in serverErrors" :key="index">{{ error }}</p>
+			            <p v-if="v$.user.password.$dirty && v$.user.password.required.$invalid" class="text-red-500 text-lg italic">The password is required.</p>
+						<p v-if="v$.user.password.$dirty && v$.user.password.minLength.$invalid" class="text-red-500 text-lg italic">The password must be at least 8 characters long.</p>
+			            <div v-if="errors.length > 0" class="text-red-500 text-lg italic">
+					        <p class="error" v-for="(error, index) in errors" :key="index">{{ error }}</p>
 					    </div>
 			            <div class="password">
 			                <svg class="w-8 h-8 absolute top-6 right-12"
@@ -111,94 +106,83 @@
 </template>
 
 <script>
+import { reactive, toRefs } from 'vue';
+import { useVuelidate } from '@vuelidate/core';
+import { required, email, minLength } from '@vuelidate/validators';
 
-	import { useVuelidate } from '@vuelidate/core'
-	import { required, email } from '@vuelidate/validators'
+export default {
+    setup (props, context) {
 
-    export default {
-
-    	setup () {
-	    	return { v$: useVuelidate() }
-	    },
-
-        props: {
-
-        },
-        
-        data() {
-            return {
-                user: { email:null, password:null, },
-                isVisible: false,
-                isDisabled: false,
-                disabled: false,
-                serverErrors: [] 
-            }
-        },
-
-        methods: {
-        	async onSubmit() {
-        		this.serverErrors = []; 
-				const isFormCorrect = await this.v$.$validate();
-				if (!isFormCorrect) return;
-
-				try {
-				    const res = await axios.post(`/authenticate`, this.user);
-				    location.reload();
-				} catch (err) {
-	                if (err.response && err.response.data && err.response.data.errors) {
-	                    // Populate serverErrors with Laravel's error messages
-	                    for (const [key, value] of Object.entries(err.response.data.errors)) {
-	                        this.serverErrors.push(...value); // Spread operator to flatten array of messages
-	                    }
-	                } else {
-	                    // Handle unexpected errors
-	                    console.log(err);
-	                    this.serverErrors.push('An unexpected error occurred.'); // Generic error message
-	                }
-				}
+        const form = reactive({
+            user: {
+                email: '',
+                password: '',
             },
+            isVisible:false,
+            isDisabled: false,
+            disabled: false, 
+            errors: {},
+        });
 
-            forgotPassword() {
-            	axios.post('/forgot-password', { email: this.user.email })
+        const rules = {
+            user: {
+                email: {
+                    required,
+                    email,
+                },
+                password: {
+                    required,
+                    minLength: minLength(8),
+                },
+            },
+        };
+
+        const v$ = useVuelidate(rules, form);
+
+
+        const onSubmit = async () => {
+
+            form.errors = {};
+            const isFormValid = await v$.value.$validate();
+            if (!isFormValid) return;
+            
+            try {
+                const res = await axios.post(`/authenticate`, form.user);
+                location.reload();
+            } catch (err) {
+                if (err.response && err.response.data && err.response.data.errors) {
+                    for (const [key, value] of Object.entries(err.response.data.errors)) {
+                        form.errors.value.push(...value);
+                    }
+                } else {
+                    form.errors.value.push('An unexpected error occurred.');
+                }
+            }
+        };
+
+        const forgotPassword = () => {
+            axios.post('/forgot-password', { email: user.value.email })
                 .then(response => {
-                    // Handle response, e.g., showing a success message
                     alert("Reset link sent! Check your email.");
                 })
                 .catch(error => {
-                    // Handle error, e.g., showing an error message
                     console.error(error);
                 });
-	        },
-            closeWindow() {
-                document.body.classList.remove('noscroll')
-                this.$emit('close', false)
-            },
-            hideAlerts() {
-                this.disabled = false;
-                this.alerts = false;
-            },
-            clear(val) {
-                val==='email' ? this.v$.user.email.$touch() : this.v$.user.password.$touch()
-                this.serverErrors = [];
-            },
-        },
+        };
 
-        validations () {
-			return {
-				user: {
-					email: { required, email },
-					password: { required }
-				}
-			}
-		},
 
-        mounted() {
-            document.body.classList.add('noscroll')
-        },
+        const closeWindow = () => {
+	        document.body.classList.remove('noscroll');
+	        context.emit('close', false);
+	    };
 
-        destroyed() {
-            document.body.classList.remove('noscroll')
-        },
+        const clearServerError = (fieldName) => {
+            if (form.errors[fieldName]) {
+                form.errors[fieldName] = null;
+            }
+        };
 
+        return { ...toRefs(form), v$, onSubmit, forgotPassword, closeWindow, clearServerError };
     }
+}
 </script>

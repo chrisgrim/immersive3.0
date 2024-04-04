@@ -27,7 +27,7 @@
             </div>
         </template>
         <div class="relative ml-8" >
-	    	<div class="w-12 h-12" v-click-outside="() => toggle = false" >
+	    	<div class="w-12 h-12" v-click-outside="() => { showLogin = false; toggle = false; }">
 	    		<div 
 		            :style="{ background: userColor }" 
 		            @click="onToggle" 
@@ -133,7 +133,7 @@
 </template>
 
 <script>
-	import Login from '../../GlobalComponents/Login/login.vue'
+	import Login from '../../Auth/login.vue'
 
     export default {
 

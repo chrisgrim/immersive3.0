@@ -42,6 +42,9 @@ Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
                 ->middleware('auth')
                 ->name('logout');
 
-Route::get('/password-reset/{token}', function (string $token) {
-    return view('Auth.reset-password', ['token' => $token]);
-})->middleware('guest')->name('password.reset');
+Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
+                ->name('password.reset');
+
+Route::get('/reset-password/{token}', function () { return view('auth.reset-password'); })
+                ->middleware('guest')
+                ->name('password.reset');

@@ -12,6 +12,8 @@ const ShowMore = defineAsyncComponent(() => import('./GlobalComponents/show-more
 const ShowPurchase = defineAsyncComponent(() => import('./PageComponents/EventShow/show-purchase.vue'));
 const ShowMap = defineAsyncComponent(() => import('./PageComponents/EventShow/show-map.vue'));
 
+const ResetPassword = defineAsyncComponent(() => import('./Auth/reset-password.vue'));
+
 import { ClickOutsideDirective } from './Directives/ClickOutsideDirective';
 
 const app = createApp({});
@@ -27,6 +29,8 @@ app.component('vue-show-more', ShowMore);
 
 app.component('vue-show-purchase', ShowPurchase);
 app.component('vue-show-map', ShowMap);
+
+app.component('vue-reset-password', ResetPassword);
 
 app.directive('click-outside', ClickOutsideDirective);
 
