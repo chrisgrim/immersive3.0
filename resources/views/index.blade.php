@@ -43,7 +43,7 @@
                 </a>
             </div>
         	<vue-nav-search></vue-nav-search>
-            <vue-nav-profile :user= "{{ auth()->user() ? auth()->user() : 'null' }}"></vue-nav-profile>
+            <vue-nav-profile :user="user"></vue-nav-profile>
         </div>
     </nav>
     
@@ -51,7 +51,14 @@
 
 @section('content')
 
-    
+@if(request('verified') == 1)
+    <input type="checkbox" id="hideVerification" class="hidden">
+    <div class="bg-blue-300 rounded text-white text-center p-8 z-[2000] relative animation-fadeOut">
+        <label for="hideVerification" class="absolute top-0 right-0 cursor-pointer p-2">x</label>
+        <div>You have been verified!</div>
+    </div>
+@endif
+
 
 @endsection
 

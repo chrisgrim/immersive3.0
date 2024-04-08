@@ -1,12 +1,12 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
+    content: [
     './resources/views/**/*.blade.php',
     './resources/js/**/*.js',
     './resources/js/**/*.vue', 
     // Add any other paths that might contain Tailwind CSS classes
-  ],
-  theme: {
+    ],
+    theme: {
         fontSize: {
             'xs': '.75rem',
             'sm': '.875rem',
@@ -46,9 +46,9 @@ export default {
                 '4xl': '2rem',
                 '5xl': '2.5rem',
                 '6xl': '3rem',
-            }
+            },
         }
     },
-  plugins: [],
+    plugins: [],
 }
 

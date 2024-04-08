@@ -33,7 +33,20 @@
 
           gtag('config', '{{Config::get('services.analytics.id')}}');
         </script>
-
+        <script>
+            window.Laravel = {
+                user: {!! Auth::check() ? json_encode([
+                    'id' => Auth::user()->id,
+                    'name' => Auth::user()->name,
+                    'email' => Auth::user()->email,
+                    'gravatar' => Auth::user()->gravatar,
+                    'hexColor' => Auth::user()->hexColor,
+                    'hasMessages' => Auth::user()->hasMessages,
+                    'thumbImagePath' => Auth::user()->thumbImagePath,
+                    
+                ]) : 'null' !!}
+            };
+        </script>
 
 
         @vite(['resources/js/app.js'])

@@ -58,7 +58,7 @@
                 </a>
             </div>
         	<vue-nav-search></vue-nav-search>
-            <vue-nav-profile :user= "{{ auth()->user() ? auth()->user() : 'null' }}"></vue-nav-profile>
+            <vue-nav-profile :user="user"></vue-nav-profile>
         </div>
     </nav>
     

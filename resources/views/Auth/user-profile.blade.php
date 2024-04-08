@@ -3,12 +3,12 @@
 @section('meta')
     
 
+
 @endsection 
 
 @section('nav')
-	<nav class="nav w-full m-auto h-32 z-[1001] fixed shadow-light bg-white">
+	<nav class="nav w-full m-auto h-32 z-[1001] relative shadow-light">
 		<div class="nav_bar m-auto relative h-full items-center grid gap-0 grid-cols-5 md:px-12 lg:px-32">
-			<!-- Home Button Section -->
             <div class="inline-block relative leading-none col-span-1 z-40">
                 <a 
                     aria-label="Home Button"
@@ -23,23 +23,20 @@
                 </a>
             </div>
         	<vue-nav-search></vue-nav-search>
-            <vue-nav-profile :user= "{{ auth()->user() ? auth()->user() : 'null' }}"></vue-nav-profile>
+            <vue-nav-profile :user="user"></vue-nav-profile>
         </div>
     </nav>
     
 @endsection
 
 @section('content')
-    
-    <vue-event-listings-location 
-        :user="user"
-        :searched-events="{{ json_encode($searchedEvents) }}" 
-        :in-Person-Categories="{{ $inPersonCategories }}"
-        :categories="{{ $categories }}"
-        :searched-Categories="{{ json_encode($searchedCategories) }}"
-        :tags="{{ $tags }}" 
-        :searched-Tags="{{ json_encode($searchedTags) }}">
 
+	@if(auth()->check() && auth()->user()->can('update', $user))
+        <vue-user-profile :owner="user" :loaduser="{{ $user }}" v-cloak />   
+    @else
+        <<vue-user-profile :owner="false" :loaduser="{{ $user }}" v-cloak />   
+    @endif
+	
 @endsection
 
 @section('footer')

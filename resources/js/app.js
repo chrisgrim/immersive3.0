@@ -13,10 +13,19 @@ const ShowPurchase = defineAsyncComponent(() => import('./PageComponents/EventSh
 const ShowMap = defineAsyncComponent(() => import('./PageComponents/EventShow/show-map.vue'));
 
 const ResetPassword = defineAsyncComponent(() => import('./Auth/reset-password.vue'));
+const UserProfile = defineAsyncComponent(() => import('./Auth/user-profile.vue'));
+const UserAccount = defineAsyncComponent(() => import('./Auth/user-account.vue'));
 
 import { ClickOutsideDirective } from './Directives/ClickOutsideDirective';
 
-const app = createApp({});
+const app = createApp({
+    data() {
+        return {
+            // Access the global user data
+            user: window.Laravel.user
+        };
+    }
+});
 
 // Setup axios
 window.axios = axios;
@@ -31,6 +40,8 @@ app.component('vue-show-purchase', ShowPurchase);
 app.component('vue-show-map', ShowMap);
 
 app.component('vue-reset-password', ResetPassword);
+app.component('vue-user-profile', UserProfile);
+app.component('vue-user-account', UserAccount);
 
 app.directive('click-outside', ClickOutsideDirective);
 

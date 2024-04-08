@@ -27,11 +27,11 @@
             </div>
         </template>
         <div class="relative ml-8" >
-	    	<div class="w-12 h-12" v-click-outside="() => { showLogin = false; toggle = false; }">
+	    	<div class="w-12 h-12" v-click-outside="() => { dropdown = false; }">
 	    		<div 
 		            :style="{ background: userColor }" 
 		            @click="onToggle" 
-		            :class="{ 'shadow-custom-2' : toggle }"
+		            :class="{ 'shadow-custom-2' : dropdown }"
 		            class="cursor-pointer overflow-hidden flex justify-center items-center w-12 h-12 rounded-full hover:shadow-custom-2">
 		            <!-- -->
 		            <!-- If user is logged in -->
@@ -71,7 +71,7 @@
 		        </div>
 
 		        <ul 
-		            v-if="toggle" 
+		            v-if="dropdown" 
 		            class="z-10 mt-8 min-w-[24rem] rounded-3xl overflow-hidden block shadow-custom-1 absolute right-0 top-full bg-white py-4">
 		            <template v-if="user">
 		                <a 
@@ -149,7 +149,7 @@
 
         data() {
             return {
-                toggle:false,
+                dropdown:false,
                 showLogin:false,
                 hex: this.user ? this.user.hexColor : `#717171`,
             };
@@ -161,11 +161,11 @@
                 location.reload()
             }, 
             onLogin(value) {
-                this.onToggle = false;
+                this.dropdown = false;
                 this.showLogin = true;
             },
             onToggle() {
-                this.toggle = !this.toggle
+                this.dropdown = !this.dropdown
             },
         },
     }
