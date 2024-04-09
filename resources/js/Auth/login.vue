@@ -93,9 +93,11 @@
 			        </div>
 			    </div>
 			    <div class="border-t border-gray-300 pt-8 mt-4">
-	            	<button class="border border-black w-full flex items-center justify-center p-6 rounded-2xl mb-8">
-	            		Continue with Google
-	            	</button>
+			    	<a href="/auth/google">
+			    		<button class="border border-black w-full flex items-center justify-center p-6 rounded-2xl mb-8">
+		            		Continue with Google
+		            	</button>
+			    	</a>
 	            	<button class="border border-black w-full flex items-center justify-center p-6 rounded-2xl">
 	            		Continue with Apple
 	            	</button>

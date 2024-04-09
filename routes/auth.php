@@ -8,6 +8,9 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\Auth\EnsureAuthenticatedController;
 use Illuminate\Support\Facades\Route;
+use Laravel\Socialite\Facades\Socialite;
+use App\Http\Controllers\Auth\SocialAuthController;
+
 
 
 Route::post('/authenticate', [EnsureAuthenticatedController::class, 'login'])
@@ -52,4 +55,8 @@ Route::get('/reset-password/{token}', function () { return view('auth.reset-pass
 Route::get('/verification/sent', function () { return view('Auth.email-verification'); })
                 ->name('verification.sent');    
 
+Route::get('/auth/google', [SocialAuthController::class, 'redirectToGoogle'])
+                ->name('auth.google');
+
+Route::get('/auth/google/callback', [SocialAuthController::class, 'handleGoogleCallback']);
 

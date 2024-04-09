@@ -12,8 +12,11 @@ use Illuminate\Auth\Events\Registered;
 use Illuminate\Validation\ValidationException;
 
 
+
 class EnsureAuthenticatedController extends Controller
 {
+    use Socialite;
+
 	public function login(LoginRequest $request)
     {
         try {
@@ -45,5 +48,7 @@ class EnsureAuthenticatedController extends Controller
 
         return response()->noContent();
     }
+
+
 
 }
