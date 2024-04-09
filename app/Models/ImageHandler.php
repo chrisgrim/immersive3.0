@@ -6,7 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Intervention\Image\ImageManagerStatic as Image;
+use Intervention\Image\Laravel\Facades\Image;
+use Intervention\Image\Encoders\WebpEncoder;
+use Intervention\Image\Encoders\JpegEncoder;
+
+
 
 class ImageHandler extends Model
 {
@@ -14,40 +18,57 @@ class ImageHandler extends Model
 
     public static function saveImage($request, $value, $width, $height, $type)
     {
-        // create either new-titles or random like 69sjj3s
-        $name = $value->name ? $value->name : substr(md5(microtime()),rand(0,26),7);
+        // Validation for the image upload
+        if (!$request->hasFile('image') || !$request->file('image')->isValid()) {
+            throw new \Exception('Image upload failed or no image provided.');
+        }
 
-        // generate rand variable like 546ds3g
-        $rand = substr(md5(microtime()),rand(0,26),7);
+        // Ensure the uploaded file is an image
+        $mimeType = $request->file('image')->getMimeType();
+        if (strpos($mimeType, 'image/') !== 0) {
+            throw new \Exception('The file is not an image.');
+        }
 
-        // create title like: new-titles
+        $name = $value->name ?: substr(md5(microtime()), rand(0, 26), 7);
+        $rand = substr(md5(microtime()), rand(0, 26), 7);
         $title = Str::slug($name);
+        $directory = "$type-images/$title-$rand"; // Ensures uniqueness
 
-        // get extension: (jpg)
-        $extension = $request->file('image')->getClientOriginalExtension();
+        $imagePath = $request->file('image')->getPathName();
+        $image = Image::read($imagePath);
 
-        // combine title and extension:  new-titles.jpg
-        $inputFile= $title . '.' . $extension;
+        // Combine title and extension to form 'new-titles.jpg'
+        $fileName = $title;
 
-        // create filename and set it = to title: new-titles
-        $fileName= $title;
+        // Encode to JPG and save
+        $jpg = clone $image;
+        $jpg->cover($width, $height);
+        $encodedJpg = $jpg->encode(new JpegEncoder(quality: 75));
+        Storage::disk('digitalocean')->put("/public/$directory/$fileName.jpg", (string) $encodedJpg);
 
-        // create directory: event-images/new-titles-54fwd3g
-        $directory= $type . '-images/' . $title . '-' . $rand;
+        // Encode to WEBP and save
+        $webp = clone $image;
+        $webp->cover($width, $height);
+        $encodedWebp = $webp->encode(new WebpEncoder(quality: 75));
+        Storage::disk('digitalocean')->put("/public/$directory/$fileName.webp", (string) $encodedWebp);
 
-        $jpg = Image::make($request->file('image'))->orientate()->fit( $width, $height )->encode('jpg');
-        $webp = Image::make($jpg)->encode('webp');
-        Storage::disk('digitalocean')->put( "/public/$directory/$fileName.jpg", $jpg);
-        Storage::disk('digitalocean')->put( "/public/$directory/$fileName.webp", $webp);
+        // Creating thumbnails and encoding to JPG
+        $thumbJpg = clone $image;
+        $thumbJpg->cover($width / 2, $height / 2);
+        $encodedThumbJpg = $thumbJpg->encode(new JpegEncoder(quality: 75));
+        Storage::disk('digitalocean')->put("/public/$directory/$fileName-thumb.jpg", (string) $encodedThumbJpg);
 
-        $jpg = Image::make($jpg)->fit( $width / 2, $height / 2 );
-        $webp = Image::make($jpg)->encode('webp');
-        Storage::disk('digitalocean')->put( "/public/$directory/$fileName-thumb.jpg", $jpg);
-        Storage::disk('digitalocean')->put( "/public/$directory/$fileName-thumb.webp", $webp);
+        // Encoding thumbnails to WEBP
+        $thumbWebp = clone $image;
+        $thumbWebp->cover($width / 2, $height / 2);
+        $encodedThumbWebp = $thumbWebp->encode(new WebpEncoder(quality: 75));
+        Storage::disk('digitalocean')->put("/public/$directory/$fileName-thumb.webp", (string) $encodedThumbWebp);
 
-        $value->update([ 
-            'largeImagePath' => $directory . '/' . $fileName. '.webp',
-            'thumbImagePath' => $directory . '/' . $fileName. '-thumb.webp',
+        // Updating the model with the path to the saved images
+        $value->update([
+            'largeImagePath' => $directory . '/' . $fileName . '.webp',
+            'thumbImagePath' => $directory . '/' . $fileName . '-thumb.webp',
         ]);
     }
+
 }

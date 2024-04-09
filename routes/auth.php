@@ -48,3 +48,8 @@ Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
 Route::get('/reset-password/{token}', function () { return view('auth.reset-password'); })
                 ->middleware('guest')
                 ->name('password.reset');
+
+Route::get('/verification/sent', function () { return view('Auth.email-verification'); })
+                ->name('verification.sent');    
+
+

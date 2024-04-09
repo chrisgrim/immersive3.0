@@ -47,6 +47,6 @@
                 ]) : 'null' !!}
             };
         </script>
-
+        <style type="text/css">html{font-size:62.5%;font-family:'Montserrat',sans-serif;height:100%}body{font-size:1.6rem;line-height:2rem;font-family:'Montserrat',sans-serif;margin:0;height:100%;color:#000}</style>
 
         @vite(['resources/js/app.js'])

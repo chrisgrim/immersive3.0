@@ -34,12 +34,12 @@ class ProfilesController extends Controller
 
     public function update(StoreProfileRequest $request, User $user)
     {
-        Log::info($request->file('image'));
-        Log::info($request->all());
-        if ($request->hasFile('image')) {
-            ImageHandler::saveImage($request, $user, 400, 400, 'user');
-        } else {
-            return response()->json(['error' => 'No image file uploaded'], 400);
+        try {
+            if ($request->hasFile('image')) {
+                ImageHandler::saveImage($request, $user, 400, 400, 'user');
+            }
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
         }
 
         $userData = $request->only('name', 'email', 'newsletter_type') +

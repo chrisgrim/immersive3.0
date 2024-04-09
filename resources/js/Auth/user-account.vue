@@ -3,16 +3,13 @@
 		<div class="md:px-12 lg:p-32 bg-white shadow rounded-lg w-full">
             <section>
                 <header>
-                    <h2 class="text-5xl font-medium text-gray-900">Account</h2>
+                    <h2 class="text-5xl font-semibold text-gray-600">Account</h2>
                 </header>
-                <div 
-                	@click="toggleNotifications =! toggleNotifications"
-                	class="border rounded-2xl p-8 mt-8 group hover:bg-black cursor-pointer">
-                	<h3 class="text-3xl group-hover:text-white">Notifications</h3>
-                	<p class="text-1xl mt-4 group-hover:text-white">Choose your newsletter and contact preferences.</p>
+                <div class="border-b mt-16 group">
+                	<h3 class="text-2xl uppercase">Notifications</h3>
                 </div>
-                <div v-if="toggleNotifications">
-                	<div class="p-8 flex flex-row justify-between w-[70rem] items-center">
+                <div>
+                	<div class="flex flex-row justify-between w-[70rem] items-center mt-10">
                 		<div>
                 			<h3 class="text-3xl">Subscribe to monthly newsletter</h3>
 	                		<p class="text-1xl">Get our monthly newsletters about the latest and greatest immersive events.</p>
@@ -24,7 +21,7 @@
 							</label>
                 		</div>
 	                </div>
-	                <div class="p-8 flex flex-row justify-between w-[70rem] items-center">
+	                <div class="flex flex-row justify-between w-[70rem] items-center mt-10">
 	                	<div>
 	                		<h3 class="text-3xl">Subscribe to event update newsletters</h3>
 		                	<p class="text-1xl">Get the latest updates about the organizations and events you have liked on EI.</p>
@@ -36,7 +33,7 @@
 							</label>
                 		</div>
 	                </div>
-	                <div class="p-8 flex flex-row justify-between w-[70rem] items-center">
+	                <div class="flex flex-row justify-between w-[70rem] items-center mt-10">
 	                	<div>
 	                		<h3 class="text-3xl">Email Messages</h3>
 	                		<p class="text-1xl">Get an email whenever a user or admin sends you a message.</p>

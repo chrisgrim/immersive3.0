@@ -76,7 +76,7 @@
                             <p v-if="!user.email_verified_at" class="mt-1 text-xl text-gray-600 bg-blue-300 p-4 text-white">Please check your email to verify your account.</p>
                             <div class="flex items-center gap-4">
                                 <button @click.prevent="onSubmit"
-                                    class="inline-flex items-center px-4 py-2 bg-gray-800 border border-transparent rounded-md font-semibold text-sm text-white uppercase tracking-widest hover:bg-gray-700 focus:bg-gray-700 active:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150"
+                                    class="inline-flex items-center px-4 py-2 bg-gray-800 disable:bg-gray-200 border border-transparent rounded-md font-semibold text-sm text-white uppercase tracking-widest hover:bg-gray-700 focus:bg-gray-700 active:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150"
                                     :disabled="disabled">
                                     Save
                                 </button>
@@ -117,7 +117,8 @@
                             </div>
                             <div class="flex items-center gap-4">
                                 <button type="submit"
-                                        class="inline-flex items-center px-4 py-2 bg-gray-800 border border-transparent rounded-md font-semibold text-sm text-white uppercase tracking-widest hover:bg-gray-700 focus:bg-gray-700 active:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
+                                        :disabled="disabled"
+                                        class="inline-flex items-center px-4 py-2 disabled:bg-gray-200 bg-gray-800 border border-transparent rounded-md font-semibold text-sm text-white uppercase tracking-widest hover:bg-gray-700 focus:bg-gray-700 active:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
                                     Save
                                 </button>
                             </div>
@@ -137,7 +138,7 @@
 </template>
 
 <script>
-import { ref, reactive, watch } from 'vue';
+import { ref, reactive, watch, computed } from 'vue';
 import dayjs from 'dayjs'; // Assuming dayjs is installed
 
 export default {
@@ -145,12 +146,14 @@ export default {
     setup(props) {
         const user = reactive({ ...props.loaduser });
         const imageUrl = import.meta.env.VITE_IMAGE_URL
-        const disabled = ref(false);
         const onSent = ref(false);
         const updated = ref(false);
         const currentPassword = ref(null);
         const newPassword = ref(null);
         const confirmPassword = ref(null);
+        const isUploading = ref(false);
+        const disabled = ref(false);
+
 
         
         // Methods
@@ -185,18 +188,23 @@ export default {
 
             user.image = URL.createObjectURL(file);
 
+            isUploading.value = true;
             const formData = new FormData();
             formData.append('image', file);
 
             try {
                 const response = await axios.post(`/users/${user.id}`, formData);
-                console.log('Image uploaded:', response.data);
+                user.thumbImagePath = `${response.data.thumbImagePath}?${new Date().getTime()}`;
             } catch (error) {
-                console.error('Error uploading image:', error);
+                if (error.response && error.response.data.error) {
+                    alert(error.response.data.error)
+                } else {
+                    alert(error)
+                }
+            } finally {
+                isUploading.value = false; // End the upload indicator
             }
         };
-
-        const cleanDate = (date) => dayjs(date).format('YYYY');
 
         watch([() => props.owner, () => props.loaduser], ([newOwner, newLoaduser], [oldOwner, oldLoaduser]) => {
             if (newOwner && newLoaduser && newOwner.id === newLoaduser.id) {
@@ -205,19 +213,20 @@ export default {
             }
         }, { immediate: true });
 
+
         return {
             user,
             imageUrl,
             updateImage,
             onSubmit,
             resend,
-            cleanDate,
             disabled,
             onSent,
             updated,
             currentPassword,
             newPassword, 
-            confirmPassword
+            confirmPassword,
+            isUploading,
         };
     }
 };
