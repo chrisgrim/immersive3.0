@@ -114,13 +114,8 @@
 		            <template v-else>
 		                <div 
 		                    class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
-		                    @click="onLogin">
-		                    Register
-		                </div>
-		                <div 
-		                    class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
-		                    @click="onLogin">
-		                    Login
+		                    @click.prevent="onLogin">
+		                    Login / Register
 		                </div>
 		            </template>
 		        </ul>

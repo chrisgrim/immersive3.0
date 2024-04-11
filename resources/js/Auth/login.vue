@@ -1,5 +1,5 @@
 <template>
-    <div class="flex w-full items-center bg-[#000000A3] fixed inset-0 justify-center">
+    <div class="flex w-full items-center bg-[#000000A3] fixed inset-0 justify-center" v-click-outside="closeWindow">
         <div class="bg-white shadow-light flex-col items-center max-h-[90vh] w-[55rem] rounded-[2rem] overflow-auto">
             <div class="border-b border-gray-300 flex h-24 justify-evenly p-8 relative w-full">
                 <button 
@@ -26,13 +26,11 @@
 			                required
 			                placeholder="email" 
 			                autofocus>
-			            <p v-if="v$.user.email.$dirty && v$.user.email.required.$invalid" class="text-red-500 text-lg italic">The email is required</p>
-						<p v-if="v$.user.email.$dirty && v$.user.email.email.$invalid" class="text-red-500 text-lg italic">Must be an email</p>
 			        </div>
 			        <div class="field">
 			            <input 
 			                id="password" 
-			                class="bg-white border border-gray-300 rounded-b-lg border-t-0 text-gray-700 font-montserrat text-base md:text-lg px-4 py-5 relative transition duration-200 w-full focus:border-t-0 focus:rounded-b-lg"
+			                class="bg-white border border-gray-300 rounded-b-lg border-t-0 text-gray-700 font-montserrat text-base md:text-lg px-4 py-5 relative transition duration-200 w-full focus:border-t-0 focus:rounded-b-lg mb-4"
 			                :type="isVisible ? 'text' : 'password'" 
 			                v-model="user.password"
 			                :class="{'error': v$.user.password.$error || !v$.user.email.serverFailed }"
@@ -40,23 +38,16 @@
 			                @keyup.enter="onSubmit"
 			                required
 			                placeholder="password">
-			            <p v-if="v$.user.password.$dirty && v$.user.password.required.$invalid" class="text-red-500 text-lg italic">The password is required.</p>
-						<p v-if="v$.user.password.$dirty && v$.user.password.minLength.$invalid" class="text-red-500 text-lg italic">The password must be at least 8 characters long.</p>
-			            <div v-if="errors.length > 0" class="text-red-500 text-lg italic">
-					        <p class="error" v-for="(error, index) in errors" :key="index">{{ error }}</p>
-					    </div>
-			            <div class="password">
-			                <svg class="w-8 h-8 absolute top-6 right-12"
-			                    @click="isVisible=!isVisible">
-			                    <use 
-			                        v-if="isVisible" 
-			                        :xlink:href="`/storage/website-files/icons.svg#ri-eye-off-line`" />
-			                    <use 
-			                        v-else 
-			                        :xlink:href="`/storage/website-files/icons.svg#ri-eye-line`" />
-			                </svg>
-			            </div>
 			        </div>
+			        <p v-if="v$.user.email.$dirty && v$.user.email.required.$invalid" class="text-red-500 text-lg">The email is required</p>
+					<p v-if="v$.user.email.$dirty && v$.user.email.email.$invalid" class="text-red-500 text-lg">Must be an email</p>
+		            <p v-if="v$.user.password.$dirty && v$.user.password.required.$invalid" class="text-red-500 text-lg">The password is required.</p>
+					<p v-if="v$.user.password.$dirty && v$.user.password.minLength.$invalid" class="text-red-500 text-lg">The password must be at least 8 characters long.</p>
+		            <div v-if="Object.keys(errors).length > 0">
+					    <div v-for="(errorMessages, fieldName) in errors" :key="fieldName">
+					        <p class="text-red-500 text-xl" v-for="(error, index) in errorMessages" :key="index">{{ error }}</p>
+					    </div>
+					</div>
 			        <div class="field mt-2">
 			            <transition name="fade" mode="out-in">
 			                <template v-if="true">
@@ -98,9 +89,6 @@
 		            		Continue with Google
 		            	</button>
 			    	</a>
-	            	<button class="border border-black w-full flex items-center justify-center p-6 rounded-2xl">
-	            		Continue with Apple
-	            	</button>
 	            </div>
             </div>
         </div>
@@ -123,7 +111,7 @@ export default {
             isVisible:false,
             isDisabled: false,
             disabled: false, 
-            errors: {},
+            errors: [],
         });
 
         const rules = {
@@ -152,26 +140,35 @@ export default {
                 const res = await axios.post(`/authenticate`, form.user);
                 location.reload();
             } catch (err) {
-                if (err.response && err.response.data && err.response.data.errors) {
-                    for (const [key, value] of Object.entries(err.response.data.errors)) {
-                        form.errors.value.push(...value);
-                    }
-                } else {
-                    form.errors.value.push('An unexpected error occurred.');
-                }
+            	
+                if (err.response.data && typeof err.response.data === 'object') {
+		            form.errors = err.response.data.errors;
+		        } else {
+		            form.errors = { general: ['An unexpected error occurred.'] };
+		        }
             }
         };
 
-        const forgotPassword = () => {
-            axios.post('/forgot-password', { email: user.value.email })
-                .then(response => {
-                    alert("Reset link sent! Check your email.");
-                })
-                .catch(error => {
-                    console.error(error);
-                });
-        };
+        const forgotPassword = async () => {
 
+            form.errors = {};
+
+            await v$.value.user.email.$validate();
+            if (v$.value.user.email.$invalid) return 
+
+
+            try {
+                const res = await axios.post('/forgot-password', { email: form.user.email });
+                alert("Reset link sent! Check your email.");
+
+            } catch (err) {
+                if (err.response.data && typeof err.response.data === 'object') {
+		            form.errors = err.response.data.errors;
+		        } else {
+					form.errors = { general: ['An unexpected error occurred.'] };
+		        }
+            }
+        };
 
         const closeWindow = () => {
 	        document.body.classList.remove('noscroll');

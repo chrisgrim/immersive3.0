@@ -88,7 +88,7 @@
                     <section>
                         <header>
                             <h2 class="text-3xl font-medium text-gray-900">Update Password</h2>
-                            <p class="mt-1 text-xl text-gray-600">Ensure your account is using a long, random password to stay secure.</p>
+                            <p class="mt-1 text-xl text-gray-600">Passwords must be at least 8 characters long.</p>
                         </header>
                         <form class="mt-6 space-y-6" @submit.prevent="submitForm">
                             <div>

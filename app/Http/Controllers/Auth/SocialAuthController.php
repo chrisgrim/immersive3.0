@@ -24,13 +24,14 @@ class SocialAuthController extends Controller
             $user = User::updateOrCreate([
                 'email' => $googleUser->email,
             ], [
-                'google_id' => $googleUser->id,
-                // Additional fields as necessary
+                'provider' => 'google',
+                'provider_id' => $googleUser->id,
             ]);
             
             Auth::login($user);
             
-            return redirect('/dashboard');
+            return redirect('/');
+            
         } catch (\Exception $e) {
             // Handle exception, possibly log it and redirect with an error message
             return redirect('/')->withErrors(['error' => 'Failed to login with Google.']);

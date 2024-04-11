@@ -3,6 +3,7 @@ export const ClickOutsideDirective = {
         el.clickOutsideEvent = function(event) {
             if (!(el === event.target || el.contains(event.target))) {
                 binding.value(event);
+                console.log('clicked outside');
             } else {
             }
         };
