@@ -16,6 +16,8 @@ const ResetPassword = defineAsyncComponent(() => import('./Auth/reset-password.v
 const UserProfile = defineAsyncComponent(() => import('./Auth/user-profile.vue'));
 const UserAccount = defineAsyncComponent(() => import('./Auth/user-account.vue'));
 
+const Inbox = defineAsyncComponent(() => import('./PageComponents/Messaging/inbox.vue'));
+
 import { ClickOutsideDirective } from './Directives/ClickOutsideDirective';
 
 const app = createApp({
@@ -42,6 +44,8 @@ app.component('vue-show-map', ShowMap);
 app.component('vue-reset-password', ResetPassword);
 app.component('vue-user-profile', UserProfile);
 app.component('vue-user-account', UserAccount);
+
+app.component('vue-inbox', Inbox);
 
 app.directive('click-outside', ClickOutsideDirective);
 

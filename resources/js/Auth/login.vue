@@ -1,5 +1,5 @@
 <template>
-    <div class="flex w-full items-center bg-[#000000A3] fixed inset-0 justify-center" v-click-outside="closeWindow">
+    <div class="flex w-full items-center bg-[#000000A3] fixed inset-0 justify-center">
         <div class="bg-white shadow-light flex-col items-center max-h-[90vh] w-[55rem] rounded-[2rem] overflow-auto">
             <div class="border-b border-gray-300 flex h-24 justify-evenly p-8 relative w-full">
                 <button 
@@ -171,7 +171,6 @@ export default {
         };
 
         const closeWindow = () => {
-	        document.body.classList.remove('noscroll');
 	        context.emit('close', false);
 	    };
 

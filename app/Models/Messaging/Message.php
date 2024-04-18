@@ -3,7 +3,7 @@
 namespace App\Models\Messaging;
 
 use App\Models\User;
-use App\Models\Message;
+use App\Models\Event;
 
 use Illuminate\Database\Eloquent\Model;
 

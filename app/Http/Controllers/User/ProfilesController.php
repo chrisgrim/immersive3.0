@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\User;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\ImageHandler;
@@ -38,22 +39,25 @@ class ProfilesController extends Controller
             if ($request->hasFile('image')) {
                 ImageHandler::saveImage($request, $user, 400, 400, 'user');
             }
+
+            $userData = $request->only('name', 'email') + [
+                'newsletter_type' => $request->input('newsletter_type', 'n'),
+                'silence' => $request->input('silence', 'y')
+            ];
+
+            if ($request->filled('email') && $request->email != $user->email) {
+                $userData['email_verified_at'] = null;
+                $user->update($userData);
+                $user->sendEmailVerificationNotification();
+            } else {
+                $user->update($userData);
+            }
+
+            return $user->fresh();
+
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }
-
-        $userData = $request->only('name', 'email', 'newsletter_type') +
-                    ['silence' => $request->has('messages') ? 'n' : 'y'];
-
-        if ($request->filled('email') && $request->email != $user->email) {
-            $userData['email_verified_at'] = null;
-            $user->update($userData);
-            $user->sendEmailVerificationNotification(); // Send only if email changed
-        } else {
-            $user->update($userData);
-        }
-
-        return $user->fresh();
     }
 
     public function destroy(User $user)

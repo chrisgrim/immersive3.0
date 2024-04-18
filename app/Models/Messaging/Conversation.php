@@ -3,6 +3,8 @@
 namespace App\Models\Messaging;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Event;
+use App\Models\User;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Conversation extends Model

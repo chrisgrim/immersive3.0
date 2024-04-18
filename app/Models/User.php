@@ -13,6 +13,7 @@ use Illuminate\View\View;
 use Laravel\Cashier\Billable;
 use Illuminate\Support\Str;
 use App\Models\Events\EventRequest;
+use App\Models\Messaging\Conversation;
 use App\Models\Curated\Community;
 use App\Models\Curated\Post;
 use App\Models\Featured\Dock;

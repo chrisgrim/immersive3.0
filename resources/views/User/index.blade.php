@@ -14,8 +14,8 @@
 
 @section('content')
 
-    <vue-user-account :loaduser= "{{ auth()->user() ? auth()->user() : 'null' }}" />   
-
+	<vue-inbox :events="{{$events}}"></vue-inbox>
+	
 @endsection
 
 @section('footer')

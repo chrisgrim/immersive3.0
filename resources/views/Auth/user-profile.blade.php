@@ -8,7 +8,7 @@
 
 @section('nav')
 
-	@include('Layouts.nav-container')
+   @include('Layouts.nav-container')
     
 @endsection
 
