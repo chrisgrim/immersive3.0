@@ -6,6 +6,7 @@ use App\Http\Controllers\IndexController;
 use App\Http\Controllers\OrganizerController;
 use App\Http\Controllers\User\ProfilesController;
 use App\Http\Controllers\User\ConversationsController;
+use App\Http\Controllers\Creation\HostController;
 
 Route::GET('/', [IndexController::class, 'index']);
 
@@ -14,6 +15,11 @@ Route::GET('/events/{event}', [EventController::class, 'show']);
 
 
 Route::GET('/organizers/{organizer}', [OrganizerController::class, 'show'])->name('Organizers.show');
+
+
+//Event Creation
+Route::GET('/hosting/events', [HostController::class, 'show']);
+Route::GET('/hosting/getting-started', [HostController::class, 'intro']);
 
 
 Route::GET('/users/{user}', [ProfilesController::class, 'show']);

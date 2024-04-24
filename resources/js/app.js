@@ -18,6 +18,9 @@ const UserAccount = defineAsyncComponent(() => import('./Auth/user-account.vue')
 
 const Inbox = defineAsyncComponent(() => import('./PageComponents/Messaging/inbox.vue'));
 
+const Hosting = defineAsyncComponent(() => import('./PageComponents/Creation/index.vue'));
+const GettingStarted = defineAsyncComponent(() => import('./PageComponents/Creation/initial.vue'));
+
 import { ClickOutsideDirective } from './Directives/ClickOutsideDirective';
 
 const app = createApp({
@@ -46,6 +49,9 @@ app.component('vue-user-profile', UserProfile);
 app.component('vue-user-account', UserAccount);
 
 app.component('vue-inbox', Inbox);
+
+app.component('vue-hosting', Hosting);
+app.component('vue-getting-started', GettingStarted);
 
 app.directive('click-outside', ClickOutsideDirective);
 

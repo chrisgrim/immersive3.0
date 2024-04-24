@@ -18,20 +18,20 @@ class ConversationsController extends Controller
 
     public function index()
     {
-        $events = auth()->user()->eventconversations()->limit(20)->get();
+        $events = auth()->user()->eventconversations()->limit(20)->with('event')->get();
         return view('User.index', compact('events'));
     }
 
     public function show(Conversation $conversation)
     {
-        // $this->authorize('update', $conversation);
+        $this->authorize('update', $conversation);
         auth()->user()->update(['unread' => null]);
         return $conversation->load('event', 'messages');
     }
 
     public function update(Request $request, Conversation $conversation)
     {   
-        // $this->authorize('update', $conversation);
+        $this->authorize('update', $conversation);
         
         $receiver = $conversation->users->firstWhere('id', '!=', auth()->id());
         $latestMessage = $conversation->latestMessages()->first();
@@ -47,7 +47,7 @@ class ConversationsController extends Controller
             ]);
         }
 
-        $this->notifyReceiver($receiver, $request->message, $request->event['name'] ?? null);
+        $this->notifyReceiver($receiver, $request->message, $conversation ?? null);
 
         $conversation->touch();
         return $conversation->load('event', 'messages');
@@ -55,9 +55,9 @@ class ConversationsController extends Controller
 
     public function events(Request $request)
     {
-        if (! $request->search) return auth()->user()->eventconversations()->limit(20)->get();
+        if (! $request->search) return auth()->user()->eventconversations()->limit(20)->with('event')->get();
 
-        return auth()->user()->eventconversations()->where('event_name', 'LIKE', "%$request->search%")->limit(10)->get();
+        return auth()->user()->eventconversations()->where('event_name', 'LIKE', "%$request->search%")->limit(20)->with('event')->get();
     }
 
     protected function canAppendMessage($message)
@@ -67,20 +67,21 @@ class ConversationsController extends Controller
                && $message->user_id === auth()->id();
     }
 
-    protected function notifyReceiver($receiver, $message, $eventName)
+    protected function notifyReceiver($receiver, $message, $conversation)
     {
-        if ($receiver && !$receiver->unread) {
-            $receiver->update(['unread' => true]);
-            
-            $attributes = [
-                'email' => $receiver->email,
-                'receiver' => $receiver->name,
-                'body' => $message,
-                'name' => auth()->user()->name,
-                'event' => $eventName
-            ];
+        $receiver ? $receiver->update(['unread' => 'e']) : '';
 
-            Mail::to($receiver->email)->send(new Message($attributes));
-        }
+        $attributes = [
+            'email' => $receiver->email,
+            'receiver' => $receiver->name,
+            'body' => $message,
+            'sender' => auth()->user()->name,
+            'event' => $conversation->event_name,
+            'app_url' => config('app.url'),
+            'id' => $conversation->id
+        ];
+
+        Mail::to($receiver->email)->send(new Message($attributes));
+        
     }
 }

@@ -14,17 +14,11 @@ class Message extends Mailable
     use Queueable, SerializesModels;
     public $attributes;
 
-    /**
-     * Create a new message instance.
-     */
-    public function __construct()
+    public function __construct(array $attributes)
     {
         $this->attributes = $attributes;
     }
 
-    /**
-     * Get the message envelope.
-     */
     public function envelope(): Envelope
     {
         return (new Envelope)

@@ -78,6 +78,24 @@ class User extends Authenticatable implements MustVerifyEmail
         ];
     }
 
+    public function forClientSide()
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'email' => $this->email,
+            'hexColor' => $this->hexColor,
+            'hasMessages' => $this->hasMessages,
+            'thumbImagePath' => $this->thumbImagePath,
+            'isCurator' => $this->isCurator,
+            'hasMessages' => $this->hasMessages,
+            'unread' => $this->unread,
+            'hasCreatedOrganizers' => $this->hasCreatedOrganizers,
+            'organizer' => $this->organizer,
+
+        ];
+    }
+
     /**
      * User can have many events
      *
@@ -86,6 +104,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function events() 
     {
         return $this->hasMany(Event::class);
+    }
+
+    public function organizer()
+    {
+        return $this->hasOne(Organizer::class)->where('id', $this->current_team_id);
     }
 
     /**

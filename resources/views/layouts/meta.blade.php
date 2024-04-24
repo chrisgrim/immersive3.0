@@ -35,16 +35,7 @@
         </script>
         <script>
             window.Laravel = {
-                user: {!! Auth::check() ? json_encode([
-                    'id' => Auth::user()->id,
-                    'name' => Auth::user()->name,
-                    'email' => Auth::user()->email,
-                    'gravatar' => Auth::user()->gravatar,
-                    'hexColor' => Auth::user()->hexColor,
-                    'hasMessages' => Auth::user()->hasMessages,
-                    'thumbImagePath' => Auth::user()->thumbImagePath,
-                    
-                ]) : 'null' !!}
+                user: {!! Auth::check() ? json_encode( Auth::user()->forClientSide() ) : 'null' !!}
             };
         </script>
         <style type="text/css">html{font-size:62.5%;font-family:'Montserrat',sans-serif;height:100%}body{font-size:1.6rem;line-height:2rem;font-family:'Montserrat',sans-serif;margin:0;height:100%;color:#000}</style>

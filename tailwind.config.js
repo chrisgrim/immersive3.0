@@ -11,6 +11,7 @@ export default {
             'xs': '.75rem',
             'sm': '.875rem',
             'tiny': '.875rem',
+            'md': '1rem',
             'base': '1rem',
             'lg': '1.125rem',
             'xl': '1.25rem',

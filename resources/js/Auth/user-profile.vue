@@ -139,7 +139,6 @@
 
 <script>
 import { ref, reactive, watch, computed } from 'vue';
-import dayjs from 'dayjs'; // Assuming dayjs is installed
 
 export default {
     props: ['loaduser', 'owner'],

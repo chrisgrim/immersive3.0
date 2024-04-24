@@ -1,8 +1,7 @@
 <nav 
-    style="width:100%; margin:auto; height:8rem; z-index: 1001; position: relative;" 
-    class="border-b">
+    style="width:100%; margin:auto; height:8rem; z-index: 1001; position: relative;">
 	<div 
-        style="margin: auto; position: relative; height: 100%; display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;align-items: center;"
+        style="margin: auto; position: relative; height: 100%; display: flex; gap: 0;align-items: center; justify-content: space-between;"
         class="nav_bar md:px-12 lg:px-32">
         <div class="inline-block relative leading-none col-span-1 z-40">
             <a 
@@ -17,7 +16,7 @@
                 </svg>
             </a>
         </div>
-    	<vue-nav-search></vue-nav-search>
-        <vue-nav-profile :user="user"></vue-nav-profile>
+        <div></div>
+        
     </div>
 </nav>

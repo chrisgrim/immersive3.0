@@ -5,15 +5,15 @@
             <div 
                 class="relative ml-8" 
                 v-if="!user.hasCreatedOrganizers">
-                <a href="/events/create">
+                <a href="/hosting/getting-started">
                     <span class="text-xl font-medium hover:text-black hover:font-semibold">Submit Your Experience (Free)</span>
                 </a>
             </div>
             <div 
                 class="relative ml-8" 
                 v-if="user.hasCreatedOrganizers">
-                <a href="/create/events/edit">
-                    <span class="text-xl font-medium hover:text-black hover:font-semibold">Your Events</span>
+                <a href="/hosting/events">
+                    <span class="text-xl font-medium hover:text-black hover:font-semibold">{{user.organizer.name}}</span>
                 </a>
             </div>
         </template>
@@ -77,9 +77,7 @@
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
                             href="/inbox">
                             Inbox
-                            <div 
-                                class="ml-2 rounded-full bg-default-red w-4 h-4 top-0 right-0"
-                                v-if="user.unread"></div>
+                            <div v-if="user.unread" class="ml-2 rounded-full bg-red-300 w-4 h-4 top-0 right-0"></div>
                         </a>
                         <a 
                             v-if="user.isCurator"
