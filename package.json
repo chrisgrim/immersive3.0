@@ -25,6 +25,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@remixicon/vue": "^4.2.0",
     "@tiptap/pm": "^2.3.0",
     "@tiptap/starter-kit": "^2.3.0",
     "@tiptap/vue-3": "^2.3.0",
@@ -32,6 +33,7 @@
     "@vuelidate/validators": "^2.0.4",
     "axios": "^1.6.8",
     "dayjs": "^1.11.10",
+    "remixicon": "^4.2.0",
     "vue": "^3.4.21",
     "vue-flatpickr-component": "^11.0.5",
     "vue3-dayjs-plugin": "^1.0.2",

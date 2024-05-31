@@ -92,6 +92,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'unread' => $this->unread,
             'hasCreatedOrganizers' => $this->hasCreatedOrganizers,
             'organizer' => $this->organizer,
+            'teams' => $this->teams,
 
         ];
     }
@@ -108,7 +109,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function organizer()
     {
-        return $this->hasOne(Organizer::class)->where('id', $this->current_team_id);
+        return $this->hasOne(Organizer::class, 'id', 'current_team_id');
     }
 
     /**
@@ -136,14 +137,12 @@ class User extends Authenticatable implements MustVerifyEmail
                         ->as('membership');
     }
 
-    /**
-     * Get all of the users's organizations including its owner.
-     *
-     * @return \Illuminate\Support\Collection
-     */
-    public function allOrganizers()
+    public function allTeams()
     {
-        return $this->organizers->merge($this->teams);
+        $ownedTeams = $this->organizers;
+        $memberTeams = $this->teams;
+
+        return $ownedTeams->concat($memberTeams)->sortByDesc('created_at')->values();
     }
 
     /**

@@ -15,11 +15,18 @@ Route::GET('/events/{event}', [EventController::class, 'show']);
 
 
 Route::GET('/organizers/{organizer}', [OrganizerController::class, 'show'])->name('Organizers.show');
+Route::GET('/teams', [OrganizerController::class, 'teams'])->name('Organizers.teams');
+Route::POST('/teams/switch/{organizer}', [OrganizerController::class, 'switchTeam'])->name('team.switch');
+
 
 
 //Event Creation
 Route::GET('/hosting/events', [HostController::class, 'show']);
 Route::GET('/hosting/getting-started', [HostController::class, 'intro']);
+
+Route::POST('/organizers', [OrganizerController::class, 'store'])->name('Organizers.store');
+
+
 
 
 Route::GET('/users/{user}', [ProfilesController::class, 'show']);

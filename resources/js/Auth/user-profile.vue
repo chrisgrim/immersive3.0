@@ -137,96 +137,74 @@
     </div>
 </template>
 
-<script>
+<script setup>
 import { ref, reactive, watch, computed } from 'vue';
 
-export default {
-    props: ['loaduser', 'owner'],
-    setup(props) {
-        const user = reactive({ ...props.loaduser });
-        const imageUrl = import.meta.env.VITE_IMAGE_URL
-        const onSent = ref(false);
-        const updated = ref(false);
-        const currentPassword = ref(null);
-        const newPassword = ref(null);
-        const confirmPassword = ref(null);
-        const isUploading = ref(false);
-        const disabled = ref(false);
+const props = defineProps(['loaduser', 'owner']);
+const user = reactive({ ...props.loaduser });
+const imageUrl = import.meta.env.VITE_IMAGE_URL;
+const onSent = ref(false);
+const updated = ref(false);
+const currentPassword = ref(null);
+const newPassword = ref(null);
+const confirmPassword = ref(null);
+const isUploading = ref(false);
+const disabled = ref(false);
 
-
-        
-        // Methods
-        const onSubmit = async () => {
-            disabled.value = true;
-            try {
-                const response = await axios.post(`/users/${user.id}`, user); // Assuming 'user' is the payload
-                Object.assign(user, response.data);
-                updated.value = true;
-                setTimeout(() => (updated.value = false), 3000);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                console.log();
-                disabled.value = false;
-            }
-        };
-
-        const resend = async () => {
-            try {
-                await axios.post('/email/verification-notification');
-                onSent.value = true;
-                setTimeout(() => (onSent.value = false), 10000);
-            } catch (err) {
-                console.error(err);
-            }
-        };
-
-        const updateImage = async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            user.image = URL.createObjectURL(file);
-
-            isUploading.value = true;
-            const formData = new FormData();
-            formData.append('image', file);
-
-            try {
-                const response = await axios.post(`/users/${user.id}`, formData);
-                user.thumbImagePath = `${response.data.thumbImagePath}?${new Date().getTime()}`;
-            } catch (error) {
-                if (error.response && error.response.data.error) {
-                    alert(error.response.data.error)
-                } else {
-                    alert(error)
-                }
-            } finally {
-                isUploading.value = false; // End the upload indicator
-            }
-        };
-
-        watch([() => props.owner, () => props.loaduser], ([newOwner, newLoaduser], [oldOwner, oldLoaduser]) => {
-            if (newOwner && newLoaduser && newOwner.id === newLoaduser.id) {
-                user.email = newOwner.email;
-                Object.assign(user, newLoaduser);
-            }
-        }, { immediate: true });
-
-
-        return {
-            user,
-            imageUrl,
-            updateImage,
-            onSubmit,
-            resend,
-            disabled,
-            onSent,
-            updated,
-            currentPassword,
-            newPassword, 
-            confirmPassword,
-            isUploading,
-        };
+// Methods
+const onSubmit = async () => {
+    disabled.value = true;
+    try {
+        const response = await axios.post(`/users/${user.id}`, user); // Assuming 'user' is the payload
+        Object.assign(user, response.data);
+        updated.value = true;
+        setTimeout(() => (updated.value = false), 3000);
+    } catch (err) {
+        console.error(err);
+    } finally {
+        disabled.value = false;
     }
 };
+
+const resend = async () => {
+    try {
+        await axios.post('/email/verification-notification');
+        onSent.value = true;
+        setTimeout(() => (onSent.value = false), 10000);
+    } catch (err) {
+        console.error(err);
+    }
+};
+
+const updateImage = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    user.image = URL.createObjectURL(file);
+
+    isUploading.value = true;
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+        const response = await axios.post(`/users/${user.id}`, formData);
+        user.thumbImagePath = `${response.data.thumbImagePath}?${new Date().getTime()}`;
+    } catch (error) {
+        if (error.response && error.response.data.error) {
+            alert(error.response.data.error);
+        } else {
+            alert(error);
+        }
+    } finally {
+        isUploading.value = false; // End the upload indicator
+    }
+};
+
+watch([() => props.owner, () => props.loaduser], ([newOwner, newLoaduser], [oldOwner, oldLoaduser]) => {
+    if (newOwner && newLoaduser && newOwner.id === newLoaduser.id) {
+        user.email = newOwner.email;
+        Object.assign(user, newLoaduser);
+    }
+}, { immediate: true });
+
 </script>

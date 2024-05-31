@@ -11,7 +11,7 @@
             </div>
             <div 
                 class="relative ml-8" 
-                v-if="user.hasCreatedOrganizers">
+                v-if="user.hasCreatedOrganizers && user.organizer">
                 <a href="/hosting/events">
                     <span class="text-xl font-medium hover:text-black hover:font-semibold">{{user.organizer.name}}</span>
                 </a>
@@ -96,6 +96,18 @@
                             Account
                         </a>
                         <a 
+                            v-if="user.teams && user.teams.length > 1"
+                            class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
+                            href="/teams">
+                            Switch Teams
+                        </a>
+                        <a 
+                            v-else-if="user.teams && user.teams.length === 1"
+                            class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
+                            href="/hosting/events">
+                            {{ user.teams[0].name }}
+                        </a>
+                        <a 
                             v-if="user.isCurator"
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
                             href="/admin/dashboard">
@@ -129,7 +141,7 @@ import Login from '../../Auth/login.vue';
 
 const props = defineProps(['user']);
 const emit = defineEmits(['close']);
-const imageUrl = import.meta.env.VITE_IMAGE_URL
+const imageUrl = import.meta.env.VITE_IMAGE_URL;
 
 const userColor = computed(() => {
     return props.user ? props.user.hexColor : '#717171';

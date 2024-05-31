@@ -8,33 +8,37 @@ use App\Models\Genre;
 use Carbon\Carbon;
 use Intervention\Image\ImageManagerStatic as Image;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 
 class Organizer extends Model
 {
     use Searchable;
 
-    /**
-    * What protected variables are allowed to be passed to the database
-    *
-    * @var array
-    */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($organizer) {
+            $organizer->slug = Str::slug($organizer->name);
+        });
+
+        static::updating(function ($organizer) {
+            if ($organizer->isDirty('name')) {
+                $organizer->slug = Str::slug($organizer->name);
+            }
+        });
+    }
+
     protected $fillable = [
     	'user_id','name','website','slug','description','rating','largeImagePath','thumbImagePath','instagramHandle','twitterHandle','facebookHandle', 'email', 'status', 'patreon'
     ];
 
-     /**
-     * The accessors to append to the model's array form.
-     *
-     * @var array
-     */
-    protected $appends = ['hexColor'];
+    public function getRouteKeyName()
+    {
+        return 'slug';
+    }
 
-    /**
-     * Get the indexable data array for the model.
-     *
-     * @return array
-     */
     public function toSearchableArray()
     {
         return [
@@ -44,81 +48,40 @@ class Organizer extends Model
         ];
     }
 
-    /**
-    * What events should be searchable for scout elastic search
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\belongsTo
-    */
     public function shouldBeSearchable()
     {
         return $this->status == 'p';
     }
 
-    /**
-    * Determines which events are published for Laravel Scout
-    *
-    * @return bool
-    */
     public function isPublished() {
         return $this->status == 'p';
     }
 
-    /**
-    * Each Organizer can have many events
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\HasMany
-    */
     public function events() 
     {
         return $this->hasMany(Event::class)->orderByDesc('updated_at');
     }
 
-
-    /**
-    * Each Organizer can have many un archived events
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\HasMany
-    */
-    public function listedEvents() 
-    {
-        return $this->hasMany(Event::class)->orderByDesc('updated_at')->where('archived', false);
-    }
-
-    /**
-    * Each Organizer can have many un archived events
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\HasMany
-    */
-    public function archivedEvents() 
-    {
-        return $this->hasMany(Event::class)->orderByDesc('updated_at')->where('archived', true);
-    }
-    
-    /**
-     * The Organizer belongs to one user
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\belongsTo
-     */
     public function user() 
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * The Organizer belongs to one user
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\belongsTo
-     */
+    public function listedEvents() 
+    {
+        return $this->hasMany(Event::class)->orderByDesc('updated_at')->where('archived', false);
+    }
+
+    public function archivedEvents() 
+    {
+        return $this->hasMany(Event::class)->orderByDesc('updated_at')->where('archived', true);
+    }
+    
     public function owner() 
     {
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    /**
-     * Get all of the users that belong to the team.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
-     */
     public function users()
     {
         return $this->belongsToMany(User::class)
@@ -127,11 +90,6 @@ class Organizer extends Model
                         ->as('membership');
     }
 
-    /**
-     * Get all of the team's users including its owner.
-     *
-     * @return \Illuminate\Support\Collection
-     */
     public function allUsers()
     {
         return $this->users->merge([$this->owner]);
@@ -151,67 +109,34 @@ class Organizer extends Model
         return $result;
     }
 
-    /**
-    * Assign the current user a color
-    *
-    * @return string
-    */
-    public function gethexColorAttribute()
-    {
-        $myarray = ['#2F405F','#DA5E8E','#20B7A6','#749EEB','#1EAA9A']; 
-        return $myarray[$this->id % count($myarray)];
-    }
+    // public function pastEvents()
+    // {
+    //     return $this->hasMany(Event::class)
+    //                 ->whereDate('closingDate', '<', Carbon::today())
+    //                 ->orderBy('created_at', 'ASC');
+    // }
 
+    // public function inProgressEvents()
+    // {
+    //     return $this->hasMany(Event::class)
+    //                 ->where(function ($query) {
+    //                     $query->whereDate('closingDate', '>=', Carbon::today())
+    //                         ->orWhereNull('closingDate');
+    //                 })
+    //                 ->orderBy('created_at', 'ASC');
+    // }
 
-    /**
-     * Get Past Events for organizer
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\hasMany
-     */
-    public function pastEvents()
-    {
-        return $this->hasMany(Event::class)
-                    ->whereDate('closingDate', '<', Carbon::today())
-                    ->orderBy('created_at', 'ASC');
-    }
+    // public static function getOrganizerEvents()
+    // {
+    //     $organizers = auth()->user()->allOrganizers();
 
-    /**
-     * Get In Progress Events for organizer
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\hasMany
-     */
-    public function inProgressEvents()
-    {
-        return $this->hasMany(Event::class)
-                    ->where(function ($query) {
-                        $query->whereDate('closingDate', '>=', Carbon::today())
-                            ->orWhereNull('closingDate');
-                    })
-                    ->orderBy('created_at', 'ASC');
-    }
+    //     foreach ($organizers as $organizer) {
+    //         $organizer->load('listedEvents.shows', 'archivedEvents.shows');
+    //     }
 
-    /**
-    * Save File and update organizer model with path name
-    *
-    * @param  \Illuminate\Http\Request  $request
-    * @param  $organizer
-    */
-    public static function getOrganizerEvents()
-    {
-        $organizers = auth()->user()->allOrganizers();
+    //     return $organizers;
+    // }
 
-        foreach ($organizers as $organizer) {
-            $organizer->load('listedEvents.shows', 'archivedEvents.shows');
-        }
-
-        return $organizers;
-    }
-
-    /**
-    * Deletes the event images and then deletes event
-    *
-    * @return Nothing
-    */
     public function deleteOrganizer($organizer) 
     {
         if ($organizer->users()->exists()) { $organizer->users()->detach(); }
@@ -219,13 +144,4 @@ class Organizer extends Model
         $organizer->delete();
     }
 
-    /**
-    * Sets the Route Key to slug instead of ID
-    *
-    * @return Route Key Name
-    */
-    public function getRouteKeyName()
-    {
-        return 'slug';
-    }
 }
