@@ -20,23 +20,12 @@
                                             'border-none': imagePreview,
                                         }"
                                     >
-                                        <div class="cursor-pointer overflow-hidden w-full h-full rounded-full hover:shadow-2xl relative flex items-center justify-center">
+                                        <div class="cursor-pointer overflow-hidden w-full h-full rounded-full group-hover:shadow-2xl relative flex items-center justify-center">
                                             <template v-if="imagePreview">
-                                                <img 
-                                                    class="absolute inset-0 w-full h-full object-cover"
-                                                    :src="imagePreview" 
-                                                    :alt="team.name + `'s account`">
+                                                <img class="absolute inset-0 w-full h-full object-cover" :src="imagePreview" :alt="team.name + `'s account`">
                                             </template>
-                                            <svg v-else width="72px" height="72px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <mask id="mask0_1358_2896" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="3" y="3" width="18" height="18">
-                                                    <path d="M3 11C3 7.22876 3 5.34315 4.17157 4.17157C5.34315 3 7.22876 3 11 3H13C16.7712 3 18.6569 3 19.8284 4.17157C21 5.34315 21 7.22876 21 11V13C21 16.7712 21 18.6569 19.8284 19.8284C18.6569 21 16.7712 21 13 21H11C7.22876 21 5.34315 21 4.17157 19.8284C3 18.6569 3 16.7712 3 13V11Z" fill="#273B4A"/>
-                                                </mask>
-                                                <g mask="url(#mask0_1358_2896)">
-                                                    <path d="M5.40989 12.5901L5.25713 12.7429C4.27646 13.7235 3.78613 14.2139 3.49264 14.8158C3.39066 15.025 3.30712 15.2427 3.24299 15.4664C3.05843 16.1102 3.09488 16.8027 3.16777 18.1877L3.5 24.5H21V19.7573C21 18.3059 21 17.5802 20.7614 16.9207C20.6962 16.7404 20.6181 16.565 20.5277 16.3959C20.1971 15.7774 19.6577 15.2919 18.5789 14.321L18.3643 14.1279C17.4682 13.3214 17.0202 12.9182 16.5078 12.8039C16.1864 12.7322 15.8523 12.741 15.5352 12.8295C15.0295 12.9705 14.6033 13.3967 13.7508 14.2492C13.1184 14.8816 12.8023 15.1977 12.4625 15.2406C12.2519 15.2672 12.0383 15.226 11.8526 15.1231C11.5531 14.9572 11.3742 14.5399 11.0166 13.7053C10.2559 11.9304 9.87554 11.0429 9.22167 10.7151C8.89249 10.5501 8.52413 10.4792 8.1572 10.5101C7.42836 10.5716 6.75554 11.2445 5.40989 12.5901L5.40989 12.5901Z" fill="#2A4157" fill-opacity="0.24" stroke="#222222"/>
-                                                </g>
-                                                <path d="M3 11C3 7.22876 3 5.34315 4.17157 4.17157C5.34315 3 7.22876 3 11 3H13C16.7712 3 18.6569 3 19.8284 4.17157C21 5.34315 21 7.22876 21 11V13C21 16.7712 21 18.6569 19.8284 19.8284C18.6569 21 16.7712 21 13 21H11C7.22876 21 5.34315 21 4.17157 19.8284C3 18.6569 3 16.7712 3 13V11Z" stroke="#222222" stroke-width="1.2"/>
-                                                <circle cx="16.5" cy="7.5" r="1.5" fill="#222222"/>
-                                            </svg>
+                                                <component :is="RiImageAddLine" class="group-hover:text-gray-500" style="width: 50px; height: 50px;"/>
+
                                         </div>
                                     </label>
                                 </div>
@@ -68,30 +57,33 @@
                             </div>
                         </div>
                     </div>
+                    <div v-if="errors && errors.image" class="w-full mt-4">
+                        <p class="text-white bg-red-500 text-lg mt-1 px-4 py-2">{{ errors.image[0] }}</p>
+                    </div>
                 </div>
                 <!-- Team Information Form -->
                 <div v-if="team.name || team.description" class="mt-12 w-full overflow-auto">
                     <div class="w-full">
-    <textarea 
-        id="description" 
-        rows="6" 
-        placeholder="Now please add a description about your organization for our users." 
-        ref="descriptionInput"
-        @input="clearError('description')"
-        v-model="team.description" 
-        @blur="handleBlurDescription" 
-        @focus="handleFocusDescription"
-        :class="{
-            'p-4 border focus:border-indigo-500 focus:ring-indigo-500 rounded-2xl focus:shadow-lg mt-1 block w-full': true,
-            'border-0': !isEditingDescription && team.description
-        }"
-        required>
-    </textarea>
-</div>
-<p v-if="v$.team.description.$dirty && v$.team.description.$invalid" class="text-white bg-red-500 text-lg mt-1 px-4 py-2">The team description is required</p>
-<div v-if="errors && errors.description" class="w-full">
-    <p class="text-white bg-red-500 text-lg mt-1 px-4 py-2">{{ errors.description[0] }}</p>
-</div>
+                        <textarea 
+                            id="description" 
+                            rows="6" 
+                            placeholder="Now please add a description about your organization for our users." 
+                            ref="descriptionInput"
+                            @input="clearError('description')"
+                            v-model="team.description" 
+                            @blur="handleBlurDescription" 
+                            @focus="handleFocusDescription"
+                            :class="{
+                                'p-4 border focus:border-indigo-500 focus:ring-indigo-500 rounded-2xl focus:shadow-lg mt-1 block w-full': true,
+                                'border-0': !isEditingDescription && team.description
+                            }"
+                            required>
+                        </textarea>
+                    </div>
+                    <p v-if="v$.team.description.$dirty && v$.team.description.$invalid" class="text-white bg-red-500 text-lg mt-1 px-4 py-2">The team description is required</p>
+                    <div v-if="errors && errors.description" class="w-full">
+                        <p class="text-white bg-red-500 text-lg mt-1 px-4 py-2">{{ errors.description[0] }}</p>
+                    </div>
                 </div>
                 <div v-if="team.description" class="w-full mt-12">
                     <div class="grid grid-cols-3 gap-4">
@@ -142,13 +134,20 @@
                             </p>
                             <p v-if="media.name === 'website' && v$.team.website.$dirty && v$.team.website.url.$invalid" 
                                class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
-                                Please be sure to have https and .com
+                                Please be sure to have https:// and .com
                             </p>
                         </div>
                     </div>
                 </div>
                 <div v-if="team.name && team.description" class="w-full flex justify-end">
-                    <button class="text-right p-4 rounded-2xl bg-black text-white mt-8" @click="onSubmit">Create Team</button>
+                    <button 
+                        class="text-right p-4 rounded-2xl bg-black text-white mt-8"
+                        :class="{ 'opacity-50 cursor-not-allowed': isSubmitting }"
+                        :disabled="isSubmitting"
+                        @click="onSubmit"
+                    >
+                        Create Team
+                    </button>
                 </div>
             </div>
         </div>
@@ -167,10 +166,12 @@ import {
     RiInstagramLine,
     RiTwitterLine,
     RiFacebookLine,
-    RiPatreonLine
+    RiPatreonLine,
+    RiImageAddLine
 } from "@remixicon/vue";
 
-const props = reactive({
+// Define props
+const props = defineProps({
     team: {
         type: Object,
         default: () => ({
@@ -184,9 +185,17 @@ const props = reactive({
             patreon: '',
             thumbImagePath: ''
         })
+    },
+    user: {
+        type: Object,
+        required: true
     }
 });
 
+// Create a reactive team object for use with Vuelidate
+const team = reactive(props.team);
+
+// Validation rules
 const rules = {
     team: {
         name: {
@@ -206,12 +215,12 @@ const rules = {
     },
 };
 
-const v$ = useVuelidate(rules, { team: props.team });
+// Initialize Vuelidate
+const v$ = useVuelidate(rules, { team });
 
-const team = reactive(props.team);
+// Other reactive state
 const currentMedia = ref(null);
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
-const isUploading = ref(false);
 const isEditingName = ref(!team.name);
 const nameInput = ref(null);
 const isEditingDescription = ref(!team.description);
@@ -219,9 +228,10 @@ const descriptionInput = ref(null);
 const imageFile = ref(null);
 const imagePreview = ref(null);
 const errors = ref({});
-
+const isSubmitting = ref(false);
 const inputRefs = reactive({});
 
+// Methods
 const updateImage = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -231,10 +241,13 @@ const updateImage = (event) => {
 };
 
 const onSubmit = async () => {
-    isUploading.value = true;
+    isSubmitting.value = true;
     errors.value = {};
     const isFormValid = await v$.value.$validate();
-    if (!isFormValid) return;
+    if (!isFormValid) {
+        isSubmitting.value = false;
+        return;
+    }
 
     const formData = new FormData();
     for (const key in team) {
@@ -251,9 +264,9 @@ const onSubmit = async () => {
                 'Content-Type': 'multipart/form-data'
             }
         });
-        Object.assign(team, response.data);
-
-        window.location.href = '/hosting/events';
+        if (response.data.redirect) {
+            window.location.href = response.data.redirect;
+        }
     } catch (error) {
         if (error.response && error.response.data && error.response.data.errors) {
             console.log(error);
@@ -262,7 +275,7 @@ const onSubmit = async () => {
             alert('Failed to update team information');
         }
     } finally {
-        isUploading.value = false;
+        isSubmitting.value = false;
     }
 };
 
@@ -331,7 +344,6 @@ const socialMediaList = shallowRef([
 ]);
 
 </script>
-
 
 <style>
     #intro {

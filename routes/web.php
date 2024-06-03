@@ -7,6 +7,7 @@ use App\Http\Controllers\OrganizerController;
 use App\Http\Controllers\User\ProfilesController;
 use App\Http\Controllers\User\ConversationsController;
 use App\Http\Controllers\Creation\HostController;
+use App\Http\Controllers\Creation\HostEventController;
 
 Route::GET('/', [IndexController::class, 'index']);
 
@@ -23,6 +24,8 @@ Route::POST('/teams/switch/{organizer}', [OrganizerController::class, 'switchTea
 //Event Creation
 Route::GET('/hosting/events', [HostController::class, 'show']);
 Route::GET('/hosting/getting-started', [HostController::class, 'intro']);
+Route::GET('/hosting/event/{event}/edit', [HostEventController::class, 'edit'])->name('event.edit');
+
 
 Route::POST('/organizers', [OrganizerController::class, 'store'])->name('Organizers.store');
 

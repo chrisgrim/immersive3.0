@@ -375,21 +375,16 @@ class Event extends Model
             ->max();
     }
 
-    /**
-    * Creates a new event
-    *
-    * @return Nothing
-    */
-    public static function newEvent($request)
+    public static function newEvent($organizerId)
     {
-        $event = Event::create([
+        $event = self::create([
             'user_id' => auth()->id(),
-            'slug' => rand(),
-            'organizer_id' => $request->id,
+            'slug' => Str::slug('new-event-' . Str::random(6)),
+            'organizer_id' => $organizerId,
             'status' => '0',
         ]);
-        $event->location()->Create();
-        $event->advisories()->Create();
+        $event->location()->create([]);
+        $event->advisories()->create([]);
         return $event;
     }
 

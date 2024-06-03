@@ -35,73 +35,79 @@
     </div>
 </template>
 
-<script>
-export default {
+<script setup>
+import { ref, onMounted, onUnmounted } from 'vue';
+import axios from 'axios';
 
-    props: ['value'],
+// Define props
+const props = defineProps({
+    value: {
+        type: Object,
+        required: true,
+    }
+});
 
+// Data
+const searchInput = ref(null);
+const searchOptions = ref([]);
+const places = ref(initializePlaces());
+const city = ref(new URL(window.location.href).searchParams.get("city"));
+const dropdown = ref(false);
 
-    data() {
-        return {
-            searchInput: null,
-            searchOptions: [ ],
-            places:this.initializePlaces(),
-            city: new URL(window.location.href).searchParams.get("city"),
-            dropdown:false
-        }
-    },
-
-    methods: {
-        updateLocations() {
-            this.dropdown = this.searchInput.length ? true : false
-            this.autoComplete.getPlacePredictions({input:this.searchInput, types: ['(cities)'] }, data => {
-                this.places=data;
-            });
-        },
-        selectLocation(location) {
-            this.service.getDetails({placeId:location.place_id}, data => {
-                this.setPlace(data)
-            });
-        },
-        setPlace(place) {
-            this.saveSearchData(place);
-            window.location.href = `/index/search?city=${place.name}&searchType=inPerson&live=false&lat=${place.geometry.location.lat()}&lng=${place.geometry.location.lng()}`;
-        },
-        saveSearchData(place) {
-            axios.post('/search/storedata', {type: 'location', name: place.name});
-        },
-        initializePlaces() {
-            return [
-                {place_id: 'ChIJOwg_06VPwokRYv534QaPC8g', description: 'New York, NY, USA'},
-                {place_id: 'ChIJE9on3F3HwoAR9AhGJW_fL-I', description: 'Los Angeles, CA, USA'},
-                {place_id: 'ChIJIQBpAG2ahYAR_6128GcTUEo', description: 'San Francisco, CA, USA'}
-            ]
-        },
-        initGoogleMaps() {
-            // Initialize your Google Maps services here
-            this.autoComplete = new google.maps.places.AutocompleteService();
-            this.service = new google.maps.places.PlacesService(document.getElementById("places"));
-        },
-    },
-
-
-    mounted() {
-        let script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw&libraries=places&callback=initMap`;
-        script.async = true;
-        script.defer = true;
-        document.head.appendChild(script);
-        
-        window.initMap = this.initGoogleMaps; // Ensure this is bound correctly
-
-    },
-
-    unmounted() {
-        // Clean up if necessary
-        if (window.initMap) {
-            delete window.initMap; // Remove the global callback function when the component is destroyed
-        }
-    },
-
+// Methods
+const updateLocations = () => {
+    dropdown.value = searchInput.value.length ? true : false;
+    autoComplete.getPlacePredictions({ input: searchInput.value, types: ['(cities)'] }, data => {
+        places.value = data;
+    });
 };
+
+const selectLocation = (location) => {
+    service.getDetails({ placeId: location.place_id }, data => {
+        setPlace(data);
+    });
+};
+
+const setPlace = (place) => {
+    saveSearchData(place);
+    window.location.href = `/index/search?city=${place.name}&searchType=inPerson&live=false&lat=${place.geometry.location.lat()}&lng=${place.geometry.location.lng()}`;
+};
+
+const saveSearchData = (place) => {
+    axios.post('/search/storedata', { type: 'location', name: place.name });
+};
+
+function initializePlaces() {
+    return [
+        { place_id: 'ChIJOwg_06VPwokRYv534QaPC8g', description: 'New York, NY, USA' },
+        { place_id: 'ChIJE9on3F3HwoAR9AhGJW_fL-I', description: 'Los Angeles, CA, USA' },
+        { place_id: 'ChIJIQBpAG2ahYAR_6128GcTUEo', description: 'San Francisco, CA, USA' }
+    ];
+}
+
+const initGoogleMaps = () => {
+    // Initialize your Google Maps services here
+    autoComplete = new google.maps.places.AutocompleteService();
+    service = new google.maps.places.PlacesService(document.getElementById("places"));
+};
+
+let autoComplete;
+let service;
+
+onMounted(() => {
+    let script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw&libraries=places&callback=initMap`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+
+    window.initMap = initGoogleMaps; // Ensure this is bound correctly
+});
+
+onUnmounted(() => {
+    // Clean up if necessary
+    if (window.initMap) {
+        delete window.initMap; // Remove the global callback function when the component is destroyed
+    }
+});
 </script>

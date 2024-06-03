@@ -7,9 +7,6 @@ use App\Rules\OrganizerUniqueSlugRule;
 
 class StoreOrganizerRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
@@ -26,7 +23,7 @@ class StoreOrganizerRequest extends FormRequest
             'twitterHandle' => 'nullable|string|max:255',
             'facebookHandle' => 'nullable|string|max:255',
             'patreon' => 'nullable|string|max:255',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:4096',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:8192',
         ];
     }
 
@@ -48,7 +45,7 @@ class StoreOrganizerRequest extends FormRequest
             'patreon.max' => 'The Patreon handle may not be greater than 255 characters.',
             'image.image' => 'The file must be an image.',
             'image.mimes' => 'The image must be a file of type: jpeg, png, jpg, webp.',
-            'image.max' => 'The image may not be greater than 2048 kilobytes.',
+            'image.max' => 'The image may not be greater than 8MB in file size.',
         ];
     }
 }

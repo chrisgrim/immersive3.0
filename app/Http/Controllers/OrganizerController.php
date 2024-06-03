@@ -3,9 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Organizer;
-use App\Models\Event;
 use App\Http\Requests\StoreOrganizerRequest;
 use App\Models\ImageHandler;
+use App\Models\Event;
+use Illuminate\Support\Facades\Log;
 
 class OrganizerController extends Controller
 {
@@ -35,7 +36,6 @@ class OrganizerController extends Controller
     public function store(StoreOrganizerRequest $request)
     {
         try {
-
             // Create the organizer
             $organizer = auth()->user()->organizers()->create($request->validated());
 
@@ -50,12 +50,18 @@ class OrganizerController extends Controller
             // Update status for the organizer
             $organizer->update(['status' => 'r']);
 
-            return response()->json([
-                'message' => 'Organizer created successfully.',
-                'organizer' => $organizer
-            ], 201);
+            // Check if the user has created organizers before
+            $hasPreviousOrganizers = auth()->user()->organizers()->count() > 1;
 
+            if ($hasPreviousOrganizers) {
+                return response()->json(['redirect' => url('/hosting/events')], 200);
+            } else {
+                // Create a new event and return JSON with the redirect URL for event edit page
+                $event = Event::newEvent($organizer->id);
+                return response()->json(['redirect' => route('event.edit', ['event' => $event->slug])], 200);
+            }
         } catch (\Exception $e) {
+            Log::error('Failed to create organizer: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Failed to create organizer.',
                 'error' => $e->getMessage()

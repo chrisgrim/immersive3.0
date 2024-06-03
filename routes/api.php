@@ -3,14 +3,26 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Search\SearchController;
+use App\Http\Controllers\Creation\HostEventController;
+use App\Models\Category;
 
 Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
     return $request->user();
 });
 
 
+Route::PUT('/hosting/event/{event}', [HostEventController::class, 'update'])->name('event.update');
+
+
+//LISTS
+Route::get('/categories', function () {
+    $categories = Category::orderBy('name')->when(request()->has('remote'), function ($query) { $query->where('remote', request()->query('remote')); })->get();
+    return response()->json($categories);
+});
 
 //Nav Search 
 
 Route::GET('search/nav/events', [SearchController::class, 'navEvents']);
 Route::GET('search/nav/genres', [SearchController::class, 'navGenres']);
+
+
