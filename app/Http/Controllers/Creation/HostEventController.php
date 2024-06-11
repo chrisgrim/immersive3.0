@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Creation;
 use App\Http\Controllers\Controller;
 use App\Models\Organizer;
 use App\Models\Event;
+use App\Models\Events\RemoteLocation;
 use App\Http\Requests\StoreEventRequest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 
 class HostEventController extends Controller
@@ -26,12 +28,39 @@ class HostEventController extends Controller
     {
         $validatedData = $request->validated();
 
-        $event->update($validatedData);
+        if (isset($validatedData['location'])) {
+            $event->location->update($validatedData['location']);
+        } else {
+            $event->update($validatedData);
+        }
+
+        if (isset($validatedData['remotelocations'])) {
+            $this->storeRemoteLocations($validatedData['remotelocations'], $event);
+        }
 
         return response()->json([
             'message' => 'Event updated successfully.',
             'event' => $event
         ], 200);
+    }
+
+    protected function storeRemoteLocations($remoteLocations, $event)
+    {
+        foreach ($remoteLocations as $loc) {
+            RemoteLocation::firstOrCreate(
+                ['slug' => Str::slug($loc['name'])],
+                [
+                    'name' => $loc['name'],
+                    'user_id' => auth()->user()->id,
+                ]
+            );
+        }
+
+        $newSync = RemoteLocation::whereIn('slug', collect($remoteLocations)->map(function ($item) {
+            return Str::slug($item['name']);
+        })->toArray())->get();
+
+        $event->remotelocations()->sync($newSync);
     }
 
 

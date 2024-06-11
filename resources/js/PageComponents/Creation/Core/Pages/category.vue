@@ -49,7 +49,7 @@
             </div>
         </div>
         <div class="w-full flex justify-end">
-            <button class="mt-8 p-4 bg-black text-white rounded-2xl" @click="handleSubmit">Next</button>
+            <button class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl" @click="handleSubmit">Next</button>
         </div>
     </div>
 </template>
@@ -108,8 +108,8 @@ const selectCategory = (item) => {
 };
 
 const handleSubmit = async () => {
-    await onSubmit('category_id', event.category.id);
-    setStep('NextStep'); // Adjust 'NextStep' to the actual next step name
+    await onSubmit({ category_id: event.category.id });
+    setStep('NextStep');
 };
 
 

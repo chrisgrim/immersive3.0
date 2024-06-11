@@ -1,7 +1,8 @@
 @extends('Layouts.master-container')
 
 @section('meta')
-    
+
+    @vite(['resources/css/leaflet.css'])
 
 @endsection 
 

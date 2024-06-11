@@ -23,14 +23,29 @@ class StoreEventRequest extends FormRequest
             'websiteUrl' => 'nullable|url|max:255',
             'ticketUrl' => 'nullable|url|max:255',
             'show_times' => 'nullable|string',
-            'tag_line' => 'nullable|string|max:255',
+            'tag_line' => 'sometimes|required|string|max:255',
             'hasLocation' => 'sometimes|required|boolean',
             'showtype' => 'nullable|string|max:255',
             'embargo_date' => 'nullable|date',
             'remote_description' => 'nullable|string|max:3000',
             'call_to_action' => 'nullable|string|max:255',
             'video' => 'nullable|string|max:255',
-            'archived' => 'nullable|boolean'
+            'archived' => 'nullable|boolean',
+            // Add nested validation rules for location
+            'location.latitude' => 'sometimes|numeric',
+            'location.longitude' => 'sometimes|numeric',
+            'location.home' => 'sometimes|string|max:255',
+            'location.street' => 'sometimes|string|max:255',
+            'location.city' => 'sometimes|string|max:255',
+            'location.region' => 'sometimes|string|max:255',
+            'location.country' => 'sometimes|string|max:255',
+            'location.postal_code' => 'sometimes|string|max:20',
+            'location.hiddenLocation' => 'nullable|string|max:255',
+            'location.hiddenLocationToggle' => 'boolean',
+            'location.venue' => 'nullable|string|max:255',
+            // Add validation for remotelocations
+            'remotelocations' => 'nullable|array',
+            'remotelocations.*.name' => 'required|string|max:255',
         ];
     }
 }

@@ -1,7 +1,7 @@
 <template>
     <div>
         <div class="fixed overflow-auto h-full relative">
-            <div class="fixed top-0 right-0 bottom-0 w-[calc(100vw-25.2rem)]">
+            <div class="fixed top-0 right-0 bottom-0 w-screen flex items-center justify-center">
                 <div 
                     v-if="locationSearch"
                     class="absolute w-full top-12 z-[10000]">
@@ -36,14 +36,14 @@
                 </div>
                 <div 
                     v-else
-                    class="absolute top-0 right-0 z-[10000] min-w-[35rem] max-w-3xl h-full overflow-auto">
-                    <div class="bg-white rounded-3xl shadow-custom-6 p-8 m-8">
+                    class="absolute top-0 right-0 bottom-0 z-[10000] min-w-[40rem] max-w-4xl h-full overflow-auto flex items-center justify-center">
+                    <div class="w-full bg-white rounded-3xl shadow-custom-6 p-8 m-8">
                         <h4 class="mb-8 text-2xl font-semibold">Everything look right?</h4>
                         <div 
                             class="font-light" 
                             @click="locationSearch=true">
                             <div class="px-8 py-6 border-black border border-b-0 rounded-t-3xl">
-                                <p>{{event.location.home}} {{event.location.street}}</p>
+                                <p>{{event.location.home}}</p>
                             </div>
                             <div class="px-8 py-6 border-black border-b-0 border">
                                 <p>{{event.location.city}}</p>
@@ -66,10 +66,12 @@
                         </div>
                         <div class="flex justify-between items-center">
                             <p class="text-xl">Hide specific location from users </p>
-                            <input 
-                                class="w-12 h-12 border border-black rounded-lg" 
-                                v-model="event.location.hiddenLocation"
-                                type="checkbox">
+                            <div @click="toggleHiddenLocation" class="w-12 h-12 cursor-pointer flex justify-center items-center">
+                                <component :is="event.location.hiddenLocationToggle ? RiCheckboxLine : RiCheckboxBlankLine" />
+                            </div>
+                        </div>
+                        <div class="w-full flex justify-end">
+                            <button class="mt-8 p-4 bg-black text-white rounded-2xl" @click="handleSubmit">Next</button>
                         </div>
                     </div>
                 </div>
@@ -85,7 +87,7 @@
                         <l-icon
                             :iconSize="[25, 40]"
                             :iconAnchor="[0,40]">
-                            <img src="/storage/images/vendor/leaflet/dist/marker-icon-2x.png" alt="">
+                            <img class="h-16 w-16" src="/storage/images/vendor/leaflet/dist/marker-icon-2x.png" alt="">
                         </l-icon>
                     </l-marker>
                 </l-map> 
@@ -94,11 +96,13 @@
     </div>
 </template>
 
+
 <script setup>
 import { ref, onMounted, onUnmounted, inject } from 'vue';
 import "leaflet/dist/leaflet.css";
 import { LMap, LTileLayer, LMarker, LIcon } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet"; // Import Leaflet
+import { RiCheckboxBlankLine, RiCheckboxLine } from "@remixicon/vue";
 
 const initializeMapObject = () => {
     return {
@@ -111,7 +115,7 @@ const initializeMapObject = () => {
 
 const initGoogleMaps = () => {
     autoComplete = new google.maps.places.AutocompleteService();
-    service = new google.maps.places.PlacesService(document.getElementById("places"));
+    service = new google.maps.places.PlacesService(document.createElement('div')); // Creating a dummy div
 };
 
 const event = inject('event');
@@ -128,12 +132,16 @@ const icon = L.icon({
 });
 const userInput = ref('');
 const places = ref([]);
-const newLoc = ref('');
 const dropdown = ref(false);
 const locationSearch = ref(!event.location.latitude);
 
 let autoComplete;
 let service;
+
+const handleSubmit = async () => {
+    await onSubmit({ location: event.location });
+    setStep('NextStep')
+};
 
 const updateLocations = () => {
     autoComplete.getPlacePredictions({ input: userInput.value }, data => {
@@ -142,6 +150,10 @@ const updateLocations = () => {
 };
 
 const selectLocation = async (location) => {
+    if (!service) {
+        console.error('Google Places Service is not initialized');
+        return;
+    }
     service.getDetails({ placeId: location.place_id }, data => {
         setPlace(data);
     });
@@ -162,6 +174,12 @@ const setPlace = (place) => {
         postal_code: place.address_components.find(component => component.types.includes('postal_code')).long_name,
         country: place.address_components.find(component => component.types.includes('country')).long_name,
     };
+    map.value.center = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() }; // Update map center
+};
+
+const toggleHiddenLocation = () => {
+    event.location.hiddenLocationToggle = !event.location.hiddenLocationToggle;
+    console.log("hiddenLocationToggle:", event.location.hiddenLocationToggle);
 };
 
 onMounted(() => {
@@ -181,3 +199,4 @@ onUnmounted(() => {
     }
 });
 </script>
+

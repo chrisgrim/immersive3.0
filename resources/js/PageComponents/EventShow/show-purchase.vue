@@ -163,83 +163,85 @@
     </div>
 </template>
 
-<script>
-    import ShowMore  from '../../GlobalComponents/show-more.vue'
-    import flatPickr from 'vue-flatpickr-component'
-    import dayjs from 'dayjs';
+<script setup>
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
+import axios from 'axios';
+import ShowMore from '@/GlobalComponents/show-more.vue';
+import flatPickr from 'vue-flatpickr-component';
+import dayjs from 'dayjs';
 
+const props = defineProps({
+    event: Object,
+    tickets: Array,
+    mobile: Boolean
+});
 
-    export default {
-        props: [ 'event', 'tickets', 'mobile' ],
-        components: { ShowMore, flatPickr },
-        computed: {
-            eventUrl() {
-                if (this.event.ticketUrl) {return this.event.ticketUrl}
-                if (this.event.websiteUrl) {return this.event.websiteUrl}
-                return this.event.organizer.website;
-            },
-            showDateRange() {
-                if (this.event.shows.length > 1) {
-                    return `${this.cleanDate(this.event.shows[this.event.shows.length-1].date)} - ${this.cleanDate(this.event.shows[0].date)}`
-                }
-                return this.cleanDate(this.event.shows[0].date)
-            }
-        },
-        data() {
-            return {
-                hover: null,
-                visible: false,
-                config: this.initializeCalendarObject(),
-                dates: [],
-                week: this.event ? this.event.show_on_going : '',
-                remaining: [],
-                ticketsVisible: false,
-                datesVisible: false,
-            }
-        },
-        methods: {
-            showDates() {
-                this.ticketsVisible = false;
-                this.datesVisible =! this.datesVisible;
-            },
-            storeClick() {
-                axios.post('/track/event/click', {event: this.event.id});
-            },
-            initializeCalendarObject() { 
-                return {
-                    mode: "multiple",
-                    inline: true,
-                    showMonths: 2,
-                    dateFormat: 'Y-m-d H:i:s',
-                    disable: [],
-                }
-            },
-            hide() {
-                this.datesVisible = false;
-            },
-            getDates() {
-                if(this.event.shows) {
-                    this.event.shows.forEach(event=> {
-                        if (dayjs().subtract(1, 'day').format('YYYY-MM-DD 23:59:00') < event.date) {
-                            this.remaining.push(event.date);
-                        } else {
-                            this.config.disable.push(event.date);
-                        }
-                        this.dates.push(event.date);
-                    });
-                }
-            },
-            cleanDate(data) {
-                return dayjs(data).format("MMM D, YYYY");
-            },
-        },
-        mounted() {
-            this.getDates();
-        },
-        watch: {
-            datesVisible() {
-                this.datesVisible ? this.$nextTick(() => { this.$refs.datePicker.fp.jumpToDate(new Date()) }) : '';
-            }
-        }
+const initializeCalendarObject = () => ({
+    mode: "multiple",
+    inline: true,
+    showMonths: 2,
+    dateFormat: 'Y-m-d H:i:s',
+    disable: [],
+});
+
+const eventUrl = computed(() => {
+    if (props.event.ticketUrl) return props.event.ticketUrl;
+    if (props.event.websiteUrl) return props.event.websiteUrl;
+    return props.event.organizer.website;
+});
+
+const showDateRange = computed(() => {
+    if (props.event.shows.length > 1) {
+        return `${cleanDate(props.event.shows[props.event.shows.length - 1].date)} - ${cleanDate(props.event.shows[0].date)}`;
     }
+    return cleanDate(props.event.shows[0].date);
+});
+
+const hover = ref(null);
+const visible = ref(false);
+const config = ref(initializeCalendarObject());
+const dates = ref([]);
+const week = ref(props.event ? props.event.show_on_going : '');
+const remaining = ref([]);
+const ticketsVisible = ref(false);
+const datesVisible = ref(false);
+const datePickerRef = ref(null); // Define the ref for the date picker
+
+const showDates = () => {
+    ticketsVisible.value = false;
+    datesVisible.value = !datesVisible.value;
+};
+
+const storeClick = () => {
+    axios.post('/track/event/click', { event: props.event.id });
+};
+
+const hide = () => {
+    datesVisible.value = false;
+};
+
+const getDates = () => {
+    if (props.event.shows) {
+        props.event.shows.forEach(event => {
+            if (dayjs().subtract(1, 'day').format('YYYY-MM-DD 23:59:00') < event.date) {
+                remaining.value.push(event.date);
+            } else {
+                config.value.disable.push(event.date);
+            }
+            dates.value.push(event.date);
+        });
+    }
+};
+
+const cleanDate = (data) => dayjs(data).format("MMM D, YYYY");
+
+watch(datesVisible, (newVal) => {
+    if (newVal) {
+        nextTick(() => {
+            datePickerRef.value.fp.jumpToDate(new Date()); // Use the defined ref
+        });
+    }
+});
+
+onMounted(getDates);
 </script>

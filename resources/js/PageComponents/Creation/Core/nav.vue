@@ -6,14 +6,26 @@
                     <!-- Nav menu -->
                     <div class="relative">
                         <ul>
-                            <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('EventType')"  @click="handleStepChange('EventType')">
+                            <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('EventType')" @click="handleStepChange('EventType')">
                                 Event Type
                             </li>
                             <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Category')" @click="handleStepChange('Category')">
                                 Category
                             </li>
-                            <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Location')" @click="handleStepChange('Location')">
+                            <li v-if="event.hasLocation" class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Location')" @click="handleStepChange('Location')">
                                 Location
+                            </li>
+                            <li v-else class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Remote')" @click="handleStepChange('Remote')">
+                                Remote
+                            </li>
+                            <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Description')" @click="handleStepChange('Description')">
+                                Description
+                            </li>
+                            <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Name')" @click="handleStepChange('Name')">
+                                Name
+                            </li>
+                            <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Dates')" @click="handleStepChange('Dates')">
+                                Dates
                             </li>
                         </ul>
                     </div>
@@ -24,7 +36,7 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue';
+import { defineProps, defineEmits, inject } from 'vue';
 
 const props = defineProps({
     currentStep: {
@@ -34,9 +46,9 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['set-step', 'submit']);
+const event = inject('event');
 
 const handleStepChange = (step) => {
-    // emit('submit');
     emit('set-step', step);
 };
 
@@ -45,5 +57,4 @@ const getStepClass = (step) => {
         ? 'p-4 rounded-full mr-4 mb-4 border-2 border-black' 
         : 'p-4 rounded-full mr-4 mb-4';
 };
-
 </script>

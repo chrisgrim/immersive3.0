@@ -51,7 +51,7 @@
                                     <span class="w-full">{{ team.name }}</span>
                                 </h2>
                             </div>
-                            <p v-if="v$.team.name.$dirty && v$.team.name.required.$invalid" class="text-white bg-red-500 text-lg mt-1 px-4 py-2">The team name is required</p>
+                            <p v-if="$v.team.name.$dirty && $v.team.name.required.$invalid" class="text-white bg-red-500 text-lg mt-1 px-4 py-2">The team name is required</p>
                             <div v-if="errors && errors.name" class="w-full">
                                 <p class="text-white bg-red-500 text-lg mt-1 px-4 py-2">{{ errors.name[0] }}</p>
                             </div>
@@ -80,7 +80,7 @@
                             required>
                         </textarea>
                     </div>
-                    <p v-if="v$.team.description.$dirty && v$.team.description.$invalid" class="text-white bg-red-500 text-lg mt-1 px-4 py-2">The team description is required</p>
+                    <p v-if="$v.team.description.$dirty && $v.team.description.$invalid" class="text-white bg-red-500 text-lg mt-1 px-4 py-2">The team description is required</p>
                     <div v-if="errors && errors.description" class="w-full">
                         <p class="text-white bg-red-500 text-lg mt-1 px-4 py-2">{{ errors.description[0] }}</p>
                     </div>
@@ -128,11 +128,11 @@
                                 </h4>
                             </div>
                             <!-- Validation message for email -->
-                            <p v-if="media.name === 'email' && v$.team.email.$dirty && v$.team.email.email.$invalid" 
+                            <p v-if="media.name === 'email' && $v.team.email.$dirty && $v.team.email.email.$invalid" 
                                class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
                                 The email must be a valid email
                             </p>
-                            <p v-if="media.name === 'website' && v$.team.website.$dirty && v$.team.website.url.$invalid" 
+                            <p v-if="media.name === 'website' && $v.team.website.$dirty && $v.team.website.url.$invalid" 
                                class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
                                 Please be sure to have https:// and .com
                             </p>
@@ -216,7 +216,7 @@ const rules = {
 };
 
 // Initialize Vuelidate
-const v$ = useVuelidate(rules, { team });
+const $v = useVuelidate(rules, { team });
 
 // Other reactive state
 const currentMedia = ref(null);
@@ -243,7 +243,7 @@ const updateImage = (event) => {
 const onSubmit = async () => {
     isSubmitting.value = true;
     errors.value = {};
-    const isFormValid = await v$.value.$validate();
+    const isFormValid = await $v.value.$validate();
     if (!isFormValid) {
         isSubmitting.value = false;
         return;

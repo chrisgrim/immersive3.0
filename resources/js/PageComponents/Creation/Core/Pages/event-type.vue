@@ -52,7 +52,7 @@
                 </div>
             </div>
             <div class="w-full flex justify-end">
-                <button class="mt-8 p-4 bg-black text-white rounded-2xl" @click="handleSubmit">Next</button>
+                <button class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl" @click="handleSubmit">Next</button>
             </div>
         </div>
     </main>
@@ -74,6 +74,6 @@ const onSelect = (hasLocation) => {
 };
 
 const handleSubmit = async () => {
-    await onSubmit('hasLocation', event.hasLocation);
+    await onSubmit({ hasLocation: event.hasLocation });
 };
 </script>

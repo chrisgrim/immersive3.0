@@ -35,6 +35,7 @@
     "dayjs": "^1.11.10",
     "remixicon": "^4.2.0",
     "vue": "^3.4.21",
+    "vue-cal": "^4.8.1",
     "vue-flatpickr-component": "^11.0.5",
     "vue3-dayjs-plugin": "^1.0.2",
     "vuelidate": "^0.7.7"
