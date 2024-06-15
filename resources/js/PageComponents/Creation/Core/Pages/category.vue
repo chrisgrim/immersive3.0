@@ -6,36 +6,35 @@
             </div>
         </div>
         <div class="w-full m-auto">
-            <div class="w-full relative" ref="categoryDrop">
-                <div class="w-full relative">
-                    <svg 
-                        :class="{'rotate-90': dropdown}"
-                        class="w-10 h-10 fill-black absolute z-10 right-4 top-8">
-                        <use :xlink:href="`/storage/website-files/icons.svg#ri-arrow-right-s-line`" />
-                    </svg>
-                    <input 
-                        class="text-2xl relative p-8 w-full border mb-12 rounded-3xl focus:rounded-3xl"
-                        v-model="category"
-                        placeholder="Select Category"
-                        @input="filterCategories"
-                        @focus="onDropdown"
-                        autocomplete="off"
-                        type="text">
-                    <div v-if="event.category && !dropdown">
-                        <img 
-                            class="h-[30rem] w-full object-cover rounded-3xl" 
-                            :src="`${imageUrl}${event.category.largeImagePath}`" 
-                            alt="">
-                        <p class="text-xl mt-8">
-                            {{ event.category.description }}
-                        </p>
-                    </div>
+            <div class="w-full relative" ref="categoryDrop" v-click-outside="handleClickOutside">
+                <svg 
+                    :class="{'rotate-90': dropdown}"
+                    class="w-10 h-10 fill-black absolute z-10 right-4 top-8 cursor-pointer" 
+                    @click="onDropdown">
+                    <use :xlink:href="`/storage/website-files/icons.svg#ri-arrow-right-s-line`" />
+                </svg>
+                <input 
+                    class="text-2xl relative p-8 w-full border mb-12 rounded-3xl focus:rounded-3xl"
+                    v-model="category"
+                    placeholder="Select Category"
+                    @input="filterCategories"
+                    @focus="onDropdown"
+                    autocomplete="off"
+                    type="text">
+                <div v-if="event.category">
+                    <img 
+                        class="h-[30rem] w-full object-cover rounded-3xl" 
+                        :src="`${imageUrl}${event.category.largeImagePath}`" 
+                        alt="">
+                    <p class="text-xl mt-8">
+                        {{ event.category.description }}
+                    </p>
                 </div>
                 <ul 
-                    class="h-[40rem] overflow-auto bg-white relative w-full list-none rounded-b-3xl" 
+                    class="overflow-auto bg-white w-full list-none rounded-b-3xl absolute top-24 m-0 z-10 border-[#e5e7eb] border max-h-[45rem]" 
                     v-if="dropdown">
                     <li 
-                        class="py-6 px-6 flex items-center gap-8 hover:bg-gray-300" 
+                        class="py-6 px-6 flex items-center gap-8 hover:bg-gray-300 cursor-pointer" 
                         v-for="item in filteredCategories"
                         :key="item.id"
                         @click="selectCategory(item)">
@@ -56,7 +55,7 @@
 
 <script setup>
 import { ref, onMounted, inject } from 'vue';
-import axios from 'axios';
+import { ClickOutsideDirective } from '@/Directives/ClickOutsideDirective.js';
 
 const event = inject('event');
 const errors = inject('errors');
@@ -69,6 +68,7 @@ const category = ref('');
 const dropdown = ref(false);
 const categoryList = ref([]);
 const filteredCategories = ref([]);
+const categoryDrop = ref(null);
 
 const fetchCategories = async () => {
     try {
@@ -97,7 +97,7 @@ const filterCategories = () => {
 };
 
 const onDropdown = () => {
-    dropdown.value = !dropdown.value;
+    dropdown.value = true;
 };
 
 const selectCategory = (item) => {
@@ -112,7 +112,19 @@ const handleSubmit = async () => {
     setStep('NextStep');
 };
 
+const handleClickOutside = (event) => {
+    const dropdownElement = categoryDrop.value;
+    if (dropdownElement && !dropdownElement.contains(event.target) && !dropdownElement.contains(document.activeElement)) {
+        dropdown.value = false;
+    }
+};
 
 // Fetch categories when component mounts
 onMounted(fetchCategories);
 </script>
+
+<style scoped>
+.rotate-90 {
+    transform: rotate(90deg);
+}
+</style>

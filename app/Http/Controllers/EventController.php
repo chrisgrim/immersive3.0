@@ -35,7 +35,7 @@ class EventController extends Controller
     public function show(Event $event)
     {
         if($event->status !== 'p') { return redirect('/');}
-        $event->load('category', 'location', 'contentAdvisories', 'contactLevels', 'mobilityAdvisories', 'eventreviews', 'staffpick', 'advisories', 'showOnGoing','interactive_level', 'remotelocations', 'timezone','genres', 'priceranges', 'organizer', 'shows', 'age_limits');
+        $event->load('category', 'location', 'contentAdvisories', 'contactLevels', 'mobilityAdvisories', 'eventreviews', 'staffpick', 'advisories','interactive_level', 'remotelocations','genres', 'priceranges', 'organizer', 'shows', 'age_limits');
         $tickets = $event->shows()->first()->tickets()->orderBy('ticket_price')->get();
         return view('events.show', compact('event', 'tickets'));
     }

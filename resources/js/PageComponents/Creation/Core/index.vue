@@ -28,6 +28,7 @@ import Remote from './Pages/remote.vue'; // Import Remote component
 import Description from './Pages/description.vue';
 import Name from './Pages/name.vue';
 import Dates from './Pages/dates.vue';
+import Pricing from './Pages/pricing.vue';
 
 const props = defineProps({
     event: {
@@ -46,8 +47,8 @@ const currentStep = ref('EventType');
 const isSubmitting = ref(false);
 const errors = ref({});
 
-const stepsWithLocation = ['EventType', 'Category', 'Location', 'Description', 'Name', 'Dates'];
-const stepsWithoutLocation = ['EventType', 'Category', 'Remote', 'Description', 'Name', 'Dates'];
+const stepsWithLocation = ['EventType', 'Category', 'Location', 'Description', 'Name', 'Dates', 'Pricing'];
+const stepsWithoutLocation = ['EventType', 'Category', 'Remote', 'Description', 'Name', 'Dates', 'Pricing'];
 
 const components = {
     EventType,
@@ -56,7 +57,8 @@ const components = {
     Remote, // Add Remote component
     Description,
     Name,
-    Dates
+    Dates,
+    Pricing
 };
 
 const steps = computed(() => event.hasLocation ? stepsWithLocation : stepsWithoutLocation);
@@ -80,6 +82,7 @@ const onSubmit = async (updateData) => {
 
     try {
         const response = await axios.put(`/api/hosting/event/${event.slug}`, updateData);
+        Object.assign(event, response.data.event);
         console.log(response.data);
         // Handle successful submission and move to the next step
         const nextStep = getNextStep();

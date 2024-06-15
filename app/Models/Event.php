@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Models\{Conversation, Genre, Organizer, User, Category};
-use App\Models\Events\{ Show, PriceRange, Advisory, Location, AgeLimit, InteractiveLevel, RemoteLocation, ContactLevel, ContentAdvisory, MobilityAdvisory, Timezone, ShowOnGoing};
+use App\Models\Events\{ Show, PriceRange, Advisory, Location, AgeLimit, InteractiveLevel, RemoteLocation, ContactLevel, ContentAdvisory, MobilityAdvisory};
 use App\Models\Admin\{ ReviewEvent, StaffPick };
 use App\Scopes\PublishedScope;
 use App\Traits\{Favoritable};
@@ -24,7 +24,7 @@ class Event extends Model
     ];
 
     protected $fillable = [
-        'slug', 'user_id', 'timezone_id', 'category_id','interactive_level_id','organizer_id','description','name','largeImagePath','thumbImagePath','advisories_id', 'organizer_id', 'location_latlon', 'closingDate','websiteUrl','ticketUrl','show_times','price_range', 'status','tag_line', 'hasLocation', 'showtype', 'embargo_date', 'remote_description', 'published_at', 'call_to_action', 'age_limits_id', 'rank', 'video', 'archived'
+        'slug', 'user_id', 'timezone', 'category_id','interactive_level_id','organizer_id','description','name','largeImagePath','thumbImagePath','advisories_id', 'organizer_id', 'location_latlon', 'closingDate','websiteUrl','ticketUrl','show_times','price_range', 'status','tag_line', 'hasLocation', 'showtype', 'embargo_date', 'remote_description', 'published_at', 'call_to_action', 'age_limits_id', 'rank', 'video', 'archived'
     ];
 
     protected $appends = ['isFavorited', 'isShowing'];
@@ -158,16 +158,6 @@ class Event extends Model
     }
 
     /**
-    * Each event belongs to one timezone
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\belongsTo
-    */
-    public function timezone() 
-    {
-        return $this->belongsTo(Timezone::class);
-    }
-
-    /**
     * Each event hasOne StaffPick
     *
     * @return \Illuminate\Database\Eloquent\Relations\belongsTo
@@ -256,16 +246,6 @@ class Event extends Model
     public function eventRequest() 
     {
         return $this->hasMany(EventRequest::class);
-    }
-
-    /**
-     * Each event has many shows
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany
-     */
-    public function showOnGoing() 
-    {
-        return $this->hasOne(ShowOnGoing::class);
     }
 
     /**

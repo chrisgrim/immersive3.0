@@ -156,7 +156,6 @@
 
 <script setup>
 import { ref, reactive, nextTick, shallowRef } from 'vue';
-import axios from 'axios';
 import { useVuelidate } from '@vuelidate/core';
 import { required, email, maxLength, url } from '@vuelidate/validators';
 

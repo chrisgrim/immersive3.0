@@ -46,6 +46,10 @@ class StoreEventRequest extends FormRequest
             // Add validation for remotelocations
             'remotelocations' => 'nullable|array',
             'remotelocations.*.name' => 'required|string|max:255',
+            // Add validation for dateArray
+            'timezone' => 'nullable|string|max:255',
+            'dateArray' => 'sometimes|required|array',
+            'dateArray.*' => 'sometimes|required|date_format:Y-m-d H:i:s',
         ];
     }
 }

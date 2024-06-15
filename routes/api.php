@@ -25,6 +25,7 @@ Route::GET('/remotelocations', function () {
     return RemoteLocation::all();
 });
 
+
 //Nav Search 
 
 Route::GET('search/nav/events', [SearchController::class, 'navEvents']);

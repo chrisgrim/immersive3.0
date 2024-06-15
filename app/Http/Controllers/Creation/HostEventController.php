@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Organizer;
 use App\Models\Event;
 use App\Models\Events\RemoteLocation;
+use App\Models\Events\Show;
 use App\Http\Requests\StoreEventRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -20,7 +21,7 @@ class HostEventController extends Controller
 
     public function edit(Event $event)
     {
-        $event->load('location', 'contentAdvisories', 'contactLevels', 'mobilityAdvisories', 'advisories','interactive_level', 'remotelocations', 'timezone','genres', 'priceranges', 'shows', 'age_limits');
+        $event->load('location', 'contentAdvisories', 'contactLevels', 'mobilityAdvisories', 'advisories','interactive_level', 'remotelocations','genres', 'priceranges', 'shows', 'age_limits');
         return view('Creation.edit', compact('event'));
     }
 
@@ -38,9 +39,13 @@ class HostEventController extends Controller
             $this->storeRemoteLocations($validatedData['remotelocations'], $event);
         }
 
+        if (isset($validatedData['showtype'])) {
+            Show::saveShows($request, $event);
+        }
+
         return response()->json([
             'message' => 'Event updated successfully.',
-            'event' => $event
+            'event' => $event->load('shows', 'location')
         ], 200);
     }
 

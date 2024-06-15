@@ -45,102 +45,66 @@ class Show extends Model
         return $this->morphMany(Ticket::class, 'ticket');
     }
 
-    public static function saveAlwaysShow($request, $event)
-    {
+    
+    public static function saveShows($request, $event)
+{
+    // Check if tickets exist for this show and save them as $old_tickets
+    $firstShow = $event->shows()->first();
+    $old_tickets = $firstShow && $firstShow->tickets()->exists() ? $firstShow->tickets()->get() : null;
 
-        // check to see if tickets exists for this show and save them as $old_tickets
-        if ($event->shows()->exists() && $event->shows()->first()->tickets()->exists()) {
-            $old_tickets = $event->shows()->first()->tickets()->get();
-        } else {
-            $old_tickets = null;
-        }
-
-        //  delete old tickets assigned to this show
-        foreach($event->shows as $show){
-            $show->tickets()->delete();
-        }
-
-        // delete all shows assigned to event
-        $event->shows()->delete();
-
-        // add showongoing model to event
-        $event->showOnGoing()->update([
-            'mon' => true,
-            'tue' => true,
-            'wed' => true,
-            'thu' => true,
-            'fri' => true,
-            'sat' => true,
-            'sun' => true,
-        ]);
-
-        // create a new single show for the event 6 months from now
-        $show = $event->shows()->create([
-            'date' => Carbon::now()->addMonths(6)->format('Y-m-d H:i:s'),
-        ]);
-       
-       // update that single show with tickets saved from earlier
-        if ($old_tickets) {
-            foreach ($old_tickets as $ticket) {
-                 $show->tickets()->updateOrCreate([
-                    'name' => $ticket['name'],
-                ],
-                [
-                    'description' => $ticket['description'],
-                    'currency' => $ticket['currency'],
-                    'ticket_price' => $ticket['ticket_price'],
-                    'type' => $ticket['type']
-                ]);
-            }
-        }
+    // Delete all old shows and their tickets if showtype is 'a' or delete those not in the new date array if 's'
+    $showsToDelete = $event->shows();
+    if ($request->showtype === 's') {
+        $showsToDelete = $showsToDelete->whereNotIn('date', $request->dateArray);
     }
 
-    /**
-     * Saving the shows and tickets to database
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\belongsTo
-     */
-    public static function saveNewShows($request, $event)
-    {
-        // check to see if tickets exists for this show and save them as $old_tickets
-        if ($event->shows()->exists() && $event->shows()->first()->tickets()->exists()) {
-            $old_tickets = $event->shows()->first()->tickets()->get();
-        } else {
-            $old_tickets = null;
+    // Get the shows to delete
+    $showsToDelete = $showsToDelete->get();
+
+    $showsToDelete->each(function ($show) {
+        $show->tickets()->delete();
+        $show->delete();
+    });
+
+    // Handle show creation based on showtype
+    if ($request->showtype === 's') {
+        foreach ($request->dateArray as $date) {
+            self::createOrUpdateShow($date, $event->id, $old_tickets);
         }
+    } elseif ($request->showtype === 'a') {
+        $sixMonthsFromNow = Carbon::now()->addMonths(6)->format('Y-m-d H:i:s');
+        self::createOrUpdateShow($sixMonthsFromNow, $event->id, $old_tickets);
+    }
 
-        // Delete all old shows
-        $showDelete = $event->shows()->whereNotIn('date', $request->dateArray)->get();
-        foreach($showDelete as $show){
-            $show->tickets()->delete();
-        }
-        $event->shows()->whereNotIn('date', $request->dateArray)->delete();
+    // Update the event's showtype to the new value
+    $event->update(['showtype' => $request->showtype]);
+}
 
-        //  for each date do this
-        foreach( $request->dateArray as $date) {
+private static function createOrUpdateShow($date, $eventId, $oldTickets)
+{
+    // Format the date to match the datetime column in Laravel
+    $formattedDate = \Carbon\Carbon::parse($date)->format('Y-m-d H:i:s');
 
-            //  for each show update or create. This means if I have a lot of overlapping dates I don't delete all of them
-            $show = Show::updateOrCreate([
-                'date' => $date,
-                'event_id' => $event->id
+    $show = self::updateOrCreate([
+        'date' => $formattedDate,
+        'event_id' => $eventId
+    ]);
+
+    // If tickets were already entered, add them to the new dates
+    if ($oldTickets) {
+        foreach ($oldTickets as $ticket) {
+            $show->tickets()->updateOrCreate([
+                'name' => $ticket['name'],
+            ], [
+                'description' => $ticket['description'],
+                'currency' => $ticket['currency'],
+                'ticket_price' => $ticket['ticket_price'],
+                'type' => $ticket['type']
             ]);
-
-            // if tickets were already entered, add them to the new dates
-            if ($old_tickets) {
-                foreach ($old_tickets as $ticket) {
-                    $show->tickets()->updateOrCreate([
-                        'name' => $ticket['name'],
-                    ],
-                    [
-                        'description' => $ticket['description'],
-                        'currency' => $ticket['currency'],
-                        'ticket_price' => $ticket['ticket_price'],
-                        'type' => $ticket['type']
-                    ]);
-                }
-            }
-        };
+        }
     }
+}
+
 
     /**
      * Get the showtimes and price range to update the event model

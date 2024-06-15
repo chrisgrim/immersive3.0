@@ -33,6 +33,7 @@
     "@vuelidate/validators": "^2.0.4",
     "axios": "^1.6.8",
     "dayjs": "^1.11.10",
+    "moment-timezone": "^0.5.45",
     "remixicon": "^4.2.0",
     "vue": "^3.4.21",
     "vue-cal": "^4.8.1",
