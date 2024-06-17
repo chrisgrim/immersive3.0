@@ -1,21 +1,22 @@
 <template>
     <main class="w-full">
         <div class="w-full">
-            <h2>Ticket Pricing</h2>
-            <div class="mt-24">
+            <div class="flex items-center">
                 <input 
-                    class="border rounded-2xl p-4" 
+                    class="w-[22rem] border rounded-2xl px-4 text-5xl" 
                     type="text" 
                     v-model="formattedName" 
                     @input="updateTicketName"
                     name="Name">
+            </div>
+            <div class="mt-12">
                 <div class="flex items-center">
-                    <span class="text-[14rem] font-bold text-heavy leading-tight">$</span>
+                    <span class="text-[11rem] font-bold text-heavy leading-tight">$</span>
                     <input
                         v-if="currentMedia !== null && tickets[currentMedia]"
                         type="text"
                         name="price"
-                        class="text-[12rem] font-bold text-heavy w-full overflow-hidden leading-tight"
+                        class="text-[11rem] font-bold text-heavy w-full overflow-hidden leading-tight"
                         v-model="formattedPrice"
                         @input="updateTicketPrice"
                     />
@@ -24,17 +25,26 @@
             <div class="mt-2">
                 <p class="cursor-pointer underline">Additional ticket details</p>
             </div>
-            <div class="grid grid-cols-3 gap-4 mt-32">
+            <div class="grid grid-cols-3 gap-4 mt-28">
                 <div 
                     v-for="(ticket, index) in tickets" 
                     :key="index" 
+                    @mouseenter="hoveredLocation = index"
+                    @mouseleave="hoveredLocation = null"
                     @click="handleDivClick(index)"
                     :class="{
                         'border-[#e5e7eb] text-gray-400': !ticket.ticket_price && currentMedia !== index,
                         'border-black text-black border-2 bg-gray-100': ticket.ticket_price || currentMedia === index,
                     }"
                     class="relative h-48 flex flex-col items-start justify-between p-4 border rounded-2xl transition-colors duration-200"
-                >
+                    >
+                    <div 
+                        v-if="tickets.length > 1"
+                        @click.stop="removeTicket(index)" 
+                        class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white"
+                    >
+                        <component :is="hoveredLocation === index ? RiCloseCircleFill : RiCloseCircleLine" />
+                    </div>
                     <div class="flex items-start justify-start w-full h-16 rounded-2xl">
                         {{ ticket.name }}
                     </div>
@@ -48,9 +58,13 @@
                         </h4>
                     </div>
                 </div>
-            </div>
-            <div class="mt-4">
-                <button class="px-4 py-2 bg-green-500 text-white rounded-2xl" @click="addTicket">Add Ticket</button>
+                <div 
+                    @click="addTicket"
+                    class="relative h-48 flex flex-col items-center justify-center p-4 border border-dashed border-[#e5e7eb] text-gray-400 rounded-2xl transition-colors duration-200 cursor-pointer hover:bg-gray-100"
+                >
+                    <span class="text-2xl font-bold">+</span>
+                    <span class="text-lg">Add Ticket</span>
+                </div>
             </div>
         </div>
         <div class="w-full flex justify-end">
@@ -63,6 +77,7 @@
 import { ref, reactive, inject, nextTick, watch } from 'vue';
 import { required, maxLength } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
+import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 
 // Inject dependencies provided by the parent
 const event = inject('event');
@@ -74,7 +89,7 @@ const props = defineProps({
     tickets: {
         type: Array,
         default: () => ([
-            { name: 'General', ticket_price: 10 },
+            { name: 'Ticket Name', ticket_price: 10 },
         ])
     },
 });
@@ -97,6 +112,7 @@ const currentMedia = ref(0);
 const selectedTicketPrice = ref(tickets[currentMedia.value].ticket_price);
 const formattedPrice = ref(tickets[currentMedia.value].ticket_price.toFixed(2));
 const formattedName = ref(tickets[currentMedia.value].name);
+const hoveredLocation = ref(null);
 
 watch(currentMedia, (newIndex) => {
     if (tickets[newIndex]) {
@@ -157,7 +173,16 @@ const updateTicketName = (e) => {
 };
 
 const addTicket = () => {
-    tickets.push({ name: `General`, ticket_price: 0 });
+    tickets.push({ name: `Ticket Name ${tickets.length + 1}`, ticket_price: 0 });
+};
+
+const removeTicket = (index) => {
+    if (tickets.length > 1) {
+        tickets.splice(index, 1);
+        if (currentMedia.value >= index) {
+            currentMedia.value = Math.max(0, currentMedia.value - 1);
+        }
+    }
 };
 </script>
 
