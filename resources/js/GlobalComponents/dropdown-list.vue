@@ -1,0 +1,47 @@
+<template>
+	<div class="relative">
+		<div v-if="selections && selections.length > 0">
+	        <p class="text-xl mt-8">
+	            Selections:
+	        </p>
+	        <ul class="mt-4 flex flex-wrap gap-6 mx-0">
+	            <li 
+	                v-for="item in selections"
+	                :key="item.id"
+	                class="border h-24 border-[#e5e7eb] flex text-[#222222] px-6 pb-4 rounded-2xl relative flex flex-col justify-end hover:border-black hover:bg-gray-100 hover:shadow-[0_0_0_1.5px_black]"
+	                @mouseenter="hoveredLocation = item.id"
+	                @mouseleave="hoveredLocation = null"
+	            >
+	                <div 
+	                    @click="removeItem(item)" 
+	                    class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white"
+	                >
+	                    <component :is="hoveredLocation === item.id ? RiCloseCircleFill : RiCloseCircleLine" />
+	                </div>
+	                <span class="mt-auto">{{ item.advisories }}</span>
+	            </li>
+	        </ul>
+	    </div>
+	</div>
+</template>
+
+<script setup>
+import { ref, defineEmits } from 'vue';
+import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
+
+const props = defineProps({
+    selections: {
+        type: Object,
+        required: true
+    },
+});
+
+const emit = defineEmits(['onSelect']);
+
+const removeItem = (item) => {
+    emit('onSelect', item);
+};
+
+
+
+</script>

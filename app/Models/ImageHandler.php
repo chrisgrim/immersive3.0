@@ -16,25 +16,20 @@ class ImageHandler extends Model
 {
     use HasFactory;
 
-    public static function saveImage($request, $value, $width, $height, $type)
+    public static function saveImage($image, $model, $width, $height, $type, $rank = 0)
     {
-        // Validation for the image upload
-        if (!$request->hasFile('image') || !$request->file('image')->isValid()) {
-            throw new \Exception('Image upload failed or no image provided.');
-        }
 
-        // Ensure the uploaded file is an image
-        $mimeType = $request->file('image')->getMimeType();
+        $mimeType = $image->getMimeType();
         if (strpos($mimeType, 'image/') !== 0) {
             throw new \Exception('The file is not an image.');
         }
 
-        $name = $value->name ?: substr(md5(microtime()), rand(0, 26), 7);
+        $name = $model->name ?: substr(md5(microtime()), rand(0, 26), 7);
         $rand = substr(md5(microtime()), rand(0, 26), 7);
         $title = Str::slug($name);
-        $directory = "$type-images/$title-$rand"; // Ensures uniqueness
+        $directory = "$type-images/$title-$rand";
 
-        $imagePath = $request->file('image')->getPathName();
+        $imagePath = $image->getPathName();
         $image = Image::read($imagePath);
 
         // Combine title and extension to form 'new-titles.jpg'
@@ -64,11 +59,49 @@ class ImageHandler extends Model
         $encodedThumbWebp = $thumbWebp->encode(new WebpEncoder(quality: 75));
         Storage::disk('digitalocean')->put("/public/$directory/$fileName-thumb.webp", (string) $encodedThumbWebp);
 
-        // Updating the model with the path to the saved images
-        $value->update([
-            'largeImagePath' => $directory . '/' . $fileName . '.webp',
-            'thumbImagePath' => $directory . '/' . $fileName . '-thumb.webp',
+        $model->images()->create([
+            'large_image_path' => "$directory/$fileName.webp",
+            'thumb_image_path' => "$directory/{$fileName}-thumb.webp",
         ]);
+
     }
+
+    public static function deleteImage($image)
+    {
+        // Delete images from storage
+        Storage::disk('digitalocean')->delete([
+            "/public/{$image->large_image_path}",
+            "/public/{$image->thumb_image_path}"
+        ]);
+
+        // Delete the image record from database
+        $image->delete();
+    }
+
+    public static function updateImages($model, $currentImages)
+    {
+        if ($currentImages) {
+            $existingImages = $model->images->pluck('large_image_path', 'id')->toArray();
+            $currentImagePaths = array_column($currentImages, 'url');
+            
+            $imagesToDelete = array_diff($existingImages, $currentImagePaths);
+
+            foreach ($imagesToDelete as $id => $imagePath) {
+                $image = $model->images()->find($id);
+                if ($image) {
+                    self::deleteImage($image);
+                }
+            }
+
+            foreach ($currentImages as $index => $currentImage) {
+                $image = $model->images()->where('large_image_path', $currentImage['url'])->first();
+                if ($image) {
+                    $image->rank = $index;
+                    $image->save();
+                }
+            }
+        }
+    }
+
 
 }

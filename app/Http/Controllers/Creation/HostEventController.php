@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Creation;
 use App\Http\Controllers\Controller;
 use App\Models\Organizer;
 use App\Models\Event;
+use App\Models\ImageHandler;
 use App\Models\Events\RemoteLocation;
 use App\Models\Events\Show;
+use App\Models\Events\Ticket;
 use App\Http\Requests\StoreEventRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -21,7 +23,11 @@ class HostEventController extends Controller
 
     public function edit(Event $event)
     {
-        $event->load('location', 'contentAdvisories', 'contactLevels', 'mobilityAdvisories', 'advisories','interactive_level', 'remotelocations','genres', 'priceranges', 'shows', 'age_limits');
+        $event->load('location', 'contentAdvisories', 'contactLevels', 'mobilityAdvisories', 'advisories','interactive_level', 'remotelocations','genres', 'priceranges', 'shows', 'age_limits', 'images');
+
+        $show = $event->shows->first();
+        $event->tickets = $show ? $show->tickets : collect();
+
         return view('Creation.edit', compact('event'));
     }
 
@@ -41,6 +47,21 @@ class HostEventController extends Controller
 
         if (isset($validatedData['showtype'])) {
             Show::saveShows($request, $event);
+        }
+
+        if (isset($validatedData['tickets'])) {
+            Ticket::handleTickets($request, $event);
+        }
+
+        if ($request->has('currentImages')) {
+            $currentImages = json_decode($request->input('currentImages', '[]'), true);
+            ImageHandler::updateImages($event, $currentImages);
+        }
+
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $index => $image) {
+                ImageHandler::saveImage($image, $event, 1200, 800, 'event', $index);
+            }
         }
 
         return response()->json([

@@ -16,29 +16,32 @@
     <meta property="article:published_time" content="{{$event->created_at}}" />
     <meta property="article:modified_time" content="{{$event->updated_at}}" />
     <meta property="og:updated_time" content="{{$event->updated_at}}" />
-    <meta property="og:image" content="{{ env('VITE_IMAGE_URL') }}{{$event->largeImagePath}}" />
-    <meta property="og:image:secure_url" content="{{ env('VITE_IMAGE_URL') }}{{$event->largeImagePath}}" />
-    <meta property="og:image:width" content="1280" />
-    <meta property="og:image:height" content="720" />
+    @foreach($event->images as $image)
+        <meta property="og:image" content="{{ env('VITE_IMAGE_URL') }}{{$image->large_image_path}}" />
+        <meta property="og:image:secure_url" content="{{ env('VITE_IMAGE_URL') }}{{$image->large_image_path}}" />
+        <meta property="og:image:width" content="1280" />
+        <meta property="og:image:height" content="720" />
+        <meta name="twitter:image" content="{{ env('VITE_IMAGE_URL') . $image->large_image_path }}" />
+    @endforeach
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:description" content="{{$event->tag_line ? $event->tag_line : $event->description}}" />
     <meta name="twitter:title" content="{{$event->name}}" />
     <meta name="twitter:site" content="@everythingimmersive" />
-    <meta name="twitter:image" content="{{ env('VITE_IMAGE_URL') . $event->largeImagePath }}" />
     <meta name="twitter:creator" content="@everythingimmersive" />
-    @if($event->hasLocation)
-        <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Event", "name": "{{$event->name}}{{$event->tag_line ? '- ' . \Illuminate\Support\Str::limit($event->tag_line, 80) : '- ' . \Illuminate\Support\Str::limit($event->description, 80)}}", @if($event->shows->isEmpty()) "startDate":{{\Carbon\Carbon::parse($event->created_at)->toIso8601String()}}, @else "startDate":"{{\Carbon\Carbon::parse($event->shows[0]->date)->toIso8601String()}}", @endif "endDate": "{{\Carbon\Carbon::parse($event->closingDate)->toIso8601String()}}", "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode", "eventStatus": "https://schema.org/EventScheduled", "location":{"@type": "Place", "name": "{{$event->location->venue ? $event->location->venue : $event->name}}", "address":{"@type": "PostalAddress", "streetAddress": "{{$event->location->home . ' ' . $event->location->street}}", "addressLocality": "{{$event->location->city}}", "postalCode": "{{$event->location->postal_code}}", "addressRegion": "{{$event->location->region}}", "addressCountry": "{{$event->location->country}}"}}, "image":"{{ env('VITE_IMAGE_URL') }}{{$event->largeImagePath}}", "description": "{{$event->tag_line ? $event->tag_line : $event->description}}", "offers":{"@type": "Offer", "url": "{{$event->ticketUrl}}", "price": "{{$event->priceranges[0]->price}}", "priceCurrency": "USD", "availability": "https://schema.org/InStock", "validFrom": "{{$event->priceranges[0]->created_at}}"}, "organizer":{"@type": "Organization", "name": "{{$event->organizer->name}}", "url": "{{$event->organizer->website ? $event->organizer->website : Request::root() .'/organizer/' . $event->organizer->slug}}"}}</script>
-    @else
-        <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Event", "name": "{{$event->name}}{{$event->tag_line ? '- ' . \Illuminate\Support\Str::limit($event->tag_line, 80) : '- ' . \Illuminate\Support\Str::limit($event->description, 80)}}", @if($event->shows->isEmpty()) "startDate":{{\Carbon\Carbon::parse($event->created_at)->toIso8601String()}}, @else "startDate":"{{\Carbon\Carbon::parse($event->shows[0]->date)->toIso8601String()}}", @endif "endDate": "{{\Carbon\Carbon::parse($event->closingDate)->toIso8601String()}}", "eventStatus": "https://schema.org/EventScheduled", "eventAttendanceMode": "https://schema.org/OnlineEventAttendanceMode", "location":{"@type": "VirtualLocation", "url": "{{$event->websiteUrl ? $event->websiteUrl : ($event->ticketUrl ? $event->ticketUrl : Request::url())}}"}, "image":"{{ env('VITE_IMAGE_URL') }}{{$event->largeImagePath}}", "description": "{{$event->tag_line ? $event->tag_line : $event->description}}", "offers":{"@type": "Offer", "url": "{{$event->ticketUrl ? $event->ticketUrl : ($event->websiteUrl ? $event->websiteUrl : Request::url())}}", "price": "{{$event->priceranges[0]->price}}", "priceCurrency": "USD", "availability": "https://schema.org/InStock", "validFrom": "{{$event->priceranges[0]->created_at}}"}, "organizer":{"@type": "Organization", "name": "{{$event->organizer->name}}", "url": "{{$event->organizer->website ? $event->organizer->website : Request::root() .'/organizer/' . $event->organizer->slug}}"}}</script>
-    @endif
-    @if (Browser::isMobile())
-        <link rel="preload" as="image" type="image/webp" imagesrcset="{{ env('VITE_IMAGE_URL') . $event->thumbImagePath }}">
-    @else
-        <link rel="preload" as="image" type="image/webp" imagesrcset="{{ env('VITE_IMAGE_URL') . $event->largeImagePath }}">
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Event","name":"{{$event->name}}{{$event->tag_line ? '- ' . \Illuminate\Support\Str::limit($event->tag_line, 80) : '- ' . \Illuminate\Support\Str::limit($event->description, 80)}}","startDate":"{{ $event->shows->isEmpty() ? \Carbon\Carbon::parse($event->created_at)->toIso8601String() : \Carbon\Carbon::parse($event->shows[0]->date)->toIso8601String() }}","endDate":"{{ \Carbon\Carbon::parse($event->closingDate)->toIso8601String() }}","eventStatus":"https://schema.org/EventScheduled","image":[@foreach($event->images as $image) "{{ env('VITE_IMAGE_URL') }}{{ $image->large_image_path }}"@if(!$loop->last),@endif @endforeach],"description":"{{$event->tag_line ? $event->tag_line : $event->description}}","offers":{"@type":"Offer","url":"{{$event->ticketUrl ? $event->ticketUrl : ($event->websiteUrl ? $event->websiteUrl : Request::url())}}","price":"{{$event->priceranges[0]->price}}","priceCurrency":"USD","availability":"https://schema.org/InStock","validFrom":"{{$event->priceranges[0]->created_at}}"},"organizer":{"@type":"Organization","name":"{{$event->organizer->name}}","url":"{{$event->organizer->website ? $event->organizer->website : Request::root() .'/organizer/' . $event->organizer->slug}}"}@if($event->hasLocation),"eventAttendanceMode":"https://schema.org/OfflineEventAttendanceMode","location":{"@type":"Place","name":"{{$event->location->venue ? $event->location->venue : $event->name}}","address":{"@type":"PostalAddress","streetAddress":"{{$event->location->home . ' ' . $event->location->street}}","addressLocality":"{{$event->location->city}}","postalCode":"{{$event->location->postal_code}}","addressRegion":"{{$event->location->region}}","addressCountry":"{{$event->location->country}}"}}@else,"eventAttendanceMode":"https://schema.org/OnlineEventAttendanceMode","location":{"@type":"VirtualLocation","url":"{{$event->websiteUrl ? $event->websiteUrl : ($event->ticketUrl ? $event->ticketUrl : Request::url())}}"}}@endif}</script>
 
+    @if (Browser::isMobile())
+        @foreach($event->images as $image)
+            <link rel="preload" as="image" type="image/webp" imagesrcset="{{ env('VITE_IMAGE_URL') . $image->thumb_image_path }}">
+        @endforeach
+    @else
+        @foreach($event->images as $image)
+            <link rel="preload" as="image" type="image/webp" imagesrcset="{{ env('VITE_IMAGE_URL') . $image->large_image_path }}">
+        @endforeach
     @endif
     @vite(['resources/css/flatpickr.css'])
 @endsection
+
 
 @section('nav')
 

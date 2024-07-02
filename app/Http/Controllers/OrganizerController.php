@@ -38,10 +38,9 @@ class OrganizerController extends Controller
         try {
             // Create the organizer
             $organizer = auth()->user()->organizers()->create($request->validated());
-
-            // Check if an image is provided and handle the image upload
+            
             if ($request->hasFile('image')) {
-                ImageHandler::saveImage($request, $organizer, 800, 800, 'organizer');
+                ImageHandler::saveImage($request->file('image'), $organizer, 800, 800, 'organizer');
             }
 
             // Update current_team_id for the user

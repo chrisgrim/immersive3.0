@@ -53,8 +53,7 @@ const handleSubmit = async () => {
         return;
     }
 
-    // Submit the description to the parent component
-    await onSubmit('description', event.description);
+    await onSubmit({ description: event.description });
     setStep('NextStep'); // Adjust 'NextStep' to the actual next step name
 };
 </script>

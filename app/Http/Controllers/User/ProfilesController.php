@@ -21,9 +21,12 @@ class ProfilesController extends Controller
 
     public function show(User $user)
     {
-        $user
-        // ->load('location', 'favouritedEvents')
-        ->makeHidden(['newsletter_type', 'type', 'hasMessages', 'hasCreatedOrganizers', 'current_team_id', 'card_brand', 'card_last_four', 'email', 'stripe_id']);
+        $user->load('images');
+        $user->makeHidden([
+            'newsletter_type', 'type', 'hasMessages', 'hasCreatedOrganizers', 
+            'current_team_id', 'card_brand', 'card_last_four', 'email', 'stripe_id'
+        ]);
+        $user->image = $user->images->first();
         return view('Auth.user-profile', compact('user'));
     }
 
@@ -37,7 +40,7 @@ class ProfilesController extends Controller
     {
         try {
             if ($request->hasFile('image')) {
-                ImageHandler::saveImage($request, $user, 400, 400, 'user');
+                ImageHandler::saveImage($request->file('image'), $user, 400, 400, 'user');
             }
 
             $userData = $request->only('name', 'email') + [

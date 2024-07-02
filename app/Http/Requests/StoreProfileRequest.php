@@ -18,7 +18,7 @@ class StoreProfileRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'string|max:255',
+            'name' => 'nullable|string|max:255',
             'email' => 'sometimes|string|email|max:255|unique:users,email,' . $this->user()->id,
             'newsletter_type' => 'sometimes|string|in:a,m,u,n',
             'silence' => 'sometimes|string|in:y,n',

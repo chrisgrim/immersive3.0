@@ -27,8 +27,14 @@
                             <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Dates')" @click="handleStepChange('Dates')">
                                 Dates
                             </li>
-                            <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Pricing')" @click="handleStepChange('Pricing')">
-                                Pricing
+                            <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Tickets')" @click="handleStepChange('Tickets')">
+                                Tickets
+                            </li>
+                            <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Images')" @click="handleStepChange('Images')">
+                                Images
+                            </li>
+                            <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Advisories')" @click="handleStepChange('Advisories')">
+                                Advisories
                             </li>
                         </ul>
                     </div>

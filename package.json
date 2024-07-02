@@ -35,10 +35,14 @@
     "dayjs": "^1.11.10",
     "moment-timezone": "^0.5.45",
     "remixicon": "^4.2.0",
+    "sortablejs": "^1.15.2",
     "vue": "^3.4.21",
     "vue-cal": "^4.8.1",
+    "vue-draggable-next": "^2.2.1",
     "vue-flatpickr-component": "^11.0.5",
+    "vue-slicksort": "^2.0.5",
     "vue3-dayjs-plugin": "^1.0.2",
+    "vuedraggable": "^4.1.0",
     "vuelidate": "^0.7.7"
   }
 }

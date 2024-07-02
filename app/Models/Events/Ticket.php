@@ -2,6 +2,7 @@
 
 namespace App\Models\Events;
 
+use App\Models\Event;
 use Illuminate\Database\Eloquent\Model;
 
 class Ticket extends Model
@@ -23,38 +24,65 @@ class Ticket extends Model
         return $this->morphTo();
     }
 
-    /**
-     * Gets the price Range
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\belongsTo
-     */
-    public static function getPriceRange($array, $types, $currency)
+    public static function handleTickets(\Illuminate\Http\Request $request, Event $event)
+{
+    foreach ($event->shows as $show) {
+        $submittedTicketNames = collect($request->tickets)->pluck('name')->all();
+
+        $show->tickets()->whereNotIn('name', $submittedTicketNames)->delete();
+
+        foreach ($request->tickets as $ticketData) {
+            $show->tickets()->updateOrCreate(
+                ['name' => $ticketData['name']],
+                [
+                    'description' => $ticketData['description'],
+                    'currency' => $ticketData['currency'],
+                    'ticket_price' => $ticketData['ticket_price'],
+                    'ticket_id' => $show->id,
+                    'ticket_type' => get_class($show),
+                ]
+            );
+        }
+    }
+
+    $event->priceranges()->delete();
+
+    $prices = [];
+    $names = [];
+    $currency = '';
+
+    foreach ($request->tickets as $ticketData) {
+        $event->priceranges()->create(['price' => $ticketData['ticket_price']]);
+        $prices[] = $ticketData['ticket_price'];
+        $names[] = $ticketData['name'];
+        $currency = $ticketData['currency'];
+    }
+
+    $priceRange = self::getPriceRange($prices, $currency);
+
+    $event->update([
+        'price_range' => $priceRange,
+    ]);
+
+    $event = $event->fresh();
+    $event->searchable();
+}
+
+    
+
+    public static function getPriceRange($prices, $currency)
     {
-        if(in_array('s', $types)) {
-            $type = 's';
-        }
-        if(in_array('f', $types)) {
-            $type = 'f';
-        }
-        if(in_array('p', $types)) {
-            $type = 'p';
-        }
-        rsort($array);
-        if ($type == 'f') {
+        rsort($prices);
+        $lowestPrice = last($prices);
+
+        if ($lowestPrice == 0) {
             $first = 'Free';
+        } else {
+            $first = $currency . $lowestPrice;
         }
-        if ($type == 'p') {
-            $first = 'PWYC';
-        }
-        if ($type == 's') {
-            $first = $currency. last($array);
-        }
-        if (sizeof($array) > 1) {
-            if (in_array('s', $types)) {
-                return $pricerange = $first . ' - ' . $currency . $array[0];
-            } else {
-                return $pricerange = $first;
-            }
+
+        if (sizeof($prices) > 1) {
+            return $pricerange = $first . ' - ' . $currency . $prices[0];
         } else {
             return $pricerange = $first;
         }

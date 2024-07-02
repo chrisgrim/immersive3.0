@@ -6,7 +6,6 @@ use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Genre;
 use Carbon\Carbon;
-use Intervention\Image\ImageManagerStatic as Image;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -65,6 +64,11 @@ class Organizer extends Model
     public function user() 
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function images()
+    {
+        return $this->morphMany(Image::class, 'imageable');
     }
 
     public function listedEvents() 

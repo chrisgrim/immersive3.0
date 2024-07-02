@@ -9,6 +9,7 @@ use App\Http\Controllers\User\ConversationsController;
 use App\Http\Controllers\Creation\HostController;
 use App\Http\Controllers\Creation\HostEventController;
 
+
 Route::GET('/', [IndexController::class, 'index']);
 
 
@@ -28,8 +29,6 @@ Route::GET('/hosting/event/{event}/edit', [HostEventController::class, 'edit'])-
 
 
 Route::POST('/organizers', [OrganizerController::class, 'store'])->name('Organizers.store');
-
-
 
 
 Route::GET('/users/{user}', [ProfilesController::class, 'show']);

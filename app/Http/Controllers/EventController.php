@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
 use App\Http\Requests\TitleUpdateRequest;
 use Illuminate\Support\LazyCollection;
+use Illuminate\Support\Facades\Cache;
+
 
 
 class EventController extends Controller
@@ -34,10 +36,20 @@ class EventController extends Controller
    
     public function show(Event $event)
     {
-        if($event->status !== 'p') { return redirect('/');}
-        $event->load('category', 'location', 'contentAdvisories', 'contactLevels', 'mobilityAdvisories', 'eventreviews', 'staffpick', 'advisories','interactive_level', 'remotelocations','genres', 'priceranges', 'organizer', 'shows', 'age_limits');
-        $tickets = $event->shows()->first()->tickets()->orderBy('ticket_price')->get();
-        return view('events.show', compact('event', 'tickets'));
+        if ($event->status !== 'p') {
+            return redirect('/');
+        }
+
+        $cacheKey = 'event_' . $event->id;
+
+        $eventData = Cache::rememberForever($cacheKey, function () use ($event) {
+            $event->load('category', 'location', 'contentAdvisories', 'contactLevels', 'mobilityAdvisories', 'eventreviews', 'staffpick', 'advisories', 'interactive_level', 'remotelocations', 'genres', 'priceranges', 'organizer', 'shows', 'age_limits', 'images');
+            $tickets = $event->shows()->first()->tickets()->orderBy('ticket_price')->get();
+
+            return compact('event', 'tickets');
+        });
+
+        return view('events.show', $eventData);
     }
 
     public function getOrganizerPaginatedEvents(Organizer $organizer, Request $request)

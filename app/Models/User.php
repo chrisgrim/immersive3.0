@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Elastic\ScoutDriverPlus\Searchable;
-use Intervention\Image\ImageManagerStatic as Image;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -97,11 +96,6 @@ class User extends Authenticatable implements MustVerifyEmail
         ];
     }
 
-    /**
-     * User can have many events
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\hasMany
-     */
     public function events() 
     {
         return $this->hasMany(Event::class);
@@ -112,11 +106,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasOne(Organizer::class, 'id', 'current_team_id');
     }
 
-    /**
-     * The User has many organizations
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\hasMany
-     */
+    public function images()
+    {
+        return $this->morphMany(Image::class, 'imageable');
+    }
+
+    public function getImageAttribute()
+    {
+        return $this->images()->first();
+    }
+
     public function organizers() 
     {
         return $this->hasMany(Organizer::class)

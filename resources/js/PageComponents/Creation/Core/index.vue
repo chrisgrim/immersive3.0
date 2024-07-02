@@ -10,7 +10,7 @@
             />
         </div>
         <div id="content" class="relative max-w-screen-xl p-8 m-auto w-5/6">
-            <div class="w-full lg:w-1/2 m-auto">
+            <div class="w-full lg:w-1/2 m-auto mt-20">
                 <component :is="currentComponent" />
             </div>
         </div>
@@ -28,7 +28,9 @@ import Remote from './Pages/remote.vue'; // Import Remote component
 import Description from './Pages/description.vue';
 import Name from './Pages/name.vue';
 import Dates from './Pages/dates.vue';
-import Pricing from './Pages/pricing.vue';
+import Tickets from './Pages/tickets.vue';
+import Images from './Pages/images.vue';
+import Advisories from './Pages/advisories.vue';
 
 const props = defineProps({
     event: {
@@ -47,8 +49,8 @@ const currentStep = ref('EventType');
 const isSubmitting = ref(false);
 const errors = ref({});
 
-const stepsWithLocation = ['EventType', 'Category', 'Location', 'Description', 'Name', 'Dates', 'Pricing'];
-const stepsWithoutLocation = ['EventType', 'Category', 'Remote', 'Description', 'Name', 'Dates', 'Pricing'];
+const stepsWithLocation = ['EventType', 'Category', 'Location', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories'];
+const stepsWithoutLocation = ['EventType', 'Category', 'Remote', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories'];
 
 const components = {
     EventType,
@@ -58,7 +60,9 @@ const components = {
     Description,
     Name,
     Dates,
-    Pricing
+    Tickets,
+    Images,
+    Advisories
 };
 
 const steps = computed(() => event.hasLocation ? stepsWithLocation : stepsWithoutLocation);
@@ -81,7 +85,7 @@ const onSubmit = async (updateData) => {
     errors.value = {};
 
     try {
-        const response = await axios.put(`/api/hosting/event/${event.slug}`, updateData);
+        const response = await axios.post(`/api/hosting/event/${event.slug}`, updateData);
         Object.assign(event, response.data.event);
         console.log(response.data);
         // Handle successful submission and move to the next step

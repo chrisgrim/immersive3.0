@@ -50,6 +50,14 @@ class StoreEventRequest extends FormRequest
             'timezone' => 'nullable|string|max:255',
             'dateArray' => 'sometimes|required|array',
             'dateArray.*' => 'sometimes|required|date_format:Y-m-d H:i:s',
+            // Add validation for tickets
+            'tickets' => 'nullable|array',
+            'tickets.*.name' => 'sometimes|required|string|max:255',
+            'tickets.*.ticket_price' => 'sometimes|required|numeric|min:0',
+            'tickets.*.description' => 'sometimes|nullable|string|max:255',
+            'tickets.*.currency' => 'sometimes|required|string|size:1',
+            // Add validation for images
+            'images.*' => 'sometimes|image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
         ];
     }
 }

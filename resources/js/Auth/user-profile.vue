@@ -13,14 +13,14 @@
                                     <!-- -->
                                     <!-- If user is logged in -->
                                     <template v-if="user">
-                                        <template v-if="user.largeImagePath">
+                                        <template v-if="user.image?.large_image_path">
                                             <picture>
                                                 <source 
                                                     type="image/webp" 
-                                                    :srcset="`${imageUrl}${user.thumbImagePath}`"> 
+                                                    :srcset="`${imageUrl}${user.image.thumb_image_path}`"> 
                                                 <img 
                                                     class="w-full h-full"
-                                                    :src="`${imageUrl}${user.thumbImagePath.slice(0, -4)}jpg?timestamp=${new Date().getTime()}`" 
+                                                    :src="`${imageUrl}${user.image.thumb_image_path.slice(0, -4)}jpg?timestamp=${new Date().getTime()}`" 
                                                     :alt="user.name + `'s account`">
                                             </picture>
                                         </template>
@@ -188,7 +188,7 @@ const updateImage = async (event) => {
 
     try {
         const response = await axios.post(`/users/${user.id}`, formData);
-        user.thumbImagePath = `${response.data.thumbImagePath}?${new Date().getTime()}`;
+        user.image.thumb_image_path = `${response.data.image.thumb_image_path}?${new Date().getTime()}`;
     } catch (error) {
         if (error.response && error.response.data.error) {
             alert(error.response.data.error);

@@ -147,14 +147,14 @@ class Event extends Model
         return $this->hasOne(Conversation::class);
     }
 
-    /**
-    * Each event belongs to one Category
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\belongsTo
-    */
     public function category() 
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function images()
+    {
+        return $this->morphMany(Image::class, 'imageable');
     }
 
     /**
