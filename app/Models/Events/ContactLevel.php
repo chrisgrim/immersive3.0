@@ -12,7 +12,7 @@ class ContactLevel extends Model
     *
     * @var array
     */
-    protected $fillable = [ 'level', 'rank', 'admin', 'user_id'];
+    protected $fillable = [ 'name', 'rank', 'admin', 'user_id'];
 
      /**
      * The "booted" method of the model.
@@ -42,7 +42,7 @@ class ContactLevel extends Model
     public static function saveContactLevel($request) 
     {
         ContactLevel::create([
-            'level' => $request->level,
+            'name' => $request->name,
             'admin' => true,
             'user_id' => auth()->user()->id
         ]);
@@ -57,7 +57,7 @@ class ContactLevel extends Model
     {
         $this->update([
             'rank' => $request->rank,
-            'level' => $request->level,
+            'name' => $request->name,
             'user_id' => auth()->user()->id
         ]);
     }

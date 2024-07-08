@@ -13,7 +13,7 @@ class MobilityAdvisory extends Model
     *
     * @var array
     */
-    protected $fillable = [ 'mobilities','admin', 'user_id', 'rank', 'slug' ];
+    protected $fillable = [ 'name','admin', 'user_id', 'rank', 'slug' ];
 
     /**
      * The "booted" method of the model.
@@ -35,51 +35,28 @@ class MobilityAdvisory extends Model
         return $this->belongsToMany(Event::class);
     }
 
-    /**
-    *Save advisories and update pivot
-    *
-    * @param  \Illuminate\Http\Request  $request
-    * @param  $event
-    */
-    public static function saveAdvisories($event, $request)
+    public static function saveAdvisories($event, $advisories)
     {
-        if ($request->has('mobilityAdvisory')) {
-            foreach ($request['mobilityAdvisory'] as $content) {
-                MobilityAdvisory::firstOrCreate([
-                    'slug' => Str::slug($content)
-                ],
-                [
-                    'user_id' => auth()->user()->id,
-                    'mobilities' => $content
-                ]);
-            };
-            $newSync = MobilityAdvisory::whereIn('slug', collect($request->mobilityAdvisory)->map(function ($item) {
-                return Str::slug($item);
-            })->toArray())->get();
-            $event->mobilityadvisories()->sync($newSync);
-        };
+        foreach ($advisories as $content) {
+            // Ensure $content is treated as a string
+            $name = is_array($content) ? $content['name'] : $content;
+
+            MobilityAdvisory::firstOrCreate([
+                'slug' => Str::slug($name)
+            ],
+            [
+                'user_id' => auth()->user()->id,
+                'name' => $name,
+            ]);
+        }
+
+        $newSync = MobilityAdvisory::whereIn('slug', collect($advisories)->map(function ($item) {
+            return Str::slug(is_array($item) ? $item['name'] : $item); 
+        })->toArray())->get();
+
+        $event->mobilityadvisories()->sync($newSync);
     }
 
-    /**
-     * This saves a new Mobilities Level type
-     *
-     * @return  nothing
-     */
-    public static function saveMobilitiesLevel($request) 
-    {
-        MobilityAdvisory::create([
-            'mobilities' => $request->mobilities,
-            'slug' => Str::slug($request->mobilities),
-            'admin' => true,
-            'user_id' => auth()->user()->id
-        ]);
-    }
-
-     /**
-     * This updates a Mobilities Level type
-     *
-     * @return nothing
-     */
     public function updateMobilitiesLevel($request) 
     {
         $this->update([

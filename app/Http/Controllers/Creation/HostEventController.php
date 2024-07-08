@@ -7,6 +7,8 @@ use App\Models\Organizer;
 use App\Models\Event;
 use App\Models\ImageHandler;
 use App\Models\Events\RemoteLocation;
+use App\Models\Events\ContentAdvisory;
+use App\Models\Events\MobilityAdvisory;
 use App\Models\Events\Show;
 use App\Models\Events\Ticket;
 use App\Http\Requests\StoreEventRequest;
@@ -47,6 +49,14 @@ class HostEventController extends Controller
 
         if (isset($validatedData['showtype'])) {
             Show::saveShows($request, $event);
+        }
+
+        if (isset($validatedData['contentAdvisories'])) {
+            ContentAdvisory::saveAdvisories($event, $validatedData['contentAdvisories']);
+        }
+
+        if (isset($validatedData['mobilityAdvisories'])) {
+            MobilityAdvisory::saveAdvisories($event, $validatedData['mobilityAdvisories']);
         }
 
         if (isset($validatedData['tickets'])) {

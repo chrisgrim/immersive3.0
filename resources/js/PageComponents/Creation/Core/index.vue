@@ -10,7 +10,7 @@
             />
         </div>
         <div id="content" class="relative max-w-screen-xl p-8 m-auto w-5/6">
-            <div class="w-full lg:w-1/2 m-auto mt-20">
+            <div class="w-full lg:w-1/2 m-auto mt-20 mb-28">
                 <component :is="currentComponent" />
             </div>
         </div>
@@ -31,6 +31,8 @@ import Dates from './Pages/dates.vue';
 import Tickets from './Pages/tickets.vue';
 import Images from './Pages/images.vue';
 import Advisories from './Pages/advisories.vue';
+import Content from './Pages/Advisories/content.vue';
+import Mobility from './Pages/Advisories/mobility.vue';
 
 const props = defineProps({
     event: {
@@ -49,8 +51,8 @@ const currentStep = ref('EventType');
 const isSubmitting = ref(false);
 const errors = ref({});
 
-const stepsWithLocation = ['EventType', 'Category', 'Location', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories'];
-const stepsWithoutLocation = ['EventType', 'Category', 'Remote', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories'];
+const stepsWithLocation = ['EventType', 'Category', 'Location', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility'];
+const stepsWithoutLocation = ['EventType', 'Category', 'Remote', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility'];
 
 const components = {
     EventType,
@@ -62,7 +64,9 @@ const components = {
     Dates,
     Tickets,
     Images,
-    Advisories
+    Advisories,
+    Content,
+    Mobility
 };
 
 const steps = computed(() => event.hasLocation ? stepsWithLocation : stepsWithoutLocation);

@@ -58,6 +58,12 @@ class StoreEventRequest extends FormRequest
             'tickets.*.currency' => 'sometimes|required|string|size:1',
             // Add validation for images
             'images.*' => 'sometimes|image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
+            // Add validation for contentAdvisories
+            'contentAdvisories' => 'nullable|array',
+            'contentAdvisories.*.name' => 'sometimes|string|max:100',
+            // Add validation for mobilityAdvisories
+            'mobilityAdvisories' => 'nullable|array',
+            'mobilityAdvisories.*.name' => 'sometimes|string|max:100',
         ];
     }
 }

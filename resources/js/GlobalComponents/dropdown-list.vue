@@ -1,24 +1,19 @@
 <template>
 	<div class="relative">
 		<div v-if="selections && selections.length > 0">
-	        <p class="text-xl mt-8">
-	            Selections:
-	        </p>
-	        <ul class="mt-4 flex flex-wrap gap-6 mx-0">
+	        <ul class="flex flex-wrap gap-6 mx-0">
 	            <li 
 	                v-for="item in selections"
 	                :key="item.id"
-	                class="border h-24 border-[#e5e7eb] flex text-[#222222] px-6 pb-4 rounded-2xl relative flex flex-col justify-end hover:border-black hover:bg-gray-100 hover:shadow-[0_0_0_1.5px_black]"
+	                class="border-2 m-0 h-24 border-[#222222] flex text-[#222222] px-6 pb-4 rounded-2xl relative flex flex-col justify-end hover:border-black hover:bg-gray-100"
 	                @mouseenter="hoveredLocation = item.id"
-	                @mouseleave="hoveredLocation = null"
-	            >
+	                @mouseleave="hoveredLocation = null">
 	                <div 
 	                    @click="removeItem(item)" 
-	                    class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white"
-	                >
+	                    class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white rounded-full">
 	                    <component :is="hoveredLocation === item.id ? RiCloseCircleFill : RiCloseCircleLine" />
 	                </div>
-	                <span class="mt-auto">{{ item.advisories }}</span>
+	                <span class="mt-auto">{{ item.name }}</span>
 	            </li>
 	        </ul>
 	    </div>
@@ -35,6 +30,8 @@ const props = defineProps({
         required: true
     },
 });
+
+const hoveredLocation = ref(null);
 
 const emit = defineEmits(['onSelect']);
 

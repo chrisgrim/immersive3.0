@@ -36,6 +36,12 @@
                             <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Advisories')" @click="handleStepChange('Advisories')">
                                 Advisories
                             </li>
+                            <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Content')" @click="handleStepChange('Content')">
+                                Content
+                            </li>
+                            <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Mobility')" @click="handleStepChange('Mobility')">
+                                Mobility
+                            </li>
                         </ul>
                     </div>
                 </div>
