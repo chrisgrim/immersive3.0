@@ -27,7 +27,7 @@ Route::GET('/categories', function () {
 
 Route::GET('/remotelocations', function () { return RemoteLocation::all(); });
 Route::GET('/contactlevels', function () { return ContactLevel::all(); });
-Route::GET('/interactivelevell', function () { return InteractiveLevel::all(); });
+Route::GET('/interactivelevels', function () { return InteractiveLevel::all(); });
 Route::GET('/contentadvisories', function () { return ContentAdvisory::where('admin', true)->orWhere('user_id', auth()->user()->id)->get(); });
 Route::GET('/mobilityadvisories', function () { return MobilityAdvisory::where('admin', true)->orWhere('user_id', auth()->user()->id)->get(); });
 

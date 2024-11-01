@@ -9,12 +9,18 @@
                         v-model="formattedName" 
                         @input="updateTicketName"
                         name="Name">
+                    <div class="text-gray-500 mt-1 text-right text-2xl">
+                        {{ formattedName.length }}/40
+                    </div>
                     <div v-if="$v.$anyDirty && $v.tickets.$each.$response.$data[currentMedia].name.$error" class="text-red-500 mt-4">
-                        <div v-for="error in $v.tickets.$each.$response.$errors[currentMedia].name" :key="error.$validator">
-                            <span v-if="error.$validator === 'required'">Ticket name is required.</span>
-                            <span v-if="error.$validator === 'uniqueTicketName'">Ticket name must be unique.</span>
-                            <span v-if="error.$validator === 'ticketNameNotFreeWithNonZeroPrice'">Free ticket must be free.</span>
-                        </div>
+                        <span v-for="error in $v.tickets.$each.$response.$errors[currentMedia].name" :key="error.$validator">
+                            {{
+                                error.$validator === 'required' ? 'Ticket name is required.' :
+                                error.$validator === 'maxLength' ? 'Too many characters.' :
+                                error.$validator === 'uniqueTicketName' ? 'Ticket name must be unique.' :
+                                error.$validator === 'ticketNameNotFreeWithNonZeroPrice' ? 'Free ticket must be free.' : ''
+                            }}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -34,7 +40,15 @@
                         @focus="selectPriceInput"
                     />
                     <div v-if="$v.$anyDirty && $v.tickets.$each.$response.$data[currentMedia].ticket_price.$error" class="text-red-500">
-                        Ticket price is required.
+                        <span v-if="$v.tickets.$each.$response.$errors[currentMedia].ticket_price.$minValue">
+                            Price cannot be negative.
+                        </span>
+                        <span v-else-if="$v.tickets.$each.$response.$errors[currentMedia].ticket_price.$maxValue">
+                            Price cannot exceed ${{ MAX_TICKET_PRICE.toLocaleString() }}.
+                        </span>
+                        <span v-else>
+                            Please enter a valid price.
+                        </span>
                     </div>
                 </div>
                 <div v-if="showCurrencyDropdown" class="absolute mt-2 border border-gray-300 rounded-lg bg-white shadow-lg z-50">
@@ -55,15 +69,20 @@
                         type="text" 
                         v-model="formattedDescription" 
                         @input="updateAdditionalDetails"
-                        name="AdditionalDetails">
+                        name="AdditionalDetails"
+                        :maxlength="MAX_DESCRIPTION_LENGTH"
+                    >
                     <div 
                         @click="toggleAdditionalDetails" 
                         class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white"
                     >
                         <component :is="RiCloseCircleFill" />
                     </div>
-                    <div v-if="$v.$anyDirty && $v.tickets.$each.$response.$data[currentMedia].description.$error" class="text-red-500">
-                        Ticket description is too long.
+                    <div class="flex justify-end mt-1 text-gray-500">
+                        <span v-if="$v.$anyDirty && $v.tickets.$each.$response.$data[currentMedia].description.$error" 
+                              class="text-red-500 mr-auto">
+                            Description is too long
+                        </span>
                     </div>
                 </div>
                 <p v-else class="cursor-pointer underline" @click="toggleAdditionalDetails">Additional ticket details</p>
@@ -115,7 +134,7 @@
 <script setup>
 import { ref, reactive, inject, nextTick, watch, onMounted } from 'vue';
 import useVuelidate from '@vuelidate/core';
-import { required, maxLength, helpers } from '@vuelidate/validators';
+import { required, maxLength, helpers, minValue, maxValue } from '@vuelidate/validators';
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 
 // Inject dependencies provided by the parent
@@ -146,13 +165,28 @@ const ticketNameNotFreeWithNonZeroPrice = helpers.withMessage('Ticket name canno
     return !(value.toLowerCase() === 'free' && siblings.ticket_price !== 0);
 });
 
+// Constants
+const MAX_TICKET_PRICE = 9999.99;
+const MAX_DESCRIPTION_LENGTH = 200;
+
 // Setup Vuelidate for form validation
 const rules = {
     tickets: {
         $each: helpers.forEach({
-            name: { required, uniqueTicketName, ticketNameNotFreeWithNonZeroPrice },
-            ticket_price: { required },
-            description: { maxLength: maxLength(255) }
+            name: { 
+                required, 
+                maxLength: maxLength(40), 
+                uniqueTicketName, 
+                ticketNameNotFreeWithNonZeroPrice 
+            },
+            ticket_price: { 
+                required,
+                minValue: minValue(0),
+                maxValue: maxValue(MAX_TICKET_PRICE)
+            },
+            description: { 
+                maxLength: maxLength(MAX_DESCRIPTION_LENGTH) 
+            }
         })
     }
 };
@@ -172,6 +206,7 @@ onMounted(() => {
         formattedPrice.value = parseFloat(tickets[currentMedia.value].ticket_price).toFixed(2);
         formattedName.value = tickets[currentMedia.value].name;
         formattedDescription.value = tickets[currentMedia.value].description;
+        showAdditionalDetails.value = Boolean(tickets[currentMedia.value].description);
     }
 });
 
@@ -180,19 +215,25 @@ watch(currentMedia, (newIndex) => {
         formattedPrice.value = parseFloat(tickets[newIndex].ticket_price).toFixed(2);
         formattedName.value = tickets[newIndex].name;
         formattedDescription.value = tickets[newIndex].description;
-        showAdditionalDetails.value = !!tickets[newIndex].description;
+        showAdditionalDetails.value = Boolean(tickets[newIndex].description);
     }
 });
 
 const handleSubmit = async () => {
     $v.value.$touch();
     if ($v.value.tickets.$invalid) {
-        // Handle errors
-        console.log('Validation failed', $v.value.tickets.$errors);
         return;
     }
 
-    await onSubmit({ tickets });
+    // Format tickets with all required fields
+    const formattedTickets = tickets.map(ticket => ({
+        name: ticket.name,
+        ticket_price: parseFloat(ticket.ticket_price),  // Ensure it's a number
+        description: ticket.description || '',
+        currency: ticket.currency || selectedCurrency.value  // Ensure currency is always set
+    }));
+
+    await onSubmit({ tickets: formattedTickets });
     setStep('NextStep');
 };
 
@@ -217,7 +258,20 @@ const updateTicketPrice = (e) => {
     // Ensure only one decimal point is present
     const decimalIndex = value.indexOf('.');
     if (decimalIndex !== -1) {
-        value = value.substring(0, decimalIndex + 1) + value.substring(decimalIndex + 1).replace(/\./g, '');
+        value = value.substring(0, decimalIndex + 1) + 
+               value.substring(decimalIndex + 1).replace(/\./g, '').substring(0, 2);
+    }
+
+    // Limit the whole number part
+    const parts = value.split('.');
+    if (parts[0].length > 4) { // Updated to 4 digits for 9999.99 max
+        parts[0] = parts[0].substring(0, 4);
+        value = parts.join('.');
+    }
+
+    // Check if value exceeds maximum
+    if (parseFloat(value) > MAX_TICKET_PRICE) {
+        value = MAX_TICKET_PRICE.toFixed(2);
     }
 
     formattedPrice.value = value;
@@ -267,8 +321,12 @@ const toggleAdditionalDetails = () => {
 };
 
 const updateAdditionalDetails = (e) => {
-    formattedDescription.value = e.target.value;
-    tickets[currentMedia.value].description = e.target.value;
+    let value = e.target.value;
+    if (value.length > MAX_DESCRIPTION_LENGTH) {
+        value = value.substring(0, MAX_DESCRIPTION_LENGTH);
+    }
+    formattedDescription.value = value;
+    tickets[currentMedia.value].description = value;
 };
 
 const toggleCurrencyDropdown = () => {

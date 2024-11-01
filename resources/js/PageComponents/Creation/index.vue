@@ -17,39 +17,41 @@
 			    </div>
 			</div>
 			<div class="w-full" v-if="organizer && organizer.events">
-			    <div class="group relative grid grid-cols-4 gap-8 py-4 h-36 items-center hover:bg-gray-100 rounded-2xl cursor-pointer"
-			         @click="onSubmit"
-			         v-for="event in organizer.events"
-			         :key="event.id"
-			         style="grid-template-columns: 16rem 30% auto auto;">
-			        <div class="px-8">
-			            <template v-if="event && event.thumbImagePath">
-			                <picture>
-			                    <source :srcset="`${imageUrl}${event.thumbImagePath}`" type="image/webp">
-			                    <img :src="`${imageUrl}${event.thumbImagePath.slice(0, -4)}jpg`"
-			                         :alt="`${event.name} Immersive Event`"
-			                         class="h-24 w-full object-cover rounded-2xl">
-			                </picture>
-			            </template>
-			            <template v-else>
-			                <div class="h-24 w-full rounded-2xl bg-gray-300"></div>
-			            </template>
+			    <a v-for="event in organizer.events"
+			       :key="event.id"
+			       :href="`/hosting/event/${event.slug}/edit`"
+			       class="block">
+			        <div class="group relative grid grid-cols-4 gap-8 py-4 h-36 items-center hover:bg-gray-100 rounded-2xl cursor-pointer"
+			             style="grid-template-columns: 16rem 30% auto auto;">
+			            <div class="px-8">
+			                <template v-if="event && event.thumbImagePath">
+			                    <picture>
+			                        <source :srcset="`${imageUrl}${event.thumbImagePath}`" type="image/webp">
+			                        <img :src="`${imageUrl}${event.thumbImagePath.slice(0, -4)}jpg`"
+			                             :alt="`${event.name} Immersive Event`"
+			                             class="h-24 w-full object-cover rounded-2xl">
+			                    </picture>
+			                </template>
+			                <template v-else>
+			                    <div class="h-24 w-full rounded-2xl bg-gray-300"></div>
+			                </template>
+			            </div>
+			            <div class="">
+			                <p class="text-2xl font-medium">{{ event.name }}</p>
+			                <p class="text-md leading-4 text-gray-500">last edited: {{ cleanDate(event.updated_at) }}</p>
+			            </div>
+			            <div class="flex flex-row items-center">
+			            	<div :class="getStatusInfo(event, cleanDate).color" class="w-4 h-4 rounded-full"></div>
+            				<p class="text-lg font-medium text-gray-500 ml-4">{{ getStatusInfo(event, cleanDate).progress }}</p>
+			            </div>
+			            <!-- SVG Icon, visible only on hover -->
+			            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+					         class="absolute right-6 top-1/2 transform -translate-y-1/2 w-8 h-8 opacity-0 group-hover:opacity-100"
+					         stroke-width="3">
+					        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+					    </svg>
 			        </div>
-			        <div class="">
-			            <p class="text-2xl font-medium">{{ event.name }}</p>
-			            <p class="text-md leading-4 text-gray-500">last edited: {{ cleanDate(event.updated_at) }}</p>
-			        </div>
-			        <div class="flex flex-row items-center">
-			        	<div :class="getStatusInfo(event, cleanDate).color" class="w-4 h-4 rounded-full"></div>
-            			<p class="text-lg font-medium text-gray-500 ml-4">{{ getStatusInfo(event, cleanDate).progress }}</p>
-			        </div>
-			        <!-- SVG Icon, visible only on hover -->
-			        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-					     class="absolute right-6 top-1/2 transform -translate-y-1/2 w-8 h-8 opacity-0 group-hover:opacity-100"
-					     stroke-width="3">
-					    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
-					</svg>
-			    </div>
+			    </a>
 			</div>
 		</div>
 	</div>

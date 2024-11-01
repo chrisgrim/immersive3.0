@@ -18,42 +18,34 @@ class ImageHandler extends Model
 
     public static function saveImage($image, $model, $width, $height, $type, $rank = 0)
     {
-
         $mimeType = $image->getMimeType();
         if (strpos($mimeType, 'image/') !== 0) {
             throw new \Exception('The file is not an image.');
         }
 
-        $name = $model->name ?: substr(md5(microtime()), rand(0, 26), 7);
-        $rand = substr(md5(microtime()), rand(0, 26), 7);
-        $title = Str::slug($name);
-        $directory = "$type-images/$title-$rand";
+        $slug = $model->slug ?? Str::slug($model->name);
+        $directory = "$type-images/$slug";
 
         $imagePath = $image->getPathName();
         $image = Image::read($imagePath);
 
-        // Combine title and extension to form 'new-titles.jpg'
-        $fileName = $title;
+        $fileName = time() . '-' . Str::random(6);
 
-        // Encode to JPG and save
         $jpg = clone $image;
         $jpg->cover($width, $height);
         $encodedJpg = $jpg->encode(new JpegEncoder(quality: 75));
         Storage::disk('digitalocean')->put("/public/$directory/$fileName.jpg", (string) $encodedJpg);
 
-        // Encode to WEBP and save
         $webp = clone $image;
         $webp->cover($width, $height);
         $encodedWebp = $webp->encode(new WebpEncoder(quality: 75));
         Storage::disk('digitalocean')->put("/public/$directory/$fileName.webp", (string) $encodedWebp);
 
-        // Creating thumbnails and encoding to JPG
         $thumbJpg = clone $image;
         $thumbJpg->cover($width / 2, $height / 2);
         $encodedThumbJpg = $thumbJpg->encode(new JpegEncoder(quality: 75));
         Storage::disk('digitalocean')->put("/public/$directory/$fileName-thumb.jpg", (string) $encodedThumbJpg);
 
-        // Encoding thumbnails to WEBP
         $thumbWebp = clone $image;
         $thumbWebp->cover($width / 2, $height / 2);
         $encodedThumbWebp = $thumbWebp->encode(new WebpEncoder(quality: 75));
@@ -62,8 +54,8 @@ class ImageHandler extends Model
         $model->images()->create([
             'large_image_path' => "$directory/$fileName.webp",
             'thumb_image_path' => "$directory/{$fileName}-thumb.webp",
+            'rank' => $rank
         ]);
-
     }
 
     public static function deleteImage($image)

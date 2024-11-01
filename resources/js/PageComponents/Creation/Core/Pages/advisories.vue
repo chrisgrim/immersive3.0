@@ -1,14 +1,16 @@
 <template>
-    <div>
+    <div class="flex flex-col gap-24">
+        <!-- Contact Level Section -->
         <div class="w-full">
-            <h4>Guest contact level</h4>
+            <h4 class="mb-8">Audience Contact Level</h4>
             <div v-if="!selectedContact" class="flex flex-col w-full">
                 <div class="grid grid-cols-3 gap-4">
                     <div 
                         v-for="contact in contactLevelList" 
                         :key="contact.id" 
                         @click="selectContactLevel(contact)"
-                        class="relative cursor-pointer items-end flex justify-between p-8 h-48 border rounded-2xl hover:shadow-[0_0_0_1.5px_black]">
+                        class="relative cursor-pointer items-end flex justify-between p-8 h-48 border rounded-2xl hover:shadow-[0_0_0_1.5px_black]"
+                    >
                         <div class="w-full">
                             <h4 class="text-2xl leading-tight">
                                 {{ contact.name }}
@@ -34,119 +36,130 @@
                     <component :is="hoveredLocation === 'close' ? RiCloseCircleFill : RiCloseCircleLine" />
                 </div>
             </div>
+            <p v-if="$v.selectedContact.$error" 
+               class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
+                Please select a contact level
+            </p>
         </div>
-        <div>
-            <div class="pt-24">
-                <h4>Is there sexual content?</h4>
-                <div class="pt-8 flex flex-row gap-8 relative">
-                    <div class="relative">
-                        <button 
-                            @click="onSelectSexualContent(false)"
-                            :class="{ '!border-black !border-2 bg-[#f7f7f7]' : event.advisories.sexual === false }"
-                            class="border-gray-300 border rounded-2xl flex justify-between items-center hover:border-2 hover hover:border-black px-12 py-8">
-                            <div class="text-left">
-                                <h4 class="font-bold text-3xl">
-                                    No
-                                </h4>
-                            </div>
-                        </button>
-                        <div 
-                            @mouseenter="hoveredLocation = 'closeSexual'"
-                            @mouseleave="hoveredLocation = null"
-                            @click="event.advisories.sexual = null" 
-                            class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white"
-                        >
-                            <component :is="hoveredLocation === 'closeSexual' ? RiCloseCircleFill : RiCloseCircleLine" />
-                        </div>
+
+        <!-- Interactive Level Section -->
+        <div class="w-full">
+            <h4 class="mb-8">Audience Interaction Level</h4>
+            <div v-if="!selectedInteractive" class="flex flex-col w-full gap-4">
+                <div 
+                    v-for="interactive in contentInteractiveList" 
+                    :key="interactive.id" 
+                    @click="selectInteractiveLevel(interactive)"
+                    class="relative cursor-pointer flex flex-col p-8 border rounded-2xl hover:shadow-[0_0_0_1.5px_black]"
+                >
+                    <div class="w-full">
+                        <h4 class="text-2xl leading-tight mb-2">
+                            {{ interactive.name }}
+                        </h4>
+                        <p class="text-lg leading-snug text-gray-600">
+                            {{ interactive.description }}
+                        </p>
                     </div>
-                    <div v-if="event.advisories.sexual === true" class="w-full relative">
-                        <textarea 
-                            name="sexualContentDescription" 
-                            class="text-2xl font-normal border border-[#222222] focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4 w-full h-full" 
-                            v-model="event.advisories.sexualDescription" 
-                            @input="showContentAdvisories"
-                            placeholder="Explain the sexual content to our readers"
-                            rows="2">
-                        </textarea>
-                        <div 
-                            @mouseenter="hoveredLocation = 'closeSexual'"
-                            @mouseleave="hoveredLocation = null"
-                            @click="event.advisories.sexual = null" 
-                            class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white"
-                        >
-                            <component :is="hoveredLocation === 'closeSexual' ? RiCloseCircleFill : RiCloseCircleLine" />
-                        </div>
-                    </div>
-                    <button 
-                        v-else
-                        @click="onSelectSexualContent(true)"
-                        :class="{ '!border-black !border-2 bg-[#f7f7f7]' : event.advisories.sexual === true }"
-                        class="border-gray-300 border rounded-2xl flex justify-between items-center hover:border-2 hover hover:border-black px-12 py-8">
-                        <div class="text-left">
-                            <h4 class="font-bold text-3xl">
-                                Yes
-                            </h4>
-                        </div>
-                    </button>
                 </div>
             </div>
+            <div v-else>
+                <div class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-gray-100 w-full">
+                    <div class="max-w-2xl">
+                        <h4 class="text-1xl leading-tight mb-2"
+                            :class="{
+                                'text-[#adadad]': selectedInteractive.model,
+                                'text-black': selectedInteractive.model }">
+                            {{ selectedInteractive.name }}
+                        </h4>
+                        <p class="text-lg leading-snug text-gray-600">
+                            {{ selectedInteractive.description }}
+                        </p>
+                    </div>
+                    <div 
+                        @mouseenter="hoveredLocation = 'closeInteractive'"
+                        @mouseleave="hoveredLocation = null"
+                        @click="deselectInteractiveLevel" 
+                        class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white">
+                        <component :is="hoveredLocation === 'closeInteractive' ? RiCloseCircleFill : RiCloseCircleLine" />
+                    </div>
+                </div>
+                
+                <!-- Audience Role Textarea -->
+                <div class="mt-8">
+                    <h4 class="mb-4 text-1xl">Audience Role</h4>
+                    <textarea 
+                        v-model="event.advisories.audience"
+                        @input="$v.event.advisories.audience.$touch"
+                        class="w-full p-4 text-1xl border rounded-2xl focus:border-black focus:shadow-[0_0_0_1.5px_black] outline-none"
+                        :class="{ 'border-red-500': $v.event.advisories.audience.$error }"
+                        placeholder="Describe the role your audience will play..."
+                        rows="4"
+                    ></textarea>
+                    <div class="flex justify-end mt-1 text-gray-500">
+                        {{ event.advisories.audience?.length || 0 }}/1000
+                    </div>
+                    <p v-if="$v.event.advisories.audience.$error" 
+                       class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
+                        {{ $v.event.advisories.audience.required.$invalid ? 'Audience role is required' : 'Audience role is too long' }}
+                    </p>
+                </div>
+            </div>
+            <p v-if="$v.selectedInteractive.$error" 
+               class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
+                Please select an interaction level
+            </p>
+        </div>
+
+        <div class="w-full flex justify-end">
+            <button 
+                class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl" 
+                @click="handleSubmit"
+            >
+                Next
+            </button>
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, inject, onMounted, nextTick } from 'vue';
+import { ref, inject, onMounted, computed } from 'vue';
+import { required, maxLength } from '@vuelidate/validators';
+import useVuelidate from '@vuelidate/core';
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import Dropdown from '@/GlobalComponents/dropdown.vue';
 import List from '@/GlobalComponents/dropdown-list.vue';
 
-const components = { Dropdown, List };
-
 const event = inject('event');
-const errors = inject('errors');
-const isSubmitting = inject('isSubmitting');
 const onSubmit = inject('onSubmit');
 const setStep = inject('setStep');
+const errors = inject('errors');
 
-const userAccepts = ref(false);
-
+// State
 const contactLevelList = ref([]);
-const contentAdvisoryList = ref([]);
-const contentAdvisories= ref([]);
+const contentInteractiveList = ref([]);
 const selectedContact = ref(null);
+const selectedInteractive = ref(null);
 const hoveredLocation = ref(null);
-const contactDiv = ref(null);
-const contactDivHeight = ref(null);
 
-const itemSelected = async (item) => {
-    contentAdvisories.value.push(item);
-}
+const currentContactLevel = computed(() => {
+    if (event.contact_levels && event.contact_levels.length > 0) {
+        return event.contact_levels[0];
+    }
+    return null;
+});
 
-const itemRemoved = async (item) => {
-    contentAdvisories = [];
-}
-
+// API calls
 const fetchContactLevels = async () => {
     const response = await axios.get(`/api/contactlevels`);
     contactLevelList.value = response.data;
 };
-const fetchcontentAdvisories = async () => {
-    const response = await axios.get(`/api/contentadvisories`);
-    contentAdvisoryList.value = response.data;
+
+const fetchInteractiveLevel = async () => {
+    const response = await axios.get(`/api/interactivelevels`);
+    contentInteractiveList.value = response.data;
 };
 
-const onSelectSexualContent = (hasSexualContent) => {
-    event.advisories.sexual = hasSexualContent;
-};
-
-const showContentAdvisories = () => {
-    // This will automatically trigger reactivity to show the advisories when the user types in the textarea
-};
-
-const handleSubmit = async () => {
-    await onSubmit({ hasLocation: event.hasLocation });
-};
-
+// Event handlers
 const selectContactLevel = (contact) => {
     selectedContact.value = contact;
 };
@@ -155,11 +168,64 @@ const deselectContactLevel = () => {
     selectedContact.value = null;
 };
 
-onMounted(() => {
-    fetchContactLevels();
-    fetchcontentAdvisories();
+const selectInteractiveLevel = (interactive) => {
+    selectedInteractive.value = interactive;
+};
+
+const deselectInteractiveLevel = () => {
+    selectedInteractive.value = null;
+};
+
+const rules = {
+    selectedContact: { required },
+    selectedInteractive: { required },
+    event: {
+        advisories: {
+            audience: { 
+                required,
+                maxLength: maxLength(1000)
+            }
+        }
+    }
+};
+
+const $v = useVuelidate(rules, { 
+    selectedContact,
+    selectedInteractive,
+    event
 });
 
+const handleSubmit = async () => {
+    errors.value = {};
+    const isFormValid = await $v.value.$validate();
+    
+    if (!isFormValid) {
+        return;
+    }
+
+    await onSubmit({ 
+        contactLevel: selectedContact.value,
+        interactiveLevel: selectedInteractive.value,
+        advisories: {
+            audience: event.advisories.audience
+        }
+    });
+    setStep('NextStep');
+};
+
+// Lifecycle
+onMounted(() => {
+    fetchContactLevels();
+    fetchInteractiveLevel();
+    
+    // Initialize from existing event data if it exists
+    if (currentContactLevel.value) {
+        selectContactLevel(currentContactLevel.value);
+    }
+    if (event.interactive_level) {
+        selectInteractiveLevel(event.interactive_level);
+    }
+});
 </script>
 
 <style>
@@ -170,6 +236,6 @@ onMounted(() => {
 }
 
 .slide-up-leave-to {
-    height: 0rem !important; /* Final height value */
+    height: 0rem !important;
 }
 </style>

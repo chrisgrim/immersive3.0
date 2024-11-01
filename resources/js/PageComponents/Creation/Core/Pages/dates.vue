@@ -61,6 +61,10 @@
                             <h2>Dates</h2>
                             <p class="mt-8">Step 1: Select your event's dates</p>
                         </div>
+                        <p v-if="$v.selectedDates.$error" 
+                            class="text-red-500 mb-2 p-8">
+                            Please select at least one date
+                        </p>
                         <div v-else class="flex justify-between items-center h-44 p-8">
                             <h3 class="text-4xl">{{ selectedDatesCount }} {{ selectedDatesCount === 1 ? 'Night' : 'Nights' }}</h3>
                             <div 
@@ -105,7 +109,14 @@
                     </div>
                     <div class="w-full flex justify-between p-8">
                         <button @click="event.showtype = null" class="mt-8 text-xl rounded-2xl underline">Switch show type</button>
-                        <button class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl" @click="handleSubmit">Next</button>
+                        <div class="flex flex-col items-end">
+                            <button 
+                                class="px-12 py-4 text-2xl bg-black text-white rounded-2xl" 
+                                @click="handleSubmit"
+                            >
+                                Next
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -114,26 +125,21 @@
 </template>
 
 <script setup>
-import { ref, computed, inject, onMounted } from 'vue';
+import { ref, computed, inject, onMounted, watch } from 'vue';
 import VueCal from 'vue-cal';
 import 'vue-cal/dist/vuecal.css';
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
-import { maxLength } from '@vuelidate/validators';
+import { maxLength, required } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 
-Date.prototype.addDays = function(days) {
-    const date = new Date(this.valueOf());
-    date.setDate(date.getDate() + days);
-    return date;
-};
-
-
+// Injected values
 const event = inject('event');
 const errors = inject('errors');
 const isSubmitting = inject('isSubmitting');
 const onSubmit = inject('onSubmit');
 const setStep = inject('setStep');
 
+// Refs
 const events = ref([]);
 const selectedDates = ref([]);
 const promptVisible = ref(false);
@@ -141,21 +147,149 @@ const promptMessage = ref('');
 const promptAction = ref(null);
 const selectedDate = ref(null);
 const hoveredLocation = ref(null);
-
+const tempSelectedDates = ref([]);
+const tempShowTimes = ref('');
+const previousShowType = ref(null);
 const timezones = ref([]);
 const selectedTimezone = ref('');
 const userGMTOffset = ref('');
 
+// Validation
 const rules = {
     event: {
-        show_times: {
-            maxLength: maxLength(1000),
+        show_times: { maxLength: maxLength(500) }
+    },
+    selectedDates: {
+        required: (value) => event.showtype !== 's' || (event.showtype === 's' && value.length > 0)
+    }
+};
+const $v = useVuelidate(rules, { 
+    event,
+    selectedDates 
+});
+
+// Computed
+const selectedDatesCount = computed(() => selectedDates.value.length);
+
+// Date Selection Methods
+const onDateSelect = (day) => {
+    hoveredLocation.value = null;
+    
+    const date = new Date(day);
+    date.setHours(0, 0, 0, 0);
+    
+    if (isNaN(date.getTime())) {
+        return;
+    }
+
+    const formattedDate = date.toISOString().split('T')[0];
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
+
+    if (selectedDates.value.includes(formattedDate)) {
+        handleDateDeselection(formattedDate, weekday);
+    } else {
+        handleDateSelection(formattedDate, weekday);
+    }
+};
+
+const handleDateSelection = (formattedDate, weekday) => {
+    selectedDates.value.push(formattedDate);
+    events.value.push({ start: formattedDate, end: formattedDate, title: 'Selected' });
+
+    const futureDatesExist = checkFutureDates(formattedDate);
+    if (!futureDatesExist) {
+        showPrompt('selectWeekly', `Repeat future ${weekday}s`, formattedDate);
+    }
+};
+
+const handleDateDeselection = (formattedDate, weekday) => {
+    selectedDates.value = selectedDates.value.filter(d => d !== formattedDate);
+    events.value = events.value.filter(event => event.start !== formattedDate);
+    
+    const futureDatesExist = checkFutureDates(formattedDate);
+    if (futureDatesExist) {
+        showPrompt('removeFuture', `Remove future ${weekday}s?`, formattedDate);
+    }
+};
+
+const checkFutureDates = (formattedDate) => {
+    return selectedDates.value.some(dateStr => {
+        const futureDate = new Date(dateStr);
+        return futureDate > new Date(formattedDate) && 
+               futureDate.getDay() === new Date(formattedDate).getDay();
+    });
+};
+
+// Prompt Handling
+const showPrompt = (action, message, date) => {
+    promptAction.value = action;
+    promptMessage.value = message;
+    selectedDate.value = date;
+    promptVisible.value = true;
+};
+
+const handlePromptYes = () => {
+    if (promptAction.value === 'selectWeekly') {
+        createWeeklyEvents(selectedDate.value);
+    } else if (promptAction.value === 'removeFuture') {
+        removeWeeklyEvents(selectedDate.value);
+    }
+    promptVisible.value = false;
+};
+
+// Weekly Events
+const createWeeklyEvents = async (startDateStr) => {
+    const { default: moment } = await import('moment-timezone');
+    const timezone = selectedTimezone.value;
+    const startDate = moment.tz(startDateStr, timezone);
+    const targetDay = startDate.day();
+    
+    for (let i = 1; i < 26; i++) {
+        const nextDate = startDate.clone().add(i, 'weeks');
+        if (nextDate.isAfter(moment().add(180, 'days'))) break;
+        
+        const formattedDate = nextDate.format('YYYY-MM-DD');
+        
+        if (!selectedDates.value.includes(formattedDate)) {
+            selectedDates.value.push(formattedDate);
+            events.value.push({ 
+                start: formattedDate, 
+                end: formattedDate, 
+                title: 'Selected' 
+            });
         }
     }
 };
-const $v = useVuelidate(rules, { event });
 
-const selectedDatesCount = computed(() => selectedDates.value.length);
+const removeWeeklyEvents = async (startDateStr) => {
+    const { default: moment } = await import('moment-timezone');
+    const timezone = selectedTimezone.value;
+    const startDate = moment.tz(startDateStr, timezone);
+    const startDay = startDate.day();
+
+    selectedDates.value = selectedDates.value.filter(dateStr => {
+        const date = moment.tz(dateStr, timezone);
+        return !(date.isAfter(startDate) && date.day() === startDay);
+    });
+    
+    events.value = events.value.filter(event => selectedDates.value.includes(event.start));
+};
+
+// Show Type Handling
+const setSpecificDates = () => {
+    if (event.showtype === 'a') {
+        previousShowType.value = 'a';
+        selectedDates.value = [];
+        events.value = [];
+    }
+    event.showtype = 's';
+};
+
+// Utility Methods
+const clearAllDates = () => {
+    selectedDates.value = [];
+    events.value = [];
+};
 
 const fetchTimezones = async () => {
     const { default: moment } = await import('moment-timezone');
@@ -172,128 +306,51 @@ const fetchTimezones = async () => {
     }
 };
 
-const onDateSelect = (day) => {
-    hoveredLocation.value = null;
-    const date = new Date(day);
-    if (isNaN(date.getTime())) {
-        console.error("Invalid date:", day);
-        return;
-    }
-
-    const formattedDate = date.toISOString().split('T')[0];
-    const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
-
-    if (selectedDates.value.includes(formattedDate)) {
-        selectedDates.value = selectedDates.value.filter(d => d !== formattedDate);
-        events.value = events.value.filter(event => event.start !== formattedDate);
-        
-        const futureDatesExist = selectedDates.value.some(dateStr => {
-            const futureDate = new Date(dateStr);
-            return futureDate > new Date(formattedDate) && futureDate.getDay() === new Date(formattedDate).getDay();
-        });
-
-        if (futureDatesExist) {
-            promptMessage.value = `Remove future ${weekday}s?`;
-            promptAction.value = 'removeFuture';
-            selectedDate.value = formattedDate;
-            promptVisible.value = true;
-        } else {
-            promptVisible.value = false;
-        }
-    } else {
-        selectedDates.value.push(formattedDate);
-        events.value.push({ start: formattedDate, end: formattedDate, title: 'Selected' });
-
-        const futureDatesExist = selectedDates.value.some(dateStr => {
-            const futureDate = new Date(dateStr);
-            return futureDate > new Date(formattedDate) && futureDate.getDay() === new Date(formattedDate).getDay();
-        });
-
-        if (!futureDatesExist) {
-            promptMessage.value = `Repeat future ${weekday}s`;
-            promptAction.value = 'selectWeekly';
-            selectedDate.value = formattedDate;
-            promptVisible.value = true;
-        } else {
-            promptVisible.value = false;
-        }
-    }
-};
-
-const handlePromptYes = () => {
-    if (promptAction.value === 'selectWeekly') {
-        createWeeklyEvents(selectedDate.value);
-    } else if (promptAction.value === 'removeFuture') {
-        removeWeeklyEvents(selectedDate.value);
-    }
-    promptVisible.value = false;
-};
-
-const handlePromptNo = () => {
-    promptVisible.value = false;
-};
-
-const createWeeklyEvents = (startDateStr) => {
-    const startDate = new Date(startDateStr);
-    const weekday = startDate.toLocaleDateString('en-US', { weekday: 'long' });
-
-    for (let i = 1; i < 26; i++) {
-        const nextDate = new Date(startDate).addDays(i * 7);
-        if (nextDate > new Date().addDays(180)) break;
-        const formattedDate = nextDate.toISOString().split('T')[0];
-        if (!selectedDates.value.includes(formattedDate)) {
-            selectedDates.value.push(formattedDate);
-            events.value.push({ start: formattedDate, end: formattedDate, title: 'Selected' });
-        }
-    }
-};
-
-const removeWeeklyEvents = (startDateStr) => {
-    const startDate = new Date(startDateStr);
-    const weekday = startDate.toLocaleDateString('en-US', { weekday: 'long' });
-
-    selectedDates.value = selectedDates.value.filter(dateStr => {
-        const date = new Date(dateStr);
-        return !(date > startDate && date.getDay() === startDate.getDay());
-    });
-
-    events.value = events.value.filter(event => selectedDates.value.includes(event.start));
-};
-
-const clearAllDates = () => {
-    selectedDates.value = [];
-    events.value = [];
-};
-
+// Form Submission
 const handleSubmit = async () => {
     errors.value = {};
     const isFormValid = await $v.value.$validate();
+    
     if (!isFormValid) {
         return;
     }
 
-    const formattedDates = selectedDates.value.map(date => new Date(date).toISOString().slice(0, 19).replace('T', ' '));
-    await onSubmit({ showtype: event.showtype, dateArray: formattedDates, timezone: selectedTimezone.value, show_times:event.show_times });
+    const formattedDates = selectedDates.value.map(date => 
+        new Date(date).toISOString().slice(0, 19).replace('T', ' ')
+    );
+    
+    await onSubmit({ 
+        showtype: event.showtype, 
+        dateArray: formattedDates, 
+        timezone: selectedTimezone.value, 
+        show_times: event.show_times 
+    });
 };
 
-const setSpecificDates = () => {
-    // clearAllDates();
-    event.showtype = 's';
-};
-
-const switchToAlways = () => {
-    if (event.showtype === 's') {
-        // Restore the dates and show times from temporary storage
+// Watchers
+watch(() => event.showtype, (newType, oldType) => {
+    if (oldType === 's' && newType === 'a') {
+        tempSelectedDates.value = [...selectedDates.value];
+        tempShowTimes.value = event.show_times;
+        previousShowType.value = 's';
+    } else if (oldType === 'a' && newType === 's') {
+        selectedDates.value = [];
+        events.value = [];
+    } else if (newType === null && previousShowType.value === 's') {
         selectedDates.value = [...tempSelectedDates.value];
         event.show_times = tempShowTimes.value;
+        events.value = tempSelectedDates.value.map(date => ({
+            start: date,
+            end: date,
+            title: 'Selected'
+        }));
     }
-    event.showtype = 'a';
-};
+});
 
+// Lifecycle
 onMounted(() => {
     fetchTimezones();
-
-    if (event.shows && event.shows.length > 0) {
+    if (event.shows?.length > 0) {
         event.shows.forEach(show => {
             const formattedDate = new Date(show.date).toISOString().split('T')[0];
             selectedDates.value.push(formattedDate);
@@ -302,7 +359,6 @@ onMounted(() => {
     }
 });
 </script>
-
 
 <style>
 .vuecal__cell--disabled {

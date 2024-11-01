@@ -37,6 +37,12 @@ class HostEventController extends Controller
     {
         $validatedData = $request->validated();
 
+        //strips category if user changes event from remote to in-person or vice versa
+        if (isset($validatedData['hasLocation']) && $event->category && 
+            $event->category->remote === $validatedData['hasLocation']) {
+            $event->category()->dissociate();
+        }
+
         if (isset($validatedData['location'])) {
             $event->location->update($validatedData['location']);
         } else {
@@ -57,6 +63,13 @@ class HostEventController extends Controller
 
         if (isset($validatedData['mobilityAdvisories'])) {
             MobilityAdvisory::saveAdvisories($event, $validatedData['mobilityAdvisories']);
+            
+            // Update wheelchair status
+            if (isset($validatedData['wheelchairReady'])) {
+                $event->advisories()->update([
+                    'wheelchairReady' => $validatedData['wheelchairReady']
+                ]);
+            }
         }
 
         if (isset($validatedData['tickets'])) {
@@ -69,14 +82,53 @@ class HostEventController extends Controller
         }
 
         if ($request->hasFile('images')) {
+            $ranks = $request->input('ranks', []);
             foreach ($request->file('images') as $index => $image) {
-                ImageHandler::saveImage($image, $event, 1200, 800, 'event', $index);
+                $rank = $ranks[$index] ?? 0;
+                ImageHandler::saveImage($image, $event, 1200, 800, 'event', $rank);
             }
+        }
+
+        // Handle Contact Level
+        if (isset($validatedData['contactLevel'])) {
+            $event->contactLevels()->sync([$validatedData['contactLevel']['id']]);
+        }
+
+        // Handle Interactive Level
+        if (isset($validatedData['interactiveLevel'])) {
+            $event->interactive_level_id = $validatedData['interactiveLevel']['id'];
+            $event->save();
+        }
+
+        // Update advisories
+        if (isset($validatedData['advisories'])) {
+            $advisoryData = [];
+            
+            if (isset($validatedData['advisories']['sexual'])) {
+                $advisoryData['sexual'] = $validatedData['advisories']['sexual'];
+            }
+            
+            if (isset($validatedData['advisories']['sexualDescription'])) {
+                $advisoryData['sexualDescription'] = $validatedData['advisories']['sexualDescription'];
+            }
+
+            if (isset($validatedData['advisories']['audience'])) {
+                $advisoryData['audience'] = $validatedData['advisories']['audience'];
+            }
+
+            if (!empty($advisoryData)) {
+                $event->advisories()->update($advisoryData);
+            }
+        }
+
+        // Update content advisories
+        if (isset($validatedData['contentAdvisories'])) {
+            ContentAdvisory::saveAdvisories($event, $validatedData['contentAdvisories']);
         }
 
         return response()->json([
             'message' => 'Event updated successfully.',
-            'event' => $event->load('shows', 'location')
+            'event' => $event->load('shows', 'location', 'images', 'advisories', 'mobilityAdvisories', 'contentAdvisories', 'contactLevels', 'interactive_level')
         ], 200);
     }
 

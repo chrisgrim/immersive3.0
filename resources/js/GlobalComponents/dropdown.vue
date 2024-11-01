@@ -14,6 +14,7 @@
                     :placeholder="placeholder"
                     @input="filterRemoteLocations"
                     @focus="onDropdown"
+                    @keydown.enter.prevent="handleEnter"
                     autocomplete="off"
                     type="text">
                 <ul 
@@ -32,7 +33,7 @@
                         class="py-6 px-6 flex items-center gap-8 hover:bg-gray-300 cursor-pointer"
                         @click="createItem(searchTerm)"
                         @mousedown.stop.prevent>
-                        Create "{{ searchTerm }}"
+                        Create: "{{ searchTerm }}"
                     </li>
                 </ul>
             </div>
@@ -105,6 +106,14 @@ const handleClickOutside = (event) => {
     const dropdownElement = dropdownRef.value;
     if (dropdownElement && !dropdownElement.contains(event.target)) {
         closeDropdown();
+    }
+};
+
+const handleEnter = () => {
+    if (props.creatable && searchTerm.value && !filteredItems.value.length) {
+        createItem(searchTerm.value);
+    } else if (filteredItems.value.length > 0) {
+        selectItem(filteredItems.value[0]);
     }
 };
 

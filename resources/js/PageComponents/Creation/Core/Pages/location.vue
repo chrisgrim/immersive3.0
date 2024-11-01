@@ -113,9 +113,16 @@ const initializeMapObject = () => {
     };
 };
 
+const autoComplete = ref(null);
+const service = ref(null);
+
 const initGoogleMaps = () => {
-    autoComplete = new google.maps.places.AutocompleteService();
-    service = new google.maps.places.PlacesService(document.createElement('div')); // Creating a dummy div
+    if (!window.google || !window.google.maps) {
+        console.error('Google Maps not loaded');
+        return;
+    }
+    autoComplete.value = new window.google.maps.places.AutocompleteService();
+    service.value = new window.google.maps.places.PlacesService(document.createElement('div'));
 };
 
 const event = inject('event');
@@ -135,46 +142,70 @@ const places = ref([]);
 const dropdown = ref(false);
 const locationSearch = ref(!event.location.latitude);
 
-let autoComplete;
-let service;
-
 const handleSubmit = async () => {
     await onSubmit({ location: event.location });
     setStep('NextStep')
 };
 
 const updateLocations = () => {
-    autoComplete.getPlacePredictions({ input: userInput.value }, data => {
-        places.value = data;
+    if (!autoComplete.value) {
+        console.warn('AutocompleteService not initialized');
+        return;
+    }
+    autoComplete.value.getPlacePredictions({ input: userInput.value }, data => {
+        places.value = data || [];
     });
 };
 
 const selectLocation = async (location) => {
-    if (!service) {
-        console.error('Google Places Service is not initialized');
+    if (!service.value) {
+        console.warn('Places Service not initialized');
         return;
     }
-    service.getDetails({ placeId: location.place_id }, data => {
-        setPlace(data);
+    service.value.getDetails({ placeId: location.place_id }, data => {
+        if (data) {
+            setPlace(data);
+            userInput.value = location.description;
+            dropdown.value = false;
+            locationSearch.value = false;
+        }
     });
-    userInput.value = location.description;
-    dropdown.value = false;
-    locationSearch.value = false;
 };
 
 const setPlace = (place) => {
-    // Update the event location here based on the place data
-    event.location = {
-        latitude: place.geometry.location.lat(),
-        longitude: place.geometry.location.lng(),
-        home: place.name,
-        street: place.formatted_address.split(', ')[0],
-        city: place.address_components.find(component => component.types.includes('locality')).long_name,
-        region: place.address_components.find(component => component.types.includes('administrative_area_level_1')).short_name,
-        postal_code: place.address_components.find(component => component.types.includes('postal_code')).long_name,
-        country: place.address_components.find(component => component.types.includes('country')).long_name,
+    // Helper function to safely get address component
+    const getAddressComponent = (type) => {
+        const component = place.address_components?.find(component => 
+            component.types.includes(type)
+        );
+        return component?.long_name || component?.short_name || '';
     };
-    map.value.center = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() }; // Update map center
+
+    // Get the street address (first line of formatted address or empty string)
+    const street = place.formatted_address?.split(', ')[0] || '';
+
+    // Update the event location with fallbacks
+    event.location = {
+        latitude: place.geometry?.location.lat() || 0,
+        longitude: place.geometry?.location.lng() || 0,
+        home: place.name || street || '',
+        street: street,
+        city: getAddressComponent('locality') || 
+              getAddressComponent('sublocality') || 
+              getAddressComponent('postal_town') || '',
+        region: getAddressComponent('administrative_area_level_1') || '',
+        postal_code: getAddressComponent('postal_code') || '',
+        country: getAddressComponent('country') || '',
+        hiddenLocationToggle: event.location?.hiddenLocationToggle || false
+    };
+
+    // Update map center if coordinates are available
+    if (place.geometry?.location) {
+        map.value.center = { 
+            lat: place.geometry.location.lat(), 
+            lng: place.geometry.location.lng() 
+        };
+    }
 };
 
 const toggleHiddenLocation = () => {
@@ -183,20 +214,45 @@ const toggleHiddenLocation = () => {
 };
 
 onMounted(() => {
-    let script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw&libraries=places&callback=initMap`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
+    const loadGoogleMapsApi = () => {
+        return new Promise((resolve, reject) => {
+            if (window.google && window.google.maps) {
+                initGoogleMaps();
+                resolve();
+                return;
+            }
 
-    window.initMap = initGoogleMaps; // Ensure this is bound correctly
+            const script = document.createElement('script');
+            script.src = 'https://maps.googleapis.com/maps/api/js' +
+                '?key=AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw' +
+                '&libraries=places' +
+                '&loading=async';
+            
+            script.async = true;
+            script.defer = true;
+            
+            script.onload = () => {
+                // Wait a brief moment to ensure Google Maps is fully initialized
+                setTimeout(() => {
+                    initGoogleMaps();
+                    resolve();
+                }, 100);
+            };
+            script.onerror = (error) => reject(error);
+            
+            document.head.appendChild(script);
+        });
+    };
+
+    loadGoogleMapsApi()
+        .catch(error => {
+            console.error('Error loading Google Maps API:', error);
+        });
 });
 
 onUnmounted(() => {
-    // Clean up if necessary
-    if (window.initMap) {
-        delete window.initMap; // Remove the global callback function when the component is destroyed
-    }
+    autoComplete.value = null;
+    service.value = null;
 });
 </script>
 

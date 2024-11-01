@@ -12,6 +12,9 @@
                         @input="$v.event.name.$touch"
                         placeholder=""
                         rows="3" />
+                    <div class="flex justify-end mt-1 text-gray-500">
+                        {{ event.name?.length || 0 }}/100
+                    </div>
                     <p v-if="$v.event.name.$dirty && $v.event.name.maxLength.$invalid" 
                        class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
                         Event name is too long.
@@ -29,6 +32,9 @@
                             @input="$v.event.tag_line.$touch"
                             placeholder=""
                             rows="2" />
+                        <div v-if="(event.tag_line?.length || 0) > 235" class="flex justify-end mt-1 text-gray-500">
+                            {{ event.tag_line?.length || 0 }}/255
+                        </div>
                         <p v-if="$v.event.tag_line.$dirty && $v.event.tag_line.maxLength.$invalid" 
                            class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
                             Event tag_line is too long.
@@ -63,7 +69,7 @@ const rules = {
     event: {
         name: {
             required,
-            maxLength: maxLength(255),
+            maxLength: maxLength(100),
         },
         tag_line: {
             required,

@@ -2,173 +2,239 @@
     <main class="w-full">
         <div class="w-full">
             <h2>Add some photos of your event</h2>
-            <p class="text-gray-500 font-normal mt-4 mb-8">Add up to 5 images of your event. Drag to reorder </p>
-            <div 
-                v-if="images.length === 0"
+            <p class="text-gray-500 font-normal mt-4 mb-8">Add up to 5 images of your event. Drag to reorder</p>
+            
+            <!-- Empty State Upload Area -->
+            <div v-if="!images.length"
                 class="mt-6 outline-dashed rounded-2xl h-[27vw] flex justify-center items-center relative"
                 @dragover.prevent
                 @drop.prevent="handleDrop"
             >
-                <input type="file" multiple @change="handleFileChange" class="hidden" ref="fileInput" accept="image/*" />
-                <div class="flex flex-col items-center">
-                    <component :is="RiImageCircleLine" style="width:6rem; height: 6rem;"/>
-                    <h2 class="font-bold text-4xl mt-4">Drag and Drop</h2>
-                    <p class="text-1xl mt-4">Or browse for photos</p>
-                    <button @click="browseFiles" class="bg-black text-white py-4 px-8 rounded-2xl mt-4">Browse</button>
-                </div>
+                <input 
+                    type="file" 
+                    ref="fileInput" 
+                    class="hidden" 
+                    multiple 
+                    accept="image/*"
+                    @change="handleFileChange" 
+                />
+                <!-- <UploadPrompt @click="browseFiles" /> -->
             </div>
-            <draggable 
-                v-else 
-                class="dragArea grid grid-cols-2 gap-4 w-full" 
+
+            <!-- Image Grid -->
+            <draggable v-else
                 v-model="images"
+                class="dragArea grid grid-cols-2 gap-4 w-full" 
                 handle=".handle"
-                :move="onMoveCallback"
+                @change="handleSort"
             >
+                <!-- Existing Images -->
                 <template v-for="(image, index) in images" :key="index">
-                    <div 
-                        v-if="image" 
-                        :class="index === 0 ? 'col-span-2 aspect-[3/2] relative handle draggable-image' : 'relative aspect-[3/2] handle draggable-image'" 
+                    <div v-if="image" 
+                        :class="[
+                            'relative handle draggable-image',
+                            index === 0 ? 'col-span-2 aspect-[3/2]' : 'aspect-[3/2]'
+                        ]"
                     >
                         <img :src="image.url" class="w-full h-full object-cover rounded-2xl" />
-                        <button @click="removeImage(index)" class="absolute top-2 right-2 bg-white text-black rounded-full p-1 shadow">X</button>
+                        <div 
+                            @click="removeImage(index)" 
+                            class="absolute top-2 right-2 cursor-pointer bg-white rounded-full"
+                            @mouseenter="hoveredImage = index"
+                            @mouseleave="hoveredImage = null"
+                        >
+                            <component :is="hoveredImage === index ? RiCloseCircleFill : RiCloseCircleLine" />
+                        </div>
                     </div>
                 </template>
-                <template v-for="i in 5 - images.length" :key="'empty-' + i">
-                    <div 
+
+                <!-- Empty Upload Slots -->
+                <template v-for="i in remainingSlots" :key="'empty-' + i">
+                    <div @click="triggerFileInput"
                         class="relative aspect-[3/2] flex items-center justify-center border border-dashed border-black rounded-2xl cursor-pointer non-draggable hover:border-black hover:border-2 hover:border-solid"
-                        @click="triggerFileInput"
                     >
-                        <input type="file" multiple @change="handleFileChange" class="hidden fileInput" ref="fileInput" accept="image/*" />
+                        <input 
+                            type="file" 
+                            class="hidden fileInput" 
+                            multiple 
+                            accept="image/*"
+                            @change="handleFileChange" 
+                        />
                         <component :is="RiImageCircleLine" style="width:4rem; height: 4rem;" />
                     </div>
                 </template>
             </draggable>
         </div>
+
+        <!-- Submit Button -->
         <div class="w-full flex justify-end">
-            <button class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl" @click="handleSubmit">Next</button>
+            <button 
+                class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl" 
+                @click="handleSubmit"
+            >Next</button>
         </div>
     </main>
 </template>
 
 <script setup>
-import { ref, inject, onMounted } from 'vue';
-import { RiImageCircleLine } from "@remixicon/vue";
-import useVuelidate from '@vuelidate/core';
+import { ref, inject, computed } from 'vue';
+import { RiImageCircleLine, RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import { VueDraggableNext as draggable } from 'vue-draggable-next';
 
-const imageUrl = import.meta.env.VITE_IMAGE_URL;
+// Constants
+const MAX_IMAGES = 5;
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/svg+xml', 'image/webp'];
 
-// Inject dependencies provided by the parent
+// Injected dependencies
+const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const event = inject('event');
 const onSubmit = inject('onSubmit');
 const setStep = inject('setStep');
-const errors = inject('errors');
 
-const dragging = ref(false);
-const enabled = ref(true);
-const log = (event) => {
-  console.log(event);
-};
-
-// State for the images
+// Refs
 const images = ref([]);
-
-// Reference for the file input
 const fileInput = ref(null);
+const hoveredImage = ref(null);
 
-// Method to handle file browsing
-const browseFiles = () => {
-    if (fileInput.value) {
-        fileInput.value.click();
-    } else {
-        console.error("fileInput is not defined");
+// Computed
+const remainingSlots = computed(() => MAX_IMAGES - images.value.length);
+
+// File handling methods
+const validateFile = (file) => {
+    if (!ALLOWED_TYPES.includes(file.type)) {
+        alert(`"${file.name}" is not a supported image type. Please use JPEG, PNG, GIF, SVG, or WebP.`);
+        return false;
     }
+    
+    if (file.size > MAX_FILE_SIZE) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        alert(`"${file.name}" (${sizeMB}MB) exceeds the 2MB size limit. Please compress the image and try again.`);
+        return false;
+    }
+    
+    return true;
 };
 
-// Method to handle file changes from input
-const handleFileChange = (event) => {
-    const files = event.target.files;
-    processFiles(files);
-};
-
-// Method to handle drop event
-const handleDrop = (event) => {
-    const files = event.dataTransfer.files;
-    processFiles(files);
-};
-
-// Method to process files
 const processFiles = (files) => {
-    if (files.length + images.value.length > 5) {
-        alert('You can only add up to 5 images.');
+    if (files.length + images.value.length > MAX_IMAGES) {
+        alert(`You can only add up to ${MAX_IMAGES} images.`);
         return;
     }
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            images.value.push({ url: e.target.result, file });
-        };
-        reader.readAsDataURL(file);
-    }
+
+    console.log('Current images before adding:', images.value.map(img => img.rank));
+
+    Array.from(files).forEach(file => {
+        if (validateFile(file)) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const newRank = images.value.length;
+                console.log('Adding new image with rank:', newRank);
+                images.value.push({ 
+                    url: e.target.result, 
+                    file,
+                    rank: newRank
+                });
+                console.log('Images after adding:', images.value.map(img => img.rank));
+                handleSort({ moved: true });
+            };
+            reader.readAsDataURL(file);
+        }
+    });
 };
 
-// Method to remove an image
-const removeImage = (index) => {
-    images.value.splice(index, 1);
-};
+// Event handlers
+const handleFileChange = (event) => processFiles(event.target.files);
+const handleDrop = (event) => processFiles(event.dataTransfer.files);
+const browseFiles = () => fileInput.value?.click();
+const removeImage = (index) => images.value.splice(index, 1);
+const triggerFileInput = (event) => event.currentTarget.querySelector('.fileInput')?.click();
 
-// Load existing images if they exist
-onMounted(() => {
-    if (event && event.images) {
-        event.images.forEach(image => {
-            images.value.push({ url: `${imageUrl}${image.large_image_path}` });
+// Initialize images with proper ranks
+if (event?.images?.length) {
+    console.log('Initial event images:', event.images.map(img => img.rank));
+    images.value = event.images
+        .sort((a, b) => a.rank - b.rank)
+        .map((image, index) => ({
+            url: `${imageUrl}${image.large_image_path}`,
+            isExisting: true,
+            rank: index
+        }));
+    console.log('After initialization:', images.value.map(img => img.rank));
+}
+
+// Update the draggable component to handle the grid layout properly
+const handleSort = ({ moved }) => {
+    if (moved) {
+        console.log('Before sort ranks:', images.value.map(img => img.rank));
+        images.value.forEach((image, index) => {
+            image.rank = index;
         });
+        console.log('After sort ranks:', images.value.map(img => img.rank));
     }
-});
+};
 
+// Submit handler
 const handleSubmit = async () => {
+    console.log('Images before submit:', images.value.map(img => ({
+        rank: img.rank,
+        isFile: !!img.file,
+        url: img.url
+    })));
+
     const formData = new FormData();
     const currentImages = [];
 
     images.value.forEach((image, index) => {
+        image.rank = index;
         if (image.file) {
-            formData.append(`images[${index}]`, image.file);
-            formData.append(`ranks[${index}]`, index);
+            formData.append('images[]', image.file);
+            formData.append('ranks[]', index);
         } else {
-            currentImages.push({ url: image.url.replace(imageUrl, ''), rank: index });
+            currentImages.push({
+                url: image.url.replace(imageUrl, ''),
+                rank: index
+            });
         }
     });
 
     formData.append('currentImages', JSON.stringify(currentImages));
 
-    await onSubmit(formData);
-    setStep('NextStep'); 
-};
-
-// Method to trigger the file input from non-draggable divs
-const triggerFileInput = (event) => {
-    const input = event.currentTarget.querySelector('.fileInput');
-    if (input) {
-        input.click();
-    } else {
-        console.error("fileInput element not found");
+    try {
+        const response = await onSubmit(formData);
+        if (response?.event?.images) {
+            console.log('Response images:', response.event.images.map(img => img.rank));
+            event.images = response.event.images;
+            images.value = event.images
+                .sort((a, b) => a.rank - b.rank)
+                .map(image => ({
+                    url: `${imageUrl}${image.large_image_path}`,
+                    isExisting: true,
+                    rank: image.rank
+                }));
+            console.log('Final images:', images.value.map(img => img.rank));
+        }
+        setStep('NextStep');
+    } catch (error) {
+        console.error('Error submitting images:', error);
     }
 };
 </script>
 
 <style>
-div > .sortable-ghost:first-child {
-    grid-column: span 2 / span 2;
-}
-div > .sortable-ghost:first-child + div {
-    grid-column: span 1 / span 1;
-}
 .draggable-image {
     cursor: grab;
 }
 
 .draggable-image:active {
     cursor: grabbing;
+}
+
+div > .sortable-ghost:first-child {
+    grid-column: span 2 / span 2;
+}
+
+div > .sortable-ghost:first-child + div {
+    grid-column: span 1 / span 1;
 }
 </style>
