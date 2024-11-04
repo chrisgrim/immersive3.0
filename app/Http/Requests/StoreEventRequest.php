@@ -84,6 +84,8 @@ class StoreEventRequest extends FormRequest
             'advisories.audience' => 'sometimes|required|string|max:1000',
             'advisories.sexual' => 'sometimes|boolean',
             'advisories.sexualDescription' => 'nullable|string|max:1000',
+
+            'status' => 'sometimes|string',
         ];
     }
 }

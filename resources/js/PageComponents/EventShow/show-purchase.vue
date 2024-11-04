@@ -1,5 +1,10 @@
 <template>
-    <div class="fixed bottom-0 left-0 z-30 inline-block border w-full bg-white flex py-6 px-8 md:sticky md:top-36 md:pb-12 md:mt-16 md:rounded-lg md:flex-col md:shadow-custom-1 md:mb-16">
+    <div :class="[
+        'inline-block border w-full bg-white',
+        singleImage 
+            ? 'md:sticky md:top-20 md:rounded-2xl md:shadow-custom-1 md:flex-col py-6 px-8' 
+            : 'fixed bottom-0 left-0 z-30 flex py-6 px-8 md:sticky md:top-36 md:pb-12 md:mt-16 md:rounded-2xl md:flex-col md:shadow-custom-1 md:mb-16'
+    ]">
         <div 
             v-if="!ticketsVisible"
             class="inline-block w-8/12 md:w-full">
@@ -173,7 +178,8 @@ import dayjs from 'dayjs';
 const props = defineProps({
     event: Object,
     tickets: Array,
-    mobile: Boolean
+    mobile: Boolean,
+    singleImage: Boolean
 });
 
 const initializeCalendarObject = () => ({

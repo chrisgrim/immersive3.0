@@ -1,80 +1,71 @@
 <template>
-    <div>
-        <!-- Header -->
-        <div class="flex justify-center w-full p-8">
-            <h2>What Category does your event fall into?</h2>
-        </div>
+    <main class="w-full py-40 flex items-center min-h-[max(40rem,calc(100vh-6rem))]">
+        <div class="flex flex-col w-full">
+            <!-- Header -->
+            <div class="w-full">
+                <h2>What Category does your event fall into?</h2>
+            </div>
 
-        <!-- Main Content -->
-        <div class="w-full m-auto">
-            <div class="w-full relative" ref="categoryDrop" v-click-outside="handleClickOutside">
-                <!-- Dropdown Arrow -->
-                <svg 
-                    :class="{'transform rotate-90': dropdown}"
-                    class="w-10 h-10 fill-black absolute z-10 right-4 top-8 cursor-pointer" 
-                    @click="onDropdown"
-                >
-                    <use :xlink:href="`/storage/website-files/icons.svg#ri-arrow-right-s-line`" />
-                </svg>
-
-                <!-- Category Input -->
-                <input 
-                    :class="{ 'border-red-500': showError }"
-                    class="text-2xl relative p-8 w-full border mb-12 rounded-3xl focus:rounded-3xl"
-                    v-model="category"
-                    placeholder="Select Category"
-                    @input="filterCategories"
-                    @focus="onDropdown"
-                    autocomplete="off"
-                    type="text"
-                >
-                
-                <!-- Error Message -->
-                <p v-if="showError" class="text-red-500 text-1xl mt-[-2.5rem] mb-8 px-4">
-                    Please select a category
-                </p>
-
-                <!-- Selected Category Preview -->
-                <div v-if="event.category">
-                    <img 
-                        class="h-[30rem] w-full object-cover rounded-3xl" 
-                        :src="`${imageUrl}${event.category.largeImagePath}`" 
-                        :alt="event.category.name"
+            <!-- Main Content -->
+            <div class="w-full mt-14">
+                <div class="w-full relative" ref="categoryDrop" v-click-outside="handleClickOutside">
+                    <!-- Dropdown Arrow -->
+                    <svg 
+                        :class="{'transform rotate-90': dropdown}"
+                        class="w-10 h-10 fill-black absolute z-10 right-4 top-8 cursor-pointer" 
+                        @click="onDropdown"
                     >
-                    <p class="text-xl mt-8">{{ event.category.description }}</p>
-                </div>
+                        <use :xlink:href="`/storage/website-files/icons.svg#ri-arrow-right-s-line`" />
+                    </svg>
 
-                <!-- Category Dropdown -->
-                <ul v-if="dropdown" 
-                    class="overflow-auto bg-white w-full list-none rounded-b-3xl absolute top-24 m-0 z-10 border-[#e5e7eb] border max-h-[45rem]"
-                >
-                    <li v-for="item in filteredCategories"
-                        :key="item.id"
-                        class="py-6 px-6 flex items-center gap-8 hover:bg-gray-300 cursor-pointer" 
-                        @click="selectCategory(item)"
+                    <!-- Category Input -->
+                    <input 
+                        :class="{ 'border-red-500': showError }"
+                        class="text-2xl relative p-8 w-full border mb-12 rounded-3xl focus:rounded-3xl"
+                        v-model="category"
+                        placeholder="Select Category"
+                        @input="filterCategories"
+                        @focus="onDropdown"
+                        autocomplete="off"
+                        type="text"
                     >
+                    
+                    <!-- Error Message -->
+                    <p v-if="showError" class="text-red-500 text-1xl mt-[-2.5rem] mb-8 px-4">
+                        Please select a category
+                    </p>
+
+                    <!-- Selected Category Preview -->
+                    <div v-if="event.category">
                         <img 
-                            class="w-16" 
-                            :src="`${imageUrl}${item.thumbImagePath}`" 
-                            :alt="item.name"
+                            class="h-[30rem] w-full object-cover rounded-3xl" 
+                            :src="`${imageUrl}${event.category.largeImagePath}`" 
+                            :alt="event.category.name"
                         >
-                        {{ item.name }}
-                    </li>
-                </ul>
+                        <p class="text-xl mt-8">{{ event.category.description }}</p>
+                    </div>
+
+                    <!-- Category Dropdown -->
+                    <ul v-if="dropdown" 
+                        class="overflow-auto bg-white w-full list-none rounded-b-3xl absolute top-24 m-0 z-10 border-[#e5e7eb] border max-h-[45rem]"
+                    >
+                        <li v-for="item in filteredCategories"
+                            :key="item.id"
+                            class="py-6 px-6 flex items-center gap-8 hover:bg-gray-300 cursor-pointer" 
+                            @click="selectCategory(item)"
+                        >
+                            <img 
+                                class="w-16" 
+                                :src="`${imageUrl}${item.thumbImagePath}`" 
+                                :alt="item.name"
+                            >
+                            {{ item.name }}
+                        </li>
+                    </ul>
+                </div>
             </div>
         </div>
-
-        <!-- Submit Button -->
-        <div class="w-full flex justify-end">
-            <button 
-                class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed" 
-                @click="handleSubmit"
-                :disabled="isSubmitting"
-            >
-                Next
-            </button>
-        </div>
-    </div>
+    </main>
 </template>
 
 <script setup>
@@ -86,13 +77,10 @@ import { required } from '@vuelidate/validators';
 // Injected values
 const event = inject('event');
 const isSubmitting = inject('isSubmitting');
-const onSubmit = inject('onSubmit');
-const setStep = inject('setStep');
+const errors = inject('errors');
 
-// Constants
+// Constants and refs (keep existing ones)
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
-
-// Reactive refs
 const category = ref('');
 const dropdown = ref(false);
 const categoryList = ref([]);
@@ -100,11 +88,18 @@ const filteredCategories = ref([]);
 const categoryDrop = ref(null);
 
 // Validation setup
-const rules = { 'event.category_id': { required } };
-const $v = useVuelidate(rules, { event });
+const rules = { 
+    category_id: { required }
+};
+
+const $v = useVuelidate(rules, {
+    category_id: computed(() => event.category_id)
+});
 
 // Computed
-const showError = computed(() => $v.value.$dirty && !event.category_id);
+const showError = computed(() => {
+    return $v.value.$dirty && $v.value.$error;
+});
 
 // Methods
 const fetchCategories = async () => {
@@ -139,14 +134,6 @@ const selectCategory = (item) => {
     $v.value.$reset();
 };
 
-const handleSubmit = async () => {
-    $v.value.$touch();
-    if (!event.category_id) return;
-    
-    await onSubmit({ category_id: event.category_id });
-    setStep('NextStep');
-};
-
 const handleClickOutside = (event) => {
     const dropdownElement = categoryDrop.value;
     if (dropdownElement && !dropdownElement.contains(event.target) && 
@@ -156,6 +143,27 @@ const handleClickOutside = (event) => {
 };
 
 const onDropdown = () => dropdown.value = true;
+
+// Instead of handleSubmit, expose methods for parent
+defineExpose({
+    isValid: async () => {
+        await $v.value.$validate();
+        const isValid = !$v.value.$error;
+        console.log('Category validation:', {
+            categoryId: event.category_id,
+            validationError: $v.value.$error,
+            isValid
+        });
+        return isValid;
+    },
+    submitData: () => {
+        const data = {
+            category_id: event.category_id
+        };
+        console.log('Submitting category data:', data);
+        return data;
+    }
+});
 
 // Lifecycle
 onMounted(fetchCategories);

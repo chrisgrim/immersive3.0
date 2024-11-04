@@ -40,16 +40,18 @@ class EventController extends Controller
             return redirect('/');
         }
 
-        $cacheKey = 'event_' . $event->id;
+        // Load relationships directly without caching
+        $event->load('category', 'location', 'contentAdvisories', 'contactLevels', 
+            'mobilityAdvisories', 'eventreviews', 'staffpick', 'advisories', 
+            'interactive_level', 'remotelocations', 'genres', 'priceranges', 
+            'organizer', 'shows', 'age_limits', 'images');
+        
+        $tickets = collect(); // Default empty collection
+        if ($event->shows && $event->shows->first()) {
+            $tickets = $event->shows->first()->tickets()->orderBy('ticket_price')->get();
+        }
 
-        $eventData = Cache::rememberForever($cacheKey, function () use ($event) {
-            $event->load('category', 'location', 'contentAdvisories', 'contactLevels', 'mobilityAdvisories', 'eventreviews', 'staffpick', 'advisories', 'interactive_level', 'remotelocations', 'genres', 'priceranges', 'organizer', 'shows', 'age_limits', 'images');
-            $tickets = $event->shows()->first()->tickets()->orderBy('ticket_price')->get();
-
-            return compact('event', 'tickets');
-        });
-
-        return view('events.show', $eventData);
+        return view('events.show', compact('event', 'tickets'));
     }
 
     public function getOrganizerPaginatedEvents(Organizer $organizer, Request $request)

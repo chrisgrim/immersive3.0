@@ -37,6 +37,12 @@ class HostEventController extends Controller
     {
         $validatedData = $request->validated();
 
+        // Update event status if provided
+        if (isset($validatedData['status'])) {
+            $event->status = $validatedData['status'];
+            $event->save();
+        }
+
         //strips category if user changes event from remote to in-person or vice versa
         if (isset($validatedData['hasLocation']) && $event->category && 
             $event->category->remote === $validatedData['hasLocation']) {
@@ -124,6 +130,12 @@ class HostEventController extends Controller
         // Update content advisories
         if (isset($validatedData['contentAdvisories'])) {
             ContentAdvisory::saveAdvisories($event, $validatedData['contentAdvisories']);
+        }
+
+        // Store just the YouTube ID
+        if ($request->has('video')) {
+            $event->video = $request->video ?: null;
+            $event->save();
         }
 
         return response()->json([

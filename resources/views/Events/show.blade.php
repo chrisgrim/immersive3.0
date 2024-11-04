@@ -52,44 +52,68 @@
 @section('content')
     <div id="bodyArea" class="show">
         <div class="show-content">
-            @include('Events.Show.header')
-
+            {{-- Title section spans full width for both layouts --}}
             <div class="relative w-full m-auto p-0 md:px-12 lg:px-32 lg:max-w-screen-xl">
-                <div class="md:flex md:gap-20 lg:gap-36 border-b">
-                    <div class="relative inline-block">
-                        @include('Events.Show.about')
-<!-- 
-                        @if (Browser::isMobile())
-                            <div class="min-h-[18rem]">
-                                <event-show-dates :event="{{ $event }}"></event-show-dates>
-                            </div>
-                        @endif
+                <div class="flex flex-col justify-center py-12 bg-white">
 
-                        @if ($event->staffpick)
-                            @include('events.components.staffpick')
-                        @endif
- -->
+                    {{-- Event Title --}}
+                    <h1 class="text-5xl font-medium">{{ $event->name }}</h1>
 
-                        @include('Events.Show.details')
-                    </div>
-
-                    <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
-                        <vue-show-purchase
-                          :mobile="{{ Browser::isMobile() ? 'true' : 'false' }}"
-                          :tickets="{{ $tickets }}"
-                          :event="{{ $event }}"
-                          ></vue-show-purchase>
-                    </div>
+                    {{-- Tag Line --}}
+                    @if($event->tag_line)
+                        <p class="text-2xl text-gray-800">{{ $event->tag_line }}</p>
+                    @endif
                 </div>
             </div>
 
+            @if(count($event->images) === 1)
+                {{-- Single image layout --}}
+                <div class="relative w-full m-auto p-0 md:px-12 lg:px-32 lg:max-w-screen-xl">
+                    <div class="md:flex md:gap-20">
+                        <div class="flex-grow">
+                            @include('Events.Show.header')
+                            @include('Events.Show.about')
+                            @include('Events.Show.details')
+                        </div>
+                        
+                        <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
+                            <vue-show-purchase
+                                :mobile="{{ Browser::isMobile() ? 'true' : 'false' }}"
+                                :tickets="{{ $tickets }}"
+                                :event="{{ $event }}"
+                                :single-image="true"
+                            ></vue-show-purchase>
+                        </div>
+                    </div>
+                </div>
+            @else
+                {{-- Multiple images layout --}}
+                @include('Events.Show.header')
+                <div class="relative w-full m-auto p-0 md:px-12 lg:px-32 lg:max-w-screen-xl">
+                    <div class="md:flex md:gap-20 lg:gap-36 border-b">
+                        <div class="relative inline-block">
+                            @include('Events.Show.about')
+                            @include('Events.Show.details')
+                        </div>
+
+                        <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
+                            <vue-show-purchase
+                                :mobile="{{ Browser::isMobile() ? 'true' : 'false' }}"
+                                :tickets="{{ $tickets }}"
+                                :event="{{ $event }}"
+                                :single-image="false"
+                            ></vue-show-purchase>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
+            {{-- Rest of your content --}}
             <div class="relative w-full m-auto p-0 md:px-12 lg:px-32 lg:max-w-screen-xl">
                 @if ($event->eventreviews && count($event->eventreviews) > 0)
                     @include('Events.Show.reviews')
                 @endif
-
                 <vue-show-map :event="{{ $event }}"></vue-show-map>
-                
                 @include('Events.Show.organizer')
             </div>
         </div>

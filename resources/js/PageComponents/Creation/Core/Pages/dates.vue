@@ -1,5 +1,5 @@
 <template>
-    <main class="w-full">
+    <main class="w-full pb-24">
         <div v-if="event.showtype=== null || event.showtype=== 'a'">
             <div class="flex flex-col w-full">
                 <h2>Do you have specific dates?</h2>
@@ -30,13 +30,10 @@
                         </div>
                     </button>
                 </div>
-                <div v-if="event.showtype === 'a'" class="w-full flex justify-end h-[6.3rem]">
-                    <button class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl" @click="handleSubmit">Next</button>
-                </div>
-                <div v-else class="h-[6.3rem]"></div>
+                <div class="h-[6.3rem]"></div>
             </div>
         </div>
-        <div v-else class="fixed left-[25rem] top-0 w-[calc(100vw-25rem)] h-screen flex overflow-hidden">
+        <div v-else class="fixed left-0 top-0 w-full h-[calc(100vh-6rem)] flex overflow-hidden">
             <div class="flex flex-col w-9/12 overflow-y-auto">
                 <vue-cal
                     :time="false"
@@ -54,7 +51,7 @@
                     :events="events"
                 />
             </div>
-            <div class="w-3/12 border-l border-gray-200 h-screen flex flex-col justify-between h-screen">
+            <div class="w-3/12 border-l border-gray-200 h-full flex flex-col justify-between">
                 <div class="h-full flex flex-col justify-between">
                     <div class="">
                         <div v-if="!selectedDatesCount" class="p-8">
@@ -109,14 +106,6 @@
                     </div>
                     <div class="w-full flex justify-between p-8">
                         <button @click="event.showtype = null" class="mt-8 text-xl rounded-2xl underline">Switch show type</button>
-                        <div class="flex flex-col items-end">
-                            <button 
-                                class="px-12 py-4 text-2xl bg-black text-white rounded-2xl" 
-                                @click="handleSubmit"
-                            >
-                                Next
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -132,12 +121,14 @@ import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import { maxLength, required } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 
-// Injected values
+// Keep only the injections that are actually provided
 const event = inject('event');
 const errors = inject('errors');
 const isSubmitting = inject('isSubmitting');
-const onSubmit = inject('onSubmit');
-const setStep = inject('setStep');
+
+// Remove these unused injections
+// const onSubmit = inject('onSubmit');
+// const setStep = inject('setStep');
 
 // Refs
 const events = ref([]);
@@ -307,25 +298,33 @@ const fetchTimezones = async () => {
 };
 
 // Form Submission
-const handleSubmit = async () => {
-    errors.value = {};
-    const isFormValid = await $v.value.$validate();
-    
-    if (!isFormValid) {
-        return;
+defineExpose({
+    isValid: async () => {
+        await $v.value.$validate();
+        const isValid = !$v.value.$error;
+        console.log('Dates validation:', {
+            showType: event.showtype,
+            datesCount: selectedDates.value.length,
+            validationError: $v.value.$error,
+            isValid
+        });
+        return isValid;
+    },
+    submitData: () => {
+        const formattedDates = selectedDates.value.map(date => 
+            new Date(date).toISOString().slice(0, 19).replace('T', ' ')
+        );
+        
+        const data = {
+            showtype: event.showtype,
+            dateArray: formattedDates,
+            timezone: selectedTimezone.value,
+            show_times: event.show_times
+        };
+        console.log('Submitting dates data:', data);
+        return data;
     }
-
-    const formattedDates = selectedDates.value.map(date => 
-        new Date(date).toISOString().slice(0, 19).replace('T', ' ')
-    );
-    
-    await onSubmit({ 
-        showtype: event.showtype, 
-        dateArray: formattedDates, 
-        timezone: selectedTimezone.value, 
-        show_times: event.show_times 
-    });
-};
+});
 
 // Watchers
 watch(() => event.showtype, (newType, oldType) => {

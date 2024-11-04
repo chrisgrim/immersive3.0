@@ -1,5 +1,5 @@
 <template>
-    <main class="w-full">
+    <main class="w-full py-40 flex items-center min-h-[max(40rem,calc(100vh-6rem))]">
         <div class="w-full">
             <div class="flex items-center">
                 <div>
@@ -117,6 +117,7 @@
                     </div>
                 </div>
                 <div 
+                    v-if="tickets.length < 5"
                     @click="addTicket"
                     class="relative h-48 flex flex-col items-center justify-center p-4 border border-dashed border-[#e5e7eb] text-gray-400 rounded-2xl transition-colors duration-200 cursor-pointer hover:bg-gray-100"
                 >
@@ -124,9 +125,6 @@
                     <span class="text-lg">Add Ticket Type</span>
                 </div>
             </div>
-        </div>
-        <div class="w-full flex justify-end">
-            <button class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl" @click="handleSubmit">Next</button>
         </div>
     </main>
 </template>
@@ -137,11 +135,13 @@ import useVuelidate from '@vuelidate/core';
 import { required, maxLength, helpers, minValue, maxValue } from '@vuelidate/validators';
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 
-// Inject dependencies provided by the parent
+// Keep only the injections that are actually being used
 const event = inject('event');
-const onSubmit = inject('onSubmit');
-const setStep = inject('setStep');
 const errors = inject('errors');
+
+// Remove unused injections
+// const onSubmit = inject('onSubmit');
+// const setStep = inject('setStep');
 
 const props = defineProps({
     tickets: {
@@ -219,23 +219,34 @@ watch(currentMedia, (newIndex) => {
     }
 });
 
-const handleSubmit = async () => {
-    $v.value.$touch();
-    if ($v.value.tickets.$invalid) {
-        return;
+// Remove handleSubmit and replace with defineExpose
+defineExpose({
+    isValid: async () => {
+        $v.value.$touch();
+        const isValid = !$v.value.tickets.$invalid;
+        console.log('Tickets validation:', {
+            ticketsCount: tickets.length,
+            validationErrors: $v.value.tickets.$errors,
+            isValid
+        });
+        return isValid;
+    },
+    submitData: () => {
+        // Format tickets with all required fields
+        const formattedTickets = tickets.map(ticket => ({
+            name: ticket.name,
+            ticket_price: parseFloat(ticket.ticket_price),
+            description: ticket.description || '',
+            currency: ticket.currency || selectedCurrency.value
+        }));
+
+        const data = {
+            tickets: formattedTickets
+        };
+        console.log('Submitting tickets data:', data);
+        return data;
     }
-
-    // Format tickets with all required fields
-    const formattedTickets = tickets.map(ticket => ({
-        name: ticket.name,
-        ticket_price: parseFloat(ticket.ticket_price),  // Ensure it's a number
-        description: ticket.description || '',
-        currency: ticket.currency || selectedCurrency.value  // Ensure currency is always set
-    }));
-
-    await onSubmit({ tickets: formattedTickets });
-    setStep('NextStep');
-};
+});
 
 const handleDivClick = (index) => {
     currentMedia.value = index;
@@ -290,7 +301,7 @@ const updateTicketName = (e) => {
 
 const addTicket = () => {
     if (tickets.length < 5) {
-        tickets.push({ name: `Ticket Type`, ticket_price: 0, description: '', currency: selectedCurrency.value });
+        tickets.push({ name: `Ticket Name`, ticket_price: 0, description: '', currency: selectedCurrency.value });
         handleDivClick(tickets.length - 1); // Automatically select the new ticket
     } else {
         alert('You cannot add more than 5 ticket types.');

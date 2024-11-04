@@ -1,8 +1,8 @@
 <template>
-    <main class="w-full">
-        <div class="flex w-full">
-            <div class="w-full">
-                <h2>Give your event a name</h2>
+    <main class="w-full py-40 flex items-center min-h-[max(40rem,calc(100vh-6rem))]">
+        <div class="flex flex-col w-full">
+            <div>
+                <h2>What's your event called?</h2>
                 <p class="text-gray-500 font-normal mt-4">Enter a unique name for your event</p>
                 <div class="mt-6">
                     <textarea 
@@ -24,7 +24,7 @@
                         Event name is required
                     </p>
                     <div v-if="event.name">
-                        <p class="text-gray-500 font-normal mt-12">Tag Line</p>
+                        <p class="text-gray-500 font-normal">Tag Line</p>
                         <textarea 
                             name="tag_line" 
                             class="text-2xl border border-[#222222] focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4 w-full mt-4" 
@@ -37,15 +37,12 @@
                         </div>
                         <p v-if="$v.event.tag_line.$dirty && $v.event.tag_line.maxLength.$invalid" 
                            class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
-                            Event tag_line is too long.
+                            Event tag line is too long.
                         </p>
                         <p v-if="$v.event.tag_line.$dirty && $v.event.tag_line.required.$invalid" 
                            class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
                             Tag line is required
                         </p>
-                    </div>
-                    <div class="w-full flex justify-end">
-                        <button class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl" @click="handleSubmit">Next</button>
                     </div>
                 </div>
             </div>
@@ -58,13 +55,10 @@ import { inject } from 'vue';
 import { required, maxLength } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 
-// Inject dependencies provided by the parent
 const event = inject('event');
-const onSubmit = inject('onSubmit');
-const setStep = inject('setStep');
 const errors = inject('errors');
 
-// Setup Vuelidate for form validation
+// Setup Vuelidate
 const rules = {
     event: {
         name: {
@@ -79,15 +73,26 @@ const rules = {
 };
 const $v = useVuelidate(rules, { event });
 
-// Handle form submission
-const handleSubmit = async () => {
-    errors.value = {};
-    const isFormValid = await $v.value.$validate();
-    if (!isFormValid) {
-        return;
+// Expose methods for parent
+defineExpose({
+    isValid: async () => {
+        await $v.value.$validate();
+        const isValid = !$v.value.$error;
+        console.log('Name validation:', {
+            name: event.name,
+            tagLine: event.tag_line,
+            validationError: $v.value.$error,
+            isValid
+        });
+        return isValid;
+    },
+    submitData: () => {
+        const data = {
+            name: event.name,
+            tag_line: event.tag_line
+        };
+        console.log('Submitting name data:', data);
+        return data;
     }
-
-    await onSubmit({ name: event.name, tag_line: event.tag_line });
-    setStep('NextStep'); // Adjust 'NextStep' to the actual next step name
-};
+});
 </script>

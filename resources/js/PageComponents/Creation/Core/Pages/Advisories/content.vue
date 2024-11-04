@@ -1,68 +1,63 @@
 <template>
-    <div class="flex flex-col w-full">
-        <!-- Initial Sexual Content Selection -->
-        <div v-if="!hasSelectedSexual" class="mt-14">
+    <main class="w-full py-40 flex items-center min-h-[max(40rem,calc(100vh-6rem))]">
+        <div class="flex flex-col w-full">
             <h2>Content Advisories</h2>
-            <p class="font-strong mt-6">Is there sexual content in your event?</p>
-            <div class="flex flex-row gap-8 relative mt-6">
-                <button 
-                    v-for="option in sexualOptions" 
-                    :key="option.value"
-                    @click="onSelectSexual(option.value)"
-                    class="border-gray-300 border rounded-2xl flex justify-between items-center hover:shadow-[0_0_0_1.5px_black] hover:border-black px-12 py-8"
-                >
-                    <div class="text-left">
-                        <h4 class="font-bold text-3xl">{{ option.label }}</h4>
-                    </div>
-                </button>
-            </div>
-        </div>
-
-        <!-- Additional Advisories Selection -->
-        <div v-else class="mt-6">
-            <p class="font-strong mt-16">Select additional content advisories</p>
-            <Dropdown 
-                class="mt-4"
-                :list="contentAdvisoryList"
-                :creatable="true"
-                placeholder="Additional advisories"
-                @onSelect="itemSelected" 
-            />
-            <List 
-                class="mt-6"
-                :selections="contentAdvisories" 
-                @onSelect="itemRemoved"
-            />
-
-            <!-- Sexual Content Description -->
-            <div v-if="Boolean(event.advisories.sexual)" class="mt-12">
-                <p class="text-gray-500 font-normal mb-4">Explain more about the sexual content</p>
-                <textarea 
-                    v-model="event.advisories.sexualDescription"
-                    @input="$v?.event?.advisories?.sexualDescription?.$touch()"
-                    class="w-full p-4 text-1xl border rounded-2xl focus:border-black focus:shadow-[0_0_0_1.5px_black] outline-none"
-                    :class="{ 'border-red-500': $v?.event?.advisories?.sexualDescription?.$error }"
-                    rows="4"
-                ></textarea>
-                <div class="flex justify-end mt-1 text-gray-500">
-                    {{ event.advisories.sexualDescription?.length || 0 }}/1000
+            <!-- Initial Sexual Content Selection -->
+            <div v-if="!hasSelectedSexual">
+                <p class="font-strong mt-6">Is there sexual content in your event?</p>
+                <div class="flex flex-row gap-8 relative mt-6">
+                    <button 
+                        v-for="option in sexualOptions" 
+                        :key="option.value"
+                        @click="onSelectSexual(option.value)"
+                        class="border-gray-300 border rounded-2xl flex justify-between items-center hover:shadow-[0_0_0_1.5px_black] hover:border-black px-12 py-8"
+                    >
+                        <div class="text-left">
+                            <h4 class="font-bold text-3xl">{{ option.label }}</h4>
+                        </div>
+                    </button>
                 </div>
-                <p v-if="$v?.event?.advisories?.sexualDescription?.$error" 
-                   class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
-                    {{ $v?.event?.advisories?.sexualDescription?.required?.$invalid 
-                        ? 'Please explain the sexual content' 
-                        : 'Description is too long' }}
-                </p>
+            </div>
+
+            <!-- Additional Advisories Selection -->
+            <div v-else class="mt-6">
+                <p class="font-strong">Select additional content advisories</p>
+                <Dropdown 
+                    class="mt-4"
+                    :list="contentAdvisoryList"
+                    :creatable="true"
+                    placeholder="Additional advisories"
+                    @onSelect="itemSelected" 
+                />
+                <List 
+                    class="mt-6"
+                    :selections="contentAdvisories" 
+                    @onSelect="itemRemoved"
+                />
+
+                <!-- Sexual Content Description -->
+                <div v-if="Boolean(event.advisories.sexual)" class="mt-12">
+                    <p class="text-gray-500 font-normal mb-4">Explain more about the sexual content</p>
+                    <textarea 
+                        v-model="event.advisories.sexualDescription"
+                        @input="$v?.event?.advisories?.sexualDescription?.$touch()"
+                        class="w-full p-4 text-1xl border rounded-2xl focus:border-black focus:shadow-[0_0_0_1.5px_black] outline-none"
+                        :class="{ 'border-red-500': $v?.event?.advisories?.sexualDescription?.$error }"
+                        rows="4"
+                    ></textarea>
+                    <div class="flex justify-end mt-1 text-gray-500">
+                        {{ event.advisories.sexualDescription?.length || 0 }}/1000
+                    </div>
+                    <p v-if="$v?.event?.advisories?.sexualDescription?.$error" 
+                       class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
+                        {{ $v?.event?.advisories?.sexualDescription?.required?.$invalid 
+                            ? 'Please explain the sexual content' 
+                            : 'Description is too long' }}
+                    </p>
+                </div>
             </div>
         </div>
-
-        <div class="w-full flex justify-end mt-24">
-            <button 
-                class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl" 
-                @click="handleSubmit"
-            >Next</button>
-        </div>
-    </div>
+    </main>
 </template>
 
 <script setup>
@@ -74,8 +69,7 @@ import List from '@/GlobalComponents/dropdown-list.vue';
 
 // Injected dependencies
 const event = inject('event');
-const onSubmit = inject('onSubmit');
-const setStep = inject('setStep');
+const errors = inject('errors');
 
 // Constants
 const sexualOptions = [
@@ -156,23 +150,32 @@ const $v = useVuelidate(rules, {
     }
 });
 
-const handleSubmit = async () => {
-    const isFormValid = await $v.value.$validate();
-    
-    if (!isFormValid) {
-        return;
+// Replace handleSubmit with defineExpose
+defineExpose({
+    isValid: async () => {
+        const isValid = await $v.value.$validate();
+        console.log('Content Advisories validation:', {
+            hasSelectedSexual: hasSelectedSexual.value,
+            sexualContent: event.advisories?.sexual,
+            contentAdvisoriesCount: contentAdvisories.value.length,
+            validationError: $v.value.$error,
+            isValid
+        });
+        return isValid;
+    },
+    submitData: () => {
+        const data = {
+            contentAdvisories: contentAdvisories.value,
+            wheelchairReady: event.advisories.wheelchairReady,
+            advisories: {
+                sexual: event.advisories.sexual,
+                sexualDescription: event.advisories.sexualDescription
+            }
+        };
+        console.log('Submitting content advisories data:', data);
+        return data;
     }
-
-    await onSubmit({ 
-        contentAdvisories: contentAdvisories.value,
-        wheelchairReady: event.advisories.wheelchairReady,
-        advisories: {
-            sexual: event.advisories.sexual,
-            sexualDescription: event.advisories.sexualDescription
-        }
-    });
-    setStep('NextStep');
-};
+});
 
 // API
 const fetchContentAdvisories = async () => {

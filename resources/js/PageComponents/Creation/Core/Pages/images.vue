@@ -1,5 +1,5 @@
 <template>
-    <main class="w-full">
+    <main class="w-full py-40">
         <div class="w-full">
             <h2>Add some photos of your event</h2>
             <p class="text-gray-500 font-normal mt-4 mb-8">Add up to 5 images of your event. Drag to reorder</p>
@@ -66,18 +66,48 @@
             </draggable>
         </div>
 
-        <!-- Submit Button -->
-        <div class="w-full flex justify-end">
-            <button 
-                class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl" 
-                @click="handleSubmit"
-            >Next</button>
+        <!-- Add this after your image upload section -->
+        <div class="mt-12">
+            <h3 class="text-2xl mb-4">Add a YouTube Video (Optional)</h3>
+            <div class="relative">
+                <input 
+                    type="text"
+                    v-model="youtubeUrl"
+                    placeholder="Paste YouTube URL here"
+                    class="w-full p-4 pr-12 border rounded-xl"
+                    @input="handleYoutubeInput"
+                />
+                <div v-if="youtubeId" 
+                    @click="clearYoutube"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer"
+                >
+                    <component :is="RiCloseCircleLine" />
+                </div>
+            </div>
+            
+            <!-- YouTube Preview -->
+            <div v-if="youtubeId" class="mt-4">
+                <div class="relative aspect-video w-full">
+                    <iframe
+                        :src="`https://www.youtube.com/embed/${youtubeId}`"
+                        class="absolute top-0 left-0 w-full h-full rounded-xl"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen
+                    ></iframe>
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            <p v-if="youtubeError" class="text-red-500 mt-2">
+                {{ youtubeError }}
+            </p>
         </div>
     </main>
 </template>
 
 <script setup>
-import { ref, inject, computed } from 'vue';
+import { ref, inject, computed, watch, onMounted } from 'vue';
 import { RiImageCircleLine, RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import { VueDraggableNext as draggable } from 'vue-draggable-next';
 
@@ -89,13 +119,15 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'ima
 // Injected dependencies
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const event = inject('event');
-const onSubmit = inject('onSubmit');
-const setStep = inject('setStep');
+const errors = inject('errors');
 
 // Refs
 const images = ref([]);
 const fileInput = ref(null);
 const hoveredImage = ref(null);
+const youtubeUrl = ref('');
+const youtubeId = ref('');
+const youtubeError = ref('');
 
 // Computed
 const remainingSlots = computed(() => MAX_IMAGES - images.value.length);
@@ -174,51 +206,116 @@ const handleSort = ({ moved }) => {
     }
 };
 
-// Submit handler
-const handleSubmit = async () => {
-    console.log('Images before submit:', images.value.map(img => ({
-        rank: img.rank,
-        isFile: !!img.file,
-        url: img.url
-    })));
+// Initialize YouTube URL if it exists
+onMounted(() => {
+    if (event?.video) {
+        youtubeId.value = event.video;
+        youtubeUrl.value = `https://youtube.com/watch?v=${event.video}`;
+    }
+});
 
-    const formData = new FormData();
-    const currentImages = [];
+// YouTube handling methods
+const extractYoutubeId = (url) => {
+    if (!url) return null;
+    
+    // Handle different YouTube URL formats
+    const patterns = [
+        /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|shorts\/)([^"&?\/\s]{11})/i,
+        /^[a-zA-Z0-9_-]{11}$/
+    ];
 
-    images.value.forEach((image, index) => {
-        image.rank = index;
-        if (image.file) {
-            formData.append('images[]', image.file);
-            formData.append('ranks[]', index);
-        } else {
-            currentImages.push({
-                url: image.url.replace(imageUrl, ''),
-                rank: index
-            });
+    for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match && match[1]) {
+            return match[1];
         }
-    });
+    }
 
-    formData.append('currentImages', JSON.stringify(currentImages));
+    return null;
+};
 
+const handleYoutubeInput = async () => {
+    youtubeError.value = '';
+    const extractedId = extractYoutubeId(youtubeUrl.value);
+
+    if (!youtubeUrl.value) {
+        youtubeId.value = '';
+        return;
+    }
+
+    if (!extractedId) {
+        youtubeError.value = 'Please enter a valid YouTube URL';
+        youtubeId.value = '';
+        return;
+    }
+
+    // Verify the video exists and is embeddable
     try {
-        const response = await onSubmit(formData);
-        if (response?.event?.images) {
-            console.log('Response images:', response.event.images.map(img => img.rank));
-            event.images = response.event.images;
-            images.value = event.images
-                .sort((a, b) => a.rank - b.rank)
-                .map(image => ({
-                    url: `${imageUrl}${image.large_image_path}`,
-                    isExisting: true,
-                    rank: image.rank
-                }));
-            console.log('Final images:', images.value.map(img => img.rank));
+        const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${extractedId}&format=json`);
+        if (response.ok) {
+            youtubeId.value = extractedId;
+        } else {
+            youtubeError.value = 'This video cannot be embedded or does not exist';
+            youtubeId.value = '';
         }
-        setStep('NextStep');
     } catch (error) {
-        console.error('Error submitting images:', error);
+        youtubeError.value = 'Error validating YouTube URL';
+        youtubeId.value = '';
     }
 };
+
+const clearYoutube = () => {
+    youtubeUrl.value = '';
+    youtubeId.value = '';
+    youtubeError.value = '';
+};
+
+// Replace handleSubmit with defineExpose
+defineExpose({
+    isValid: async () => {
+        // Images are optional, so always valid
+        const isValid = true;
+        console.log('Images validation:', {
+            imageCount: images.value.length,
+            youtubeId: youtubeId.value,
+            isValid
+        });
+        return isValid;
+    },
+    submitData: () => {
+        const formData = new FormData();
+        const currentImages = [];
+
+        // Handle images
+        images.value.forEach((image, index) => {
+            image.rank = index;
+            if (image.file) {
+                formData.append('images[]', image.file);
+                formData.append('ranks[]', index);
+            } else {
+                currentImages.push({
+                    url: image.url.replace(imageUrl, ''),
+                    rank: index
+                });
+            }
+        });
+
+        formData.append('currentImages', JSON.stringify(currentImages));
+
+        // Add YouTube ID
+        if (youtubeId.value) {
+            formData.append('video', youtubeId.value);
+        } else {
+            formData.append('video', '');
+        }
+
+        console.log('Submitting images data:', {
+            imageCount: images.value.length,
+            youtubeId: youtubeId.value
+        });
+        return formData;
+    }
+});
 </script>
 
 <style>

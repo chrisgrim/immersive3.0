@@ -1,6 +1,6 @@
 <template>
-    <main class="w-full">
-        <div v-if="!userAccepts && event.hasLocation === null">
+    <main class="w-full py-40 flex items-center min-h-[max(40rem,calc(100vh-6rem))]">
+        <div v-if="!userAccepts && event.hasLocation === null" class="w-full">
             <div class="flex justify-center w-full">
                 <div class="w-full">
                     <h5 class="font-bold">Step 2</h5>
@@ -19,7 +19,7 @@
                 <button class="p-4 bg-black text-white rounded-2xl" @click="userAccepts=true">I accept</button>
             </div>
         </div>
-        <div v-else>
+        <div v-else class="w-full">
             <div class="flex flex-col w-full">
                 <h2>What type of event are you hosting?</h2>
                 <div class="pt-16 flex flex-col gap-8">
@@ -51,29 +51,39 @@
                     </button>
                 </div>
             </div>
-            <div class="w-full flex justify-end">
-                <button class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl" @click="handleSubmit">Next</button>
-            </div>
         </div>
     </main>
 </template>
 
 <script setup>
-import { ref, inject } from 'vue';
+import { ref, inject, onMounted } from 'vue';
 
 const event = inject('event');
 const errors = inject('errors');
-const isSubmitting = inject('isSubmitting');
-const onSubmit = inject('onSubmit');
-const setStep = inject('setStep');
 
 const userAccepts = ref(false);
 
 const onSelect = (hasLocation) => {
     event.hasLocation = hasLocation;
+    console.log('Selected hasLocation:', event.hasLocation);
 };
 
-const handleSubmit = async () => {
-    await onSubmit({ hasLocation: event.hasLocation });
-};
+// Instead of using provide, expose methods directly
+defineExpose({
+    isValid: async () => {
+        console.log('Validating hasLocation:', event.hasLocation);
+        return event.hasLocation !== null;
+    },
+    submitData: () => {
+        const data = {
+            hasLocation: event.hasLocation
+        };
+        console.log('Submitting data:', data);
+        return data;
+    }
+});
+
+onMounted(() => {
+    console.log('Component mounted, hasLocation:', event.hasLocation);
+});
 </script>

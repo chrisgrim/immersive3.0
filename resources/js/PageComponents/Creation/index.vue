@@ -17,11 +17,11 @@
 			    </div>
 			</div>
 			<div class="w-full" v-if="organizer && organizer.events">
-			    <a v-for="event in organizer.events"
-			       :key="event.id"
-			       :href="`/hosting/event/${event.slug}/edit`"
-			       class="block">
-			        <div class="group relative grid grid-cols-4 gap-8 py-4 h-36 items-center hover:bg-gray-100 rounded-2xl cursor-pointer"
+			    <div v-for="event in organizer.events"
+			         :key="event.id"
+			         @click="openModal(event)"
+			         class="block cursor-pointer">
+			        <div class="group relative grid grid-cols-4 gap-8 py-4 h-36 items-center hover:bg-gray-100 rounded-2xl"
 			             style="grid-template-columns: 16rem 30% auto auto;">
 			            <div class="px-8">
 			                <template v-if="event && event.thumbImagePath">
@@ -51,7 +51,61 @@
 					        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
 					    </svg>
 			        </div>
-			    </a>
+			    </div>
+			</div>
+		</div>
+
+		<!-- Modal -->
+		<div v-if="selectedEvent" 
+		     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+		     @click="closeModal">
+			<div class="bg-white rounded-3xl p-20 max-w-3xl w-full mx-4 relative" 
+			     @click.stop>
+				<!-- Close Button -->
+				<div 
+					@click="closeModal" 
+					class="absolute top-6 right-6 cursor-pointer bg-white"
+				>
+					<component :is="RiCloseCircleFill" />
+				</div>
+
+				<!-- Event Image -->
+				<div class="w-full h-80 rounded-2xl overflow-hidden mb-8">
+					<template v-if="selectedEvent.thumbImagePath">
+						<picture>
+							<source :srcset="`${imageUrl}${selectedEvent.thumbImagePath}`" type="image/webp">
+							<img :src="`${imageUrl}${selectedEvent.thumbImagePath.slice(0, -4)}jpg`"
+							     :alt="`${selectedEvent.name} Immersive Event`"
+							     class="w-full h-full object-cover">
+						</picture>
+					</template>
+					<template v-else>
+						<div class="w-full h-full bg-gray-200"></div>
+					</template>
+				</div>
+
+				<!-- Event Name -->
+				<h2 class="text-4xl font-bold mb-12">{{ selectedEvent.name }}</h2>
+
+				<!-- Action Buttons -->
+				<div class="flex gap-6">
+					<button 
+						v-if="isEventPublished(selectedEvent)"
+						@click="viewEvent(selectedEvent)"
+						class="flex-1 px-8 py-4 bg-black text-white rounded-xl hover:bg-gray-800">
+						View Event
+					</button>
+					<button 
+						@click="editEvent(selectedEvent)"
+						class="flex-1 px-8 py-4 border border-black rounded-xl hover:bg-gray-100">
+						Edit Event
+					</button>
+					<button 
+						@click="confirmRemoveEvent(selectedEvent)"
+						class="flex-1 px-8 py-4 border border-red-500 text-red-500 rounded-xl hover:bg-red-50">
+						Remove Event
+					</button>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -60,6 +114,7 @@
 <script setup>
 import { ref } from 'vue';
 import dayjs from 'dayjs';
+import { RiCloseCircleFill } from "@remixicon/vue";
 
 const props = defineProps({
     organizer: Object,
@@ -67,7 +122,35 @@ const props = defineProps({
 });
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
+const selectedEvent = ref(null);
 
+// Modal functions
+const openModal = (event) => {
+    selectedEvent.value = event;
+};
+
+const closeModal = () => {
+    selectedEvent.value = null;
+};
+
+const isEventPublished = (event) => {
+    return event.status === 'p' || event.status === 'e';
+};
+
+const viewEvent = (event) => {
+    window.location.href = `/events/${event.slug}`;
+};
+
+const editEvent = (event) => {
+    window.location.href = `/hosting/event/${event.slug}/edit`;
+};
+
+const confirmRemoveEvent = (event) => {
+    if (confirm('Are you sure you want to remove this event?')) {
+        // Add your remove event logic here
+        console.log('Removing event:', event.id);
+    }
+};
 
 const onSubmit = async () => {
 
@@ -103,3 +186,16 @@ const cleanDate = (data) => dayjs(data).format("MMM DD, YYYY");
 
 
 </script>
+
+<style scoped>
+/* Optional: Add transitions for smooth modal appearance */
+.modal-enter-active,
+.modal-leave-active {
+    transition: opacity 0.3s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+    opacity: 0;
+}
+</style>

@@ -64,14 +64,11 @@
                                 v-model="event.location.venue"
                                 type="text">
                         </div>
-                        <div class="flex justify-between items-center">
+                        <div class="w-full flex justify-between items-center">
                             <p class="text-xl">Hide specific location from users </p>
                             <div @click="toggleHiddenLocation" class="w-12 h-12 cursor-pointer flex justify-center items-center">
                                 <component :is="event.location.hiddenLocationToggle ? RiCheckboxLine : RiCheckboxBlankLine" />
                             </div>
-                        </div>
-                        <div class="w-full flex justify-end">
-                            <button class="mt-8 p-4 bg-black text-white rounded-2xl" @click="handleSubmit">Next</button>
                         </div>
                     </div>
                 </div>
@@ -141,11 +138,6 @@ const userInput = ref('');
 const places = ref([]);
 const dropdown = ref(false);
 const locationSearch = ref(!event.location.latitude);
-
-const handleSubmit = async () => {
-    await onSubmit({ location: event.location });
-    setStep('NextStep')
-};
 
 const updateLocations = () => {
     if (!autoComplete.value) {
@@ -253,6 +245,42 @@ onMounted(() => {
 onUnmounted(() => {
     autoComplete.value = null;
     service.value = null;
+});
+
+defineExpose({
+    isValid: async () => {
+        const isValid = event.location && 
+                       event.location.latitude && 
+                       event.location.longitude && 
+                       event.location.city;
+        
+        console.log('Location validation:', {
+            hasLocation: !!event.location,
+            hasCoordinates: !!(event.location?.latitude && event.location?.longitude),
+            hasCity: !!event.location?.city,
+            isValid
+        });
+        
+        return isValid;
+    },
+    submitData: () => {
+        const data = {
+            location: {
+                latitude: event.location.latitude,
+                longitude: event.location.longitude,
+                home: event.location.home,
+                street: event.location.street,
+                city: event.location.city,
+                region: event.location.region,
+                postal_code: event.location.postal_code,
+                country: event.location.country,
+                venue: event.location.venue,
+                hiddenLocationToggle: event.location.hiddenLocationToggle
+            }
+        };
+        console.log('Submitting location data:', data);
+        return data;
+    }
 });
 </script>
 

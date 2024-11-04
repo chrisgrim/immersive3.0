@@ -1,58 +1,51 @@
 <template>
-    <div class="flex flex-col w-full">
-        <div class="mt-24">
-            <h2>Mobility Advisories</h2>
-            
-            <!-- Initial Wheelchair Selection -->
-            <div v-if="!hasSelectedWheelchair" class="mt-14">
-                <p class="font-strong">Is your event wheelchair accessible?</p>
-                <div class="flex flex-row gap-8 relative mt-6">
-                    <button 
-                        v-for="option in wheelchairOptions" 
-                        :key="option.value"
-                        @click="onSelectWheelchair(option.value)"
-                        class="border-gray-300 border rounded-2xl flex justify-between items-center hover:shadow-[0_0_0_1.5px_black] hover:border-black px-12 py-8"
-                        :class="{ 'border-red-500': $v?.event?.advisories?.wheelchairReady?.$error }"
-                    >
-                        <div class="text-left">
-                            <h4 class="font-bold text-3xl">{{ option.label }}</h4>
-                        </div>
-                    </button>
+    <main class="w-full py-40 flex items-center min-h-[max(40rem,calc(100vh-6rem))]">
+        <div class="flex flex-col w-full">
+            <div>
+                <h2>Mobility Advisories</h2>
+                
+                <!-- Initial Wheelchair Selection -->
+                <div v-if="!hasSelectedWheelchair" class="mt-6">
+                    <p class="font-strong">Is your event wheelchair accessible?</p>
+                    <div class="flex flex-row gap-8 relative mt-6">
+                        <button 
+                            v-for="option in wheelchairOptions" 
+                            :key="option.value"
+                            @click="onSelectWheelchair(option.value)"
+                            class="border-gray-300 border rounded-2xl flex justify-between items-center hover:shadow-[0_0_0_1.5px_black] hover:border-black px-12 py-8"
+                            :class="{ 'border-red-500': $v?.event?.advisories?.wheelchairReady?.$error }"
+                        >
+                            <div class="text-left">
+                                <h4 class="font-bold text-3xl">{{ option.label }}</h4>
+                            </div>
+                        </button>
+                    </div>
+                    <p v-if="$v?.event?.advisories?.wheelchairReady?.$error" 
+                       class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
+                        Please select if your event is wheelchair accessible
+                    </p>
                 </div>
-                <p v-if="$v?.event?.advisories?.wheelchairReady?.$error" 
-                   class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
-                    Please select if your event is wheelchair accessible
-                </p>
-            </div>
 
-            <!-- Additional Advisories Selection -->
-            <div v-else class="mt-6">
-                <p class="font-strong mt-16">Select additional mobility restrictions</p>
-                <Dropdown 
-                    class="mt-4"
-                    :list="mobilityAdvisoryList"
-                    :creatable="true"
-                    placeholder="Additional advisories"
-                    @onSelect="itemSelected" 
-                />
-                <List 
-                    class="mt-6"
-                    :selections="mobilityAdvisories" 
-                    @onSelect="itemRemoved"
-                    :disabledItems="[]"
-                />
+                <!-- Additional Advisories Selection -->
+                <div v-else class="mt-6">
+                    <p class="font-strong">Select additional mobility restrictions</p>
+                    <Dropdown 
+                        class="mt-4"
+                        :list="mobilityAdvisoryList"
+                        :creatable="true"
+                        placeholder="Additional advisories"
+                        @onSelect="itemSelected" 
+                    />
+                    <List 
+                        class="mt-6"
+                        :selections="mobilityAdvisories" 
+                        @onSelect="itemRemoved"
+                        :disabledItems="[]"
+                    />
+                </div>
             </div>
         </div>
-
-        <div class="w-full flex justify-end mt-24">
-            <button 
-                class="mt-8 px-12 py-4 text-2xl bg-black text-white rounded-2xl" 
-                @click="handleSubmit"
-            >
-                Next
-            </button>
-        </div>
-    </div>
+    </main>
 </template>
 
 <script setup>
@@ -63,10 +56,9 @@ import axios from 'axios';
 import Dropdown from '@/GlobalComponents/dropdown.vue';
 import List from '@/GlobalComponents/dropdown-list.vue';
 
-// Injected dependencies
+// Keep only needed injections
 const event = inject('event');
-const onSubmit = inject('onSubmit');
-const setStep = inject('setStep');
+const errors = inject('errors');
 
 // Constants
 const wheelchairOptions = [
@@ -127,19 +119,28 @@ const itemRemoved = (item) => {
     mobilityAdvisoryList.value.push(item);
 };
 
-const handleSubmit = async () => {
-    const isFormValid = await $v.value.$validate();
-    
-    if (!isFormValid) {
-        return;
+// Replace handleSubmit with defineExpose
+defineExpose({
+    isValid: async () => {
+        const isValid = await $v.value.$validate();
+        console.log('Mobility Advisories validation:', {
+            hasSelectedWheelchair: hasSelectedWheelchair.value,
+            wheelchairReady: event.advisories?.wheelchairReady,
+            mobilityAdvisoriesCount: mobilityAdvisories.value.length,
+            validationError: $v.value.$error,
+            isValid
+        });
+        return isValid;
+    },
+    submitData: () => {
+        const data = {
+            mobilityAdvisories: mobilityAdvisories.value,
+            wheelchairReady: wheelchairAdvisory.value?.slug === 'wheelchair-accessible'
+        };
+        console.log('Submitting mobility advisories data:', data);
+        return data;
     }
-
-    await onSubmit({ 
-        mobilityAdvisories: mobilityAdvisories.value,
-        wheelchairReady: wheelchairAdvisory.value?.slug === 'wheelchair-accessible'
-    });
-    setStep('NextStep');
-};
+});
 
 // API calls
 const fetchMobilityAdvisories = async () => {

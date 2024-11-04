@@ -1,7 +1,7 @@
 <nav 
     style="width:100%; margin:auto; height:8rem; z-index: 1001; position: relative;">
 	<div 
-        style="margin: auto; position: relative; height: 100%; display: flex; gap: 0;align-items: center; justify-content: space-between;"
+        style="margin: auto; position: relative; height: 100%; display: grid; grid-template-columns: 1fr minmax(auto, 400px) 1fr; gap: 0; align-items: center;"
         class="nav_bar md:px-12 lg:px-32">
         <div class="inline-block relative leading-none col-span-1 z-40">
             <a 
@@ -17,6 +17,6 @@
             </a>
         </div>
         <div></div>
-        
+        <div></div>
     </div>
 </nav>
