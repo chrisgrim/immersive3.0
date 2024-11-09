@@ -1,0 +1,260 @@
+<template>
+    <main class="w-full min-h-fit">
+        <div class="flex flex-col w-full">
+            <h2>Review Your Listing</h2>
+
+            <!-- Main Content -->
+            <div class="gap-8 mt-8">
+                <!-- Images Section -->
+                <div class="grid gap-4">
+                    <!-- Single Image -->
+                    <div v-if="event.images?.length === 1" 
+                         class="aspect-[3/2] w-full overflow-hidden md:rounded-xl">
+                        <img :src="imageUrl + event.images[0].large_image_path"
+                             :alt="`${event.name} Immersive Event - Main Image`"
+                             class="w-full h-full object-cover"
+                        />
+                    </div>
+
+                    <!-- Multiple Images -->
+                    <div v-else 
+                         class="grid gap-2 md:rounded-xl overflow-hidden grid-cols-2"
+                         :class="{
+                            'grid-cols-2': event.images?.length === 2,
+                            'grid-cols-[2fr_1fr]': event.images?.length === 3,
+                            'grid-cols-2': event.images?.length >= 4
+                         }">
+                        
+                        <!-- Left Side -->
+                        <div v-if="event.images?.length >= 4" class="grid gap-2 overflow-hidden">
+                            <div class="aspect-[3/2]">
+                                <img :src="imageUrl + event.images[0].large_image_path"
+                                     :alt="`${event.name} Immersive Event - Main Image`"
+                                     class="w-full h-full object-cover"
+                                />
+                            </div>
+                            <div v-if="event.images?.length === 4" class="aspect-[3/2]">
+                                <img :src="imageUrl + event.images[1].large_image_path"
+                                     :alt="`${event.name} Immersive Event - Image 2`"
+                                     class="w-full h-full object-cover"
+                                />
+                            </div>
+                        </div>
+                        <div v-else class="aspect-[3/2]">
+                            <img :src="imageUrl + event.images[0].large_image_path"
+                                 :alt="`${event.name} Immersive Event - Main Image`"
+                                 class="w-full h-full object-cover"
+                            />
+                        </div>
+
+                        <!-- Right Side -->
+                        <div v-if="event.images?.length === 2" class="aspect-[3/2]">
+                            <img :src="imageUrl + event.images[1].large_image_path"
+                                 :alt="`${event.name} Immersive Event - Image 2`"
+                                 class="w-full h-full object-cover"
+                            />
+                        </div>
+                        <div v-else-if="event.images?.length === 3" class="grid gap-2">
+                            <div v-for="(image, key) in event.images.slice(1)" 
+                                 :key="image.id"
+                                 class="aspect-[3/2]">
+                                <img :src="imageUrl + image.large_image_path"
+                                     :alt="`${event.name} Immersive Event - Image ${key + 2}`"
+                                     class="w-full h-full object-cover"
+                                />
+                            </div>
+                        </div>
+                        <div v-else-if="event.images?.length === 4" class="grid gap-2">
+                            <div v-for="(image, key) in event.images.slice(2)" 
+                                 :key="image.id"
+                                 class="aspect-[3/2]">
+                                <img :src="imageUrl + image.large_image_path"
+                                     :alt="`${event.name} Immersive Event - Image ${key + 3}`"
+                                     class="w-full h-full object-cover"
+                                />
+                            </div>
+                        </div>
+                        <div v-else-if="event.images?.length === 5" class="grid grid-cols-2 gap-2">
+                            <div v-for="(image, key) in event.images.slice(1, 5)" 
+                                 :key="image.id">
+                                <img :src="imageUrl + image.large_image_path"
+                                     :alt="`${event.name} Immersive Event - Image ${key + 2}`"
+                                     class="w-full h-full object-cover"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Event Details -->
+                <div class="w-full mt-8">
+                    <h2 class="text-4xl">Name:</h2>
+                    <p class="2xl">{{ event.name }}</p>
+                    <p class="text-gray-500 font-normal">{{ event.tag_line }}</p>
+                </div>
+            </div>
+
+            <!-- Location Section -->
+            <div class="mt-12 border-t pt-8">
+                <div v-if="event.hasLocation">
+                    <h2 class="text-4xl">Location:</h2>
+                    <p class="text-gray-500 font-normal">{{ event.location.venue }}</p>
+                    <p class="text-gray-500 font-normal">{{ event.location.street }}</p>
+                    <p class="text-gray-500 font-normal">{{ event.location.city }}, {{ event.location.region }} {{ event.location.postal_code }}</p>
+                </div>
+                <div v-else>
+                    <h2 class="text-4xl">Remote:</h2>
+                    <div class="flex flex-wrap gap-4 mt-1">
+                        <div v-for="location in event.remotelocations" 
+                             :key="location.id" 
+                             class="text-gray-500 font-normal border border-gray-300 rounded-lg px-4 py-2">
+                            {{ location.name }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Categories and Genres Section -->
+            <div class="mt-12 border-t pt-8">
+                <h2 class="text-4xl">Categories & Genres:</h2>
+                <div class="grid grid-cols-2 gap-8 mt-4">
+                    <div>
+                        <p class="font-semibold">Category</p>
+                        <p class="text-gray-500 font-normal">{{ event.category?.name }}</p>
+                    </div>
+                    <div>
+                        <p class="font-semibold">Genres</p>
+                        <div class="flex flex-wrap gap-4 mt-1">
+                            <div v-for="genre in event.genres" 
+                                 :key="genre.id" 
+                                 class="text-gray-500 font-normal border border-gray-300 rounded-lg px-4 py-2">
+                                {{ genre.name }}
+                            </div>
+                            <p v-if="!event.genres?.length" class="text-gray-500 font-normal">
+                                No genres set
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Event Details Section -->
+            <div class="mt-12 border-t pt-8">
+                <h2 class="text-4xl">Shows:</h2>
+                <div class="grid grid-cols-2 gap-8 mt-12">
+                    <div>
+                        <p class="font-semibold">Date Range</p>
+                        <p class="text-gray-500 font-normal">{{ formatDateRange(event.shows) }}</p>
+                    </div>
+                    <div>
+                        <p class="font-semibold">Number of Shows</p>
+                        <p class="text-gray-500 font-normal">{{ event.shows?.length }} shows</p>
+                    </div>
+                    <div>
+                        <p class="font-semibold">Tickets</p>
+                        <div class="flex flex-row gap-2">
+                            <p v-for="price in event.tickets" 
+                               :key="price.id" 
+                               class="text-gray-500 font-normal border border-gray-300 p-4 rounded-lg">
+                                {{ price.name }}<br> ${{ price.ticket_price }}<br>
+                                <span class="text-1xl">{{ price.description }}</span>
+                            </p>
+                            <p v-if="!event.tickets?.length" class="text-gray-500 font-normal">
+                                No prices set
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8">
+                    <p class="font-semibold">Description</p>
+                    <p class="text-gray-500 font-normal whitespace-pre-line">{{ event.description }}</p>
+                </div>
+            </div>
+
+            <!-- Advisories Section -->
+            <div class="mt-12 border-t pt-8">
+                <h2 class="text-4xl">Advisories:</h2>
+                <div class="grid grid-cols-2 gap-8 mt-4">
+                    <!-- Content Advisories -->
+                    <div>
+                        <p class="font-semibold">Content Advisories</p>
+                        <ul class="list-disc ml-4 mt-2 text-gray-500 font-normal">
+                            <li v-for="advisory in event.content_advisories" 
+                                :key="advisory.id">
+                                {{ advisory.name }}
+                            </li>
+                        </ul>
+                        <div v-if="event.advisories?.sexual" class="mt-4">
+                            <p class="font-semibold">Sexual Content Description:</p>
+                            <p class="text-gray-500 font-normal">{{ event.advisories.sexualDescription }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Mobility Advisories -->
+                    <div>
+                        <p class="font-semibold">Mobility Advisories</p>
+                        <ul class="list-disc ml-4 mt-2 text-gray-500 font-normal">
+                            <li v-for="advisory in event.mobility_advisories" 
+                                :key="advisory.id">
+                                {{ advisory.name }}
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-8 mt-4">
+                <!-- Interaction Advisories -->
+                    <div class="mt-8">
+                        <p class="font-semibold">Interaction Level</p>
+                        <p class="text-gray-500 font-normal">{{ event.interactive_level.name }}</p>
+                    </div>
+
+                    <!-- Audience Role -->
+                    <div class="mt-8">
+                        <p class="font-semibold">Audience Role</p>
+                        <p class="text-gray-500 font-normal">{{ event.advisories.audience }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video Section -->
+            <div v-if="event.video" class="mt-12 border-t pt-8">
+                <h2 class="text-4xl">Video:</h2>
+                <div class="relative aspect-video w-full max-w-3xl mt-4">
+                    <iframe
+                        :src="`https://www.youtube.com/embed/${event.video}`"
+                        class="absolute top-0 left-0 w-full h-full rounded-xl"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen
+                    ></iframe>
+                </div>
+            </div>
+        </div>
+    </main>
+</template>
+
+<script setup>
+import { inject } from 'vue';
+import moment from 'moment-timezone';
+
+const imageUrl = import.meta.env.VITE_IMAGE_URL;
+const event = inject('event');
+
+const formatDateRange = (shows) => {
+    if (!shows?.length) return 'No dates set';
+    
+    const dates = shows.map(show => moment(show.date));
+    const firstDate = moment.min(dates).format('MMM D, YYYY');
+    const lastDate = moment.max(dates).format('MMM D, YYYY');
+    
+    return firstDate === lastDate ? firstDate : `${firstDate} - ${lastDate}`;
+};
+
+// Component API
+defineExpose({
+    isValid: async () => true, // Review page is always valid
+    submitData: () => ({}) // No data to submit from review page
+});
+</script>

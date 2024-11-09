@@ -8,6 +8,7 @@ use App\Http\Controllers\User\ProfilesController;
 use App\Http\Controllers\User\ConversationsController;
 use App\Http\Controllers\Creation\HostController;
 use App\Http\Controllers\Creation\HostEventController;
+use App\Http\Controllers\Admin\DashboardController;
 
 
 Route::GET('/', [IndexController::class, 'index']);
@@ -26,6 +27,8 @@ Route::POST('/teams/switch/{organizer}', [OrganizerController::class, 'switchTea
 Route::GET('/hosting/events', [HostController::class, 'show']);
 Route::GET('/hosting/getting-started', [HostController::class, 'intro']);
 Route::GET('/hosting/event/{event}/edit', [HostEventController::class, 'edit'])->name('event.edit');
+Route::POST('/hosting/event/{event}/submit', [HostEventController::class, 'submit'])->name('event.submit');
+Route::DELETE('/hosting/event/{event}', [HostEventController::class, 'destroy'])->name('event.destroy');
 
 
 Route::POST('/organizers', [OrganizerController::class, 'store'])->name('Organizers.store');
@@ -41,5 +44,8 @@ Route::GET('/inbox', [ConversationsController::class, 'index']);
 Route::GET('/inbox/fetch/conversation/{conversation}', [ConversationsController::class, 'show']);
 Route::POST('/inbox/conversation/{conversation}', [ConversationsController::class, 'update']);
 Route::POST('/inbox/fetch/events', [ConversationsController::class, 'events']);
+
+// Admin Routes
+Route::GET('/admin/dashboard', [DashboardController::class, 'index'])->name('admin.index');
 
 require __DIR__.'/auth.php';

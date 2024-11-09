@@ -1,5 +1,5 @@
 <template>
-    <main class="w-full py-40 flex items-center min-h-[max(40rem,calc(100vh-6rem))]">
+    <main class="w-full min-h-fit">
         <div class="flex flex-col w-full">
             <div>
                 <h2>Describe your event</h2>
@@ -13,7 +13,7 @@
                         placeholder=""
                         rows="8" />
                     <div class="flex justify-end mt-1 text-gray-500">
-                        {{ event.description?.length || 0 }}/30000
+                        {{ event.description?.length || 0 }}/2000
                     </div>
                     <p v-if="$v.event.description.$dirty && $v.event.description.maxLength.$invalid" 
                        class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
@@ -42,7 +42,7 @@ const rules = {
     event: {
         description: {
             required,
-            maxLength: maxLength(30000),
+            maxLength: maxLength(2000),
         }
     }
 };

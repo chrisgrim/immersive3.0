@@ -3,6 +3,8 @@
 namespace App\Models\Admin;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Event;
+use App\Models\User;
 
 class ReviewEvent extends Model
 {
@@ -23,6 +25,16 @@ class ReviewEvent extends Model
     public function event() 
     {
         return $this->belongsTo(Event::class);
+    }
+
+    /**
+     * Each review belongs to a user
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\belongsTo
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 
     public static function saveReviewEvent($request)

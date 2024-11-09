@@ -1,5 +1,5 @@
 <template>
-    <main class="w-full py-40 flex items-center min-h-[max(40rem,calc(100vh-6rem))]">
+    <main class="w-full min-h-fit">
         <div v-if="!userAccepts && event.hasLocation === null" class="w-full">
             <div class="flex justify-center w-full">
                 <div class="w-full">
@@ -9,7 +9,7 @@
                     <div class="rounded-2xl overflow-hidden my-12 w-1/2">
                         <img src="https://a0.muscache.com/pictures/aca23391-4bab-4ddb-91e3-3934147bbcac.jpg" alt="">
                     </div>
-                    <ul class="text-2xl mt-8 font-light">
+                    <ul class="text-2xl ml-0 mt-8 font-light">
                         <li><span class="font-semibold">Immersive: </span>Must include some way for the user to interact</li>
                         <li><span class="font-semibold">Safe: </span>If the event is in person it needs to be safe for the users.</li>
                     </ul>

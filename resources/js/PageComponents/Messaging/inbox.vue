@@ -21,7 +21,12 @@
                         <source :srcset="`${imageUrl}${eventConvo.event.thumbImagePath}`" type="image/webp">
                         <img :src="`${imageUrl}${eventConvo.event.thumbImagePath.slice(0, -4)}jpg`" :alt="`${eventConvo.event.name} Immersive Event`" class="min-h-20 min-w-20 w-20 object-cover rounded-full">
                     </picture>
-                    <p class="ml-4 text-lg">{{ eventConvo.event_name }}</p>
+                    <div class="ml-4">
+                        <p class="text-lg">{{ eventConvo.event_name }}</p>
+                        <p class="text-sm text-gray-500">
+                            Messages: {{ eventConvo.messages?.length || 0 }}
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -36,7 +41,9 @@
             </div>
             <Conversation 
                 v-if="conversation"
-                v-model:value="conversation" />
+                v-model:value="conversation"
+                @update:value="updateConversation" 
+            />
         </div>
     </div>
 </template>
@@ -46,11 +53,14 @@ import { ref, onMounted, onUnmounted} from 'vue';
 import Conversation from './conversation.vue';
 
 const props = defineProps({
-    events: Array
+    events: {
+        type: Array,
+        required: true
+    }
 });
 
-const hasError = ref('');
-const eventList = ref(props.events);
+const hasError = ref(false);
+const eventList = ref(props.events || []);
 const conversation = ref(null);
 const eventSearch = ref('');
 const url = new URL(window.location.href).searchParams.get("event");
@@ -67,24 +77,33 @@ const fetchEvents = async () => {
     eventList.value = response.data;
 };
 
-const fetchConversation = async (convo) => {
-    hasError.value = ''
+const fetchConversation = async (convoId) => {
+    hasError.value = false;
     try {
-        const response = await axios.get(`/inbox/fetch/conversation/${convo}`);
-        conversation.value = response.data;
-        history.pushState(null, null, `/inbox?event=${convo}`);
-    } catch (error) {
-        if (error.response && error.response.data && error.response.data.message) {
-            hasError.value = true ;
-        } else {
-            // Handle other potential errors
-            console.error('An unexpected error occurred:', error);
+        const response = await axios.get(`/inbox/fetch/conversation/${convoId}`);
+        console.log('Response:', response.data);
+        if (response.data) {
+            conversation.value = response.data;
+            history.pushState(null, null, `/inbox?event=${convoId}`);
         }
+    } catch (error) {
+        console.error('Error fetching conversation:', error);
+        hasError.value = true;
     }
 };
 
-onMounted(() => {
-    if (url) fetchConversation(url);
+const updateConversation = (newValue) => {
+    conversation.value = newValue;
+};
+
+onMounted(async () => {
+    console.log('Initial events:', props.events);
+    if (url) {
+        await fetchConversation(url);
+    } else if (props.events?.length > 0) {
+        console.log('Loading first conversation:', props.events[0]);
+        await fetchConversation(props.events[0].id);
+    }
 });
 
 onUnmounted(() => {

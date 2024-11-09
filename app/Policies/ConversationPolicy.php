@@ -10,10 +10,19 @@ class ConversationPolicy
 {
     use HandlesAuthorization;
 
+    public function view(User $user, Conversation $conversation)
+    {
+        return $user->id === $conversation->user_one 
+            || $user->id === $conversation->user_two 
+            || $user->type === 'a' 
+            || $user->type === 'm';
+    }
     
     public function update(User $user, Conversation $conversation)
     {
-        return $conversation->users->contains('id', $user->id) || $user->type == 'a' || $user->type == 'm';
+        return $user->id === $conversation->user_one 
+            || $user->id === $conversation->user_two 
+            || $user->type === 'a' 
+            || $user->type === 'm';
     }
-
 }

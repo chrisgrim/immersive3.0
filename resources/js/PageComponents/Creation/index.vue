@@ -24,7 +24,15 @@
 			        <div class="group relative grid grid-cols-4 gap-8 py-4 h-36 items-center hover:bg-gray-100 rounded-2xl"
 			             style="grid-template-columns: 16rem 30% auto auto;">
 			            <div class="px-8">
-			                <template v-if="event && event.thumbImagePath">
+			                <template v-if="event.images?.length > 0">
+			                    <picture>
+			                        <source :srcset="`${imageUrl}${event.images[0].large_image_path}`" type="image/webp">
+			                        <img :src="`${imageUrl}${event.images[0].large_image_path}`"
+			                             :alt="`${event.name} Immersive Event`"
+			                             class="h-24 w-full object-cover rounded-2xl">
+			                    </picture>
+			                </template>
+			                <template v-else-if="event.thumbImagePath">
 			                    <picture>
 			                        <source :srcset="`${imageUrl}${event.thumbImagePath}`" type="image/webp">
 			                        <img :src="`${imageUrl}${event.thumbImagePath.slice(0, -4)}jpg`"
@@ -37,7 +45,19 @@
 			                </template>
 			            </div>
 			            <div class="">
-			                <p class="text-2xl font-medium">{{ event.name }}</p>
+			                <div class="flex items-center gap-2">
+			                    <p class="text-2xl font-medium">{{ event.name }}</p>
+			                    <svg v-if="event.status === 'r'" 
+			                         class="h-5 w-5 text-gray-500" 
+			                         fill="none" 
+			                         viewBox="0 0 24 24" 
+			                         stroke="currentColor">
+			                        <path stroke-linecap="round" 
+			                              stroke-linejoin="round" 
+			                              stroke-width="2" 
+			                              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+			                    </svg>
+			                </div>
 			                <p class="text-md leading-4 text-gray-500">last edited: {{ cleanDate(event.updated_at) }}</p>
 			            </div>
 			            <div class="flex flex-row items-center">
@@ -71,7 +91,15 @@
 
 				<!-- Event Image -->
 				<div class="w-full h-80 rounded-2xl overflow-hidden mb-8">
-					<template v-if="selectedEvent.thumbImagePath">
+					<template v-if="selectedEvent.images?.length > 0">
+						<picture>
+							<source :srcset="`${imageUrl}${selectedEvent.images[0].large_image_path}`" type="image/webp">
+							<img :src="`${imageUrl}${selectedEvent.images[0].large_image_path}`"
+							     :alt="`${selectedEvent.name} Immersive Event`"
+							     class="w-full h-full object-cover">
+						</picture>
+					</template>
+					<template v-else-if="selectedEvent.thumbImagePath">
 						<picture>
 							<source :srcset="`${imageUrl}${selectedEvent.thumbImagePath}`" type="image/webp">
 							<img :src="`${imageUrl}${selectedEvent.thumbImagePath.slice(0, -4)}jpg`"
@@ -96,6 +124,7 @@
 						View Event
 					</button>
 					<button 
+						v-if="selectedEvent.status !== 'r'"
 						@click="editEvent(selectedEvent)"
 						class="flex-1 px-8 py-4 border border-black rounded-xl hover:bg-gray-100">
 						Edit Event
@@ -103,7 +132,31 @@
 					<button 
 						@click="confirmRemoveEvent(selectedEvent)"
 						class="flex-1 px-8 py-4 border border-red-500 text-red-500 rounded-xl hover:bg-red-50">
-						Remove Event
+						Delete Event
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Add this right after your existing modal -->
+		<div v-if="showSubmissionModal" 
+		     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+		     @click="closeSubmissionModal">
+			<div class="bg-white rounded-3xl p-20 max-w-3xl w-full mx-4 relative" 
+			     @click.stop>
+				<div class="text-center">
+					<div class="mb-8">
+						<svg class="mx-auto h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+					</div>
+					<h3 class="text-3xl font-bold mb-4">Thanks for submitting {{ submittedEventName }}!</h3>
+					<p class="text-gray-600 mb-8">Your event will be reviewed in the next few days.</p>
+					<button 
+						@click="closeSubmissionModal" 
+						class="px-8 py-4 bg-black text-white rounded-xl hover:bg-gray-800"
+					>
+						Close
 					</button>
 				</div>
 			</div>
@@ -112,9 +165,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import dayjs from 'dayjs';
 import { RiCloseCircleFill } from "@remixicon/vue";
+import axios from 'axios';
 
 const props = defineProps({
     organizer: Object,
@@ -123,6 +177,17 @@ const props = defineProps({
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const selectedEvent = ref(null);
+const showSubmissionModal = ref(false);
+const submittedEventName = ref('');
+
+onMounted(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const submitted = urlParams.get('submitted');
+    if (submitted) {
+        submittedEventName.value = submitted;
+        showSubmissionModal.value = true;
+    }
+});
 
 // Modal functions
 const openModal = (event) => {
@@ -142,13 +207,28 @@ const viewEvent = (event) => {
 };
 
 const editEvent = (event) => {
+    if (event.status === 'r') {
+        alert('This event is under review and cannot be edited.');
+        return;
+    }
     window.location.href = `/hosting/event/${event.slug}/edit`;
 };
 
-const confirmRemoveEvent = (event) => {
+const confirmRemoveEvent = async (event) => {
     if (confirm('Are you sure you want to remove this event?')) {
-        // Add your remove event logic here
-        console.log('Removing event:', event.id);
+        try {
+            await axios.delete(`/hosting/event/${event.slug}`);
+            closeModal(); // Close the modal
+            
+            // Remove the event from the organizer's events array
+            const index = props.organizer.events.findIndex(e => e.id === event.id);
+            if (index > -1) {
+                props.organizer.events.splice(index, 1);
+            }
+        } catch (error) {
+            console.error('Error deleting event:', error);
+            alert('Failed to delete event. Please try again.');
+        }
     }
 };
 
@@ -184,7 +264,11 @@ const getStatusInfo = (event, cleanDateFn) => {
 
 const cleanDate = (data) => dayjs(data).format("MMM DD, YYYY");
 
-
+const closeSubmissionModal = () => {
+    showSubmissionModal.value = false;
+    // Clean up the URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+};
 </script>
 
 <style scoped>

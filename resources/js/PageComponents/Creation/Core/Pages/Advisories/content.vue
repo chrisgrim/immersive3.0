@@ -1,5 +1,5 @@
 <template>
-    <main class="w-full py-40 flex items-center min-h-[max(40rem,calc(100vh-6rem))]">
+    <main class="w-full min-h-fit">
         <div class="flex flex-col w-full">
             <h2>Content Advisories</h2>
             <!-- Initial Sexual Content Selection -->
@@ -59,7 +59,6 @@
         </div>
     </main>
 </template>
-
 <script setup>
 import { ref, inject, onMounted, computed } from 'vue';
 import { required, maxLength } from '@vuelidate/validators';
@@ -105,7 +104,7 @@ const onSelectSexual = (hasSexualContent) => {
         event.advisories = {};
     }
     
-    event.advisories.sexual = hasSexualContent;
+    event.advisories.sexual = hasSexualContent === true ? true : false;
     event.advisories.sexualDescription = hasSexualContent ? '' : null;
 };
 
@@ -135,47 +134,20 @@ const itemRemoved = (item) => {
 const rules = {
     event: {
         advisories: {
-            sexual: { required },
             sexualDescription: {
-                required: (value) => !event.advisories?.sexual || (event.advisories?.sexual && value?.length > 0),
+                required: (value) => {
+                    if (event.advisories?.sexual === true) {
+                        return value && value.length > 0;
+                    }
+                    return true;
+                },
                 maxLength: maxLength(1000)
             }
         }
     }
 };
 
-const $v = useVuelidate(rules, {
-    event: {
-        advisories: event.advisories || { sexual: null, sexualDescription: null }
-    }
-});
-
-// Replace handleSubmit with defineExpose
-defineExpose({
-    isValid: async () => {
-        const isValid = await $v.value.$validate();
-        console.log('Content Advisories validation:', {
-            hasSelectedSexual: hasSelectedSexual.value,
-            sexualContent: event.advisories?.sexual,
-            contentAdvisoriesCount: contentAdvisories.value.length,
-            validationError: $v.value.$error,
-            isValid
-        });
-        return isValid;
-    },
-    submitData: () => {
-        const data = {
-            contentAdvisories: contentAdvisories.value,
-            wheelchairReady: event.advisories.wheelchairReady,
-            advisories: {
-                sexual: event.advisories.sexual,
-                sexualDescription: event.advisories.sexualDescription
-            }
-        };
-        console.log('Submitting content advisories data:', data);
-        return data;
-    }
-});
+const $v = useVuelidate(rules, { event });
 
 // API
 const fetchContentAdvisories = async () => {
@@ -184,6 +156,33 @@ const fetchContentAdvisories = async () => {
         !['sexual-content', 'no-sexual-content'].includes(advisory.slug)
     );
 };
+
+// Component API
+defineExpose({
+    isValid: async () => {
+        await $v.value.$validate();
+        const isValid = hasSelectedSexual.value && event.advisories.sexual !== null;
+        return isValid;
+    },
+    submitData: () => {
+        const allAdvisories = [
+            ...(sexualAdvisory.value ? [sexualAdvisory.value] : []),
+            ...otherAdvisories.value
+        ];
+
+        return {
+            contentAdvisories: allAdvisories.map(advisory => ({
+                id: advisory.id,
+                name: advisory.name,
+                slug: advisory.slug
+            })),
+            advisories: {
+                sexual: event.advisories.sexual === 0 ? false : event.advisories.sexual,
+                sexualDescription: event.advisories.sexualDescription
+            }
+        };
+    }
+});
 
 // Lifecycle
 onMounted(async () => {
@@ -196,10 +195,14 @@ onMounted(async () => {
         if (event.content_advisories?.length) {
             event.content_advisories.forEach(advisory => {
                 if (!['sexual-content', 'no-sexual-content'].includes(advisory.slug)) {
-                    itemSelected(advisory);
+                    otherAdvisories.value.push(advisory);
+                    contentAdvisoryList.value = contentAdvisoryList.value.filter(
+                        listItem => listItem.id !== advisory.id
+                    );
                 }
             });
         }
     }
 });
 </script>
+

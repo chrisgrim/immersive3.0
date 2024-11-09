@@ -4,7 +4,7 @@ namespace App\Models;
 
 use App\Models\{Conversation, Genre, Organizer, User, Category};
 use App\Models\Events\{ Show, PriceRange, Advisory, Location, AgeLimit, InteractiveLevel, RemoteLocation, ContactLevel, ContentAdvisory, MobilityAdvisory};
-use App\Models\Admin\{ ReviewEvent, StaffPick };
+use App\Models\Admin\{ ReviewEvent, StaffPick, TrackClick };
 use App\Scopes\PublishedScope;
 use App\Traits\{Favoritable};
 use Elastic\ScoutDriverPlus\Searchable;
@@ -13,7 +13,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
-
+/**
+ * Event Model
+ * 
+ * Represents an event in the system with relationships to users, organizers,
+ * locations, and various other event-related models.
+ */
 class Event extends Model
 {
     use Favoritable, SoftDeletes, Searchable;
@@ -127,9 +132,9 @@ class Event extends Model
     }
 
     /**
-    * Each event belongs to One User
+    * Get all users who can manage this event through the organizer
     *
-    * @return \Illuminate\Database\Eloquent\Relations\belongsTo
+    * @return \Illuminate\Database\Eloquent\Collection
     */
     public function owners() 
     {
@@ -140,7 +145,7 @@ class Event extends Model
     /**
     * Each event has a conversation
     *
-    * @return \Illuminate\Database\Eloquent\Relations\belongsTo
+    * @return \Illuminate\Database\Eloquent\Relations\HasOne
     */
     public function conversation() 
     {
@@ -180,7 +185,7 @@ class Event extends Model
     /**
     * Each event has many event reviews
     *
-    * @return \Illuminate\Database\Eloquent\Relations\belongsTo
+    * @return \Illuminate\Database\Eloquent\Relations\HasMany
     */
     public function eventreviews() 
     {
@@ -191,7 +196,7 @@ class Event extends Model
     /**
     * Each event has many clicks
     *
-    * @return \Illuminate\Database\Eloquent\Relations\belongsTo
+    * @return \Illuminate\Database\Eloquent\Relations\HasMany
     */
     public function clicks() 
     {
@@ -339,6 +344,25 @@ class Event extends Model
     }
 
     /**
+     * Create a new event for the given organizer
+     *
+     * @param int $organizerId
+     * @return \App\Models\Event
+     */
+    public static function newEvent($organizerId)
+    {
+        $event = self::create([
+            'user_id' => auth()->id(),
+            'slug' => Str::slug('new-event-' . Str::random(6)),
+            'organizer_id' => $organizerId,
+            'status' => '0',
+        ]);
+        $event->location()->create([]);
+        $event->advisories()->create([]);
+        return $event;
+    }
+
+    /**
     * Finds all the current live events
     *
     * @return a collection of the live events with priceranges attached
@@ -355,124 +379,74 @@ class Event extends Model
             ->max();
     }
 
-    public static function newEvent($organizerId)
-    {
-        $event = self::create([
-            'user_id' => auth()->id(),
-            'slug' => Str::slug('new-event-' . Str::random(6)),
-            'organizer_id' => $organizerId,
-            'status' => '0',
-        ]);
-        $event->location()->create([]);
-        $event->advisories()->create([]);
-        return $event;
-    }
-
     /**
-    * Deletes the event images and then deletes event
-    *
-    * @return Nothing
-    */
-    public function deleteEvent($event) 
-    {
-        if ($event->user_id == auth()->id()) {
-            if ($event->conversation()->exists()) {
-                $event->conversation()->first()->delete();
-            }
-            $event->delete();
-        }
-    }
-
-    /**
-    * Check if event exists
-    *
-    * @return boolean
-    */
+     * Check if an event with the same name already exists
+     *
+     * @param Event $event
+     * @param Request $request
+     * @return bool
+     */
     public function exists($event, $request) 
     {
-        return Event::where('slug', Str::slug($request->name))->where('id', '!=', $event->id )->exists();
+        return Event::where('slug', Str::slug($request->name))
+                   ->where('id', '!=', $event->id)
+                   ->exists();
     }
 
     /**
-    * Update status
-    *
-    * @return udpates event status
-    */
-    public function updateEventStatus($status, $request) 
+     * Generate a unique slug for the event
+     *
+     * @param Event $event
+     * @return string
+     */
+    public static function finalSlug(Event $event): string 
     {
-        if ($request->resubmit) {
-            $this->update([ 'status' => '8' ]);
-        } else {
-            if ($this->status < $status + 1 && $this->inProgress()) $this->update([ 'status' => $status ]); 
+        $baseSlug = Str::slug($event->name);
+        
+        // If the base slug is available, use it
+        if (!static::slugExists($baseSlug, $event->id)) {
+            return $baseSlug;
         }
-    }
 
-    /**
-    * Check Event Statue
-    *
-    * @return checks event status and returns boolean
-    */
-    public function checkEventStatus($status) 
-    {
-        return $this->status < $status && $this->inProgress();
-    }
-
-    /**
-    * Deletes the event images and then deletes event
-    *
-    * @return Nothing
-    */
-    public function finalizeEvent($event) 
-    {
-        $website = $event->organizer->website;
-        if ($event->websiteUrl == null) {
-            $event->update([ 'websiteUrl' => $website ]);
+        // Try with city if available (e.g., "event-name-london")
+        if ($event->location?->city) {
+            $citySlug = $baseSlug . '-' . Str::slug($event->location->city);
+            if (!static::slugExists($citySlug, $event->id)) {
+                return $citySlug;
+            }
         }
-        if ($event->ticketUrl == null) {
-            $event->update([ 'ticketUrl' => $website ]);
+
+        // Try with organizer name (e.g., "event-name-organizername")
+        if ($event->organizer?->name) {
+            $organizerSlug = $baseSlug . '-' . Str::slug($event->organizer->name);
+            if (!static::slugExists($organizerSlug, $event->id)) {
+                return $organizerSlug;
+            }
         }
+
+        // If still not unique, add short incremental number
+        $count = 2; // Start at 2 since it's more natural in URLs
+        do {
+            $newSlug = $baseSlug . '-' . $count;
+            $count++;
+        } while (static::slugExists($newSlug, $event->id) && $count < 100);
+
+        return $newSlug;
     }
 
     /**
-    * Deletes the event images and then deletes event
-    *
-    * @return Nothing
-    */
-    public static function finalSlug($event) 
+     * Check if a slug exists for any other event
+     *
+     * @param string $slug
+     * @param int|null $excludeId
+     * @return bool
+     */
+    private static function slugExists(string $slug, ?int $excludeId = null): bool
     {
-        if(Event::withTrashed()->where('slug', '=', Str::slug($event->name))->where('id', '!=', $event->id)->exists()){
-            $slug = Str::slug($event->name) . '-' . substr(md5(microtime()),rand(0,26),5);
-            if(Event::where('slug', '=', $slug)->exists()){
-                return Str::slug($event->name) . '-' . rand(1,50000);
-            } else {
-                return $slug;
-            };
-        } else {
-            return Str::slug($event->name);
-        };
+        return static::withTrashed()
+            ->where('slug', $slug)
+            ->when($excludeId, fn($query) => $query->where('id', '!=', $excludeId))
+            ->exists();
     }
 
-    /**
-    * Store a newly created resource in storage. Update all the standard fields. For each genre field I check if they exist then add any the user created. Finally I sync those submitted with the genres associated with the event.
-    *
-    * @return Nothing
-    */
-    public function storeGenres($request, $event) 
-    {
-        if ($request->has('genres')) {
-            foreach ($request['genres'] as $genre) {
-                Genre::firstOrCreate([
-                    'slug' => Str::slug($genre['name'])
-                ],
-                [
-                    'name' => $genre['name'],
-                    'user_id' => auth()->user()->id,
-                ]);
-            };
-            $newSync = Genre::whereIn('slug', collect($request['genres'])->map(function ($genre) {
-                return Str::slug($genre['name']); 
-            })->toArray())->get();
-            $event->genres()->sync($newSync);
-        };
-    }
 }

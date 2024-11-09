@@ -1,48 +1,46 @@
 <template>
-    <main class="w-full py-40 flex items-center min-h-[max(40rem,calc(100vh-6rem))]">
+    <main class="w-full min-h-fit">
         <div class="flex flex-col w-full">
-            <div>
-                <h2>Mobility Advisories</h2>
-                
-                <!-- Initial Wheelchair Selection -->
-                <div v-if="!hasSelectedWheelchair" class="mt-6">
-                    <p class="font-strong">Is your event wheelchair accessible?</p>
-                    <div class="flex flex-row gap-8 relative mt-6">
-                        <button 
-                            v-for="option in wheelchairOptions" 
-                            :key="option.value"
-                            @click="onSelectWheelchair(option.value)"
-                            class="border-gray-300 border rounded-2xl flex justify-between items-center hover:shadow-[0_0_0_1.5px_black] hover:border-black px-12 py-8"
-                            :class="{ 'border-red-500': $v?.event?.advisories?.wheelchairReady?.$error }"
-                        >
-                            <div class="text-left">
-                                <h4 class="font-bold text-3xl">{{ option.label }}</h4>
-                            </div>
-                        </button>
-                    </div>
-                    <p v-if="$v?.event?.advisories?.wheelchairReady?.$error" 
-                       class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
-                        Please select if your event is wheelchair accessible
-                    </p>
+            <h2>Mobility Advisories</h2>
+            
+            <!-- Initial Wheelchair Selection -->
+            <div v-if="!hasSelectedWheelchair">
+                <p class="text-gray-500 font-normal mt-4">Is your event wheelchair accessible?</p>
+                <div class="flex flex-row gap-8 relative mt-6">
+                    <button 
+                        v-for="option in wheelchairOptions" 
+                        :key="option.value"
+                        @click="onSelectWheelchair(option.value)"
+                        class="border-gray-300 border rounded-2xl flex justify-between items-center hover:shadow-[0_0_0_1.5px_black] hover:border-black px-12 py-8"
+                        :class="{ 'border-red-500': $v?.event?.advisories?.wheelchairReady?.$error }"
+                    >
+                        <div class="text-left">
+                            <h4 class="font-bold text-3xl">{{ option.label }}</h4>
+                        </div>
+                    </button>
                 </div>
+                <p v-if="$v?.event?.advisories?.wheelchairReady?.$error" 
+                   class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
+                    Please select if your event is wheelchair accessible
+                </p>
+            </div>
 
-                <!-- Additional Advisories Selection -->
-                <div v-else class="mt-6">
-                    <p class="font-strong">Select additional mobility restrictions</p>
-                    <Dropdown 
-                        class="mt-4"
-                        :list="mobilityAdvisoryList"
-                        :creatable="true"
-                        placeholder="Additional advisories"
-                        @onSelect="itemSelected" 
-                    />
-                    <List 
-                        class="mt-6"
-                        :selections="mobilityAdvisories" 
-                        @onSelect="itemRemoved"
-                        :disabledItems="[]"
-                    />
-                </div>
+            <!-- Additional Advisories Selection -->
+            <div v-else class="mt-6">
+                <p class="text-gray-500 font-normal">Select additional mobility restrictions</p>
+                <Dropdown 
+                    class="mt-4"
+                    :list="mobilityAdvisoryList"
+                    :creatable="true"
+                    placeholder="Additional advisories"
+                    @onSelect="itemSelected" 
+                />
+                <List 
+                    class="mt-6"
+                    :selections="mobilityAdvisories" 
+                    @onSelect="itemRemoved"
+                    :disabledItems="[]"
+                />
             </div>
         </div>
     </main>

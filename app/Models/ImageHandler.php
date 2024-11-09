@@ -56,18 +56,70 @@ class ImageHandler extends Model
             'thumb_image_path' => "$directory/{$fileName}-thumb.webp",
             'rank' => $rank
         ]);
+
+        $table = $model->getTable();
+        $hasImageColumns = \Schema::hasColumns($table, ['largeImagePath', 'thumbImagePath']);
+
+        if ($hasImageColumns) {
+            $model->largeImagePath = "$directory/$fileName.webp";
+            $model->thumbImagePath = "$directory/{$fileName}-thumb.webp";
+            $model->save();
+        }
     }
 
     public static function deleteImage($image)
     {
-        // Delete images from storage
+        // Validate image path has proper subdirectory structure (type-images/slug/filename)
+        $pathParts = explode('/', $image->large_image_path);
+        if (count($pathParts) < 3 || !str_ends_with($pathParts[0], '-images')) {
+            \Log::error('Invalid image path structure detected', [
+                'path' => $image->large_image_path,
+                'parts' => $pathParts
+            ]);
+            throw new \Exception('Invalid image path structure');
+        }
+
+        // Get the base path without extension
+        $basePath = preg_replace('/\.(webp|jpg)$/', '', $image->large_image_path);
+        $baseThumbPath = preg_replace('/\.(webp|jpg)$/', '', $image->thumb_image_path);
+        
+        // Ensure we're not in a root directory
+        $directory = dirname("/public/{$image->large_image_path}");
+        if ($directory === '/public' || preg_match('|^/public/[^/]+-images$|', $directory)) {
+            \Log::error('Attempted to delete from root directory', [
+                'directory' => $directory,
+                'image_path' => $image->large_image_path
+            ]);
+            throw new \Exception('Cannot delete from root directory');
+        }
+
+        // Delete all image formats
         Storage::disk('digitalocean')->delete([
-            "/public/{$image->large_image_path}",
-            "/public/{$image->thumb_image_path}"
+            "/public/{$basePath}.webp",
+            "/public/{$basePath}.jpg",
+            "/public/{$baseThumbPath}.webp",
+            "/public/{$baseThumbPath}.jpg"
         ]);
 
+        // Get directory path
+        $directory = dirname("/public/{$image->large_image_path}");
+        
         // Delete the image record from database
         $image->delete();
+
+        // Check if directory is empty and delete it if it is
+        try {
+            $files = Storage::disk('digitalocean')->files($directory);
+            if (empty($files)) {
+                \Log::info('Deleting empty directory', ['directory' => $directory]);
+                Storage::disk('digitalocean')->deleteDirectory($directory);
+            }
+        } catch (\Exception $e) {
+            \Log::error('Error cleaning up directory', [
+                'error' => $e->getMessage(),
+                'directory' => $directory
+            ]);
+        }
     }
 
     public static function updateImages($model, $currentImages)

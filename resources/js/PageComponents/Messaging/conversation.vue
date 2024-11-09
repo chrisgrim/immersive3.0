@@ -11,13 +11,21 @@
         <div ref="messagesContainer" class="flex flex-col overflow-auto px-8 flex-grow items-start">
             <div class="flex flex-col">
                 <div v-for="message in conversation.messages" :key="message.id" class="my-4 first:mt-8 last:mb-8">
-                    <div v-if="message && message.user && message.user.thumbImagePath" class="flex items-center">
-                        <div :style="`background:${message.user.hexColor}`" class="w-14 h-14 rounded-full mr-2 overflow-hidden">
-                            <img :src="`${imageUrl}${message.user.thumbImagePath.slice(0, -4)}jpg`" class="w-full h-full" alt="">
+                    <div class="flex items-center">
+                        <div :style="`background: ${message.user?.hexColor || '#gray'}`" class="w-14 h-14 rounded-full mr-2 overflow-hidden">
+                            <img 
+                                v-if="message.user?.thumbImagePath" 
+                                :src="`${imageUrl}${message.user.thumbImagePath.slice(0, -4)}jpg`" 
+                                class="w-full h-full" 
+                                alt=""
+                            >
+                            <div v-else class="w-full h-full bg-gray-300 flex items-center justify-center">
+                                {{ message.user?.name?.[0] || '?' }}
+                            </div>
                         </div>
                         <div class="flex-grow">
-                            <a :href="`/users/${message.user.id}`" class="text-2xl font-bold hover:underline">
-                                {{ message.user.name }}
+                            <a :href="`/users/${message.user_id}`" class="text-2xl font-bold hover:underline">
+                                {{ message.user?.name || message.user?.email || 'Unknown User' }}
                             </a>
                             <span class="text-xl text-slate-400">{{ cleanTime(message.created_at) }}</span>
                             <p v-html="message.message" class="text-2xl" />
@@ -63,6 +71,8 @@ const props = defineProps({
     value: Object,
 });
 
+const emit = defineEmits(['update:value']);
+
 const messagesContainer = ref(null);
 const disabled = ref(false);
 const conversation = ref(props.value);
@@ -100,7 +110,13 @@ const onSubmit = async () => {
             message: newMessage.value,
             type: 'message'
         });
-        props.value.messages = response.data.messages;
+        
+        // Update the parent component with new data
+        emit('update:value', response.data);
+        
+        // Update local conversation ref
+        conversation.value = response.data;
+        
         newMessage.value = '';
         if (editor) {
             editor.value.commands.setContent('');

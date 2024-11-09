@@ -3,19 +3,17 @@
 @section('meta')
     
 
-
 @endsection 
 
 @section('nav')
 
-   @include('Layouts.nav-container')
     
 @endsection
 
 @section('content')
+    
+    <vue-admin :user="user" />
 
-	<vue-inbox :events="{{$events}}"></vue-inbox>
-	
 @endsection
 
 @section('footer')

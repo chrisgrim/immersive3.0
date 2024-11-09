@@ -11,10 +11,10 @@ use App\Models\Events\ContentAdvisory;
 use App\Models\Events\MobilityAdvisory;
 use App\Models\Events\Show;
 use App\Models\Events\Ticket;
+use App\Models\Genre;
 use App\Http\Requests\StoreEventRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-
 
 class HostEventController extends Controller
 {
@@ -25,7 +25,7 @@ class HostEventController extends Controller
 
     public function edit(Event $event)
     {
-        $event->load('location', 'contentAdvisories', 'contactLevels', 'mobilityAdvisories', 'advisories','interactive_level', 'remotelocations','genres', 'priceranges', 'shows', 'age_limits', 'images');
+        $event->load('location', 'contentAdvisories', 'contactLevels', 'mobilityAdvisories', 'advisories','interactive_level', 'remotelocations','genres', 'priceranges', 'shows', 'age_limits', 'images', 'category','genres');
 
         $show = $event->shows->first();
         $event->tickets = $show ? $show->tickets : collect();
@@ -63,19 +63,39 @@ class HostEventController extends Controller
             Show::saveShows($request, $event);
         }
 
+        // Handle all advisory-related updates
         if (isset($validatedData['contentAdvisories'])) {
             ContentAdvisory::saveAdvisories($event, $validatedData['contentAdvisories']);
         }
 
         if (isset($validatedData['mobilityAdvisories'])) {
             MobilityAdvisory::saveAdvisories($event, $validatedData['mobilityAdvisories']);
-            
-            // Update wheelchair status
-            if (isset($validatedData['wheelchairReady'])) {
-                $event->advisories()->update([
-                    'wheelchairReady' => $validatedData['wheelchairReady']
-                ]);
+        }
+
+        // Consolidate all advisory updates
+        $advisoryData = [];
+        
+        if (isset($validatedData['advisories'])) {
+            if (isset($validatedData['advisories']['sexual'])) {
+                $advisoryData['sexual'] = (bool) $validatedData['advisories']['sexual'];
             }
+            
+            if (isset($validatedData['advisories']['sexualDescription'])) {
+                $advisoryData['sexualDescription'] = $validatedData['advisories']['sexualDescription'];
+            }
+
+            if (isset($validatedData['advisories']['audience'])) {
+                $advisoryData['audience'] = $validatedData['advisories']['audience'];
+            }
+        }
+
+        // Add wheelchair status to advisory data
+        if (isset($validatedData['wheelchairReady'])) {
+            $advisoryData['wheelchairReady'] = $validatedData['wheelchairReady'];
+        }
+
+        if (!empty($advisoryData)) {
+            $event->advisories()->update($advisoryData);
         }
 
         if (isset($validatedData['tickets'])) {
@@ -106,41 +126,33 @@ class HostEventController extends Controller
             $event->save();
         }
 
-        // Update advisories
-        if (isset($validatedData['advisories'])) {
-            $advisoryData = [];
-            
-            if (isset($validatedData['advisories']['sexual'])) {
-                $advisoryData['sexual'] = $validatedData['advisories']['sexual'];
-            }
-            
-            if (isset($validatedData['advisories']['sexualDescription'])) {
-                $advisoryData['sexualDescription'] = $validatedData['advisories']['sexualDescription'];
-            }
-
-            if (isset($validatedData['advisories']['audience'])) {
-                $advisoryData['audience'] = $validatedData['advisories']['audience'];
-            }
-
-            if (!empty($advisoryData)) {
-                $event->advisories()->update($advisoryData);
-            }
-        }
-
-        // Update content advisories
-        if (isset($validatedData['contentAdvisories'])) {
-            ContentAdvisory::saveAdvisories($event, $validatedData['contentAdvisories']);
-        }
-
         // Store just the YouTube ID
         if ($request->has('video')) {
             $event->video = $request->video ?: null;
             $event->save();
         }
 
+        // Handle genres
+        if (isset($validatedData['genres'])) {
+            $event->genres()->sync(
+                collect($validatedData['genres'])->pluck('id')
+            );
+        }
+
         return response()->json([
             'message' => 'Event updated successfully.',
-            'event' => $event->load('shows', 'location', 'images', 'advisories', 'mobilityAdvisories', 'contentAdvisories', 'contactLevels', 'interactive_level')
+            'event' => $event->load(
+                'shows', 
+                'location', 
+                'images', 
+                'advisories', 
+                'mobilityAdvisories', 
+                'contentAdvisories', 
+                'contactLevels', 
+                'interactive_level',
+                'category',
+                'genres'  // Add genres to the loaded relationships
+            )
         ], 200);
     }
 
@@ -163,5 +175,34 @@ class HostEventController extends Controller
         $event->remotelocations()->sync($newSync);
     }
 
+    public function submit(Event $event)
+    {
+        // Check if event is already submitted/published
+        if (in_array($event->status, ['r', 'p', 'e'])) {
+            return response()->json([
+                'message' => 'Event is already submitted or published.',
+            ], 422);
+        }
 
+        // Update event status to 'r' (under review)
+        $event->status = 'r';
+        $event->save();
+
+        return response()->json([
+            'message' => 'Event submitted successfully.',
+            'event' => $event
+        ], 200);
+    }
+
+    public function destroy(Event $event)
+    {
+        // Optional: Add authorization check if needed
+        // $this->authorize('delete', $event);
+
+        $event->delete();
+
+        return response()->json([
+            'message' => 'Event deleted successfully'
+        ]);
+    }
 }

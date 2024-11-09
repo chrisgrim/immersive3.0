@@ -113,34 +113,6 @@ class Organizer extends Model
         return $result;
     }
 
-    // public function pastEvents()
-    // {
-    //     return $this->hasMany(Event::class)
-    //                 ->whereDate('closingDate', '<', Carbon::today())
-    //                 ->orderBy('created_at', 'ASC');
-    // }
-
-    // public function inProgressEvents()
-    // {
-    //     return $this->hasMany(Event::class)
-    //                 ->where(function ($query) {
-    //                     $query->whereDate('closingDate', '>=', Carbon::today())
-    //                         ->orWhereNull('closingDate');
-    //                 })
-    //                 ->orderBy('created_at', 'ASC');
-    // }
-
-    // public static function getOrganizerEvents()
-    // {
-    //     $organizers = auth()->user()->allOrganizers();
-
-    //     foreach ($organizers as $organizer) {
-    //         $organizer->load('listedEvents.shows', 'archivedEvents.shows');
-    //     }
-
-    //     return $organizers;
-    // }
-
     public function deleteOrganizer($organizer) 
     {
         if ($organizer->users()->exists()) { $organizer->users()->detach(); }

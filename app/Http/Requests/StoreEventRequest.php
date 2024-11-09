@@ -17,10 +17,10 @@ class StoreEventRequest extends FormRequest
             'timezone_id' => 'nullable|exists:timezones,id',
             'category_id' => 'nullable|exists:categories,id',
             'interactive_level_id' => 'nullable|exists:interactive_levels,id',
-            'description' => 'sometimes|required|string|min:1|max:30000',
+            'description' => 'sometimes|required|string|min:1|max:2000',
             'name' => 'sometimes|required|string|max:100',
             'closingDate' => 'nullable|date',
-            'websiteUrl' => 'nullable|url|max:255',
+            'websiteUrl' => 'sometimes|url|max:255',
             'ticketUrl' => 'nullable|url|max:255',
             'show_times' => 'nullable|string|max:500',
             'tag_line' => 'sometimes|required|string|max:255',
@@ -84,6 +84,10 @@ class StoreEventRequest extends FormRequest
             'advisories.audience' => 'sometimes|required|string|max:1000',
             'advisories.sexual' => 'sometimes|boolean',
             'advisories.sexualDescription' => 'nullable|string|max:1000',
+
+            // Add validation for genres
+            'genres' => 'sometimes|array|max:10',
+            'genres.*.id' => 'sometimes|required|exists:genres,id',
 
             'status' => 'sometimes|string',
         ];

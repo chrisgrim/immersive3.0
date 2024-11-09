@@ -1,7 +1,7 @@
 <template>
     <div>
-        <div class="fixed overflow-auto h-full relative">
-            <div class="fixed top-0 right-0 bottom-0 w-screen flex items-center justify-center">
+        <div class="fixed overflow-auto h-[calc(100vh-8rem)] relative">
+            <div class="fixed top-0 right-0 bottom-[8rem] w-screen flex items-center justify-center">
                 <div 
                     v-if="locationSearch"
                     class="absolute w-full top-12 z-[10000]">

@@ -1,7 +1,7 @@
 <template>
-    <div class="relative text-1xl font-medium w-full">
+    <div class="relative text-1xl font-medium w-full h-screen flex flex-col">
         <!-- Top Navigation Bar -->
-        <div class="fixed top-0 left-0 right-0 h-24 z-50">
+        <div class="flex-none h-24">
             <div class="mx-auto p-16 h-full flex justify-between items-center">
                 <!-- Left: EI Logo/Link -->
                 <a href="/hosting/events" class="text-5xl font-bold hover:opacity-70">
@@ -23,15 +23,19 @@
             </div>
         </div>
 
-        <!-- Main Content (adjusted padding for top nav) -->
-        <div id="content" class="relative max-w-screen-xl m-auto pt-24 w-full">
-            <div class="w-full lg:w-1/2 m-auto h-screen">
-                <component :is="currentComponent" ref="currentComponentRef" />
+        <!-- Main Content Area (with proper scrolling) -->
+        <div class="flex-1 overflow-y-auto">
+            <div class="max-w-screen-xl mx-auto min-h-full flex">
+                <div class="w-full lg:w-1/2 mx-auto pt-52 pb-40">
+                    <div class="h-full flex items-center">
+                        <component :is="currentComponent" ref="currentComponentRef" />
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Bottom Navigation -->
-        <div class="fixed bottom-0 left-0 right-0 bg-white border-t">
+        <!-- Bottom Navigation (fixed at bottom) -->
+        <div class="flex-none">
             <!-- Progress Bar -->
             <div class="w-full h-[5px] bg-gray-200">
                 <div 
@@ -70,6 +74,7 @@ import axios from 'axios';
 import Nav from './nav.vue';
 import EventType from './Pages/event-type.vue';
 import Category from './Pages/category.vue';
+import Genres from './Pages/genres.vue';
 import Location from './Pages/location.vue';
 import Remote from './Pages/remote.vue'; // Import Remote component
 import Description from './Pages/description.vue';
@@ -80,6 +85,7 @@ import Images from './Pages/images.vue';
 import Advisories from './Pages/advisories.vue';
 import Content from './Pages/Advisories/content.vue';
 import Mobility from './Pages/Advisories/mobility.vue';
+import Review from './Pages/review.vue';
 
 const props = defineProps({
     event: {
@@ -99,12 +105,13 @@ const isSubmitting = ref(false);
 const errors = ref({});
 const currentComponentRef = ref(null);
 
-const stepsWithLocation = ['EventType', 'Category', 'Location', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility'];
-const stepsWithoutLocation = ['EventType', 'Category', 'Remote', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility'];
+const stepsWithLocation = ['EventType', 'Category', 'Genres', 'Location', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility', 'Review'];
+const stepsWithoutLocation = ['EventType', 'Category', 'Genres', 'Remote', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility', 'Review'];
 
 const components = {
     EventType,
     Category,
+    Genres,
     Location,
     Remote, // Add Remote component
     Description,
@@ -114,7 +121,8 @@ const components = {
     Images,
     Advisories,
     Content,
-    Mobility
+    Mobility,
+    Review  // Add this line
 };
 
 const steps = computed(() => event.hasLocation ? stepsWithLocation : stepsWithoutLocation);
@@ -137,16 +145,18 @@ const goToPrevious = () => {
 const STEP_MAP = {
     'EventType': '1',
     'Category': '2',
-    'Location': '3',
-    'Remote': '3', // Same as Location since they're mutually exclusive
-    'Description': '4',
-    'Name': '5',
-    'Dates': '6',
-    'Tickets': '7',
-    'Images': '8',
-    'Advisories': '9',
-    'Content': 'A',
-    'Mobility': 'B'
+    'Genres': '3',
+    'Location': '4',
+    'Remote': '4',
+    'Description': '5',
+    'Name': '6',
+    'Dates': '7',
+    'Tickets': '8',
+    'Images': '9',
+    'Advisories': 'A',
+    'Content': 'B',
+    'Mobility': 'C',
+    'Review': 'D'
 };
 
 // Reverse mapping for initialization
@@ -154,27 +164,38 @@ const REVERSE_STEP_MAP = Object.fromEntries(
     Object.entries(STEP_MAP).map(([key, value]) => [value, key])
 );
 
+const submitEvent = async () => {
+    try {
+        isSubmitting.value = true;
+        const response = await axios.post(`/hosting/event/${event.slug}/submit`);
+        window.location.href = '/hosting/events?submitted=' + encodeURIComponent(event.name);
+    } catch (error) {
+        console.error('Submission error:', error);
+    } finally {
+        isSubmitting.value = false;
+    }
+};
+
 const goToNext = async () => {
     try {
         const isValid = await currentComponentRef.value.isValid();
         if (!isValid) return;
 
+        if (isLastStep.value) {
+            await submitEvent();
+            return;
+        }
+
         const submitData = await currentComponentRef.value.submitData();
         
-        // Check if event is published (status is 'p' or 'e')
-        if (event.status === 'p' || event.status === 'e') {
-            // Don't change the status if event is published
-            submitData.status = event.status;
-        } else {
-            // Only update status if it's a forward progression
+        // Modify status handling for resubmission
+        if (!event.status || (event.status !== 'p' && event.status !== 'e')) {
             const currentStepValue = STEP_MAP[currentStep.value];
             const existingStepValue = event.status || '0';
             
-            if (currentStepValue > existingStepValue) {
-                submitData.status = currentStepValue;
-            } else {
-                submitData.status = existingStepValue;
-            }
+            submitData.status = currentStepValue > existingStepValue 
+                ? currentStepValue 
+                : existingStepValue;
         }
 
         isSubmitting.value = true;
@@ -184,17 +205,12 @@ const goToNext = async () => {
             Object.assign(event, response.data.event);
         }
 
-        if (!isLastStep.value) {
-            const nextStep = steps.value[currentStepIndex.value + 1];
-            setStep(nextStep);
-        }
+        const nextStep = steps.value[currentStepIndex.value + 1];
+        setStep(nextStep);
     } catch (error) {
-        console.error('Submission error:', error);
-        if (error.response?.data?.errors) {
-            errors.value = error.response.data.errors;
-        }
+        console.error('Error:', error);
     } finally {
-        isSubmitting.value = false;
+        isSubmitting.value = false;  // Make sure to reset isSubmitting
     }
 };
 

@@ -7,7 +7,6 @@ use App\Models\Organizer;
 use App\Models\Event;
 use Illuminate\Http\Request;
 
-
 class HostController extends Controller
 {
     public function __construct()
@@ -17,14 +16,17 @@ class HostController extends Controller
 
     public function show()
     {
-    	$organizer = auth()->user()->organizer()->with('events')->first();
-    	return view('Creation.index', compact('organizer'));
+        $organizer = auth()->user()->organizer()
+            ->with(['events' => function ($query) {
+                $query->with('images');
+            }])
+            ->first();
+            
+        return view('Creation.index', compact('organizer'));
     }
 
     public function intro()
     {
-    	return view('Creation.started');
+        return view('Creation.started');
     }
-
-
 }

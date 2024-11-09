@@ -1,5 +1,5 @@
 <template>
-    <main class="w-full py-40 flex items-center min-h-[max(40rem,calc(100vh-6rem))]">
+    <main class="w-full min-h-fit">
         <div class="flex flex-col w-full">
             <div>
                 <h2>How will users access your remote event?</h2>

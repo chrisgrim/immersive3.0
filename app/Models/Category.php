@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use App\Scopes\RankScope;
 use Illuminate\Support\Str;
-use Intervention\Image\ImageManagerStatic as Image;
 
 class Category extends Model
 {
@@ -120,6 +119,11 @@ class Category extends Model
             ]);
         }
         $category->delete();
+    }
+
+    public function images()
+    {
+        return $this->morphMany(Image::class, 'imageable');
     }
 
 }

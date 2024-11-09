@@ -1,5 +1,5 @@
 <template>
-    <main class="w-full py-40 flex items-center min-h-[max(40rem,calc(100vh-6rem))]">
+    <main class="w-full min-h-fit">
         <div class="w-full">
             <div class="flex items-center">
                 <div>
@@ -87,7 +87,7 @@
                 </div>
                 <p v-else class="cursor-pointer underline" @click="toggleAdditionalDetails">Additional ticket details</p>
             </div>
-            <div class="grid grid-cols-3 gap-4 mt-28">
+            <div class="grid grid-cols-3 gap-4 mt-24">
                 <div 
                     v-for="(ticket, index) in tickets" 
                     :key="index" 
@@ -124,6 +124,17 @@
                     <span class="text-2xl font-bold">+</span>
                     <span class="text-lg">Add Ticket Type</span>
                 </div>
+            </div>
+            <div class="mt-12">
+                <h3 class="text-2xl mb-4">Ticket URL</h3>
+                <input 
+                    class="w-full border border-[#e5e7eb] text-[#222222] text-xl p-4 rounded-2xl relative focus:border-black focus:shadow-[0_0_0_1.5px_black]" 
+                    type="url" 
+                    v-model="ticketUrl" 
+                    placeholder="https://..."
+                    @input="validateTicketUrl"
+                >
+                <p v-if="ticketUrlError" class="text-red-500 mt-2">Please enter a full valid URL</p>
             </div>
         </div>
     </main>
@@ -201,6 +212,9 @@ const hoveredLocation = ref(null);
 const showAdditionalDetails = ref(false);
 const showCurrencyDropdown = ref(false);
 
+const ticketUrl = ref(event.ticketUrl || '');
+const ticketUrlError = ref(false);
+
 onMounted(() => {
     if (tickets.length > 0) {
         formattedPrice.value = parseFloat(tickets[currentMedia.value].ticket_price).toFixed(2);
@@ -223,16 +237,18 @@ watch(currentMedia, (newIndex) => {
 defineExpose({
     isValid: async () => {
         $v.value.$touch();
-        const isValid = !$v.value.tickets.$invalid;
+        const isValid = !$v.value.tickets.$invalid && 
+                       ticketUrl.value && 
+                       !ticketUrlError.value;
         console.log('Tickets validation:', {
             ticketsCount: tickets.length,
             validationErrors: $v.value.tickets.$errors,
+            ticketUrlValid: Boolean(ticketUrl.value) && !ticketUrlError.value,
             isValid
         });
         return isValid;
     },
     submitData: () => {
-        // Format tickets with all required fields
         const formattedTickets = tickets.map(ticket => ({
             name: ticket.name,
             ticket_price: parseFloat(ticket.ticket_price),
@@ -241,7 +257,8 @@ defineExpose({
         }));
 
         const data = {
-            tickets: formattedTickets
+            tickets: formattedTickets,
+            ticketUrl: ticketUrl.value || null
         };
         console.log('Submitting tickets data:', data);
         return data;
@@ -353,5 +370,13 @@ const selectCurrency = (currency) => {
 // Method to format price
 const formatPrice = (price) => {
     return parseFloat(price).toFixed(2);
+};
+
+const validateTicketUrl = () => {
+    if (!ticketUrl.value || !ticketUrl.value.match(/^https?:\/\/.+\..+/)) {
+        ticketUrlError.value = true;
+    } else {
+        ticketUrlError.value = false;
+    }
 };
 </script>

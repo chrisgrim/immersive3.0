@@ -18,6 +18,11 @@ class Message extends Model
     */
     protected $with = ['user'];
 
+    public const MESSAGES = [
+        'APPROVED' => 'Your event has been approved!',
+        'APPROVED_EMBARGOED' => 'Your event has been approved and will be displayed on your chosen date.',
+        'REJECTED' => 'We have reviewed your event submission and have some feedback that needs to be addressed. Please see the details below:',
+    ];
 
     public function sender()
     {
@@ -39,4 +44,40 @@ class Message extends Model
         return $this->belongsTo(Conversation::class);
     }
 
+    /**
+     * Create a notification message for an event
+     *
+     * @param Event $event
+     * @param string $message
+     * @param string $slug
+     * @return Message
+     */
+    public static function eventnotification(Event $event, string $message, string $slug): Message
+    {
+        $adminId = auth()->id();
+
+        // Find existing conversation or create new one
+        $conversation = Conversation::firstOrCreate(
+            [
+                'event_id' => $event->id,
+                'user_one' => $adminId,
+                'user_two' => $event->user_id
+            ],
+            [
+                'event_name' => $event->name
+            ]
+        );
+
+        // Create the notification message
+        $message = self::create([
+            'conversation_id' => $conversation->id,
+            'user_id' => $adminId,
+            'message' => $message,
+            'is_seen' => false,
+            'deleted_from_sender' => false,
+            'deleted_from_receiver' => false
+        ]);
+
+        return $message;
+    }
 }

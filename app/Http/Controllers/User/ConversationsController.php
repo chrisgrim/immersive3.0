@@ -18,22 +18,55 @@ class ConversationsController extends Controller
 
     public function index()
     {
-        $events = auth()->user()->eventconversations()->limit(20)->with('event')->get();
-        return view('User.index', compact('events'));
+        $conversations = Conversation::where(function($query) {
+            $query->where('user_one', auth()->id())
+                  ->orWhere('user_two', auth()->id());
+        })
+        ->with([
+            'event', 
+            'messages' => function($query) {
+                $query->orderBy('created_at', 'desc');
+            },
+            'userone',
+            'usertwo'
+        ])
+        ->orderBy('updated_at', 'desc')
+        ->get();
+
+        return view('User.inbox', compact('conversations'));
     }
 
     public function show(Conversation $conversation)
     {
-        $this->authorize('update', $conversation);
+        $this->authorize('view', $conversation);
+        
+        // Mark messages as read and reset unread status for current user
+        $conversation->messages()
+            ->where('is_seen', false)
+            ->where('user_id', '!=', auth()->id())
+            ->update(['is_seen' => true]);
+        
         auth()->user()->update(['unread' => null]);
-        return $conversation->load('event', 'messages');
+
+        return $conversation->load([
+            'event',
+            'messages' => function($query) {
+                $query->orderBy('created_at', 'asc')
+                      ->with('user');
+            },
+            'userone',
+            'usertwo'
+        ]);
     }
 
     public function update(Request $request, Conversation $conversation)
     {   
         $this->authorize('update', $conversation);
         
-        $receiver = $conversation->users->firstWhere('id', '!=', auth()->id());
+        $receiver = $conversation->user_one === auth()->id() 
+            ? $conversation->usertwo 
+            : $conversation->userone;
+
         $latestMessage = $conversation->latestMessages()->first();
 
         if ($this->canAppendMessage($latestMessage)) {
@@ -47,17 +80,33 @@ class ConversationsController extends Controller
             ]);
         }
 
-        $this->notifyReceiver($receiver, $request->message, $conversation ?? null);
-
+        $this->notifyReceiver($receiver, $request->message, $conversation);
         $conversation->touch();
-        return $conversation->load('event', 'messages');
+        
+        return $conversation->fresh()->load([
+            'event',
+            'messages' => function($query) {
+                $query->orderBy('created_at', 'asc');
+            },
+            'userone',
+            'usertwo'
+        ]);
     }
 
     public function events(Request $request)
     {
-        if (! $request->search) return auth()->user()->eventconversations()->limit(20)->with('event')->get();
+        $query = Conversation::where(function($query) {
+            $query->where('user_one', auth()->id())
+                  ->orWhere('user_two', auth()->id());
+        })->with('event');
 
-        return auth()->user()->eventconversations()->where('event_name', 'LIKE', "%$request->search%")->limit(20)->with('event')->get();
+        if ($request->search) {
+            $query->where('event_name', 'LIKE', "%$request->search%");
+        }
+
+        return $query->orderBy('updated_at', 'desc')
+                     ->limit(20)
+                     ->get();
     }
 
     protected function canAppendMessage($message)
@@ -69,19 +118,32 @@ class ConversationsController extends Controller
 
     protected function notifyReceiver($receiver, $message, $conversation)
     {
-        $receiver ? $receiver->update(['unread' => 'e']) : '';
+        if (!$receiver) {
+            return;
+        }
 
-        $attributes = [
-            'email' => $receiver->email,
-            'receiver' => $receiver->name,
-            'body' => $message,
-            'sender' => auth()->user()->name,
-            'event' => $conversation->event_name,
-            'app_url' => config('app.url'),
-            'id' => $conversation->id
-        ];
+        // Check if all previous messages have been seen
+        $allMessagesSeen = !$conversation->messages()
+            ->where('user_id', '!=', $receiver->id)
+            ->where('is_seen', false)
+            ->where('id', '!=', $conversation->messages()->latest()->first()->id) // Exclude the message we just created
+            ->exists();
 
-        Mail::to($receiver->email)->send(new Message($attributes));
-        
+        // Send email if all previous messages were seen (meaning they viewed the conversation)
+        if ($allMessagesSeen) {
+            $attributes = [
+                'email' => $receiver->email,
+                'receiver' => $receiver->name,
+                'body' => 'You have a new message about your event.',
+                'sender' => auth()->user()->name,
+                'event' => $conversation->event_name,
+                'app_url' => config('app.url'),
+                'id' => $conversation->id
+            ];
+
+            Mail::to($receiver->email)->send(new Message($attributes));
+        }
+
+        $receiver->update(['unread' => 'e']);
     }
 }

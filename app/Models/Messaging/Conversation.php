@@ -35,12 +35,12 @@ class Conversation extends Model
 
     public function userone()
     {
-        return $this->belongsTo('App\User',  'user_one');
+        return $this->belongsTo(User::class, 'user_one');
     }
 
     public function usertwo()
     {
-        return $this->belongsTo('App\User',  'user_two');
+        return $this->belongsTo(User::class, 'user_two');
     }
 
 }

@@ -1,28 +1,11 @@
 <template>
-    <main class="w-full py-40">
+    <main class="w-full min-h-fit">
         <div class="w-full">
             <h2>Add some photos of your event</h2>
             <p class="text-gray-500 font-normal mt-4 mb-8">Add up to 5 images of your event. Drag to reorder</p>
             
-            <!-- Empty State Upload Area -->
-            <div v-if="!images.length"
-                class="mt-6 outline-dashed rounded-2xl h-[27vw] flex justify-center items-center relative"
-                @dragover.prevent
-                @drop.prevent="handleDrop"
-            >
-                <input 
-                    type="file" 
-                    ref="fileInput" 
-                    class="hidden" 
-                    multiple 
-                    accept="image/*"
-                    @change="handleFileChange" 
-                />
-                <!-- <UploadPrompt @click="browseFiles" /> -->
-            </div>
-
-            <!-- Image Grid -->
-            <draggable v-else
+            <!-- Image Grid - Always visible -->
+            <draggable
                 v-model="images"
                 class="dragArea grid grid-cols-2 gap-4 w-full" 
                 handle=".handle"
@@ -50,8 +33,12 @@
 
                 <!-- Empty Upload Slots -->
                 <template v-for="i in remainingSlots" :key="'empty-' + i">
-                    <div @click="triggerFileInput"
-                        class="relative aspect-[3/2] flex items-center justify-center border border-dashed border-black rounded-2xl cursor-pointer non-draggable hover:border-black hover:border-2 hover:border-solid"
+                    <div 
+                        @click="triggerFileInput"
+                        :class="[
+                            'relative aspect-[3/2] flex items-center justify-center border border-dashed border-gray-300 rounded-2xl cursor-pointer non-draggable hover:border-black hover:border-2',
+                            images.length === 0 && i === 1 ? 'col-span-2' : ''
+                        ]"
                     >
                         <input 
                             type="file" 
@@ -64,44 +51,44 @@
                     </div>
                 </template>
             </draggable>
-        </div>
 
-        <!-- Add this after your image upload section -->
-        <div class="mt-12">
-            <h3 class="text-2xl mb-4">Add a YouTube Video (Optional)</h3>
-            <div class="relative">
-                <input 
-                    type="text"
-                    v-model="youtubeUrl"
-                    placeholder="Paste YouTube URL here"
-                    class="w-full p-4 pr-12 border rounded-xl"
-                    @input="handleYoutubeInput"
-                />
-                <div v-if="youtubeId" 
-                    @click="clearYoutube"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer"
-                >
-                    <component :is="RiCloseCircleLine" />
+            <!-- YouTube Section -->
+            <div class="mt-12">
+                <h3 class="text-2xl mb-4">Add a YouTube Video (Optional)</h3>
+                <div class="relative">
+                    <input 
+                        type="text"
+                        v-model="youtubeUrl"
+                        placeholder="Paste YouTube URL here"
+                        class="w-full p-4 pr-12 border rounded-xl"
+                        @input="handleYoutubeInput"
+                    />
+                    <div v-if="youtubeId" 
+                        @click="clearYoutube"
+                        class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer"
+                    >
+                        <component :is="RiCloseCircleLine" />
+                    </div>
                 </div>
-            </div>
-            
-            <!-- YouTube Preview -->
-            <div v-if="youtubeId" class="mt-4">
-                <div class="relative aspect-video w-full">
-                    <iframe
-                        :src="`https://www.youtube.com/embed/${youtubeId}`"
-                        class="absolute top-0 left-0 w-full h-full rounded-xl"
-                        frameborder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowfullscreen
-                    ></iframe>
+                
+                <!-- YouTube Preview -->
+                <div v-if="youtubeId" class="mt-4">
+                    <div class="relative aspect-video w-full">
+                        <iframe
+                            :src="`https://www.youtube.com/embed/${youtubeId}`"
+                            class="absolute top-0 left-0 w-full h-full rounded-xl"
+                            frameborder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen
+                        ></iframe>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Error Message -->
-            <p v-if="youtubeError" class="text-red-500 mt-2">
-                {{ youtubeError }}
-            </p>
+                <!-- Error Message -->
+                <p v-if="youtubeError" class="text-red-500 mt-2">
+                    {{ youtubeError }}
+                </p>
+            </div>
         </div>
     </main>
 </template>

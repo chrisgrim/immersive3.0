@@ -33,7 +33,7 @@
                 <div class="h-[6.3rem]"></div>
             </div>
         </div>
-        <div v-else class="fixed left-0 top-0 w-full h-[calc(100vh-6rem)] flex overflow-hidden">
+        <div v-else class="fixed left-0 top-0 w-full h-[calc(100vh-8rem)] flex overflow-hidden">
             <div class="flex flex-col w-9/12 overflow-y-auto">
                 <vue-cal
                     :time="false"
@@ -51,7 +51,23 @@
                     :events="events"
                 />
             </div>
-            <div class="w-3/12 border-l border-gray-200 h-full flex flex-col justify-between">
+            <div class="w-3/12 border-l border-gray-200 h-full flex flex-col justify-between bg-white">
+                <div class="flex justify-between items-center p-8 border-b border-gray-200">
+                    <a href="/hosting/events" class="text-3xl font-bold hover:opacity-70">
+                        EI
+                    </a>
+                    <div class="flex items-center gap-4">
+                        <button class="text-black hover:bg-gray-100 rounded-lg">
+                            Questions
+                        </button>
+                        <a 
+                            href="/hosting/events" 
+                            class="px-6 py-3 border border-black hover:bg-gray-100 rounded-lg"
+                        >
+                            Exit
+                        </a>
+                    </div>
+                </div>
                 <div class="h-full flex flex-col justify-between">
                     <div class="">
                         <div v-if="!selectedDatesCount" class="p-8">
@@ -393,5 +409,54 @@ onMounted(() => {
 .vuecal__cell {
     padding: 1rem;
     text-align: left;
+}
+
+.vuecal__arrow {
+    position: relative;
+    z-index: 2;
+    background: #222222;
+    border-radius: 9999px;
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    min-height: 30px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease;
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+    border: none;
+}
+
+.vuecal__arrow--prev {
+    left: 1rem;
+}
+
+.vuecal__arrow--next {
+    right: 1rem;
+}
+
+.vuecal__arrow i.angle {
+    display: inline-block;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    padding: 3px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+}
+
+.vuecal__arrow--prev i.angle {
+    transform: translate(-25%, -50%) rotate(135deg);
+}
+
+.vuecal__arrow--next i.angle {
+    transform: translate(-75%, -50%) rotate(-45deg);
+}
+
+.vuecal__arrow:hover {
+    background: black;
 }
 </style>
