@@ -98,50 +98,52 @@
 import { ref, onMounted, onUnmounted, inject } from 'vue';
 import "leaflet/dist/leaflet.css";
 import { LMap, LTileLayer, LMarker, LIcon } from "@vue-leaflet/vue-leaflet";
-import L from "leaflet"; // Import Leaflet
+import L from "leaflet";
 import { RiCheckboxBlankLine, RiCheckboxLine } from "@remixicon/vue";
 
-const initializeMapObject = () => {
+const event = inject('event');
+const errors = inject('errors');
+
+const GOOGLE_MAPS_API_KEY = 'AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw';
+const DEFAULT_COORDINATES = { lat: 40.7127753, lng: -74.0059728 };
+
+const map = ref(initializeMapObject());
+const autoComplete = ref(null);
+const service = ref(null);
+const userInput = ref('');
+const places = ref([]);
+const dropdown = ref(false);
+const locationSearch = ref(!event.location.latitude);
+
+const icon = L.icon({
+    iconUrl: '/storage/images/vendor/leaflet/dist/marker-icon.png',
+    iconSize: [32, 37],
+    iconAnchor: [16, 37],
+});
+
+function initializeMapObject() {
     return {
         zoom: 14,
-        center: event.location.latitude ? { lat: event.location.latitude, lng: event.location.longitude } : { lat: 40.7127753, lng: -74.0059728 },
+        center: event.location.latitude 
+            ? { lat: event.location.latitude, lng: event.location.longitude } 
+            : DEFAULT_COORDINATES,
         url: 'https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=5Pwt4rF8iefMU4hIcRqZJ0GXPqWi5l4NVjEn4owEBKOdGyuJVARXbYTBDO2or3cU',
         attribution: '<a href="http://jawg.io" title="Tiles Courtesy of Jawg Maps" target="_blank">&copy; <b>Jawg</b>Maps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     };
-};
-
-const autoComplete = ref(null);
-const service = ref(null);
+}
 
 const initGoogleMaps = () => {
-    if (!window.google || !window.google.maps) {
-        console.error('Google Maps not loaded');
+    if (!window.google?.maps) {
+        errors.value = { location: ['Google Maps failed to load'] };
         return;
     }
     autoComplete.value = new window.google.maps.places.AutocompleteService();
     service.value = new window.google.maps.places.PlacesService(document.createElement('div'));
 };
 
-const event = inject('event');
-const errors = inject('errors');
-const isSubmitting = inject('isSubmitting');
-const onSubmit = inject('onSubmit');
-const setStep = inject('setStep');
-
-const map = ref(initializeMapObject());
-const icon = L.icon({
-    iconUrl: '/storage/images/vendor/leaflet/dist/marker-icon.png',
-    iconSize: [32, 37],
-    iconAnchor: [16, 37],
-});
-const userInput = ref('');
-const places = ref([]);
-const dropdown = ref(false);
-const locationSearch = ref(!event.location.latitude);
-
 const updateLocations = () => {
     if (!autoComplete.value) {
-        console.warn('AutocompleteService not initialized');
+        errors.value = { location: ['Location service not available'] };
         return;
     }
     autoComplete.value.getPlacePredictions({ input: userInput.value }, data => {
@@ -151,7 +153,7 @@ const updateLocations = () => {
 
 const selectLocation = async (location) => {
     if (!service.value) {
-        console.warn('Places Service not initialized');
+        errors.value = { location: ['Location service not available'] };
         return;
     }
     service.value.getDetails({ placeId: location.place_id }, data => {
@@ -165,7 +167,6 @@ const selectLocation = async (location) => {
 };
 
 const setPlace = (place) => {
-    // Helper function to safely get address component
     const getAddressComponent = (type) => {
         const component = place.address_components?.find(component => 
             component.types.includes(type)
@@ -173,10 +174,8 @@ const setPlace = (place) => {
         return component?.long_name || component?.short_name || '';
     };
 
-    // Get the street address (first line of formatted address or empty string)
     const street = place.formatted_address?.split(', ')[0] || '';
 
-    // Update the event location with fallbacks
     event.location = {
         latitude: place.geometry?.location.lat() || 0,
         longitude: place.geometry?.location.lng() || 0,
@@ -191,7 +190,6 @@ const setPlace = (place) => {
         hiddenLocationToggle: event.location?.hiddenLocationToggle || false
     };
 
-    // Update map center if coordinates are available
     if (place.geometry?.location) {
         map.value.center = { 
             lat: place.geometry.location.lat(), 
@@ -202,44 +200,35 @@ const setPlace = (place) => {
 
 const toggleHiddenLocation = () => {
     event.location.hiddenLocationToggle = !event.location.hiddenLocationToggle;
-    console.log("hiddenLocationToggle:", event.location.hiddenLocationToggle);
 };
 
 onMounted(() => {
     const loadGoogleMapsApi = () => {
         return new Promise((resolve, reject) => {
-            if (window.google && window.google.maps) {
+            if (window.google?.maps) {
                 initGoogleMaps();
                 resolve();
                 return;
             }
 
             const script = document.createElement('script');
-            script.src = 'https://maps.googleapis.com/maps/api/js' +
-                '?key=AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw' +
-                '&libraries=places' +
-                '&loading=async';
-            
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&loading=async`;
             script.async = true;
             script.defer = true;
             
-            script.onload = () => {
-                // Wait a brief moment to ensure Google Maps is fully initialized
-                setTimeout(() => {
-                    initGoogleMaps();
-                    resolve();
-                }, 100);
+            script.onload = () => setTimeout(initGoogleMaps, 100);
+            script.onerror = (error) => {
+                errors.value = { location: ['Failed to load map service'] };
+                reject(error);
             };
-            script.onerror = (error) => reject(error);
             
             document.head.appendChild(script);
         });
     };
 
-    loadGoogleMapsApi()
-        .catch(error => {
-            console.error('Error loading Google Maps API:', error);
-        });
+    loadGoogleMapsApi().catch(() => {
+        errors.value = { location: ['Failed to initialize location services'] };
+    });
 });
 
 onUnmounted(() => {
@@ -254,33 +243,26 @@ defineExpose({
                        event.location.longitude && 
                        event.location.city;
         
-        console.log('Location validation:', {
-            hasLocation: !!event.location,
-            hasCoordinates: !!(event.location?.latitude && event.location?.longitude),
-            hasCity: !!event.location?.city,
-            isValid
-        });
+        if (!isValid) {
+            errors.value = { location: ['Please select a valid location'] };
+        }
         
         return isValid;
     },
-    submitData: () => {
-        const data = {
-            location: {
-                latitude: event.location.latitude,
-                longitude: event.location.longitude,
-                home: event.location.home,
-                street: event.location.street,
-                city: event.location.city,
-                region: event.location.region,
-                postal_code: event.location.postal_code,
-                country: event.location.country,
-                venue: event.location.venue,
-                hiddenLocationToggle: event.location.hiddenLocationToggle
-            }
-        };
-        console.log('Submitting location data:', data);
-        return data;
-    }
+    submitData: () => ({
+        location: {
+            latitude: event.location.latitude,
+            longitude: event.location.longitude,
+            home: event.location.home,
+            street: event.location.street,
+            city: event.location.city,
+            region: event.location.region,
+            postal_code: event.location.postal_code,
+            country: event.location.country,
+            venue: event.location.venue,
+            hiddenLocationToggle: event.location.hiddenLocationToggle
+        }
+    })
 });
 </script>
 

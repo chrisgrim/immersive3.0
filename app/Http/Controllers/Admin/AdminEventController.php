@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\EventApproved;
 use App\Mail\EventComments;
 use App\Models\Messaging\Message;
-use App\Services\ImageService;
+use App\Models\ImageHandler;
+
 
 class AdminEventController extends Controller
 {
@@ -109,8 +110,7 @@ class AdminEventController extends Controller
 
     public function approve(Event $event)
     {
-        // Load necessary relationships
-        $event->load(['user', 'timezone', 'organizer']);
+        $event->load(['user', 'organizer']);
 
         // Approve organizer if not already approved
         if ($event->organizer->status !== 'p') {
@@ -124,18 +124,18 @@ class AdminEventController extends Controller
         $slug = Event::finalSlug($event);
 
         // Finalize images
-        ImageService::finalize($event, $slug, 'event');
+        ImageHandler::finalize($event, $slug, 'event');
 
         // Determine status based on embargo date
         $status = $event->embargo_date && $event->embargo_date > Carbon::now() 
             ? 'e' 
             : 'p';
 
-        // Update event
+        // Format the date explicitly to match Elasticsearch mapping
         $event->update([
             'status' => $status,
             'slug' => $slug,
-            'published_at' => Carbon::now(),
+            'published_at' => now()->format('Y-m-d H:i:s'),  // Explicitly format the date
         ]);
 
         // Send notifications if not self-approving
@@ -144,10 +144,7 @@ class AdminEventController extends Controller
                 ? Message::MESSAGES['APPROVED_EMBARGOED']
                 : Message::MESSAGES['APPROVED'];
             
-            // Send in-app notification
             Message::eventnotification($event, $message, $event->slug);
-            
-            // Send email notification
             Mail::to($event->user)->send(new EventComments($event, $message));
         }
 

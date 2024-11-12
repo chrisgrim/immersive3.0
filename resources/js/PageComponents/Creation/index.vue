@@ -3,9 +3,9 @@
 		<div class="px-32 w-full ml-[-2rem]">
 			<div class="w-full h-44 flex items-center justify-between">
 				<a href="/organizer"><h2 class="font-medium px-8">{{organizer.name}}</h2></a>
-				<div>
-					<div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center text-5xl font-light">
-					    +
+				<div @click="createNewEvent" class="cursor-pointer">
+					<div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
+						+
 					</div>
 				</div>
 			</div>
@@ -175,6 +175,8 @@ const props = defineProps({
     user: Object,
 });
 
+
+const MAX_UNPUBLISHED_EVENTS = 5;
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const selectedEvent = ref(null);
 const showSubmissionModal = ref(false);
@@ -268,6 +270,31 @@ const closeSubmissionModal = () => {
     showSubmissionModal.value = false;
     // Clean up the URL
     window.history.replaceState({}, document.title, window.location.pathname);
+};
+
+
+const createNewEvent = async () => {
+    // Check if organizer has 5 or more unpublished events
+    const unpublishedCount = props.organizer.events.filter(
+        event => !['p', 'e'].includes(event.status)
+    ).length;
+
+    if (unpublishedCount >= MAX_UNPUBLISHED_EVENTS) {
+        alert('You can only have 5 unpublished events at a time. Please publish or delete existing events before creating new ones.');
+        return;
+    }
+
+    try {
+        const response = await axios.post(`/hosting/event/create`, {
+            organizer_id: props.organizer.id
+        });
+        
+        // Redirect to the new event's edit page
+        window.location.href = `/hosting/event/${response.data.event.slug}/edit`;
+    } catch (error) {
+        console.error('Error creating event:', error);
+        alert('Failed to create new event. Please try again.');
+    }
 };
 </script>
 

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use App\Models\Events\CuratedEventCheck;
 
 /**
  * Event Model
@@ -56,8 +57,8 @@ class Event extends Model
             'location_latlon' => $this->location_latlon,
             'hasLocation' => $this->hasLocation,
             'shows' => $this->showsSelect,
-            'published_at' => $this->published_at,
-            'closingDate' => $this->closingDate,
+            'published_at' => $this->published_at ? Carbon::parse($this->published_at)->format('Y-m-d H:i:s') : null,
+            'closingDate' => $this->closingDate ? Carbon::parse($this->closingDate)->format('Y-m-d H:i:s') : null,
             'priceranges' => $this->pricerangesSelect,
             'genres' => $this->genreSelect,
             'priority' => 5,
@@ -447,6 +448,13 @@ class Event extends Model
             ->where('slug', $slug)
             ->when($excludeId, fn($query) => $query->where('id', '!=', $excludeId))
             ->exists();
+    }
+
+    public static function countUnpublishedEvents($organizerId)
+    {
+        return self::where('organizer_id', $organizerId)
+            ->whereNotIn('status', ['p', 'e']) // Not published or embargoed
+            ->count();
     }
 
 }

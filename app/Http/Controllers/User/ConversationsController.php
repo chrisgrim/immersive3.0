@@ -121,27 +121,25 @@ class ConversationsController extends Controller
         if (!$receiver) {
             return;
         }
-
-        // Check if all previous messages have been seen
-        $allMessagesSeen = !$conversation->messages()
-            ->where('user_id', '!=', $receiver->id)
-            ->where('is_seen', false)
-            ->where('id', '!=', $conversation->messages()->latest()->first()->id) // Exclude the message we just created
-            ->exists();
-
-        // Send email if all previous messages were seen (meaning they viewed the conversation)
-        if ($allMessagesSeen) {
+        
+        // Only send email if their unread status is null (meaning they've read previous messages)
+        if ($receiver->unread === null) {
             $attributes = [
                 'email' => $receiver->email,
                 'receiver' => $receiver->name,
-                'body' => 'You have a new message about your event.',
+                'body' => "You have a new message about the event {$conversation->event_name}",
                 'sender' => auth()->user()->name,
                 'event' => $conversation->event_name,
                 'app_url' => config('app.url'),
                 'id' => $conversation->id
             ];
 
-            Mail::to($receiver->email)->send(new Message($attributes));
+            try {
+                Mail::to($receiver->email)->send(new Message($attributes));
+            } catch (\Exception $e) {
+                // Keep this one error log for critical failures
+                \Log::error('Failed to send email: ' . $e->getMessage());
+            }
         }
 
         $receiver->update(['unread' => 'e']);

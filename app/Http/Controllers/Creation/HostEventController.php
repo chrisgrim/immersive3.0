@@ -25,10 +25,22 @@ class HostEventController extends Controller
 
     public function edit(Event $event)
     {
-        $event->load('location', 'contentAdvisories', 'contactLevels', 'mobilityAdvisories', 'advisories','interactive_level', 'remotelocations','genres', 'priceranges', 'shows', 'age_limits', 'images', 'category','genres');
-
-        $show = $event->shows->first();
-        $event->tickets = $show ? $show->tickets : collect();
+        $event->load([
+            'shows.tickets',
+            'location',
+            'contentAdvisories',
+            'contactLevels',
+            'mobilityAdvisories',
+            'advisories',
+            'interactive_level',
+            'remotelocations',
+            'genres',
+            'priceranges',
+            'age_limits',
+            'images',
+            'category',
+            'genres'
+        ]);
 
         return view('Creation.edit', compact('event'));
     }
@@ -37,22 +49,18 @@ class HostEventController extends Controller
     {
         $validatedData = $request->validated();
 
-        // Update event status if provided
-        if (isset($validatedData['status'])) {
-            $event->status = $validatedData['status'];
-            $event->save();
-        }
-
-        //strips category if user changes event from remote to in-person or vice versa
+        // First handle location type change
         if (isset($validatedData['hasLocation']) && $event->category && 
             $event->category->remote === $validatedData['hasLocation']) {
             $event->category()->dissociate();
+            $validatedData['status'] = '1';
         }
 
+        // Then update the event with validated data
         if (isset($validatedData['location'])) {
             $event->location->update($validatedData['location']);
         } else {
-            $event->update($validatedData);
+            $event->update($validatedData);  // This will update hasLocation and status
         }
 
         if (isset($validatedData['remotelocations'])) {
@@ -142,7 +150,7 @@ class HostEventController extends Controller
         return response()->json([
             'message' => 'Event updated successfully.',
             'event' => $event->load(
-                'shows', 
+                'shows.tickets', 
                 'location', 
                 'images', 
                 'advisories', 
@@ -204,5 +212,26 @@ class HostEventController extends Controller
         return response()->json([
             'message' => 'Event deleted successfully'
         ]);
+    }
+
+    public function create(Request $request)
+    {
+        $organizerId = $request->input('organizer_id');
+        
+        // Check unpublished events count
+        $unpublishedCount = Event::countUnpublishedEvents($organizerId);
+        
+        if ($unpublishedCount >= 5) {
+            return response()->json([
+                'message' => 'You can only have 5 unpublished events at a time.'
+            ], 422);
+        }
+
+        $event = Event::newEvent($organizerId);
+
+        return response()->json([
+            'message' => 'Event created successfully.',
+            'event' => $event
+        ], 201);
     }
 }

@@ -70,8 +70,6 @@
 
 <script setup>
 import { ref, provide, reactive, computed, onMounted } from 'vue';
-import axios from 'axios';
-import Nav from './nav.vue';
 import EventType from './Pages/event-type.vue';
 import Category from './Pages/category.vue';
 import Genres from './Pages/genres.vue';
@@ -221,8 +219,13 @@ const setStep = (step) => {
 };
 
 onMounted(() => {
+    // First, ensure event.hasLocation is properly set
+    if (event.location?.latitude && event.location?.longitude) {
+        event.hasLocation = true;
+    }
+
+    // Then handle step navigation
     if (event.status && REVERSE_STEP_MAP[event.status]) {
-        // Find the next step after the saved status
         const savedStep = REVERSE_STEP_MAP[event.status];
         const currentIndex = steps.value.indexOf(savedStep);
         
@@ -234,6 +237,13 @@ onMounted(() => {
             // Fallback to the saved step if we're at the end
             currentStep.value = savedStep;
         }
+    }
+
+    // Force correct component based on hasLocation
+    if (currentStep.value === 'Remote' && event.hasLocation) {
+        currentStep.value = 'Location';
+    } else if (currentStep.value === 'Location' && !event.hasLocation) {
+        currentStep.value = 'Remote';
     }
 });
 

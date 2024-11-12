@@ -3,6 +3,7 @@
         <div class="flex flex-col w-full">
             <div class="flex flex-col gap-24">
                 <h2>Contact Advisories</h2>
+                
                 <!-- Contact Level Section -->
                 <div class="w-full">
                     <h4 class="mb-8">Audience Contact Level</h4>
@@ -15,9 +16,7 @@
                                 class="relative cursor-pointer items-end flex justify-between p-8 h-48 border rounded-2xl hover:shadow-[0_0_0_1.5px_black]"
                             >
                                 <div class="w-full">
-                                    <h4 class="text-2xl leading-tight">
-                                        {{ contact.name }}
-                                    </h4>
+                                    <h4 class="text-2xl leading-tight">{{ contact.name }}</h4>
                                 </div>
                             </div>
                         </div>
@@ -27,7 +26,9 @@
                             <h4 class="text-1xl leading-tight"
                                 :class="{
                                     'text-[#adadad]': selectedContact.model,
-                                    'text-black': selectedContact.model }">
+                                    'text-black': selectedContact.model 
+                                }"
+                            >
                                 {{ selectedContact.name }}
                             </h4>
                         </div>
@@ -35,7 +36,8 @@
                             @mouseenter="hoveredLocation = 'close'"
                             @mouseleave="hoveredLocation = null"
                             @click="deselectContactLevel" 
-                            class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white">
+                            class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white"
+                        >
                             <component :is="hoveredLocation === 'close' ? RiCloseCircleFill : RiCloseCircleLine" />
                         </div>
                     </div>
@@ -56,12 +58,8 @@
                             class="relative cursor-pointer flex flex-col p-8 border rounded-2xl hover:shadow-[0_0_0_1.5px_black]"
                         >
                             <div class="w-full">
-                                <h4 class="text-2xl leading-tight mb-2">
-                                    {{ interactive.name }}
-                                </h4>
-                                <p class="text-lg leading-snug text-gray-600">
-                                    {{ interactive.description }}
-                                </p>
+                                <h4 class="text-2xl leading-tight mb-2">{{ interactive.name }}</h4>
+                                <p class="text-lg leading-snug text-gray-600">{{ interactive.description }}</p>
                             </div>
                         </div>
                     </div>
@@ -71,18 +69,19 @@
                                 <h4 class="text-1xl leading-tight mb-2"
                                     :class="{
                                         'text-[#adadad]': selectedInteractive.model,
-                                        'text-black': selectedInteractive.model }">
+                                        'text-black': selectedInteractive.model 
+                                    }"
+                                >
                                     {{ selectedInteractive.name }}
                                 </h4>
-                                <p class="text-lg leading-snug text-gray-600">
-                                    {{ selectedInteractive.description }}
-                                </p>
+                                <p class="text-lg leading-snug text-gray-600">{{ selectedInteractive.description }}</p>
                             </div>
                             <div 
                                 @mouseenter="hoveredLocation = 'closeInteractive'"
                                 @mouseleave="hoveredLocation = null"
                                 @click="deselectInteractiveLevel" 
-                                class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white">
+                                class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white"
+                            >
                                 <component :is="hoveredLocation === 'closeInteractive' ? RiCloseCircleFill : RiCloseCircleLine" />
                             </div>
                         </div>
@@ -93,18 +92,20 @@
                             <textarea 
                                 v-model="event.advisories.audience"
                                 @input="$v.event.advisories.audience.$touch"
-                                class="w-full p-4 text-1xl border rounded-2xl focus:border-black focus:shadow-[0_0_0_1.5px_black] outline-none"
-                                :class="{ 'border-red-500': $v.event.advisories.audience.$error }"
+                                class="w-full p-4 text-1xl border rounded-2xl relative focus:border-black focus:shadow-[0_0_0_1.5px_black] outline-none"
+                                :class="{ 
+                                    'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.event.advisories.audience.$error 
+                                }"
                                 placeholder="Describe the role your audience will play..."
                                 rows="4"
                             ></textarea>
-                            <div class="flex justify-end mt-1 text-gray-500">
+                            <div class="flex justify-end mt-1 relative text-gray-500">
                                 {{ event.advisories.audience?.length || 0 }}/1000
+                                <p v-if="$v.event.advisories.audience.$error" 
+                                   class="text-red-500 text-1xl px-4 absolute left-0 top-0">
+                                    {{ $v.event.advisories.audience.required.$invalid ? 'Audience role is required' : 'Audience role is too long' }}
+                                </p>
                             </div>
-                            <p v-if="$v.event.advisories.audience.$error" 
-                               class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
-                                {{ $v.event.advisories.audience.required.$invalid ? 'Audience role is required' : 'Audience role is too long' }}
-                            </p>
                         </div>
                     </div>
                     <p v-if="$v.selectedInteractive.$error" 
@@ -118,58 +119,26 @@
 </template>
 
 <script setup>
+// 1. Imports
 import { ref, inject, onMounted, computed } from 'vue';
 import { required, maxLength } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
-import Dropdown from '@/GlobalComponents/dropdown.vue';
-import List from '@/GlobalComponents/dropdown-list.vue';
 
+// 2. Injections & State
 const event = inject('event');
-const errors = inject('errors');
-
-// State
-const contactLevelList = ref([]);
-const contentInteractiveList = ref([]);
+const hoveredLocation = ref(null);
 const selectedContact = ref(null);
 const selectedInteractive = ref(null);
-const hoveredLocation = ref(null);
+const contactLevelList = ref([]);
+const contentInteractiveList = ref([]);
 
-const currentContactLevel = computed(() => {
-    if (event.contact_levels && event.contact_levels.length > 0) {
-        return event.contact_levels[0];
-    }
-    return null;
-});
+// 3. Computed
+const currentContactLevel = computed(() => 
+    event.contact_levels?.length > 0 ? event.contact_levels[0] : null
+);
 
-// API calls
-const fetchContactLevels = async () => {
-    const response = await axios.get(`/api/contactlevels`);
-    contactLevelList.value = response.data;
-};
-
-const fetchInteractiveLevel = async () => {
-    const response = await axios.get(`/api/interactivelevels`);
-    contentInteractiveList.value = response.data;
-};
-
-// Event handlers
-const selectContactLevel = (contact) => {
-    selectedContact.value = contact;
-};
-
-const deselectContactLevel = () => {
-    selectedContact.value = null;
-};
-
-const selectInteractiveLevel = (interactive) => {
-    selectedInteractive.value = interactive;
-};
-
-const deselectInteractiveLevel = () => {
-    selectedInteractive.value = null;
-};
-
+// 4. Validation Rules
 const rules = {
     selectedContact: { required },
     selectedInteractive: { required },
@@ -189,37 +158,56 @@ const $v = useVuelidate(rules, {
     event
 });
 
+// 5. API Methods
+const fetchContactLevels = async () => {
+    const response = await axios.get('/api/contactlevels');
+    contactLevelList.value = response.data;
+};
+
+const fetchInteractiveLevel = async () => {
+    const response = await axios.get('/api/interactivelevels');
+    contentInteractiveList.value = response.data;
+};
+
+// 6. Event Handlers
+const selectContactLevel = (contact) => {
+    selectedContact.value = contact;
+};
+
+const deselectContactLevel = () => {
+    selectedContact.value = null;
+};
+
+const selectInteractiveLevel = (interactive) => {
+    selectedInteractive.value = interactive;
+};
+
+const deselectInteractiveLevel = () => {
+    selectedInteractive.value = null;
+};
+
+// 7. Component API
 defineExpose({
     isValid: async () => {
         const isValid = await $v.value.$validate();
-        console.log('Advisories validation:', {
-            hasContactLevel: !!selectedContact.value,
-            hasInteractiveLevel: !!selectedInteractive.value,
-            hasAudienceRole: !!event.advisories?.audience,
-            validationError: $v.value.$error,
-            isValid
-        });
         return isValid;
     },
-    submitData: () => {
-        const data = {
-            contactLevel: selectedContact.value,
-            interactiveLevel: selectedInteractive.value,
-            advisories: {
-                audience: event.advisories.audience
-            }
-        };
-        console.log('Submitting advisories data:', data);
-        return data;
-    }
+    submitData: () => ({
+        contactLevel: selectedContact.value,
+        interactiveLevel: selectedInteractive.value,
+        advisories: {
+            audience: event.advisories.audience
+        }
+    })
 });
 
-// Lifecycle
-onMounted(() => {
-    fetchContactLevels();
-    fetchInteractiveLevel();
+// 8. Lifecycle Hooks
+onMounted(async () => {
+    await Promise.all([
+        fetchContactLevels(),
+        fetchInteractiveLevel()
+    ]);
     
-    // Initialize from existing event data if it exists
     if (currentContactLevel.value) {
         selectContactLevel(currentContactLevel.value);
     }

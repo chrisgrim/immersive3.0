@@ -17,6 +17,7 @@
                             <!-- Search Input -->
                             <input 
                                 ref="searchInput"
+                                :class="{ 'border-red-500': showError }"
                                 class="text-2xl relative p-8 w-full border mb-12 rounded-3xl focus:rounded-t-3xl focus:rounded-b-none h-24"
                                 v-model="searchTerm"
                                 placeholder="Select remote Locations"
@@ -24,6 +25,11 @@
                                 @focus="onDropdown"
                                 autocomplete="off"
                                 type="text">
+
+                            <!-- Add Error Message -->
+                            <p v-if="showError" class="text-red-500 text-1xl mt-[-2.5rem] mb-8 px-4">
+                                Please select at least one remote location
+                            </p>
 
                             <!-- Dropdown List -->
                             <ul 
@@ -70,62 +76,70 @@
 </template>
 
 <script setup>
-import { ref, onMounted, inject } from 'vue';
+import { ref, onMounted, inject, computed } from 'vue';
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import { ClickOutsideDirective } from '@/Directives/ClickOutsideDirective.js';
+import useVuelidate from '@vuelidate/core';
+import { required, minLength } from '@vuelidate/validators';
 
+// 1. Injected Dependencies
 const event = inject('event');
 const errors = inject('errors');
 
-const searchTerm = ref('');
-const dropdown = ref(false);
-const remoteLocationList = ref([]);
-const filteredRemoteLocations = ref([]);
-const hoveredLocation = ref(null);
+// 2. State Management
+const state = ref({
+    searchTerm: '',
+    dropdown: false,
+    remoteLocationList: [],
+    filteredRemoteLocations: [],
+    hoveredLocation: null
+});
+
 const remoteLocationDrop = ref(null);
 const searchInput = ref(null);
 
+// 3. Validation Rules
+const rules = {
+    remotelocations: { 
+        required,
+        minLength: minLength(1)
+    }
+};
+
+// 4. Setup Vuelidate
+const $v = useVuelidate(rules, {
+    remotelocations: computed(() => event.remotelocations)
+});
+
+// 5. Computed Properties
+const showError = computed(() => {
+    return $v.value.$dirty && $v.value.$error;
+});
+
+// 6. Methods
 const fetchRemoteLocations = async () => {
     try {
         const response = await axios.get(`/api/remotelocations`);
-        remoteLocationList.value = response.data;
+        state.value.remoteLocationList = response.data;
 
-        // Filter out already selected remote locations
-        if (event.remotelocations && event.remotelocations.length > 0) {
+        if (event.remotelocations?.length > 0) {
             const selectedIds = event.remotelocations.map(loc => loc.id);
-            remoteLocationList.value = remoteLocationList.value.filter(loc => !selectedIds.includes(loc.id));
+            state.value.remoteLocationList = state.value.remoteLocationList.filter(
+                loc => !selectedIds.includes(loc.id)
+            );
         }
 
-        filteredRemoteLocations.value = remoteLocationList.value;
+        state.value.filteredRemoteLocations = state.value.remoteLocationList;
     } catch (error) {
-        console.error('Failed to fetch remote locations:', error);
+        errors.value = { remotelocations: ['Failed to load remote locations'] };
     }
 };
 
 const filterRemoteLocations = () => {
-    const searchTermLower = searchTerm.value.toLowerCase();
-    filteredRemoteLocations.value = remoteLocationList.value.filter(item => 
+    const searchTermLower = state.value.searchTerm.toLowerCase();
+    state.value.filteredRemoteLocations = state.value.remoteLocationList.filter(item => 
         item.name.toLowerCase().includes(searchTermLower)
     );
-};
-
-const onDropdown = () => {
-    dropdown.value = true;
-};
-
-const closeDropdown = () => {
-    dropdown.value = false;
-};
-
-const handleClickOutside = (event) => {
-    const dropdownElement = remoteLocationDrop.value;
-    if (dropdownElement && !dropdownElement.contains(event.target)) {
-        closeDropdown();
-        if (searchTerm.value) {
-            searchTerm.value = '';
-            filteredRemoteLocations.value = remoteLocationList.value;
-        }
-    }
 };
 
 const selectRemoteLocation = (item) => {
@@ -133,50 +147,68 @@ const selectRemoteLocation = (item) => {
         event.remotelocations = [];
     }
 
-    const alreadySelected = event.remotelocations.find(loc => loc.id === item.id);
-
-    if (!alreadySelected) {
+    if (!event.remotelocations.find(loc => loc.id === item.id)) {
         event.remotelocations.push(item);
-        // Remove the selected item from remoteLocationList
-        remoteLocationList.value = remoteLocationList.value.filter(loc => loc.id !== item.id);
-        // Update the filtered list
+        state.value.remoteLocationList = state.value.remoteLocationList.filter(
+            loc => loc.id !== item.id
+        );
         filterRemoteLocations();
+        $v.value.$reset();
     }
 
-    searchTerm.value = '';
-    dropdown.value = false;
-    searchInput.value.blur();  // Remove focus from the input field
+    state.value.searchTerm = '';
+    state.value.dropdown = false;
+    searchInput.value?.blur();
 };
 
 const removeRemoteLocation = (id) => {
     const removedLocation = event.remotelocations.find(loc => loc.id === id);
     event.remotelocations = event.remotelocations.filter(loc => loc.id !== id);
-    // Add the removed item back to remoteLocationList
+    
     if (removedLocation) {
-        remoteLocationList.value.push(removedLocation);
-        // Update the filtered list
+        state.value.remoteLocationList.push(removedLocation);
         filterRemoteLocations();
+    }
+
+    if (event.remotelocations.length === 0) {
+        $v.value.$touch();
     }
 };
 
-// Replace handleSubmit with defineExpose
+const handleClickOutside = (event) => {
+    const dropdownElement = remoteLocationDrop.value;
+    if (dropdownElement && !dropdownElement.contains(event.target)) {
+        state.value.dropdown = false;
+        if (state.value.searchTerm) {
+            state.value.searchTerm = '';
+            state.value.filteredRemoteLocations = state.value.remoteLocationList;
+        }
+    }
+};
+
+const onDropdown = () => {
+    state.value.dropdown = true;
+};
+
+// 7. Component API
 defineExpose({
     isValid: async () => {
-        const isValid = event.remotelocations && event.remotelocations.length > 0;
-        console.log('Remote validation:', {
-            hasRemoteLocations: isValid,
-            locationCount: event.remotelocations?.length || 0
-        });
+        await $v.value.$validate();
+        const isValid = !$v.value.$error;
+        
+        if (!isValid) {
+            errors.value = { 
+                remotelocations: ['At least one remote location is required'] 
+            };
+        }
+
         return isValid;
     },
-    submitData: () => {
-        const data = {
-            remotelocations: event.remotelocations
-        };
-        console.log('Submitting remote locations data:', data);
-        return data;
-    }
+    submitData: () => ({
+        remotelocations: event.remotelocations
+    })
 });
 
+// 8. Lifecycle Hooks
 onMounted(fetchRemoteLocations);
 </script>

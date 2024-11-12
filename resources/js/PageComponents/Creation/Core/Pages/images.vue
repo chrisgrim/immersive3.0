@@ -1,17 +1,17 @@
 <template>
     <main class="w-full min-h-fit">
         <div class="w-full">
+            <!-- Header -->
             <h2>Add some photos of your event</h2>
             <p class="text-gray-500 font-normal mt-4 mb-8">Add up to 5 images of your event. Drag to reorder</p>
             
-            <!-- Image Grid - Always visible -->
+            <!-- Image Grid -->
             <draggable
                 v-model="images"
                 class="dragArea grid grid-cols-2 gap-4 w-full" 
                 handle=".handle"
                 @change="handleSort"
             >
-                <!-- Existing Images -->
                 <template v-for="(image, index) in images" :key="index">
                     <div v-if="image" 
                         :class="[
@@ -31,7 +31,6 @@
                     </div>
                 </template>
 
-                <!-- Empty Upload Slots -->
                 <template v-for="i in remainingSlots" :key="'empty-' + i">
                     <div 
                         @click="triggerFileInput"
@@ -71,7 +70,6 @@
                     </div>
                 </div>
                 
-                <!-- YouTube Preview -->
                 <div v-if="youtubeId" class="mt-4">
                     <div class="relative aspect-video w-full">
                         <iframe
@@ -84,7 +82,6 @@
                     </div>
                 </div>
 
-                <!-- Error Message -->
                 <p v-if="youtubeError" class="text-red-500 mt-2">
                     {{ youtubeError }}
                 </p>
@@ -94,32 +91,29 @@
 </template>
 
 <script setup>
-import { ref, inject, computed, watch, onMounted } from 'vue';
-import { RiImageCircleLine, RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
+// 1. Imports
+import { ref, inject, computed, onMounted } from 'vue';
 import { VueDraggableNext as draggable } from 'vue-draggable-next';
+import { RiImageCircleLine, RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 
-// Constants
+// 2. Constants
 const MAX_IMAGES = 5;
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/svg+xml', 'image/webp'];
 
-// Injected dependencies
+// 3. Injections & State
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const event = inject('event');
-const errors = inject('errors');
-
-// Refs
 const images = ref([]);
-const fileInput = ref(null);
 const hoveredImage = ref(null);
 const youtubeUrl = ref('');
 const youtubeId = ref('');
 const youtubeError = ref('');
 
-// Computed
+// 4. Computed
 const remainingSlots = computed(() => MAX_IMAGES - images.value.length);
 
-// File handling methods
+// 5. Image Handling Methods
 const validateFile = (file) => {
     if (!ALLOWED_TYPES.includes(file.type)) {
         alert(`"${file.name}" is not a supported image type. Please use JPEG, PNG, GIF, SVG, or WebP.`);
@@ -128,7 +122,7 @@ const validateFile = (file) => {
     
     if (file.size > MAX_FILE_SIZE) {
         const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-        alert(`"${file.name}" (${sizeMB}MB) exceeds the 2MB size limit. Please compress the image and try again.`);
+        alert(`"${file.name}" (${sizeMB}MB) exceeds the 2MB size limit.`);
         return false;
     }
     
@@ -141,20 +135,16 @@ const processFiles = (files) => {
         return;
     }
 
-    console.log('Current images before adding:', images.value.map(img => img.rank));
-
     Array.from(files).forEach(file => {
         if (validateFile(file)) {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const newRank = images.value.length;
-                console.log('Adding new image with rank:', newRank);
                 images.value.push({ 
                     url: e.target.result, 
                     file,
                     rank: newRank
                 });
-                console.log('Images after adding:', images.value.map(img => img.rank));
                 handleSort({ moved: true });
             };
             reader.readAsDataURL(file);
@@ -162,50 +152,22 @@ const processFiles = (files) => {
     });
 };
 
-// Event handlers
 const handleFileChange = (event) => processFiles(event.target.files);
-const handleDrop = (event) => processFiles(event.dataTransfer.files);
-const browseFiles = () => fileInput.value?.click();
 const removeImage = (index) => images.value.splice(index, 1);
 const triggerFileInput = (event) => event.currentTarget.querySelector('.fileInput')?.click();
 
-// Initialize images with proper ranks
-if (event?.images?.length) {
-    console.log('Initial event images:', event.images.map(img => img.rank));
-    images.value = event.images
-        .sort((a, b) => a.rank - b.rank)
-        .map((image, index) => ({
-            url: `${imageUrl}${image.large_image_path}`,
-            isExisting: true,
-            rank: index
-        }));
-    console.log('After initialization:', images.value.map(img => img.rank));
-}
-
-// Update the draggable component to handle the grid layout properly
 const handleSort = ({ moved }) => {
     if (moved) {
-        console.log('Before sort ranks:', images.value.map(img => img.rank));
         images.value.forEach((image, index) => {
             image.rank = index;
         });
-        console.log('After sort ranks:', images.value.map(img => img.rank));
     }
 };
 
-// Initialize YouTube URL if it exists
-onMounted(() => {
-    if (event?.video) {
-        youtubeId.value = event.video;
-        youtubeUrl.value = `https://youtube.com/watch?v=${event.video}`;
-    }
-});
-
-// YouTube handling methods
+// 6. YouTube Handling Methods
 const extractYoutubeId = (url) => {
     if (!url) return null;
     
-    // Handle different YouTube URL formats
     const patterns = [
         /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|shorts\/)([^"&?\/\s]{11})/i,
         /^[a-zA-Z0-9_-]{11}$/
@@ -213,15 +175,21 @@ const extractYoutubeId = (url) => {
 
     for (const pattern of patterns) {
         const match = url.match(pattern);
-        if (match && match[1]) {
-            return match[1];
-        }
+        if (match && match[1]) return match[1];
     }
 
     return null;
 };
 
-const handleYoutubeInput = async () => {
+const debounce = (fn, delay) => {
+    let timeoutId;
+    return (...args) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => fn(...args), delay);
+    };
+};
+
+const handleYoutubeInput = debounce(async () => {
     youtubeError.value = '';
     const extractedId = extractYoutubeId(youtubeUrl.value);
 
@@ -236,20 +204,17 @@ const handleYoutubeInput = async () => {
         return;
     }
 
-    // Verify the video exists and is embeddable
-    try {
-        const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${extractedId}&format=json`);
-        if (response.ok) {
-            youtubeId.value = extractedId;
-        } else {
-            youtubeError.value = 'This video cannot be embedded or does not exist';
+    if (extractedId !== youtubeId.value) {
+        try {
+            const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${extractedId}&format=json`);
+            youtubeId.value = response.ok ? extractedId : '';
+            if (!response.ok) youtubeError.value = 'This video cannot be embedded or does not exist';
+        } catch (error) {
+            youtubeError.value = 'Error validating YouTube URL';
             youtubeId.value = '';
         }
-    } catch (error) {
-        youtubeError.value = 'Error validating YouTube URL';
-        youtubeId.value = '';
     }
-};
+}, 500);
 
 const clearYoutube = () => {
     youtubeUrl.value = '';
@@ -257,23 +222,31 @@ const clearYoutube = () => {
     youtubeError.value = '';
 };
 
-// Replace handleSubmit with defineExpose
+// 7. Initialization
+onMounted(() => {
+    if (event?.images?.length) {
+        images.value = event.images
+            .sort((a, b) => a.rank - b.rank)
+            .map((image, index) => ({
+                url: `${imageUrl}${image.large_image_path}`,
+                isExisting: true,
+                rank: index
+            }));
+    }
+
+    if (event?.video) {
+        youtubeId.value = event.video;
+        youtubeUrl.value = `https://youtube.com/watch?v=${event.video}`;
+    }
+});
+
+// 8. Component API
 defineExpose({
-    isValid: async () => {
-        // Images are optional, so always valid
-        const isValid = true;
-        console.log('Images validation:', {
-            imageCount: images.value.length,
-            youtubeId: youtubeId.value,
-            isValid
-        });
-        return isValid;
-    },
+    isValid: async () => true, // Images are optional
     submitData: () => {
         const formData = new FormData();
         const currentImages = [];
 
-        // Handle images
         images.value.forEach((image, index) => {
             image.rank = index;
             if (image.file) {
@@ -288,18 +261,8 @@ defineExpose({
         });
 
         formData.append('currentImages', JSON.stringify(currentImages));
+        formData.append('video', youtubeId.value || '');
 
-        // Add YouTube ID
-        if (youtubeId.value) {
-            formData.append('video', youtubeId.value);
-        } else {
-            formData.append('video', '');
-        }
-
-        console.log('Submitting images data:', {
-            imageCount: images.value.length,
-            youtubeId: youtubeId.value
-        });
         return formData;
     }
 });

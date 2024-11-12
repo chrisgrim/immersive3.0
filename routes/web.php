@@ -29,6 +29,7 @@ Route::GET('/hosting/getting-started', [HostController::class, 'intro']);
 Route::GET('/hosting/event/{event}/edit', [HostEventController::class, 'edit'])->name('event.edit');
 Route::POST('/hosting/event/{event}/submit', [HostEventController::class, 'submit'])->name('event.submit');
 Route::DELETE('/hosting/event/{event}', [HostEventController::class, 'destroy'])->name('event.destroy');
+Route::POST('/hosting/event/create', [HostEventController::class, 'create'])->name('event.create');
 
 
 Route::POST('/organizers', [OrganizerController::class, 'store'])->name('Organizers.store');

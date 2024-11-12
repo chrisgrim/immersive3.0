@@ -118,6 +118,66 @@
                                     <p>{{ promptMessage }}</p>
                                 </div>
                             </div>
+
+                            <div class="mt-4 flex flex-col gap-2">
+                                <div v-if="!hasEmbargoDate" class="flex items-center justify-between p-4 border rounded-2xl hover:border-black">
+                                    <div class="flex justify-between items-center w-full">
+                                        <span>Publish event the date it's approved</span>
+                                        <button 
+                                            @click="toggleEmbargoDate" 
+                                            class="px-4 py-2 border rounded-lg bg-black text-white"
+                                        >
+                                            Yes
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div v-if="hasEmbargoDate" class="flex justify-between items-center">
+                                    <div @click="showEmbargoCalendar" class="cursor-pointer">
+                                        <p class="text-sm text-gray-600">Goes live:</p>
+                                        <p class="underline">{{ formattedEmbargoDate }}</p>
+                                    </div>
+                                    <div 
+                                        @mouseover="hoveredLocation = 'clearEmbargoDate'" 
+                                        @mouseout="hoveredLocation = null" 
+                                        @click="clearEmbargoToggle" 
+                                        class="cursor-pointer bg-white"
+                                    >
+                                        <component :is="hoveredLocation === 'clearEmbargoDate' ? RiCloseCircleFill : RiCloseCircleLine" />
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Embargo Calendar Modal -->
+                            <div v-if="showEmbargoModal" class="c-embargo fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                                <div class="bg-white p-8 rounded-2xl w-[600px]">
+                                    <h3 class="text-2xl mb-4">Choose when your event goes live</h3>
+                                    <vue-cal
+                                        :time="false"
+                                        :hide-title="true"
+                                        hide-view-selector
+                                        small
+                                        :disable-views="['years', 'year', 'week', 'day']"
+                                        active-view="month"
+                                        :min-date="new Date()"
+                                        @cell-click="selectEmbargoDate"
+                                        style="height: 400px;"
+                                    />
+                                    <div class="mt-4 flex justify-end gap-4">
+                                        <button 
+                                            @click="showEmbargoModal = false"
+                                            class="px-6 py-2 border rounded-lg hover:bg-gray-100"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button 
+                                            @click="confirmEmbargoDate"
+                                            class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
+                                        >
+                                            Confirm
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="w-full flex justify-between p-8">
@@ -130,6 +190,7 @@
 </template>
 
 <script setup>
+// 1. Imports
 import { ref, computed, inject, onMounted, watch } from 'vue';
 import VueCal from 'vue-cal';
 import 'vue-cal/dist/vuecal.css';
@@ -137,16 +198,12 @@ import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import { maxLength, required } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 
-// Keep only the injections that are actually provided
+// 2. Injected Dependencies
 const event = inject('event');
 const errors = inject('errors');
 const isSubmitting = inject('isSubmitting');
 
-// Remove these unused injections
-// const onSubmit = inject('onSubmit');
-// const setStep = inject('setStep');
-
-// Refs
+// 3. Refs & State
 const events = ref([]);
 const selectedDates = ref([]);
 const promptVisible = ref(false);
@@ -158,10 +215,12 @@ const tempSelectedDates = ref([]);
 const tempShowTimes = ref('');
 const previousShowType = ref(null);
 const timezones = ref([]);
-const selectedTimezone = ref('');
+const selectedTimezone = ref(Intl.DateTimeFormat().resolvedOptions().timeZone);
 const userGMTOffset = ref('');
+const showEmbargoModal = ref(false);
+const tempEmbargoDate = ref(null);
 
-// Validation
+// 4. Validation Rules
 const rules = {
     event: {
         show_times: { maxLength: maxLength(500) }
@@ -170,24 +229,32 @@ const rules = {
         required: (value) => event.showtype !== 's' || (event.showtype === 's' && value.length > 0)
     }
 };
+
 const $v = useVuelidate(rules, { 
     event,
     selectedDates 
 });
 
-// Computed
+// 5. Computed Properties
 const selectedDatesCount = computed(() => selectedDates.value.length);
+const hasEmbargoDate = computed(() => !!event.embargo_date);
+const formattedEmbargoDate = computed(() => {
+    if (!event.embargo_date) return '';
+    return new Date(event.embargo_date).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+});
 
-// Date Selection Methods
+// 6. Core Date Selection Methods
 const onDateSelect = (day) => {
     hoveredLocation.value = null;
-    
     const date = new Date(day);
     date.setHours(0, 0, 0, 0);
     
-    if (isNaN(date.getTime())) {
-        return;
-    }
+    if (isNaN(date.getTime())) return;
 
     const formattedDate = date.toISOString().split('T')[0];
     const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
@@ -199,6 +266,7 @@ const onDateSelect = (day) => {
     }
 };
 
+// 7. Weekly Events Handling (Your Original Code)
 const handleDateSelection = (formattedDate, weekday) => {
     selectedDates.value.push(formattedDate);
     events.value.push({ start: formattedDate, end: formattedDate, title: 'Selected' });
@@ -219,32 +287,6 @@ const handleDateDeselection = (formattedDate, weekday) => {
     }
 };
 
-const checkFutureDates = (formattedDate) => {
-    return selectedDates.value.some(dateStr => {
-        const futureDate = new Date(dateStr);
-        return futureDate > new Date(formattedDate) && 
-               futureDate.getDay() === new Date(formattedDate).getDay();
-    });
-};
-
-// Prompt Handling
-const showPrompt = (action, message, date) => {
-    promptAction.value = action;
-    promptMessage.value = message;
-    selectedDate.value = date;
-    promptVisible.value = true;
-};
-
-const handlePromptYes = () => {
-    if (promptAction.value === 'selectWeekly') {
-        createWeeklyEvents(selectedDate.value);
-    } else if (promptAction.value === 'removeFuture') {
-        removeWeeklyEvents(selectedDate.value);
-    }
-    promptVisible.value = false;
-};
-
-// Weekly Events
 const createWeeklyEvents = async (startDateStr) => {
     const { default: moment } = await import('moment-timezone');
     const timezone = selectedTimezone.value;
@@ -282,48 +324,93 @@ const removeWeeklyEvents = async (startDateStr) => {
     events.value = events.value.filter(event => selectedDates.value.includes(event.start));
 };
 
-// Show Type Handling
-const setSpecificDates = () => {
-    if (event.showtype === 'a') {
-        previousShowType.value = 'a';
-        selectedDates.value = [];
-        events.value = [];
+// 8. Prompt & Helper Methods
+const showPrompt = (action, message, date) => {
+    promptVisible.value = true;
+    promptMessage.value = message;
+    promptAction.value = action;
+    selectedDate.value = date;
+};
+
+const handlePromptYes = async () => {
+    if (promptAction.value === 'selectWeekly') {
+        await createWeeklyEvents(selectedDate.value);
+    } else if (promptAction.value === 'removeFuture') {
+        await removeWeeklyEvents(selectedDate.value);
     }
+    promptVisible.value = false;
+    promptAction.value = null;
+    selectedDate.value = null;
+};
+
+const checkFutureDates = (dateStr) => {
+    const date = new Date(dateStr);
+    const weekday = date.getDay();
+    
+    return selectedDates.value.some(d => {
+        const existingDate = new Date(d);
+        return existingDate > date && existingDate.getDay() === weekday;
+    });
+};
+
+// 9. Date Management Methods
+const setSpecificDates = () => {
     event.showtype = 's';
 };
 
-// Utility Methods
 const clearAllDates = () => {
     selectedDates.value = [];
     events.value = [];
+    event.show_times = '';
 };
 
-const fetchTimezones = async () => {
-    const { default: moment } = await import('moment-timezone');
-    timezones.value = moment.tz.names().map(tz => ({
-        name: tz,
-        offset: moment.tz(tz).format('Z')
-    }));
-
-    const userTimezone = event.timezone ? event.timezone : moment.tz.guess();
-    const matchedTimezone = timezones.value.find(tz => tz.name === userTimezone);
-    if (matchedTimezone) {
-        selectedTimezone.value = matchedTimezone.name;
-        userGMTOffset.value = matchedTimezone.offset;
+// 10. Embargo Date Methods
+const toggleEmbargoDate = () => {
+    if (hasEmbargoDate.value) {
+        event.embargo_date = null;
+    } else {
+        showEmbargoCalendar();
     }
 };
 
-// Form Submission
+const showEmbargoCalendar = () => {
+    showEmbargoModal.value = true;
+};
+
+const selectEmbargoDate = (day) => {
+    tempEmbargoDate.value = day;
+};
+
+const confirmEmbargoDate = () => {
+    if (tempEmbargoDate.value) {
+        const date = new Date(tempEmbargoDate.value);
+        date.setHours(0, 0, 0, 0);
+        event.embargo_date = date.toISOString().slice(0, 19).replace('T', ' ');
+        showEmbargoModal.value = false;
+        tempEmbargoDate.value = null;
+    }
+};
+
+const clearEmbargoToggle = () => {
+    event.embargo_date = null;
+};
+
+// 11. API Methods
+const initializeTimezones = async () => {
+    const { default: moment } = await import('moment-timezone');
+    timezones.value = moment.tz.names().map(name => ({ name }));
+};
+
+// 12. Component API
 defineExpose({
     isValid: async () => {
         await $v.value.$validate();
         const isValid = !$v.value.$error;
-        console.log('Dates validation:', {
-            showType: event.showtype,
-            datesCount: selectedDates.value.length,
-            validationError: $v.value.$error,
-            isValid
-        });
+        
+        if (!isValid) {
+            errors.value = { dates: ['Please select at least one date'] };
+        }
+        
         return isValid;
     },
     submitData: () => {
@@ -335,14 +422,14 @@ defineExpose({
             showtype: event.showtype,
             dateArray: formattedDates,
             timezone: selectedTimezone.value,
-            show_times: event.show_times
+            show_times: event.show_times,
+            embargo_date: event.embargo_date
         };
-        console.log('Submitting dates data:', data);
         return data;
     }
 });
 
-// Watchers
+// 13. Watchers
 watch(() => event.showtype, (newType, oldType) => {
     if (oldType === 's' && newType === 'a') {
         tempSelectedDates.value = [...selectedDates.value];
@@ -362,20 +449,25 @@ watch(() => event.showtype, (newType, oldType) => {
     }
 });
 
-// Lifecycle
+// 14. Lifecycle Hooks
 onMounted(() => {
-    fetchTimezones();
+    initializeTimezones();
     if (event.shows?.length > 0) {
         event.shows.forEach(show => {
             const formattedDate = new Date(show.date).toISOString().split('T')[0];
             selectedDates.value.push(formattedDate);
-            events.value.push({ start: formattedDate, end: formattedDate, title: 'Selected' });
+            events.value.push({ 
+                start: formattedDate, 
+                end: formattedDate, 
+                title: 'Selected' 
+            });
         });
     }
 });
 </script>
 
 <style>
+/* Your original styling preserved exactly as is */
 .vuecal__cell--disabled {
     color: #000000;
     cursor: not-allowed;
@@ -458,5 +550,13 @@ onMounted(() => {
 
 .vuecal__arrow:hover {
     background: black;
+}
+
+.c-embargo .vuecal__cell--selected {
+    background-color: black;
+    z-index: 2;
+}
+.c-embargo .vuecal__cell--selected .vuecal__cell-date {
+    color: white;
 }
 </style>

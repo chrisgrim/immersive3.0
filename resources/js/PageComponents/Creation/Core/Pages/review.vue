@@ -91,6 +91,20 @@
                     <h2 class="text-4xl">Name:</h2>
                     <p class="2xl">{{ event.name }}</p>
                     <p class="text-gray-500 font-normal">{{ event.tag_line }}</p>
+                    
+                    <!-- Description -->
+                    <div class="mt-8">
+                        <p class="font-semibold">Description</p>
+                        <p class="text-gray-500 font-normal whitespace-pre-line">{{ event.description }}</p>
+                    </div>
+
+                    <!-- Embargo Date -->
+                    <div v-if="event.embargo_date" class="mt-8">
+                        <p class="font-semibold">Goes Live</p>
+                        <p class="text-gray-500 font-normal">
+                            {{ formatEmbargoDate(event.embargo_date) }}
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -148,7 +162,9 @@
                     </div>
                     <div>
                         <p class="font-semibold">Number of Shows</p>
-                        <p class="text-gray-500 font-normal">{{ event.shows?.length }} shows</p>
+                        <p class="text-gray-500 font-normal">
+                            {{ event.showtype === 'a' ? 'Always available' : `${event.shows?.length || 0} shows` }}
+                        </p>
                     </div>
                     <div>
                         <p class="font-semibold">Tickets</p>
@@ -164,11 +180,6 @@
                             </p>
                         </div>
                     </div>
-                </div>
-
-                <div class="mt-8">
-                    <p class="font-semibold">Description</p>
-                    <p class="text-gray-500 font-normal whitespace-pre-line">{{ event.description }}</p>
                 </div>
             </div>
 
@@ -250,6 +261,10 @@ const formatDateRange = (shows) => {
     const lastDate = moment.max(dates).format('MMM D, YYYY');
     
     return firstDate === lastDate ? firstDate : `${firstDate} - ${lastDate}`;
+};
+
+const formatEmbargoDate = (date) => {
+    return moment(date).format('MMM D, YYYY');
 };
 
 // Component API

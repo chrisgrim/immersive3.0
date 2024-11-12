@@ -17,6 +17,6 @@
             </a>
         </div>
         <div></div>
-        <div></div>
+        <div><vue-nav-profile :user="user"></vue-nav-profile></div>
     </div>
 </nav>

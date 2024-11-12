@@ -11,7 +11,7 @@
                 <div class="w-full relative" ref="categoryDrop" v-click-outside="handleClickOutside">
                     <!-- Dropdown Arrow -->
                     <svg 
-                        :class="{'transform rotate-90': dropdown}"
+                        :class="{'transform rotate-90': state.dropdown}"
                         class="w-10 h-10 fill-black absolute z-10 right-4 top-8 cursor-pointer" 
                         @click="onDropdown"
                     >
@@ -22,7 +22,7 @@
                     <input 
                         :class="{ 'border-red-500': showError }"
                         class="text-2xl relative p-8 w-full border mb-12 rounded-3xl focus:rounded-3xl"
-                        v-model="category"
+                        v-model="state.category"
                         placeholder="Select Category"
                         @input="filterCategories"
                         @focus="onDropdown"
@@ -46,10 +46,10 @@
                     </div>
 
                     <!-- Category Dropdown -->
-                    <ul v-if="dropdown" 
+                    <ul v-if="state.dropdown" 
                         class="overflow-auto bg-white w-full list-none rounded-b-3xl absolute top-24 m-0 z-10 border-[#e5e7eb] border max-h-[45rem]"
                     >
-                        <li v-for="item in filteredCategories"
+                        <li v-for="item in state.filteredCategories"
                             :key="item.id"
                             class="py-6 px-6 flex items-center gap-8 hover:bg-gray-300 cursor-pointer" 
                             @click="selectCategory(item)"
@@ -69,25 +69,29 @@
 </template>
 
 <script setup>
+// 1. Imports
 import { ref, onMounted, inject, computed } from 'vue';
 import { ClickOutsideDirective } from '@/Directives/ClickOutsideDirective.js';
 import useVuelidate from '@vuelidate/core';
 import { required } from '@vuelidate/validators';
 
-// Injected values
+// 2. Injected Dependencies
 const event = inject('event');
-const isSubmitting = inject('isSubmitting');
 const errors = inject('errors');
 
-// Constants and refs (keep existing ones)
+// 3. Constants
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
-const category = ref('');
-const dropdown = ref(false);
-const categoryList = ref([]);
-const filteredCategories = ref([]);
+
+// 4. State Management
+const state = ref({
+    category: '',
+    dropdown: false,
+    categoryList: [],
+    filteredCategories: []
+});
 const categoryDrop = ref(null);
 
-// Validation setup
+// 5. Validation Rules
 const rules = { 
     category_id: { required }
 };
@@ -96,41 +100,41 @@ const $v = useVuelidate(rules, {
     category_id: computed(() => event.category_id)
 });
 
-// Computed
+// 6. Computed Properties
 const showError = computed(() => {
     return $v.value.$dirty && $v.value.$error;
 });
 
-// Methods
+// 7. Methods
 const fetchCategories = async () => {
     try {
         const remote = event.hasLocation ? 0 : 1;
         const response = await axios.get(`/api/categories?remote=${remote}`);
-        categoryList.value = response.data;
-        filteredCategories.value = categoryList.value;
+        state.value.categoryList = response.data;
+        state.value.filteredCategories = state.value.categoryList;
 
         if (event.category_id) {
-            const selectedCategory = categoryList.value.find(cat => cat.id === event.category_id);
+            const selectedCategory = state.value.categoryList.find(cat => cat.id === event.category_id);
             if (selectedCategory) selectCategory(selectedCategory);
         }
     } catch (error) {
-        console.error('Failed to fetch categories:', error);
+        errors.value = { category: ['Failed to load categories'] };
     }
 };
 
 const filterCategories = () => {
-    const searchTerm = category.value.toLowerCase();
-    filteredCategories.value = categoryList.value.filter(item => 
+    const searchTerm = state.value.category.toLowerCase();
+    state.value.filteredCategories = state.value.categoryList.filter(item => 
         item.name.toLowerCase().includes(searchTerm)
     );
-    if (category.value) $v.value.$reset();
+    if (state.value.category) $v.value.$reset();
 };
 
 const selectCategory = (item) => {
     event.category = item;
     event.category_id = item.id;
-    category.value = item.name;
-    dropdown.value = false;
+    state.value.category = item.name;
+    state.value.dropdown = false;
     $v.value.$reset();
 };
 
@@ -138,33 +142,29 @@ const handleClickOutside = (event) => {
     const dropdownElement = categoryDrop.value;
     if (dropdownElement && !dropdownElement.contains(event.target) && 
         !dropdownElement.contains(document.activeElement)) {
-        dropdown.value = false;
+        state.value.dropdown = false;
     }
 };
 
-const onDropdown = () => dropdown.value = true;
+const onDropdown = () => state.value.dropdown = true;
 
-// Instead of handleSubmit, expose methods for parent
+// 8. Component API
 defineExpose({
     isValid: async () => {
         await $v.value.$validate();
         const isValid = !$v.value.$error;
-        console.log('Category validation:', {
-            categoryId: event.category_id,
-            validationError: $v.value.$error,
-            isValid
-        });
+        
+        if (!isValid) {
+            errors.value = { category: ['Please select a category'] };
+        }
+        
         return isValid;
     },
-    submitData: () => {
-        const data = {
-            category_id: event.category_id
-        };
-        console.log('Submitting category data:', data);
-        return data;
-    }
+    submitData: () => ({
+        category_id: event.category_id
+    })
 });
 
-// Lifecycle
+// 9. Lifecycle Hooks
 onMounted(fetchCategories);
 </script>
