@@ -440,7 +440,7 @@ const isDescriptionNearLimit = computed(() => {
     return count > 55; // Show warning when near limit
 });
 </script>
-
 <style>
 /* Your existing styles can remain unchanged */
 </style>
+

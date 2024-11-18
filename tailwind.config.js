@@ -1,10 +1,11 @@
 /** @type {import('tailwindcss').Config} */
 export default {
     content: [
-    './resources/views/**/*.blade.php',
-    './resources/js/**/*.js',
-    './resources/js/**/*.vue', 
-    // Add any other paths that might contain Tailwind CSS classes
+        './resources/views/**/*.blade.php',
+        './resources/views/**/**/*.blade.php',
+        './resources/js/**/*.js',
+        './resources/js/**/*.vue', 
+        // Add any other paths that might contain Tailwind CSS classes
     ],
     theme: {
         fontSize: {
@@ -51,6 +52,9 @@ export default {
             },
         }
     },
-    plugins: [],
+    plugins: [
+        require('@tailwindcss/typography'),
+        // ...other plugins
+    ],
 }
 

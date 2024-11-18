@@ -169,14 +169,17 @@
                     <div>
                         <p class="font-semibold">Tickets</p>
                         <div class="flex flex-row gap-2">
-                            <p v-for="price in event.tickets" 
-                               :key="price.id" 
-                               class="text-gray-500 font-normal border border-gray-300 p-4 rounded-lg">
-                                {{ price.name }}<br> ${{ price.ticket_price }}<br>
-                                <span class="text-1xl">{{ price.description }}</span>
-                            </p>
-                            <p v-if="!event.tickets?.length" class="text-gray-500 font-normal">
-                                No prices set
+                            <template v-if="event.shows?.length && event.shows[0].tickets?.length">
+                                <p v-for="ticket in event.shows[0].tickets" 
+                                   :key="ticket.id" 
+                                   class="text-gray-500 font-normal border border-gray-300 p-4 rounded-lg">
+                                    {{ ticket.name }}<br> 
+                                    ${{ ticket.price }}<br>
+                                    <span class="text-1xl">{{ ticket.description }}</span>
+                                </p>
+                            </template>
+                            <p v-else class="text-gray-500 font-normal">
+                                No tickets set
                             </p>
                         </div>
                     </div>

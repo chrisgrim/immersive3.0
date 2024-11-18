@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\EventApproved;
 use App\Mail\EventComments;
 use App\Models\Messaging\Message;
-use App\Models\ImageHandler;
+use App\Services\ImageHandler;
 
 
 class AdminEventController extends Controller

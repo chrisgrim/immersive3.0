@@ -44,9 +44,10 @@ export default {
 
     computed: {
         needsShowMore() {
-            return this.text.split(' ').length > this.limit;
+            return this.text && this.text.split(' ').length > this.limit;
         },
         adjustedText() {
+            if (!this.text) return '';
             return this.needsShowMore && !this.showMore
                 ? this.text.split(' ').slice(0, this.limit).join(' ') + '...'
                 : this.text;

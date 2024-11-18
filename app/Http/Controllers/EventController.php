@@ -36,22 +36,28 @@ class EventController extends Controller
    
     public function show(Event $event)
     {
-        if ($event->status !== 'p') {
-            return redirect('/');
-        }
+        abort_if($event->status !== 'p', 404);
 
-        // Load relationships directly without caching
-        $event->load('category', 'location', 'contentAdvisories', 'contactLevels', 
-            'mobilityAdvisories', 'eventreviews', 'staffpick', 'advisories', 
-            'interactive_level', 'remotelocations', 'genres', 'priceranges', 
-            'organizer', 'shows', 'age_limits', 'images');
-        
-        $tickets = collect(); // Default empty collection
-        if ($event->shows && $event->shows->first()) {
-            $tickets = $event->shows->first()->tickets()->orderBy('ticket_price')->get();
-        }
+        $event->load([
+            'category',
+            'location',
+            'contentAdvisories',
+            'contactLevels',
+            'mobilityAdvisories',
+            'eventreviews',
+            'staffpick',
+            'advisories',
+            'interactive_level',
+            'remotelocations',
+            'genres',
+            'priceranges',
+            'organizer',
+            'shows.tickets',
+            'age_limits',
+            'images'
+        ]);
 
-        return view('events.show', compact('event', 'tickets'));
+        return view('events.show', compact('event'));
     }
 
     public function getOrganizerPaginatedEvents(Organizer $organizer, Request $request)

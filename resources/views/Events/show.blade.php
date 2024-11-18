@@ -79,7 +79,7 @@
                         <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
                             <vue-show-purchase
                                 :mobile="{{ Browser::isMobile() ? 'true' : 'false' }}"
-                                :tickets="{{ $tickets }}"
+                                :tickets="{{ $event->shows->first()?->tickets ?? '[]' }}"
                                 :event="{{ $event }}"
                                 :single-image="true"
                             ></vue-show-purchase>
@@ -91,18 +91,19 @@
                 @include('Events.Show.header')
                 <div class="relative w-full m-auto p-0 md:px-12 lg:px-32 lg:max-w-screen-xl">
                     <div class="md:flex md:gap-20 lg:gap-36 border-b">
-                        <div class="relative inline-block">
+                        <div class="flex-1 min-w-0">
                             @include('Events.Show.about')
                             @include('Events.Show.details')
                         </div>
 
-                        <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
+                        <div class="w-full relative shrink-0 md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
                             <vue-show-purchase
                                 :mobile="{{ Browser::isMobile() ? 'true' : 'false' }}"
-                                :tickets="{{ $tickets }}"
+                                :tickets="{{ $event->shows->first()?->tickets ?? '[]' }}"
                                 :event="{{ $event }}"
                                 :single-image="false"
                             ></vue-show-purchase>
+                            
                         </div>
                     </div>
                 </div>

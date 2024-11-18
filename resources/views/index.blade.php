@@ -21,6 +21,23 @@
     <meta name="twitter:site" content="@everythingimmersive" />
     <meta name="twitter:image" content="{{ url('/') }}/storage/website-files/ei-logo.png" />
     <meta name="twitter:creator" content="@everythingimmersive" />
+    <script>
+        // Define functions in global scope
+        window.scrollDockRight = function() {
+            const scrollContainer = document.getElementById('dock-scroll-container');
+            if (scrollContainer) {
+                scrollContainer.scrollBy({ left: 500, behavior: 'smooth' });
+            }
+        };
+        
+        window.scrollDockLeft = function() {
+            const scrollContainer = document.getElementById('dock-scroll-container');
+            if (scrollContainer) {
+                scrollContainer.scrollBy({ left: -500, behavior: 'smooth' });
+            }
+        };
+    </script>
+
     <script type="application/ld+json">{"@context":"http://schema.org", "@type":"Organization", "address":{"@type":"PostalAddress", "addressLocality":"Petaluma", "addressRegion":"SF", "postalCode":"94952", "streetAddress":"600 East D St"}, "description": "Your resource for immersive and interactive theatre, art, virtual reality, escape rooms, dance and more.", "logo":"https://everythingimmersive.com/storage/website-files/ei-logo.png", "name":"Everything Immersive", "sameAs":[ "https://www.facebook.com/EverythingImmersive/", "https://www.linkedin.com/company/everythingimmersive", "https://www.instagram.com/everythingimmersive/", "https://twitter.com/everythingimmersive", "https://plus.google.com/+everythingimmersive", "https://en.wikipedia.org/wiki/everythingimmersive"], "url":"https://everythingimmersive.com"}</script>
 
 
@@ -40,8 +57,73 @@
         <label for="hideVerification" class="absolute top-0 right-0 cursor-pointer p-2">x</label>
         <div>You have been verified!</div>
     </div>
+
 @endif
 
+<div>
+    @if($docks && count($docks))
+        @foreach($docks as $dock)
+            @if($dock->type === 'h')
+                <div class="max-w-screen-2xl relative m-auto">
+                    @include('Curated.hero')
+                </div>
+            @endif
+
+            <div class="max-w-screen-2xl relative h-full m-auto px-8 md:px-12 lg:px-32">
+                @if($dock->type === 'i')
+                    @include('Curated.icon')
+                @endif
+
+                @if($dock->type === 'f')
+                    @include('Curated.album', [
+                        'dock' => $dock,
+                        'number' => 'four' // or 'three'
+                    ])
+                @endif
+
+                @if($dock->type === 't')
+                    @include('Curated.album', [
+                        'dock' => $dock,
+                        'number' => 'three'
+                    ])
+                @endif
+
+                @if($dock->type === 's')
+                    @include('Curated.spotlight', ['dock' => $dock])
+                @endif
+            </div>
+        @endforeach
+    @endif
+
+    <div>
+        @if(isset($staffpicks) && count($staffpicks))
+            <section id="staffpicks" class="max-w-screen-2xl relative h-full m-auto px-8 md:px-12 lg:px-32">
+                <vue-staff-picks :staffpicks="{{ json_encode($staffpicks) }}"></vue-staff-picks>
+            </section>
+        @endif
+
+        <section id="partners" class="max-w-screen-2xl relative h-full m-auto px-8 md:px-12 lg:px-32">
+            <div class="my-8 md:mt-16 md:mb-24">
+                <vue-partners></vue-partners>
+            </div>
+        </section>
+
+        <section class="max-w-screen-2xl relative h-full m-auto px-8 md:px-12 lg:px-32">
+            <div class="my-8 md:mt-16 md:mb-24">
+                <div class="flex flex-col items-center min-h-[26rem] justify-center">
+                    <h3>Read The 2020 Immersive Entertainment Industry Annual Report</h3>
+                    <p>Discover The Strength of Immersive Entertainment!</p>
+                    <br>
+                    <a href="/storage/website-files/documents/2020 Immersive Entertainment Industry Annual Report.pdf">
+                        <button class="p-4 rounded-full bg-black border-black text-white hover:text-black hover:bg-white">
+                            Check out the report here
+                        </button>
+                    </a>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
 
 @endsection
 

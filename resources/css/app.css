@@ -96,4 +96,28 @@
   .noscroll {
     overflow: hidden;
   }
+  pre {
+    @apply whitespace-pre-wrap break-words overflow-x-auto;
+    max-width: 100%;
+    font-size: 1.4rem;
+    line-height: 2rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+  }
+
+  code {
+    @apply whitespace-pre-wrap break-words;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+
+  /* If the code is inside a paragraph, ensure it wraps properly */
+  p > pre {
+    @apply my-4;
+  }
+
+  /* Optional: Style for inline code (not in a pre block) */
+  p > code:not(pre code) {
+    @apply bg-gray-100 px-1.5 py-0.5 rounded text-sm;
+  }
 }

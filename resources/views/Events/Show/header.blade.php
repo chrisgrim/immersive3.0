@@ -1,67 +1,127 @@
 <header class="min-h-[200px] relative w-full">
-    @if(count($event->images) === 1)
-        {{-- Only show image for single image layout --}}
-        <div class="relative flex flex-col bg-white md:rounded-[1rem] overflow-hidden">
-            <div class="flex bg-white overflow-hidden">
-                <picture>
-                    <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $event->images[0]->large_image_path }}">
-                    <img 
-                        class="h-[43rem] w-auto object-cover" 
-                        src="{{ config('app.image_url') }}{{ substr($event->images[0]->large_image_path, 0, -4) }}jpg" 
-                        alt="{{ $event['name'] }} Immersive Event - Main Image"
-                    >
-                </picture>
-            </div>
-        </div>
-    @else
-        {{-- Existing layout for multiple images --}}
-        <div class="relative w-full m-auto p-0 md:px-12 lg:px-32 lg:max-w-screen-xl">
-            <div class="grid grid-cols-1 gap-4 md:rounded-xl overflow-hidden {{ count($event->images) <= 3 ? 'md:grid-cols-[2fr_1fr]' : 'md:grid-cols-2' }}">
-                {{-- Left side - Main image --}}
-                @if(count($event->images) > 0)
-                    <picture class="h-full">
+    <div @class([
+        'relative w-full m-auto p-0' => true,
+        'md:px-12 lg:px-32 lg:max-w-screen-xl' => count($event->images) > 1
+    ])>
+        <div class="grid gap-4">
+            @if(count($event->images) === 1)
+                {{-- Single Image --}}
+                <div class="aspect-[3/2] w-full overflow-hidden md:rounded-xl">
+                    <picture>
                         <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $event->images[0]->large_image_path }}">
                         <img 
-                            class="w-full h-[43vh] md:h-[43rem] object-cover" 
+                            class="w-full h-full object-cover" 
                             src="{{ config('app.image_url') }}{{ substr($event->images[0]->large_image_path, 0, -4) }}jpg" 
                             alt="{{ $event['name'] }} Immersive Event - Main Image"
                         >
                     </picture>
-                @endif
-
-                {{-- Right side - Different layouts based on image count --}}
-                @if(count($event->images) > 1)
-                    @if(count($event->images) <= 3)
-                        {{-- 2-3 images: Vertical stack in 1/3 column --}}
-                        <div class="grid grid-cols-1 gap-4 h-full">
-                            @foreach($event->images->slice(1) as $key => $image)
+                </div>
+            @else
+                {{-- Multiple Images --}}
+                <div class="grid gap-2 md:rounded-xl overflow-hidden grid-cols-2"
+                    @class([
+                        'grid-cols-2' => count($event->images) === 2 || count($event->images) >= 4,
+                        'grid-cols-[2fr_1fr]' => count($event->images) === 3
+                    ])>
+                    {{-- Left Side --}}
+                    @if(count($event->images) >= 4)
+                        <div class="grid gap-2 overflow-hidden">
+                            <div class="aspect-[3/2]">
                                 <picture>
-                                    <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $image->large_image_path }}">
+                                    <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $event->images[0]->large_image_path }}">
                                     <img 
-                                        class="w-full h-[21rem] object-cover"
-                                        src="{{ config('app.image_url') }}{{ substr($image->large_image_path, 0, -4) }}jpg" 
-                                        alt="{{ $event['name'] }} Immersive Event - Image {{ $key + 2 }}"
+                                        class="w-full h-full object-cover" 
+                                        src="{{ config('app.image_url') }}{{ substr($event->images[0]->large_image_path, 0, -4) }}jpg" 
+                                        alt="{{ $event['name'] }} Immersive Event - Main Image"
                                     >
                                 </picture>
-                            @endforeach
+                            </div>
+                            @if(count($event->images) === 4)
+                                <div class="aspect-[3/2]">
+                                    <picture>
+                                        <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $event->images[1]->large_image_path }}">
+                                        <img 
+                                            class="w-full h-full object-cover" 
+                                            src="{{ config('app.image_url') }}{{ substr($event->images[1]->large_image_path, 0, -4) }}jpg" 
+                                            alt="{{ $event['name'] }} Immersive Event - Image 2"
+                                        >
+                                    </picture>
+                                </div>
+                            @endif
                         </div>
                     @else
-                        {{-- 4-5 images: 2x2 grid in equal column --}}
-                        <div class="grid grid-cols-2 gap-4 h-full">
+                        <div class="aspect-[3/2]">
+                            <picture>
+                                <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $event->images[0]->large_image_path }}">
+                                <img 
+                                    class="w-full h-full object-cover" 
+                                    src="{{ config('app.image_url') }}{{ substr($event->images[0]->large_image_path, 0, -4) }}jpg" 
+                                    alt="{{ $event['name'] }} Immersive Event - Main Image"
+                                >
+                            </picture>
+                        </div>
+                    @endif
+
+                    {{-- Right Side --}}
+                    @if(count($event->images) === 2)
+                        <div class="aspect-[3/2]">
+                            <picture>
+                                <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $event->images[1]->large_image_path }}">
+                                <img 
+                                    class="w-full h-full object-cover" 
+                                    src="{{ config('app.image_url') }}{{ substr($event->images[1]->large_image_path, 0, -4) }}jpg" 
+                                    alt="{{ $event['name'] }} Immersive Event - Image 2"
+                                >
+                            </picture>
+                        </div>
+                    @elseif(count($event->images) === 3)
+                        <div class="grid gap-2">
                             @foreach($event->images->slice(1) as $key => $image)
-                                <picture>
-                                    <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $image->large_image_path }}">
-                                    <img 
-                                        class="w-full h-[21rem] object-cover"
-                                        src="{{ config('app.image_url') }}{{ substr($image->large_image_path, 0, -4) }}jpg" 
-                                        alt="{{ $event['name'] }} Immersive Event - Image {{ $key + 2 }}"
-                                    >
-                                </picture>
+                                <div class="aspect-[3/2]">
+                                    <picture>
+                                        <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $image->large_image_path }}">
+                                        <img 
+                                            class="w-full h-full object-cover" 
+                                            src="{{ config('app.image_url') }}{{ substr($image->large_image_path, 0, -4) }}jpg" 
+                                            alt="{{ $event['name'] }} Immersive Event - Image {{ $key + 2 }}"
+                                        >
+                                    </picture>
+                                </div>
+                            @endforeach
+                        </div>
+                    @elseif(count($event->images) === 4)
+                        <div class="grid gap-2">
+                            @foreach($event->images->slice(2) as $key => $image)
+                                <div class="aspect-[3/2]">
+                                    <picture>
+                                        <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $image->large_image_path }}">
+                                        <img 
+                                            class="w-full h-full object-cover" 
+                                            src="{{ config('app.image_url') }}{{ substr($image->large_image_path, 0, -4) }}jpg" 
+                                            alt="{{ $event['name'] }} Immersive Event - Image {{ $key + 3 }}"
+                                        >
+                                    </picture>
+                                </div>
+                            @endforeach
+                        </div>
+                    @elseif(count($event->images) === 5)
+                        <div class="grid grid-cols-2 gap-2">
+                            @foreach($event->images->slice(1, 4) as $key => $image)
+                                <div>
+                                    <picture>
+                                        <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $image->large_image_path }}">
+                                        <img 
+                                            class="w-full h-full object-cover" 
+                                            src="{{ config('app.image_url') }}{{ substr($image->large_image_path, 0, -4) }}jpg" 
+                                            alt="{{ $event['name'] }} Immersive Event - Image {{ $key + 2 }}"
+                                        >
+                                    </picture>
+                                </div>
                             @endforeach
                         </div>
                     @endif
-                @endif
-            </div>
+                </div>
+            @endif
         </div>
-    @endif
+    </div>
 </header>

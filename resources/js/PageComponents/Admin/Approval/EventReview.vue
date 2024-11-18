@@ -46,8 +46,42 @@
                             />
                         </div>
 
-                        <!-- Right Side Images -->
-                        <!-- ... (rest of the image layout code) ... -->
+                        <!-- Right Side -->
+                        <div v-if="event.images?.length === 2" class="aspect-[3/2]">
+                            <img :src="imageUrl + event.images[1].large_image_path"
+                                 :alt="`${event.name} Immersive Event - Image 2`"
+                                 class="w-full h-full object-cover"
+                            />
+                        </div>
+                        <div v-else-if="event.images?.length === 3" class="grid gap-2">
+                            <div v-for="(image, key) in event.images.slice(1)" 
+                                 :key="image.id"
+                                 class="aspect-[3/2]">
+                                <img :src="imageUrl + image.large_image_path"
+                                     :alt="`${event.name} Immersive Event - Image ${key + 2}`"
+                                     class="w-full h-full object-cover"
+                                />
+                            </div>
+                        </div>
+                        <div v-else-if="event.images?.length === 4" class="grid gap-2">
+                            <div v-for="(image, key) in event.images.slice(2)" 
+                                 :key="image.id"
+                                 class="aspect-[3/2]">
+                                <img :src="imageUrl + image.large_image_path"
+                                     :alt="`${event.name} Immersive Event - Image ${key + 3}`"
+                                     class="w-full h-full object-cover"
+                                />
+                            </div>
+                        </div>
+                        <div v-else-if="event.images?.length === 5" class="grid grid-cols-2 gap-2">
+                            <div v-for="(image, key) in event.images.slice(1, 5)" 
+                                 :key="image.id">
+                                <img :src="imageUrl + image.large_image_path"
+                                     :alt="`${event.name} Immersive Event - Image ${key + 2}`"
+                                     class="w-full h-full object-cover"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -56,6 +90,20 @@
                     <h2 class="text-4xl">Name:</h2>
                     <p class="2xl">{{ event.name }}</p>
                     <p class="text-gray-500 font-normal">{{ event.tag_line }}</p>
+                    
+                    <!-- Description -->
+                    <div class="mt-8">
+                        <p class="font-semibold">Description</p>
+                        <p class="text-gray-500 font-normal whitespace-pre-line">{{ event.description }}</p>
+                    </div>
+
+                    <!-- Embargo Date -->
+                    <div v-if="event.embargo_date" class="mt-8">
+                        <p class="font-semibold">Goes Live</p>
+                        <p class="text-gray-500 font-normal">
+                            {{ formatEmbargoDate(event.embargo_date) }}
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -79,42 +127,59 @@
                 </div>
             </div>
 
-            <!-- Shows & Tickets Section -->
+            <!-- Categories and Genres Section -->
             <div class="mt-12 border-t pt-8">
-                <h2 class="text-4xl mb-4">Shows & Tickets:</h2>
-                <div v-if="event.shows?.length" class="space-y-4">
-                    <div v-for="show in event.shows" :key="show.id" class="border p-4 rounded-lg">
-                        <p class="font-semibold">{{ moment(show.date).format('MMMM D, YYYY') }}</p>
-                        <p>{{ moment(show.time, 'HH:mm:ss').format('h:mm A') }}</p>
-                        <div v-if="show.tickets?.length" class="mt-2">
-                            <p class="font-semibold">Tickets:</p>
-                            <ul class="list-disc list-inside">
-                                <li v-for="ticket in show.tickets" :key="ticket.id">
-                                    {{ ticket.name }} - ${{ ticket.price }}
-                                </li>
-                            </ul>
+                <h2 class="text-4xl">Categories & Genres:</h2>
+                <div class="grid grid-cols-2 gap-8 mt-4">
+                    <div>
+                        <p class="font-semibold">Category</p>
+                        <p class="text-gray-500 font-normal">{{ event.category?.name }}</p>
+                    </div>
+                    <div>
+                        <p class="font-semibold">Genres</p>
+                        <div class="flex flex-wrap gap-4 mt-1">
+                            <div v-for="genre in event.genres" 
+                                 :key="genre.id" 
+                                 class="text-gray-500 font-normal border border-gray-300 rounded-lg px-4 py-2">
+                                {{ genre.name }}
+                            </div>
+                            <p v-if="!event.genres?.length" class="text-gray-500 font-normal">
+                                No genres set
+                            </p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Categories and Genres Section -->
+            <!-- Shows & Tickets Section -->
             <div class="mt-12 border-t pt-8">
-                <div class="grid grid-cols-2 gap-8">
+                <h2 class="text-4xl">Shows:</h2>
+                <div class="grid grid-cols-2 gap-8 mt-12">
                     <div>
-                        <h2 class="text-2xl font-semibold mb-4">Category:</h2>
-                        <p class="text-gray-600">{{ event.category?.name }}</p>
+                        <p class="font-semibold">Date Range</p>
+                        <p class="text-gray-500 font-normal">{{ formatDateRange(event.shows) }}</p>
                     </div>
-                    <div v-if="event.genres?.length">
-                        <h2 class="text-2xl font-semibold mb-4">Genres:</h2>
-                        <div class="flex flex-wrap gap-2">
-                            <span 
-                                v-for="genre in event.genres" 
-                                :key="genre.id"
-                                class="px-3 py-1 bg-gray-100 rounded-full text-sm"
-                            >
-                                {{ genre.name }}
-                            </span>
+                    <div>
+                        <p class="font-semibold">Number of Shows</p>
+                        <p class="text-gray-500 font-normal">
+                            {{ event.showtype === 'a' ? 'Always available' : `${event.shows?.length || 0} shows` }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="font-semibold">Tickets</p>
+                        <div class="flex flex-row gap-2">
+                            <template v-if="event.shows?.length && event.shows[0].tickets?.length">
+                                <p v-for="ticket in event.shows[0].tickets" 
+                                   :key="ticket.id" 
+                                   class="text-gray-500 font-normal border border-gray-300 p-4 rounded-lg">
+                                    {{ ticket.name }}<br> 
+                                    ${{ ticket.ticket_price }}<br>
+                                    <span class="text-1xl">{{ ticket.description }}</span>
+                                </p>
+                            </template>
+                            <p v-else class="text-gray-500 font-normal">
+                                No tickets set
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -122,94 +187,88 @@
 
             <!-- Advisories Section -->
             <div class="mt-12 border-t pt-8">
-                <h2 class="text-4xl mb-6">Advisories:</h2>
-                
-                <!-- Age Limits -->
-                <div class="mb-8">
-                    <h3 class="text-2xl font-semibold mb-2">Age Requirements:</h3>
-                    <p class="text-gray-600">{{ event.age_limits?.name || 'Not specified' }}</p>
-                </div>
-
-                <!-- Content Advisories -->
-                <div v-if="event.contentAdvisories?.length" class="mb-8">
-                    <h3 class="text-2xl font-semibold mb-2">Content Advisories:</h3>
-                    <div class="flex flex-wrap gap-2">
-                        <span 
-                            v-for="advisory in event.contentAdvisories" 
-                            :key="advisory.id"
-                            class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm"
-                        >
-                            {{ advisory.name }}
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Mobility Advisories -->
-                <div v-if="event.mobilityAdvisories?.length" class="mb-8">
-                    <h3 class="text-2xl font-semibold mb-2">Mobility Advisories:</h3>
-                    <div class="flex flex-wrap gap-2">
-                        <span 
-                            v-for="advisory in event.mobilityAdvisories" 
-                            :key="advisory.id"
-                            class="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm"
-                        >
-                            {{ advisory.name }}
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Contact Levels -->
-                <div v-if="event.contactLevels?.length" class="mb-8">
-                    <h3 class="text-2xl font-semibold mb-2">Contact Levels:</h3>
-                    <div class="flex flex-wrap gap-2">
-                        <span 
-                            v-for="level in event.contactLevels" 
-                            :key="level.id"
-                            class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm"
-                        >
-                            {{ level.name }}
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Interactive Level -->
-                <div class="mb-8">
-                    <h3 class="text-2xl font-semibold mb-2">Interactive Level:</h3>
-                    <p class="text-gray-600">{{ event.interactive_level?.name || 'Not specified' }}</p>
-                </div>
-
-                <!-- General Advisories -->
-                <div v-if="event.advisories" class="mb-8">
-                    <h3 class="text-2xl font-semibold mb-2">Additional Information:</h3>
-                    <div class="space-y-4">
-                        <div v-if="event.advisories.audience">
-                            <p class="font-semibold">Audience Role:</p>
-                            <p class="text-gray-600">{{ event.advisories.audience }}</p>
-                        </div>
-                        <div v-if="event.advisories.content">
-                            <p class="font-semibold">Content Notes:</p>
-                            <p class="text-gray-600">{{ event.advisories.content }}</p>
-                        </div>
-                        <div v-if="event.advisories.mobility">
-                            <p class="font-semibold">Mobility Notes:</p>
-                            <p class="text-gray-600">{{ event.advisories.mobility }}</p>
+                <h2 class="text-4xl">Advisories:</h2>
+                <div class="grid grid-cols-2 gap-8 mt-4">
+                    <!-- Content Advisories -->
+                    <div>
+                        <p class="font-semibold">Content Advisories</p>
+                        <ul class="list-disc ml-4 mt-2 text-gray-500 font-normal">
+                            <li v-for="advisory in event.content_advisories" 
+                                :key="advisory.id">
+                                {{ advisory.name }}
+                            </li>
+                        </ul>
+                        <div v-if="event.advisories?.sexual" class="mt-4">
+                            <p class="font-semibold">Sexual Content Description:</p>
+                            <p class="text-gray-500 font-normal">{{ event.advisories.sexualDescription }}</p>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- Organizer Section -->
-            <div class="mt-12 border-t pt-8">
-                <h2 class="text-4xl mb-4">Organizer:</h2>
-                <div v-if="event.organizer" class="text-gray-600">
-                    <p class="text-2xl font-semibold">{{ event.organizer.name }}</p>
-                    <p class="mt-2">{{ event.organizer.description }}</p>
+                    <!-- Mobility Advisories -->
+                    <div>
+                        <p class="font-semibold">Mobility Advisories</p>
+                        <ul class="list-disc ml-4 mt-2 text-gray-500 font-normal">
+                            <li v-for="advisory in event.mobility_advisories" 
+                                :key="advisory.id">
+                                {{ advisory.name }}
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-8 mt-4">
+                    <!-- Interaction Advisories -->
+                    <div class="mt-8">
+                        <p class="font-semibold">Interaction Level</p>
+                        <p class="text-gray-500 font-normal">{{ event.interactive_level.name }}</p>
+                    </div>
+
+                    <!-- Audience Role -->
+                    <div class="mt-8">
+                        <p class="font-semibold">Audience Role</p>
+                        <p class="text-gray-500 font-normal">{{ event.advisories.audience }}</p>
+                    </div>
                 </div>
             </div>
 
             <!-- Video Section -->
             <div v-if="event.video" class="mt-12 border-t pt-8">
-                <!-- ... (video section code) ... -->
+                <h2 class="text-4xl">Video:</h2>
+                <div class="relative aspect-video w-full max-w-3xl mt-4">
+                    <iframe
+                        :src="`https://www.youtube.com/embed/${event.video}`"
+                        class="absolute top-0 left-0 w-full h-full rounded-xl"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen
+                    ></iframe>
+                </div>
+            </div>
+
+            <!-- Organizer Section -->
+            <div class="mt-12 border-t pt-8">
+                <h2 class="text-4xl">Organizer:</h2>
+                <div class="flex items-start gap-6 mt-4">
+                    <div class="flex-shrink-0">
+                        <img v-if="event.organizer?.images?.[0]?.thumb_image_path" 
+                             :src="imageUrl + event.organizer.images[0].thumb_image_path"
+                             :alt="event.organizer?.name"
+                             class="w-24 h-24 rounded-full object-cover"
+                        />
+                        <div v-else 
+                             class="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center">
+                            <span class="text-gray-400 text-2xl">
+                                {{ event.organizer?.name?.charAt(0)?.toUpperCase() || 'O' }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex-grow">
+                        <h3 class="text-2xl font-semibold">{{ event.organizer?.name }}</h3>
+                        <p class="text-gray-500 font-normal mt-2 whitespace-pre-line">
+                            {{ event.organizer?.description }}
+                        </p>
+                    </div>
+                </div>
             </div>
 
             <!-- Approval Actions -->
@@ -287,6 +346,10 @@ const formatDateRange = (shows) => {
     const lastDate = moment.max(dates).format('MMM D, YYYY');
     
     return firstDate === lastDate ? firstDate : `${firstDate} - ${lastDate}`;
+};
+
+const formatEmbargoDate = (date) => {
+    return moment(date).format('MMM D, YYYY');
 };
 
 const onApprove = async () => {

@@ -5,7 +5,7 @@ namespace App\Http\Controllers\User;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
-use App\Models\ImageHandler;
+use App\Services\ImageHandler;
 use App\Http\Requests\StoreProfileRequest;
 use Illuminate\Support\Facades\Log;
 

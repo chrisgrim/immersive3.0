@@ -25,6 +25,9 @@ const HostingEvent = defineAsyncComponent(() => import('./PageComponents/Creatio
 
 const Admin = defineAsyncComponent(() => import('./PageComponents/Admin/index.vue'));
 
+const CommunityShow = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/show.vue'));
+const PostEdit = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/edit.vue'));
+
 import { ClickOutsideDirective } from './Directives/ClickOutsideDirective';
 
 const app = createApp({
@@ -60,6 +63,8 @@ app.component('vue-getting-started', GettingStarted);
 app.component('vue-hosting-event', HostingEvent);
 
 app.component('vue-admin', Admin);
+app.component('vue-community-show', CommunityShow);
+app.component('vue-post-edit', PostEdit);
 
 app.directive('click-outside', ClickOutsideDirective);
 

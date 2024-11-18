@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Creation;
 use App\Http\Controllers\Controller;
 use App\Models\Organizer;
 use App\Models\Event;
-use App\Models\ImageHandler;
+use App\Services\ImageHandler;
 use App\Models\Events\RemoteLocation;
 use App\Models\Events\ContentAdvisory;
 use App\Models\Events\MobilityAdvisory;
@@ -110,9 +110,25 @@ class HostEventController extends Controller
             Ticket::handleTickets($request, $event);
         }
 
-        if ($request->has('currentImages')) {
-            $currentImages = json_decode($request->input('currentImages', '[]'), true);
-            ImageHandler::updateImages($event, $currentImages);
+        if ($request->has('currentImages') || $request->has('deletedImages')) {
+            // Handle deleted images first
+            if ($request->has('deletedImages')) {
+                $deletedImages = json_decode($request->input('deletedImages', '[]'), true);
+                foreach ($deletedImages as $deletedImagePath) {
+                    $image = $event->images()
+                                  ->where('large_image_path', $deletedImagePath)
+                                  ->first();
+                    if ($image) {
+                        ImageHandler::deleteImage($image);
+                    }
+                }
+            }
+
+            // Then update remaining images
+            if ($request->has('currentImages')) {
+                $currentImages = json_decode($request->input('currentImages', '[]'), true);
+                ImageHandler::updateImages($event, $currentImages);
+            }
         }
 
         if ($request->hasFile('images')) {

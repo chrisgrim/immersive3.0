@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Organizer;
 use App\Http\Requests\StoreOrganizerRequest;
-use App\Models\ImageHandler;
+use App\Services\ImageHandler;
 use App\Models\Event;
 use Illuminate\Support\Facades\Log;
 

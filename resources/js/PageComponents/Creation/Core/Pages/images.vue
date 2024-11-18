@@ -31,7 +31,7 @@
                     </div>
                 </template>
 
-                <template v-for="i in remainingSlots" :key="'empty-' + i">
+                <template v-for="i in Math.max(0, remainingSlots)" :key="'empty-' + i">
                     <div 
                         @click="triggerFileInput"
                         :class="[
@@ -109,9 +109,13 @@ const hoveredImage = ref(null);
 const youtubeUrl = ref('');
 const youtubeId = ref('');
 const youtubeError = ref('');
+const deletedImages = ref([]);
 
 // 4. Computed
-const remainingSlots = computed(() => MAX_IMAGES - images.value.length);
+const remainingSlots = computed(() => {
+    const remaining = MAX_IMAGES - images.value.length;
+    return Math.max(0, remaining);
+});
 
 // 5. Image Handling Methods
 const validateFile = (file) => {
@@ -153,7 +157,21 @@ const processFiles = (files) => {
 };
 
 const handleFileChange = (event) => processFiles(event.target.files);
-const removeImage = (index) => images.value.splice(index, 1);
+const removeImage = (index) => {
+    console.log('Removing image at index:', index);
+    console.log('Image being removed:', images.value[index]);
+    console.log('Full image object:', JSON.stringify(images.value[index]));
+    console.log('Images array before removal:', [...images.value]);
+    
+    const removedImage = images.value[index];
+    if (removedImage.isExisting) {
+        deletedImages.value.push(removedImage.url.replace(imageUrl, ''));
+    }
+    
+    images.value = images.value.filter((_, i) => i !== index);
+    console.log('Images array after removal:', [...images.value]);
+    console.log('Deleted images:', deletedImages.value);
+};
 const triggerFileInput = (event) => event.currentTarget.querySelector('.fileInput')?.click();
 
 const handleSort = ({ moved }) => {
@@ -224,6 +242,8 @@ const clearYoutube = () => {
 
 // 7. Initialization
 onMounted(() => {
+    console.log('Initial event images:', event?.images);
+    
     if (event?.images?.length) {
         images.value = event.images
             .sort((a, b) => a.rank - b.rank)
@@ -232,27 +252,49 @@ onMounted(() => {
                 isExisting: true,
                 rank: index
             }));
+        console.log('Processed initial images:', [...images.value]);
     }
 
     if (event?.video) {
         youtubeId.value = event.video;
         youtubeUrl.value = `https://youtube.com/watch?v=${event.video}`;
     }
+
+    deletedImages.value = [];
 });
 
 // 8. Component API
 defineExpose({
-    isValid: async () => true, // Images are optional
+    isValid: async () => true,
     submitData: () => {
+        console.log('Submit Data - Current images array:', [...images.value]);
+        console.log('Submit Data - Raw images value:', images.value);
+        console.log('Deleted images:', deletedImages.value);
+        
         const formData = new FormData();
         const currentImages = [];
+        let newImageCount = 0;
 
-        images.value.forEach((image, index) => {
+        const validImages = images.value.filter(image => image !== null && image !== undefined);
+
+        console.log('Valid images after filtering:', validImages);
+
+        validImages.forEach((image, index) => {
+            console.log(`Processing image ${index}:`, image);
+            console.log('Image properties:', {
+                isFile: !!image.file,
+                isExisting: !!image.isExisting,
+                url: image.url
+            });
+            
             image.rank = index;
             if (image.file) {
+                console.log('Adding new file image:', image.file);
                 formData.append('images[]', image.file);
-                formData.append('ranks[]', index);
-            } else {
+                formData.append(`ranks[${newImageCount}]`, index);
+                newImageCount++;
+            } else if (image.isExisting && image.url) {
+                console.log('Adding existing image:', image.url);
                 currentImages.push({
                     url: image.url.replace(imageUrl, ''),
                     rank: index
@@ -260,7 +302,11 @@ defineExpose({
             }
         });
 
+        console.log('Final currentImages array:', currentImages);
+        console.log('Final formData:', Object.fromEntries(formData.entries()));
+
         formData.append('currentImages', JSON.stringify(currentImages));
+        formData.append('deletedImages', JSON.stringify(deletedImages.value));
         formData.append('video', youtubeId.value || '');
 
         return formData;

@@ -14,7 +14,7 @@
         <ul class="my-8 list-disc">
             @foreach($event->contentAdvisories as $item)
                 <li>
-                    <p>{{ $item['advisories'] }}</p>
+                    <p>{{ $item['name'] }}</p>
                 </li>
             @endforeach
             <li>
@@ -30,7 +30,7 @@
         <ul class="my-8 list-disc">
             @foreach($event->contactLevels as $item)
                 <li>
-                    <p> {{ $item['level'] }} </p>
+                    <p> {{ $item['name'] }} </p>
                 </li>
             @endforeach
         </ul>
@@ -43,7 +43,7 @@
         <ul class="my-8 list-disc">
             @foreach($event->mobilityAdvisories as $item)
                 <li>
-                    <p> {{ $item['mobilities'] }} </p>
+                    <p> {{ $item['name'] }} </p>
                 </li>
             @endforeach
             <li>

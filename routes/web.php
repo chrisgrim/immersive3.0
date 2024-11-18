@@ -50,3 +50,4 @@ Route::POST('/inbox/fetch/events', [ConversationsController::class, 'events']);
 Route::GET('/admin/dashboard', [DashboardController::class, 'index'])->name('admin.index');
 
 require __DIR__.'/auth.php';
+require __DIR__.'/curated.php';

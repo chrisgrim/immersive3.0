@@ -1,9 +1,7 @@
 <?php
 
-namespace App\Models;
+namespace App\Services;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Laravel\Facades\Image;
@@ -12,10 +10,8 @@ use Intervention\Image\Encoders\JpegEncoder;
 
 
 
-class ImageHandler extends Model
+class ImageHandler
 {
-    use HasFactory;
-
     public static function saveImage($image, $model, $width, $height, $type, $rank = 0)
     {
         $mimeType = $image->getMimeType();
@@ -197,6 +193,54 @@ class ImageHandler extends Model
 
             // Delete the original directory
             Storage::disk('digitalocean')->deleteDirectory("/public/$currentDirectory");
+        }
+    }
+
+    public static function moveImagesForNewSlug($model, $oldSlug, $newSlug, $type)
+    {
+        if ($model->images()->exists()) {
+            foreach ($model->images as $image) {
+                // Keep the same random string and 'final' suffix if they exist
+                $currentDirectory = dirname($image->large_image_path);
+                $directorySuffix = str_replace("$type-images/$oldSlug", '', $currentDirectory);
+                $newDirectory = "$type-images/$newSlug$directorySuffix";
+                
+                // Copy all image variations to new location
+                Storage::disk('digitalocean')->copy(
+                    "/public/$image->large_image_path",
+                    "/public/$newDirectory/$newSlug.webp"
+                );
+                Storage::disk('digitalocean')->copy(
+                    "/public/" . preg_replace('/\.webp$/', '.jpg', $image->large_image_path),
+                    "/public/$newDirectory/$newSlug.jpg"
+                );
+                Storage::disk('digitalocean')->copy(
+                    "/public/$image->thumb_image_path",
+                    "/public/$newDirectory/$newSlug-thumb.webp"
+                );
+                Storage::disk('digitalocean')->copy(
+                    "/public/" . preg_replace('/\.webp$/', '.jpg', $image->thumb_image_path),
+                    "/public/$newDirectory/$newSlug-thumb.jpg"
+                );
+
+                // Update image paths in database
+                $image->update([
+                    'large_image_path' => "$newDirectory/$newSlug.webp",
+                    'thumb_image_path' => "$newDirectory/$newSlug-thumb.webp",
+                ]);
+
+                // Update model's image paths if columns exist
+                $table = $model->getTable();
+                $hasImageColumns = \Schema::hasColumns($table, ['largeImagePath', 'thumbImagePath']);
+                if ($hasImageColumns) {
+                    $model->largeImagePath = "$newDirectory/$newSlug.webp";
+                    $model->thumbImagePath = "$newDirectory/$newSlug-thumb.webp";
+                    $model->save();
+                }
+
+                // Delete the original directory
+                Storage::disk('digitalocean')->deleteDirectory("/public/$currentDirectory");
+            }
         }
     }
 
