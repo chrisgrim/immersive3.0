@@ -14,19 +14,64 @@ final class CreateEventsIndex implements MigrationInterface
     public function up(): void
     {
         Index::create('events', function (Mapping $mapping, Settings $settings) {
+            // Text fields
             $mapping->search_as_you_type('name');
+            
+            // Keyword fields
             $mapping->keyword('showtype');
             $mapping->keyword('status');
+            
+            // Integer fields
             $mapping->integer('rank');
             $mapping->integer('priority');
             $mapping->integer('category_id');
-            $mapping->geoPoint('location_latlon');
+            
+            // Location fields
+            $mapping->geoPoint('location_latlon', [
+                'ignore_malformed' => true  // This helps handle malformed coordinates
+            ]);
             $mapping->boolean('hasLocation');
-            $mapping->object('priceranges', ['properties' => ['price' => ['type' => 'integer']]]);
-            $mapping->object('shows', ['properties' => ['date' => ['type' => 'date', 'format' => 'yyyy-MM-dd HH:mm:ss']]]);
-            $mapping->object('genres', ['properties' => ['name' => ['type' => 'keyword']]]);
-            $mapping->date('closingDate', ['format' => 'yyyy-MM-dd HH:mm:ss']);
-            $mapping->date('published_at', ['format' => 'yyyy-MM-dd HH:mm:ss']);
+            
+            // Nested objects
+            $mapping->object('priceranges', [
+                'properties' => [
+                    'price' => ['type' => 'integer']
+                ]
+            ]);
+            
+            $mapping->object('shows', [
+                'properties' => [
+                    'date' => [
+                        'type' => 'date',
+                        'format' => 'yyyy-MM-dd HH:mm:ss'
+                    ]
+                ]
+            ]);
+            
+            $mapping->object('genres', [
+                'properties' => [
+                    'name' => ['type' => 'keyword'],
+                    'genre_id' => ['type' => 'integer']  // Added genre_id for filtering
+                ]
+            ]);
+            
+            // Date fields
+            $mapping->date('closingDate', [
+                'format' => 'yyyy-MM-dd HH:mm:ss'
+            ]);
+            
+            $mapping->date('published_at', [
+                'format' => 'yyyy-MM-dd HH:mm:ss'
+            ]);
+
+            // Configure some basic settings
+            $settings->analysis([
+                'analyzer' => [
+                    'default' => [
+                        'type' => 'standard'
+                    ]
+                ]
+            ]);
         });
     }
 

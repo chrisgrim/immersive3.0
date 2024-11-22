@@ -5,6 +5,7 @@ namespace App\Models\Events;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use App\Scopes\DateScope;
+use App\Models\Event;
 
 class Show extends Model
 {
@@ -111,55 +112,50 @@ private static function createOrUpdateShow($date, $eventId, $oldTickets)
      *
      * @return \Illuminate\Database\Eloquent\Relations\belongsTo
      */
-    public static function updateEvent($request, $event)
+    public static function updateEvent($request, Event $event)
     {
-        //  get the last date based on show type
-        if ($request->shows) {
-            $type = 's';
-            $lastDate = $event->shows()->orderBy('date', 'DESC')->first()->date;
-        }
-        if ($request->limited) {
-            $type = 'l';
-            $lastDate = $event->shows()->orderBy('date', 'DESC')->first()->date;
-        }
-        if ($request->onGoing) {
-            $type = 'o';
-            $lastDate = $event->shows()->orderBy('date', 'DESC')->first()->date;
-        }
-        if ($request->always) {
-            $type = 'a';
-            $lastDate = Carbon::now()->addMonths(6)->format('Y-m-d H:i:s');
-        }
+        // Determine show type and last date
+        $type = self::determineShowType($request);
+        $lastDate = self::calculateLastDate($event, $type);
 
-        if ($event->status === 'e' && $request->embargo_date === null ) {
-            return $event->update([
-                'show_times' => $request->showTimes,
-                'embargo_date' => $request->embargoDate,
-                'closingDate' => $lastDate,
-                'showtype' => $type,
-                'timezone_id' => $request->timezone ? $request->timezone['id'] : null,
-                'status' => 'p'
-            ]);
-        }
-
-        if ($event->status === 'p' && $request->embargo_date ) {
-            $event->update([
-                'show_times' => $request->showTimes,
-                'embargo_date' => $request->embargoDate,
-                'closingDate' => $lastDate,
-                'showtype' => $type,
-                'timezone_id' => $request->timezone ? $request->timezone['id'] : null,
-                'status' => 'e'
-            ]);
-            return $event->unsearchable();
-        }
-        
-        $event->update([
+        // Prepare update data
+        $updateData = [
             'show_times' => $request->showTimes,
             'embargo_date' => $request->embargoDate,
             'closingDate' => $lastDate,
             'showtype' => $type,
-            'timezone_id' => $request->timezone ? $request->timezone['id'] : null,
-        ]);
+        ];
+
+        // Handle embargo status changes
+        if ($event->status === 'e' && !$request->embargo_date) {
+            $updateData['status'] = 'p';
+        } elseif ($event->status === 'p' && $request->embargo_date) {
+            $updateData['status'] = 'e';
+            $event->unsearchable();
+        }
+
+        // Update the event
+        $event->update($updateData);
+    }
+
+    private static function determineShowType($request): string
+    {
+        if ($request->single) return 's';
+        if ($request->limited) return 'l';
+        if ($request->onGoing) return 'o';
+        if ($request->always) return 'a';
+        return 's'; // default to single if none specified
+    }
+
+    private static function calculateLastDate(Event $event, string $type): string
+    {
+        if ($type === 'a') {
+            return Carbon::now()->addMonths(6)->format('Y-m-d H:i:s');
+        }
+        
+        return $event->shows()
+            ->orderBy('date', 'DESC')
+            ->first()
+            ->date;
     }
 }

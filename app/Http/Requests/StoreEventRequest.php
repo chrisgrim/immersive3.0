@@ -37,7 +37,7 @@ class StoreEventRequest extends FormRequest
             'location.city' => 'sometimes|string|max:255',
             'location.region' => 'sometimes|string|max:255',
             'location.country' => 'sometimes|string|max:255',
-            'location.postal_code' => 'sometimes|string|max:20',
+            'location.postal_code' => 'sometimes|nullable|string|max:20',
             'location.hiddenLocation' => 'nullable|string|max:255',
             'location.hiddenLocationToggle' => 'sometimes|boolean',
             'location.venue' => 'nullable|string|max:255',
@@ -92,6 +92,13 @@ class StoreEventRequest extends FormRequest
             'genres.*.id' => 'sometimes|required|exists:genres,id',
 
             'status' => 'sometimes|string',
+        ];
+    }
+
+    public function attributes()
+    {
+        return [
+            'location.postal_code' => 'postal code',
         ];
     }
 }

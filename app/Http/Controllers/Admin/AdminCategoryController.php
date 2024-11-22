@@ -102,18 +102,20 @@ class AdminCategoryController extends Controller
 
         // Handle new image upload
         if ($request->hasFile('image')) {
-            // Delete old images first
-            foreach ($category->images as $image) {
-                ImageHandler::deleteImage($image);
+            $imageIndex = $request->input('image_index', 0); // 0 for main, 1 for icon
+            
+            // Delete existing image at this index if it exists
+            if (isset($category->images[$imageIndex])) {
+                ImageHandler::deleteImage($category->images[$imageIndex]);
             }
 
+            // Save new image
             ImageHandler::saveImage(
                 $request->file('image'),
                 $category,
-                800,
-                600,
-                'category',
-                0 // rank
+                $imageIndex === 1 ? 400 : 800, // smaller size for icons
+                $imageIndex === 1 ? 400 : 800,
+                'category'
             );
         }
 

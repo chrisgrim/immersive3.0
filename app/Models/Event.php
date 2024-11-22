@@ -48,14 +48,31 @@ class Event extends Model
 
     public function toSearchableArray()
     {
+        // Get the location data
+        $location = null;
+        $hasValidLocation = false;
+
+        if ($this->location && 
+            $this->location->latitude && 
+            $this->location->longitude && 
+            $this->location->latitude != 0 && 
+            $this->location->longitude != 0) {
+            
+            $location = [
+                'lat' => (float)$this->location->latitude,
+                'lon' => (float)$this->location->longitude
+            ];
+            $hasValidLocation = true;
+        }
+
         return [
             'name' => $this->name,
             'status' => $this->status,
             'showtype' => $this->showtype,
             'rank' => $this->rank,
             'category_id' => $this->category_id,
-            'location_latlon' => $this->location_latlon,
-            'hasLocation' => $this->hasLocation,
+            'location_latlon' => $location,  // Will be null if no valid coordinates
+            'hasLocation' => $hasValidLocation,  // Only true if we have non-zero coordinates
             'shows' => $this->showsSelect,
             'published_at' => $this->published_at ? Carbon::parse($this->published_at)->format('Y-m-d H:i:s') : null,
             'closingDate' => $this->closingDate ? Carbon::parse($this->closingDate)->format('Y-m-d H:i:s') : null,

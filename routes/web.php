@@ -6,12 +6,15 @@ use App\Http\Controllers\IndexController;
 use App\Http\Controllers\OrganizerController;
 use App\Http\Controllers\User\ProfilesController;
 use App\Http\Controllers\User\ConversationsController;
+use App\Http\Controllers\Search\ListingsController;
 use App\Http\Controllers\Creation\HostController;
 use App\Http\Controllers\Creation\HostEventController;
 use App\Http\Controllers\Admin\DashboardController;
 
 
 Route::GET('/', [IndexController::class, 'index']);
+
+Route::GET('/index/search', [ListingsController::class, 'index']);
 
 
 Route::GET('/events/{event}', [EventController::class, 'show']);

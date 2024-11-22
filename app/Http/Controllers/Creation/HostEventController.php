@@ -56,11 +56,20 @@ class HostEventController extends Controller
             $validatedData['status'] = '1';
         }
 
-        // Then update the event with validated data
+        // Handle location updates
         if (isset($validatedData['location'])) {
             $event->location->update($validatedData['location']);
+            
+            // Sync location data to events.location_latlon
+            if ($event->location->latitude && $event->location->longitude) {
+                $event->location_latlon = [
+                    $event->location->latitude,
+                    $event->location->longitude
+                ];
+                $event->save();
+            }
         } else {
-            $event->update($validatedData);  // This will update hasLocation and status
+            $event->update($validatedData);
         }
 
         if (isset($validatedData['remotelocations'])) {
@@ -69,6 +78,7 @@ class HostEventController extends Controller
 
         if (isset($validatedData['showtype'])) {
             Show::saveShows($request, $event);
+            Show::updateEvent($request, $event);
         }
 
         // Handle all advisory-related updates

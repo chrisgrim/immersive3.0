@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\AdminGenreController;
 use App\Http\Controllers\Admin\AdminAdvisoryController;
 use App\Http\Controllers\Admin\AdminReviewController;
 use App\Http\Controllers\Admin\AdminPicksController;
+use App\Http\Controllers\Search\ListingsController;
 use App\Models\Category;
 use App\Models\Events\RemoteLocation;
 use App\Models\Events\ContactLevel;
@@ -25,6 +26,7 @@ Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
     return $request->user();
 });
 
+Route::get('/index/search', [ListingsController::class, 'apiIndex']);
 
 Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])->name('event.update');
 
@@ -97,7 +99,12 @@ Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
         Route::post('categories/{category}', [AdminCategoryController::class, 'update']);
         Route::delete('categories/{category}', [AdminCategoryController::class, 'destroy']);
         
-        Route::apiResource('genres', AdminGenreController::class);
+        Route::get('genres', [AdminGenreController::class, 'index']);
+        Route::post('genres', [AdminGenreController::class, 'store']);
+        Route::post('genres/{genre}', [AdminGenreController::class, 'update']);
+        Route::patch('genres/{genre}', [AdminGenreController::class, 'update']);
+        Route::delete('genres/{genre}', [AdminGenreController::class, 'destroy']);
+        
         Route::get('advisories/{type}', [AdminAdvisoryController::class, 'index']);
         Route::post('advisories', [AdminAdvisoryController::class, 'store']);
         Route::patch('advisories/{type}/{id}', [AdminAdvisoryController::class, 'update']);

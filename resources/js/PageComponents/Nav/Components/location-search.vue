@@ -1,29 +1,31 @@
 <template>
-    <div style="width:100%" v-click-outside="() => dropdown = false">
-        <div class="w-full z-[10000]">
-            <div class="w-full m-auto">
-                <svg class="absolute top-8 left-8 w-8 h-8 fill-black z-[1002]">
-                	<use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
-                </svg>
-                <input 
-                    ref="loc"
-                    class="relative rounded-full p-7 pl-24 border border-neutral-300 w-full font-normal z-[1001] focus:border-none focus:rounded-full focus:shadow-custom-7"
-                    v-model="searchInput"
-                    placeholder="Search by City"
-                    @input="updateLocations"
-                    @focus="dropdown=true"
-                    autocomplete="false"
-                    onfocus="value = ''" 
-                    type="text">
-            </div>
+    <div class="flex w-full gap-4 border border-slate-300 rounded-full bg-neutral-200">
+        <!-- Location Search -->
+        <div class="flex-1 relative" v-click-outside="closeLocationDropdown">
+            <svg class="absolute top-8 left-8 w-8 h-8 fill-black z-[1002]">
+                <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
+            </svg>
+            <input 
+                ref="loc"
+                class="relative rounded-full p-7 pl-24 bg-transparent w-full font-normal z-[1001] focus:border-none focus:rounded-full focus:bg-white focus:shadow-custom-7 placeholder-black"
+                v-model="searchInput"
+                placeholder="Search by City"
+                @input="updateLocations"
+                @focus="dropdown=true"
+                autocomplete="false"
+                onfocus="value = ''" 
+                type="text">
+            
+            <!-- Location Dropdown -->
             <ul 
-                class="bg-white relative w-full m-auto overflow-hidden mt-8 p-8 list-none rounded-5xl shadow-custom-7" 
-                v-if="dropdown">
+                class="absolute bg-white w-full overflow-hidden mt-8 p-8 list-none rounded-5xl shadow-custom-7" 
+                v-if="dropdown"
+                @click.stop>
                 <li 
                     class="py-4 px-8 flex items-center gap-8 hover:bg-neutral-100" 
                     v-for="place in places"
                     :key="place.place_id"
-                    @click="selectLocation(place)">
+                    @click.stop="selectLocation(place)">
                     <img 
                         class="w-8" 
                         src="/storage/images/vendor/leaflet/dist/marker-icon-2x.png">
@@ -31,30 +33,84 @@
                 </li>
             </ul>
         </div>
+
+        <!-- Date Search -->
+        <div class="" v-click-outside="closeDateDropdown">
+            <button 
+                @click.stop="toggleDateDropdown"
+                class="rounded-full p-7 px-12 font-normal hover:shadow-custom-7 flex items-center gap-2"
+                :class="{ 'bg-white shadow-custom-7': dateDropdown, 'bg-transparent': !dateDropdown }"
+            >
+                <span v-if="date">{{ formatDateRange }}</span>
+                <span v-else>Dates</span>
+            </button>
+
+            <!-- Date Picker Dropdown -->
+            <div 
+                v-if="dateDropdown" 
+                class="absolute left-1/2 transform -translate-x-1/2 mt-8 bg-white rounded-5xl shadow-custom-7 p-24 z-[1001]"
+                @click.stop
+            >
+                <VueDatePicker
+                    v-model="date"
+                    range
+                    multi-calendars
+                    disable-year-select
+                    :enable-time-picker="false"
+                    :dark="isDark"
+                    :timezone="tz"
+                    :min-date="minDate"
+                    inline
+                    auto-apply
+                    :max-date="maxDate"
+                    @update:model-value="handleDateChange"
+                    month-name-format="long"
+                    hide-offset-dates
+                    week-start="0"
+                />
+            </div>
+        </div>
+
+        <!-- Search Button -->
+        <button 
+            @click="handleSearch"
+            class="rounded-full px-12 bg-black text-white font-semibold hover:bg-gray-800 transition-colors"
+        >
+            Search
+        </button>
+
         <div id="places" />
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import VueDatePicker from '@vuepic/vue-datepicker';
+import '@vuepic/vue-datepicker/dist/main.css'
 import axios from 'axios';
 
-// Define props
-const props = defineProps({
-    value: {
-        type: Object,
-        required: true,
-    }
-});
-
-// Data
-const searchInput = ref(null);
-const searchOptions = ref([]);
-const places = ref(initializePlaces());
-const city = ref(new URL(window.location.href).searchParams.get("city"));
+// Existing date-related refs
+const dateDropdown = ref(false);
 const dropdown = ref(false);
+const searchInput = ref('');
+const places = ref(initializePlaces());
+const date = ref(null);
 
-// Methods
+// Location search functionality
+let autoComplete;
+let service;
+
+// Add these new refs to store selected location data
+const selectedPlace = ref(null);
+
+function initializePlaces() {
+    return [
+        { place_id: 'ChIJOwg_06VPwokRYv534QaPC8g', description: 'New York, NY, USA' },
+        { place_id: 'ChIJE9on3F3HwoAR9AhGJW_fL-I', description: 'Los Angeles, CA, USA' },
+        { place_id: 'ChIJIQBpAG2ahYAR_6128GcTUEo', description: 'San Francisco, CA, USA' }
+    ];
+}
+
 const updateLocations = () => {
     dropdown.value = searchInput.value.length ? true : false;
     autoComplete.getPlacePredictions({ input: searchInput.value, types: ['(cities)'] }, data => {
@@ -69,45 +125,294 @@ const selectLocation = (location) => {
 };
 
 const setPlace = (place) => {
-    saveSearchData(place);
-    window.location.href = `/index/search?city=${place.name}&searchType=inPerson&live=false&lat=${place.geometry.location.lat()}&lng=${place.geometry.location.lng()}`;
+    selectedPlace.value = {
+        name: place.name,
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng()
+    };
+    searchInput.value = place.name;
+    dropdown.value = false;
+    
+    // Add a small delay before opening the date dropdown
+    setTimeout(() => {
+        dateDropdown.value = true;
+    }, 100);
 };
 
 const saveSearchData = (place) => {
     axios.post('/search/storedata', { type: 'location', name: place.name });
 };
 
-function initializePlaces() {
-    return [
-        { place_id: 'ChIJOwg_06VPwokRYv534QaPC8g', description: 'New York, NY, USA' },
-        { place_id: 'ChIJE9on3F3HwoAR9AhGJW_fL-I', description: 'Los Angeles, CA, USA' },
-        { place_id: 'ChIJIQBpAG2ahYAR_6128GcTUEo', description: 'San Francisco, CA, USA' }
-    ];
-}
-
 const initGoogleMaps = () => {
-    // Initialize your Google Maps services here
     autoComplete = new google.maps.places.AutocompleteService();
     service = new google.maps.places.PlacesService(document.getElementById("places"));
 };
 
-let autoComplete;
-let service;
-
+// Initialize from URL parameters
 onMounted(() => {
+    const params = new URLSearchParams(window.location.search);
+    
+    // Initialize location if present
+    if (params.has('city') && params.has('lat') && params.has('lng')) {
+        selectedPlace.value = {
+            name: params.get('city'),
+            lat: parseFloat(params.get('lat')),
+            lng: parseFloat(params.get('lng'))
+        };
+        searchInput.value = params.get('city');
+    }
+    
+    // Initialize dates if present
+    if (params.has('start') || params.has('end')) {
+        const start = params.get('start');
+        const end = params.get('end');
+        
+        // Convert the date strings to Date objects
+        const startDate = start ? new Date(start) : null;
+        const endDate = end ? new Date(end) : null;
+        
+        // Set the date range
+        if (startDate && endDate) {
+            date.value = [startDate, endDate];
+        } else if (startDate) {
+            date.value = [startDate, startDate];
+        }
+    }
+
+    // Initialize Google Maps
     let script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw&libraries=places&callback=initMap`;
     script.async = true;
     script.defer = true;
     document.head.appendChild(script);
 
-    window.initMap = initGoogleMaps; // Ensure this is bound correctly
+    window.initMap = initGoogleMaps;
 });
 
 onUnmounted(() => {
-    // Clean up if necessary
     if (window.initMap) {
-        delete window.initMap; // Remove the global callback function when the component is destroyed
+        delete window.initMap;
     }
 });
+
+// Computed property for formatting the date range
+const formatDateRange = computed(() => {
+    if (!date.value || !Array.isArray(date.value)) return 'Dates';
+    
+    const [start, end] = date.value;
+    if (!start) return 'Dates';
+    
+    // If start and end are the same date, only show one date
+    if (end && start.getTime() === end.getTime()) {
+        return formatDate(start);
+    }
+    
+    if (!end) return formatDate(start);
+    
+    return `${formatDate(start)} - ${formatDate(end)}`;
+});
+
+// Format individual dates
+function formatDate(date) {
+    return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric' 
+    });
+}
+
+// Disable past dates
+const disabledDate = (date) => {
+    return date < new Date();
+};
+
+// Handle date changes
+function handleDateChange(newDate) {
+    if (newDate && Array.isArray(newDate) && newDate.length === 2) {
+        dateDropdown.value = false;
+    }
+}
+
+// Toggle dropdowns
+function toggleDateDropdown() {
+    dateDropdown.value = !dateDropdown.value;
+    dropdown.value = false;
+}
+
+function closeDateDropdown() {
+    dateDropdown.value = false;
+}
+
+function closeLocationDropdown() {
+    dropdown.value = false;
+}
+
+// Add this computed property
+const minDate = computed(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to start of day
+    return today;
+});
+
+// Add handleSearch function
+const handleSearch = () => {
+    if (!selectedPlace.value) {
+        // Optionally add error handling for when no location is selected
+        return;
+    }
+    
+    // Build the base URL with location parameters
+    let searchUrl = `/index/search?city=${selectedPlace.value.name}&searchType=inPerson&live=false&lat=${selectedPlace.value.lat}&lng=${selectedPlace.value.lng}`;
+    
+    // Add date parameters if dates are selected
+    if (date.value && Array.isArray(date.value) && date.value[0]) {
+        const [start, end] = date.value;
+        const formatForUrl = (date) => {
+            return date.toISOString().split('T')[0] + ' 00:00:00';
+        };
+        
+        searchUrl += `&start=${formatForUrl(start)}`;
+        if (end) {
+            searchUrl += `&end=${formatForUrl(end)}`;
+        }
+    }
+    
+    // Preserve existing URL parameters that we want to keep
+    const currentParams = new URLSearchParams(window.location.search);
+    const paramsToPreserve = ['category', 'tags', 'price0', 'price1'];
+    
+    paramsToPreserve.forEach(param => {
+        if (currentParams.has(param)) {
+            searchUrl += `&${param}=${currentParams.get(param)}`;
+        }
+    });
+    
+    saveSearchData({ name: selectedPlace.value.name });
+    window.location.href = searchUrl;
+};
 </script>
+
+<style>
+
+/* Remove the tabs at the top */
+.dp__menu_inner .dp__menu_items {
+    display: none !important;
+}
+
+/* Calendar styling */
+.dp__calendar {
+    width: 100% !important;
+
+}
+
+/* Header month/year styling */
+.dp__month_year_wrap {
+    font-size: 1.7rem;
+    font-weight: 400;
+}
+
+/* Calendar header (days of week) */
+.dp__calendar_header {
+    color: #666;
+    font-weight: normal;
+    margin-bottom: 8px;
+    font-size: 1.2rem;
+}
+
+.dp__calendar_row {
+    margin: 0 !important;
+    gap: 0 !important;
+}
+
+.dp__calendar_item {
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 1.4rem;
+}
+
+/* Calendar cells */
+.dp__cell_inner {
+    height: 45px;
+    width: 45px;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    font-weight: normal;
+    color: #333;
+}
+
+.dp__cell_disabled {
+    opacity: 0.3;
+    cursor: auto !important;
+}
+
+/* Hover state */
+.dp__cell_inner:not(.dp--past):hover {
+    border: 2px solid black !important;
+    background: transparent !important;
+    color: black !important;
+}
+
+/* Selected state */
+.dp__active {
+    background-color: black !important;
+    color: white !important;
+}
+
+/* Range styling */
+.dp__range_start,
+.dp__range_end {
+    background-color: black !important;
+    color: white !important;
+}
+
+.dp__range_start {
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+
+.dp__range_end {
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+}
+
+.dp__range_between {
+    border-radius: 0 !important;
+}
+
+/* Navigation arrows */
+.dp__arrow_bottom,
+.dp__arrow_top {
+    display: none;
+}
+
+/* Today's date */
+.dp__today {
+    border: none !important;
+}
+
+/* Calendar container */
+.dp__main {
+    border: none;
+    box-shadow: none;
+}
+
+/* Remove borders */
+.dp__calendar_header_separator {
+    display: none;
+}
+.dp__theme_light {
+    border: none !important;
+}
+.dp--header-wrap {
+    margin-bottom: 1rem;
+}
+.dp__menu_inner.dp__flex_display {
+    gap: 4rem;
+}
+.dp__calendar_next {
+    margin-inline-start: 0 !important;
+}
+</style>

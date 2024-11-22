@@ -4,14 +4,14 @@
         'md:px-12 lg:px-32 lg:max-w-screen-xl' => count($event->images) > 1
     ])>
         <div class="grid gap-4">
-            @if(count($event->images) === 1)
-                {{-- Single Image --}}
+            @if(count($event->images) === 0 || count($event->images) === 1)
+                {{-- Single Image or Empty Images Array --}}
                 <div class="aspect-[3/2] w-full overflow-hidden md:rounded-xl">
                     <picture>
-                        <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $event->images[0]->large_image_path }}">
+                        <source type="image/webp" srcset="{{ config('app.image_url') }}{{ count($event->images) === 0 ? $event->largeImagePath : $event->images[0]->large_image_path }}">
                         <img 
                             class="w-full h-full object-cover" 
-                            src="{{ config('app.image_url') }}{{ substr($event->images[0]->large_image_path, 0, -4) }}jpg" 
+                            src="{{ config('app.image_url') }}{{ substr(count($event->images) === 0 ? $event->largeImagePath : $event->images[0]->large_image_path, 0, -4) }}jpg" 
                             alt="{{ $event['name'] }} Immersive Event - Main Image"
                         >
                     </picture>

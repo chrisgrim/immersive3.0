@@ -18,7 +18,8 @@ class Category extends Model
     * @var array
     */
     protected $fillable = [
-    	'name', 'slug','description','largeImagePath', 'thumbImagePath', 'rank', 'remote','credit' ];
+    	'name', 'slug','description','largeImagePath', 'thumbImagePath', 'rank', 'remote','credit', 'type'
+    ];
 
     /**
      * The accessors to append to the model's array form.
@@ -125,5 +126,6 @@ class Category extends Model
     {
         return $this->morphMany(Image::class, 'imageable');
     }
+
 
 }

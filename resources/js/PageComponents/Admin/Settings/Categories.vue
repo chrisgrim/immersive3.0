@@ -51,22 +51,58 @@
                 <tr v-for="category in filteredCategories" :key="category.id">
                     <td class="px-6 py-4 whitespace-nowrap text-xl">{{ category.id }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <input 
-                            type="file"
-                            :ref="el => fileInputs[category.id] = el"
-                            class="hidden"
-                            accept="image/*"
-                            @change="(e) => updateCategoryImage(category, e)"
-                        >
-                        <div 
-                            @click="triggerFileInput(category.id)"
-                            class="cursor-pointer hover:opacity-75 transition-opacity"
-                        >
-                            <img 
-                                :src="`${imageUrl}${category.thumbImagePath}`"
-                                :alt="category.name"
-                                class="h-44 w-full rounded object-cover"
-                            >
+                        <div class="space-y-2">
+                            <!-- Main Image -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Main Image</label>
+                                <input 
+                                    type="file"
+                                    :ref="el => fileInputs[`main_${category.id}`] = el"
+                                    class="hidden"
+                                    accept="image/*"
+                                    @change="(e) => updateCategoryImage(category, e, 0)"
+                                >
+                                <div 
+                                    @click="triggerFileInput(`main_${category.id}`)"
+                                    class="cursor-pointer hover:opacity-75 transition-opacity"
+                                >
+                                    <img 
+                                        v-if="category.images?.[0]"
+                                        :src="`${imageUrl}${category.images[0].thumb_path}`"
+                                        :alt="category.name"
+                                        class="h-44 w-full rounded object-cover"
+                                    >
+                                    <div v-else class="h-44 w-full rounded bg-gray-200 flex items-center justify-center">
+                                        <span class="text-gray-400">Add Main Image</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Icon -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Icon</label>
+                                <input 
+                                    type="file"
+                                    :ref="el => fileInputs[`icon_${category.id}`] = el"
+                                    class="hidden"
+                                    accept="image/*"
+                                    @change="(e) => updateCategoryImage(category, e, 1)"
+                                >
+                                <div 
+                                    @click="triggerFileInput(`icon_${category.id}`)"
+                                    class="cursor-pointer hover:opacity-75 transition-opacity"
+                                >
+                                    <img 
+                                        v-if="category.images?.[1]"
+                                        :src="`${imageUrl}${category.images[1].thumb_path}`"
+                                        :alt="`${category.name} icon`"
+                                        class="h-12 w-12 rounded object-cover"
+                                    >
+                                    <div v-else class="h-12 w-12 rounded bg-gray-200 flex items-center justify-center">
+                                        <span class="text-gray-400">Add Icon</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </td>
                     <td class="px-6 py-4">
@@ -378,19 +414,19 @@ const deleteCategory = async (category) => {
     }
 }
 
-const updateCategoryImage = async (category, event) => {
+const updateCategoryImage = async (category, event, imageIndex) => {
     const file = event.target.files[0]
     if (!file) return
 
     try {
         const formData = new FormData()
         formData.append('image', file)
+        formData.append('image_index', imageIndex) // 0 for main, 1 for icon
         formData.append('name', category.name)
         formData.append('description', category.description)
         formData.append('credit', category.credit || '')
         formData.append('rank', category.rank || 0)
         formData.append('remote', category.remote ? 1 : 0)
-        formData.append('type', category.type || 'c')
 
         const response = await axios.post(
             `/api/admin/settings/categories/${category.slug}`, 

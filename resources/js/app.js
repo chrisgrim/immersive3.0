@@ -7,6 +7,8 @@ import axios from 'axios';
 const NavSearch = defineAsyncComponent(() => import('./PageComponents/Nav/nav-search.vue'));
 const NavProfile = defineAsyncComponent(() => import('./PageComponents/Nav/nav-profile.vue'));
 
+const SearchLocation = defineAsyncComponent(() => import('./PageComponents/Search/location.vue'));
+
 const ShowMore = defineAsyncComponent(() => import('./GlobalComponents/show-more.vue'));
 
 const ShowPurchase = defineAsyncComponent(() => import('./PageComponents/EventShow/show-purchase.vue'));
@@ -28,6 +30,10 @@ const Admin = defineAsyncComponent(() => import('./PageComponents/Admin/index.vu
 const CommunityShow = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/show.vue'));
 const PostEdit = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/edit.vue'));
 
+const QuickBar = defineAsyncComponent(() => import('./PageComponents/Nav/quick-bar.vue'));
+
+const SearchAll = defineAsyncComponent(() => import('./PageComponents/Search/all.vue'));
+
 import { ClickOutsideDirective } from './Directives/ClickOutsideDirective';
 
 const app = createApp({
@@ -45,6 +51,8 @@ axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
 app.component('vue-nav-search', NavSearch);
 app.component('vue-nav-profile', NavProfile);
+
+app.component('vue-search-location', SearchLocation);
 
 app.component('vue-show-more', ShowMore);
 
@@ -65,6 +73,8 @@ app.component('vue-hosting-event', HostingEvent);
 app.component('vue-admin', Admin);
 app.component('vue-community-show', CommunityShow);
 app.component('vue-post-edit', PostEdit);
+app.component('vue-quick-bar', QuickBar);
+app.component('vue-search-all', SearchAll);
 
 app.directive('click-outside', ClickOutsideDirective);
 

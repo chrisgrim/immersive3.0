@@ -93,4 +93,9 @@ class Genre extends Model
             'admin' => $request->admin,
         ]);
     }  
+
+    public function images()
+    {
+        return $this->morphMany(Image::class, 'imageable');
+    }
 }

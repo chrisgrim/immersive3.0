@@ -45,7 +45,7 @@
 
 @section('nav')
 
-	@include('Layouts.nav-container')
+	@include('Layouts.nav-event')
     
 @endsection
 
@@ -66,7 +66,7 @@
                 </div>
             </div>
 
-            @if(count($event->images) === 1)
+            @if(count($event->images) <= 1)
                 {{-- Single image layout --}}
                 <div class="relative w-full m-auto p-0 md:px-12 lg:px-32 lg:max-w-screen-xl">
                     <div class="md:flex md:gap-20">
