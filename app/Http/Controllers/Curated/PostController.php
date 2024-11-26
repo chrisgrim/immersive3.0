@@ -62,7 +62,16 @@ class PostController extends Controller
     public function show(Community $community, Post $post)
     {
         $post->load('cards', 'user');
-        return view('communities.posts.show', compact('post','community'));
+        
+        // Get authenticated user or null for guests
+        $user = auth()->user();
+        
+        return view('Curated.Posts.show', [
+            'post' => $post,
+            'curator' => $user ? $user->can('curator', $community) : false,
+            'community' => $community,
+            'user' => $user,
+        ]);
     }
 
     /**

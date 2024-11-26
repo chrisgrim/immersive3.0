@@ -1,5 +1,5 @@
 <template>
-    <div class="bg-white p-4 h-full">
+    <div class="bg-white py-4 h-full">
         <div class="w-full h-full mx-auto flex items-center justify-between">
             <!-- Scrollable Categories (first 10 only) -->
             <div class="flex-1 flex space-x-4 overflow-x-auto">
@@ -55,7 +55,7 @@
                 
                 <!-- Price Button -->
                 <button 
-                    v-if="showPriceFilter"
+                    v-if="shouldShowPriceFilter"
                     @click.stop="isPriceModalOpen = true"
                     class="p-4 rounded-2xl bg-white border border-gray-300 hover:bg-gray-200"
                     :class="{ 'bg-gray-100': priceRange[0] !== 0 || priceRange[1] !== maxPrice }"
@@ -116,39 +116,62 @@ const props = defineProps({
 })
 
 const maxPrice = ref(0)
-const showPriceFilter = computed(() => maxPrice.value > 0)
 const priceRange = ref([0, 0])
 
-// Initialize filters from URL parameters
-onMounted(() => {
+// Add a watcher for the URL searchType
+const searchType = computed(() => {
     const params = new URLSearchParams(window.location.search)
-    
-    // Initialize categories
-    if (params.has('category')) {
-        selectedCategories.value = params.get('category').split(',').map(Number)
+    return params.get('searchType')
+})
+
+// Watch for searchType changes to determine if we show price filter
+watch(searchType, (newType) => {
+    if (newType === 'allEvents' || newType === 'inPerson') {
+        // Check URL for maxPrice
+        const params = new URLSearchParams(window.location.search)
+        if (params.has('maxPrice')) {
+            const newMaxPrice = parseInt(params.get('maxPrice'))
+            maxPrice.value = newMaxPrice
+            if (!params.has('price0') && !params.has('price1')) {
+                priceRange.value = [0, newMaxPrice]
+            }
+        }
     }
+})
+
+// Add this computed property
+const shouldShowPriceFilter = computed(() => {
+    return searchType.value === 'allEvents' || searchType.value === 'inPerson'
+})
+
+onMounted(() => {
+    console.log('QuickBar mounted, checking searchType:', searchType.value)
+    window.addEventListener('max-price-update', handleMaxPriceUpdate)
     
-    // Initialize tags
-    if (params.has('tags')) {
-        selectedTags.value = params.get('tags').split(',').map(Number)
-    }
-    
-    // Initialize price range (already implemented)
-    if (params.has('price0') || params.has('price1')) {
-        const min = parseInt(params.get('price0')) || 0
-        const max = parseInt(params.get('price1')) || maxPrice.value
-        priceRange.value = [min, max]
+    // Initialize on mount if searchType is already set
+    if (searchType.value === 'allEvents' || searchType.value === 'inPerson') {
+        const params = new URLSearchParams(window.location.search)
+        if (params.has('maxPrice')) {
+            const newMaxPrice = parseInt(params.get('maxPrice'))
+            maxPrice.value = newMaxPrice
+            if (!params.has('price0') && !params.has('price1')) {
+                priceRange.value = [0, newMaxPrice]
+            }
+        }
     }
 })
 
 // Update handleMaxPriceUpdate to preserve existing price range
 const handleMaxPriceUpdate = (event) => {
-    maxPrice.value = event.detail
+    console.log('QuickBar received max-price-update event:', event.detail);
+    maxPrice.value = event.detail;
+    console.log('QuickBar updated maxPrice to:', maxPrice.value);
     
     // Only set default price range if no URL parameters exist
-    const params = new URLSearchParams(window.location.search)
+    const params = new URLSearchParams(window.location.search);
     if (!params.has('price0') && !params.has('price1')) {
-        priceRange.value = [0, event.detail]
+        priceRange.value = [0, event.detail];
+        console.log('QuickBar set priceRange to:', priceRange.value);
     }
 }
 
@@ -162,8 +185,16 @@ onUnmounted(() => {
 
 onMounted(async () => {
     try {
+        // Fetch categories
         const response = await axios.get('/api/categories')
         categories.value = response.data
+        
+        // Initialize selected categories from URL
+        const params = new URLSearchParams(window.location.search)
+        if (params.has('category')) {
+            const categoryIds = params.get('category').split(',')
+            selectedCategories.value = categoryIds.map(id => parseInt(id))
+        }
         
         // Add the category update listener
         window.addEventListener('category-update', handleCategoryUpdate)

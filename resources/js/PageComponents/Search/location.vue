@@ -90,6 +90,17 @@ const handleFilterUpdate = async (event) => {
             min: value[0],
             max: value[1]
         }
+    } else if (type === 'location') {
+        searchData.value = {
+            ...searchData.value,
+            location: {
+                ...searchData.value.location,
+                name: value.city,
+                center: [value.lat, value.lng],
+                live: false,
+                zoom: 13
+            }
+        }
     } else {
         activeFilters.value[type === 'category' ? 'categories' : type] = value
     }
@@ -98,12 +109,18 @@ const handleFilterUpdate = async (event) => {
         const currentParams = new URLSearchParams(window.location.search)
         const params = new URLSearchParams()
 
-        const locationParams = ['searchType', 'lat', 'lng', 'live', 'NElat', 'NElng', 'SWlat', 'SWlng']
+        const locationParams = ['searchType', 'lat', 'lng', 'live', 'NElat', 'NElng', 'SWlat', 'SWlng', 'city']
         locationParams.forEach(param => {
             if (currentParams.has(param)) {
                 params.set(param, currentParams.get(param))
             }
         })
+        
+        if (type === 'location') {
+            Object.entries(value).forEach(([key, val]) => {
+                params.set(key, val);
+            });
+        }
         
         if (activeFilters.value.categories.length) {
             params.set('category', activeFilters.value.categories.join(','))

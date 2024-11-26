@@ -5,7 +5,11 @@
 @endsection 
 
 @section('nav')
-   @include('Layouts.nav-container')
+    @if (Browser::isMobile())
+        @include('Nav.index-mobile')
+    @else
+        @include('Nav.index-desktop')
+    @endif
 @endsection
 
 @section('content')
@@ -15,6 +19,7 @@
         :tags='@json($tags)'
         :searched-categories='@json($searchedCategories)'
         :searched-tags='@json($searchedTags)'
+        :max-price="{{ $maxprice }}"
     ></vue-search-all>
 @endsection
 

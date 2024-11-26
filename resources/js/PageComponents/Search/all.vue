@@ -58,7 +58,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import axios from 'axios'
 
 const props = defineProps({
@@ -81,6 +81,10 @@ const props = defineProps({
     searchedTags: {
         type: Array,
         default: () => []
+    },
+    maxPrice: {
+        type: Number,
+        required: true
     }
 })
 
@@ -164,9 +168,19 @@ const initializeFiltersFromUrl = () => {
 }
 
 // Add lifecycle hooks
-onMounted(() => {
-    window.addEventListener('filter-update', handleFilterUpdate)
-    initializeFiltersFromUrl()
+onMounted(async () => {
+    console.log('All mounted, component props:', props);
+    console.log('All mounted, maxPrice specifically:', props.maxPrice);
+    window.addEventListener('filter-update', handleFilterUpdate);
+    initializeFiltersFromUrl();
+    
+    // Wait for next tick to ensure QuickBar is mounted
+    await nextTick();
+    
+    console.log('Dispatching max-price-update event');
+    window.dispatchEvent(new CustomEvent('max-price-update', {
+        detail: props.maxPrice
+    }));
 })
 
 onUnmounted(() => {

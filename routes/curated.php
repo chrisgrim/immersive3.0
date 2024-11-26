@@ -15,15 +15,11 @@ Route::resource('cards', CardController::class);
 
 // Communities
 Route::controller(CommunityController::class)->group(function () {
-    Route::get('/communities/{community}', 'show')
-        ->middleware('can:preview,community');
-    Route::get('/communities/{community}/shelves/paginate', 'paginate')
-        ->middleware('can:preview,community');
+    Route::get('/communities/{community}', 'show');
+    Route::get('/communities/{community}/shelves/paginate', 'paginate');
     Route::get('/communities/{community}/edit', 'edit');
-    Route::put('/communities/{community}', 'update')
-        ->middleware('can:update,community');
-    Route::delete('/communities/{community}', 'destroy')
-        ->middleware('can:destroy,community');
+    Route::put('/communities/{community}', 'update');
+    Route::delete('/communities/{community}', 'destroy');
     
     // Curator Management
     Route::post('/communities/{community}/curators/add', 'addCurator')

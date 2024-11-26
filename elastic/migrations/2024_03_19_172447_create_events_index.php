@@ -39,7 +39,7 @@ final class CreateEventsIndex implements MigrationInterface
                 ]
             ]);
             
-            $mapping->object('shows', [
+            $mapping->nested('shows', [  // Changed from object to nested
                 'properties' => [
                     'date' => [
                         'type' => 'date',

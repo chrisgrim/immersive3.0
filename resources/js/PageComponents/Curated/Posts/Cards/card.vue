@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div class="card">
         <a 
             aria-label="Visit Listing"
             v-if="hasUrl"
@@ -71,6 +71,8 @@ const getImage = () => {
 }
 
 const getEventImage = () => {
+    if (!props.card.event) return null
+    
     return props.mobile 
         ? props.card.event.thumbImagePath 
         : props.card.event.largeImagePath
@@ -84,9 +86,12 @@ const cleanDate = (date) => {
 const hasImage = computed(() => {
     if (props.card.type === 'i') return getImage()
     if (props.card.type === 'h' || props.card.type === 't') return null
-    return props.card.type === 'e' && !props.card.thumbImagePath 
-        ? getEventImage() 
-        : getImage()
+    if (props.card.type === 'e') {
+        return (!props.card.thumbImagePath && props.card.event) 
+            ? getEventImage() 
+            : getImage()
+    }
+    return null
 })
 
 const hasName = computed(() => 
@@ -107,3 +112,24 @@ const internalUrl = computed(() =>
         : 'noopener noreferrer nofollow'
 )
 </script>
+
+<style scoped>
+/* Target h3 and h4 specifically within the card-blurb class */
+:deep(.card-blurb) h1 {
+  font-size: 2.5rem; /* 30px */
+  line-height: 2.4rem; /* 36px */
+}
+:deep(.card-blurb) h2 {
+  font-size: 2.25rem; /* 30px */
+  line-height: 2.25rem; /* 36px */
+}
+:deep(.card-blurb) h3 {
+  font-size: 2rem; /* 30px */
+  line-height: 2rem; /* 36px */
+}
+
+:deep(.card-blurb) h4 {
+  font-size: 1.5rem; /* 24px */
+  line-height: 2rem; /* 32px */
+}
+</style>

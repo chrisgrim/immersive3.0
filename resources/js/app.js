@@ -28,11 +28,14 @@ const HostingEvent = defineAsyncComponent(() => import('./PageComponents/Creatio
 const Admin = defineAsyncComponent(() => import('./PageComponents/Admin/index.vue'));
 
 const CommunityShow = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/show.vue'));
+const CommunityEdit = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/edit.vue'));
 const PostEdit = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/edit.vue'));
+const PostShow = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/show.vue'));
 
 const QuickBar = defineAsyncComponent(() => import('./PageComponents/Nav/quick-bar.vue'));
 
 const SearchAll = defineAsyncComponent(() => import('./PageComponents/Search/all.vue'));
+
 
 import { ClickOutsideDirective } from './Directives/ClickOutsideDirective';
 
@@ -72,9 +75,13 @@ app.component('vue-hosting-event', HostingEvent);
 
 app.component('vue-admin', Admin);
 app.component('vue-community-show', CommunityShow);
+app.component('vue-community-edit', CommunityEdit);
 app.component('vue-post-edit', PostEdit);
+app.component('vue-post-show', PostShow);
 app.component('vue-quick-bar', QuickBar);
 app.component('vue-search-all', SearchAll);
+
+
 
 app.directive('click-outside', ClickOutsideDirective);
 

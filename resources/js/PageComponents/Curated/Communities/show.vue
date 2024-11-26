@@ -1,6 +1,6 @@
 <template>
     <div>
-        <div class="m-auto w-full md:px-12 md:py-8 lg:py-0 lg:px-32 max-w-screen-xl">
+        <div class="m-auto w-full px-8 lg-air:px-16 xl-air:px-32 max-w-screen-xl">
             <template v-if="mobile">
                 <nav class="es__mobile-nav">
                     <button 

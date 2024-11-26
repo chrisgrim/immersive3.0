@@ -16,13 +16,12 @@
 
 @section('content')
 
-    <vue-post-edit
-        :value="{{ $post->toJson() }}"
-        :user="{{ $user->toJson() }}"
-        :curator="{{ json_encode($curator) }}"
-        :community="{{ $community->toJson() }}"
-        :shelves="{{ $shelves->toJson() }}">
-    </vue-post-edit>
+    <vue-community-edit
+        :curator="{{ json_encode($isCurator) }}"
+        :loadshelves="{{ json_encode($shelves) }}"
+        :loadcommunity="{{ $community->toJson() }}"
+        :user="{{ $user ? $user->toJson() : 'null' }}"
+        :loadowner="{{ $owner ? $owner->toJson() : 'null' }}" />
 
 @endsection
 

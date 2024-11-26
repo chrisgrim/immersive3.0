@@ -1,13 +1,14 @@
 <template>
-    <div class="flex w-full gap-4 border border-slate-300 rounded-full bg-neutral-200">
+     <div class="relative flex w-full gap-2 border border-slate-300 rounded-full" 
+     :class="{ 'bg-neutral-200': dropdown || dateDropdown }">
         <!-- Location Search -->
-        <div class="flex-1 relative" v-click-outside="closeLocationDropdown">
+        <div class="flex-1" v-click-outside="closeLocationDropdown">
             <svg class="absolute top-8 left-8 w-8 h-8 fill-black z-[1002]">
                 <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
             </svg>
             <input 
                 ref="loc"
-                class="relative rounded-full p-7 pl-24 bg-transparent w-full font-normal z-[1001] focus:border-none focus:rounded-full focus:bg-white focus:shadow-custom-7 placeholder-black"
+                class="relative text-1xl rounded-full h-full pl-24 bg-transparent w-full font-bold z-[1001] focus:border-none focus:rounded-full focus:bg-white focus:shadow-custom-7 placeholder-black"
                 v-model="searchInput"
                 placeholder="Search by City"
                 @input="updateLocations"
@@ -18,7 +19,7 @@
             
             <!-- Location Dropdown -->
             <ul 
-                class="absolute bg-white w-full overflow-hidden mt-8 p-8 list-none rounded-5xl shadow-custom-7" 
+                class="absolute bg-white w-full mx-0 overflow-hidden mt-8 p-8 list-none rounded-5xl shadow-custom-7" 
                 v-if="dropdown"
                 @click.stop>
                 <li 
@@ -38,7 +39,7 @@
         <div class="" v-click-outside="closeDateDropdown">
             <button 
                 @click.stop="toggleDateDropdown"
-                class="rounded-full p-7 px-12 font-normal hover:shadow-custom-7 flex items-center gap-2"
+                class="text-1xl rounded-full p-7 px-12 font-bold hover:shadow-custom-7 flex items-center gap-2"
                 :class="{ 'bg-white shadow-custom-7': dateDropdown, 'bg-transparent': !dateDropdown }"
             >
                 <span v-if="date">{{ formatDateRange }}</span>
@@ -48,7 +49,7 @@
             <!-- Date Picker Dropdown -->
             <div 
                 v-if="dateDropdown" 
-                class="absolute left-1/2 transform -translate-x-1/2 mt-8 bg-white rounded-5xl shadow-custom-7 p-24 z-[1001]"
+                class="absolute -left-0 w-[calc(100%+10.5rem)] mt-8 bg-white rounded-5xl shadow-custom-7 p-8 z-[1001]"
                 @click.stop
             >
                 <VueDatePicker
@@ -68,13 +69,34 @@
                     hide-offset-dates
                     week-start="0"
                 />
+                <div class="flex justify-between items-center mt-8 pt-8 border-t border-gray-200">
+                    <button 
+                        v-if="date"
+                        @click="clearDates" 
+                        class="text-black underline font-semibold hover:text-gray-600"
+                    >
+                        Clear
+                    </button>
+                    <button 
+                        @click="closeDateDropdown" 
+                        class="text-black font-semibold hover:text-gray-600"
+                        :class="{ 'ml-auto': !date }"
+                    >
+                        Cancel
+                    </button>
+                </div>
             </div>
         </div>
 
         <!-- Search Button -->
         <button 
             @click="handleSearch"
-            class="rounded-full px-12 bg-black text-white font-semibold hover:bg-gray-800 transition-colors"
+            class="rounded-full px-12 my-2 font-semibold transition-colors"
+            :class="[
+                selectedPlace ? 
+                'bg-default-red text-white cursor-pointer hover:bg-red-600' : 
+                'bg-black text-white cursor-not-allowed'
+            ]"
         >
             Search
         </button>
@@ -255,39 +277,123 @@ const minDate = computed(() => {
 
 // Add handleSearch function
 const handleSearch = () => {
-    if (!selectedPlace.value) {
-        // Optionally add error handling for when no location is selected
-        return;
-    }
+    if (!selectedPlace.value) return;
     
-    // Build the base URL with location parameters
-    let searchUrl = `/index/search?city=${selectedPlace.value.name}&searchType=inPerson&live=false&lat=${selectedPlace.value.lat}&lng=${selectedPlace.value.lng}`;
+    const searchParams = {
+        city: selectedPlace.value.name,
+        searchType: 'inPerson',
+        live: false,
+        lat: selectedPlace.value.lat,
+        lng: selectedPlace.value.lng
+    };
     
-    // Add date parameters if dates are selected
+    // Add date parameters if selected
     if (date.value && Array.isArray(date.value) && date.value[0]) {
         const [start, end] = date.value;
         const formatForUrl = (date) => {
             return date.toISOString().split('T')[0] + ' 00:00:00';
         };
         
-        searchUrl += `&start=${formatForUrl(start)}`;
+        searchParams.start = formatForUrl(start);
         if (end) {
-            searchUrl += `&end=${formatForUrl(end)}`;
+            searchParams.end = formatForUrl(end);
         }
     }
-    
-    // Preserve existing URL parameters that we want to keep
+
+    // Check current searchType
     const currentParams = new URLSearchParams(window.location.search);
-    const paramsToPreserve = ['category', 'tags', 'price0', 'price1'];
-    
-    paramsToPreserve.forEach(param => {
-        if (currentParams.has(param)) {
-            searchUrl += `&${param}=${currentParams.get(param)}`;
-        }
-    });
+    const currentSearchType = currentParams.get('searchType');
+
+    // If we're switching from allEvents to inPerson, always redirect
+    if (currentSearchType === 'allEvents') {
+        let searchUrl = `/index/search?${new URLSearchParams(searchParams).toString()}`;
+        window.location.href = searchUrl;
+        return;
+    }
+
+    // Otherwise, proceed with normal logic
+    if (window.location.pathname === '/index/search' && currentSearchType === 'inPerson') {
+        // Emit filter update instead of redirecting
+        window.dispatchEvent(new CustomEvent('filter-update', {
+            detail: {
+                type: 'location',
+                value: searchParams
+            }
+        }));
+        
+        // Update URL without reload
+        const params = new URLSearchParams(window.location.search);
+        Object.entries(searchParams).forEach(([key, value]) => {
+            params.set(key, value);
+        });
+        window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+        
+        // Hide the search modal
+        window.dispatchEvent(new CustomEvent('hide-search'));
+    } else {
+        // On other pages or different searchType, redirect
+        let searchUrl = `/index/search?${new URLSearchParams(searchParams).toString()}`;
+        window.location.href = searchUrl;
+    }
     
     saveSearchData({ name: selectedPlace.value.name });
-    window.location.href = searchUrl;
+};
+
+const clearDates = () => {
+    date.value = null;
+    dateDropdown.value = false;
+    
+    // Only trigger search if we have a selected place
+    if (selectedPlace.value) {
+        const searchParams = {
+            city: selectedPlace.value.name,
+            searchType: 'inPerson',
+            live: false,
+            lat: selectedPlace.value.lat,
+            lng: selectedPlace.value.lng
+        };
+
+        // Check if we're on the search page
+        if (window.location.pathname === '/index/search') {
+            // Emit filter update instead of redirecting
+            window.dispatchEvent(new CustomEvent('filter-update', {
+                detail: {
+                    type: 'location',
+                    value: searchParams
+                }
+            }));
+            
+            // Update URL without reload
+            const params = new URLSearchParams(window.location.search);
+            Object.entries(searchParams).forEach(([key, value]) => {
+                params.set(key, value);
+            });
+            
+            // Remove date parameters
+            params.delete('start');
+            params.delete('end');
+            
+            window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+            
+            // Hide the search modal
+            window.dispatchEvent(new CustomEvent('hide-search'));
+        } else {
+            // On other pages, redirect as normal
+            let searchUrl = `/index/search?${new URLSearchParams(searchParams).toString()}`;
+            
+            // Preserve other existing URL parameters
+            const currentParams = new URLSearchParams(window.location.search);
+            const paramsToPreserve = ['category', 'tags', 'price0', 'price1'];
+            
+            paramsToPreserve.forEach(param => {
+                if (currentParams.has(param)) {
+                    searchUrl += `&${param}=${currentParams.get(param)}`;
+                }
+            });
+            
+            window.location.href = searchUrl;
+        }
+    }
 };
 </script>
 

@@ -6,7 +6,11 @@
 
 @section('nav')
 
-	@include('Layouts.nav-container')
+    @if (Browser::isMobile())
+        @include('Nav.index-mobile')
+    @else
+        @include('Nav.event-desktop')
+    @endif
     
 @endsection
 

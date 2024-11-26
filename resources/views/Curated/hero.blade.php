@@ -19,7 +19,7 @@
 
 
 <div class="my-8 md:mt-16 md:mb-24">
-    <div class="justify-between flex px-8 my-8 md:px-12 lg:px-32 lg:my-12">
+    <div class="justify-between flex px-8 lg-air:px-16 xl-air:px-32 my-8 lg:my-12">
         @if($name)
             <h2>{{ $name }}</h2>
         @endif
@@ -49,7 +49,7 @@
              class="overflow-x-auto flex h-[calc(125vw-6.25rem)] custom-h-1 scroll-p-10 md:h-auto lg:scroll-p-32" 
              style="scroll-snap-type: x mandatory;">
             @foreach($elements as $element)
-                <div class="ml-6 first:ml-0 snap-start snap-always md:min-w-[48rem] md:max-w-[68rem] lg:flex-[1_0_calc(50%-9rem)] first:pl-32 last:pr-32 flex-[1_0_calc(50%-1rem)] first:ml-0">
+                <div class="ml-6 first:ml-0 snap-start snap-always md:min-w-[48rem] md:max-w-[68rem] lg:flex-[1_0_calc(50%-9rem)] first:pl-8 last:pr-8 lg-air:first:pl-16 lg-air:last:pr-16 xl-air:first:pl-32 xl-air:last:pr-32 flex-[1_0_calc(50%-1rem)] first:ml-0">
                     <a href="{{ count($dock->shelves) 
                         ? '/communities/' . $element->community->slug . '/' . $element->slug 
                         : (count($dock->communities) 

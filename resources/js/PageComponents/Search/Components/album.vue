@@ -1,60 +1,53 @@
 <template>
-    <div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         <div 
-            v-for="(card) in items" 
-            :key="card.id">
-            <div class="flex border-b pb-4 mb-4">
-                <div class="w-[29rem] relative">
-                    <a 
-                        :href="getUrl(card)" 
-                        class="absolute h-full w-full left-0 top-0 rounded-2xl z-20" />
-                    <div class="rounded-2xl relative overflow-hidden bg-gray-100 transition-transform duration-200 ease-in-out group-hover:scale-[1.02]">
-                        <div class="pb-[125%]"></div>                            
-                        <picture v-if="card.thumbImagePath" class="absolute inset-0">
-                            <source 
-                                type="image/webp" 
-                                :srcset="`${imageUrl}${card.thumbImagePath}`"> 
-                            <img 
-                                loading="lazy" 
-                                class="h-full w-full object-cover"
-                                :src="`${imageUrl}${card.thumbImagePath.slice(0, -4)}jpg`" 
-                                :alt="`${card.name} Immersive Event`">
-                        </picture>
-                    </div>
+            v-for="card in items" 
+            :key="card.id"
+            class="flex flex-col group">
+            <a :href="getUrl(card)" class="block h-full flex flex-col">
+                <!-- Event Image Container with 4:5 aspect ratio -->
+                <div class="relative mb-3 overflow-hidden rounded-lg bg-gray-100 transition-transform duration-200 ease-in-out group-hover:scale-[1.02]">
+                    <div class="pb-[125%]"></div>
+                    <picture v-if="card.thumbImagePath" class="absolute inset-0">
+                        <source 
+                            type="image/webp" 
+                            :srcset="`${imageUrl}${card.thumbImagePath}`"> 
+                        <img 
+                            loading="lazy" 
+                            class="h-full w-full object-cover"
+                            :src="`${imageUrl}${card.thumbImagePath.slice(0, -4)}jpg`" 
+                            :alt="`${card.name} Immersive Event`">
+                    </picture>
                 </div>
-                <div class="relative m-4 w-full">
-                    <div 
+
+                <!-- Content wrapper -->
+                <div class="flex flex-col flex-grow">
+                    <button 
                         v-if="card.category"
-                        class="category">
-                        <button 
-                            @click="handleCategoryClick(card.category.id)"
-                            class="py-2 px-4 mb-4 rounded-full border border-gray-300 uppercase text-lg transition-colors duration-200 hover:bg-black hover:text-white hover:border-black">
-                            {{ card.category.name }}
-                        </button>
-                    </div>
-                    <a  
-                        v-if="card.name"
-                        :href="getUrl(card)">
-                        <p class="font-medium text-black">{{ card.name }}</p>
-                    </a>
-                    <template v-if="card.tag_line">
-                        <div class="mb-4 block text-ellipsis line-clamp-2 w-full max-h-16 text-xl">
-                            {{ card.tag_line }} 
-                        </div>
-                    </template>
-                    <ul class="m-0 p-0 flex">
+                        @click.prevent="handleCategoryClick(card.category.id)"
+                        class="self-start py-2 px-4 mb-4 rounded-full border border-gray-300 uppercase text-lg transition-colors duration-200 hover:bg-black hover:text-white hover:border-black">
+                        {{ card.category.name }}
+                    </button>
+
+                    <h3 class="my-3 text-2xl font-semibold leading-tight line-clamp-2">{{ card.name }}</h3>
+                    
+                    <p v-if="card.tag_line" class="mb-3 text-1xl leading-normal text-gray-600 line-clamp-2">
+                        {{ card.tag_line }}
+                    </p>
+
+                    <ul class="flex flex-wrap gap-2 mb-3">
                         <li 
-                            class="text-xl list-disc mr-4 ml-4 first:list-none first:ml-0" 
                             v-for="itemTag in getEventTags(card)" 
-                            :key="itemTag.id">
+                            :key="itemTag.id"
+                            class="text-lg text-gray-600">
                             {{ itemTag.name }}
                         </li>
                     </ul>
-                    <div class="absolute right-0 bottom-0 text-right font-extrabold">
-                        {{ getFixedPrice(card) }}
-                    </div>
+
+                    <!-- Price pushed to bottom -->
+                    <p class="text-1xl font-semibold mt-auto">{{ getFixedPrice(card) }}</p>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 </template>

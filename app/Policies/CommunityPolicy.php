@@ -9,6 +9,17 @@ use Illuminate\Auth\Access\Response;
 class CommunityPolicy
 {
     /**
+     * Determine whether the user is a curator of the community.
+     */
+    public function curator(User $user, Community $community): Response
+    {
+        return ($community->curators->contains('id', $user->id) || 
+                in_array($user->type, ['a', 'm']))
+                ? Response::allow()
+                : Response::deny('You must be a curator to perform this action.');
+    }
+
+    /**
      * Determine whether the user can update the community.
      */
     public function update(User $user, Community $community): Response

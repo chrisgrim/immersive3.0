@@ -91,10 +91,22 @@ class CommunityController extends Controller
      */
     public function edit(Community $community)
     {
-        $shelves = $community->shelves()->orderBy('status', 'DESC')->orderBy('order', 'DESC')->get()->map(function ($shelf, $key) {
-            return $shelf->setRelation('posts', $shelf->posts()->with('limitedCards')->paginate(8));
-        });
-        return view('Curated.Communities.edit', compact('community', 'shelves'));
+        $this->authorize('update', $community);
+        
+        $user = auth()->user();
+        $shelves = $community->shelves()
+            ->orderBy('status', 'DESC')
+            ->orderBy('order', 'DESC')
+            ->with('posts.limitedCards')
+            ->get();
+
+        return view('Curated.Communities.edit', [
+            'community' => $community->load('owner', 'curators'),
+            'shelves' => $shelves,
+            'user' => $user,
+            'isCurator' => $user ? $user->can('update', $community) : false,
+            'owner' => $community->owner
+        ]);
     }
 
     /**

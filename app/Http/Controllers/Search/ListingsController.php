@@ -48,12 +48,6 @@ class ListingsController extends Controller
 
     protected function buildSearchFilters(Request $request)
     {
-        \Log::info('Building search filters', [
-            'all_params' => $request->all(),
-            'price0' => $request->price0,
-            'price1' => $request->price1
-        ]);
-
         $filters = [];
 
         // Category filters
@@ -75,20 +69,39 @@ class ListingsController extends Controller
             // If max price is 670 (or your max value), treat it as no upper limit
             $top = $maxPrice === 670 ? 9999 : $maxPrice;
             
-            \Log::info('Price Filter Values', [
-                'minPrice' => $minPrice,
-                'maxPrice' => $maxPrice,
-                'top' => $top
-            ]);
-            
             $filters['prices'] = Query::range()
                 ->field('priceranges.price')
                 ->gte($minPrice)
                 ->lte($top);
-                
-            \Log::info('Price Filter Object', [
-                'filter' => json_encode($filters['prices'])
-            ]);
+        }
+
+        // Date filters
+        if ($request->start && $request->end) {
+            $dateFilter = Query::bool();
+            
+            // Add the nested date range query
+            $dateFilter->should(
+                Query::nested()
+                    ->path('shows')
+                    ->query(
+                        Query::range()
+                            ->field('shows.date')
+                            ->gte($request->start)
+                            ->lte($request->end)
+                    )
+            );
+            
+            // Add the always-available condition
+            $dateFilter->should(
+                Query::term()
+                    ->field('showtype')
+                    ->value('a')
+            );
+            
+            // Set minimum matches
+            $dateFilter->minimumShouldMatch(1);
+
+            $filters['dates'] = $dateFilter;
         }
 
         return $filters;
@@ -118,12 +131,7 @@ class ListingsController extends Controller
 
     public function index(Request $request)
     {
-        \Log::info('Search Request Started', [
-            'url' => $request->fullUrl(),
-            'method' => $request->method(),
-            'all_params' => $request->all()
-        ]);
-
+        
         // Get base data and filters
         $baseData = $this->getBaseData();
         $locationFilters = $this->buildLocationFilter($request);
@@ -154,23 +162,12 @@ class ListingsController extends Controller
             $query->filter($request->live === 'true' ? $boundaryFilter : $locationFilters['geoFilter']);
         }
 
-        \Log::info('Final Query Raw', [
-            'query' => json_encode($query)
-        ]);
+        // Add date filter
+        if ($searchFilters['dates'] ?? null) {
+            $query->filter($searchFilters['dates']);
+        }
 
-        // Execute search
-        $results = Event::searchQuery($query)
-            ->load(['genres', 'category'])
-            ->sortRaw(['published_at' => 'desc'])
-            ->raw();
-
-        \Log::info('Elasticsearch Response', [
-            'total' => $results['hits']['total'] ?? 0,
-            'max_score' => $results['hits']['max_score'] ?? 0,
-            'first_hit' => $results['hits']['hits'][0] ?? null
-        ]);
-
-        // Then paginate
+        // Execute search and paginate
         $results = Event::searchQuery($query)
             ->load(['genres', 'category'])
             ->sortRaw(['published_at' => 'desc'])
