@@ -7,6 +7,7 @@ use App\Models\ImageFile;
 use App\Models\User;
 use App\Models\Featured\Feature;
 use Elastic\ScoutDriverPlus\Searchable;
+use App\Models\Image;
 use App\Models\Featured\Section;
 use Illuminate\Database\Eloquent\Model;
 
@@ -133,6 +134,11 @@ class Community extends Model
     public function featured()
     {
         return $this->morphOne(Feature::class, 'featureable');
+    }
+
+    public function images()
+    {
+        return $this->morphMany(Image::class, 'imageable');
     }
 
 }

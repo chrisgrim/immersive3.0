@@ -2,20 +2,34 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Organizer;
+use App\Rules\UniqueSlugRule;
 use Illuminate\Foundation\Http\FormRequest;
-use App\Rules\OrganizerUniqueSlugRule;
 
 class StoreOrganizerRequest extends FormRequest
 {
+    /**
+     * Determine if the user is authorized to make this request.
+     */
     public function authorize(): bool
     {
         return true;
     }
 
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array|string>
+     */
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:120', new OrganizerUniqueSlugRule($this->name, $this->id)],
+            'name' => [
+                'required', 
+                'string', 
+                'max:120', 
+                new UniqueSlugRule($this->name, Organizer::class, 'slug', $this->route('organizer')?->id)
+            ],
             'description' => 'required|string|min:1|max:20000',
             'email' => 'nullable|email',
             'website' => 'nullable|url',
@@ -27,7 +41,12 @@ class StoreOrganizerRequest extends FormRequest
         ];
     }
 
-    public function messages()
+    /**
+     * Get custom messages for validator errors.
+     *
+     * @return array
+     */
+    public function messages(): array
     {
         return [
             'name.required' => 'The name is required.',

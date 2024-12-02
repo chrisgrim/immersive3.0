@@ -7,11 +7,9 @@ use App\Http\Controllers\Curated\ShelfController;
 use App\Http\Controllers\Curated\CardController;
 
 // Resource Routes
-Route::middleware('curator')->group(function () {
     Route::resource('communities', CommunityController::class);
-});
-Route::resource('posts', PostController::class);
-Route::resource('cards', CardController::class);
+    Route::resource('posts', PostController::class);
+    Route::resource('cards', CardController::class);
 
 // Communities
 Route::controller(CommunityController::class)->group(function () {
@@ -33,14 +31,10 @@ Route::controller(CommunityController::class)->group(function () {
 
 // Shelves
 Route::controller(ShelfController::class)->group(function () {
-    Route::post('/shelves/{community}', 'store')
-        ->middleware('can:update,community');
-    Route::put('/shelves/{shelf}', 'update')
-        ->middleware('can:update,shelf');
-    Route::put('/shelves/{community}/order', 'order')
-        ->middleware('can:update,community');
-    Route::delete('/shelves/{shelf}', 'destroy')
-        ->middleware('can:destroy,shelf');
+    Route::post('/shelves/{community}', 'store');
+    Route::put('/shelves/{shelf}', 'update');
+    Route::put('/shelves/{community}/order', 'order');
+    Route::delete('/shelves/{shelf}', 'destroy');
     Route::get('/shelves/{shelf}/paginate', 'paginate');
 });
 

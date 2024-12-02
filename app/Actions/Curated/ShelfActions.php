@@ -3,68 +3,73 @@
 namespace App\Actions\Curated;
 
 use Illuminate\Http\Request;
-use App\Models\ImageFile;
 use App\Models\Curated\Card;
 use App\Models\Curated\Post;
 use App\Models\Curated\Shelf;
 use App\Models\Curated\Community;
-use Illuminate\Support\Str;
+use Illuminate\Support\Collection;
 
 class ShelfActions
 {
-
     /**
-     * Create a newly registered shelf.
-     *
-     * @param  array  $input
-     * @return \App\Models\Curated\Shelf
+     * Create a new shelf.
      */
-    public function create(Request $request, Community $community)
+    public function create(Request $request, Community $community): Collection
     {
-        $community->shelves()->create(['user_id' => auth()->id()]);
-        return $community->shelves()->orderBy('status', 'DESC')->orderBy('order', 'DESC')->get()->map(function ($shelf, $key) {
-            return $shelf->setRelation('posts', $shelf->posts()->paginate(4));
-        });
+        $community->shelves()->create([
+            'user_id' => auth()->id()
+        ]);
+
+        return $community->shelves()
+            ->orderByDesc('status')
+            ->orderByDesc('order')
+            ->get()
+            ->map(fn (Shelf $shelf) => $shelf->setRelation(
+                'posts', 
+                $shelf->posts()->paginate(4)
+            ));
     }
 
     /**
-     * Updates an existing shelf
-     *
-     * @param  array  $input
-     * @return \App\Models\Curated\Shelf
+     * Update an existing shelf.
      */
-    public function update(Request $request, Shelf $shelf)
+    public function update(Request $request, Shelf $shelf): Shelf
     {
-        $shelf->update(['name' => $request->name]);
-        return $shelf->setRelation('posts', $shelf->posts()->paginate(4));
+        $shelf->update([
+            'name' => $request->name
+        ]);
+
+        return $shelf->setRelation(
+            'posts', 
+            $shelf->posts()->paginate(4)
+        );
     }
 
     /**
-     * Destroys an existing Shelf
-     *
-     * @param  array  $input
-     * @return \App\Models\Curated\Shelf
+     * Delete a shelf.
      */
-    public function destroy(Shelf $shelf)
+    public function destroy(Shelf $shelf): Collection
     {
         $shelf->delete();
-        return $shelf->community->shelves()->limit(3)->get()->map(function ($shelf, $key) {
-            return $shelf->setRelation('posts', $shelf->posts()->paginate(4));
-        });
+
+        return $shelf->community->shelves()
+            ->limit(3)
+            ->get()
+            ->map(fn (Shelf $shelf) => $shelf->setRelation(
+                'posts', 
+                $shelf->posts()->paginate(4)
+            ));
     }
 
     /**
-     * Reorders an existing shelf
-     *
-     * @param  array  $input
-     * @return \App\Models\Curated\Shelf
+     * Reorder shelves.
      */
-    public function reorder(Request $request)
+    public function reorder(Request $request): void
     {
-        foreach ($request->all() as $list) {
-            Shelf::find($list['id'])->update([
-                'order' => $list['order'],
+        collect($request->all())->each(function (array $item) {
+            Shelf::find($item['id'])->update([
+                'order' => $item['order']
             ]);
-        }
+        });
     }
 }

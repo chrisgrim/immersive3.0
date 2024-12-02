@@ -24,22 +24,31 @@
                             <div>
                                 <h2 class="text-white text-6xl mb-4">{{ community.name || 'New Community' }}</h2>
                             </div>
-                            <div class="field">
+                            <div class="w-full mt-8">
                                 <textarea 
                                     type="text"
                                     v-model="community.blurb" 
                                     placeholder="Community description."
-                                    :class="{ 'error': $v.community.blurb.$error }"
-                                    @input="$v.community.blurb.$touch"
+                                    class="w-full rounded-2xl p-4"
+                                    :class="{ 'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showBlurbError }"
+                                    @input="handleBlurbInput"
                                     rows="6" />
-                                <div v-if="$v.community.blurb.$error" class="validation-error">
-                                    <p class="error" v-if="!$v.community.blurb.required">Must provide a short description</p>
-                                    <p class="error" v-if="!$v.community.blurb.maxLength">Description is too long</p>
+                                <div class="flex justify-end mt-1 relative" 
+                                     :class="{'text-red-500': isBlurbNearLimit, 'text-gray-500': !isBlurbNearLimit}">
+                                    {{ community.blurb?.length || 0 }}/254
+                                    <p v-if="showBlurbMaxLengthError" 
+                                       class="text-red-500 text-1xl px-4 absolute left-0 top-0">
+                                        Community description is too long.
+                                    </p>
+                                    <p v-if="showBlurbRequiredError" 
+                                       class="text-red-500 text-1xl px-4 absolute left-0 top-0">
+                                        Community description is required
+                                    </p>
                                 </div>
                             </div>
                             <div 
-                                v-if="$v.$anyDirty"
-                                class="buttons">
+                                v-if="v$.community.blurb.$dirty"
+                                class="buttons flex gap-4">
                                 <button 
                                     class="border-black bg-white rounded-2xl mt-16 py-4 px-6 hover:bg-black hover:text-white hover:border-white" 
                                     @click="patchCommunity">Save</button>
@@ -87,32 +96,38 @@
                         <div class="mb-8">
                             <Curators
                                 @update="updateCurators"
-                                :loadowner="owner"
+                                :loadowner="community.owner"
                                 :user="user"
                                 :community="community"
                                 :loadcurators="curators" />
                         </div>
                         <div class="p-8 rounded-2xl my-8 border">
-                            <div class="field">
+                            <div class="w-full">
                                 <textarea 
                                     type="text"
                                     v-model="community.description" 
                                     placeholder="Community description."
-                                    :class="{ 'error': $v.community.description.$error }"
-                                    @input="$v.community.description.$touch"
+                                    class="w-full rounded-2xl p-4"
+                                    :class="{ 'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showDescriptionError }"
+                                    @input="handleDescriptionInput"
                                     rows="6" />
-                                <div v-if="$v.community.description.$error" class="validation-error">
-                                    <p class="error" v-if="!$v.community.description.maxLength">Description is too long</p>
+                                <div class="flex justify-end mt-1 relative" 
+                                     :class="{'text-red-500': isDescriptionNearLimit, 'text-gray-500': !isDescriptionNearLimit}">
+                                    {{ community.description?.length || 0 }}/5000
+                                    <p v-if="showDescriptionMaxLengthError" 
+                                       class="text-red-500 text-1xl px-4 absolute left-0 top-0">
+                                        Community description is too long.
+                                    </p>
                                 </div>
                             </div>
                             <div 
-                                v-if="$v.$anyDirty"
-                                class="buttons">
+                                v-if="v$.community.description.$dirty"
+                                class="buttons flex gap-4">
                                 <button 
-                                    class="px-4 py-2 hover:bg-black hover:text-white" 
+                                    class="px-4 py-2 border border-black bg-white rounded-2xl hover:bg-black hover:text-white" 
                                     @click="patchCommunity">Save</button>
                                 <button 
-                                    class="px-4 py-2 hover:bg-black hover:text-white"
+                                    class="px-4 py-2 border border-black bg-white rounded-2xl hover:bg-black hover:text-white"
                                     @click="resetCommunity">Cancel</button>
                             </div>
                         </div>
@@ -151,31 +166,27 @@
                             </button>
                         </div>
                     </div>
-                    <draggable
-                        v-model="shelves"
-                        @start="isDragging=true" 
-                        @end="debounce">
-                        <div 
-                            class="relative" 
-                            v-for="(shelf, index) in shelves"
-                            @mouseover="showDelete = index"
-                            @mouseleave="showDelete = null"
-                            :key="shelf.id">
-                            <button 
-                                v-if="showDelete === index && shelf.posts.data.length < 1 && shelf.name !== 'Archived'"
-                                @click="deleteShelf(shelf)"
-                                class="items-center justify-center rounded-full p-0 w-12 h-12 flex border-2 bg-white border-black absolute top-[-1rem] right-[-1rem] hover:bg-black hover:fill-white">
-                                <svg class="w-12 h-12">
-                                    <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
-                                </svg>
-                            </button>
-                            <Shelf 
-                                :archived="archived"
-                                @updated="onUpdated"
-                                :community="community"
-                                :loadshelf="shelf" />
-                        </div>
-                    </draggable>
+                    <div>
+                        <template v-for="(shelf, index) in shelves" :key="shelf.id">
+                            <div 
+                                class="relative" 
+                                @mouseover="showDelete = index"
+                                @mouseleave="showDelete = null">
+                                <button 
+                                    v-if="showDelete === index && (!shelf.posts?.length) && shelf.name !== 'Archived'"
+                                    @click="deleteShelf(shelf)"
+                                    class="items-center justify-center rounded-full p-0 w-12 h-12 flex border-2 bg-white border-black absolute top-[-1rem] right-[-1rem] hover:bg-black hover:fill-white">
+                                    <svg class="w-12 h-12">
+                                        <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
+                                    </svg>
+                                </button>
+                                <Shelf 
+                                    :community="community"
+                                    :loadshelf="shelf"
+                                    @updated="onUpdated" />
+                            </div>
+                        </template>
+                    </div>
                 </div>
             </div>
         </div>
@@ -203,12 +214,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useVuelidate } from '@vuelidate/core'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { required, maxLength } from '@vuelidate/validators'
+import useVuelidate from '@vuelidate/core'
 import Curators from './curators.vue'
 import Shelf from '../Shelves/edit.vue'
-import draggable from 'vuedraggable'
 
 // Props
 const props = defineProps({
@@ -220,7 +230,8 @@ const props = defineProps({
             slug: '',
             blurb: '',
             description: '',
-            curators: []
+            curators: [],
+            owner: null
         })
     },
     user: {
@@ -230,10 +241,6 @@ const props = defineProps({
     loadshelves: {
         type: Array,
         default: () => []
-    },
-    loadowner: {
-        type: Object,
-        default: () => null
     },
     mobile: {
         type: Boolean,
@@ -256,27 +263,16 @@ const defaultCommunity = {
 const shelves = ref(props.loadshelves || [])
 const community = ref({ ...defaultCommunity, ...props.loadcommunity })
 const communityBeforeEdit = ref({ ...defaultCommunity, ...props.loadcommunity })
-const headerImage = ref(null)
 const loading = ref(true)
-
-// Set headerImage based on props after initialization
-if (props.loadcommunity) {
-    headerImage.value = props.mobile 
-        ? props.loadcommunity.thumbImagePath 
-        : props.loadcommunity.largeImagePath
-}
 
 // Initialize all refs first
 const active = ref(null)
 const formData = ref(new FormData())
 const serverErrors = ref(null)
 const updated = ref(false)
-const owner = ref(props.loadowner || null)
 const curators = ref(props.loadcommunity?.curators?.filter(u => u.id !== props?.loadowner?.id) || [])
 const onAdd = ref(false)
 const showDelete = ref(null)
-const timeout = ref(null)
-const isDragging = ref(false)
 
 // Image handling refs
 const imageFile = ref('')
@@ -291,15 +287,16 @@ const modalTitle = ref('')
 const modalMessage = ref('')
 const modalCallback = ref(null)
 
-// Validation rules after refs are initialized
+// Validation Rules
 const rules = {
     community: {
-        blurb: { 
-            required, 
-            maxLength: maxLength(254) 
+        name: { required },
+        blurb: {
+            required,
+            maxLength: maxLength(254)
         },
-        description: { 
-            maxLength: maxLength(5000) 
+        description: {
+            maxLength: maxLength(5000)
         }
     },
     imageFile: {
@@ -309,7 +306,7 @@ const rules = {
     }
 }
 
-// Setup vuelidate after rules
+// Setup Vuelidate
 const v$ = useVuelidate(rules, { community, imageFile })
 
 // Computed properties
@@ -318,28 +315,89 @@ const archived = computed(() => {
 })
 
 const hasImage = computed(() => 
-    Boolean(headerImage.value || imageFile.value?.src)
+    Boolean(
+        imageFile.value?.src || 
+        community.value.images?.length > 0 || 
+        community.value.largeImagePath
+    )
 )
 
 const backgroundImage = computed(() => {
-    if (!hasImage.value) return null
+    if (!hasImage.value) return null;
     if (imageFile.value?.src && !v$.value.imageFile.$error) {
-        return `backgroundImage: url('${imageFile.value.src}')`
+        return `background-image: url('${imageFile.value.src}')`;
     }
-    if (!headerImage.value) return null
     
-    const imageUrl = import.meta.env.VITE_IMAGE_URL || ''
-    return `backgroundImage: url('${imageUrl}${headerImage.value?.slice(0, -4)}jpg?timestamp=${new Date().getTime()}')`
+    const imageUrl = import.meta.env.VITE_IMAGE_URL || '';
+    // Check for new format first (images array)
+    if (community.value.images?.length > 0) {
+        return `background-image: url('${imageUrl}${community.value.images[0].large_image_path}')`;
+    }
+    // Fallback to old format
+    if (community.value.largeImagePath) {
+        return `background-image: url('${imageUrl}${community.value.largeImagePath}')`;
+    }
+    
+    return null;
 })
 
 // Methods
 const patchCommunity = async () => {
-    addCommunityData()
+    console.log('Starting patchCommunity')
+    
+    // Only validate the community part
+    const isValid = await v$.value.community.$validate()
+    if (!isValid) {
+        console.log('Validation errors detail:', {
+            description: v$.value.community.description.$errors,
+            allErrors: v$.value.community.$errors,
+            dirty: v$.value.community.$dirty,
+            invalid: v$.value.community.$invalid
+        })
+        return
+    }
+
     try {
-        await axios.post(`/communities/${community.value.slug}`, formData.value)
+        // Use the class-level formData instead of creating a new one
+        if (!formData.value) {
+            formData.value = new FormData()
+        }
+        
+        // Always include these basic fields
+        formData.value.append('_method', 'PUT')
+        formData.value.append('name', community.value.name)
+        formData.value.append('blurb', community.value.blurb)
+        formData.value.append('description', community.value.description)
+        
+        // If there's a new image file, include it
+        if (imageFile.value?.file) {
+            formData.value.append('image', imageFile.value.file)
+        }
+        
+        console.log('FormData created:', Object.fromEntries(formData.value))
+        
+        const response = await axios.post(
+            `/communities/${community.value.slug}`, 
+            formData.value,
+            {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            }
+        )
+        
+        // Update the community with the response data
+        community.value = response.data
+        
+        // Reset the image file after successful upload
+        imageFile.value = null
+        formData.value = new FormData()
+        
         onUpdated()
     } catch (err) {
-        onErrors(err)
+        console.error('Error in patchCommunity:', err)
+        console.error('Error response:', err.response?.data)
+        serverErrors.value = err.response?.data?.errors || ['An error occurred while saving']
     }
 }
 
@@ -353,19 +411,6 @@ const addShelf = async () => {
         const res = await axios.post(`/shelves/${community.value.slug}`)
         shelves.value = res.data
         clear()
-    } catch (err) {
-        console.error(err)
-    }
-}
-
-const updateShelfOrder = async () => {
-    const list = shelves.value.map((item, index) => {
-        item.order = index
-        return item
-    })
-    try {
-        await axios.put(`/shelves/${community.value.slug}/order`, list)
-        onUpdated()
     } catch (err) {
         console.error(err)
     }
@@ -413,19 +458,6 @@ const statusCircle = (post) => {
     if (post.status === 'd') return 'background: rgb(255 194 21)'
 }
 
-const addImage = (file) => {
-    formData.value = new FormData() // Reset formData
-    formData.value.append('image', file)
-    patchCommunity()
-}
-
-const addCommunityData = () => {
-    formData.value.append('_method', 'PUT')
-    formData.value.append('name', community.value.name)
-    formData.value.append('blurb', community.value.blurb)
-    formData.value.append('description', community.value.description)
-}
-
 const onUpdated = () => {
     v$.value.$reset()
     updated.value = true
@@ -442,15 +474,8 @@ const clear = () => {
 }
 
 const updateCurators = (newOwner, newCurators) => {
-    owner.value = newOwner || null
+    community.value.owner = newOwner || null
     curators.value = newCurators || []
-}
-
-const debounce = () => {
-    if (timeout.value) clearTimeout(timeout.value)
-    timeout.value = setTimeout(() => {
-        updateShelfOrder()
-    }, 500)
 }
 
 const onClickOutside = (event) => {
@@ -499,7 +524,8 @@ const onFileChange = async (event) => {
             await v$.value.$touch()
             if (v$.value.$invalid) return
 
-            addImage(file)
+            // Call patchCommunity directly instead of addImage
+            await patchCommunity()
         }
     }
     reader.readAsDataURL(file)
@@ -514,8 +540,54 @@ onMounted(() => {
 onUnmounted(() => {
     document.removeEventListener('click', onClickOutside)
 })
-</script>
 
+// Computed Properties for Blurb
+const showBlurbError = computed(() => {
+    return v$.value.community.blurb.$dirty && v$.value.community.blurb.$error
+})
+
+const showBlurbMaxLengthError = computed(() => {
+    return v$.value.community.blurb.$dirty && v$.value.community.blurb.maxLength.$invalid
+})
+
+const showBlurbRequiredError = computed(() => {
+    return v$.value.community.blurb.$dirty && v$.value.community.blurb.required.$invalid
+})
+
+const isBlurbNearLimit = computed(() => {
+    const count = community.value.blurb?.length || 0
+    return count > 244
+})
+
+// Computed Properties for Description
+const showDescriptionError = computed(() => {
+    return v$.value.community.description.$dirty && v$.value.community.description.$error
+})
+
+const showDescriptionMaxLengthError = computed(() => {
+    return v$.value.community.description.$dirty && v$.value.community.description.maxLength.$invalid
+})
+
+const isDescriptionNearLimit = ref(false)
+
+const handleDescriptionInput = () => {
+    v$.value.community.description.$touch()
+    
+    if (community.value.description?.length > 5000) {
+        community.value.description = community.value.description.slice(0, 5000)
+    }
+    isDescriptionNearLimit.value = community.value.description?.length > 4750
+}
+
+// Methods
+const handleBlurbInput = () => {
+    v$.value.community.blurb.$touch()
+    
+    if (community.value.blurb?.length > 254) {
+        community.value.blurb = community.value.blurb.slice(0, 254)
+    }
+}
+</script>
 <style scoped>
 .hidden {
     display: none;

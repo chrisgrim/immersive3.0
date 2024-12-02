@@ -5,19 +5,20 @@
                 <input 
                     type="text" 
                     v-model="shelf.name"
-                    :class="{ 'error': $v.shelf.name.$error }"
+                    :class="{ 'error': v$.shelf.name.$error }"
+                    class="w-full border border-black rounded-lg p-2"
                     placeholder="Shelf Name">
-                <div v-if="$v.shelf.name.$error" class="validation-error">
-                    <p class="error" v-if="!$v.shelf.name.required">Please add a name.</p>
-                    <p class="error" v-if="!$v.shelf.name.maxLength">The name is too long.</p>
+                <div v-if="v$.shelf.name.$error" class="validation-error">
+                    <p class="error" v-if="!v$.shelf.name.required">Please add a name.</p>
+                    <p class="error" v-if="!v$.shelf.name.maxLength">The name is too long.</p>
                 </div>
             </div>
-            <div class="editor__footer borderless">
+            <div class="flex gap-4 mt-4">
                 <button 
-                    class="rounded-full py-2 px-4 bg-white hover:bg-black hover:text-white hover:border-black"
+                    class="rounded-full border border-black py-2 px-4 bg-white hover:bg-black hover:text-white hover:border-black"
                     @click="resetShelf">Cancel</button>
                 <button 
-                    class="rounded-full py-2 px-4 bg-white hover:bg-black hover:text-white hover:border-black"
+                    class="rounded-full text-white border border-black py-2 px-4 bg-black hover:bg-white hover:text-black hover:border-black"
                     @click="patchShelf">Save</button>
             </div>
         </template>
@@ -43,16 +44,13 @@
             </div>
         </template>
         <div 
-            v-if="posts && posts.length"
             class="posts">
             <CollectionAlbum
-                @update="updateShelf"
+                v-model="shelf"
+                :community="community"
                 :edit="true"
                 :title="true"
                 :draggable="true"
-                v-model="shelf"
-                :archived="archived"
-                :community="community"
                 :loadposts="posts" />
         </div>
     </div>
@@ -70,18 +68,10 @@ const props = defineProps({
         type: Object,
         required: true
     },
-    owner: {
-        type: Object,
-        required: true
-    },
     community: {
         type: Object,
         required: true
     },
-    archived: {
-        type: Boolean,
-        required: true
-    }
 })
 
 // Emits
@@ -90,7 +80,7 @@ const emit = defineEmits(['updated'])
 // Data
 const shelf = ref(props.loadshelf)
 const shelfBeforeEdit = ref({ ...props.loadshelf })
-const posts = ref(props.loadshelf.posts.data)
+const posts = ref(props.loadshelf.posts || [])
 const editName = ref(false)
 const hover = ref(false)
 const serverErrors = ref(null)

@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use App\Models\User;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Foundation\Validation\ValidationException;
+use App\Services\ImageHandler;
 
 class CommunityActions
 {
@@ -30,11 +31,16 @@ class CommunityActions
             'user_id' => auth()->id(),
             'slug' => Str::slug($request->name),
         ]);
-        if ($request->image) { ImageFile::saveImage($request, $community, 800, 500, 'community'); }
+
+        if ($request->hasFile('image')) {
+            ImageHandler::saveImage($request->file('image'), $community, 800, 500, 'community');
+        }
+
         $community->shelves()->create(['user_id' => auth()->id()]);
         $community->shelves()->create(['user_id' => auth()->id(), 'name' => 'Archived', 'status' => 'a']);
         $community->curators()->attach(auth()->user()->id);
-        return $community; 
+
+        return $community;
     }
 
     /**
@@ -45,23 +51,49 @@ class CommunityActions
      */
     public function update(Request $request, Community $community)
     {
-        $community->update($request->except(['image']));
-        if ($request->image) { 
-            ImageFile::replaceImage($request, $community, 800, 500, 'community'); 
+        $data = $request->except(['image', 'deleteImage']);
+        $community->update($data);
+
+        if ($request->hasFile('image')) {
+            if ($community->images()->exists()) {
+                foreach ($community->images as $image) {
+                    ImageHandler::deleteImage($image);
+                }
+            }
+            ImageHandler::saveImage($request->file('image'), $community, 800, 500, 'community');
             $community->touch();
         }
+
+        if ($request->deleteImage) {
+            if ($community->images()->exists()) {
+                foreach ($community->images as $image) {
+                    ImageHandler::deleteImage($image);
+                }
+            }
+            $community->update([
+                'largeImagePath' => NULL,
+                'thumbImagePath' => NULL
+            ]);
+            $community->touch();
+        }
+
         return $community->load('curators');
     }
 
     /**
      * Destroys an existing community
      *
-     * @param  array  $input
+     * @param  Community  $community
      * @return \App\Models\Curated\Community
      */
     public function destroy(Community $community)
     {
-        ImageFile::deletePreviousImages($community);
+        if ($community->images()->exists()) {
+            foreach ($community->images as $image) {
+                ImageHandler::deleteImage($image);
+            }
+        }
+        
         $community->delete();
         return auth()->user()->communities;
     }

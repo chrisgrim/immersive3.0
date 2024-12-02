@@ -9,10 +9,11 @@ use App\Models\Featured\Feature;
 use App\Models\Featured\Section;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Image;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Post extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [ 'name', 'slug', 'blurb', 'thumbImagePath', 'shelf_id', 'largeImagePath', 'user_id', 'community_id', 'event_id', 'section_id', 'status', 'type', 'image_type', 'order' ];
 
@@ -102,18 +103,17 @@ class Post extends Model
     }
 
     /**
-     * Delete any cards with the posts
+     * Handle cascade deletes
      */
-    public static function boot() {
+    protected static function boot()
+    {
         parent::boot();
-        self::deleting(function($post) { 
+        
+        // When force deleting (permanent deletion)
+        static::forceDeleting(function($post) { 
             $post->cards()->each(function($card) {
                 $card->destroyCard($card);
             });
-            // $featured = $post->featured()->first();
-            // $ids = $featured->sections->map(function($section) { return $section->id; });
-            // $featured->sections()->detach($ids);
-            // $featured->delete();
         });
     }
 

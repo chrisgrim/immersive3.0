@@ -10,7 +10,7 @@ use App\Models\Curated\Post;
 use App\Models\Event;
 use App\Models\User;
 use Illuminate\Validation\ValidationException;
-use App\Http\Requests\CommunityStoreRequest;
+use App\Http\Requests\StoreCommunityRequest;
 use App\Actions\Curated\CommunityActions;
 use App\Http\Controllers\Controller;
 
@@ -29,8 +29,9 @@ class CommunityController extends Controller
      */
     public function index()
     {
+        $user = auth()->user();
         $communities = auth()->user()->communities;
-        return view('communities.index', compact('communities'));
+        return view('Curated.Communities.index', compact('communities', 'user'));
     }
 
     /**
@@ -49,7 +50,7 @@ class CommunityController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function store(CommunityStoreRequest $request, CommunityActions $communityActions)
+    public function store(StoreCommunityRequest $request, CommunityActions $communityActions)
     {
         return $communityActions->create($request);
     }
@@ -65,21 +66,32 @@ class CommunityController extends Controller
         $shelves = $community->publishedShelves()->paginate(4)->through(function ($shelf, $key){
             return $shelf->setRelation('published_posts', $shelf->publishedPosts()->with('limitedCards')->paginate(8));
         });
-        $community->load('curators');
+        $community->load('curators', 'images');
         return view('Curated.Communities.show', compact('community', 'shelves'));
     }
 
     /**
      * Paginate the specified resource.
      *
-     * @param  \App\Curated\Community  $community
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Curated\Community  $community
      * @return \Illuminate\Http\Response
      */
     public function paginate(Request $request, Community $community)
     {
-        $shelves = $community->publishedShelves()->paginate(4)->through(function ($shelf, $key){
-            return $shelf->setRelation('published_posts', $shelf->publishedPosts()->with('limitedCards')->paginate(8));
-        });
+        $shelfOffset = $request->query('shelf_offset', 0);
+        
+        $shelves = $community->publishedShelves()
+            ->orderBy('order', 'DESC')
+            ->offset($shelfOffset)
+            ->limit(4)
+            ->with(['published_posts' => function($query) {
+                $query->with('limitedCards')
+                      ->orderBy('order', 'ASC')
+                      ->limit(8);
+            }])
+            ->get();
+
         return $shelves;
     }
 
@@ -97,15 +109,17 @@ class CommunityController extends Controller
         $shelves = $community->shelves()
             ->orderBy('status', 'DESC')
             ->orderBy('order', 'DESC')
-            ->with('posts.limitedCards')
+            ->with(['posts' => function($query) {
+                $query->with('limitedCards')
+                      ->orderBy('order', 'ASC')
+                      ->limit(8);
+            }])
             ->get();
 
         return view('Curated.Communities.edit', [
-            'community' => $community->load('owner', 'curators'),
+            'community' => $community->load('owner', 'curators', 'images'),
             'shelves' => $shelves,
             'user' => $user,
-            'isCurator' => $user ? $user->can('update', $community) : false,
-            'owner' => $community->owner
         ]);
     }
 
@@ -116,7 +130,7 @@ class CommunityController extends Controller
      * @param  \App\Community  $community
      * @return \Illuminate\Http\Response
      */
-    public function update(CommunityStoreRequest $request, Community $community, CommunityActions $communityActions)
+    public function update(StoreCommunityRequest $request, Community $community, CommunityActions $communityActions)
     {
         return $communityActions->update($request, $community);
     }

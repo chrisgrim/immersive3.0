@@ -16,9 +16,8 @@
 
 @section('content')
 
-    <vue-community-edit
-        :loadshelves="{{ json_encode($shelves) }}"
-        :loadcommunity="{{ $community->toJson() }}"
+    <vue-community-index
+        :communities="{{ $communities->toJson() }}"
         :user="{{ $user ? $user->toJson() : 'null' }}" />
 
 @endsection

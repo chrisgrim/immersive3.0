@@ -29,6 +29,8 @@ const Admin = defineAsyncComponent(() => import('./PageComponents/Admin/index.vu
 
 const CommunityShow = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/show.vue'));
 const CommunityEdit = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/edit.vue'));
+const CommunityIndex = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/index.vue'));
+
 const PostEdit = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/edit.vue'));
 const PostShow = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/show.vue'));
 
@@ -76,6 +78,7 @@ app.component('vue-hosting-event', HostingEvent);
 app.component('vue-admin', Admin);
 app.component('vue-community-show', CommunityShow);
 app.component('vue-community-edit', CommunityEdit);
+app.component('vue-community-index', CommunityIndex);
 app.component('vue-post-edit', PostEdit);
 app.component('vue-post-show', PostShow);
 app.component('vue-quick-bar', QuickBar);
