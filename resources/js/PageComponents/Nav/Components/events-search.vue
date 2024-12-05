@@ -58,7 +58,7 @@ export default {
 
     methods: {
         async generateSearchList () {
-            await axios.get('/api/search/nav/events', { params: { keywords:  this.searchInput } })
+            await axios.get('/api/search/nav/names', { params: { keywords:  this.searchInput } })
             .then( res => { 
                 this.searchOptions = res.data })
         },

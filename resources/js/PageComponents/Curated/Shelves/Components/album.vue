@@ -8,63 +8,47 @@
             @start="isDragging = true" 
             @end="debounce"
             item-key="id">
-            <template #item="{ element: post, index }">
+            <template #item="{ element }">
                 <div 
-                    @mouseover="showDelete = index"
+                    v-if="element"
+                    @mouseover="showDelete = element.id"
                     @mouseleave="showDelete = null"
                     :class="{ drag: draggable }"
                     class="block cursor-pointer">
-                    <div class="group relative grid grid-cols-4 gap-8 py-4 h-36 items-center hover:bg-gray-100 rounded-2xl"
-                         style="grid-template-columns: 16rem 30% auto auto;">
-                        <div class="px-8">
-                            <template v-if="post.images?.length > 0">
-                                <picture>
-                                    <source :srcset="`${imageUrl}${post.images[0].large_image_path}`" type="image/webp">
-                                    <img :src="`${imageUrl}${post.images[0].large_image_path}`"
-                                         :alt="`${post.name}`"
-                                         class="h-24 w-full object-cover rounded-2xl">
-                                </picture>
-                            </template>
-                            <template v-else-if="post.thumbImagePath">
-                                <picture>
-                                    <source :srcset="`${imageUrl}${post.thumbImagePath}`" type="image/webp">
-                                    <img :src="`${imageUrl}${post.thumbImagePath}`"
-                                         :alt="`${post.name}`"
-                                         class="h-24 w-full object-cover rounded-2xl">
-                                </picture>
-                            </template>
-                            <template v-else>
-                                <div class="h-24 w-full rounded-2xl bg-gray-300"></div>
-                            </template>
+                    <div class="group relative grid grid-cols-4 gap-8 py-2 items-center hover:bg-gray-100 rounded-2xl"
+                         style="grid-template-columns: 8rem auto 15% 1%;">
+                        <div class="px-6 flex items-center">
+                            <a v-if="community?.slug && element?.slug" 
+                               :href="`/communities/${community.slug}/${element.slug}/edit`"
+                               class="block w-full h-16">
+                                <CardImage 
+                                    :element="element"
+                                    :community="community"
+                                />
+                            </a>
                         </div>
                         <div>
                             <div class="flex items-center gap-2">
-                                <p class="text-2xl font-medium">{{ post.name }}</p>
-                                <span v-if="post.status === 'd'" class="text-gray-500">(Not Live)</span>
+                                <a v-if="community?.slug && element?.slug" :href="`/communities/${community.slug}/${element.slug}/edit`" class="hover:underline">
+                                    <p class="text-2xl font-medium">{{ element.name }}</p>
+                                </a>
                             </div>
-                            <p class="text-md leading-4 text-gray-500">last edited: {{ formatDate(post.updated_at) }}</p>
+                            <p class="text-md leading-4 text-gray-500">last edited: {{ formatDate(element.updated_at) }}</p>
                         </div>
-                        <div class="flex items-center">
-                            <p class="text-lg text-gray-500">{{ post.cards?.length || 0 }} Cards</p>
+                        <div class="text-lg">
+                            <span :class="element.status === 'd' ? 'text-orange-500' : 'text-green-500'">
+                                {{ element.status === 'd' ? 'Draft' : 'Live' }}
+                            </span>
                         </div>
                         <div class="flex items-center justify-end pr-8">
                             <button 
-                                v-if="showDelete === index"
-                                @click="openDeleteModal(post)"
+                                v-if="showDelete === element.id"
+                                @click.stop="openDeleteModal(element)"
                                 class="absolute top-[-1rem] z-20 right-[-.4rem] items-center justify-center rounded-full p-0 w-12 h-12 flex border-2 bg-white border-black hover:bg-black hover:fill-white">
-                                @click.stop="openDeleteModal(post)"
-                                class="rounded-full p-2 hover:bg-gray-200">
                                 <svg class="w-6 h-6 text-red-500">
-                                    <use :xlink:href="`/storage/website-files/icons.svg#ri-delete-bin-line`" />
+                                    <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
                                 </svg>
                             </button>
-                            <a 
-                                :href="`/communities/${community.slug}/${post.slug}/edit`"
-                                class="ml-4">
-                                <svg class="w-6 h-6 text-gray-500">
-                                    <use :xlink:href="`/storage/website-files/icons.svg#ri-edit-line`" />
-                                </svg>
-                            </a>
                         </div>
                     </div>
                 </div>
@@ -96,7 +80,7 @@
         <div v-if="hasNextPage" class="mt-4 text-center">
             <button 
                 class="rounded-full py-2 px-4 border border-black hover:bg-black hover:text-white"
-                @click="fetchPosts">
+                @click="fetchMorePosts">
                 Load More
             </button>
         </div>
@@ -104,11 +88,10 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import Draggable from "vuedraggable"
 import CardImage from './image.vue'
-import moment from 'moment' // Changed from dayjs to moment
-
+import moment from 'moment'
 
 const props = defineProps({
     modelValue: {
@@ -119,10 +102,6 @@ const props = defineProps({
         type: Object,
         required: true
     },
-    loadposts: {
-        type: Array,
-        default: () => []
-    },
     title: Boolean,
     text: Boolean,
     link: Boolean,
@@ -130,28 +109,75 @@ const props = defineProps({
     draggable: Boolean
 })
 
-const emit = defineEmits(['update:modelValue'])
+
+// Initialize posts from paginated data
+const posts = ref([])
+const currentPage = ref(1)
+const lastPage = ref(1)
+
+// Watch for changes in modelValue.posts
+watch(() => props.modelValue.posts, (newPosts) => {
+    if (newPosts) {
+        posts.value = newPosts.data || []
+        currentPage.value = newPosts.current_page
+        lastPage.value = newPosts.last_page
+    }
+}, { immediate: true })
+
+const hasNextPage = computed(() => {
+    return currentPage.value < lastPage.value
+})
+
+const fetchMorePosts = async () => {
+    if (!props.modelValue?.id) return
+    
+    try {
+        const nextPage = currentPage.value + 1
+        const response = await axios.get(`/shelves/${props.modelValue.id}/paginate`, {
+            params: {
+                page: nextPage
+            }
+        })
+        
+        if (response.data.data) {
+            posts.value = [...posts.value, ...response.data.data]
+            currentPage.value = response.data.current_page
+            lastPage.value = response.data.last_page
+        }
+    } catch (error) {
+        console.error('Failed to fetch more posts:', error)
+    }
+}
+
+// Update the v-model to work with the new structure
+const inputVal = computed({
+    get: () => ({
+        ...props.modelValue,
+        posts: {
+            ...props.modelValue.posts,
+            data: posts.value
+        }
+    }),
+    set: (val) => {
+        emit('update:modelValue', {
+            ...val,
+            posts: {
+                ...props.modelValue.posts,
+                data: val.posts
+            }
+        })
+    }
+})
 
 const isDisabled = ref(false)
 const showDelete = ref(null)
-const posts = ref(props.loadposts)
 const showDeleteModal = ref(false)
 const selectedPost = ref(null)
 const timeout = ref(null)
 const isDragging = ref(false)
 const formatDate = (date) => {
-    return moment(date).format('MMM D, YYYY') // Changed to moment
+    return moment(date).format('MMM D, YYYY')
 }
-
-
-const inputVal = computed({
-    get: () => props.modelValue,
-    set: (val) => emit('update:modelValue', val)
-})
-
-const hasNextPage = computed(() => {
-    return posts.value?.length === 8
-})
 
 const canShowDeleteButton = (post) => {
     return true
@@ -171,9 +197,8 @@ const deletePost = async () => {
     if (!selectedPost.value) return
     
     try {
-        await axios.delete(`/communities/${props.community.slug}/${selectedPost.value.slug}`)
+        await axios.delete(`/posts/${selectedPost.value.slug}`)
         posts.value = posts.value.filter(post => post.id !== selectedPost.value.id)
-        emit('update:modelValue', { ...props.modelValue, posts: posts.value })
         closeDeleteModal()
     } catch (error) {
         console.error('Delete failed:', error)
@@ -188,26 +213,8 @@ const updateShelfOrder = async () => {
     
     try {
         await axios.put(`/posts/${props.community.slug}/order`, list)
-        emit('update:modelValue', { ...props.modelValue, posts: posts.value })
     } catch (error) {
         console.error('Order update failed:', error)
-    }
-}
-
-const fetchPosts = async () => {
-    if (!props.modelValue?.id) return
-    
-    try {
-        const offset = posts.value?.length || 0
-        const res = await axios.get(`/shelves/${props.modelValue.id}/paginate?offset=${offset}`)
-        if (res.data?.length) {
-            posts.value = [...posts.value, ...res.data]
-        }
-        if (res.data?.length < 8) {
-            hasNextPage.value = false
-        }
-    } catch (error) {
-        console.error('Fetch posts failed:', error)
     }
 }
 

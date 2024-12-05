@@ -5,7 +5,10 @@
 	            <li 
 	                v-for="item in selections"
 	                :key="item.id"
-	                class="border-2 m-0 h-24 border-[#222222] flex text-[#222222] px-6 pb-4 rounded-2xl relative flex flex-col justify-end hover:border-black hover:bg-gray-100"
+	                :class="[
+	                    'border-2 m-0 border-[#222222] flex text-[#222222] px-6 p-4 rounded-2xl relative flex flex-col justify-end hover:border-black hover:bg-gray-100',
+	                    itemHeight || ''
+	                ]"
 	                @mouseenter="hoveredLocation = item.id"
 	                @mouseleave="hoveredLocation = null">
 	                <div 
@@ -26,9 +29,13 @@ import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 
 const props = defineProps({
     selections: {
-        type: Object,
+        type: Array,
         required: true
     },
+    itemHeight: {
+        type: String,
+        default: null
+    }
 });
 
 const hoveredLocation = ref(null);

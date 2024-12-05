@@ -44,7 +44,7 @@ Route::controller(PostController::class)->group(function () {
     Route::post('/posts/{community}/store', 'store');
     Route::get('/communities/{community}/{post}', 'show');
     Route::get('/communities/{community}/{post}/edit', 'edit');
-    Route::put('/communities/{community}/{post}/update', 'update');
+    Route::post('/communities/{community}/{post}/update', 'update');
     Route::delete('/posts/{post}', 'destroy');
     Route::put('/posts/{community}/order', 'order');
 });

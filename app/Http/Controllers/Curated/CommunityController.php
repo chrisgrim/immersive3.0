@@ -109,12 +109,15 @@ class CommunityController extends Controller
         $shelves = $community->shelves()
             ->orderBy('status', 'DESC')
             ->orderBy('order', 'DESC')
-            ->with(['posts' => function($query) {
-                $query->with('limitedCards')
-                      ->orderBy('order', 'ASC')
-                      ->limit(8);
-            }])
-            ->get();
+            ->get()
+            ->map(function($shelf) {
+                // Load posts separately for each shelf with pagination
+                $shelf->posts = $shelf->posts()
+                    ->with('limitedCards')
+                    ->orderBy('order', 'ASC')
+                    ->paginate(8);
+                return $shelf;
+            });
 
         return view('Curated.Communities.edit', [
             'community' => $community->load('owner', 'curators', 'images'),

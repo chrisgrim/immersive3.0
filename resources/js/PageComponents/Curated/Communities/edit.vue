@@ -137,7 +137,7 @@
                     <div class="relative top-[-1rem]">
                         <div class="flex justify-end relative z-50">
                             <button 
-                                @click="toggleButton"
+                                @click.stop="toggleButton"
                                 ref="addButton"
                                 class="border-none w-20 h-20 flex p-0 rounded-full justify-center items-center hover:bg-slate-300" 
                                 :class="{'bg-black hover:bg-slate-300': onAdd}">
@@ -146,47 +146,41 @@
                                     class="w-16 h-16">
                                     <use :xlink:href="`/storage/website-files/icons.svg#ri-add-fill`" />
                                 </svg>
-                                <template v-if="onAdd">
-                                    <div class="p-4 rounded-2xl shadow-custom-1 absolute right-0 flex flex-col  bg-white min-w-[20rem] top-[115%]">
-                                        <div class="mt-2 px-4 py-2">
-                                            <p class="text-lg w-full text-left">Add New</p>
-                                        </div>
-                                        <button 
-                                            class="w-full text-left border-none px-4 py-2 font-semibold text-3xl block rounded-xl hover:bg-gray-400 hover:text-white"
-                                            @click="addShelf">
-                                            Shelf
-                                        </button>
-                                        <a 
-                                            class="w-full text-left px-4 py-2 font-semibold text-3xl block rounded-xl hover:bg-gray-400 hover:text-white"
-                                            :href="`/posts/${community.slug}/create`">
-                                            Post
-                                        </a>
+                                <div 
+                                    v-if="onAdd"
+                                    v-click-outside="closeMenu"
+                                    class="p-4 rounded-2xl shadow-custom-1 absolute right-0 flex flex-col bg-white min-w-[20rem] top-[115%]">
+                                    <div class="mt-2 px-4 py-2">
+                                        <p class="text-lg w-full text-left">Add New</p>
                                     </div>
-                                </template>
+                                    <button 
+                                        class="w-full text-left border-none px-4 py-2 font-semibold text-3xl block rounded-xl hover:bg-gray-400 hover:text-white"
+                                        @click="addShelf">
+                                        Shelf
+                                    </button>
+                                    <a 
+                                        class="w-full text-left px-4 py-2 font-semibold text-3xl block rounded-xl hover:bg-gray-400 hover:text-white"
+                                        :href="`/posts/${community.slug}/create`">
+                                        Post
+                                    </a>
+                                </div>
                             </button>
                         </div>
                     </div>
-                    <div>
-                        <template v-for="(shelf, index) in shelves" :key="shelf.id">
-                            <div 
-                                class="relative" 
-                                @mouseover="showDelete = index"
-                                @mouseleave="showDelete = null">
-                                <button 
-                                    v-if="showDelete === index && (!shelf.posts?.length) && shelf.name !== 'Archived'"
-                                    @click="deleteShelf(shelf)"
-                                    class="items-center justify-center rounded-full p-0 w-12 h-12 flex border-2 bg-white border-black absolute top-[-1rem] right-[-1rem] hover:bg-black hover:fill-white">
-                                    <svg class="w-12 h-12">
-                                        <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
-                                    </svg>
-                                </button>
+                    <draggable
+                        v-model="shelves"
+                        :draggable="'.drag'"
+                        @end="updateShelvesOrder"
+                        item-key="id">
+                        <template #item="{ element }">
+                            <div class="drag">
                                 <Shelf 
                                     :community="community"
-                                    :loadshelf="shelf"
-                                    @updated="onUpdated" />
+                                    :loadshelf="element"
+                                    @delete="deleteShelf" />
                             </div>
                         </template>
-                    </div>
+                    </draggable>
                 </div>
             </div>
         </div>
@@ -219,6 +213,8 @@ import { required, maxLength } from '@vuelidate/validators'
 import useVuelidate from '@vuelidate/core'
 import Curators from './curators.vue'
 import Shelf from '../Shelves/edit.vue'
+import { ClickOutsideDirective } from '@/Directives/ClickOutsideDirective'
+import draggable from 'vuedraggable'
 
 // Props
 const props = defineProps({
@@ -417,32 +413,22 @@ const addShelf = async () => {
 }
 
 const deleteShelf = async (shelf) => {
-    if (shelf.name === 'Archived') {
-        openModal('Cannot Delete', 'Cannot delete archived shelf')
-        return
-    }
     if (shelves.value.length <= 1) {
         openModal('Cannot Delete', 'Communities must have at least one shelf')
         return
     }
-    if (shelf.posts.length) {
+    if (shelf.posts.data.length) {
         openModal('Cannot Delete', 'Cannot delete shelf with posts')
         return
     }
-    
-    openModal(
-        'Delete Shelf',
-        'Are you sure you want to delete this shelf?',
-        async () => {
-            try {
-                const res = await axios.delete(`/shelves/${shelf.id}`)
-                shelves.value = res.data
-                v$.value.$reset()
-            } catch (err) {
-                console.error(err)
-            }
-        }
-    )
+    try {
+        await axios.delete(`/shelves/${shelf.id}`)
+        // Remove the shelf from the local array
+        shelves.value = shelves.value.filter(s => s.id !== shelf.id)
+    } catch (err) {
+        console.error('Failed to delete shelf:', err)
+        alert('Failed to delete shelf')
+    }
 }
 
 const toggleButton = () => {
@@ -587,9 +573,35 @@ const handleBlurbInput = () => {
         community.value.blurb = community.value.blurb.slice(0, 254)
     }
 }
+
+// Add the directive to your component
+const vClickOutside = ClickOutsideDirective
+
+// Add this method
+const closeMenu = () => {
+    onAdd.value = false
+}
+
+// Add this method
+const updateShelvesOrder = async () => {
+    try {
+        const orderedShelves = shelves.value.map((shelf, index) => ({
+            id: shelf.id,
+            order: index
+        }))
+        
+        await axios.put(`/shelves/${community.value.slug}/order`, orderedShelves)
+    } catch (error) {
+        console.error('Failed to update shelf order:', error)
+    }
+}
 </script>
 <style scoped>
 .hidden {
     display: none;
+}
+
+.drag {
+    cursor: move;
 }
 </style>

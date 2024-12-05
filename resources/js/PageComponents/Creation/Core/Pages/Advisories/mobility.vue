@@ -32,6 +32,7 @@
                 />
                 <List 
                     class="mt-6"
+                    :item-height="'h-24'"
                     :selections="mobilityAdvisories" 
                     @onSelect="itemRemoved"
                 />

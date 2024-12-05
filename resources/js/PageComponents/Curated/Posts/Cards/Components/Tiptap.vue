@@ -46,11 +46,23 @@ const emit = defineEmits(['update:modelValue', 'save', 'cancel'])
 const editor = useEditor({
     content: props.modelValue,
     extensions: [
-        StarterKit,
+        StarterKit.configure({
+            paragraph: {
+                HTMLAttributes: {
+                    class: 'mb-4'
+                }
+            }
+        }),
     ],
     onUpdate: ({ editor }) => {
-        emit('update:modelValue', editor.getHTML())
+        const html = editor.getHTML()
+        emit('update:modelValue', html)
     },
+    editorProps: {
+        attributes: {
+            class: 'prose prose-lg max-w-none'
+        }
+    }
 })
 
 // Watch for external changes to modelValue
@@ -86,8 +98,28 @@ onBeforeUnmount(() => {
     min-height: inherit;
 }
 
+/* These styles will be applied to both editor and display */
+:deep(.ProseMirror p),
 .editor-content p {
     @apply text-2xl leading-relaxed mb-4;
+}
+
+:deep(.ProseMirror p p),
+.editor-content p p {
+    @apply mb-4;  /* Add margin between nested paragraphs */
+}
+
+:deep(.ProseMirror p:empty),
+.editor-content p:empty {
+    @apply h-4 mb-4 block min-h-[1rem];  /* Force empty paragraphs to have height */
+}
+
+:deep(.ProseMirror-trailingBreak),
+.editor-content br {
+    @apply block mb-4;  /* Make break tags create actual space */
+    content: "";
+    display: block;
+    height: 1rem;
 }
 
 .editor-content h1 {

@@ -18,7 +18,26 @@ class SearchController extends Controller
     public function navEvents(Request $request, SearchActions $searchActions)
     {
         $results = Event::searchQuery($searchActions->nameSearch($request))
+            ->sort('published_at', 'desc')
+            ->size(6)
+            ->execute();
+        return $results->hits();
+    }
+
+    public function navOrganizers(Request $request, SearchActions $searchActions)
+    {
+        $results = Organizer::searchQuery($searchActions->nameSearch($request))
+            ->sort('created_at', 'desc')
+            ->size(6)
+            ->execute();
+        return $results->hits();
+    }
+
+    public function navNames(Request $request, SearchActions $searchActions)
+    {
+        $results = Event::searchQuery($searchActions->nameSearch($request))
             ->join(Organizer::class)
+            ->sort('published_at', 'desc')
             ->size(6)
             ->execute();
         return $results->hits();

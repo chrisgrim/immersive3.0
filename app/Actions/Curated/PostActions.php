@@ -96,7 +96,7 @@ class PostActions
         }
         
         // Return updated post with flag indicating slug change
-        $response = $post->load('cards', 'user', 'featuredEventImage');
+        $response = $post->load('cards', 'user', 'featuredEventImage', 'images');
         $response->slug_changed = $oldSlug !== $post->slug;
         
         return $response;
@@ -110,13 +110,7 @@ class PostActions
      */
     public function destroy(Post $post)
     {
-        if ($post->images()->exists()) {
-            foreach ($post->images as $image) {
-                ImageHandler::deleteImage($image);
-            }
-        }
         $post->delete();
-        return $post->shelf->load('postsWithCards');
     }
 
     /**

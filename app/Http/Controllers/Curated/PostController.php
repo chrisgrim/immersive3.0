@@ -39,7 +39,10 @@ class PostController extends Controller
      */
     public function create(Community $community)
     {
-        return view('communities.posts.create', compact('community'));
+        return view('Curated.Posts.create', [
+            'community' => $community,
+            'shelves' => $community->shelves()->where('status', '!=', 'a')->get()
+        ]);
     }
 
     /**
@@ -82,7 +85,7 @@ class PostController extends Controller
      */
     public function edit(Community $community, Post $post)
     {
-        $post->load('cards', 'user', 'shelf');
+        $post->load('cards', 'user', 'shelf', 'images');
         
         return view('Curated.Posts.edit', [
             'post' => $post,

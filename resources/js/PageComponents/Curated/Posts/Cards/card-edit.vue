@@ -4,7 +4,7 @@
             :class="{ 'cursor-pointer border !border-black': hover && !onEdit }"
             @mouseover="hover = true"
             @mouseleave="hover = false"
-            class="block p-8 rounded-2xl border-transparent border-2">
+            class="block rounded-2xl border-transparent border-2">
             <template v-if="hasImage || onEdit && card.url">
                 <CardImage
                     :loading="disabled"
@@ -90,7 +90,7 @@
                     <div 
                         @click="onEdit=true"
                         class="card-blurb">
-                        <p v-html="card.blurb" />
+                        <div v-html="cleanBlurb(card.blurb)" />
                     </div>
                 </template>
             </div>
@@ -265,5 +265,31 @@ const onUpdated = () => {
 
 const cleanDate = (date) => {
     return moment(date).format("dddd, MMMM D YYYY")
+}
+
+const cleanBlurb = (blurb) => {
+    // Create a temporary div to parse the HTML
+    const temp = document.createElement('div')
+    temp.innerHTML = blurb
+
+    // Handle empty paragraphs and br tags
+    const paragraphs = Array.from(temp.querySelectorAll('p'))
+    const cleanedParagraphs = paragraphs.map(p => {
+        // If paragraph is empty or only contains a br tag
+        if (!p.textContent.trim() || p.innerHTML === '<br class="ProseMirror-trailingBreak">') {
+            return '<p><br></p>'
+        }
+        return p.outerHTML
+    })
+
+    // Handle standalone <br> tags
+    const brTags = Array.from(temp.querySelectorAll('br'))
+    brTags.forEach(br => {
+        if (!br.parentElement.textContent.trim()) {
+            br.parentElement.innerHTML = '<br>'
+        }
+    })
+
+    return cleanedParagraphs.join('')
 }
 </script>

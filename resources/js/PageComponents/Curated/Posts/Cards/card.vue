@@ -28,9 +28,11 @@
             <p class="mt-4 text-1xl">Booking Through: {{ cleanDate(card.event.closingDate) }}</p>
         </template>
         <template v-if="card.blurb">
-            <p 
-                class="mt-4 card-blurb" 
-                v-html="card.blurb" />
+            <div class="mt-4">
+                <div 
+                    class="card-blurb prose prose-lg max-w-none" 
+                    v-html="cleanBlurb(card.blurb)" />
+            </div>
         </template>
         <template v-if="hasUrl">
             <div class="mt-8 mb-16">
@@ -82,6 +84,11 @@ const cleanDate = (date) => {
     return moment(date).format("dddd, MMMM D YYYY")
 }
 
+const cleanBlurb = (blurb) => {
+    // Return the blurb as-is since Tiptap is handling the HTML structure
+    return blurb
+}
+
 // Computed properties
 const hasImage = computed(() => {
     if (props.card.type === 'i') return getImage()
@@ -131,5 +138,29 @@ const internalUrl = computed(() =>
 :deep(.card-blurb) h4 {
   font-size: 1.5rem; /* 24px */
   line-height: 2rem; /* 32px */
+}
+
+
+:deep(.card-blurb) p {
+    @apply text-2xl leading-relaxed mb-4;
+}
+
+:deep(.card-blurb) p:empty {
+    @apply h-4 mb-4 block min-h-[1rem];
+}
+
+:deep(.card-blurb) p + p {
+    @apply mt-4;  /* Add spacing between consecutive paragraphs */
+}
+
+:deep(.card-blurb) br {
+    @apply block mb-4;
+    content: "";
+    display: block;
+    height: 1rem;
+}
+
+:deep(.card-blurb) p:last-child {
+    @apply mb-0;
 }
 </style>

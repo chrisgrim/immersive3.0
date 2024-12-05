@@ -16,8 +16,14 @@ class ShelfActions
      */
     public function create(Request $request, Community $community): Collection
     {
+        // First, shift all existing shelves down by 1
+        $community->shelves()->increment('order');
+
+        // Create new shelf at order 0 (top)
         $community->shelves()->create([
-            'user_id' => auth()->id()
+            'user_id' => auth()->id(),
+            'name' => 'New Shelf',
+            'order' => 0
         ]);
 
         return $community->shelves()
@@ -26,7 +32,7 @@ class ShelfActions
             ->get()
             ->map(fn (Shelf $shelf) => $shelf->setRelation(
                 'posts', 
-                $shelf->posts()->paginate(4)
+                $shelf->posts()->paginate(8)
             ));
     }
 

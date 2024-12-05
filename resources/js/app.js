@@ -33,6 +33,7 @@ const CommunityIndex = defineAsyncComponent(() => import('./PageComponents/Curat
 
 const PostEdit = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/edit.vue'));
 const PostShow = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/show.vue'));
+const PostCreate = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/create.vue'));
 
 const QuickBar = defineAsyncComponent(() => import('./PageComponents/Nav/quick-bar.vue'));
 
@@ -79,8 +80,11 @@ app.component('vue-admin', Admin);
 app.component('vue-community-show', CommunityShow);
 app.component('vue-community-edit', CommunityEdit);
 app.component('vue-community-index', CommunityIndex);
+
 app.component('vue-post-edit', PostEdit);
 app.component('vue-post-show', PostShow);
+app.component('vue-post-create', PostCreate);
+
 app.component('vue-quick-bar', QuickBar);
 app.component('vue-search-all', SearchAll);
 

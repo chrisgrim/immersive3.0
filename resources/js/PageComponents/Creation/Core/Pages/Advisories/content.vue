@@ -32,6 +32,7 @@
                 <List 
                     class="mt-6"
                     :selections="contentAdvisories" 
+                    :item-height="'h-24'"
                     @onSelect="itemRemoved"
                 />
 
