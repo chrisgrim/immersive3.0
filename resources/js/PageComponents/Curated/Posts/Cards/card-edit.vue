@@ -4,8 +4,36 @@
             :class="{ 'cursor-pointer border !border-black': hover && !onEdit }"
             @mouseover="hover = true"
             @mouseleave="hover = false"
-            class="block rounded-2xl border-transparent border-2">
-            <template v-if="hasImage || onEdit && card.url">
+            class="block rounded-2xl border-transparent border-2 p-4">
+            
+            <!-- Event Image -->
+            <template v-if="card.event_id && hasImage">
+                <div 
+                    :class="['relative rounded-2xl overflow-hidden mb-8 cursor-pointer', isVisible ? 'aspect-[16/9]' : 'h-16']" 
+                    @click="onEdit = true">
+                    <picture v-if="isVisible">
+                        <source 
+                            type="image/webp" 
+                            :srcset="`${imageUrl}${hasImage}`"> 
+                        <img 
+                            loading="lazy"
+                            class="w-full rounded-2xl align-bottom object-cover h-full"
+                            :src="`${imageUrl}${hasImage.slice(0, -4)}jpg`" 
+                            :alt="`${card.name}`">
+                    </picture>
+                    <div v-if="onEdit" class="absolute top-4 right-4">
+                        <ToggleSwitch
+                            v-model="isVisible"
+                            left-label="Hidden"
+                            right-label="Visible"
+                            text-size="sm"
+                            @update:modelValue="handleVisibilityChange" />
+                    </div>
+                </div>
+            </template>
+            
+            <!-- Regular Image -->
+            <template v-else-if="hasImage || onEdit && card.url">
                 <CardImage
                     :loading="disabled"
                     :image="image"
@@ -89,7 +117,7 @@
                 <template v-else>
                     <div 
                         @click="onEdit=true"
-                        class="card-blurb">
+                        class="card-blurb text-lg leading-relaxed">
                         <div v-html="cleanBlurb(card.blurb)" />
                     </div>
                 </template>
@@ -107,14 +135,6 @@
                 </div>
             </template>
         </div>
-        
-        <transition name="slide-fade">
-            <div 
-                v-if="updated" 
-                class="bg-green-50 text-green-800 p-4 rounded-lg mt-4">
-                <p>Your Post has been updated.</p>
-            </div>
-        </transition>
     </div>
 </template>
 
@@ -125,6 +145,7 @@ import { required, maxLength } from '@vuelidate/validators'
 import moment from 'moment'
 import Tiptap from './Components/Tiptap.vue'
 import CardImage from './block-image.vue'
+import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue'
 
 const props = defineProps({
     parentCard: {
@@ -148,7 +169,6 @@ const onEdit = ref(false)
 const disabled = ref(false)
 const formData = ref(new FormData())
 const hover = ref(false)
-const updated = ref(false)
 
 // Validation rules
 const rules = {
@@ -166,6 +186,16 @@ const v$ = useVuelidate(rules, { card })
 
 // Computed
 const hasImage = computed(() => {
+    if (card.value?.event_id) {
+        // Check event images first
+        if (card.value.event?.images?.length > 0) {
+            return card.value.event.images[0].largeImagePath || card.value.event.images[0].thumbImagePath
+        }
+        // Fallback to event direct images
+        return card.value.event?.largeImagePath || card.value.event?.thumbImagePath
+    }
+    
+    // Regular image logic
     const type = card.value?.type
     return type === 'i' || type === 'e' || type === 'h'
 })
@@ -208,7 +238,6 @@ const updateCard = async () => {
         const res = await axios.post(`/cards/${card.value.id}`, formData.value)
         card.value = res.data
         cardBeforeEdit.value = { ...res.data }
-        onUpdated()
         clear()
     } catch (error) {
         console.error('Failed to update card:', error)
@@ -235,6 +264,7 @@ const appendCardData = () => {
     if (card.value.name) formData.value.append('name', card.value.name)
     if (card.value.url) formData.value.append('url', card.value.url)
     if (card.value.blurb) formData.value.append('blurb', card.value.blurb)
+    formData.value.append('type', card.value.type)
 }
 
 const addImageSubmit = (image) => {
@@ -255,12 +285,6 @@ const clear = () => {
     hover.value = false
     disabled.value = false
     formData.value = new FormData()
-}
-
-const onUpdated = () => {
-    v$.value.$reset()
-    updated.value = true
-    setTimeout(() => updated.value = false, 3000)
 }
 
 const cleanDate = (date) => {
@@ -292,4 +316,23 @@ const cleanBlurb = (blurb) => {
 
     return cleanedParagraphs.join('')
 }
+
+// Add isVisible computed
+const isVisible = computed({
+    get: () => card.value.type !== 'h',
+    set: (value) => {
+        card.value.type = value ? 'e' : 'h'
+    }
+})
+
+// Add handleVisibilityChange method
+const handleVisibilityChange = (value) => {
+    card.value.type = value ? 'e' : 'h'
+}
 </script>
+
+<style scoped>
+.card-blurb :deep(p) {
+    @apply text-base md:text-lg lg:text-3xl leading-relaxed;
+}
+</style>

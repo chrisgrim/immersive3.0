@@ -50,18 +50,43 @@ const editor = useEditor({
             paragraph: {
                 HTMLAttributes: {
                     class: 'mb-4'
-                }
+                },
+                keepMarks: true,
+                keepOnSplit: true
+            },
+            emptyDocument: {
+                content: '<p class="mb-4"><br></p>'
             }
         }),
     ],
-    onUpdate: ({ editor }) => {
-        const html = editor.getHTML()
-        emit('update:modelValue', html)
-    },
     editorProps: {
         attributes: {
             class: 'prose prose-lg max-w-none'
+        },
+        preserveWhitespace: true,
+        handleDOMEvents: {
+            keydown: (view, event) => {
+                if (event.key === 'Enter') {
+                    const { state, dispatch } = view
+                    const { selection } = state
+                    const { empty, $from } = selection
+                    
+                    if (empty && $from.parent.type.name === 'paragraph' && $from.parent.textContent === '') {
+                        const tr = state.tr.insert($from.pos, state.schema.nodes.paragraph.create(
+                            { class: 'mb-4' },
+                            [state.schema.nodes.hardBreak.create()]
+                        ))
+                        dispatch(tr)
+                        return true
+                    }
+                }
+                return false
+            }
         }
+    },
+    onUpdate: ({ editor }) => {
+        const html = editor.getHTML()
+        emit('update:modelValue', html)
     }
 })
 

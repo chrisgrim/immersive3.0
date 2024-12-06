@@ -1,11 +1,37 @@
 <template>
-    <div class="mt-8 relative p-4">
+    <div class="relative p-4">
         <div class="flex gap-8">
-            <CardImage
-                :image="thumbImagePath"
-                :loading="disabled"
-                @addImage="addImage" />
-            <div class="w-full">
+            <template v-if="hasImage && isVisible">
+                <div class="relative rounded-2xl overflow-hidden mb-8 w-1/2">
+                    <picture>
+                        <source 
+                            type="image/webp" 
+                            :srcset="`${imageUrl}${hasImage}`"> 
+                        <img 
+                            loading="lazy"
+                            class="w-full rounded-2xl align-bottom object-cover h-full"
+                            :src="`${imageUrl}${hasImage.slice(0, -4)}jpg`" 
+                            :alt="`${card.name}`">
+                    </picture>
+                    <div class="absolute top-4 right-4">
+                        <ToggleSwitch
+                            v-model="isVisible"
+                            left-label="Hidden"
+                            right-label="Visible"
+                            text-size="sm"
+                            @update:modelValue="handleVisibilityChange" />
+                    </div>
+                </div>
+            </template>
+            <div :class="[hasImage && isVisible ? 'w-1/2' : 'w-full']">
+                <div v-if="hasImage && !isVisible" class="mb-4">
+                    <ToggleSwitch
+                        v-model="isVisible"
+                        left-label="Hidden"
+                        right-label="Visible"
+                        text-size="sm"
+                        @update:modelValue="handleVisibilityChange" />
+                </div>
                 <div class="field mb-4">
                     <Dropdown
                         :list="searchOptions"
@@ -18,6 +44,7 @@
                     <input 
                         type="text" 
                         v-model="card.name"
+                        class="w-full"
                         :class="{ 'border-red-500': v$.card.name.$error }"
                         :placeholder="name">
                     <div v-if="v$.card.name.$error" class="text-red-500 text-sm mt-1">
@@ -26,6 +53,7 @@
                 </div>
                 <div class="field border border-gray-300 rounded-md p-4 mb-4">
                     <input 
+                        class="w-full"
                         type="text" 
                         v-model="card.url"
                         :placeholder="url">
@@ -51,13 +79,14 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useVuelidate } from '@vuelidate/core'
 import { required, maxLength } from '@vuelidate/validators'
 import moment from 'moment'
 import Tiptap from './Components/Tiptap.vue'
 import CardImage from './block-image.vue'
 import Dropdown from '@/GlobalComponents/dropdown.vue'
+import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue'
 
 const props = defineProps({
     post: {
@@ -88,6 +117,19 @@ const disabled = ref(false)
 const timeout = ref(null)
 const selectedEvent = ref(null)
 
+// Add these near your other refs/computed properties
+const isVisible = computed({
+    get: () => card.value.type !== 'h',
+    set: (value) => {
+        card.value.type = value ? 'e' : 'h'
+    }
+})
+
+// Fetch initial events list when component mounts
+onMounted(() => {
+    generateSearchList('')
+})
+
 // Validation rules
 const rules = {
     card: {
@@ -114,6 +156,19 @@ const thumbImagePath = computed(() =>
     selectedEvent.value ? `${imageUrl}${selectedEvent.value.thumbImagePath}` : null
 )
 
+// Add hasImage computed property
+const hasImage = computed(() => {
+    if (!selectedEvent.value) return null
+    
+    // First check event images
+    if (selectedEvent.value.images?.length > 0) {
+        return selectedEvent.value.images[0].largeImagePath || selectedEvent.value.images[0].thumbImagePath
+    }
+    
+    // Fallback to event images
+    return selectedEvent.value.largeImagePath || selectedEvent.value.thumbImagePath || null
+})
+
 // Methods
 const saveCard = async () => {
     const isValid = await v$.value.$validate()
@@ -133,17 +188,12 @@ const cancelCard = () => {
     emit('cancel')
 }
 
-const addImage = (image) => {
-    formData.value.append('image', image)
-}
-
 const addCardData = () => {
     formData.value.append('blurb', card.value.blurb)
     if (card.value.url) formData.value.append('url', card.value.url)
     if (card.value.name) formData.value.append('name', card.value.name)
     if (card.value.type) formData.value.append('type', card.value.type)
     if (card.value.event_id) formData.value.append('event_id', card.value.event_id)
-    if (card.value.thumbImagePath) formData.value.append('thumbImagePath', card.value.thumbImagePath)
 }
 
 const debounce = (event) => {
@@ -164,7 +214,10 @@ const generateSearchList = async (query) => {
     console.log('Generating search list for:', query)
     try {
         const res = await axios.get('/api/search/nav/events', { 
-            params: { keywords: query } 
+            params: { 
+                keywords: query,
+                limit: 10 // Optional: limit initial results
+            } 
         })
         
         searchOptions.value = res.data.map(hit => ({
@@ -202,4 +255,9 @@ const cleanDate = (date) => {
 watch(searchOptions, (newVal) => {
     console.log('searchOptions updated:', newVal)
 }, { deep: true })
+
+// Add this method to handle visibility changes
+const handleVisibilityChange = (value) => {
+    card.value.type = value ? 'e' : 'h'
+}
 </script>

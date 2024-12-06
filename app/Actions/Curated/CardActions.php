@@ -32,7 +32,7 @@ class CardActions
             ImageHandler::saveImage($request->file('image'), $card, 800, 450, 'card');
         }
 
-        return $post->load('cards', 'user');
+        return $post->load('cards.event', 'cards.images', 'user');
     }
 
     /**
@@ -43,25 +43,16 @@ class CardActions
      */
     public function update(Request $request, Card $card)
     {
-        $card->update($request->except(['image']));
-        
+        $data = $request->except(['image', 'deleteImage']);
+        $card->update($data);
+
         if ($request->hasFile('image')) {
-            // Delete existing images if any
             if ($card->images()->exists()) {
                 foreach ($card->images as $image) {
                     ImageHandler::deleteImage($image);
                 }
             }
             ImageHandler::saveImage($request->file('image'), $card, 800, 450, 'card');
-            $card->touch();
-        }
-
-        if ($request->type === 'h') {
-            if ($card->images()->exists()) {
-                foreach ($card->images as $image) {
-                    ImageHandler::deleteImage($image);
-                }
-            }
             $card->touch();
         }
 

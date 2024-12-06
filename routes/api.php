@@ -55,7 +55,7 @@ Route::GET('/mobilityadvisories', function () { return MobilityAdvisory::where('
 
 Route::GET('search/nav/events', [SearchController::class, 'navEvents']);
 Route::GET('search/nav/organizers', [SearchController::class, 'navOrganizers']);
-Route::GET('search/nav/name', [SearchController::class, 'navNames']);
+Route::GET('search/nav/names', [SearchController::class, 'navNames']);
 Route::GET('search/nav/genres', [SearchController::class, 'navGenres']);
 
 

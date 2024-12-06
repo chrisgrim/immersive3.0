@@ -13,28 +13,30 @@
         </div>
         
 
-        <div class="w-full lg:w-1/2 mx-auto px-4 md:px-0">
-            <div class="my-8 relative ">
-                <div class="relative mb-8">
-                    <label class="inline-flex items-center cursor-pointer">
-                        <input type="checkbox" class="sr-only" :checked="post.status === 'p'" @change="toggleStatus">
-                        <div class="relative w-32 h-10 bg-black rounded-full p-1 transition duration-300 ease-in-out"
-                             :class="{'bg-[#ff385c]': post.status === 'p'}">
-                            <div class="absolute inset-1 w-[50%] h-8 bg-white rounded-full transform transition-transform duration-300 ease-in-out shadow-md"
-                                 :class="{'translate-x-[calc(100%-0.50rem)]': post.status === 'p'}">
+        <div class="w-full lg:w-1/2 mx-auto px-4">
+            <div class="my-8 pb-80 relative ">
+                <div class="flex gap-8 mt-4 px-4 mb-16">
+                    <div class="flex w-full justify-between items-center">
+                        <ToggleSwitch
+                        v-model="isLive"
+                        left-label="Draft"
+                        right-label="Live"
+                        text-size="sm"
+                        @update:modelValue="handleStatusChange" />
+                        <div @click.stop>
+                            <div v-if="!selectedShelf">
+                                <Dropdown
+                                    :list="shelves"
+                                    :placeholder="'Select Shelf'"
+                                    @onSelect="handleShelfSelect" />
                             </div>
-                            <div class="relative flex justify-between items-center text-sm font-bold h-full">
-                                <span class="flex-1 text-center z-10 transition-opacity duration-300"
-                                      :class="post.status === 'd' ? 'text-black opacity-100' : 'opacity-0'">
-                                    Draft
-                                </span>
-                                <span class="flex-1 text-center z-10 transition-opacity duration-300"
-                                      :class="post.status === 'p' ? 'text-black opacity-100' : 'opacity-0'">
-                                    Live
-                                </span>
-                            </div>
+                            <DropdownList 
+                                v-else
+                                :selections="[selectedShelf]"
+                                :show-remove="true"
+                                @onSelect="removeShelf" />
                         </div>
-                    </label>
+                    </div>
                 </div>
                 <template v-if="postEdit">
                     <div class="mb-4">
@@ -92,35 +94,19 @@
                 <template v-else>
                     <div 
                         @click="postEdit=true"
-                        class="">
+                        class="px-4">
                         <h1 class="font-bold">{{ post.name }}</h1>
                     </div>
                     <div 
                         @click="postEdit=true"
-                        class="mt-6 relative">
+                        class="mt-6 relative px-4">
                         <p class="font-bold text-xl">{{ post.blurb }}</p>
                     </div>
                 </template>
-                <div class="flex gap-8 my-8">
-                    <div class="flex justify-between items-center">
-                        <div @click.stop>
-                            <div v-if="!selectedShelf">
-                                <Dropdown
-                                    :list="shelves"
-                                    :placeholder="'Select Shelf'"
-                                    @onSelect="handleShelfSelect" />
-                            </div>
-                            <DropdownList 
-                                v-else
-                                :selections="[selectedShelf]"
-                                :show-remove="true"
-                                @onSelect="removeShelf" />
-                        </div>
-                    </div>
-                </div>
+                
 
                 <!-- Add Featured Image Section -->
-                <div class="mb-8">
+                <div class="my-8 relative">
                     <div>
                         <div 
                             v-if="!hasImage"
@@ -129,72 +115,35 @@
                         >
                             <component :is="RiImageCircleLine" style="width:4rem; height: 4rem;" />
                         </div>
-                        <div v-else class="relative aspect-[16/9]">
+                        <div v-else :class="['relative', isVisible ? 'aspect-[16/9]' : 'h-16']">
                             <img 
+                                v-if="isVisible"
                                 :src="hasImage ? `${imageUrl}${hasImage}` : null" 
                                 class="w-full h-full object-cover rounded-2xl" 
                             />
                             <div 
+                                v-if="isVisible"
                                 @click="deleteImage" 
-                                class="absolute top-2 right-2 cursor-pointer bg-white rounded-full"
+                                class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white rounded-full"
                                 @mouseenter="hoveredImage = true"
                                 @mouseleave="hoveredImage = false"
                             >
                                 <component :is="hoveredImage ? RiCloseCircleFill : RiCloseCircleLine" />
                             </div>
-                        </div>
-                        <div class="flex justify-between items-center mt-4">
-                            <button 
-                                v-if="hasImage"
-                                class="bg-black px-4 py-2 rounded-full text-white hover:bg-white hover:text-black"
-                                @click="updateType">
-                                {{ postType }}
-                            </button>
-                        </div>
-                        <div v-if="showEventSearch && !value.thumbImagePath">
-                            <Dropdown
-                                :list="events"
-                                :placeholder="'Search for event'"
-                                @onSelect="handleEventSelect"
-                                v-model="searchQuery"
-                                class="w-full" />
+                            <div class="absolute bottom-4 left-4 drop-shadow-lg">
+                                <ToggleSwitch
+                                    v-if="hasImage"
+                                    v-model="isVisible"
+                                    left-label="Hidden"
+                                    right-label="Visible"
+                                    text-size="lg"
+                                    @update:modelValue="handleVisibilityChange" />
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="relative">
-                    <div v-if="!post.cards || post.cards.length === 0" 
-                         class="flex justify-center">
-                        <div class="top-0 bg-white flex-col flex w-96 mt-24 rounded-2xl p-4 border">
-                            <button 
-                                @click="showAddButtonOptions"
-                                class="border-none h-16 items-center flex px-4">
-                                Add card
-                                <svg class="w-8 ml-2">
-                                    <use v-if="!buttonOptions" :xlink:href="`/storage/website-files/icons.svg#ri-add-circle-line`" />
-                                    <use v-else :xlink:href="`/storage/website-files/icons.svg#ri-close-circle-line`" />
-                                </svg>
-                            </button>
-                            <template v-if="buttonOptions">
-                                <button 
-                                    class="w-full text-left border-none px-4 py-2 font-semibold text-3xl block rounded-xl hover:bg-gray-400 hover:text-white"
-                                    @click="selectButton('i')">
-                                    Image Block
-                                </button>
-                                <button 
-                                    class="w-full text-left border-none px-4 py-2 font-semibold text-3xl block rounded-xl hover:bg-gray-400 hover:text-white"
-                                    @click="selectButton('t')">
-                                    Text Block
-                                </button>
-                                <button 
-                                    class="w-full text-left border-none px-4 py-2 font-semibold text-3xl block rounded-xl hover:bg-gray-400 hover:text-white"
-                                    @click="selectButton('e')">
-                                    Event Block
-                                </button>
-                            </template>
-                        </div>
-                    </div>
-
                     <draggable
                         v-model="post.cards" 
                         :item-key="card => card.id"
@@ -205,11 +154,11 @@
                                 <div v-if="activeCardId === card.id && newCardPosition === post.cards.indexOf(card)">
                                     <div v-if="blockType" class="mb-4">
                                         <EventBlock v-if="blockType==='e'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
-                                        <ImageBlock v-if="blockType==='i'" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
+                                        <ImageBlock v-if="blockType==='i'" @update="handleNewCardUpdate" @cancel="clear" :post="post" :position="newCardPosition" />
                                         <TextBlock v-if="blockType==='t'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
                                     </div>
                                 </div>
-                                <div class="card-wrapper group">
+                                <div class="card-wrapper group mb-4">
                                     <div class="relative">
                                         <button 
                                             @click="showAddButtonOptionsForCard(card, 'top')"
@@ -238,7 +187,7 @@
                                             </button>
                                         </div>
                                     </div>
-                                    <div class="mt-12">   
+                                    <div>   
                                         <EditCard 
                                             @update="updatePost"
                                             :parent-card="card" />
@@ -275,13 +224,51 @@
                                 <div v-if="activeCardId === card.id && newCardPosition === post.cards.indexOf(card) + 1">
                                     <div v-if="blockType" class="mt-4">
                                         <EventBlock v-if="blockType==='e'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
-                                        <ImageBlock v-if="blockType==='i'" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
+                                        <ImageBlock v-if="blockType==='i'" @update="handleNewCardUpdate" @cancel="clear" :post="post" :position="newCardPosition" />
                                         <TextBlock v-if="blockType==='t'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
                                     </div>
                                 </div>
                             </div>
                         </template>
                     </draggable>
+
+                    <div class="flex w-full">
+                        <div class="top-0 bg-white flex-col w-full flex mt-24 rounded-2xl p-4 border">
+                            <template v-if="!blockType">
+                                <button 
+                                    @click="showAddButtonOptions"
+                                    class="border-none h-16 items-center flex px-4">
+                                    Add card
+                                    <svg class="w-8 ml-2">
+                                        <use v-if="!buttonOptions" :xlink:href="`/storage/website-files/icons.svg#ri-add-circle-line`" />
+                                        <use v-else :xlink:href="`/storage/website-files/icons.svg#ri-close-circle-line`" />
+                                    </svg>
+                                </button>
+                                <template v-if="buttonOptions">
+                                    <button 
+                                        class="w-full text-left border-none px-4 py-2 font-semibold text-3xl block rounded-xl hover:bg-gray-400 hover:text-white"
+                                        @click="selectButton('i')">
+                                        Image Block
+                                    </button>
+                                    <button 
+                                        class="w-full text-left border-none px-4 py-2 font-semibold text-3xl block rounded-xl hover:bg-gray-400 hover:text-white"
+                                        @click="selectButton('t')">
+                                        Text Block
+                                    </button>
+                                    <button 
+                                        class="w-full text-left border-none px-4 py-2 font-semibold text-3xl block rounded-xl hover:bg-gray-400 hover:text-white"
+                                        @click="selectButton('e')">
+                                        Event Block
+                                    </button>
+                                </template>
+                            </template>
+                            <template v-else>
+                                <EventBlock v-if="blockType==='e'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
+                                <ImageBlock v-if="blockType==='i'" @update="handleNewCardUpdate" @cancel="clear" :post="post" :position="newCardPosition" />
+                                <TextBlock v-if="blockType==='t'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
+                            </template>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -357,6 +344,7 @@ import Dropdown from '@/GlobalComponents/dropdown.vue'
 import DropdownList from '@/GlobalComponents/dropdown-list.vue'
 import { RiImageCircleLine, RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import axios from 'axios'
+import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue'
 
 const props = defineProps({
     value: Object,
@@ -551,22 +539,11 @@ const selectButton = (val) => {
     console.log('selectButton called with:', val)
     buttonOptions.value = false
     blockType.value = val
-    newCardPosition.value = 0
     
-    // Don't set these for the first card
-    if (post.value.cards && post.value.cards.length > 0) {
-        activeCardId.value = post.value.cards[post.value.cards.length - 1].id
-        topPosition.value = newCardPosition.value
-    }
-    
-    console.log('State after selectButton:', {
-        blockType: blockType.value,
-        newCardPosition: newCardPosition.value,
-        cards: post.value.cards,
-        cardsLength: post.value.cards?.length,
-        activeCardId: activeCardId.value,
-        topPosition: topPosition.value
-    })
+    // Set position to the end of the list
+    newCardPosition.value = post.value.cards?.length || 0
+    activeCardId.value = null
+    topPosition.value = null
 }
 
 const clear = () => {
@@ -622,23 +599,35 @@ const handleNewCardUpdate = (updatedPost) => {
     })
     
     if (updatedPost && updatedPost.cards) {
+        // Get the new card
         const newCard = updatedPost.cards[updatedPost.cards.length - 1]
         console.log('New card to insert:', newCard)
         
-        updatedPost.cards.pop()
-        console.log('Cards after pop:', updatedPost.cards.map(c => ({ id: c.id, order: c.order })))
+        // Create a new array with all cards except the new one
+        const existingCards = updatedPost.cards.slice(0, -1)
         
-        updatedPost.cards.splice(newCardPosition.value, 0, newCard)
-        console.log('Cards after splice:', updatedPost.cards.map(c => ({ id: c.id, order: c.order })))
+        // Insert the new card at the correct position
+        existingCards.splice(newCardPosition.value, 0, newCard)
         
-        updatedPost.cards = updatedPost.cards.map((card, index) => ({
+        // Update orders
+        const reorderedCards = existingCards.map((card, index) => ({
             ...card,
             order: index
         }))
-        console.log('Final cards array:', updatedPost.cards.map(c => ({ id: c.id, order: c.order })))
+        
+        // Update the post with the reordered cards
+        updatedPost.cards = reorderedCards
+        
+        // Update the local post reference
+        post.value = { ...updatedPost }
+        
+        // Update the backup copy
+        postBeforeEdit.value = { ...updatedPost }
+        
+        // Update card orders in the backend
+        updatePostOrder()
     }
     
-    post.value = updatedPost
     onUpdated()
     clear()
 }
@@ -686,9 +675,17 @@ const selectedShelf = computed(() => {
     return shelf || null
 })
 
-// Add the updateStatus method if not already present
-const updateStatus = () => {
-    post.value.status = post.value.status === 'd' ? 'p' : 'd'
+// Add these near your other refs
+const isLive = computed({
+    get: () => post.value.status === 'p',
+    set: (value) => {
+        post.value.status = value ? 'p' : 'd'
+    }
+})
+
+// Replace the toggleStatus function with this
+const handleStatusChange = (value) => {
+    post.value.status = value ? 'p' : 'd'
     patchPost()
 }
 
@@ -750,10 +747,6 @@ const hasImage = computed(() => {
         return post.value?.thumbImagePath
     }
 })
-
-const postType = computed(() => 
-    post.value.type === 'h' ? 'Hidden' : 'Visible'
-)
 
 const handleFileChange = (event) => {
     const file = event.target.files[0]
@@ -822,5 +815,19 @@ watch(showImageModal, async (isOpen) => {
         await fetchEvents()
     }
 })
+
+// Add these near your other refs
+const isVisible = computed({
+    get: () => post.value.type !== 'h',
+    set: (value) => {
+        post.value.type = value ? 's' : 'h'
+    }
+})
+
+// Add this function to handle visibility changes
+const handleVisibilityChange = (value) => {
+    post.value.type = value ? 's' : 'h'
+    patchPost()
+}
 </script>
 

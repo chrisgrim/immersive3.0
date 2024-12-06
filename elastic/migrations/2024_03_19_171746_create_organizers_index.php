@@ -17,6 +17,7 @@ final class CreateOrganizersIndex implements MigrationInterface
             $mapping->search_as_you_type('name');
             $mapping->keyword('email');
             $mapping->integer('rank');
+            $mapping->date('published_at');
             $settings->analysis([
                 'analyzer' => [
                     'standard_asciifolding' => [

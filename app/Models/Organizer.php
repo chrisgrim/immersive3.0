@@ -44,6 +44,7 @@ class Organizer extends Model
             "name" => $this->name ,
             "email" => $this->email,
             'priority' => 3,
+            "published_at" => $this->published_at ? $this->published_at->format('Y-m-d H:i:s') : null,
         ];
     }
 
