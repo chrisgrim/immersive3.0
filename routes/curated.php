@@ -16,7 +16,7 @@ Route::controller(CommunityController::class)->group(function () {
     Route::get('/communities/{community}', 'show');
     Route::get('/communities/{community}/shelves/paginate', 'paginate');
     Route::get('/communities/{community}/edit', 'edit');
-    Route::put('/communities/{community}', 'update');
+    Route::post('/communities/{community}', 'update');
     Route::delete('/communities/{community}', 'destroy');
     
     // Curator Management

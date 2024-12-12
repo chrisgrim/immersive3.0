@@ -92,6 +92,10 @@ const props = defineProps({
     post: {
         type: Object,
         required: true
+    },
+    position: {
+        type: Number,
+        required: true
     }
 })
 
@@ -107,7 +111,8 @@ const card = ref({
     event_id: null,
     url: null,
     name: null,
-    type: 'e'
+    type: 'e',
+    order: props.position || 0  // Ensure order is set
 })
 
 const formData = ref(new FormData())
@@ -117,7 +122,6 @@ const disabled = ref(false)
 const timeout = ref(null)
 const selectedEvent = ref(null)
 
-// Add these near your other refs/computed properties
 const isVisible = computed({
     get: () => card.value.type !== 'h',
     set: (value) => {
@@ -125,7 +129,6 @@ const isVisible = computed({
     }
 })
 
-// Fetch initial events list when component mounts
 onMounted(() => {
     generateSearchList('')
 })
@@ -156,16 +159,13 @@ const thumbImagePath = computed(() =>
     selectedEvent.value ? `${imageUrl}${selectedEvent.value.thumbImagePath}` : null
 )
 
-// Add hasImage computed property
 const hasImage = computed(() => {
     if (!selectedEvent.value) return null
     
-    // First check event images
     if (selectedEvent.value.images?.length > 0) {
         return selectedEvent.value.images[0].largeImagePath || selectedEvent.value.images[0].thumbImagePath
     }
     
-    // Fallback to event images
     return selectedEvent.value.largeImagePath || selectedEvent.value.thumbImagePath || null
 })
 
@@ -176,6 +176,7 @@ const saveCard = async () => {
 
     addCardData()
     try {
+        console.log('Saving card with order:', card.value.order)
         const res = await axios.post(`/cards/${props.post.slug}/create`, formData.value)
         emit('update', res.data)
         disabled.value = false
@@ -189,17 +190,19 @@ const cancelCard = () => {
 }
 
 const addCardData = () => {
+    formData.value = new FormData() // Reset FormData
     formData.value.append('blurb', card.value.blurb)
+    formData.value.append('order', card.value.order)
+    formData.value.append('type', card.value.type)
+    formData.value.append('post_id', card.value.post_id)
     if (card.value.url) formData.value.append('url', card.value.url)
     if (card.value.name) formData.value.append('name', card.value.name)
-    if (card.value.type) formData.value.append('type', card.value.type)
     if (card.value.event_id) formData.value.append('event_id', card.value.event_id)
 }
 
 const debounce = (event) => {
     const query = typeof event === 'object' ? event.target.value : event
     
-    console.log('Debouncing search:', query)
     if (timeout.value) clearTimeout(timeout.value)
     
     searchInput.value = query
@@ -211,12 +214,11 @@ const debounce = (event) => {
 }
 
 const generateSearchList = async (query) => {
-    console.log('Generating search list for:', query)
     try {
         const res = await axios.get('/api/search/nav/events', { 
             params: { 
                 keywords: query,
-                limit: 10 // Optional: limit initial results
+                limit: 10
             } 
         })
         
@@ -228,8 +230,6 @@ const generateSearchList = async (query) => {
             thumbImagePath: hit.model.thumbImagePath || '',
             closingDate: hit.model.closingDate || null
         }))
-        
-        console.log('Processed options:', searchOptions.value)
     } catch (error) {
         console.error('Failed to fetch search results:', error)
         searchOptions.value = []
@@ -238,7 +238,6 @@ const generateSearchList = async (query) => {
 
 const selectEvent = (event) => {
     if (!event) return
-    console.log('Selected event:', event)
     selectedEvent.value = event
     card.value.event_id = event.id
     card.value.name = event.name
@@ -251,12 +250,6 @@ const cleanDate = (date) => {
     return moment(date).format("dddd, MMMM D YYYY")
 }
 
-// Add a watcher to debug searchOptions changes
-watch(searchOptions, (newVal) => {
-    console.log('searchOptions updated:', newVal)
-}, { deep: true })
-
-// Add this method to handle visibility changes
 const handleVisibilityChange = (value) => {
     card.value.type = value ? 'e' : 'h'
 }

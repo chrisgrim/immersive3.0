@@ -80,19 +80,23 @@ import { required, email } from '@vuelidate/validators'
 const props = defineProps({
     loadcurators: {
         type: Array,
-        required: true
+        required: true,
+        default: () => []
     },
     loadowner: {
         type: Object,
-        required: true
+        required: true,
+        default: () => ({})
     },
     community: {
         type: Object,
-        required: true
+        required: true,
+        default: () => ({})
     },
     user: {
         type: Object,
-        required: true
+        required: true,
+        default: () => ({})
     }
 })
 
@@ -100,12 +104,12 @@ const props = defineProps({
 const emit = defineEmits(['update'])
 
 // Data
-const curators = ref(props.loadcurators.filter(u => u.id !== props.loadowner.id))
+const curators = ref((props.loadcurators || []).filter(u => u?.id !== props.loadowner?.id))
 const serverErrors = ref(null)
-const owner = ref(props.loadowner)
+const owner = ref(props.loadowner || {})
 const showInviteForm = ref(false)
 const curator = ref(null)
-const isOwner = computed(() => props.user.id === props.loadowner.id)
+const isOwner = computed(() => props.user?.id === props.loadowner?.id)
 
 // Validation rules
 const rules = {

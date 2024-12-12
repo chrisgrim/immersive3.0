@@ -5,6 +5,7 @@ import axios from 'axios';
 
 // Define an async component
 const NavSearch = defineAsyncComponent(() => import('./PageComponents/Nav/nav-search.vue'));
+const NavSearchMobile = defineAsyncComponent(() => import('./PageComponents/Nav/nav-search-mobile.vue'));
 const NavProfile = defineAsyncComponent(() => import('./PageComponents/Nav/nav-profile.vue'));
 
 const SearchLocation = defineAsyncComponent(() => import('./PageComponents/Search/location.vue'));
@@ -32,7 +33,6 @@ const CommunityEdit = defineAsyncComponent(() => import('./PageComponents/Curate
 const CommunityIndex = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/index.vue'));
 
 const PostEdit = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/edit.vue'));
-const PostShow = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/show.vue'));
 const PostCreate = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/create.vue'));
 
 const QuickBar = defineAsyncComponent(() => import('./PageComponents/Nav/quick-bar.vue'));
@@ -56,6 +56,7 @@ window.axios = axios;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
 app.component('vue-nav-search', NavSearch);
+app.component('vue-nav-search-mobile', NavSearchMobile);
 app.component('vue-nav-profile', NavProfile);
 
 app.component('vue-search-location', SearchLocation);
@@ -82,7 +83,6 @@ app.component('vue-community-edit', CommunityEdit);
 app.component('vue-community-index', CommunityIndex);
 
 app.component('vue-post-edit', PostEdit);
-app.component('vue-post-show', PostShow);
 app.component('vue-post-create', PostCreate);
 
 app.component('vue-quick-bar', QuickBar);

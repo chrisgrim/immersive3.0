@@ -2,6 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 	<head>
         @yield('meta')
+        @yield('styles')
 		@include('Layouts.meta')
 	</head>
 	<body id="app">

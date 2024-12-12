@@ -4,14 +4,8 @@
     </div>
     <div v-else>
         <div class="m-auto w-full md:px-12 md:py-8 lg:py-0 lg:px-32 max-w-screen-xl">
-            <div class="py-12">
-                <p class="text-1xl">
-                    <a class="underline" :href="`/`">Everything Immersive</a> > 
-                    {{ community?.name || 'Loading...' }} Community
-                </p>
-            </div>
             <template v-if="community">
-                <div class="relative overflow-hidden mb-8 rounded-2xl block h-full w-full md:flex md:h-[45rem]">
+                <div class="relative overflow-hidden my-8 rounded-2xl block h-full w-full md:flex md:h-[45rem]">
                     <div class="absolute right-20 bottom-20 z-10">
                         <a :href="`/communities/${community.slug || ''}`">
                             <button class="border-none bg-white rounded-2xl mt-16 py-6 px-8">
@@ -75,14 +69,32 @@
                                 </div>
                                 <input
                                     type="file"
-                                    class="hidden"
+                                    @change="onFileChange"
                                     accept="image/*"
-                                    @change="onFileChange">
+                                    ref="fileInput"
+                                    class="hidden">
                             </label>
-                            <div v-if="v$.imageFile.$error" class="absolute w-96 h-36 rounded-2xl inset-0 m-auto p-4 bg-white">
-                                <p class="text-red-600" v-if="!v$.imageFile.fileSize">The image file size is over 10mb</p>
-                                <p class="text-red-600" v-if="!v$.imageFile.fileType">The image needs to be a JPG, PNG or GIF</p>
-                                <p class="text-red-600" v-if="!v$.imageFile.imageRatio">The image needs to be at least 800 x 450</p>
+                            <div 
+                                v-if="v$.imageFile.$error || imageValidationError" 
+                                class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 rounded-2xl p-8 bg-red-100 border-2 border-red-500 shadow-lg">
+                                <div class="space-y-2">
+                                    <template v-if="imageValidationError">
+                                        <p class="text-red-600 font-semibold text-lg">
+                                            {{ imageValidationError }}
+                                        </p>
+                                    </template>
+                                    <template v-else>
+                                        <p class="text-red-600 font-semibold text-lg" v-if="!v$.imageFile.fileSize.$valid">
+                                            The image file size is over 10MB
+                                        </p>
+                                        <p class="text-red-600 font-semibold text-lg" v-if="!v$.imageFile.fileType.$valid && v$.imageFile.fileSize.$valid">
+                                            The image needs to be a JPG, PNG or GIF
+                                        </p>
+                                        <p class="text-red-600 font-semibold text-lg" v-if="!v$.imageFile.imageRatio.$valid && v$.imageFile.fileType.$valid && v$.imageFile.fileSize.$valid">
+                                            The image needs to be at least 800 x 450 pixels
+                                        </p>
+                                    </template>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -296,9 +308,15 @@ const rules = {
         }
     },
     imageFile: {
-        fileSize: (value) => !value || value.file?.size < size.value,
-        fileType: (value) => !value || ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(value.file?.type),
-        imageRatio: (value) => !value || (value.width >= width.value && value.height >= height.value)
+        fileSize: (value) => {
+            return !value || value.file?.size < size.value
+        },
+        fileType: (value) => {
+            return !value || ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(value.file?.type)
+        },
+        imageRatio: (value) => {
+            return !value || (value.width >= width.value && value.height >= height.value)
+        }
     }
 }
 
@@ -339,38 +357,17 @@ const backgroundImage = computed(() => {
 
 // Methods
 const patchCommunity = async () => {
-    console.log('Starting patchCommunity')
-    
-    // Only validate the community part
-    const isValid = await v$.value.community.$validate()
-    if (!isValid) {
-        console.log('Validation errors detail:', {
-            description: v$.value.community.description.$errors,
-            allErrors: v$.value.community.$errors,
-            dirty: v$.value.community.$dirty,
-            invalid: v$.value.community.$invalid
-        })
-        return
-    }
-
     try {
-        // Use the class-level formData instead of creating a new one
-        if (!formData.value) {
-            formData.value = new FormData()
-        }
+        formData.value = new FormData()
         
-        // Always include these basic fields
         formData.value.append('_method', 'PUT')
         formData.value.append('name', community.value.name)
         formData.value.append('blurb', community.value.blurb)
         formData.value.append('description', community.value.description)
         
-        // If there's a new image file, include it
         if (imageFile.value?.file) {
             formData.value.append('image', imageFile.value.file)
         }
-        
-        console.log('FormData created:', Object.fromEntries(formData.value))
         
         const response = await axios.post(
             `/communities/${community.value.slug}`, 
@@ -382,17 +379,28 @@ const patchCommunity = async () => {
             }
         )
         
-        // Update the community with the response data
-        community.value = response.data
+        if (response.data) {
+            if (response.data.images?.length) {
+                response.data.images = response.data.images.map(img => ({
+                    ...img,
+                    large_image_path: `${img.large_image_path}?t=${Date.now()}`,
+                    thumb_image_path: `${img.thumb_image_path}?t=${Date.now()}`
+                }))
+            }
+            
+            if (imageFile.value?.src) {
+                URL.revokeObjectURL(imageFile.value.src)
+            }
+            
+            community.value = response.data
+            imageFile.value = null
+            formData.value = new FormData()
+        }
         
-        // Reset the image file after successful upload
-        imageFile.value = null
-        formData.value = new FormData()
-        
-        onUpdated()
+        if (typeof onUpdated === 'function') {
+            onUpdated()
+        }
     } catch (err) {
-        console.error('Error in patchCommunity:', err)
-        console.error('Error response:', err.response?.data)
         serverErrors.value = err.response?.data?.errors || ['An error occurred while saving']
     }
 }
@@ -491,30 +499,92 @@ const confirmModal = () => {
 }
 
 // Add image handling methods
-const onFileChange = async (event) => {
-    const file = event.target.files[0]
-    if (!file) return
+const validateFile = async (file) => {
+    if (!file) {
+        return false
+    }
 
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-        const img = new Image()
-        img.src = e.target.result
-        img.onload = async () => {
-            imageFile.value = {
-                file,
-                src: e.target.result,
-                width: img.width,
-                height: img.height
+    try {
+        const maxSize = 10 * 1024 * 1024
+        if (file.size > maxSize) {
+            serverErrors.value = ['File size must be less than 10MB']
+            return false
+        }
+
+        if (!file.type.startsWith('image/')) {
+            serverErrors.value = ['File must be an image']
+            return false
+        }
+
+        return new Promise((resolve) => {
+            const img = new Image()
+            const objectUrl = URL.createObjectURL(file)
+            
+            img.onload = () => {
+                imageFile.value = {
+                    file: file,
+                    width: img.width,
+                    height: img.height,
+                    src: objectUrl
+                }
+                
+                resolve(true)
             }
+            img.onerror = () => {
+                URL.revokeObjectURL(objectUrl)
+                serverErrors.value = ['Failed to validate image']
+                resolve(false)
+            }
+            img.src = objectUrl
+        })
+    } catch (error) {
+        serverErrors.value = ['Error validating file']
+        return false
+    }
+}
 
-            await v$.value.$touch()
-            if (v$.value.$invalid) return
+const onFileChange = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) {
+        return
+    }
 
-            // Call patchCommunity directly instead of addImage
+    try {
+        imageValidationError.value = null
+        const img = new Image()
+        const objectUrl = URL.createObjectURL(file)
+        
+        img.onload = async () => {
+            // Check dimensions explicitly
+            if (img.width < width.value || img.height < height.value) {
+                imageValidationError.value = `Image must be at least ${width.value}x${height.value} pixels. Current size: ${img.width}x${img.height}`
+                URL.revokeObjectURL(objectUrl)
+                event.target.value = ''
+                return
+            }
+            
+            imageFile.value = {
+                file: file,
+                width: img.width,
+                height: img.height,
+                src: objectUrl
+            }
+            
+            // Remove validation check since we've already checked dimensions
             await patchCommunity()
         }
+        
+        img.onerror = () => {
+            URL.revokeObjectURL(objectUrl)
+            imageValidationError.value = 'Failed to load image'
+            event.target.value = ''
+        }
+        
+        img.src = objectUrl
+    } catch (error) {
+        event.target.value = ''
+        imageValidationError.value = 'Error processing image'
     }
-    reader.readAsDataURL(file)
 }
 
 // Lifecycle hooks
@@ -595,6 +665,9 @@ const updateShelvesOrder = async () => {
         console.error('Failed to update shelf order:', error)
     }
 }
+
+// Add this to your refs
+const imageValidationError = ref(null)
 </script>
 <style scoped>
 .hidden {

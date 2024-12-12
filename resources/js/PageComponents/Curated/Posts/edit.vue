@@ -1,18 +1,5 @@
 <template>
-    <div class="max-w-screen-xl mx-auto">
-        <div class="w-full lg:w-1/2 mx-auto px-4 md:px-0">
-            <div class="py-12">
-                <a 
-                    class="hover:underline" 
-                    :href="`/communities/${community.slug}/edit`">
-                    {{community.name}}
-                </a>
-                <span class="mx-2">></span>
-                <span>{{post.name}}</span>
-            </div>
-        </div>
-        
-
+    <div class="max-w-screen-xl-air mx-auto">
         <div class="w-full lg:w-1/2 mx-auto px-4">
             <div class="my-8 pb-80 relative ">
                 <div class="flex gap-8 mt-4 px-4 mb-16">
@@ -38,72 +25,72 @@
                         </div>
                     </div>
                 </div>
-                <template v-if="postEdit">
-                    <div class="mb-4">
-                        <textarea 
-                            type="text" 
-                            v-model="post.name"
-                            @input="clearErrors"
-                            class="text-4xl font-normal border border-[#222222] rounded-2xl p-4 w-full"
-                            :class="{ 
-                                'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': v$.name.$error,
-                                'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !v$.name.$error 
-                            }"
-                            placeholder="Collection Name"
-                            rows="2" />
-                        <div class="flex justify-end mt-1" 
-                            :class="{'text-red-500': isNameNearLimit, 'text-gray-500': !isNameNearLimit}">
-                            {{ post.name?.length || 0 }}/100
+                <div class="mt-28">
+                    <template v-if="postEdit">
+                        <div class="mb-4">
+                            <textarea 
+                                type="text" 
+                                v-model="post.name"
+                                @input="clearErrors"
+                                class="text-4xl font-normal border border-[#222222] rounded-2xl p-4 w-full"
+                                :class="{ 
+                                    'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': v$.post.name.$error,
+                                    'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !v$.post.name.$error 
+                                }"
+                                placeholder="Collection Name"
+                                rows="2" />
+                            <div class="flex justify-end mt-1" 
+                                :class="{'text-red-500': isNameNearLimit, 'text-gray-500': !isNameNearLimit}">
+                                {{ post.name?.length || 0 }}/100
+                            </div>
+                            <div v-if="v$.post.$error" class="px-4">
+                                <p class="text-red-500 text-1xl" v-if="!v$.post.name.required.$response">Please add a name.</p>
+                                <p class="text-red-500 text-1xl" v-if="!v$.post.name.maxLength.$response">The name is too long.</p>
+                            </div>
                         </div>
-                        <div v-if="v$.name.$error" class="px-4">
-                            <p class="text-red-500 text-1xl" v-if="!v$.name.required">Please add a name.</p>
-                            <p class="text-red-500 text-1xl" v-if="!v$.name.maxLength">The name is too long.</p>
-                            <p class="text-red-500 text-1xl" v-if="!v$.name.serverError">Your community already has a post with a similar name</p>
+                        <div class="mb-4">
+                            <textarea 
+                                type="text"
+                                v-model="post.blurb"
+                                class="text-2xl border border-[#222222] rounded-2xl p-4 w-full"
+                                :class="{ 
+                                    'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': v$.post.blurb.$error,
+                                    'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !v$.post.blurb.$error 
+                                }"
+                                placeholder="Collection tag line"
+                                rows="2" />
+                            <div class="flex justify-end mt-1" 
+                                :class="{'text-red-500': isBlurbNearLimit, 'text-gray-500': !isBlurbNearLimit}">
+                                {{ post.blurb?.length || 0 }}/255
+                            </div>
+                            <div v-if="v$.post.$error" class="px-4">
+                                <p class="text-red-500 text-1xl" v-if="!v$.post.blurb.maxLength.$response">The tag line is too long.</p>
+                            </div>
                         </div>
-                    </div>
-                    <div class="mb-4">
-                        <textarea 
-                            type="text"
-                            v-model="post.blurb"
-                            class="text-2xl border border-[#222222] rounded-2xl p-4 w-full"
-                            :class="{ 
-                                'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': v$.blurb.$error,
-                                'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !v$.blurb.$error 
-                            }"
-                            placeholder="Collection tag line"
-                            rows="2" />
-                        <div class="flex justify-end mt-1" 
-                            :class="{'text-red-500': isBlurbNearLimit, 'text-gray-500': !isBlurbNearLimit}">
-                            {{ post.blurb?.length || 0 }}/100
+                        <div class="flex justify-between">
+                            <button 
+                                class="rounded-2xl border border-black py-4 px-8 bg-white text-black hover:bg-black hover:text-white" 
+                                @click="resetPost">Cancel</button>
+                            <button 
+                                @click="patchPost"
+                                class="rounded-2xl py-4 px-8 bg-black text-white hover:bg-white hover:text-black border border-black">
+                                Save Changes
+                            </button>
                         </div>
-                        <div v-if="v$.blurb.$error" class="px-4">
-                            <p class="text-red-500 text-1xl" v-if="!v$.blurb.maxLength">The tag line is too long.</p>
+                    </template>
+                    <template v-else>
+                        <div 
+                            @click="postEdit=true"
+                            class="px-4">
+                            <h1 class="font-bold">{{ post.name }}</h1>
                         </div>
-                    </div>
-                    <div class="flex justify-between">
-                        <button 
-                            class="rounded-2xl border border-black py-4 px-8 bg-white text-black hover:bg-black hover:text-white" 
-                            @click="resetPost">Cancel</button>
-                        <button 
-                            @click="patchPost"
-                            class="rounded-2xl py-4 px-8 bg-black text-white hover:bg-white hover:text-black border border-black">
-                            Save Changes
-                        </button>
-                    </div>
-                </template>
-                <template v-else>
-                    <div 
-                        @click="postEdit=true"
-                        class="px-4">
-                        <h1 class="font-bold">{{ post.name }}</h1>
-                    </div>
-                    <div 
-                        @click="postEdit=true"
-                        class="mt-6 relative px-4">
-                        <p class="font-bold text-xl">{{ post.blurb }}</p>
-                    </div>
-                </template>
-                
+                        <div 
+                            @click="postEdit=true"
+                            class="mt-6 relative px-4">
+                            <p>{{ post.blurb }}</p>
+                        </div>
+                    </template>
+                </div>
 
                 <!-- Add Featured Image Section -->
                 <div class="my-8 relative">
@@ -148,7 +135,7 @@
                         v-model="post.cards" 
                         :item-key="card => card.id"
                         @start="handleDragStart" 
-                        @end="debounce">
+                        @end="debouncePostOrder">
                         <template #item="{ element: card }">
                             <div :key="card.id">
                                 <div v-if="activeCardId === card.id && newCardPosition === post.cards.indexOf(card)">
@@ -357,7 +344,9 @@ const emit = defineEmits(['update'])
 
 const post = ref({
     ...props.value,
-    cards: props.value?.cards || []
+    cards: props.value?.cards || [],
+    name: props.value?.name || '',
+    blurb: props.value?.blurb || ''
 })
 const postBeforeEdit = ref(props.value || {})
 const onEdit = ref(false)
@@ -384,29 +373,55 @@ const events = ref([])
 
 // Validation rules
 const rules = {
-    name: { 
-        required, 
-        maxLength: maxLength(100),
-        serverError: () => !serverErrors.value?.name
-    },
-    blurb: { 
-        maxLength: maxLength(100) 
+    post: {
+        name: { 
+            required,
+            maxLength: maxLength(100)
+        },
+        blurb: { 
+            maxLength: maxLength(255)
+        }
     }
 }
 
-const v$ = useVuelidate(rules, post)
+// Create validation state that only includes the fields we want to validate
+const validationState = computed(() => ({
+    post: {
+        name: post.value.name,
+        blurb: post.value.blurb
+    }
+}))
 
+// Create validator with our validation state
+const v$ = useVuelidate(rules, validationState)
+
+// Update checkVuelidate to only check post fields
 const checkVuelidate = async () => {
-    const result = await v$.value.$validate()
-    return !result
+    await v$.value.$validate()
+    const hasPostErrors = v$.value.post.name.$error || v$.value.post.blurb.$error
+    
+    console.log('Post validation:', {
+        hasErrors: hasPostErrors,
+        nameError: v$.value.post.name.$error,
+        blurbError: v$.value.post.blurb.$error
+    })
+    
+    return hasPostErrors
 }
 
 const patchPost = async () => {
-    if (await checkVuelidate()) return
+    console.log('Starting validation check')
+    const hasErrors = await checkVuelidate()
+    console.log('Validation errors?', hasErrors)
     
+    if (hasErrors) {
+        console.log('Validation failed:', v$.value.$errors)
+        return
+    }
+    
+    console.log('Proceeding with patch')
     addPostData()
     try {
-        console.log('Sending update with:', Object.fromEntries(formData.value))
         const res = await axios.post(
             `/communities/${props.community.slug}/${post.value.slug}/update`, 
             formData.value
@@ -423,8 +438,7 @@ const patchPost = async () => {
             }, 1000) // Wait for "Updated" message to show
         }
     } catch (err) {
-        // Revert changes on error
-        post.value = { ...postBeforeEdit.value }
+        console.error('Patch error:', err)
         onErrors(err)
     }
 }
@@ -453,6 +467,14 @@ const debounce = () => {
     if (timeout.value) clearTimeout(timeout.value)
     timeout.value = setTimeout(fetchEvents, 300)
 }
+
+const debouncePostOrder = () => {
+    if (timeout.value) clearTimeout(timeout.value)
+    timeout.value = setTimeout(() => {
+        updatePostOrder()
+    }, 500)
+}
+
 
 const addImage = (image) => {
     formData.value = new FormData()
@@ -529,14 +551,11 @@ const onUpdated = () => {
 }
 
 const showAddButtonOptions = () => {
-    console.log('showAddButtonOptions called')
     clear()
     buttonOptions.value = !buttonOptions.value
-    console.log('buttonOptions:', buttonOptions.value)
 }
 
 const selectButton = (val) => {
-    console.log('selectButton called with:', val)
     buttonOptions.value = false
     blockType.value = val
     
@@ -547,7 +566,6 @@ const selectButton = (val) => {
 }
 
 const clear = () => {
-    console.log('clear called')
     onEdit.value = false
     postEdit.value = false
     blockType.value = null
@@ -576,56 +594,31 @@ const showAddButtonOptionsForCard = (card, position) => {
 
 const addBlockAfterCard = (type, card, position) => {
     const index = post.value.cards.findIndex(c => c.id === card.id)
-    console.log('Current cards:', post.value.cards.map(c => ({ id: c.id, order: c.order })))
-    console.log('Adding block after card:', { cardId: card.id, index, position })
+    console.log('Adding block:', {
+        type,
+        cardId: card.id,
+        requestedPosition: position,
+        calculatedIndex: index,
+        finalPosition: position === 'top' ? index : index + 1
+    })
     
     activeCardId.value = card.id
     blockType.value = type
     topPosition.value = index
     newCardPosition.value = position === 'top' ? index : index + 1
     activeAddButton.value = null
-    
-    console.log('Final positions:', {
-        activeCardId: activeCardId.value,
-        topPosition: topPosition.value,
-        newCardPosition: newCardPosition.value
-    })
 }
 
 const handleNewCardUpdate = (updatedPost) => {
-    console.log('handleNewCardUpdate START:', {
+    console.log('handleNewCardUpdate received:', {
         currentCards: post.value.cards.map(c => ({ id: c.id, order: c.order })),
-        newPosition: newCardPosition.value
-    })
+        updatedCards: updatedPost.cards.map(c => ({ id: c.id, order: c.order }))
+    });
     
-    if (updatedPost && updatedPost.cards) {
-        // Get the new card
-        const newCard = updatedPost.cards[updatedPost.cards.length - 1]
-        console.log('New card to insert:', newCard)
-        
-        // Create a new array with all cards except the new one
-        const existingCards = updatedPost.cards.slice(0, -1)
-        
-        // Insert the new card at the correct position
-        existingCards.splice(newCardPosition.value, 0, newCard)
-        
-        // Update orders
-        const reorderedCards = existingCards.map((card, index) => ({
-            ...card,
-            order: index
-        }))
-        
-        // Update the post with the reordered cards
-        updatedPost.cards = reorderedCards
-        
-        // Update the local post reference
+    if (updatedPost) {
+        // Simply update the post with the server response
         post.value = { ...updatedPost }
-        
-        // Update the backup copy
         postBeforeEdit.value = { ...updatedPost }
-        
-        // Update card orders in the backend
-        updatePostOrder()
     }
     
     onUpdated()
@@ -652,7 +645,7 @@ const isNameNearLimit = computed(() => {
 
 const isBlurbNearLimit = computed(() => {
     const count = post.value.blurb?.length || 0
-    return count > 90
+    return count > 230
 })
 
 const handleDragStart = async () => {
@@ -729,8 +722,6 @@ const removeShelf = async () => {
         console.error('Error removing shelf:', error)
     }
 }
-
-console.log('Selected Shelf:', selectedShelf.value)
 
 const toggleStatus = () => {
     post.value.status = post.value.status === 'p' ? 'd' : 'p'

@@ -46,17 +46,38 @@ class Card extends Model
     }
 
     /**
-    * Deletes the card images and then deletes card
+    * Deletes a card and its associated images
     *
+    * @param Card $card
     * @return void
+    * @throws \Exception
     */
     public function destroyCard($card) 
     {
-        if ($card->images()->exists()) {
-            foreach ($card->images as $image) {
-                ImageHandler::deleteImage($image);
-            }
+        try {
+            $this->deleteCardImages($card);
+            $card->delete();
+        } catch (\Exception $e) {
+            \Log::error('Failed to delete card:', [
+                'card_id' => $card->id,
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
         }
-        $card->delete();
+    }
+
+    /**
+    * Deletes all valid images associated with a card
+    *
+    * @param Card $card
+    * @return void
+    */
+    private function deleteCardImages($card)
+    {
+        if (!$card->images()->exists()) return;
+
+        foreach ($card->images as $image) {
+            ImageHandler::deleteImage($image);
+        }
     }
 }

@@ -11,6 +11,7 @@
     margin: 0;
     color: #484848; /* Replace with your $font-color value */
     margin-left: 1px;
+    min-height: .1rem;
   }
   h1 {
     font-size: 4.6rem; /* 46px */

@@ -33,13 +33,29 @@
             </template>
             
             <!-- Regular Image -->
-            <template v-else-if="hasImage || onEdit && card.url">
-                <CardImage
-                    :loading="disabled"
-                    :image="image"
-                    :can-delete="card.type === 'e'"
-                    @onDelete="removeImage"
-                    @addImage="addImageSubmit" />
+            <template v-if="!card.event_id && card.type === 'i'">
+                <div 
+                    :class="['relative rounded-2xl overflow-hidden mb-8 cursor-pointer', isVisible ? 'aspect-[16/9]' : 'h-16']" 
+                    @click="onEdit = true">
+                    <picture v-if="isVisible && hasImage">
+                        <source 
+                            type="image/webp" 
+                            :srcset="imageUrl + hasImage" /> 
+                        <img 
+                            loading="lazy"
+                            class="w-full rounded-2xl align-bottom object-cover h-full"
+                            :src="imageUrl + hasImage"
+                            :alt="card.name || 'Card image'">
+                    </picture>
+                    <div v-if="onEdit" class="absolute top-4 right-4">
+                        <ToggleSwitch
+                            v-model="isVisible"
+                            left-label="Hidden"
+                            right-label="Visible"
+                            text-size="sm"
+                            @update:modelValue="handleVisibilityChange" />
+                    </div>
+                </div>
             </template>
 
             <template v-if="hasName || cardBeforeEdit.name">
@@ -118,7 +134,7 @@
                     <div 
                         @click="onEdit=true"
                         class="card-blurb text-lg leading-relaxed">
-                        <div v-html="cleanBlurb(card.blurb)" />
+                        <div v-html="card.blurb" />
                     </div>
                 </template>
             </div>
@@ -155,7 +171,7 @@ const props = defineProps({
     owner: {
         type: Boolean,
         default: false
-    }
+    },
 })
 
 const emit = defineEmits(['update'])
@@ -186,7 +202,10 @@ const v$ = useVuelidate(rules, { card })
 
 // Computed
 const hasImage = computed(() => {
-    if (card.value?.event_id) {
+    if (!card.value) return null
+
+    // For event cards
+    if (card.value.event_id) {
         // Check event images first
         if (card.value.event?.images?.length > 0) {
             return card.value.event.images[0].largeImagePath || card.value.event.images[0].thumbImagePath
@@ -195,23 +214,16 @@ const hasImage = computed(() => {
         return card.value.event?.largeImagePath || card.value.event?.thumbImagePath
     }
     
-    // Regular image logic
-    const type = card.value?.type
-    return type === 'i' || type === 'e' || type === 'h'
-})
-
-const image = computed(() => {
-    const type = card.value?.type
-    const thumbPath = card.value?.thumbImagePath
-    const eventThumbPath = card.value?.event?.thumbImagePath
-
-    if (!type) return null
-    if (type === 'i' && thumbPath) return `${imageUrl}${thumbPath}`
-    if (type === 'h' || type === 't') return null
-    if (type === 'e') {
-        if (thumbPath) return `${imageUrl}${thumbPath}`
-        if (eventThumbPath) return `${imageUrl}${eventThumbPath}`
+    // For regular cards
+    if (card.value.type === 'i') {
+        // Check card images first
+        if (card.value.images?.length > 0) {
+            return card.value.images[0].large_image_path
+        }
+        // Fallback to direct image path
+        return card.value.thumbImagePath
     }
+
     return null
 })
 
@@ -260,7 +272,6 @@ const deleteCard = async () => {
 
 const appendCardData = () => {
     formData.value = new FormData()
-    formData.value.append('_method', 'PUT')
     if (card.value.name) formData.value.append('name', card.value.name)
     if (card.value.url) formData.value.append('url', card.value.url)
     if (card.value.blurb) formData.value.append('blurb', card.value.blurb)
@@ -289,32 +300,6 @@ const clear = () => {
 
 const cleanDate = (date) => {
     return moment(date).format("dddd, MMMM D YYYY")
-}
-
-const cleanBlurb = (blurb) => {
-    // Create a temporary div to parse the HTML
-    const temp = document.createElement('div')
-    temp.innerHTML = blurb
-
-    // Handle empty paragraphs and br tags
-    const paragraphs = Array.from(temp.querySelectorAll('p'))
-    const cleanedParagraphs = paragraphs.map(p => {
-        // If paragraph is empty or only contains a br tag
-        if (!p.textContent.trim() || p.innerHTML === '<br class="ProseMirror-trailingBreak">') {
-            return '<p><br></p>'
-        }
-        return p.outerHTML
-    })
-
-    // Handle standalone <br> tags
-    const brTags = Array.from(temp.querySelectorAll('br'))
-    brTags.forEach(br => {
-        if (!br.parentElement.textContent.trim()) {
-            br.parentElement.innerHTML = '<br>'
-        }
-    })
-
-    return cleanedParagraphs.join('')
 }
 
 // Add isVisible computed

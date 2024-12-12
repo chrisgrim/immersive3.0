@@ -29,6 +29,7 @@ import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import MenuBar from './MenuBar.vue'
 import MenuItem from './MenuItem.vue'
+import Link from '@tiptap/extension-link'
 
 const props = defineProps({
     modelValue: {
@@ -49,43 +50,27 @@ const editor = useEditor({
         StarterKit.configure({
             paragraph: {
                 HTMLAttributes: {
-                    class: 'mb-4'
-                },
-                keepMarks: true,
-                keepOnSplit: true
+                    class: 'mb-8'
+                }
             },
-            emptyDocument: {
-                content: '<p class="mb-4"><br></p>'
+            heading: {
+                HTMLAttributes: {
+                    class: 'mb-8'
+                }
             }
         }),
+        Link.configure({
+            openOnClick: false,
+            HTMLAttributes: {
+                class: 'text-blue-600 hover:underline cursor-pointer'
+            },
+            linkOnPaste: true,
+        })
     ],
-    editorProps: {
-        attributes: {
-            class: 'prose prose-lg max-w-none'
-        },
-        preserveWhitespace: true,
-        handleDOMEvents: {
-            keydown: (view, event) => {
-                if (event.key === 'Enter') {
-                    const { state, dispatch } = view
-                    const { selection } = state
-                    const { empty, $from } = selection
-                    
-                    if (empty && $from.parent.type.name === 'paragraph' && $from.parent.textContent === '') {
-                        const tr = state.tr.insert($from.pos, state.schema.nodes.paragraph.create(
-                            { class: 'mb-4' },
-                            [state.schema.nodes.hardBreak.create()]
-                        ))
-                        dispatch(tr)
-                        return true
-                    }
-                }
-                return false
-            }
-        }
-    },
     onUpdate: ({ editor }) => {
-        const html = editor.getHTML()
+        let html = editor.getHTML()
+            .replace(/class="mb-4"/g, 'class="mb-8"')
+            .replace(/>\s+</g, '><');
         emit('update:modelValue', html)
     }
 })
@@ -110,7 +95,7 @@ onBeforeUnmount(() => {
 }
 
 .editor-content {
-    @apply p-4 min-h-[100px] w-full max-w-none break-words whitespace-pre-wrap text-2xl;
+    @apply p-4 min-h-[100px] max-h-[500px] w-full max-w-none break-words whitespace-pre-wrap text-2xl overflow-y-auto;
 }
 
 .ProseMirror {
@@ -189,5 +174,18 @@ onBeforeUnmount(() => {
 
 .editor-content hr {
     @apply my-8 border-t border-gray-300;
+}
+
+/* Optional: Add custom scrollbar styling */
+.editor-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.editor-content::-webkit-scrollbar-track {
+    @apply bg-gray-100 rounded-r;
+}
+
+.editor-content::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-r hover:bg-gray-400;
 }
 </style>

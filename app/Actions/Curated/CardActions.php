@@ -9,42 +9,39 @@ use App\Services\ImageHandler;
 
 class CardActions
 {
-
     /**
-     * Create a newly registered card.
-     *
-     * @param  array  $input
-     * @return \App\Models\Curated\Card
+     * Create a new card
      */
     public function create(Request $request, Post $post)
     {
+        // If order is specified, make room for the new card
+        if ($request->order !== null) {
+            $this->shiftCardsOrder($post, $request->order);
+        }
+
         $card = Card::create([
-            'blurb' => $request->blurb,
-            'name' => $request->name ? $request->name : null,
-            'url' => $request->url ? $request->url : null,
-            'event_id' => $request->event_id ? $request->event_id : null,
             'post_id' => $post->id,
-            'type' => $request->type ? $request->type : 'b',
-            'order' => $post->cards()->exists() ? $post->cards->last()->order + 1 : 0
+            'event_id' => $request->event_id,
+            'name' => $request->name,
+            'blurb' => $request->blurb,
+            'url' => $request->url,
+            'type' => $request->type,
+            'order' => $request->order ?? ($post->cards()->exists() ? $post->cards->last()->order + 1 : 0)
         ]);
 
         if ($request->hasFile('image')) {
-            ImageHandler::saveImage($request->file('image'), $card, 800, 450, 'card');
+            ImageHandler::saveImage($request->file('image'), $card, 800, 500, 'card-images');
         }
-
-        return $post->load('cards.event', 'cards.images', 'user');
+        
+        return $post->load('cards.images', 'user');
     }
 
     /**
-     * Updates an existing card
-     *
-     * @param  array  $input
-     * @return \App\Models\Curated\Card
+     * Update an existing card
      */
     public function update(Request $request, Card $card)
     {
-        $data = $request->except(['image', 'deleteImage']);
-        $card->update($data);
+        $card->update($request->except(['image', 'deleteImage']));
 
         if ($request->hasFile('image')) {
             if ($card->images()->exists()) {
@@ -52,39 +49,50 @@ class CardActions
                     ImageHandler::deleteImage($image);
                 }
             }
-            ImageHandler::saveImage($request->file('image'), $card, 800, 450, 'card');
+            ImageHandler::saveImage($request->file('image'), $card, 800, 500, 'card-images');
             $card->touch();
         }
 
-        return $card;
+        return $card->fresh()->load('event', 'images');
     }
 
     /**
-     * Destroys an existing card
-     *
-     * @param  array  $input
-     * @return \App\Models\Curated\Card
+     * Delete a card
      */
     public function destroy(Card $card)
     {
-        $post = $card->post_id;
+        $post = $card->post;
+        $deletedOrder = $card->order;
+        
+        // Delete the card
         $card->destroyCard($card);
-        return Post::with('cards','user')->find($post);
+        
+        // Shift remaining cards up
+        $this->shiftCardsOrder($post, $deletedOrder + 1, -1);
+        
+        return $post->load('cards.images', 'user');
     }
 
     /**
-     * Destroys an existing card
-     *
-     * @param  array  $input
-     * @return \App\Models\Curated\Card
+     * Reorder cards
      */
     public function reorder(Request $request)
     {
         foreach ($request->all() as $card) {
-            Card::find($card['id'])->update([
-                'order' => $card['order'],
-            ]);
+            Card::find($card['id'])->update(['order' => $card['order']]);
         }
     }
 
+    private function shiftCardsOrder(Post $post, int $position, int $shift = 1)
+    {
+        // Get all cards that need to be shifted
+        $cardsToShift = Card::where('post_id', $post->id)
+            ->where('order', '>=', $position)
+            ->get();
+        
+        // Update their order
+        foreach ($cardsToShift as $card) {
+            $card->update(['order' => $card->order + $shift]);
+        }
+    }
 }

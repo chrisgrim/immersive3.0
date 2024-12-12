@@ -60,6 +60,29 @@ const items = computed(() => [
         action: () => props.editor.chain().focus().setParagraph().run(),
         isActive: () => props.editor.isActive('paragraph')
     },
+    {
+        icon: 'link',
+        title: 'Link',
+        action: () => {
+            const previousUrl = props.editor.getAttributes('link').href
+            const url = window.prompt('URL', previousUrl)
+            
+            // cancelled
+            if (url === null) {
+                return
+            }
+
+            // empty
+            if (url === '') {
+                props.editor.chain().focus().unsetLink().run()
+                return
+            }
+
+            // update link
+            props.editor.chain().focus().setLink({ href: url }).run()
+        },
+        isActive: () => props.editor.isActive('link')
+    },
     { type: 'divider' },
     {
         icon: 'list-unordered',
@@ -107,6 +130,8 @@ const items = computed(() => [
         icon: 'arrow-go-forward-line',
         title: 'Redo',
         action: () => props.editor.chain().focus().redo().run()
-    }
+    },
+
+    { type: 'divider' }
 ])
 </script>

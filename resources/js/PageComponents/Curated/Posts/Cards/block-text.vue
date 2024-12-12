@@ -26,18 +26,21 @@ const props = defineProps({
     post: {
         type: Object,
         required: true
+    },
+    position: {
+        type: Number,
+        required: true
     }
 })
 
 const emit = defineEmits(['update', 'cancel'])
 
-const initializeCardObject = () => ({
+const card = ref({
     blurb: null,
     post_id: props.post.id,
-    type: 't'
+    type: 't',
+    order: props.position
 })
-
-const card = ref(initializeCardObject())
 
 // Validation rules
 const rules = {
@@ -54,9 +57,12 @@ const v$ = useVuelidate(rules, { card })
 const saveCard = async () => {
     const isValid = await v$.value.$validate()
     if (!isValid) return
-
+    
+    console.log('Sending card data:', card.value)
+    
     try {
         const res = await axios.post(`/cards/${props.post.slug}/create`, card.value)
+        console.log('Response received:', res.data)
         emit('update', res.data)
     } catch (error) {
         console.error('Failed to save card:', error)
@@ -66,4 +72,6 @@ const saveCard = async () => {
 const cancelCard = () => {
     emit('cancel')
 }
+
+console.log('TextBlock initialized with position:', props.position)
 </script>

@@ -24,6 +24,12 @@ class CardController extends Controller
      */
     public function store(Request $request, Post $post, CardActions $cardActions)
     {
+        \Log::info('CardController@store hit', [
+            'request' => $request->all(),
+            'post_id' => $post->id,
+            'files' => $request->files->all()
+        ]);
+        
         return $cardActions->create($request, $post);
     }
 

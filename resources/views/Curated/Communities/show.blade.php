@@ -9,7 +9,7 @@
     @if (Browser::isMobile())
         @include('Nav.index-mobile')
     @else
-        @include('Nav.event-desktop')
+        @include('Nav.curated-desktop')
     @endif
     
 @endsection

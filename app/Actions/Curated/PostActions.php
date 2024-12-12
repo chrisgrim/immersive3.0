@@ -30,7 +30,7 @@ class PostActions
         ]);
 
         if ($request->hasFile('image')) {
-            ImageHandler::saveImage($request->file('image'), $post, 900, 500, 'post');
+            ImageHandler::saveImage($request->file('image'), $post, 900, 500, 'post-images');
         }
 
         return $post;
@@ -64,7 +64,7 @@ class PostActions
                 
                 // Use ImageHandler to move images if they exist
                 if ($post->images()->exists()) {
-                    ImageHandler::moveImagesForNewSlug($post, $oldSlug, $newSlug, 'post');
+                    ImageHandler::moveImagesForNewSlug($post, $oldSlug, $newSlug, 'post-images');
                 }
             }
         }
@@ -77,7 +77,7 @@ class PostActions
                     ImageHandler::deleteImage($image);
                 }
             }
-            ImageHandler::saveImage($request->file('image'), $post, 900, 500, 'post');
+            ImageHandler::saveImage($request->file('image'), $post, 900, 500, 'post-images');
             $post->touch();
         }
 

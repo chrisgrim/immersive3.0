@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Foundation\Validation\ValidationException;
 use App\Services\ImageHandler;
+use Illuminate\Support\Facades\Log;
 
 class CommunityActions
 {
@@ -55,21 +56,35 @@ class CommunityActions
         $community->update($data);
 
         if ($request->hasFile('image')) {
-            if ($community->images()->exists()) {
-                foreach ($community->images as $image) {
-                    ImageHandler::deleteImage($image);
+            try {
+                if ($community->images()->exists()) {
+                    foreach ($community->images as $image) {
+                        if ($image->large_image_path || $image->thumb_image_path) {
+                            ImageHandler::deleteImage($image);
+                            $image->delete();
+                        }
+                    }
+                    $community->unsetRelation('images');
                 }
+
+                ImageHandler::saveImage($request->file('image'), $community, 800, 500, 'community-images');
+                $community->touch();
+            } catch (\Exception $e) {
+                throw $e;
             }
-            ImageHandler::saveImage($request->file('image'), $community, 800, 500, 'community');
-            $community->touch();
         }
 
         if ($request->deleteImage) {
             if ($community->images()->exists()) {
                 foreach ($community->images as $image) {
-                    ImageHandler::deleteImage($image);
+                    if ($image->large_image_path || $image->thumb_image_path) {
+                        ImageHandler::deleteImage($image);
+                        $image->delete();
+                    }
                 }
+                $community->unsetRelation('images');
             }
+            
             $community->update([
                 'largeImagePath' => NULL,
                 'thumbImagePath' => NULL
@@ -77,7 +92,7 @@ class CommunityActions
             $community->touch();
         }
 
-        return $community->load('curators');
+        return $community->fresh()->load('curators', 'images');
     }
 
     /**

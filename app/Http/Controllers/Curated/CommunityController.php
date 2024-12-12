@@ -66,6 +66,7 @@ class CommunityController extends Controller
         $shelves = $community->publishedShelves()->paginate(4)->through(function ($shelf, $key){
             return $shelf->setRelation('published_posts', $shelf->publishedPosts()->with('limitedCards')->paginate(8));
         });
+        
         $community->load('curators', 'images');
         return view('Curated.Communities.show', compact('community', 'shelves'));
     }
@@ -135,7 +136,11 @@ class CommunityController extends Controller
      */
     public function update(StoreCommunityRequest $request, Community $community, CommunityActions $communityActions)
     {
-        return $communityActions->update($request, $community);
+        try {
+            return $communityActions->update($request, $community);
+        } catch (\Exception $e) {
+            throw $e;
+        }
     }
 
     /**

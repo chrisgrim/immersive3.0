@@ -19,8 +19,8 @@ class ImageHandler
             throw new \Exception('The file is not an image.');
         }
 
-        $slug = $model->slug ?? Str::slug($model->name);
-        $directory = "$type-images/$slug";
+        $slug = $model->slug ?? Str::slug($model->name ?? time() . '-' . Str::random(6));
+        $directory = "$type/$slug";
 
         $imagePath = $image->getPathName();
         $image = Image::read($imagePath);

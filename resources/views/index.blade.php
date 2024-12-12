@@ -47,7 +47,7 @@
 @if (Browser::isMobile())
     @include('Nav.index-mobile')
 @else
-    @include('Nav.index-desktop')
+    @include('Nav.index-mobile')
 @endif
 @endsection
 

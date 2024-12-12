@@ -8,7 +8,7 @@
         >  
             <template v-if="hasImage">
                 <img 
-                    :src="props.image" 
+                    :src="imageFile.src" 
                     class="w-full h-full object-cover rounded-2xl"
                 />
             </template>
@@ -19,7 +19,7 @@
                 <svg class="w-16 h-16 m-auto">
                     <use :xlink:href="`/storage/website-files/icons.svg#ri-image-line`" />
                 </svg>
-                <p class="text-lg">{{ text }}</p>
+                <p class="text-lg">Click to add image</p>
             </div>
             <input
                 type="file"
@@ -37,53 +37,77 @@
         >
             <component :is="hoveredClose ? RiCloseCircleFill : RiCloseCircleLine" />
         </div>
-
-        <!-- Validation Error Messages -->
-        <div v-if="v$.imageFile.$error" class="absolute inset-0 rounded-2xl p-4 bg-white">
-            <p class="text-red-600" v-if="!v$.imageFile.fileSize">The image file size is over 10mb</p>
-            <p class="text-red-600" v-if="!v$.imageFile.fileType">The image needs to be a JPG, PNG or GIF</p>
-            <p class="text-red-600" v-if="!v$.imageFile.imageRatio">The image needs to be at least {{ width }} x {{ height }}</p>
-        </div>
     </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useVuelidate } from '@vuelidate/core'
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue"
+import axios from 'axios'
 
 const props = defineProps({
-    loading: Boolean,
-    image: String
+    post: {
+        type: Object,
+        required: true
+    },
+    position: {
+        type: Number,
+        required: true
+    }
 })
 
-const emit = defineEmits(['addImage', 'cancel'])
+const emit = defineEmits(['update', 'cancel'])
 
-const imageFile = ref('')
+const imageUrl = import.meta.env.VITE_IMAGE_URL
+
+// State
+const card = ref({
+    thumbImagePath: null,
+    post_id: props.post.id,
+    type: 'i',
+    order: props.position
+})
+
+const formData = ref(new FormData())
+const disabled = ref(false)
+const imageFile = ref(null)
 const overImage = ref(false)
 const hoveredClose = ref(false)
-const size = ref(10485760) // 10MB
-const width = ref(800)
-const height = ref(450)
-const text = ref('Image should be at least 800 x 450')
 
-// Validation rules
-const rules = {
-    imageFile: {
-        fileSize: (value) => !value || value.file.size < size.value,
-        fileType: (value) => !value || ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(value.file.type),
-        imageRatio: (value) => !value || (value.width >= width.value && value.height >= height.value)
+// Computed
+const hasImage = computed(() => 
+    imageFile.value?.src ? true : false
+)
+
+const isVisible = computed({
+    get: () => card.value.type !== 'h',
+    set: (value) => {
+        card.value.type = value ? 'i' : 'h'
+    }
+})
+
+// Methods
+const saveCard = async () => {
+    addCardData()
+    try {
+        const res = await axios.post(`/cards/${props.post.slug}/create`, formData.value)
+        emit('update', res.data)
+        disabled.value = false
+    } catch (error) {
+        console.error('Failed to save card:', error)
     }
 }
 
-const v$ = useVuelidate(rules, { imageFile })
+const cancelCard = () => {
+    emit('cancel')
+}
 
-// Computed properties
-const hasImage = computed(() => 
-    props.image || imageFile.value.src ? true : false
-)
+const addCardData = () => {
+    formData.value.append('type', card.value.type)
+    formData.value.append('order', card.value.order)
+    if (imageFile.value?.file) formData.value.append('image', imageFile.value.file)
+}
 
-// Methods
 const onFileChange = async (event) => {
     const file = event.target.files[0]
     if (!file) return
@@ -99,14 +123,15 @@ const onFileChange = async (event) => {
                 width: img.width,
                 height: img.height
             }
-
-            await v$.value.$touch()
-            if (v$.value.$invalid) return
-
-            emit('addImage', file, e.target.result)
+            await saveCard()
         }
     }
     reader.readAsDataURL(file)
+}
+
+// Add this method to handle visibility changes
+const handleVisibilityChange = (value) => {
+    card.value.type = value ? 'i' : 'h'
 }
 </script>
 
