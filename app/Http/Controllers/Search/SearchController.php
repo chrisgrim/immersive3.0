@@ -27,7 +27,7 @@ class SearchController extends Controller
     public function navOrganizers(Request $request, SearchActions $searchActions)
     {
         $results = Organizer::searchQuery($searchActions->nameSearch($request))
-            ->sort('created_at', 'desc')
+            ->sort('published_at', 'desc')
             ->size(6)
             ->execute();
         return $results->hits();
