@@ -1,13 +1,13 @@
 <template>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
         <div 
             v-for="card in items" 
             :key="card.id"
             class="flex flex-col group">
             <a :href="getUrl(card)" class="block h-full flex flex-col">
-                <!-- Event Image Container with 4:5 aspect ratio -->
+                <!-- Event Image Container with 3:4 aspect ratio -->
                 <div class="relative mb-3 overflow-hidden rounded-lg bg-gray-100 transition-transform duration-200 ease-in-out group-hover:scale-[1.02]">
-                    <div class="pb-[125%]"></div>
+                    <div class="pb-[133.33%]"></div>
                     <picture v-if="card.thumbImagePath" class="absolute inset-0">
                         <source 
                             type="image/webp" 

@@ -6,7 +6,7 @@
         <div class="grid gap-4">
             @if(count($event->images) === 0 || count($event->images) === 1)
                 {{-- Single Image or Empty Images Array --}}
-                <div class="aspect-[3/2] w-full overflow-hidden md:rounded-xl">
+                <div class="aspect-[3/4] w-full max-w-2xl overflow-hidden md:rounded-xl">
                     <picture>
                         <source type="image/webp" srcset="{{ config('app.image_url') }}{{ count($event->images) === 0 ? $event->largeImagePath : $event->images[0]->large_image_path }}">
                         <img 

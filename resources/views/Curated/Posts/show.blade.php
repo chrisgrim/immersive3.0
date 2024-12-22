@@ -120,21 +120,24 @@
 
                     @elseif($card->type === 'e')
                         {{-- Event Card --}}
-                        <div class="border rounded-2xl mb-12 md:mb-16 rounded-2xl overflow-hidden">
+                        <div class="border rounded-2xl mb-12 md:mb-16 p-12 rounded-2xl overflow-hidden">
                             @if($card->event)
-                                <div>
+                                <div class="flex flex-col md:flex-row gap-16 items-center">
                                     {{-- Event Image --}}
                                     @if($card->event->thumbImagePath)
-                                        <div class="aspect-[16/9] w-full">
-                                            <img 
-                                                src="{{ $imageUrl . $card->event->thumbImagePath }}" 
-                                                class="w-full h-full object-cover" 
-                                                alt="{{ $card->event->name }}"
-                                            />
+                                        <div class="md:w-[35%] overflow-hidden rounded-2xl">
+                                            <div class="aspect-[3/4] w-full">
+                                                <img 
+                                                    src="{{ $imageUrl . $card->event->thumbImagePath }}" 
+                                                    class="w-full h-full object-cover" 
+                                                    alt="{{ $card->event->name }}"
+                                                />
+                                            </div>
                                         </div>
                                     @endif
 
-                                    <div class="p-8 space-y-4">
+                                    {{-- Event Content --}}
+                                    <div class="space-y-6 md:w-[65%] my-auto">
                                         {{-- Event Title --}}
                                         <h3 class="text-4xl font-bold mt-0">{{ $card->event->name }}</h3>
 
