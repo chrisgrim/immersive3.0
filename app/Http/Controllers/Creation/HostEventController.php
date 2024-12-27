@@ -143,10 +143,11 @@ class HostEventController extends Controller
 
         if ($request->hasFile('images')) {
             $ranks = $request->input('ranks', []);
+            
             foreach ($request->file('images') as $index => $image) {
                 $rank = $ranks[$index] ?? 0;
                 
-                if ($rank === 0) {
+                if ((int)$rank === 0) {
                     ImageHandler::saveImage($image, $event, 900, 1200, 'event-images', $rank);
                 } else {
                     ImageHandler::saveImage($image, $event, 1200, 800, 'event-images', $rank);

@@ -22,7 +22,7 @@
 
             <!-- Additional Advisories Selection -->
             <div v-else class="mt-6">
-                <p class="font-strong">Select additional mobility advisories</p>
+                <p class="font-strong">Select additional mobility advisories or create your own.</p>
                 <Dropdown 
                     class="mt-4"
                     :list="mobilityAdvisoryList"

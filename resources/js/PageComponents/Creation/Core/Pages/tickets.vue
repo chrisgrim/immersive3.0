@@ -1,47 +1,20 @@
 <template>
     <main class="w-full min-h-fit">
         <div class="w-full">
-            <div class="flex items-center">
-                <div>
-                    <input 
-                        class="w-96 border border-[#e5e7eb] text-[#222222] text-3xl p-4 rounded-2xl relative focus:border-black focus:shadow-[0_0_0_1.5px_black]" 
-                        :class="{ 
-                            'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error
-                        }"
-                        type="text" 
-                        v-model="state.formattedName" 
-                        @input="updateTicketName"
-                        maxlength="40"
-                        name="Name">
-                    <div class="flex justify-end mt-1" 
-                         :class="{'text-red-500': isNameNearLimit, 'text-gray-500': !isNameNearLimit}">
-                        {{ state.formattedName?.length || 0 }}/40
-                    </div>
-                    <div v-if="$v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error" 
-                         class="text-red-500 text-1xl mt-[-2rem] px-4">
-                        <span v-for="error in $v.tickets.$each.$response.$errors[state.currentMedia].name" :key="error.$validator">
-                            {{
-                                error.$validator === 'required' ? 'Ticket name is required.' :
-                                error.$validator === 'maxLength' ? 'Too many characters.' :
-                                error.$validator === 'uniqueTicketName' ? 'Ticket name must be unique.' :
-                                error.$validator === 'ticketNameNotFreeWithNonZeroPrice' ? 'Free ticket must be free.' : ''
-                            }}
-                        </span>
-                    </div>
-                    
-                </div>
-            </div>
+            <h2>Tickets</h2>
+            <p class="text-gray-500 font-normal mt-4">Enter your ticket details</p>
+            <!-- Price Section -->
             <div class="mt-12">
                 <div class="flex items-center">
                     <span 
-                        class="text-[11rem] font-bold text-heavy leading-tight cursor-pointer"
+                        class="text-[6rem] md:text-[11rem] font-bold text-heavy leading-tight cursor-pointer"
                         @click="toggleCurrencyDropdown"
                     >{{ state.selectedCurrency }}</span>
                     <input
                         v-if="state.currentMedia !== null && tickets[state.currentMedia]"
                         type="text"
                         name="price"
-                        class="text-[11rem] font-bold text-heavy w-full overflow-hidden leading-tight ml-4"
+                        class="text-[6rem] md:text-[11rem] font-bold text-heavy w-full overflow-hidden leading-tight ml-4"
                         :class="{ 
                             'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.ticket_price.$error
                         }"
@@ -49,23 +22,23 @@
                         @input="updateTicketPrice"
                         @focus="selectPriceInput"
                     />
-                    <div v-if="$v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.ticket_price.$error" 
-                         class="text-red-500 text-1xl mt-[-2.5rem] mb-8 px-4">
-                        <span v-if="$v.tickets.$each.$response.$errors[state.currentMedia].ticket_price.$minValue">
-                            Price cannot be negative.
-                        </span>
-                        <span v-else-if="$v.tickets.$each.$response.$errors[state.currentMedia].ticket_price.$maxValue">
-                            Price cannot exceed ${{ MAX_TICKET_PRICE.toLocaleString() }}.
-                        </span>
-                        <span v-else>
-                            Please enter a valid price.
-                        </span>
-                    </div>
+                </div>
+                <div v-if="$v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.ticket_price.$error" 
+                     class="text-red-500 text-1xl mt-[-2.5rem] mb-8 px-4">
+                    <span v-if="$v.tickets.$each.$response.$errors[state.currentMedia].ticket_price.$minValue">
+                        Price cannot be negative.
+                    </span>
+                    <span v-else-if="$v.tickets.$each.$response.$errors[state.currentMedia].ticket_price.$maxValue">
+                        Price cannot exceed ${{ MAX_TICKET_PRICE.toLocaleString() }}.
+                    </span>
+                    <span v-else>
+                        Please enter a valid price.
+                    </span>
                 </div>
                 <div v-if="state.showCurrencyDropdown" class="absolute mt-2 border border-gray-300 rounded-lg bg-white shadow-lg z-50">
                     <ul class="flex flex-col m-0">
                         <li 
-                            v-for="currency in currencySymbols" 
+                            v-for="currency in CURRENCY_SYMBOLS" 
                             :key="currency" 
                             @click="selectCurrency(currency)"
                             class="w-full p-4 cursor-pointer hover:bg-gray-100 text-center"
@@ -73,36 +46,61 @@
                     </ul>
                 </div>
             </div>
-            <div class="mt-2 h-20 flex items-center">
-                <div v-if="state.showAdditionalDetails" class="relative mt-4 w-full">
-                    <input 
-                        class="border border-[#e5e7eb] text-[#222222] text-3xl p-4 rounded-2xl relative focus:border-black focus:shadow-[0_0_0_1.5px_black] w-full"
-                        :class="{ 
-                            'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error
-                        }"
-                        type="text" 
-                        v-model="state.formattedDescription" 
-                        @input="updateAdditionalDetails"
-                        name="AdditionalDetails"
-                        maxlength="60"
-                    >
-                    <div 
-                        @click="toggleAdditionalDetails" 
-                        class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white"
-                    >
-                        <component :is="RiCloseCircleFill" />
-                    </div>
-                    <div class="flex justify-end mt-1" 
-                         :class="{'text-red-500': isDescriptionNearLimit, 'text-gray-500': !isDescriptionNearLimit}">
-                        {{ state.formattedDescription?.length || 0 }}/60
-                    </div>
-                    <div v-if="$v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error" 
-                         class="text-red-500 text-1xl mt-[-2.5rem] mb-8 px-4">
-                        Too many characters.
-                    </div>
+
+            <!-- Ticket Name Input -->
+            <div class="mt-8">
+                <input 
+                    class="w-2/3 border border-[#e5e7eb] text-[#222222] text-3xl p-4 rounded-2xl relative focus:border-black focus:shadow-[0_0_0_1.5px_black]" 
+                    :class="{ 
+                        'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error
+                    }"
+                    type="text" 
+                    v-model="state.formattedName" 
+                    @input="updateTicketName"
+                    maxlength="40"
+                    placeholder="Ticket Name"
+                    name="Name">
+                <div class="flex justify-end mt-1" 
+                     :class="{'text-red-500': isNameNearLimit, 'text-gray-500': !isNameNearLimit}">
+                    {{ state.formattedName?.length || 0 }}/40
                 </div>
-                <p v-else class="cursor-pointer underline" @click="toggleAdditionalDetails">Additional ticket details</p>
+                <div v-if="$v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error" 
+                     class="text-red-500 text-1xl mt-2 px-4">
+                    <span v-for="error in $v.tickets.$each.$response.$errors[state.currentMedia].name" :key="error.$validator">
+                        {{
+                            error.$validator === 'required' ? 'Ticket name is required.' :
+                            error.$validator === 'maxLength' ? 'Too many characters.' :
+                            error.$validator === 'uniqueTicketName' ? 'Ticket name must be unique.' :
+                            error.$validator === 'ticketNameNotFreeWithNonZeroPrice' ? 'Free ticket must be free.' : ''
+                        }}
+                    </span>
+                </div>
             </div>
+
+            <!-- Additional Details Input -->
+            <div class="mt-8">
+                <input 
+                    class="w-full border border-[#e5e7eb] text-[#222222] text-3xl p-4 rounded-2xl relative focus:border-black focus:shadow-[0_0_0_1.5px_black]"
+                    :class="{ 
+                        'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error
+                    }"
+                    type="text" 
+                    v-model="state.formattedDescription" 
+                    @input="updateAdditionalDetails"
+                    name="AdditionalDetails"
+                    placeholder="Additional ticket details (optional)"
+                    maxlength="60"
+                >
+                <div class="flex justify-end mt-1" 
+                     :class="{'text-red-500': isDescriptionNearLimit, 'text-gray-500': !isDescriptionNearLimit}">
+                    {{ state.formattedDescription?.length || 0 }}/60
+                </div>
+                <div v-if="$v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error" 
+                     class="text-red-500 text-1xl mt-2 px-4">
+                    Too many characters.
+                </div>
+            </div>
+
             <div class="grid grid-cols-3 gap-4 mt-24">
                 <div 
                     v-for="(ticket, index) in tickets" 

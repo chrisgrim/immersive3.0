@@ -60,7 +60,7 @@ class StoreEventRequest extends FormRequest
             'tickets.*.currency' => 'sometimes|required|string|size:1',
             // Add validation for images
             'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
             'ranks' => 'nullable|array',
             'ranks.*' => 'integer|min:0|max:4',
             'currentImages' => 'nullable|json',

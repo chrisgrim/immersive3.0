@@ -2,7 +2,7 @@
     <div class="relative text-1xl font-medium w-full h-screen flex flex-col">
         <!-- Top Navigation Bar -->
         <div class="flex-none h-24">
-            <div class="mx-auto p-16 h-full flex justify-between items-center">
+            <div class="mx-auto p-8 md:p-16 h-full flex justify-between items-center">
                 <!-- Left: EI Logo/Link -->
                 <a href="/hosting/events" class="text-5xl font-bold hover:opacity-70">
                     EI
@@ -26,8 +26,11 @@
         <!-- Main Content Area (with proper scrolling) -->
         <div class="flex-1 overflow-y-auto">
             <div class="max-w-screen-xl mx-auto min-h-full flex">
-                <div class="w-full lg:w-1/2 mx-auto pt-52 pb-40">
-                    <div class="h-full flex items-center">
+                <div :class="[
+                    'w-full mx-auto pt-20 md:pt-20 md:pb-20',
+                    currentComponent.__name === 'images' ? 'lg:w-2/3' : 'lg:w-1/2'
+                ]">
+                    <div class="h-full flex md:items-center p-8">
                         <component :is="currentComponent" ref="currentComponentRef" />
                     </div>
                 </div>
@@ -53,15 +56,39 @@
                 >
                     Back
                 </button>
-                <div v-else class="w-[88px]"></div> <!-- Spacer to maintain layout -->
+                <div v-else class="w-[88px]"></div> <!-- Spacer -->
 
-                
                 <button 
                     @click="goToNext"
-                    class="px-6 py-3 bg-black text-white hover:bg-gray-800 rounded-lg"
-                    :disabled="isSubmitting"
+                    :disabled="isSubmitting || !isComponentReady"
+                    :class="{
+                        'px-6 py-3 rounded-lg transition-colors flex items-center gap-2': true,
+                        'bg-black text-white hover:bg-gray-800': !isSubmitting,
+                        'bg-gray-300 text-gray-500 cursor-not-allowed': isSubmitting
+                    }"
                 >
-                    {{ isLastStep ? 'Finish' : 'Next' }}
+                    <svg 
+                        v-if="isSubmitting"
+                        class="animate-spin h-5 w-5" 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        fill="none" 
+                        viewBox="0 0 24 24"
+                    >
+                        <circle 
+                            class="opacity-25" 
+                            cx="12" 
+                            cy="12" 
+                            r="10" 
+                            stroke="currentColor" 
+                            stroke-width="4"
+                        />
+                        <path 
+                            class="opacity-75" 
+                            fill="currentColor" 
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
+                    </svg>
+                    {{ isSubmitting ? (isLastStep ? 'Finishing...' : 'Saving...') : (isLastStep ? 'Finish' : 'Next') }}
                 </button>
             </div>
         </div>
@@ -103,6 +130,7 @@ const isSubmitting = ref(false);
 const errors = ref({});
 const currentComponentRef = ref(null);
 
+
 const stepsWithLocation = ['EventType', 'Category', 'Genres', 'Location', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility', 'Review'];
 const stepsWithoutLocation = ['EventType', 'Category', 'Genres', 'Remote', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility', 'Review'];
 
@@ -131,6 +159,8 @@ const currentStepIndex = computed(() => steps.value.indexOf(currentStep.value));
 const isFirstStep = computed(() => currentStepIndex.value === 0);
 const isLastStep = computed(() => currentStepIndex.value === steps.value.length - 1);
 const progress = computed(() => ((currentStepIndex.value + 1) / steps.value.length) * 100);
+const isComponentReady = ref(true); // Default to true
+
 
 const goToPrevious = () => {
     if (!isFirstStep.value) {
@@ -156,6 +186,10 @@ const STEP_MAP = {
     'Mobility': 'C',
     'Review': 'D'
 };
+
+provide('setComponentReady', (ready) => {
+    isComponentReady.value = ready;
+});
 
 // Reverse mapping for initialization
 const REVERSE_STEP_MAP = Object.fromEntries(

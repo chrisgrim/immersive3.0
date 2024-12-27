@@ -1,8 +1,30 @@
 <template>
     <main class="w-full pb-24">
+        <template v-if="event.showtype=== null || event.showtype=== 'a'">
+            <h2>Do you have specific dates?</h2>
+        </template>
+        <template v-else>
+            <div v-if="!selectedDatesCount" class="p-8">
+                <h2>Select Dates</h2>
+            </div>
+            <div v-else class="flex justify-between items-center px-8 pt-4 md:p-8">
+                <h2>{{ selectedDatesCount }} {{ selectedDatesCount === 1 ? 'Night' : 'Nights' }}</h2>
+                <div 
+                    @mouseover="hoveredLocation = 'clearAllDates'" 
+                    @mouseout="hoveredLocation = null" 
+                    @click="clearAllDates" 
+                    class="cursor-pointer bg-white"
+                >
+                    <component :is="hoveredLocation === 'clearAllDates' ? RiCloseCircleFill : RiCloseCircleLine" />
+                </div>
+            </div>
+            <p v-if="$v.selectedDates.$error" 
+                class="text-red-500 mb-2 p-8">
+                Please select at least one date
+            </p>
+        </template>
         <div v-if="event.showtype=== null || event.showtype=== 'a'">
             <div class="flex flex-col w-full">
-                <h2>Do you have specific dates?</h2>
                 <div class="pt-16 flex flex-col gap-8">
                     <button 
                         @click="setSpecificDates"
@@ -33,8 +55,10 @@
                 <div class="h-[6.3rem]"></div>
             </div>
         </div>
-        <div v-else class="fixed left-0 top-0 w-full h-[calc(100vh-8rem)] flex overflow-hidden">
-            <div class="flex flex-col w-9/12 overflow-y-auto">
+        <div 
+        v-else 
+        class="relative border border-neutral-300 rounded-2xl flex flex-col overflow-auto">
+            <div class="flex flex-col w-full overflow-y-auto min-h-[50vh]">
                 <vue-cal
                     :time="false"
                     :hide-title="true"
@@ -43,61 +67,43 @@
                     :disable-views="['years', 'year', 'week', 'day']"
                     active-view="month"
                     :multi-day="true"
-                    :months="6"
+                    :months="displayedMonths"
                     @cell-click="onDateSelect"
                     :min-date="new Date()"
                     :max-date="new Date(new Date().setMonth(new Date().getMonth() + 6))"
                     style="height: 100%; overflow-y: auto;"
                     :events="events"
                 />
-            </div>
-            <div class="w-3/12 border-l border-gray-200 h-full flex flex-col justify-between bg-white">
-                <div class="flex justify-between items-center p-8 border-b border-gray-200">
-                    <a href="/hosting/events" class="text-3xl font-bold hover:opacity-70">
-                        EI
-                    </a>
-                    <div class="flex items-center gap-4">
-                        <button class="text-black hover:bg-gray-100 rounded-lg">
-                            Questions
-                        </button>
-                        <a 
-                            href="/hosting/events" 
-                            class="px-6 py-3 border border-black hover:bg-gray-100 rounded-lg"
-                        >
-                            Exit
-                        </a>
-                    </div>
+                
+                <!-- Load More Button -->
+                <div v-if="displayedMonths === 3" class="w-full flex justify-center mt-8 border-t pt-8">
+                    <button 
+                        @click="loadMoreMonths"
+                        class="text-black underline font-semibold hover:text-gray-600"
+                    >
+                        Show more dates
+                    </button>
                 </div>
+            </div>
+            <div class="w-full border-l border-gray-200 h-full flex flex-col justify-between bg-white">
                 <div class="h-full flex flex-col justify-between">
                     <div class="">
-                        <div v-if="!selectedDatesCount" class="p-8">
-                            <h2>Dates</h2>
-                            <p class="mt-8">Step 1: Select your event's dates</p>
-                        </div>
-                        <p v-if="$v.selectedDates.$error" 
-                            class="text-red-500 mb-2 p-8">
-                            Please select at least one date
-                        </p>
-                        <div v-else class="flex justify-between items-center h-44 p-8">
-                            <h3 class="text-4xl">{{ selectedDatesCount }} {{ selectedDatesCount === 1 ? 'Night' : 'Nights' }}</h3>
-                            <div 
-                                @mouseover="hoveredLocation = 'clearAllDates'" 
-                                @mouseout="hoveredLocation = null" 
-                                @click="clearAllDates" 
-                                class="cursor-pointer bg-white"
-                            >
-                                <component :is="hoveredLocation === 'clearAllDates' ? RiCloseCircleFill : RiCloseCircleLine" />
+                        <div v-if="selectedDatesCount" class="p-8 relative flex flex-col gap-4">
+
+                            <div v-if="promptVisible" class="p-4 rounded-2xl relative bg-black text-white border-black border hover:bg-neutral-700 hover:shadow-[0_0_0_1.5px_black]">
+                                <div class="cursor-pointer" @click="handlePromptYes">
+                                    <p class="text-white">{{ promptMessage }}</p>
+                                </div>
                             </div>
-                        </div>
-                        <div v-if="selectedDatesCount" class="p-8 relative">
-                            <div>
+
+                            <div class="flex flex-col">
                                 <textarea 
                                     name="Show times" 
                                     class="text-2xl font-normal border border-gray-300 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4 w-full" 
                                     v-model="event.show_times" 
                                     @input="$v.event.show_times.$touch"
                                     placeholder="Please provide a brief description of your show times, e.g., doors open at 7 PM, show starts at 8 PM"
-                                    rows="6"
+                                    :rows="textareaRows"
                                     style="white-space: pre-wrap;"
                                 ></textarea>
                                 <p v-if="$v.event.show_times.$dirty && $v.event.show_times.maxLength.$invalid" 
@@ -105,7 +111,7 @@
                                     Too many characters
                                 </p>
                             </div>
-                            <div class="mt-4 flex w-full border p-4 rounded-2xl border-gray-300 hover:bg-gray-100 hover:shadow-[0_0_0_2px_black]">
+                            <div class="flex w-full border p-4 rounded-2xl border-gray-300 hover:bg-gray-100 hover:shadow-[0_0_0_2px_black]">
                                 <p class="text-lg">Timezone: </p>
                                 <select id="timezone" v-model="selectedTimezone" class="pl-2 ml-2 font-bold w-full cursor-pointer hover:bg-transparent">
                                     <option v-for="timezone in timezones" :key="timezone.name" :value="timezone.name">
@@ -113,13 +119,8 @@
                                     </option>
                                 </select>
                             </div>
-                            <div v-if="promptVisible" class="mt-4 p-4 rounded-2xl relative border-black border hover:bg-gray-100 hover:shadow-[0_0_0_1.5px_black]">
-                                <div class="cursor-pointer" @click="handlePromptYes">
-                                    <p>{{ promptMessage }}</p>
-                                </div>
-                            </div>
 
-                            <div class="mt-4 flex flex-col gap-2">
+                            <div class="flex flex-col gap-2">
                                 <div v-if="!hasEmbargoDate" class="flex items-center justify-between p-4 border rounded-2xl hover:border-black">
                                     <div class="flex justify-between items-center w-full">
                                         <span>Publish event the date it's approved</span>
@@ -191,7 +192,7 @@
 
 <script setup>
 // 1. Imports
-import { ref, computed, inject, onMounted, watch } from 'vue';
+import { ref, computed, inject, onMounted, watch, onUnmounted } from 'vue';
 import VueCal from 'vue-cal';
 import 'vue-cal/dist/vuecal.css';
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
@@ -219,6 +220,8 @@ const selectedTimezone = ref(Intl.DateTimeFormat().resolvedOptions().timeZone);
 const userGMTOffset = ref('');
 const showEmbargoModal = ref(false);
 const tempEmbargoDate = ref(null);
+const windowWidth = ref(0);
+const displayedMonths = ref(3);
 
 // 4. Validation Rules
 const rules = {
@@ -247,6 +250,14 @@ const formattedEmbargoDate = computed(() => {
         day: 'numeric'
     });
 });
+
+const textareaRows = computed(() => {
+    return windowWidth.value >= 768 ? 6 : 4;
+});
+
+const handleResize = () => {
+    windowWidth.value = window?.innerWidth ?? 0;
+};
 
 // 6. Core Date Selection Methods
 const onDateSelect = (day) => {
@@ -463,7 +474,18 @@ onMounted(() => {
             });
         });
     }
+    windowWidth.value = window?.innerWidth ?? 0;
+    window?.addEventListener('resize', handleResize);
 });
+
+onUnmounted(() => {
+    window?.removeEventListener('resize', handleResize);
+});
+
+// Add load more months function
+const loadMoreMonths = () => {
+    displayedMonths.value = 6;
+};
 </script>
 
 <style>

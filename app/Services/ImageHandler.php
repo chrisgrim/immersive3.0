@@ -136,7 +136,7 @@ class ImageHandler
             foreach ($currentImages as $index => $currentImage) {
                 $image = $model->images()->where('large_image_path', $currentImage['url'])->first();
                 if ($image) {
-                    $image->rank = $index;
+                    $image->rank = $currentImage['rank'];
                     $image->save();
                 }
             }

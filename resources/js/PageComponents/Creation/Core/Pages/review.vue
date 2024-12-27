@@ -9,7 +9,7 @@
                 <div class="grid gap-4">
                     <!-- Single Image -->
                     <div v-if="event.images?.length === 1" 
-                         class="aspect-[3/2] w-full overflow-hidden md:rounded-xl">
+                         class="aspect-[3/4] w-[30rem] overflow-hidden md:rounded-xl">
                         <img :src="imageUrl + event.images[0].large_image_path"
                              :alt="`${event.name} Immersive Event - Main Image`"
                              class="w-full h-full object-cover"
@@ -18,71 +18,80 @@
 
                     <!-- Multiple Images -->
                     <div v-else 
-                         class="grid gap-2 md:rounded-xl overflow-hidden grid-cols-2"
+                         class="grid gap-2 md:rounded-xl overflow-hidden"
                          :class="{
-                            'grid-cols-2': event.images?.length === 2,
-                            'grid-cols-[2fr_1fr]': event.images?.length === 3,
-                            'grid-cols-2': event.images?.length >= 4
+                             'grid-cols-3': event.images?.length === 2 || event.images?.length > 3,
+                             'grid-cols-2': event.images?.length === 3
                          }">
                         
-                        <!-- Left Side -->
-                        <div v-if="event.images?.length >= 4" class="grid gap-2 overflow-hidden">
-                            <div class="aspect-[3/2]">
-                                <img :src="imageUrl + event.images[0].large_image_path"
-                                     :alt="`${event.name} Immersive Event - Main Image`"
-                                     class="w-full h-full object-cover"
-                                />
-                            </div>
-                            <div v-if="event.images?.length === 4" class="aspect-[3/2]">
-                                <img :src="imageUrl + event.images[1].large_image_path"
-                                     :alt="`${event.name} Immersive Event - Image 2`"
-                                     class="w-full h-full object-cover"
-                                />
-                            </div>
-                        </div>
-                        <div v-else class="aspect-[3/2]">
+                        <!-- First Image -->
+                        <div v-if="event.images?.length === 2" 
+                             class="col-span-1 h-full">
                             <img :src="imageUrl + event.images[0].large_image_path"
                                  :alt="`${event.name} Immersive Event - Main Image`"
                                  class="w-full h-full object-cover"
                             />
                         </div>
 
-                        <!-- Right Side -->
-                        <div v-if="event.images?.length === 2" class="aspect-[3/2]">
-                            <img :src="imageUrl + event.images[1].large_image_path"
-                                 :alt="`${event.name} Immersive Event - Image 2`"
+                        <!-- Right Side Image (for 2 images) -->
+                        <template v-if="event.images?.length === 2">
+                            <div class="col-span-2 h-full">
+                                <img :src="imageUrl + event.images[1].large_image_path"
+                                     :alt="`${event.name} Immersive Event - Image 2`"
+                                     class="w-full h-full object-cover"
+                                />
+                            </div>
+                        </template>
+                        
+                        <!-- First Image (for 3 images) -->
+                        <div v-if="event.images?.length === 3" 
+                             class="h-full">
+                            <img :src="imageUrl + event.images[0].large_image_path"
+                                 :alt="`${event.name} Immersive Event - Main Image`"
                                  class="w-full h-full object-cover"
                             />
                         </div>
-                        <div v-else-if="event.images?.length === 3" class="grid gap-2">
-                            <div v-for="(image, key) in event.images.slice(1)" 
-                                 :key="image.id"
-                                 class="aspect-[3/2]">
-                                <img :src="imageUrl + image.large_image_path"
-                                     :alt="`${event.name} Immersive Event - Image ${key + 2}`"
+                        
+                        <!-- Special 3-image layout -->
+                        <template v-if="event.images?.length === 3">
+                            <div class="grid grid-rows-2 gap-2 h-full">
+                                <div class="aspect-[3/2]">
+                                    <img :src="imageUrl + event.images[1].large_image_path"
+                                         :alt="`${event.name} Immersive Event - Image 2`"
+                                         class="w-full h-full object-cover"
+                                    />
+                                </div>
+                                <div class="aspect-[3/2]">
+                                    <img :src="imageUrl + event.images[2].large_image_path"
+                                         :alt="`${event.name} Immersive Event - Image 3`"
+                                         class="w-full h-full object-cover"
+                                    />
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Original 4+ images layout -->
+                        <template v-else-if="event.images?.length > 3">
+                            <!-- First Column (1/3 width) -->
+                            <div class="col-span-1 h-full">
+                                <img :src="imageUrl + event.images[0].large_image_path"
+                                     :alt="`${event.name} Immersive Event - Main Image`"
                                      class="w-full h-full object-cover"
                                 />
                             </div>
-                        </div>
-                        <div v-else-if="event.images?.length === 4" class="grid gap-2">
-                            <div v-for="(image, key) in event.images.slice(2)" 
-                                 :key="image.id"
-                                 class="aspect-[3/2]">
-                                <img :src="imageUrl + image.large_image_path"
-                                     :alt="`${event.name} Immersive Event - Image ${key + 3}`"
-                                     class="w-full h-full object-cover"
-                                />
+
+                            <!-- Second Column (2/3 width) -->
+                            <div class="col-span-2 grid grid-cols-2 grid-rows-2 gap-2">
+                                <div v-for="index in Math.min(4, event.images.length - 1)" 
+                                     :key="index"
+                                     class="aspect-[3/2]">
+                                    <img :src="imageUrl + event.images[index].large_image_path"
+                                         :alt="`${event.name} Immersive Event - Image ${index + 1}`"
+                                         class="w-full h-full object-cover"
+                                    />
+                                </div>
                             </div>
-                        </div>
-                        <div v-else-if="event.images?.length === 5" class="grid grid-cols-2 gap-2">
-                            <div v-for="(image, key) in event.images.slice(1, 5)" 
-                                 :key="image.id">
-                                <img :src="imageUrl + image.large_image_path"
-                                     :alt="`${event.name} Immersive Event - Image ${key + 2}`"
-                                     class="w-full h-full object-cover"
-                                />
-                            </div>
-                        </div>
+                        </template>
                     </div>
                 </div>
 

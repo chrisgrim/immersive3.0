@@ -25,6 +25,7 @@ const Inbox = defineAsyncComponent(() => import('./PageComponents/Messaging/inbo
 const Hosting = defineAsyncComponent(() => import('./PageComponents/Creation/index.vue'));
 const GettingStarted = defineAsyncComponent(() => import('./PageComponents/Creation/initial.vue'));
 const HostingEvent = defineAsyncComponent(() => import('./PageComponents/Creation/Core/index.vue'));
+const HostingEventEdit = defineAsyncComponent(() => import('./PageComponents/Creation/Core/edit.vue'));
 
 const Admin = defineAsyncComponent(() => import('./PageComponents/Admin/index.vue'));
 
@@ -76,6 +77,7 @@ app.component('vue-inbox', Inbox);
 app.component('vue-hosting', Hosting);
 app.component('vue-getting-started', GettingStarted);
 app.component('vue-hosting-event', HostingEvent);
+app.component('vue-hosting-event-edit', HostingEventEdit);
 
 app.component('vue-admin', Admin);
 app.component('vue-community-show', CommunityShow);

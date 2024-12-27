@@ -6,11 +6,19 @@
 
 @endsection 
 
+@section('nav')
+    @if (in_array($event->status, ['p', 'e']))
+        @include('Layouts.nav-creation')
+    @endif
+@endsection
+
 
 @section('content')
-    
-    <vue-hosting-event :event="{{$event}}" :user="user" />
-
+    @if (!in_array($event->status, ['p', 'e']))
+        <vue-hosting-event :event="{{ $event }}" :user="user" />
+    @else
+        <vue-hosting-event-edit :event="{{ $event }}" :user="user" />
+    @endif
 @endsection
 
 @section('footer')
