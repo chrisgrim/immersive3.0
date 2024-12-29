@@ -140,11 +140,7 @@ private static function createOrUpdateShow($date, $eventId, $oldTickets)
 
     private static function determineShowType($request): string
     {
-        if ($request->single) return 's';
-        if ($request->limited) return 'l';
-        if ($request->onGoing) return 'o';
-        if ($request->always) return 'a';
-        return 's'; // default to single if none specified
+        return $request->showtype ?? 's';
     }
 
     private static function calculateLastDate(Event $event, string $type): string

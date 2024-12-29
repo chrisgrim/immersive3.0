@@ -60,7 +60,7 @@
                     maxlength="40"
                     placeholder="Ticket Name"
                     name="Name">
-                <div class="flex justify-end mt-1" 
+                <div class="flex justify-end mt-1 w-2/3" 
                      :class="{'text-red-500': isNameNearLimit, 'text-gray-500': !isNameNearLimit}">
                     {{ state.formattedName?.length || 0 }}/40
                 </div>

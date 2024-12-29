@@ -1,8 +1,8 @@
 <template>
 	<div class="flex justify-end">
-		<div class="px-32 w-full ml-[-2rem]">
-			<div class="w-full h-44 flex items-center justify-between">
-				<a href="/organizer"><h2 class="font-medium px-8">{{organizer.name}}</h2></a>
+		<div class="px-8 md:px-32 w-full ml-[-2rem] mt-12">
+			<div class="w-full flex items-center justify-between">
+				<a href="/organizer"><h2 class="font-medium">{{organizer.name}}</h2></a>
 				<div @click="createNewEvent" class="cursor-pointer">
 					<div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
 						+
@@ -10,9 +10,9 @@
 				</div>
 			</div>
 			<div class="w-full">
-			    <div class="grid grid-cols-4 gap-8 py-4 h-36 items-center" style="grid-template-columns: 16rem 30% auto auto;">
-			       	<h5 class="px-8 font-medium">Events</h5>
-			       	<div></div>
+			    <div class="grid gap-8 py-4 h-36 items-center grid-cols-[8rem_auto] md:grid-cols-[16rem_30%_auto_auto]">
+			       	<h5 class="font-medium">Events</h5>
+			       	<div class="hidden md:block"></div>
 			       	<h5 class="font-medium">Status</h5>
 			    </div>
 			</div>
@@ -21,15 +21,14 @@
 			         :key="event.id"
 			         @click="openModal(event)"
 			         class="block cursor-pointer">
-			        <div class="group relative grid grid-cols-4 gap-8 py-4 h-36 items-center hover:bg-gray-100 rounded-2xl"
-			             style="grid-template-columns: 16rem 30% auto auto;">
-			            <div class="px-8">
+			        <div class="group relative grid grid-cols-2 md:grid-cols-4 gap-8 py-4 items-center hover:bg-gray-100 rounded-2xl grid-cols-[4rem_auto] md:grid-cols-[4rem_30%_auto_auto]">
+			            <div>
 			                <template v-if="event.images?.length > 0">
 			                    <picture>
 			                        <source :srcset="`${imageUrl}${event.images[0].large_image_path}`" type="image/webp">
 			                        <img :src="`${imageUrl}${event.images[0].large_image_path}`"
 			                             :alt="`${event.name} Immersive Event`"
-			                             class="h-24 w-full object-cover rounded-2xl">
+			                             class="h-16 w-full object-cover rounded-2xl">
 			                    </picture>
 			                </template>
 			                <template v-else-if="event.thumbImagePath">
@@ -60,13 +59,13 @@
 			                </div>
 			                <p class="text-md leading-4 text-gray-500">last edited: {{ cleanDate(event.updated_at) }}</p>
 			            </div>
-			            <div class="flex flex-row items-center">
+			            <div class="hidden md:flex flex-row items-center">
 			            	<div :class="getStatusInfo(event, cleanDate).color" class="w-4 h-4 rounded-full"></div>
             				<p class="text-lg font-medium text-gray-500 ml-4">{{ getStatusInfo(event, cleanDate).progress }}</p>
 			            </div>
 			            <!-- SVG Icon, visible only on hover -->
 			            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-					         class="absolute right-6 top-1/2 transform -translate-y-1/2 w-8 h-8 opacity-0 group-hover:opacity-100"
+					         class="hidden md:absolute right-6 top-1/2 transform -translate-y-1/2 w-8 h-8 opacity-0 group-hover:opacity-100"
 					         stroke-width="3">
 					        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
 					    </svg>

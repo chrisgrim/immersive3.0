@@ -4,10 +4,10 @@
             <h2>Do you have specific dates?</h2>
         </template>
         <template v-else>
-            <div v-if="!selectedDatesCount" class="p-8">
+            <div v-if="!selectedDatesCount" class="px-8 md:px-0 pb-8">
                 <h2>Select Dates</h2>
             </div>
-            <div v-else class="flex justify-between items-center px-8 pt-4 md:p-8">
+            <div v-else class="flex justify-between items-center px-8 md:px-0 pb-8">
                 <h2>{{ selectedDatesCount }} {{ selectedDatesCount === 1 ? 'Night' : 'Nights' }}</h2>
                 <div 
                     @mouseover="hoveredLocation = 'clearAllDates'" 
@@ -57,26 +57,30 @@
         </div>
         <div 
         v-else 
-        class="relative border border-neutral-300 rounded-2xl flex flex-col overflow-auto">
-            <div class="flex flex-col w-full overflow-y-auto min-h-[50vh]">
-                <vue-cal
-                    :time="false"
-                    :hide-title="true"
-                    hide-view-selector
-                    small
-                    :disable-views="['years', 'year', 'week', 'day']"
-                    active-view="month"
-                    :multi-day="true"
-                    :months="displayedMonths"
-                    @cell-click="onDateSelect"
+        class="relative border border-gray-200 rounded-4xl overflow-hidden">
+            <div class="flex-grow relative w-full border bg-white overflow-y-auto overflow-x-hidden h-[45rem]">
+                <VueDatePicker
+                    v-model="date"
+                    multi-dates
+                    disable-year-select
+                    disable-month-select
+                    :multi-calendars="displayedMonths"
+                    :enable-time-picker="false"
+                    :dark="isDark"
+                    :timezone="tz"
+                    :preview-date="new Date()"
                     :min-date="new Date()"
-                    :max-date="new Date(new Date().setMonth(new Date().getMonth() + 6))"
-                    style="height: 100%; overflow-y: auto;"
-                    :events="events"
+                    inline
+                    auto-apply
+                    @update:model-value="onDateSelect"
+                    month-name-format="long"
+                    hide-offset-dates
+                    :month-change-on-scroll="false"
+                    week-start="0"
                 />
                 
                 <!-- Load More Button -->
-                <div v-if="displayedMonths === 3" class="w-full flex justify-center mt-8 border-t pt-8">
+                <div v-if="displayedMonths === 3" class="w-full flex justify-center my-8">
                     <button 
                         @click="loadMoreMonths"
                         class="text-black underline font-semibold hover:text-gray-600"
@@ -85,8 +89,8 @@
                     </button>
                 </div>
             </div>
-            <div class="w-full border-l border-gray-200 h-full flex flex-col justify-between bg-white">
-                <div class="h-full flex flex-col justify-between">
+            <div class="w-full h-full flex flex-col justify-between bg-white">
+                <div class="h-full flex flex-col justify-between mt-12">
                     <div class="">
                         <div v-if="selectedDatesCount" class="p-8 relative flex flex-col gap-4">
 
@@ -152,17 +156,22 @@
                             <div v-if="showEmbargoModal" class="c-embargo fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                                 <div class="bg-white p-8 rounded-2xl w-[600px]">
                                     <h3 class="text-2xl mb-4">Choose when your event goes live</h3>
-                                    <vue-cal
-                                        :time="false"
-                                        :hide-title="true"
-                                        hide-view-selector
-                                        small
-                                        :disable-views="['years', 'year', 'week', 'day']"
-                                        active-view="month"
+                                    <VueDatePicker
+                                        v-model="tempEmbargoDate"
+                                        :enable-time-picker="false"
+                                        :dark="isDark"
+                                        :timezone="selectedTimezone"
+                                        :preview-date="new Date()"
                                         :min-date="new Date()"
-                                        @cell-click="selectEmbargoDate"
-                                        style="height: 400px;"
-                                    />
+                                        inline
+                                        auto-apply
+                                        month-name-format="long"
+                                        hide-offset-dates
+                                        :month-change-on-scroll="false"
+                                        week-start="0"
+                                        @update:model-value="selectEmbargoDate"
+                                        class="embargo-calendar"
+                                        style="width: 100%"                                    />
                                     <div class="mt-4 flex justify-end gap-4">
                                         <button 
                                             @click="showEmbargoModal = false"
@@ -191,45 +200,54 @@
 </template>
 
 <script setup>
-// 1. Imports
+// 1. Core Imports
 import { ref, computed, inject, onMounted, watch, onUnmounted } from 'vue';
 import VueCal from 'vue-cal';
+import VueDatePicker from '@vuepic/vue-datepicker';
+import '@vuepic/vue-datepicker/dist/main.css'
 import 'vue-cal/dist/vuecal.css';
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import { maxLength, required } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 
-// 2. Injected Dependencies
+// 2. Injected Dependencies & Core State
 const event = inject('event');
 const errors = inject('errors');
 const isSubmitting = inject('isSubmitting');
+const date = ref([]);
+const windowWidth = ref(0);
+const displayedMonths = ref(3);
 
-// 3. Refs & State
+// 3. Calendar State
 const events = ref([]);
 const selectedDates = ref([]);
+const tempSelectedDates = ref([]);
+const tempShowTimes = ref('');
+const previousShowType = ref(null);
+
+// 4. Prompt State
 const promptVisible = ref(false);
 const promptMessage = ref('');
 const promptAction = ref(null);
 const selectedDate = ref(null);
 const hoveredLocation = ref(null);
-const tempSelectedDates = ref([]);
-const tempShowTimes = ref('');
-const previousShowType = ref(null);
+
+// 5. Timezone & Embargo State
 const timezones = ref([]);
 const selectedTimezone = ref(Intl.DateTimeFormat().resolvedOptions().timeZone);
 const userGMTOffset = ref('');
 const showEmbargoModal = ref(false);
 const tempEmbargoDate = ref(null);
-const windowWidth = ref(0);
-const displayedMonths = ref(3);
 
-// 4. Validation Rules
+// 6. Validation Rules
 const rules = {
     event: {
         show_times: { maxLength: maxLength(500) }
     },
     selectedDates: {
-        required: (value) => event.showtype !== 's' || (event.showtype === 's' && value.length > 0)
+        required: (value) => {
+            return event.showtype !== 's' || (event.showtype === 's' && value.length > 0);
+        }
     }
 };
 
@@ -238,7 +256,7 @@ const $v = useVuelidate(rules, {
     selectedDates 
 });
 
-// 5. Computed Properties
+// 7. Computed Properties & Basic Helpers
 const selectedDatesCount = computed(() => selectedDates.value.length);
 const hasEmbargoDate = computed(() => !!event.embargo_date);
 const formattedEmbargoDate = computed(() => {
@@ -259,25 +277,51 @@ const handleResize = () => {
     windowWidth.value = window?.innerWidth ?? 0;
 };
 
-// 6. Core Date Selection Methods
-const onDateSelect = (day) => {
-    hoveredLocation.value = null;
-    const date = new Date(day);
-    date.setHours(0, 0, 0, 0);
+const checkFutureDates = (dateStr) => {
+    const date = new Date(dateStr);
+    const weekday = date.getDay();
     
-    if (isNaN(date.getTime())) return;
+    return selectedDates.value.some(d => {
+        const existingDate = new Date(d);
+        return existingDate > date && existingDate.getDay() === weekday;
+    });
+};
 
-    const formattedDate = date.toISOString().split('T')[0];
-    const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
+// 8. Date Selection & Event Handling
+const onDateSelect = (dates) => {
+    date.value = dates;
+    
+    const newSelectedDates = dates.map(d => {
+        const date = new Date(d);
+        date.setHours(12, 0, 0, 0);
+        return date.toISOString().split('T')[0];
+    });
 
-    if (selectedDates.value.includes(formattedDate)) {
-        handleDateDeselection(formattedDate, weekday);
-    } else {
-        handleDateSelection(formattedDate, weekday);
+    const addedDate = newSelectedDates.find(d => !selectedDates.value.includes(d));
+    const removedDate = selectedDates.value.find(d => !newSelectedDates.includes(d));
+
+    selectedDates.value = newSelectedDates;
+    promptVisible.value = false;
+
+    if (dates.length < date.value.length) {
+        return;
+    }
+
+    if (addedDate || removedDate) {
+        const dateToCheck = addedDate || removedDate;
+        const dateObj = new Date(dateToCheck);
+        dateObj.setDate(dateObj.getDate() + 1);
+        const weekday = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+        const futureDatesExist = checkFutureDates(dateToCheck);
+
+        if (addedDate) {
+            showPrompt('selectWeekly', `Repeat future ${weekday}s`, dateToCheck);
+        } else if (removedDate && futureDatesExist) {
+            showPrompt('removeFuture', `Remove future ${weekday}s?`, dateToCheck);
+        }
     }
 };
 
-// 7. Weekly Events Handling (Your Original Code)
 const handleDateSelection = (formattedDate, weekday) => {
     selectedDates.value.push(formattedDate);
     events.value.push({ start: formattedDate, end: formattedDate, title: 'Selected' });
@@ -298,44 +342,53 @@ const handleDateDeselection = (formattedDate, weekday) => {
     }
 };
 
+// 9. Weekly Events Management
 const createWeeklyEvents = async (startDateStr) => {
     const { default: moment } = await import('moment-timezone');
     const timezone = selectedTimezone.value;
-    const startDate = moment.tz(startDateStr, timezone);
+    const startDate = moment.tz(startDateStr + 'T12:00:00', timezone);
     const targetDay = startDate.day();
+    
+    const newDates = [...date.value];
     
     for (let i = 1; i < 26; i++) {
         const nextDate = startDate.clone().add(i, 'weeks');
         if (nextDate.isAfter(moment().add(180, 'days'))) break;
         
-        const formattedDate = nextDate.format('YYYY-MM-DD');
-        
-        if (!selectedDates.value.includes(formattedDate)) {
-            selectedDates.value.push(formattedDate);
-            events.value.push({ 
-                start: formattedDate, 
-                end: formattedDate, 
-                title: 'Selected' 
-            });
+        const dateObj = nextDate.hours(12).minutes(0).seconds(0).toDate();
+        if (!date.value.some(d => d.getTime() === dateObj.getTime())) {
+            newDates.push(dateObj);
         }
     }
+    
+    date.value = newDates;
+    selectedDates.value = newDates.map(d => {
+        const date = new Date(d);
+        date.setHours(12, 0, 0, 0);
+        return date.toISOString().split('T')[0];
+    });
 };
 
 const removeWeeklyEvents = async (startDateStr) => {
     const { default: moment } = await import('moment-timezone');
     const timezone = selectedTimezone.value;
-    const startDate = moment.tz(startDateStr, timezone);
+    const startDate = moment.tz(startDateStr + 'T12:00:00', timezone);
     const startDay = startDate.day();
 
-    selectedDates.value = selectedDates.value.filter(dateStr => {
-        const date = moment.tz(dateStr, timezone);
+    const newDates = date.value.filter(d => {
+        const date = moment(d).tz(timezone).hours(12);
         return !(date.isAfter(startDate) && date.day() === startDay);
     });
-    
-    events.value = events.value.filter(event => selectedDates.value.includes(event.start));
+
+    date.value = newDates;
+    selectedDates.value = newDates.map(d => {
+        const date = new Date(d);
+        date.setHours(12, 0, 0, 0);
+        return date.toISOString().split('T')[0];
+    });
 };
 
-// 8. Prompt & Helper Methods
+// 10. Prompt Handling
 const showPrompt = (action, message, date) => {
     promptVisible.value = true;
     promptMessage.value = message;
@@ -354,28 +407,19 @@ const handlePromptYes = async () => {
     selectedDate.value = null;
 };
 
-const checkFutureDates = (dateStr) => {
-    const date = new Date(dateStr);
-    const weekday = date.getDay();
-    
-    return selectedDates.value.some(d => {
-        const existingDate = new Date(d);
-        return existingDate > date && existingDate.getDay() === weekday;
-    });
-};
-
-// 9. Date Management Methods
+// 11. Date Management Methods
 const setSpecificDates = () => {
     event.showtype = 's';
 };
 
 const clearAllDates = () => {
+    date.value = [];
     selectedDates.value = [];
     events.value = [];
     event.show_times = '';
 };
 
-// 10. Embargo Date Methods
+// 12. Embargo Date Methods
 const toggleEmbargoDate = () => {
     if (hasEmbargoDate.value) {
         event.embargo_date = null;
@@ -385,17 +429,20 @@ const toggleEmbargoDate = () => {
 };
 
 const showEmbargoCalendar = () => {
+    if (event.embargo_date) {
+        tempEmbargoDate.value = new Date(event.embargo_date);
+    }
     showEmbargoModal.value = true;
 };
 
-const selectEmbargoDate = (day) => {
-    tempEmbargoDate.value = day;
+const selectEmbargoDate = (selectedDate) => {
+    tempEmbargoDate.value = selectedDate;
 };
 
 const confirmEmbargoDate = () => {
     if (tempEmbargoDate.value) {
         const date = new Date(tempEmbargoDate.value);
-        date.setHours(0, 0, 0, 0);
+        date.setHours(11, 0, 0, 0);
         event.embargo_date = date.toISOString().slice(0, 19).replace('T', ' ');
         showEmbargoModal.value = false;
         tempEmbargoDate.value = null;
@@ -406,13 +453,13 @@ const clearEmbargoToggle = () => {
     event.embargo_date = null;
 };
 
-// 11. API Methods
+// 13. API Methods
 const initializeTimezones = async () => {
     const { default: moment } = await import('moment-timezone');
     timezones.value = moment.tz.names().map(name => ({ name }));
 };
 
-// 12. Component API
+// 14. Component API
 defineExpose({
     isValid: async () => {
         await $v.value.$validate();
@@ -431,7 +478,7 @@ defineExpose({
         
         const data = {
             showtype: event.showtype,
-            dateArray: formattedDates,
+            dateArray: event.showtype === 'a' ? [] : formattedDates,
             timezone: selectedTimezone.value,
             show_times: event.show_times,
             embargo_date: event.embargo_date
@@ -440,12 +487,15 @@ defineExpose({
     }
 });
 
-// 13. Watchers
+// 15. Watchers
 watch(() => event.showtype, (newType, oldType) => {
     if (oldType === 's' && newType === 'a') {
         tempSelectedDates.value = [...selectedDates.value];
         tempShowTimes.value = event.show_times;
         previousShowType.value = 's';
+        selectedDates.value = [];
+        events.value = [];
+        event.show_times = '';
     } else if (oldType === 'a' && newType === 's') {
         selectedDates.value = [];
         events.value = [];
@@ -458,22 +508,27 @@ watch(() => event.showtype, (newType, oldType) => {
             title: 'Selected'
         }));
     }
-});
+}, { deep: true });
 
-// 14. Lifecycle Hooks
+// 16. Lifecycle Hooks
 onMounted(() => {
     initializeTimezones();
     if (event.shows?.length > 0) {
-        event.shows.forEach(show => {
-            const formattedDate = new Date(show.date).toISOString().split('T')[0];
-            selectedDates.value.push(formattedDate);
-            events.value.push({ 
-                start: formattedDate, 
-                end: formattedDate, 
-                title: 'Selected' 
-            });
+        const showDates = event.shows.map(show => {
+            const date = new Date(show.date);
+            date.setHours(11, 0, 0, 0);
+            return date;
         });
+        
+        date.value = showDates;
+        selectedDates.value = showDates.map(d => d.toISOString().split('T')[0]);
+        events.value = selectedDates.value.map(date => ({
+            start: date,
+            end: date,
+            title: 'Selected'
+        }));
     }
+    
     windowWidth.value = window?.innerWidth ?? 0;
     window?.addEventListener('resize', handleResize);
 });
@@ -482,103 +537,270 @@ onUnmounted(() => {
     window?.removeEventListener('resize', handleResize);
 });
 
-// Add load more months function
+// 17. Utility Methods
 const loadMoreMonths = () => {
     displayedMonths.value = 6;
+    setTimeout(() => {
+        const calendar = document.querySelector('.custom-calendar');
+        if (calendar) {
+            const lastMonth = calendar.querySelector('.vuecal__month:last-child');
+            if (lastMonth) {
+                lastMonth.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    }, 100);
+};
+
+const getMonthDate = (offset) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() + offset);
+    return date;
 };
 </script>
 
 <style>
-/* Your original styling preserved exactly as is */
-.vuecal__cell--disabled {
-    color: #000000;
-    cursor: not-allowed;
-    background: #ebebeb;
-}
-.vuecal__cell--today, .vuecal__cell--current {
-    background-color: white;
-    z-index: 1;
-    border: 2px solid;
-    border-radius: 1rem;
-}
-.vuecal__title-bar {
-    min-height: 4em;
-    background: white;
-}
-.vuecal__cell--has-events {
-    background: #222222;
-    border-radius: 1rem;
-    color: white;
-    border: 1px solid;
-}
-.vuecal__cell--has-events:hover {
-    background: black;
-}
-.vuecal__cell-events-count {
+.dp--arrow-btn-nav {
     display: none;
 }
-.vuecal--month-view .vuecal__cell-content {
-    justify-content: start;
-}
-.vuecal__cell {
-    padding: 1rem;
-    text-align: left;
+
+/* Remove the tabs at the top */
+.dp__menu_inner .dp__menu_items {
+   display: none !important;
 }
 
-.vuecal__arrow {
-    position: relative;
-    z-index: 2;
-    background: #222222;
-    border-radius: 9999px;
-    width: 30px !important;
-    height: 30px !important;
-    min-width: 30px !important;
-    min-height: 30px !important;
+/* Calendar styling */
+.dp__calendar {
+   width: 100% !important;
+}
+
+/* Header month/year styling */
+.dp__month_year_wrap {
+   font-size: 1.7rem;
+   font-weight: 400;
+   display: flex;
+   justify-content: flex-start;
+   align-items: center;
+   padding:1rem;
+}
+
+.dp--past {
+    pointer-events: none !important;
+    opacity: 0.3 !important;
+}
+
+.dp--past .dp__cell_inner {
+    color: #999 !important;
+    background: transparent !important;
+}
+
+.dp--past.dp__active_date,
+.dp--past .dp__active {
+    background-color: #999 !important;
+    color: #fff !important;
+}
+
+/* Ensure past dates can't be interacted with */
+.dp--past * {
+    pointer-events: none !important;
+    cursor: default !important;
+}
+
+.dp__month_year_select {
+    pointer-events: none !important;
+    display: flex;
+    justify-content: flex-start;
+    margin-left: 1rem;
+}
+
+/* Calendar header (days of week) */
+.dp__calendar_header {
+   color: #666;
+   font-weight: normal;
+   font-size: 1.2rem;
+   border-bottom: 1px solid #e5e5e5
+}
+
+.dp__calendar_row {
+   margin: 0 !important;
+   gap: 0 !important;
+}
+
+/* Calendar item with border solution and square aspect ratio */
+.dp__calendar_item {
+   margin: 0 !important;
+   padding: 0 !important;
+   font-size: 1.4rem;
+   border-right: 1px solid #e5e5e5;
+   border-bottom: 1px solid #e5e5e5;
+   display: flex;
+   justify-content: center;
+   position: relative;
+   width: calc(100% / 7) !important;
+}
+
+/* Remove redundant borders */
+.dp__calendar_item:first-child {
+   border-left: none;
+}
+
+.dp__calendar_row:first-child .dp__calendar_item {
+   border-top: none;
+}
+
+/* Create square aspect ratio */
+.dp__calendar_item::before {
+   content: '';
+   display: block;
+   padding-top: 100%; /* Creates 1:1 aspect ratio */
+}
+
+/* Position the content absolutely within the square */
+.dp__calendar_item > * {
+   position: absolute;
+   top: 0;
+   left: 0;
+   right: 0;
+   bottom: 0;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+}
+
+/* Adjust cell inner to fit square */
+.dp__cell_inner {
+   position: absolute;
+   height: 100%;
+   width: 100%;
+   margin: auto !important;
+   padding: 0 !important;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   font-weight: normal;
+   color: #333;
+}
+
+.dp__cell_disabled {
+   opacity: 0.3;
+   cursor: auto !important;
+}
+
+/* Hover state */
+.dp__cell_inner:not(.dp--past):hover {
+   border: 2px solid black !important;
+}
+
+/* Selected state */
+.dp__active {
+   background-color: black !important;
+   color: white !important;
+}
+
+.dp__active_date {
+   background-color: black !important;
+   color: white !important;
+}
+
+/* Range styling */
+.dp__range_start,
+.dp__range_end {
+   background-color: black !important;
+   color: white !important;
+}
+
+.dp__range_start {
+   border-top-right-radius: 0 !important;
+   border-bottom-right-radius: 0 !important;
+}
+
+.dp__range_end {
+   border-top-left-radius: 0 !important;
+   border-bottom-left-radius: 0 !important;
+}
+
+.dp__range_between {
+   border-radius: 0 !important;
+}
+
+/* Navigation arrows */
+.dp__arrow_bottom,
+.dp__arrow_top {
+   display: none;
+}
+
+/* Today's date */
+.dp__today {
+   border: none !important;
+}
+
+/* Calendar container */
+.dp__main {
+   border: none;
+   box-shadow: none;
+}
+
+/* Remove borders */
+.dp__calendar_header_separator {
+   display: none;
+}
+
+.dp__theme_light {
+   border: none !important;
+}
+
+.dp--header-wrap {
+   margin-bottom: 1rem;
+}
+
+.dp__flex_display {
+   display: block !important;
+}
+
+.dp__menu_inner.dp__flex_display {
+   gap: 4rem;
+}
+.dp__menu_inner {
+    padding: 0 !important;
+}
+
+/* Calendar layout */
+.dp__menu_inner.dp__flex_display {
+    flex-direction: column !important;
+    gap: 2rem !important;
+}
+
+.dp__calendar_next {
+    margin:0 !important;
+}
+
+/* Optional: Add smooth transition */
+.dp__calendar {
+    transition: all 0.3s ease;
+}
+
+/* Override arrow styles for embargo calendar */
+.embargo-calendar .dp--arrow-btn-nav {
+    display: flex !important;
+}
+
+/* Style the arrows for embargo calendar */
+.embargo-calendar .dp__arrow_btn {
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.2s ease;
-    padding: 0;
-    margin: 0;
-    box-sizing: border-box;
-    border: none;
+    cursor: pointer;
+    border-radius: 50%;
 }
 
-.vuecal__arrow--prev {
-    left: 1rem;
+.embargo-calendar .dp__arrow_btn:hover {
+    background-color: #f3f3f3;
 }
 
-.vuecal__arrow--next {
-    right: 1rem;
+/* Keep the original arrow hiding only for the main calendar */
+.dp__calendar:not(.embargo-calendar) .dp--arrow-btn-nav {
+    display: none;
 }
 
-.vuecal__arrow i.angle {
-    display: inline-block;
-    border: solid white;
-    border-width: 0 2px 2px 0;
-    padding: 3px;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-}
-
-.vuecal__arrow--prev i.angle {
-    transform: translate(-25%, -50%) rotate(135deg);
-}
-
-.vuecal__arrow--next i.angle {
-    transform: translate(-75%, -50%) rotate(-45deg);
-}
-
-.vuecal__arrow:hover {
-    background: black;
-}
-
-.c-embargo .vuecal__cell--selected {
-    background-color: black;
-    z-index: 2;
-}
-.c-embargo .vuecal__cell--selected .vuecal__cell-date {
-    color: white;
-}
 </style>

@@ -3,21 +3,11 @@
 
         <!-- Main Content Area with separate scrolling -->
         <div class="flex-1 flex h-full">
-            <div 
-                :class="{
-                    'mx-auto flex flex-1': true,
-                    'flex-col': isMobile
-                }"
-            >
+            <div class="mx-auto flex flex-1 flex-col md:flex-row">
                 <!-- Navigation Sidebar with own scroll -->
                 <div 
-                    :class="{
-                        'flex-shrink-0 overflow-y-auto border-r border-gray-200': true,
-                        'w-1/3': !isMobile,
-                        'w-full': isMobile && !currentSection,
-                        'hidden': isMobile && currentSection
-                    }"
-                >
+                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full md:w-1/3 md:block" 
+                    :class="{ 'hidden': currentSection }">
                     <div class="flex items-center justify-center">
                         <NavSidebar 
                             :event="event"
@@ -30,12 +20,8 @@
 
                 <!-- Main Content Column -->
                 <div 
-                    :class="{
-                        'flex-1 flex flex-col h-full': true,
-                        'hidden': isMobile && !currentSection,
-                        'w-full': isMobile && currentSection
-                    }"
-                >
+                    class="flex-1 flex-col h-full w-full md:w-auto"
+                    :class="currentSection ? 'flex' : 'hidden md:flex'">
                     <!-- Mobile back button - changed to relative positioning -->
                     <div 
                         v-if="isMobile && currentSection" 
@@ -65,12 +51,8 @@
                     <!-- Scrollable Component Area -->
                     <div class="flex-1 overflow-y-auto">
                         <div 
-                            :class="{
-                                'w-2/3 mx-auto': true,
-                                'pt-20 md:pt-40 md:pb-40': !isMobile || !currentSection,
-                                'pt-4': isMobile && currentSection
-                            }"
-                        >
+                            class="w-full md:w-2/3 mx-auto"
+                            :class="currentSection ? 'pt-4 md:pt-40 md:pb-40' : 'pt-20 md:pt-40 md:pb-40'">
                             <div class="p-8">
                                 <component :is="currentComponent" ref="currentComponentRef" />
                             </div>
