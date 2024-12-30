@@ -3,6 +3,8 @@
 namespace App\Models\Admin;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Event;
+use App\Models\User;
 use App\Scopes\CreatedAtScope;
 
 class StaffPick extends Model

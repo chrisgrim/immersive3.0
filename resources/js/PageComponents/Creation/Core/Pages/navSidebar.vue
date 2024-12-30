@@ -27,18 +27,11 @@
     </div>
 
     <!-- Main Navigation -->
-    <nav 
-        :class="{
-            'flex-shrink-0 space-y-8 w-full p-8 mx-auto': true,
-            'max-w-[34rem]': !isMobile,
-            'pt-20': !isMobile || !activeSection,
-            'pt-28': isMobile && activeSection
-        }"
-    >
+    <nav class="flex-shrink-0 space-y-8 w-full p-8 mx-auto md:max-w-[34rem] pt-12 md:pt-28">
         <!-- Header with back button (hidden on mobile when section is active) -->
         <div 
             v-if="!isMobile || !activeSection"
-            class="w-full flex items-center gap-4"
+            class="w-full flex items-center gap-4 pb-8"
         >
             <a 
                 href="/hosting/events" 
@@ -307,7 +300,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref } from 'vue';
 import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -328,13 +321,6 @@ const props = defineProps({
 });
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
-
-// Debug logging
-onMounted(() => {
-    console.log('VITE_IMAGE_URL:', imageUrl);
-    console.log('Event:', props.event);
-    console.log('Event images:', props.event.images);
-});
 
 const firstImagePath = computed(() => {
     const firstImage = props.event.images?.[0];
@@ -435,22 +421,6 @@ const onMapReady = () => {
         }
     }, 100);
 };
-
-// Mobile detection
-const isMobile = ref(false);
-
-const checkMobile = () => {
-    isMobile.value = window.innerWidth < 768;
-};
-
-onMounted(() => {
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-});
-
-onUnmounted(() => {
-    window.removeEventListener('resize', checkMobile);
-});
 
 const showsCount = computed(() => {
     return props.event.shows ? Object.keys(props.event.shows).length : 0;

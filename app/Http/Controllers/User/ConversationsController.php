@@ -63,6 +63,9 @@ class ConversationsController extends Controller
     {   
         $this->authorize('update', $conversation);
         
+        // Sanitize the input
+        $sanitizedMessage = htmlspecialchars($request->message, ENT_QUOTES, 'UTF-8');
+        
         $receiver = $conversation->user_one === auth()->id() 
             ? $conversation->usertwo 
             : $conversation->userone;
@@ -70,17 +73,25 @@ class ConversationsController extends Controller
         $latestMessage = $conversation->latestMessages()->first();
 
         if ($this->canAppendMessage($latestMessage)) {
+            $currentMessage = trim($latestMessage->message);
+            if (str_ends_with($currentMessage, '</p>')) {
+                $currentMessage = substr($currentMessage, 0, -4);
+                $updatedMessage = $currentMessage . "<br>" . $sanitizedMessage . "</p>";
+            } else {
+                $updatedMessage = "<p>" . $sanitizedMessage . "<br>" . $sanitizedMessage . "</p>";
+            }
+            
             $latestMessage->update([
-                'message' => "{$latestMessage->message} {$request->message}"
+                'message' => $updatedMessage
             ]);
         } else {
             $conversation->messages()->create([
-                'message' => $request->message,
+                'message' => "<p>" . $sanitizedMessage . "</p>",
                 'user_id' => auth()->id(),
             ]);
         }
 
-        $this->notifyReceiver($receiver, $request->message, $conversation);
+        $this->notifyReceiver($receiver, $sanitizedMessage, $conversation);
         $conversation->touch();
         
         return $conversation->fresh()->load([

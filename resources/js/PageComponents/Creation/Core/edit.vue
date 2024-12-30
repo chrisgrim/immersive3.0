@@ -25,7 +25,7 @@
                     <!-- Mobile back button - changed to relative positioning -->
                     <div 
                         v-if="isMobile && currentSection" 
-                        class="relative bg-white px-8 pt-12"
+                        class="relative bg-white px-8 pt-12 pb-4"
                     >
                         <div class="flex items-center gap-4">
                             <button 

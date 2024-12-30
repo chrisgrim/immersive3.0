@@ -2,7 +2,9 @@
 	<div class="flex justify-end">
 		<div class="px-8 md:px-32 w-full ml-[-2rem] mt-12">
 			<div class="w-full flex items-center justify-between">
-				<a href="/organizer"><h2 class="font-medium">{{organizer.name}}</h2></a>
+				<a :href="`/organizers/${organizer.slug}`">
+					<h2 class="font-medium hover:underline">{{organizer.name}}</h2>
+				</a>
 				<div @click="createNewEvent" class="cursor-pointer">
 					<div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
 						+
@@ -76,9 +78,9 @@
 
 		<!-- Modal -->
 		<div v-if="selectedEvent" 
-		     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+		     class="fixed inset-0 bg-black bg-opacity-50 flex md:items-center justify-center z-[2000]"
 		     @click="closeModal">
-			<div class="bg-white rounded-3xl p-20 max-w-3xl w-full mx-4 relative" 
+			<div class="bg-white w-full rounded-t-2xl md:rounded-3xl md:p-20 p-8 md:max-w-3xl relative mt-auto md:mt-0 md:mx-4" 
 			     @click.stop>
 				<!-- Close Button -->
 				<div 
@@ -89,71 +91,73 @@
 				</div>
 
 				<!-- Event Image -->
-				<div class="w-full h-80 rounded-2xl overflow-hidden mb-8">
-					<template v-if="selectedEvent.images?.length > 0">
-						<picture>
-							<source :srcset="`${imageUrl}${selectedEvent.images[0].large_image_path}`" type="image/webp">
-							<img :src="`${imageUrl}${selectedEvent.images[0].large_image_path}`"
-							     :alt="`${selectedEvent.name} Immersive Event`"
-							     class="w-full h-full object-cover">
-						</picture>
-					</template>
-					<template v-else-if="selectedEvent.thumbImagePath">
-						<picture>
-							<source :srcset="`${imageUrl}${selectedEvent.thumbImagePath}`" type="image/webp">
-							<img :src="`${imageUrl}${selectedEvent.thumbImagePath.slice(0, -4)}jpg`"
-							     :alt="`${selectedEvent.name} Immersive Event`"
-							     class="w-full h-full object-cover">
-						</picture>
-					</template>
-					<template v-else>
-						<div class="w-full h-full bg-gray-200"></div>
-					</template>
+				<div class="w-full flex justify-center mb-8">
+					<div class="w-1/3 max-w-md aspect-[3/4] rounded-2xl overflow-hidden mt-16">
+						<template v-if="selectedEvent.images?.length > 0">
+							<picture>
+								<source :srcset="`${imageUrl}${selectedEvent.images[0].large_image_path}`" type="image/webp">
+								<img :src="`${imageUrl}${selectedEvent.images[0].large_image_path}`"
+								     :alt="`${selectedEvent.name} Immersive Event`"
+								     class="w-full h-full object-cover">
+							</picture>
+						</template>
+						<template v-else-if="selectedEvent.thumbImagePath">
+							<picture>
+								<source :srcset="`${imageUrl}${selectedEvent.thumbImagePath}`" type="image/webp">
+								<img :src="`${imageUrl}${selectedEvent.thumbImagePath.slice(0, -4)}jpg`"
+								     :alt="`${selectedEvent.name} Immersive Event`"
+								     class="w-full h-full object-cover">
+							</picture>
+						</template>
+						<template v-else>
+							<div class="w-full h-full bg-gray-200"></div>
+						</template>
+					</div>
 				</div>
 
 				<!-- Event Name -->
-				<h2 class="text-4xl font-bold mb-12">{{ selectedEvent.name }}</h2>
+				<h2 class="text-3xl md:text-4xl font-bold mb-8 md:mb-12 text-center">{{ selectedEvent.name }}</h2>
 
 				<!-- Action Buttons -->
-				<div class="flex gap-6">
+				<div class="flex flex-col md:flex-row gap-4 md:gap-6 mb-12 md:mb-0">
 					<button 
 						v-if="isEventPublished(selectedEvent)"
 						@click="viewEvent(selectedEvent)"
-						class="flex-1 px-8 py-4 bg-black text-white rounded-xl hover:bg-gray-800">
+						class="w-full px-8 py-4 bg-black text-white rounded-xl hover:bg-gray-800">
 						View Event
 					</button>
 					<button 
 						v-if="selectedEvent.status !== 'r'"
 						@click="editEvent(selectedEvent)"
-						class="flex-1 px-8 py-4 border border-black rounded-xl hover:bg-gray-100">
+						class="w-full px-8 py-4 border border-black rounded-xl hover:bg-gray-100">
 						Edit Event
 					</button>
 					<button 
 						@click="confirmRemoveEvent(selectedEvent)"
-						class="flex-1 px-8 py-4 border border-red-500 text-red-500 rounded-xl hover:bg-red-50">
+						class="w-full px-8 py-4 border border-red-500 text-red-500 rounded-xl hover:bg-red-50">
 						Delete Event
 					</button>
 				</div>
 			</div>
 		</div>
 
-		<!-- Add this right after your existing modal -->
+		<!-- Submission Modal -->
 		<div v-if="showSubmissionModal" 
-		     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+		     class="fixed inset-0 bg-black bg-opacity-50 flex md:items-center justify-center z-50"
 		     @click="closeSubmissionModal">
-			<div class="bg-white rounded-3xl p-20 max-w-3xl w-full mx-4 relative" 
+			<div class="bg-white w-full rounded-t-2xl md:rounded-3xl md:p-20 p-8 md:max-w-3xl relative mt-auto md:mt-0 md:mx-4" 
 			     @click.stop>
 				<div class="text-center">
 					<div class="mb-8">
-						<svg class="mx-auto h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<svg class="mx-auto h-12 md:h-16 w-12 md:w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 						</svg>
 					</div>
-					<h3 class="text-3xl font-bold mb-4">Thanks for submitting {{ submittedEventName }}!</h3>
+					<h3 class="text-2xl md:text-3xl font-bold mb-4">Thanks for submitting {{ submittedEventName }}!</h3>
 					<p class="text-gray-600 mb-8">Your event will be reviewed in the next few days.</p>
 					<button 
 						@click="closeSubmissionModal" 
-						class="px-8 py-4 bg-black text-white rounded-xl hover:bg-gray-800"
+						class="w-full md:w-auto px-8 py-4 bg-black text-white rounded-xl hover:bg-gray-800"
 					>
 						Close
 					</button>

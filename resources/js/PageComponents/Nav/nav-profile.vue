@@ -27,7 +27,10 @@
             </div>
         </template>
         <div class="relative ml-8">
-            <div class="w-12 h-12" @click-outside="dropdown = false">
+            <div 
+                class="w-12 h-12" 
+                v-click-outside="closeDropdown"
+            >
                 <div 
                     :style="{ background: userColor }" 
                     @click="onToggle" 
@@ -138,6 +141,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import Login from '../../Auth/login.vue';
+import { ClickOutsideDirective } from '@/Directives/ClickOutsideDirective';
 
 const props = defineProps(['user']);
 const emit = defineEmits(['close']);
@@ -163,4 +167,11 @@ const onLogin = () => {
 const onToggle = () => {
     dropdown.value = !dropdown.value;
 };
+
+const closeDropdown = () => {
+    dropdown.value = false;
+};
+
+// Register the directive
+const vClickOutside = ClickOutsideDirective;
 </script>
