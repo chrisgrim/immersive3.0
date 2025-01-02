@@ -55,7 +55,8 @@ export default {
                 'button-red-1': '#e61e4d',
                 'button-red-2': '#e31c5f',
                 'button-red-3': '#d70466',
-                'default-red' : '#ff385c',
+                'default-red': '#ff385c',
+                'primary': '#ff385c',
             },
             borderRadius: {
                 '4xl': '2rem',

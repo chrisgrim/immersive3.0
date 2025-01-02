@@ -56,11 +56,11 @@
         <!-- Name & Tag Line -->
         <div 
             @click="$emit('navigate', 'Name')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
+            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 w-full max-w-full"
         >
             <h3 class="text-xl font-semibold mb-4">Name</h3>
-            <p class="text-gray-600 mb-2 truncate">{{ event.name || 'No name set' }}</p>
-            <p class="text-gray-500 text-sm truncate">{{ event.tag_line || 'No tagline set' }}</p>
+            <p class="text-gray-600 mb-2 break-words overflow-hidden">{{ event.name || 'No name set' }}</p>
+            <p class="text-gray-500 text-sm break-words overflow-hidden">{{ event.tag_line || 'No tagline set' }}</p>
         </div>
 
         <!-- Category -->

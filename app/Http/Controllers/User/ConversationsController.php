@@ -25,12 +25,14 @@ class ConversationsController extends Controller
         ->with([
             'event', 
             'messages' => function($query) {
-                $query->orderBy('created_at', 'desc');
+                $query->latest()
+                      ->limit(20);
             },
             'userone',
             'usertwo'
         ])
-        ->orderBy('updated_at', 'desc')
+        ->latest('updated_at')
+        ->limit(50)
         ->get();
 
         return view('User.inbox', compact('conversations'));
@@ -52,7 +54,8 @@ class ConversationsController extends Controller
             'event',
             'messages' => function($query) {
                 $query->orderBy('created_at', 'asc')
-                      ->with('user');
+                      ->with('user')
+                      ->limit(100);
             },
             'userone',
             'usertwo'

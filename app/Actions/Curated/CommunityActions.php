@@ -34,7 +34,7 @@ class CommunityActions
         ]);
 
         if ($request->hasFile('image')) {
-            ImageHandler::saveImage($request->file('image'), $community, 800, 500, 'community');
+            ImageHandler::saveImage($request->file('image'), $community, 800, 500, 'community-images');
         }
 
         $community->shelves()->create(['user_id' => auth()->id()]);

@@ -1,111 +1,129 @@
 <template>
-    <div class="p-6 bg-white">
-        <h1 class="text-2xl font-bold mb-6">Event Management</h1>
-        
-        <!-- Search and Filter Section -->
-        <div class="mb-6 space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <input 
-                    v-model="filters.search"
-                    name="event_search"
-                    autocomplete="off"
-                    placeholder="Search by name or ID..."
-                    class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                <select 
-                    v-model="filters.sort"
-                    class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                </select>
-                <select 
-                    v-model="filters.status"
-                    class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                    <option value="published">Published Events</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="deleted">Deleted Events</option>
-                </select>
+    <div class="h-[calc(100vh-12rem)] flex flex-col md:h-[calc(100vh-12rem)] max-h-[calc(100vh-10rem)]">
+        <!-- Fixed Header Section -->
+        <div class="flex-none">
+            <h1 class="text-2xl font-bold mb-6">Event Management</h1>
+            
+            <!-- Search and Filter Section -->
+            <div class="mb-6">
+                <div class="flex flex-wrap gap-4">
+                    <input 
+                        v-model="filters.search"
+                        name="event_search"
+                        autocomplete="off"
+                        placeholder="Search by name or ID..."
+                        class="w-auto min-w-[25rem] px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                    <select 
+                        v-model="filters.sort"
+                        class="w-auto px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                    </select>
+                    <select 
+                        v-model="filters.status"
+                        class="w-auto px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="published">Published Events</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="deleted">Deleted Events</option>
+                    </select>
+                </div>
             </div>
         </div>
 
-        <!-- Events Table -->
-        <table class="min-w-full bg-white border border-gray-200">
-            <thead>
-                <tr class="bg-gray-50">
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Organization</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days Left</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Clicks</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 text-xl">
-                <tr v-for="event in events" :key="event.id">
-                    <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-gray-50">
-                        {{ event.id }}
-                    </td>
-                    <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-gray-50">
-                        <img 
-                            :src="getImageUrl(event)"
-                            :alt="event.name"
-                            class="h-10 w-10 rounded object-cover"
-                            @error="handleImageError"
-                        >
-                    </td>
-                    <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-gray-50">
-                        {{ event.name }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        {{ event.organizer?.name }}
-                    </td>
-                    <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-gray-50">
-                        {{ formatLocation(event) }}
-                    </td>
-                    <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-gray-50">
-                        {{ event.category?.name }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div 
-                            :class="{
-                                'bg-red-500 text-white font-bold': remainingDays(event.closingDate) < 12 && remainingDays(event.closingDate) !== 'Ended' && remainingDays(event.closingDate) !== 'N/A',
-                                'bg-gray-200': remainingDays(event.closingDate) === 'Ended' || remainingDays(event.closingDate) === 'N/A'
-                            }"
-                            class="rounded-full w-12 h-12 flex items-center justify-center"
-                        >
-                            {{ remainingDays(event.closingDate) }}
-                        </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <template v-if="filters.status === 'in_progress'">
-                            <a 
-                                :href="`/hosting/event/${event.slug}/edit`"
-                                class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+        <!-- Scrollable Table Section -->
+        <div class="flex-1 overflow-auto border border-neutral-200">
+            <table class="w-full">
+                <thead class="sticky top-0 bg-white">
+                    <tr class="bg-gray-50">
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Organization</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days Left</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Clicks</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 text-xl">
+                    <tr v-for="event in events" :key="event.id">
+                        <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-gray-50">
+                            {{ event.id }}
+                        </td>
+                        <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-gray-50">
+                            <picture class="block h-10 w-10">
+                                <source 
+                                    v-if="event.images && event.images.length > 0"
+                                    :srcset="`${imageUrl}${event.images[0].large_image_path}`"
+                                    type="image/webp"
+                                >
+                                <source 
+                                    v-if="event.thumbImagePath"
+                                    :srcset="`${imageUrl}${event.thumbImagePath}`"
+                                    type="image/webp"
+                                >
+                                <img 
+                                    :src="getImageUrl(event)"
+                                    :alt="event.name"
+                                    class="h-10 w-10 rounded object-cover"
+                                    @error="handleImageError"
+                                >
+                            </picture>
+                        </td>
+                        <td @click="showActionModal(event)" class="px-6 py-4 max-w-[25rem] whitespace-normal break-words cursor-pointer hover:bg-gray-50">
+                            {{ event.name }}
+                        </td>
+                        <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words">
+                            {{ event.organizer?.name }}
+                        </td>
+                        <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-gray-50">
+                            {{ formatLocation(event) }}
+                        </td>
+                        <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-gray-50">
+                            {{ event.category?.name }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div 
+                                :class="{
+                                    'bg-red-500 text-white font-bold': remainingDays(event.closingDate) < 12 && remainingDays(event.closingDate) !== 'Ended' && remainingDays(event.closingDate) !== 'N/A',
+                                    'bg-gray-200': remainingDays(event.closingDate) === 'Ended' || remainingDays(event.closingDate) === 'N/A'
+                                }"
+                                class="rounded-full w-12 h-12 flex items-center justify-center"
                             >
-                                Edit Event
-                            </a>
-                        </template>
-                        <template v-else-if="filters.status === 'deleted'">
-                            <button 
-                                @click="resurrectEvent(event)"
-                                class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-                            >
-                                Restore Event
-                            </button>
-                        </template>
-                        <template v-else>
-                            {{ event.clicks?.length || 0 }} clicks
-                        </template>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+                                {{ remainingDays(event.closingDate) }}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <template v-if="filters.status === 'in_progress'">
+                                <a 
+                                    :href="`/hosting/event/${event.slug}/edit`"
+                                    class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                                >
+                                    Edit Event
+                                </a>
+                            </template>
+                            <template v-else-if="filters.status === 'deleted'">
+                                <button 
+                                    @click="resurrectEvent(event)"
+                                    class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                                >
+                                    Restore Event
+                                </button>
+                            </template>
+                            <template v-else>
+                                {{ event.clicks?.length || 0 }} clicks
+                            </template>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
 
-        <div class="mt-6">
+        <!-- Fixed Footer Section -->
+        <div class="flex-none mt-4">
             <Pagination 
                 v-if="pagination"
                 :pagination="pagination"
@@ -114,9 +132,46 @@
         </div>
 
         <!-- Action Modal -->
-        <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-white rounded-lg p-6 max-w-md w-full">
-                <h3 class="text-xl font-bold mb-4">{{ selectedEvent?.name }}</h3>
+        <div 
+            v-if="showModal" 
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            @click="showModal = false"
+        >
+            <div 
+                class="bg-white rounded-lg p-6 max-w-md w-full relative"
+                @click.stop
+            >
+                <button 
+                    @click="showModal = false"
+                    class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+
+                <div class="text-center mb-6">
+                    <picture class="block w-48 mx-auto mt-12">
+                        <source 
+                            v-if="selectedEvent?.images && selectedEvent.images.length > 0"
+                            :srcset="`${imageUrl}${selectedEvent.images[0].large_image_path}`"
+                            type="image/webp"
+                        >
+                        <source 
+                            v-if="selectedEvent?.thumbImagePath"
+                            :srcset="`${imageUrl}${selectedEvent.thumbImagePath}`"
+                            type="image/webp"
+                        >
+                        <img 
+                            :src="getImageUrl(selectedEvent)"
+                            :alt="selectedEvent?.name"
+                            class="w-48 h-64 rounded-lg object-cover mx-auto"
+                            @error="handleImageError"
+                        >
+                    </picture>
+                    <h3 class="text-xl font-bold mt-4">{{ selectedEvent?.name }}</h3>
+                </div>
+
                 <div class="space-y-4">
                     <a 
                         :href="`/hosting/event/${selectedEvent?.slug}/edit`"
@@ -130,12 +185,6 @@
                     >
                         View Event
                     </a>
-                    <button 
-                        @click="showModal = false"
-                        class="block w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                    >
-                        Cancel
-                    </button>
                 </div>
             </div>
         </div>
@@ -220,6 +269,9 @@ const formatLocation = (event) => {
 const getImageUrl = (event) => {
     if (event.images && event.images.length > 0) {
         return `${imageUrl}${event.images[0].large_image_path}`
+    }
+    if (event.thumbImagePath) {
+        return `${imageUrl}${event.thumbImagePath}`
     }
     return 'https://placehold.co/40x40?text=No+Image'
 }
@@ -314,7 +366,6 @@ onMounted(() => {
 <style scoped>
 input {
     background: transparent;
-    width: 100%;
 }
 
 input:hover {
@@ -324,4 +375,27 @@ input:hover {
 input:focus {
     background: white;
 }
+
+/* Add sticky header styles */
+thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: white;
+}
+
+/* Ensure borders remain visible on sticky header */
+th {
+    position: relative;
+}
+
+th::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    border-bottom: 1px solid #e5e7eb;
+}
+
 </style> 

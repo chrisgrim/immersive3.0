@@ -1,74 +1,31 @@
 <template>
     <main class="w-full min-h-fit">
         <div class="flex flex-col w-full">
-            <div>
-                <h2>How will users access your remote event?</h2>
-                
-                <div class="w-full mt-14">
-                    <div class="w-full relative" ref="remoteLocationDrop" v-click-outside="handleClickOutside">
-                        <div class="w-full relative">
-                            <!-- Dropdown Arrow -->
-                            <svg 
-                                :class="{'rotate-90': dropdown}"
-                                class="w-10 h-10 fill-black absolute z-10 right-4 top-8">
-                                <use :xlink:href="`/storage/website-files/icons.svg#ri-arrow-right-s-line`" />
-                            </svg>
+            <h2>How will users access your remote event?</h2>
+            
+            <div class="mt-6">
+                <p class="font-strong">Select or create remote locations for your event.</p>
+                <Dropdown 
+                    class="mt-4"
+                    :list="state.remoteLocationList"
+                    :creatable="true"
+                    :loading="state.isLoading"
+                    placeholder="Select remote locations"
+                    @onSelect="itemSelected"
+                    @onSearch="term => fetchRemoteLocations(term)"
+                />
+                <List 
+                    class="mt-6"
+                    :item-height="'h-24'"
+                    :selections="event.remotelocations || []" 
+                    @onSelect="itemRemoved"
+                />
 
-                            <!-- Search Input -->
-                            <input 
-                                ref="searchInput"
-                                :class="{ 'border-red-500': showError }"
-                                class="text-2xl relative p-8 w-full border mb-12 rounded-3xl focus:rounded-t-3xl focus:rounded-b-none h-24"
-                                v-model="searchTerm"
-                                placeholder="Select remote Locations"
-                                @input="filterRemoteLocations"
-                                @focus="onDropdown"
-                                autocomplete="off"
-                                type="text">
-
-                            <!-- Add Error Message -->
-                            <p v-if="showError" class="text-red-500 text-1xl mt-[-2.5rem] mb-8 px-4">
-                                Please select at least one remote location
-                            </p>
-
-                            <!-- Dropdown List -->
-                            <ul 
-                                class="overflow-auto bg-white w-full list-none rounded-b-3xl absolute top-24 m-0 z-10 border-[#e5e7eb] border max-h-[40rem]" 
-                                v-if="dropdown">
-                                <li 
-                                    v-for="item in filteredRemoteLocations"
-                                    :key="item.id"
-                                    class="py-6 px-6 flex items-center gap-8 hover:bg-gray-300" 
-                                    @click="selectRemoteLocation(item)"
-                                    @mousedown.stop.prevent
-                                >
-                                    {{ item.name }}
-                                </li>
-                            </ul>
-
-                            <!-- Selected Locations -->
-                            <div v-if="event.remotelocations && event.remotelocations.length > 0">
-                                <p class="text-xl mt-8">Selected locations:</p>
-                                <ul class="mt-4 flex flex-wrap gap-6 mx-0">
-                                    <li 
-                                        v-for="location in event.remotelocations"
-                                        :key="location.id"
-                                        class="border h-24 border-[#e5e7eb] flex text-[#222222] px-6 pb-4 rounded-2xl relative flex flex-col justify-end hover:border-black hover:bg-gray-100 hover:shadow-[0_0_0_1.5px_black]"
-                                        @mouseenter="hoveredLocation = location.id"
-                                        @mouseleave="hoveredLocation = null"
-                                    >
-                                        <div 
-                                            @click="removeRemoteLocation(location.id)" 
-                                            class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white"
-                                        >
-                                            <component :is="hoveredLocation === location.id ? RiCloseCircleFill : RiCloseCircleLine" />
-                                        </div>
-                                        <span class="mt-auto">{{ location.name }}</span>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
+                <!-- Error Message -->
+                <div v-if="showError" class="mt-4">
+                    <p class="text-red-500 text-1xl">
+                        Please select at least one remote location
+                    </p>
                 </div>
             </div>
         </div>
@@ -81,24 +38,21 @@ import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import { ClickOutsideDirective } from '@/Directives/ClickOutsideDirective.js';
 import useVuelidate from '@vuelidate/core';
 import { required, minLength } from '@vuelidate/validators';
+import Dropdown from '@/GlobalComponents/dropdown.vue';
+import List from '@/GlobalComponents/dropdown-list.vue';
 
-// 1. Injected Dependencies
+// Injected Dependencies
 const event = inject('event');
 const errors = inject('errors');
 
-// 2. State Management
+// State Management
 const state = ref({
-    searchTerm: '',
-    dropdown: false,
     remoteLocationList: [],
-    filteredRemoteLocations: [],
-    hoveredLocation: null
+    searchTerm: '',
+    isLoading: false
 });
 
-const remoteLocationDrop = ref(null);
-const searchInput = ref(null);
-
-// 3. Validation Rules
+// Validation Rules
 const rules = {
     remotelocations: { 
         required,
@@ -106,91 +60,64 @@ const rules = {
     }
 };
 
-// 4. Setup Vuelidate
 const $v = useVuelidate(rules, {
     remotelocations: computed(() => event.remotelocations)
 });
 
-// 5. Computed Properties
+// Computed Properties
 const showError = computed(() => {
     return $v.value.$dirty && $v.value.$error;
 });
 
-// 6. Methods
-const fetchRemoteLocations = async () => {
+// Methods
+const fetchRemoteLocations = async (search = '') => {
     try {
-        const response = await axios.get(`/api/remotelocations`);
+        state.value.isLoading = true;
+        const response = await axios.get('/api/remotelocations', {
+            params: {
+                search,
+                selected: event.remotelocations?.map(loc => loc.id) || [],
+                ...(search === '' && { limit: 10 })
+            }
+        });
+        
         state.value.remoteLocationList = response.data;
-
-        if (event.remotelocations?.length > 0) {
-            const selectedIds = event.remotelocations.map(loc => loc.id);
-            state.value.remoteLocationList = state.value.remoteLocationList.filter(
-                loc => !selectedIds.includes(loc.id)
-            );
-        }
-
-        state.value.filteredRemoteLocations = state.value.remoteLocationList;
     } catch (error) {
         errors.value = { remotelocations: ['Failed to load remote locations'] };
+    } finally {
+        state.value.isLoading = false;
     }
 };
 
-const filterRemoteLocations = () => {
-    const searchTermLower = state.value.searchTerm.toLowerCase();
-    state.value.filteredRemoteLocations = state.value.remoteLocationList.filter(item => 
-        item.name.toLowerCase().includes(searchTermLower)
-    );
-};
-
-const selectRemoteLocation = (item) => {
+const itemSelected = (item) => {
     if (!event.remotelocations) {
         event.remotelocations = [];
     }
-
-    if (!event.remotelocations.find(loc => loc.id === item.id)) {
+    
+    // Check if item already exists (by id or name)
+    const exists = event.remotelocations.some(loc => 
+        loc.id === item.id || loc.name.toLowerCase() === item.name.toLowerCase()
+    );
+    
+    if (!exists) {
         event.remotelocations.push(item);
-        state.value.remoteLocationList = state.value.remoteLocationList.filter(
-            loc => loc.id !== item.id
+        state.value.remoteLocationList = state.value.remoteLocationList.filter(loc => 
+            loc.id !== item.id && loc.name.toLowerCase() !== item.name.toLowerCase()
         );
-        filterRemoteLocations();
         $v.value.$reset();
     }
-
-    state.value.searchTerm = '';
-    state.value.dropdown = false;
-    searchInput.value?.blur();
 };
 
-const removeRemoteLocation = (id) => {
-    const removedLocation = event.remotelocations.find(loc => loc.id === id);
-    event.remotelocations = event.remotelocations.filter(loc => loc.id !== id);
+const itemRemoved = (item) => {
+    event.remotelocations = event.remotelocations.filter(loc => loc.id !== item.id);
+    state.value.remoteLocationList.push(item);
     
-    if (removedLocation) {
-        state.value.remoteLocationList.push(removedLocation);
-        filterRemoteLocations();
-    }
-
     if (event.remotelocations.length === 0) {
         $v.value.$touch();
     }
 };
 
-const handleClickOutside = (event) => {
-    const dropdownElement = remoteLocationDrop.value;
-    if (dropdownElement && !dropdownElement.contains(event.target)) {
-        state.value.dropdown = false;
-        if (state.value.searchTerm) {
-            state.value.searchTerm = '';
-            state.value.filteredRemoteLocations = state.value.remoteLocationList;
-        }
-    }
-};
-
-const onDropdown = () => {
-    state.value.dropdown = true;
-};
-
-// 7. Component API
+// Component API
 defineExpose({
     isValid: async () => {
         await $v.value.$validate();
@@ -209,6 +136,6 @@ defineExpose({
     })
 });
 
-// 8. Lifecycle Hooks
+// Lifecycle Hooks
 onMounted(fetchRemoteLocations);
 </script>

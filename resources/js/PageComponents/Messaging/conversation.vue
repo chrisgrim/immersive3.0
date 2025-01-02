@@ -1,7 +1,7 @@
 <template>
-    <div v-if="conversation.messages && conversation.event" class="h-screen mt-[-8rem] md:mt-0 bg-white z-[1002] md:z-0 md:h-[calc(100vh-8rem)] flex flex-col justify-between relative overflow-auto">
+    <div v-if="conversation.messages && conversation.event" class="bg-white z-[1002] md:z-0 md:h-[calc(100vh-8rem)] flex flex-col justify-between relative overflow-auto">
 
-        <div class="p-8 border-b border-neutral-200 flex relative items-center gap-8">
+        <div class="p-8 border-b border-neutral-200 flex relative items-center gap-8 sticky top-0 bg-white z-10">
             <div v-if="showBackButton" class="relative bg-white py-6 z-10">
                 <button 
                     @click="$emit('backClick')" 
@@ -26,7 +26,7 @@
             </a>
         </div>
 
-        <div ref="messagesContainer" class="flex flex-col overflow-y-auto overflow-x-hidden px-8 flex-grow items-start">
+        <div ref="messagesContainer" class="flex flex-col overflow-y-auto overflow-x-hidden px-8 flex-grow items-start pb-40 md:pb-0">
             <div class="flex flex-col w-full">
                 <div 
                     v-for="message in conversation.messages" 
@@ -73,7 +73,7 @@
             </div>
         </div>
 
-        <div class="px-8 pb-8 relative">
+        <div class="fixed md:relative bottom-0 left-0 right-0 px-8 pb-8 pt-6 md:pt-0 bg-white md:border-0">
             <div class="relative flex items-center">
                 <textarea
                     ref="textareaRef"
@@ -178,6 +178,9 @@ onMounted(() => {
 watchEffect(() => {
     if (props.value) {
         conversation.value = props.value;
+        nextTick(() => {
+            scrollToBottom();
+        });
     }
 });
 </script>

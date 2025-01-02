@@ -8,7 +8,7 @@
 
 @section('nav')
     @if (in_array($event->status, ['p', 'e']))
-        @include('Layouts.nav-creation')
+        @include('Nav.creation-desktop')
     @endif
 @endsection
 

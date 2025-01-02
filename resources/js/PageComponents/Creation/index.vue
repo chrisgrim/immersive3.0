@@ -1,6 +1,6 @@
 <template>
 	<div class="flex justify-end">
-		<div class="px-8 md:px-32 w-full ml-[-2rem] mt-12">
+		<div class="px-8 md:px-32 w-full ml-[-2rem] mt-20 md:mt-12">
 			<div class="w-full flex items-center justify-between">
 				<a :href="`/organizers/${organizer.slug}`">
 					<h2 class="font-medium hover:underline">{{organizer.name}}</h2>

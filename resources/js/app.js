@@ -7,6 +7,7 @@ import axios from 'axios';
 const NavSearch = defineAsyncComponent(() => import('./PageComponents/Nav/nav-search.vue'));
 const NavSearchMobile = defineAsyncComponent(() => import('./PageComponents/Nav/nav-search-mobile.vue'));
 const NavProfile = defineAsyncComponent(() => import('./PageComponents/Nav/nav-profile.vue'));
+const NavBarMobile = defineAsyncComponent(() => import('./PageComponents/Nav/nav-bar-mobile.vue'));
 
 const SearchLocation = defineAsyncComponent(() => import('./PageComponents/Search/location.vue'));
 
@@ -59,6 +60,7 @@ axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 app.component('vue-nav-search', NavSearch);
 app.component('vue-nav-search-mobile', NavSearchMobile);
 app.component('vue-nav-profile', NavProfile);
+app.component('vue-nav-bar-mobile', NavBarMobile);
 
 app.component('vue-search-location', SearchLocation);
 

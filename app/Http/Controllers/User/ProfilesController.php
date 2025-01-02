@@ -40,7 +40,13 @@ class ProfilesController extends Controller
     {
         try {
             if ($request->hasFile('image')) {
-                ImageHandler::saveImage($request->file('image'), $user, 400, 400, 'user');
+                // Delete existing images
+                foreach ($user->images as $image) {
+                    ImageHandler::deleteImage($image);
+                }
+                
+                // Save new image
+                ImageHandler::saveImage($request->file('image'), $user, 600, 600, 'user-images');
             }
 
             $userData = $request->only('name', 'email') + [
@@ -56,7 +62,7 @@ class ProfilesController extends Controller
                 $user->update($userData);
             }
 
-            return $user->fresh();
+            return $user->fresh(['images']);
 
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 422);

@@ -13,7 +13,9 @@
                 class="relative ml-8" 
                 v-if="user.hasCreatedOrganizers && user.organizer">
                 <a href="/hosting/events">
-                    <span class="text-xl font-medium hover:text-black hover:font-semibold">{{user.organizer.name}}</span>
+                    <span class="text-xl font-medium hover:text-black hover:font-semibold truncate block max-w-[200px]">
+                        {{user.organizer.name}}
+                    </span>
                 </a>
             </div>
         </template>

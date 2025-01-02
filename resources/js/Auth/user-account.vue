@@ -3,11 +3,11 @@
 		<!-- Main Content Area with proper scrolling -->
 		<div class="flex-1 overflow-y-auto">
 			<div class="max-w-screen-xl mx-auto min-h-full flex">
-				<div class="w-full lg:w-1/2 mx-auto pt-20 md:pt-20 md:pb-20">
+				<div class="w-full lg:w-1/2 mx-auto pt-12 md:pt-20 md:pb-20">
 					<div class="h-full flex md:items-center p-8">
 						<div class="w-full">
 							<header>
-								<h2 class="text-5xl font-semibold text-gray-600">Account</h2>
+								<h1 class="text-5xl font-medium">Account</h1>
 							</header>
 
 							<div class="border-b mt-16">

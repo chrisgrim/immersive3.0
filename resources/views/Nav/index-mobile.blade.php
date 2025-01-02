@@ -12,4 +12,5 @@
             <vue-quick-bar></vue-quick-bar>
         </div>
     </div>
+    <vue-nav-bar-mobile></vue-nav-bar-mobile>
 </nav>

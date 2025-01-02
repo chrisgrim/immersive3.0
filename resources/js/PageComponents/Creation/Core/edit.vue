@@ -1,5 +1,5 @@
 <template>
-    <div class="relative text-1xl font-medium border-t border-neutral-300 w-full h-[calc(100vh-8rem)] flex flex-col">
+    <div class="relative text-1xl font-medium w-full h-[calc(100vh-8rem)] flex flex-col">
 
         <!-- Main Content Area with separate scrolling -->
         <div class="flex-1 flex h-full">

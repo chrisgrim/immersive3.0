@@ -1,27 +1,30 @@
 <template>
-    <div class="p-6 bg-white">
-        <h1 class="text-2xl font-bold mb-6">User Management</h1>
-        
-        <!-- Search and Filter Section -->
-        <div class="mb-6 space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input 
-                    v-model="filters.search"
-                    name="user_search"
-                    autocomplete="off"
-                    placeholder="Search by name, email, or ID..."
-                    class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                <select 
-                    v-model="filters.type"
-                    class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                    <option value="">All Types</option>
-                    <option value="a">Admin</option>
-                    <option value="m">Moderator</option>
-                    <option value="c">Curator</option>
-                    <option value="g">Guest</option>
-                </select>
+    <div class="flex flex-col h-full w-full">
+        <!-- Fixed Header Section -->
+        <div class="flex-none overflow-hidden">
+            <h1 class="text-2xl font-bold mb-6">User Management</h1>
+            
+            <!-- Search and Filter Section -->
+            <div class="mb-6">
+                <div class="flex flex-wrap gap-4">
+                    <input 
+                        v-model="filters.search"
+                        name="user_search"
+                        autocomplete="off"
+                        placeholder="Search by name, email, or ID..."
+                        class="w-auto min-w-[25rem] px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                    <select 
+                        v-model="filters.type"
+                        class="w-auto px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="">All Types</option>
+                        <option value="a">Admin</option>
+                        <option value="m">Moderator</option>
+                        <option value="c">Curator</option>
+                        <option value="g">Guest</option>
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -35,10 +38,10 @@
             No users found
         </div>
 
-        <!-- Users Table -->
-        <div v-else>
-            <table class="min-w-full bg-white border border-gray-200">
-                <thead>
+        <!-- Users Table - Update the wrapper div -->
+        <div v-else class="w-full overflow-auto border border-neutral-200">
+            <table class="w-full overflow-hidden">
+                <thead class="sticky top-0 bg-white">
                     <tr class="bg-gray-50">
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
@@ -54,12 +57,24 @@
                     <tr v-for="user in users" :key="user.id">
                         <td class="px-6 py-4 whitespace-nowrap">{{ user.id }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <img 
-                                :src="user.thumbImagePath || user.gravatar || 'https://placehold.co/40x40'" 
-                                :alt="user.name"
-                                class="h-10 w-10 rounded-full object-cover"
-                                @error="handleImageError"
-                            >
+                            <picture class="block h-10 w-10">
+                                <source 
+                                    v-if="user.images && user.images.length > 0"
+                                    :srcset="`${imageUrl}${user.images[0].large_image_path}`"
+                                    type="image/webp"
+                                >
+                                <source 
+                                    v-if="user.thumbImagePath"
+                                    :srcset="`${imageUrl}${user.thumbImagePath}`"
+                                    type="image/webp"
+                                >
+                                <img 
+                                    :src="getImageUrl(user)"
+                                    :alt="user.name"
+                                    class="h-10 w-10 rounded object-cover"
+                                    @error="handleImageError"
+                                >
+                            </picture>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <input 
@@ -155,14 +170,15 @@
                     </tr>
                 </tbody>
             </table>
+        </div>
 
-            <div class="mt-6">
-                <Pagination 
-                    v-if="pagination"
-                    :pagination="pagination"
-                    @paginate="handlePageChange"
-                />
-            </div>
+        <!-- Fixed Footer with Pagination -->
+        <div class="flex-none mt-6">
+            <Pagination 
+                v-if="pagination"
+                :pagination="pagination"
+                @paginate="handlePageChange"
+            />
         </div>
 
         <!-- Delete Confirmation Modal -->
@@ -205,6 +221,8 @@ const filters = ref({
     type: ''
 })
 
+const imageUrl = import.meta.env.VITE_IMAGE_URL
+
 // Debounce function
 const debounce = (callback, wait) => {
     let timeout
@@ -242,7 +260,10 @@ const toggleOrgList = (user) => {
 }
 
 const handleImageError = (event) => {
-    event.target.src = 'https://placehold.co/40x40'
+    // Don't retry loading the placeholder if it fails
+    if (!event.target.src.includes('placehold.co')) {
+        event.target.src = 'https://placehold.co/40x40?text=No+Image'
+    }
 }
 
 const storeOriginalValue = (event) => {
@@ -335,6 +356,16 @@ const deleteUser = async () => {
 const handlePageChange = (page) => {
     fetchUsers(page)
 }
+
+const getImageUrl = (user) => {
+    if (user.images && user.images.length > 0) {
+        return `${imageUrl}${user.images[0].large_image_path}`
+    }
+    if (user.thumbImagePath) {
+        return `${imageUrl}${user.thumbImagePath}`
+    }
+    return 'https://placehold.co/40x40?text=No+Image'
+}
 </script>
 
 <style scoped>
@@ -349,5 +380,27 @@ input:hover {
 
 input:focus {
     background: white;
+}
+
+/* Add sticky header styles */
+thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: white;
+}
+
+/* Ensure borders remain visible on sticky header */
+th {
+    position: relative;
+}
+
+th::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    border-bottom: 1px solid #e5e7eb;
 }
 </style>

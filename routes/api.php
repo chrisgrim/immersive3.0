@@ -21,6 +21,7 @@ use App\Models\Events\ContentAdvisory;
 use App\Models\Events\MobilityAdvisory;
 use App\Models\Events\InteractiveLevel;
 use App\Models\Genre;
+use App\Http\Controllers\Search\EventAttributesController;
 
 Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
     return $request->user();
@@ -32,20 +33,15 @@ Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])->n
 
 
 //LISTS
-Route::GET('/categories', function () {
-    $categories = Category::orderBy('name')->when(request()->has('remote'), function ($query) { $query->where('remote', request()->query('remote')); })->get();
-    return response()->json($categories);
+Route::controller(EventAttributesController::class)->group(function () {
+    Route::get('/categories', 'categories');
+    Route::get('/genres', 'genres');
+    Route::get('/remotelocations', 'remoteLocations');
+    Route::get('/contactlevels', 'contactLevels');
+    Route::get('/interactivelevels', 'interactiveLevels');
+    Route::get('/contentadvisories', 'contentAdvisories');
+    Route::get('/mobilityadvisories', 'mobilityAdvisories');
 });
-
-Route::GET('/genres', function () { 
-    return Genre::where('admin', true)->orWhere('user_id', auth()->user()->id)->orderBy('name')->get(); 
-});
-
-Route::GET('/remotelocations', function () { return RemoteLocation::all(); });
-Route::GET('/contactlevels', function () { return ContactLevel::all(); });
-Route::GET('/interactivelevels', function () { return InteractiveLevel::all(); });
-Route::GET('/contentadvisories', function () { return ContentAdvisory::where('admin', true)->orWhere('user_id', auth()->user()->id)->get(); });
-Route::GET('/mobilityadvisories', function () { return MobilityAdvisory::where('admin', true)->orWhere('user_id', auth()->user()->id)->get(); });
 
 
 

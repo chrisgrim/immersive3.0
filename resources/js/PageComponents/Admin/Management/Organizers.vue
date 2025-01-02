@@ -1,24 +1,28 @@
 <template>
-    <div class="p-6 bg-white">
-        <h1 class="text-2xl font-bold mb-6">Organizer Management</h1>
-        
-        <!-- Search Section -->
-        <div class="mb-6 flex gap-4">
-            <input 
-                v-model="filters.search"
-                name="organizer_search"
-                autocomplete="off"
-                placeholder="Search by name, email, or ID..."
-                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
+    <div class="flex flex-col h-full w-full">
+        <!-- Fixed Header Section -->
+        <div class="flex-none overflow-hidden">
+            <h1 class="text-2xl font-bold mb-6">Organizer Management</h1>
             
-            <select 
-                v-model="filters.sort"
-                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-            </select>
+            <!-- Search Section -->
+            <div class="mb-6">
+                <div class="flex flex-wrap gap-4">
+                    <input 
+                        v-model="filters.search"
+                        name="organizer_search"
+                        autocomplete="off"
+                        placeholder="Search by name, email, or ID..."
+                        class="w-auto min-w-[25rem] px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                    <select 
+                        v-model="filters.sort"
+                        class="w-auto px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                    </select>
+                </div>
+            </div>
         </div>
 
         <!-- Loading State -->
@@ -32,9 +36,9 @@
         </div>
 
         <!-- Organizers Table -->
-        <div class="">
-            <table class="min-w-full bg-white border border-gray-200">
-                <thead>
+        <div v-else class="w-full overflow-auto border border-neutral-200">
+            <table class="w-full overflow-hidden">
+                <thead class="sticky top-0 bg-white">
                     <tr class="bg-gray-50">
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
@@ -47,32 +51,16 @@
                 <tbody class="divide-y divide-gray-200 text-xl">
                     <tr v-for="organizer in organizers" :key="organizer.id">
                         <td class="px-6 py-4 whitespace-nowrap">{{ organizer.id }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <input 
-                                v-model="organizer.name"
-                                name="display_name"
-                                autocomplete="off"
-                                @focus="storeOriginalValue($event)"
-                                @blur="checkAndUpdateField(organizer, 'name', $event)"
-                                @keyup.enter="$event.target.blur()"
-                                class="px-2 py-1 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-xl"
-                            >
+                        <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words">
+                            {{ organizer.name }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <input 
-                                v-model="organizer.email"
-                                name="organizer_email"
-                                autocomplete="off"
-                                @focus="storeOriginalValue($event)"
-                                @blur="checkAndUpdateField(organizer, 'email', $event)"
-                                @keyup.enter="$event.target.blur()"
-                                class="px-2 py-1 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-xl"
-                            >
+                            {{ organizer.email }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="relative inline-block">
+                            <div class="relative inline-block" v-click-outside="handleOwnerClickOutside">
                                 <button 
-                                    @click="toggleOwnerSearch(organizer)"
+                                    @click.stop="toggleOwnerSearch(organizer)"
                                     class="px-2 py-1 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-xl"
                                 >
                                     {{ organizer.owner?.name }}
@@ -81,6 +69,7 @@
                                 <div 
                                     v-if="activeOwnerSearch === organizer.id"
                                     class="absolute left-0 mt-1 w-64 bg-white border rounded-md shadow-lg z-50"
+                                    @click.stop
                                 >
                                     <!-- Search Owner -->
                                     <div class="p-2">
@@ -104,9 +93,9 @@
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="relative inline-block">
+                            <div class="relative inline-block" v-click-outside="handleMembersClickOutside">
                                 <button 
-                                    @click="toggleMembersList(organizer)"
+                                    @click.stop="toggleMembersList(organizer)"
                                     class="px-3 py-1 border rounded-md hover:bg-gray-50 focus:outline-none"
                                 >
                                     {{ organizer.users?.length || 0 }} Members
@@ -116,6 +105,7 @@
                                     v-if="activeMembersList === organizer.id"
                                     class="absolute w-64 bg-white border rounded-md shadow-lg z-50"
                                     style="left: 0;"
+                                    @click.stop
                                 >
                                     <!-- Search New Members -->
                                     <div class="p-2 border-b">
@@ -165,14 +155,15 @@
                     </tr>
                 </tbody>
             </table>
+        </div>
 
-            <div class="mt-6">
-                <Pagination 
-                    v-if="pagination"
-                    :pagination="pagination"
-                    @paginate="handlePageChange"
-                />
-            </div>
+        <!-- Fixed Footer with Pagination -->
+        <div class="flex-none mt-6">
+            <Pagination 
+                v-if="pagination"
+                :pagination="pagination"
+                @paginate="handlePageChange"
+            />
         </div>
 
         <!-- Delete Confirmation Modal -->
@@ -200,8 +191,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
+import { ClickOutsideDirective } from '@/Directives/ClickOutsideDirective'
+
+const vClickOutside = ClickOutsideDirective
 
 const organizers = ref([])
 const loading = ref(true)
@@ -255,56 +249,14 @@ watch(newMemberSearch, debounce(async () => {
     }
 }, 300))
 
-// Close members list when clicking outside
-const closeMembersList = (e) => {
-    if (!e.target.closest('.relative')) {
-        activeMembersList.value = null
-        showMemberSearchResults.value = false
-    }
-}
-
 onMounted(() => {
-    document.addEventListener('click', closeMembersList)
     fetchOrganizers()
-})
-
-onUnmounted(() => {
-    document.removeEventListener('click', closeMembersList)
 })
 
 const toggleMembersList = (organizer) => {
     activeMembersList.value = activeMembersList.value === organizer.id ? null : organizer.id
     newMemberSearch.value = ''
     memberSearchResults.value = []
-}
-
-const storeOriginalValue = (event) => {
-    event.target.setAttribute('data-original', event.target.value)
-}
-
-const checkAndUpdateField = async (organizer, field, event) => {
-    const originalValue = event.target.getAttribute('data-original')
-    const newValue = event.target.value
-    
-    if (originalValue !== newValue) {
-        try {
-            if (confirm(`Are you sure you want to update this organizer's ${field}?`)) {
-                const response = await axios.patch(`/api/admin/manage/organizers/${organizer.slug}`, {
-                    [field]: newValue
-                })
-                
-                Object.assign(organizer, response.data)
-                event.target.setAttribute('data-original', newValue)
-            } else {
-                organizer[field] = originalValue
-                event.target.value = originalValue
-            }
-        } catch (error) {
-            organizer[field] = originalValue
-            event.target.value = originalValue
-            alert(error.response?.data?.message || `Error updating ${field}`)
-        }
-    }
 }
 
 const addMember = async (organizer, user) => {
@@ -421,6 +373,17 @@ watch(ownerSearch, debounce(async () => {
         console.error('Error searching users:', error)
     }
 }, 300))
+
+// Add these handler functions
+const handleOwnerClickOutside = () => {
+    activeOwnerSearch.value = null
+    ownerSearchResults.value = []
+}
+
+const handleMembersClickOutside = () => {
+    activeMembersList.value = null
+    showMemberSearchResults.value = false
+}
 </script>
 
 <style scoped>
@@ -435,5 +398,27 @@ input:hover {
 
 input:focus {
     background: white;
+}
+
+/* Add sticky header styles */
+thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: white;
+}
+
+/* Ensure borders remain visible on sticky header */
+th {
+    position: relative;
+}
+
+th::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    border-bottom: 1px solid #e5e7eb;
 }
 </style> 

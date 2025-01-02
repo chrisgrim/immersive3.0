@@ -8,7 +8,11 @@
 
 @section('nav')
 
-   @include('Layouts.nav-creation')
+    @if (Browser::isMobile())
+        <vue-nav-bar-mobile></vue-nav-bar-mobile>
+    @else
+        @include('Nav.creation-desktop')
+    @endif
     
 @endsection
 

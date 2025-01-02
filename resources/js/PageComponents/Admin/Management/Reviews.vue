@@ -1,118 +1,119 @@
 <template>
-    <div class="p-6 bg-white">
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-2xl font-bold">Event Reviews</h1>
-            <button 
-                @click="showCreateModal = true"
-                class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xl"
-            >
-                Add New Review
-            </button>
+    <div class="flex flex-col h-full w-full">
+        <!-- Fixed Header Section -->
+        <div class="flex-none overflow-hidden">
+            <h1 class="text-2xl font-bold mb-6">Event Reviews</h1>
+            
+            <!-- Search and Filter Section -->
+            <div class="mb-6">
+                <div class="flex flex-wrap gap-4">
+                    <input 
+                        v-model="filters.search"
+                        name="review_search"
+                        autocomplete="off"
+                        placeholder="Search by event name..."
+                        class="w-auto min-w-[25rem] px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                    <button 
+                        @click="showCreateModal = true"
+                        class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                    >
+                        Add New Review
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <!-- Search Section -->
-        <div class="mb-6 flex gap-4">
-            <input 
-                v-model="filters.search"
-                name="review_search"
-                autocomplete="off"
-                placeholder="Search by event name..."
-                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xl"
-            >
-        </div>
-
-        <!-- Loading State -->
-        <div v-if="loading" class="text-center">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-        </div>
-
-        <!-- Empty State -->
-        <div v-else-if="reviews.length === 0" class="text-center text-gray-500">
-            No reviews found
-        </div>
-
-        <!-- Reviews Table -->
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
-                    <th class="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event</th>
-                    <th class="w-64 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reviewer</th>
-                    <th class="w-64 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">URL</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Review</th>
-                    <th class="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
-                    <th class="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200 text-xl">
-                <tr v-for="review in reviews" :key="review.id">
-                    <td class="px-6 py-4">
-                        <a :href="`/events/${review.event?.slug}`" target="_blank">
-                            <img 
-                                :src="`${imageUrl}${review.event?.thumbImagePath}`"
-                                :alt="review.event?.name"
-                                class="h-16 w-24 object-cover rounded"
+        <!-- Scrollable Table Section -->
+        <div class="w-full overflow-auto border border-neutral-200">
+            <table class="w-full overflow-hidden">
+                <thead class="sticky top-0 bg-white">
+                    <tr class="bg-gray-50">
+                        <th class="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                        <th class="w-48 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event</th>
+                        <th class="w-48 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reviewer</th>
+                        <th class="w-48 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">URL</th>
+                        <th class="w-96 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Review</th>
+                        <th class="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
+                        <th class="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 text-xl">
+                    <tr v-for="review in reviews" :key="review.id">
+                        <td class="px-6 py-4">
+                            <picture class="block h-16 w-24">
+                                <img 
+                                    :src="`${imageUrl}${review.event?.thumbImagePath}`"
+                                    :alt="review.event?.name"
+                                    class="h-16 w-24 object-cover rounded"
+                                    @error="handleImageError"
+                                >
+                            </picture>
+                        </td>
+                        <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words">
+                            <a 
+                                :href="`/events/${review.event?.slug}`" 
+                                target="_blank"
+                                class="text-blue-600 hover:text-blue-800"
                             >
-                        </a>
-                    </td>
-                    <td class="px-6 py-4">
-                        <a 
-                            :href="`/events/${review.event?.slug}`" 
-                            target="_blank"
-                            class="text-blue-600 hover:text-blue-800"
-                        >
-                            {{ review.event?.name }}
-                        </a>
-                    </td>
-                    <td class="px-6 py-4">
-                        <input 
-                            v-model="review.reviewer_name"
-                            @focus="storeOriginalValue($event)"
-                            @blur="updateReview(review, 'reviewer_name', $event)"
-                            class="px-2 py-1 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-xl"
-                        >
-                    </td>
-                    <td class="px-6 py-4">
-                        <input 
-                            v-model="review.url"
-                            @focus="storeOriginalValue($event)"
-                            @blur="updateReview(review, 'url', $event)"
-                            class="px-2 py-1 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-xl"
-                        >
-                    </td>
-                    <td class="px-6 py-4">
-                        <textarea 
-                            v-model="review.review"
-                            @focus="storeOriginalValue($event)"
-                            @blur="updateReview(review, 'review', $event)"
-                            class="px-2 py-1 w-full border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-xl"
-                            rows="3"
-                        ></textarea>
-                    </td>
-                    <td class="px-6 py-4">
-                        <input 
-                            v-model.number="review.rank"
-                            type="number"
-                            min="1"
-                            max="5"
-                            @focus="storeOriginalValue($event)"
-                            @blur="updateReview(review, 'rank', $event)"
-                            class="px-2 py-1 w-20 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-xl"
-                        >
-                    </td>
-                    <td class="px-6 py-4">
-                        <button 
-                            @click="confirmDelete(review)"
-                            class="text-red-600 hover:text-red-900"
-                        >
-                            Delete
-                        </button>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+                                {{ review.event?.name }}
+                            </a>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <input 
+                                v-model="review.reviewer_name"
+                                @focus="storeOriginalValue($event)"
+                                @blur="updateReview(review, 'reviewer_name', $event)"
+                                class="px-2 py-1 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none"
+                            >
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <input 
+                                v-model="review.url"
+                                @focus="storeOriginalValue($event)"
+                                @blur="updateReview(review, 'url', $event)"
+                                class="px-2 py-1 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none"
+                            >
+                        </td>
+                        <td class="px-6 py-4">
+                            <textarea 
+                                v-model="review.review"
+                                @focus="storeOriginalValue($event)"
+                                @blur="updateReview(review, 'review', $event)"
+                                class="px-2 py-1 w-full border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none"
+                                rows="3"
+                            ></textarea>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <input 
+                                v-model.number="review.rank"
+                                type="number"
+                                min="1"
+                                max="5"
+                                @focus="storeOriginalValue($event)"
+                                @blur="updateReview(review, 'rank', $event)"
+                                class="px-2 py-1 w-20 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none"
+                            >
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {{ formatDate(review.created_at) }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <button 
+                                @click="confirmDelete(review)"
+                                class="text-red-600 hover:text-red-900"
+                            >
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
 
-        <div class="mt-6">
+        <!-- Fixed Footer with Pagination -->
+        <div class="flex-none mt-6">
             <Pagination 
                 v-if="pagination"
                 :pagination="pagination"
@@ -257,6 +258,7 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
+import dayjs from 'dayjs'
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL
 const reviews = ref([])
@@ -433,15 +435,59 @@ const createReview = async () => {
     }
 }
 
+const formatDate = (date) => {
+    return dayjs(date).format('MMM D, YYYY')
+}
+
 onMounted(() => {
     fetchReviews()
 })
 </script>
 
 <style scoped>
-input, textarea {
+input {
     background: transparent;
+}
+
+input:hover {
+    background: #f8f8f8;
+}
+
+input:focus {
+    background: white;
+}
+
+/* Add sticky header styles */
+thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: white;
+}
+
+/* Ensure borders remain visible on sticky header */
+th {
+    position: relative;
+}
+
+th::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
     width: 100%;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+/* Add these new styles for consistent input/textarea appearance */
+input, textarea {
+    width: 100%;
+    background: transparent;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 3rem;
 }
 
 input:hover, textarea:hover {
@@ -450,5 +496,9 @@ input:hover, textarea:hover {
 
 input:focus, textarea:focus {
     background: white;
+}
+
+.loading-spinner {
+    @apply animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto;
 }
 </style>

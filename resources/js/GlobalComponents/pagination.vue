@@ -2,7 +2,7 @@
     <div class="pagination">
         <ul 
             v-if="pagination.total > pagination.per_page"
-            class="text-center flex pb-8 justify-center items-center list-none m-0 p-0"
+            class="text-center flex justify-center items-center list-none m-0 p-0"
         >
             <li class="inline p-2 mt-2">
                 <button

@@ -1,12 +1,12 @@
 <template>
     <div class="w-full grid md:grid-cols-[35rem_1fr] md:h-[calc(100vh-8rem)]">
         <div 
-            class="px-8 overflow-auto h-screen md:h-full border-r"
+            class="md:px-8 overflow-auto h-screen md:h-full border-r"
             :class="{ 'hidden md:block': isMobileAndConversationSelected }"
         >
-            <div class="h-32 flex items-center justify-between">
+            <div class="h-32 flex items-center justify-between mt-12 px-8 md:px-0 md:mt-0 mb-8 md:mb-0 border-b border-neutral-200 md:border-none">
                 <template v-if="!isSearching">
-                    <h4>Messages</h4>
+                    <h1 class="text-5xl md:text-4xl font-medium">Messages</h1>
                     <button 
                         @click="toggleSearch"
                         class="p-4 rounded-full bg-neutral-100 hover:bg-gray-100"
@@ -41,9 +41,9 @@
                 v-if="eventList"
                 v-for="eventConvo in eventList" :key="eventConvo.id"
                 @click="fetchConversation(eventConvo.id)"
-                class="flex items-center cursor-pointer p-4 hover:bg-neutral-100 relative rounded-2xl mb-4"
+                class="flex items-center cursor-pointer px-8 md:px-4 md:p-4 hover:bg-neutral-100 relative rounded-2xl mb-10 md:mb-4"
                 :class="{ 'bg-neutral-100': conversation && eventConvo.id === conversation.id }">
-                <div class="mr-auto ml-2 text-xl flex items-center">
+                <div class="mr-auto text-xl flex items-center">
                     <picture v-if="eventConvo.event">
                         <source :srcset="`${imageUrl}${eventConvo.event.thumbImagePath}`" type="image/webp">
                         <img :src="`${imageUrl}${eventConvo.event.thumbImagePath.slice(0, -4)}jpg`" :alt="`${eventConvo.event.name} Immersive Event`" class="min-h-20 min-w-20 w-20 object-cover rounded-2xl">
@@ -125,7 +125,9 @@ const fetchConversation = async (convoId) => {
         console.log('Response:', response.data);
         if (response.data) {
             conversation.value = response.data;
-            history.pushState(null, null, `/inbox?event=${convoId}`);
+            if (isDesktop.value) {
+                history.pushState(null, null, `/inbox?event=${convoId}`);
+            }
         }
     } catch (error) {
         console.error('Error fetching conversation:', error);
@@ -152,7 +154,9 @@ const handleBlur = () => {
 
 const closeConversation = () => {
     conversation.value = null;
-    history.pushState(null, null, '/inbox');
+    if (isDesktop.value) {
+        history.pushState(null, null, '/inbox');
+    }
 };
 
 const handleResize = () => {
@@ -163,7 +167,7 @@ onMounted(async () => {
     console.log('Initial events:', props.events);
     if (url) {
         await fetchConversation(url);
-    } else if (props.events?.length > 0) {
+    } else if (isDesktop.value && props.events?.length > 0) {
         console.log('Loading first conversation:', props.events[0]);
         await fetchConversation(props.events[0].id);
     }
