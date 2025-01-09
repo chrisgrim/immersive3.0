@@ -220,7 +220,6 @@ const goToNext = async () => {
 
         const submitData = await currentComponentRef.value.submitData();
         
-        // Modify status handling for resubmission
         if (!event.status || (event.status !== 'p' && event.status !== 'e')) {
             const currentStepValue = STEP_MAP[currentStep.value];
             const existingStepValue = event.status || '0';
@@ -242,13 +241,20 @@ const goToNext = async () => {
     } catch (error) {
         console.error('Error:', error);
     } finally {
-        isSubmitting.value = false;  // Make sure to reset isSubmitting
+        isSubmitting.value = false;
     }
+};
+
+const updateUrl = (step) => {
+    const url = new URL(window.location);
+    url.searchParams.set('view', step);
+    window.history.pushState({}, '', url);
 };
 
 const setStep = (step) => {
     if (steps.value.includes(step)) {
         currentStep.value = step;
+        updateUrl(step);
     }
 };
 
@@ -258,26 +264,36 @@ onMounted(() => {
         event.hasLocation = true;
     }
 
-    // Then handle step navigation
-    if (event.status && REVERSE_STEP_MAP[event.status]) {
-        const savedStep = REVERSE_STEP_MAP[event.status];
-        const currentIndex = steps.value.indexOf(savedStep);
-        
-        // If we found the step and it's not the last step
-        if (currentIndex !== -1 && currentIndex < steps.value.length - 1) {
-            // Set to the next step
-            currentStep.value = steps.value[currentIndex + 1];
-        } else {
-            // Fallback to the saved step if we're at the end
-            currentStep.value = savedStep;
+    // Check for view parameter in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewStep = urlParams.get('view');
+    
+    if (viewStep && steps.value.includes(viewStep)) {
+        currentStep.value = viewStep;
+    } else {
+        // Existing step navigation logic
+        if (event.status && REVERSE_STEP_MAP[event.status]) {
+            const savedStep = REVERSE_STEP_MAP[event.status];
+            const currentIndex = steps.value.indexOf(savedStep);
+            
+            if (currentIndex !== -1 && currentIndex < steps.value.length - 1) {
+                currentStep.value = steps.value[currentIndex + 1];
+            } else {
+                currentStep.value = savedStep;
+            }
         }
+
+        // Update URL to match initial step
+        updateUrl(currentStep.value);
     }
 
     // Force correct component based on hasLocation
     if (currentStep.value === 'Remote' && event.hasLocation) {
         currentStep.value = 'Location';
+        updateUrl('Location');
     } else if (currentStep.value === 'Location' && !event.hasLocation) {
         currentStep.value = 'Remote';
+        updateUrl('Remote');
     }
 });
 

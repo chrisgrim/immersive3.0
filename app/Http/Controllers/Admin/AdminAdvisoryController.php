@@ -16,7 +16,7 @@ class AdminAdvisoryController extends Controller
         $this->applyTypeFilter($query, $type);
         $this->applySorting($query);
 
-        return $query->paginate(10);
+        return $query->paginate(20);
     }
 
     public function store(Request $request)

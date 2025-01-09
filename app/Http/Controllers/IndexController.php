@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Dock;
+use App\Models\Admin\Dock;
 
 class IndexController extends Controller
 {

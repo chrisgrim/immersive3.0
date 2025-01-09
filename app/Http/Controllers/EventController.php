@@ -8,7 +8,7 @@ use App\Models\Category;
 use App\Models\Genre;
 use App\Models\Organizer;
 use App\Models\StaffPick;
-use App\Models\Featured\Dock;
+use App\Models\Admin\Dock;
 use App\Models\Curated\Community;
 use App\Models\Curated\Post;
 use App\Models\Curated\Shelf;

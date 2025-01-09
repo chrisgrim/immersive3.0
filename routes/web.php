@@ -36,9 +36,12 @@ Route::GET('/hosting/event/{event}/edit', [HostEventController::class, 'edit'])-
 Route::POST('/hosting/event/{event}/submit', [HostEventController::class, 'submit'])->name('event.submit');
 Route::DELETE('/hosting/event/{event}', [HostEventController::class, 'destroy'])->name('event.destroy');
 Route::POST('/hosting/event/create', [HostEventController::class, 'create'])->name('event.create');
+Route::POST('/hosting/event/{event}/name-change', [HostEventController::class, 'nameChange'])->name('event.nameChange');
 
 
-Route::POST('/organizers', [OrganizerController::class, 'store'])->name('Organizers.store');
+Route::post('/organizers', [OrganizerController::class, 'store'])->name('organizers.store');
+Route::post('/organizers/{organizer}', [OrganizerController::class, 'update'])->name('organizers.update');
+Route::post('/organizers/{organizer}/image', [OrganizerController::class, 'updateImage'])->name('organizers.updateImage');
 
 
 Route::GET('/users/{user}', [ProfilesController::class, 'show']);

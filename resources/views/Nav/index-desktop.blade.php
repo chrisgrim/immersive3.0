@@ -1,7 +1,7 @@
 <nav
     style="height: 16rem;"
     class="index-nav">
-    <div class="w-full mx-auto h-32 z-[1001] fixed top-0 left-0 right-0 bg-white border-b border-gray-200">
+    <div class="w-full mx-auto h-32 z-40 fixed top-0 left-0 right-0 bg-white border-b border-gray-200">
         <div class="mx-auto relative h-full grid gap-0 items-center max-w-screen-2xl
             grid-cols-[auto_minmax(30rem,_1fr)_auto] px-8
             lg-air:grid-cols-[auto_minmax(30rem,_3fr)_auto] lg-air:px-16
@@ -18,7 +18,7 @@
             <vue-nav-profile class="col-span-1" :user="user"></vue-nav-profile>
         </div>
     </div>
-    <div class="w-full mx-auto h-32 z-[1000] fixed top-32 left-0 right-0 bg-white border-b border-gray-200">
+    <div class="w-full mx-auto h-32 z-30 fixed top-32 left-0 right-0 bg-white border-b border-gray-200">
         <div class="px-8 lg-air:px-16 xl-air:px-32 max-w-screen-2xl h-full">
             <vue-quick-bar></vue-quick-bar>
         </div>

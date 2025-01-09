@@ -8,7 +8,7 @@
                     <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
                 </svg>
                 <input 
-                    class="relative rounded-full p-7 pl-24 border border-neutral-300 w-full font-normal z-[1001] focus:border-none focus:rounded-full focus:shadow-custom-7"
+                    class="relative rounded-full p-7 pl-24 border border-neutral-300 w-full font-normal z-40 focus:border-none focus:rounded-full focus:shadow-custom-7"
                     v-model="searchInput"
                     placeholder="Event and Organizer Search"
                     @input="debounce"

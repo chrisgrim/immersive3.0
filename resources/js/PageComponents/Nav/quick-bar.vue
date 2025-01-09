@@ -6,16 +6,16 @@
                 <button 
                     v-for="category in quickBarCategories" 
                     :key="category.id"
-                    class="flex flex-col items-center min-w-[64px]"
+                    class="flex flex-col items-center min-w-[64px] p-2"
                     @click="selectCategory(category.id)"
                     :class="{'bg-gray-100 rounded-lg': isCategorySelected(category.id)}"
                 >
                     <img 
                         :src="getCategoryIcon(category)" 
                         :alt="category.name"
-                        class="w-8 h-8 object-cover"
+                        class="w-16 h-16 object-cover"
                     >
-                    <span class="text-sm mt-1">{{ category.name }}</span>
+                    <span class="text-sm mt-1 max-w-[10rem] text-center break-words">{{ category.name }}</span>
                 </button>
             </div>
 
@@ -102,6 +102,7 @@ import CategoriesModal from './Components/categories.vue'
 import TagsModal from './Components/tags.vue'
 import PriceModal from './Components/price.vue'
 
+const imageUrl = import.meta.env.VITE_IMAGE_URL
 const emit = defineEmits(['categorySelected'])
 const selectedCategories = ref([])
 const selectedTags = ref([])
@@ -229,7 +230,9 @@ const modalCategories = computed(() => {
 })
 
 const getCategoryIcon = (category) => {
-    return category.images && category.images[1] ? category.images[1].path : ''
+    return category.images?.find(img => img.rank === 1)?.thumb_image_path 
+        ? `${imageUrl}${category.images.find(img => img.rank === 1).thumb_image_path}`
+        : ''
 }
 
 const emitFilterUpdate = (filterType, value) => {

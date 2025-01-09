@@ -22,7 +22,8 @@ class EventAttributesController extends Controller
      */
     public function categories(Request $request)
     {
-        $categories = Category::orderBy('name')
+        $categories = Category::with('images')
+            ->orderBy('name')
             ->when($request->has('remote'), function ($query) {
                 $query->where('remote', request()->query('remote'));
             })

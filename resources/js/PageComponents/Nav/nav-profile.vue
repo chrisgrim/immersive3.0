@@ -104,7 +104,7 @@
                             v-if="user.teams && user.teams.length > 1"
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
                             href="/teams">
-                            Switch Teams
+                            Switch Organizations
                         </a>
                         <a 
                             v-else-if="user.teams && user.teams.length === 1"

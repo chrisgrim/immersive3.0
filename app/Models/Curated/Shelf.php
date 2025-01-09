@@ -62,7 +62,7 @@ class Shelf extends Model
      */
     public function docks()
     {
-        return $this->morphToMany('\App\Models\Featured\Dock', 'association')->using('App\Models\Featured\Association');
+        return $this->morphToMany('\App\Models\Admin\Dock', 'association')->using('App\Models\Featured\Association');
     }
 
     /**

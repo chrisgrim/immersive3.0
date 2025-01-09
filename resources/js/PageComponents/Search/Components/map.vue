@@ -7,7 +7,7 @@
             class="search__map overflow-hidden w-full h-full">
             <div 
                 v-show="modelValue.loading"
-                class="flex items-center justify-center absolute h-full w-full z-[1001]">
+                class="flex items-center justify-center absolute h-full w-full z-40">
                 <div class="bg-white shadow-custom-1 w-16 h-16 rounded-full flex items-center justify-center">
                     <div
                         class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"

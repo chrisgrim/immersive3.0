@@ -18,12 +18,6 @@ class AdminCategoryController extends Controller
     public function store(Request $request)
     {
         try {
-            \Log::info('Starting category creation', [
-                'has_image' => $request->hasFile('image'),
-                'all_data' => $request->all(),
-                'files' => $request->allFiles()
-            ]);
-
             $validated = $request->validate([
                 'name' => 'required|string|unique:categories',
                 'description' => 'required|string',
@@ -32,7 +26,8 @@ class AdminCategoryController extends Controller
                 'remote' => 'required|boolean',
                 'type' => 'required|string|in:c,g',
                 'slug' => 'nullable|string',
-                'image' => 'nullable|image|max:2048'
+                'image.*' => 'nullable|image|max:2048',
+                'image_index.*' => 'required_with:image.*|integer|in:0,1'
             ]);
 
             if (!isset($validated['slug'])) {
@@ -40,31 +35,24 @@ class AdminCategoryController extends Controller
             }
 
             $category = Category::create($validated);
-            \Log::info('Category created', ['category' => $category->toArray()]);
 
-            // Handle new image upload
+            // Handle image uploads
             if ($request->hasFile('image')) {
-                \Log::info('Image file details', [
-                    'mime' => $request->file('image')->getMimeType(),
-                    'original_name' => $request->file('image')->getClientOriginalName(),
-                    'size' => $request->file('image')->getSize()
-                ]);
-
-                try {
+                $images = $request->file('image');
+                $indices = $request->input('image_index', []);
+                
+                foreach ($images as $key => $image) {
+                    $imageIndex = $indices[$key] ?? 0;
+                    $dimensions = $imageIndex === 1 ? 400 : 800;
+                    
                     ImageHandler::saveImage(
-                        $request->file('image'),
+                        $image,
                         $category,
-                        800,
-                        600,
-                        'category'
+                        $dimensions,
+                        $dimensions,
+                        'category-images',
+                        $imageIndex
                     );
-                    \Log::info('Image saved successfully');
-                } catch (\Exception $e) {
-                    \Log::error('Image save failed', [
-                        'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString()
-                    ]);
-                    throw $e;
                 }
             }
 
@@ -104,18 +92,25 @@ class AdminCategoryController extends Controller
         if ($request->hasFile('image')) {
             $imageIndex = $request->input('image_index', 0); // 0 for main, 1 for icon
             
-            // Delete existing image at this index if it exists
-            if (isset($category->images[$imageIndex])) {
-                ImageHandler::deleteImage($category->images[$imageIndex]);
+            // Find existing image with this rank
+            $existingImage = $category->images()->where('rank', $imageIndex)->first();
+            if ($existingImage) {
+                ImageHandler::deleteImage($existingImage);
             }
+
+            // Set dimensions based on image type
+            $dimensions = $imageIndex === 1 
+                ? 400  // icon size
+                : 800; // main image size
 
             // Save new image
             ImageHandler::saveImage(
                 $request->file('image'),
                 $category,
-                $imageIndex === 1 ? 400 : 800, // smaller size for icons
-                $imageIndex === 1 ? 400 : 800,
-                'category'
+                $dimensions,
+                $dimensions,
+                'category-images',
+                $imageIndex
             );
         }
 
@@ -124,6 +119,15 @@ class AdminCategoryController extends Controller
 
     public function destroy(Category $category)
     {
+        // Check if category has any associated events
+        if ($category->events()->count() > 0) {
+            return response()->json([
+                'message' => 'Cannot delete category because it has associated events. Please remove all events from this category first.',
+                'error' => 'CATEGORY_HAS_EVENTS'
+            ], 422);
+        }
+
+        // If no events, proceed with deletion
         foreach ($category->images as $image) {
             ImageHandler::deleteImage($image);
         }

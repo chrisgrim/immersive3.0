@@ -222,23 +222,21 @@ const saveChanges = async () => {
         const isValid = await currentComponentRef.value.isValid();
         if (!isValid) return;
 
-        isSubmitting.value = true;
         const submitData = await currentComponentRef.value.submitData();
+        if (!submitData) return; // Component handled the submission
         
+        isSubmitting.value = true;
         const response = await axios.post(`/api/hosting/event/${event.slug}`, submitData);
         
         if (response.data.event) {
             Object.assign(event, response.data.event);
             showSuccessModal.value = true;
-            // Auto-hide after 3 seconds
             setTimeout(() => {
                 showSuccessModal.value = false;
             }, 3000);
         }
-
     } catch (error) {
         console.error('Error:', error);
-        // Handle error
     } finally {
         isSubmitting.value = false;
     }

@@ -8,6 +8,7 @@ use App\Models\Genre;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Models\NameChangeRequest;
 
 
 class Organizer extends Model
@@ -121,4 +122,46 @@ class Organizer extends Model
         $organizer->delete();
     }
 
+    public function scopeWithPaginatedEvents($query)
+    {
+        return $query->with(['events' => function($query) {
+            $query->where('status', 'p')
+                ->where('archived', false)
+                ->with(['category', 'genres']) // Add relationships needed for the listings
+                ->orderBy('created_at', 'desc')
+                ->paginate(10);
+        }]);
+    }
+
+    public function scopeWithUserRole($query)
+    {
+        if (!auth()->check()) {
+            return $query;
+        }
+
+        return $query
+            ->addSelect(['user_role' => function($query) {
+                $query->selectRaw("CASE 
+                    WHEN ? = 'a' THEN 'moderator'
+                    WHEN organizers.user_id = ? THEN 'owner'
+                    ELSE (
+                        SELECT role 
+                        FROM organizer_user 
+                        WHERE organizer_id = organizers.id 
+                        AND user_id = ?
+                    )
+                    END", [auth()->user()->type, auth()->id(), auth()->id()]);
+            }]);
+    }
+
+    public function scopeWithDetails($query)
+    {
+        return $query->withPaginatedEvents()
+                    ->withUserRole();
+    }
+
+    public function nameChangeRequests()
+    {
+        return $this->morphMany(NameChangeRequest::class, 'requestable');
+    }
 }

@@ -55,7 +55,7 @@
 
 @if(request('verified') == 1)
     <input type="checkbox" id="hideVerification" class="hidden">
-    <div class="bg-blue-300 rounded text-white text-center p-8 z-[2000] relative animation-fadeOut">
+    <div class="bg-blue-300 rounded text-white text-center p-8 z-50 relative animation-fadeOut">
         <label for="hideVerification" class="absolute top-0 right-0 cursor-pointer p-2">x</label>
         <div>You have been verified!</div>
     </div>

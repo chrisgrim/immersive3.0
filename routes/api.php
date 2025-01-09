@@ -2,8 +2,13 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+// Controller Imports - Search
 use App\Http\Controllers\Search\SearchController;
-use App\Http\Controllers\Creation\HostEventController;
+use App\Http\Controllers\Search\ListingsController;
+use App\Http\Controllers\Search\EventAttributesController;
+
+// Controller Imports - Admin
 use App\Http\Controllers\Admin\AdminEventController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminOrganizerController;
@@ -13,26 +18,39 @@ use App\Http\Controllers\Admin\AdminGenreController;
 use App\Http\Controllers\Admin\AdminAdvisoryController;
 use App\Http\Controllers\Admin\AdminReviewController;
 use App\Http\Controllers\Admin\AdminPicksController;
-use App\Http\Controllers\Search\ListingsController;
-use App\Models\Category;
-use App\Models\Events\RemoteLocation;
-use App\Models\Events\ContactLevel;
-use App\Models\Events\ContentAdvisory;
-use App\Models\Events\MobilityAdvisory;
-use App\Models\Events\InteractiveLevel;
-use App\Models\Genre;
-use App\Http\Controllers\Search\EventAttributesController;
+use App\Http\Controllers\Admin\AdminDocksController;
+use App\Http\Controllers\Admin\AdminRequestsController;
 
+// Controller Imports - Other
+use App\Http\Controllers\Creation\HostEventController;
+
+// Model Imports
+use App\Models\Category;
+use App\Models\Genre;
+use App\Models\Events\{
+    RemoteLocation,
+    ContactLevel,
+    ContentAdvisory,
+    MobilityAdvisory,
+    InteractiveLevel
+};
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
+
+// Authentication Routes
 Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
     return $request->user();
 });
 
+// Public Routes
 Route::get('/index/search', [ListingsController::class, 'apiIndex']);
+Route::post('/hosting/event/{event}', [HostEventController::class, 'update'])->name('event.update');
 
-Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])->name('event.update');
-
-
-//LISTS
+// Event Attributes Routes
 Route::controller(EventAttributesController::class)->group(function () {
     Route::get('/categories', 'categories');
     Route::get('/genres', 'genres');
@@ -43,74 +61,126 @@ Route::controller(EventAttributesController::class)->group(function () {
     Route::get('/mobilityadvisories', 'mobilityAdvisories');
 });
 
+// Navigation Search Routes
+Route::controller(SearchController::class)->group(function () {
+    Route::get('search/nav/events', 'navEvents');
+    Route::get('search/nav/organizers', 'navOrganizers');
+    Route::get('search/nav/names', 'navNames');
+    Route::get('search/nav/genres', 'navGenres');
+});
 
+/*
+|--------------------------------------------------------------------------
+| Admin Routes
+|--------------------------------------------------------------------------
+*/
 
-
-
-//Nav Search 
-
-Route::GET('search/nav/events', [SearchController::class, 'navEvents']);
-Route::GET('search/nav/organizers', [SearchController::class, 'navOrganizers']);
-Route::GET('search/nav/names', [SearchController::class, 'navNames']);
-Route::GET('search/nav/genres', [SearchController::class, 'navGenres']);
-
-
-
-// Admin API Routes - removed admin middleware
 Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
+    
     // Approval Routes
     Route::prefix('approve')->group(function () {
-        Route::get('/events', [AdminEventController::class, 'getPending']);
-        Route::post('/events/{event}/approve', [AdminEventController::class, 'approve']);
-        Route::post('/events/{event}/reject', [AdminEventController::class, 'reject']);
-        Route::get('/organizers', [AdminOrganizerController::class, 'getPending']);
-        Route::post('/organizers/{organizer}', [AdminOrganizerController::class, 'approve']);
-        Route::get('/communities', [AdminCommunityController::class, 'getPending']);
-        Route::post('/communities/{community}', [AdminCommunityController::class, 'approve']);
+        // Events
+        Route::controller(AdminEventController::class)->group(function () {
+            Route::get('/events', 'getPending');
+            Route::post('/events/{event}/approve', 'approve');
+            Route::post('/events/{event}/reject', 'reject');
+        });
+        
+        // Organizers
+        Route::controller(AdminOrganizerController::class)->group(function () {
+            Route::get('/organizers', 'getPending');
+            Route::post('/organizers/{organizer}', 'approve');
+        });
+        
+        // Communities
+        Route::controller(AdminCommunityController::class)->group(function () {
+            Route::get('/communities', 'getPending');
+            Route::post('/communities/{community}', 'approve');
+        });
+
+        // Name Change Requests
+        Route::controller(AdminRequestsController::class)->group(function () {
+            Route::get('/requests', 'index');
+            Route::post('/requests/{request}/approve', 'approve');
+            Route::post('/requests/{request}/reject', 'reject');
+        });
     });
 
     // Management Routes
     Route::prefix('manage')->group(function () {
-        Route::get('/users', [AdminUserController::class, 'index']);
-        Route::patch('/users/{user}', [AdminUserController::class, 'update']);
-        Route::delete('/users/{user}', [AdminUserController::class, 'destroy']);
+        // Users Management
+        Route::controller(AdminUserController::class)->group(function () {
+            Route::get('/users', 'index');
+            Route::patch('/users/{user}', 'update');
+            Route::delete('/users/{user}', 'destroy');
+        });
         
-        Route::get('/organizers', [AdminOrganizerController::class, 'index']);
-        Route::patch('/organizers/{organizer}', [AdminOrganizerController::class, 'update']);
-        Route::delete('/organizers/{organizer}', [AdminOrganizerController::class, 'destroy']);
+        // Organizers Management
+        Route::controller(AdminOrganizerController::class)->group(function () {
+            Route::get('/organizers', 'index');
+            Route::patch('/organizers/{organizer}', 'update');
+            Route::delete('/organizers/{organizer}', 'destroy');
+        });
         
-        Route::get('/events', [AdminEventController::class, 'index']);
-        Route::patch('/events/{event}', [AdminEventController::class, 'update']);
-        Route::delete('/events/{event}', [AdminEventController::class, 'destroy']);
+        // Events Management
+        Route::controller(AdminEventController::class)->group(function () {
+            Route::get('/events', 'index');
+            Route::patch('/events/{event}', 'update');
+            Route::delete('/events/{event}', 'destroy');
+        });
         
-        // Reviews management
-        Route::get('/reviews', [AdminReviewController::class, 'index']);
-        Route::post('/reviews', [AdminReviewController::class, 'store']);
-        Route::patch('/reviews/{review}', [AdminReviewController::class, 'update']);
-        Route::delete('/reviews/{review}', [AdminReviewController::class, 'destroy']);
+        // Reviews Management
+        Route::controller(AdminReviewController::class)->group(function () {
+            Route::get('/reviews', 'index');
+            Route::post('/reviews', 'store');
+            Route::patch('/reviews/{review}', 'update');
+            Route::delete('/reviews/{review}', 'destroy');
+        });
     });
 
-    // Admin Settings Routes
+    // Settings Routes
     Route::prefix('settings')->group(function () {
-        Route::get('categories', [AdminCategoryController::class, 'index']);
-        Route::post('categories', [AdminCategoryController::class, 'store']);
-        Route::post('categories/{category}', [AdminCategoryController::class, 'update']);
-        Route::delete('categories/{category}', [AdminCategoryController::class, 'destroy']);
+        // Categories
+        Route::controller(AdminCategoryController::class)->group(function () {
+            Route::get('categories', 'index');
+            Route::post('categories', 'store');
+            Route::post('categories/{category}', 'update');
+            Route::delete('categories/{category}', 'destroy');
+        });
         
-        Route::get('genres', [AdminGenreController::class, 'index']);
-        Route::post('genres', [AdminGenreController::class, 'store']);
-        Route::post('genres/{genre}', [AdminGenreController::class, 'update']);
-        Route::patch('genres/{genre}', [AdminGenreController::class, 'update']);
-        Route::delete('genres/{genre}', [AdminGenreController::class, 'destroy']);
+        // Genres
+        Route::controller(AdminGenreController::class)->group(function () {
+            Route::get('genres', 'index');
+            Route::post('genres', 'store');
+            Route::post('genres/{genre}', 'update');
+            Route::patch('genres/{genre}', 'update');
+            Route::delete('genres/{genre}', 'destroy');
+        });
         
-        Route::get('advisories/{type}', [AdminAdvisoryController::class, 'index']);
-        Route::post('advisories', [AdminAdvisoryController::class, 'store']);
-        Route::patch('advisories/{type}/{id}', [AdminAdvisoryController::class, 'update']);
-        Route::delete('advisories/{type}/{id}', [AdminAdvisoryController::class, 'destroy']);
+        // Advisories
+        Route::controller(AdminAdvisoryController::class)->group(function () {
+            Route::get('advisories/{type}', 'index');
+            Route::post('advisories', 'store');
+            Route::patch('advisories/{type}/{id}', 'update');
+            Route::delete('advisories/{type}/{id}', 'destroy');
+        });
     });
 
+    // Events
     Route::get('/events/{event}', [AdminEventController::class, 'show']);
 
+    // Docks
+    Route::controller(AdminDocksController::class)->group(function () {
+        Route::get('/docks', 'index');
+        Route::post('/docks', 'store');
+        Route::post('/docks/{dock}', 'update');
+        Route::delete('/docks/{dock}', 'destroy');
+        
+        // Content management routes
+        Route::get('/docks/available-shelves', 'getAvailableShelves');
+        Route::get('/docks/available-communities', 'getAvailableCommunities');
+        Route::post('/docks/{dock}/shelves', 'toggleShelf');
+    });
 });
 
 

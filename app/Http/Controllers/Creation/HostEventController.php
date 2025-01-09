@@ -15,12 +15,16 @@ use App\Models\Genre;
 use App\Http\Requests\StoreEventRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use App\Services\NameChangeRequestService;
 
 class HostEventController extends Controller
 {
-    public function __construct()
+    protected $nameChangeService;
+
+    public function __construct(NameChangeRequestService $nameChangeService)
     {
         $this->middleware(['auth', 'verified']);
+        $this->nameChangeService = $nameChangeService;
     }
 
     public function edit(Event $event)
@@ -39,7 +43,10 @@ class HostEventController extends Controller
             'age_limits',
             'images',
             'category',
-            'genres'
+            'genres',
+            'nameChangeRequests' => function($query) {  // Add this relationship
+                $query->where('status', 'pending')->latest();
+            }
         ]);
 
         return view('Creation.edit', compact('event'));
@@ -66,8 +73,14 @@ class HostEventController extends Controller
                     $event->location->latitude,
                     $event->location->longitude
                 ];
-                $event->save();
             }
+            
+            // Update the status if it's included in the request
+            if (isset($validatedData['status'])) {
+                $event->status = $validatedData['status'];
+            }
+            
+            $event->save();
         } else {
             $event->update($validatedData);
         }
@@ -139,19 +152,50 @@ class HostEventController extends Controller
                 $currentImages = json_decode($request->input('currentImages', '[]'), true);
                 ImageHandler::updateImages($event, $currentImages);
             }
+
+            // Update status if it's included in the request
+            if (isset($validatedData['status'])) {
+                $event->status = $validatedData['status'];
+                $event->save();
+            }
         }
 
         if ($request->hasFile('images')) {
+            \Log::info('Image upload request data:', [
+                'validatedData' => $validatedData,
+                'hasStatus' => isset($validatedData['status']),
+                'status' => $validatedData['status'] ?? 'not set'
+            ]);
+            
             $ranks = $request->input('ranks', []);
             
             foreach ($request->file('images') as $index => $image) {
                 $rank = $ranks[$index] ?? 0;
+                
+                // Delete existing image with the same rank
+                $existingImage = $event->images()
+                    ->where('rank', $rank)
+                    ->first();
+                    
+                if ($existingImage) {
+                    \Log::info('Deleting existing image:', [
+                        'rank' => $rank,
+                        'path' => $existingImage->large_image_path
+                    ]);
+                    ImageHandler::deleteImage($existingImage);
+                }
                 
                 if ((int)$rank === 0) {
                     ImageHandler::saveImage($image, $event, 900, 1200, 'event-images', $rank);
                 } else {
                     ImageHandler::saveImage($image, $event, 1200, 800, 'event-images', $rank);
                 }
+            }
+
+            // Update status if it's included in the request
+            if (isset($validatedData['status'])) {
+                $event->status = $validatedData['status'];
+                $event->save();
             }
         }
 
@@ -181,7 +225,7 @@ class HostEventController extends Controller
 
         return response()->json([
             'message' => 'Event updated successfully.',
-            'event' => $event->load(
+            'event' => $event->load([
                 'shows.tickets', 
                 'location', 
                 'images', 
@@ -191,8 +235,11 @@ class HostEventController extends Controller
                 'contactLevels', 
                 'interactive_level',
                 'category',
-                'genres'  // Add genres to the loaded relationships
-            )
+                'genres',
+                'nameChangeRequests' => function($query) {
+                    $query->where('status', 'pending')->latest();
+                }
+            ])
         ], 200);
     }
 
@@ -265,5 +312,33 @@ class HostEventController extends Controller
             'message' => 'Event created successfully.',
             'event' => $event
         ], 201);
+    }
+
+    public function nameChange(Request $request, Event $event)
+    {
+        try {
+            $request->validate([
+                'requested_name' => 'required|string|max:100',
+                'current_name' => 'required|string'
+            ]);
+
+            $result = $this->nameChangeService->handleNameChange(
+                $event,
+                $request->requested_name,
+                $request->input('reason')
+            );
+
+            return response()->json([
+                'message' => $result['message'] ?? 'Name change request submitted successfully',
+                'event' => $event->fresh(['nameChangeRequests'])
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to submit name change request: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to submit name change request.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

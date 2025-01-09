@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Admin;
 
 use App\Models\Curated\Post;
 use App\Models\Curated\Shelf;
@@ -12,7 +12,14 @@ class Dock extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'location', 'status'];
+    protected $fillable = [
+        'name',
+        'location',
+        'status',
+        'type',
+        'order',
+        'user_id'
+    ];
 
     /**
      * Get all of the posts that are assigned this dock.

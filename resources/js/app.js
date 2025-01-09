@@ -23,6 +23,9 @@ const Login = defineAsyncComponent(() => import('./Auth/login.vue'));
 
 const Inbox = defineAsyncComponent(() => import('./PageComponents/Messaging/inbox.vue'));
 
+const Organizer = defineAsyncComponent(() => import('./PageComponents/Organizer/show.vue'));
+
+
 const Hosting = defineAsyncComponent(() => import('./PageComponents/Creation/index.vue'));
 const GettingStarted = defineAsyncComponent(() => import('./PageComponents/Creation/initial.vue'));
 const HostingEvent = defineAsyncComponent(() => import('./PageComponents/Creation/Core/index.vue'));
@@ -75,6 +78,8 @@ app.component('vue-user-account', UserAccount)
 app.component('vue-user-login', Login);
 
 app.component('vue-inbox', Inbox);
+
+app.component('vue-organizer', Organizer);
 
 app.component('vue-hosting', Hosting);
 app.component('vue-getting-started', GettingStarted);

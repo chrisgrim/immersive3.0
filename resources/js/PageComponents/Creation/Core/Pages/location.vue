@@ -57,7 +57,7 @@
                             class="absolute z-[1002] w-8 mt-7 ml-8" 
                             src="/storage/images/vendor/leaflet/dist/marker-icon-2x.png">
                         <input 
-                            class="relative rounded-full p-10 pl-24 shadow-custom-6 w-full font-medium z-[1001] border-neutral-300 focus:shadow-none"
+                            class="relative rounded-full p-10 pl-24 shadow-custom-6 w-full font-medium z-40 border-neutral-300 focus:shadow-none"
                             v-model="userInput"
                             placeholder="Enter Address"
                             @input="updateLocations"

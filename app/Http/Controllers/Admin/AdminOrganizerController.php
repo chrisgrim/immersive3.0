@@ -41,7 +41,7 @@ class AdminOrganizerController extends Controller
     {
         switch($request->action) {
             case 'add_member':
-                $organizer->users()->attach($request->user_id, ['role' => 'member']);
+                $organizer->users()->attach($request->user_id, ['role' => 'moderator']);
                 break;
             
             case 'remove_member':

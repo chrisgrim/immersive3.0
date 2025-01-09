@@ -32,64 +32,19 @@
 
 @section('nav')
 
-    @include('Layouts.nav-container')
+    @if (Browser::isMobile())
+        <vue-nav-bar-mobile></vue-nav-bar-mobile>
+    @else
+        @include('Nav.creation-desktop')
+    @endif
     
 @endsection
 
 @section('content')
-    <div class="org">
-
-        <section class="m-auto w-full md:px-8 md:py-8 md:px-12 lg:py-0 lg:px-32 lg:max-w-screen-xl lg:pt-24">
-            <div class="flex flex-col md:flex-row">     
-                <div class="w-full inline-block md:w-2/6 md:px-8 lg:p-8">
-                    <div class="sticky top-16 items-center flex flex-col">
-                        @if(!empty($organizer->largeImagePath))
-                            <div class="p-8 w-1/4 mb-8 inline-block align-top w-full md:p-0 md:flex md:justify-center md:w-full">
-                                <picture>
-                                    <source type="image/webp" srcset="{{ env('VITE_IMAGE_URL') . $organizer->thumbImagePath }}"> 
-                                    <img class="w-full h-full rounded-full md:h-80 md:w-80"
-                                         src="{{ env('VITE_IMAGE_URL') . substr($organizer->thumbImagePath, 0, -4) . '.jpg' }}"
-                                         alt="{{ $organizer->name }} organizer">
-                                </picture>
-                            </div>
-                        @endif
-                        @include('Organizers.social', ['organizer' => $organizer])
-                    </div>
-                </div>
-                <div class="w-full inline-block md:w-4/6">
-                    <div class="w-3/4 inline-block p-8 float-right md:float-left md:w-full md:px-0">
-                        <div class="name">
-                            <h2>{{ $organizer->name }}</h2>
-                        </div>
-                        <div class="joined">
-                            <p>Joined EI in {{ $organizer->created_at }}</p>
-                        </div>
-                    </div>
-                    @if (Browser::isMobile())
-                        @if(!empty($organizer->largeImagePath))
-                            <div class="logo">
-                                <picture>
-                                    <source type="image/webp" srcset="{{ env('VITE_IMAGE_URL') . $organizer->thumbImagePath }}"> 
-                                    <img 
-                                        class="w-full h-full"
-                                        src="{{ env('VITE_IMAGE_URL') . substr($organizer->thumbImagePath, 0, -4) . '.jpg' }}"
-                                        alt="{{ $organizer->name }} organizer">
-                                </picture>
-                            </div>
-                        @endif
-                        @include('Organizers.social', ['organizer' => $organizer])
-                    @endif
-                    <div class="whitespace-pre-wrap mb-8 px-8 md:px-0">
-                        <p>{{ $organizer->description }}</p>
-                    </div>
-                    <vue-organizer-show
-                        :organizer="{{ $organizer }}"
-                        :user="user">
-                    </vue-organizer-show>
-                </div>
-            </div>
-        </section>
-    </div>
+    <vue-organizer
+        :organizer="{{ $organizer }}"
+        :user="user"
+    ></vue-organizer>
 @endsection
 
 @section('footer')

@@ -16,6 +16,7 @@
                                 <li><a @click="handleNavigation('approve-events')" :class="['nav-link', currentView === 'approve-events' ? 'bg-blue-50 text-blue-600' : '']">Events</a></li>
                                 <li><a @click="handleNavigation('approve-organizers')" :class="['nav-link', currentView === 'approve-organizers' ? 'bg-blue-50 text-blue-600' : '']">Organizers</a></li>
                                 <li><a @click="handleNavigation('approve-communities')" :class="['nav-link', currentView === 'approve-communities' ? 'bg-blue-50 text-blue-600' : '']">Communities</a></li>
+                                <li><a @click="handleNavigation('approve-requests')" :class="['nav-link', currentView === 'approve-requests' ? 'bg-blue-50 text-blue-600' : '']">Requests</a></li>
                             </ul>
                         </div>
 
@@ -27,6 +28,7 @@
                                 <li><a @click="handleNavigation('manage-users')" :class="['nav-link', currentView === 'manage-users' ? 'bg-blue-50 text-blue-600' : '']">Users</a></li>
                                 <li><a @click="handleNavigation('manage-organizers')" :class="['nav-link', currentView === 'manage-organizers' ? 'bg-blue-50 text-blue-600' : '']">Organizers</a></li>
                                 <li><a @click="handleNavigation('manage-reviews')" :class="['nav-link', currentView === 'manage-reviews' ? 'bg-blue-50 text-blue-600' : '']">Reviews</a></li>
+                                <li><a @click="handleNavigation('manage-docks')" :class="['nav-link', currentView === 'manage-docks' ? 'bg-blue-50 text-blue-600' : '']">Docks</a></li>
                             </ul>
                         </div>
 
@@ -73,7 +75,7 @@
                     </div>
 
                     <!-- Component Content Area -->
-                    <div class="flex-1 min-w-0 overflow-hidden z-[2000] md:z-0 bg-white">
+                    <div class="flex-1 min-w-0 overflow-hidden z-50 md:z-0 bg-white">
                         <div class="p-8 h-full">
                             <component 
                                 :is="currentComponent"
@@ -99,10 +101,12 @@ import ApproveCommunities from './Approval/Communities.vue'
 import ManageUsers from './Management/Users.vue'
 import ManageOrganizers from './Management/Organizers.vue'
 import ManageEvents from './Management/Events.vue'
+import ManageDocks from './Management/Docks.vue'
 import ManageReviews from './Management/Reviews.vue'
 import SettingsCategories from './Settings/Categories.vue'
 import SettingsTags from './Settings/Tags.vue'
 import SettingsAdvisories from './Settings/Advisories.vue'
+import ApproveRequests from './Approval/Requests.vue'
 import axios from 'axios'
 
 const isMobile = ref(false)
@@ -194,10 +198,12 @@ const currentComponent = computed(() => {
         'approve-events': ApproveEvents,
         'approve-organizers': ApproveOrganizers,
         'approve-communities': ApproveCommunities,
+        'approve-requests': ApproveRequests,
         'manage-users': ManageUsers,
         'manage-organizers': ManageOrganizers,
         'manage-events': ManageEvents,
         'manage-reviews': ManageReviews,
+        'manage-docks': ManageDocks,
         'settings-categories': SettingsCategories,
         'settings-tags': SettingsTags,
         'settings-advisories': SettingsAdvisories,

@@ -65,7 +65,7 @@ class AdminGenreController extends Controller
                 $genre,
                 400,  // icon size
                 400,
-                'genre'
+                'genre-images'
             );
         }
 
@@ -123,7 +123,7 @@ class AdminGenreController extends Controller
                 $genre,
                 400,  // icon size
                 400,
-                'genre'
+                'genre-images'
             );
             
             return response()->json($genre->fresh()->load('images'));

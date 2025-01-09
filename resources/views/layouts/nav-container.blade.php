@@ -1,6 +1,6 @@
 <nav style="height: 16rem;">
     <div 
-        style="width:100%; margin:auto; height:8rem; z-index: 1001; position: fixed; top: 0; left: 0; right: 0; background-color: white;border-bottom: 1px solid #e0e0e0;">
+        style="width:100%; margin:auto; height:8rem; z-index: 49; position: fixed; top: 0; left: 0; right: 0; background-color: white;border-bottom: 1px solid #e0e0e0;">
         <div 
             style="margin: auto; position: relative; height: 100%; display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; align-items: center; max-width: 1536px; padding: 0 8rem;">
             <div class="inline-block relative leading-none col-span-1 z-40">
@@ -21,7 +21,7 @@
         </div>
     </div>
     <div 
-        style="width:100%; margin:auto; height:8rem; z-index: 1000; position: fixed; top: 8rem; left: 0; right: 0; background-color: white; border-bottom: 1px solid #e0e0e0;">
+        style="width:100%; margin:auto; height:8rem; z-index: 49; position: fixed; top: 8rem; left: 0; right: 0; background-color: white; border-bottom: 1px solid #e0e0e0;">
         <div style="padding: 0 8rem; max-width: 1536px; height: 100%;">
             <vue-quick-bar></vue-quick-bar>
         </div>

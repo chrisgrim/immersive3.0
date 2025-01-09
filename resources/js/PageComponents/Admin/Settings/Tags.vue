@@ -1,49 +1,52 @@
 <template>
-    <div class="p-6 bg-white">
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-2xl font-bold">Tags</h1>
-            <button 
-                @click="showCreateModal = true"
-                class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xl"
-            >
-                Add New Tag
-            </button>
-        </div>
+    <div class="h-[calc(100vh-12rem)] flex flex-col md:h-[calc(100vh-12rem)] max-h-[calc(100vh-10rem)]">
+        <!-- Fixed Header Section -->
+        <div class="flex-none">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-2xl font-bold">Tags</h1>
+                <button 
+                    @click="showCreateModal = true"
+                    class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xl"
+                >
+                    Add New Tag
+                </button>
+            </div>
 
-        <!-- Search and Filter Section -->
-        <div class="mb-6 space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input 
-                    v-model="filters.search"
-                    placeholder="Search by name..."
-                    class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xl"
-                >
-                <select 
-                    v-model="filters.type"
-                    class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xl"
-                >
-                    <option value="">All Types</option>
-                    <option value="1">Admin</option>
-                    <option value="0">Guest</option>
-                </select>
+            <!-- Search and Filter Section -->
+            <div class="mb-6 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input 
+                        v-model="filters.search"
+                        placeholder="Search by name..."
+                        class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xl"
+                    >
+                    <select 
+                        v-model="filters.type"
+                        class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xl"
+                    >
+                        <option value="">All Types</option>
+                        <option value="1">Admin</option>
+                        <option value="0">Guest</option>
+                    </select>
+                </div>
             </div>
         </div>
 
         <!-- Loading State -->
-        <div v-if="loading" class="text-center">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <div v-if="loading" class="flex-1 flex items-center justify-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
 
         <!-- Empty State -->
-        <div v-else-if="tags.length === 0" class="text-center text-gray-500">
+        <div v-else-if="tags.length === 0" class="flex-1 flex items-center justify-center text-gray-500">
             No tags found
         </div>
 
         <!-- Tags Table -->
-        <div v-else>
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
+        <div v-else class="flex-1 overflow-auto border border-neutral-200 rounded-xl">
+            <table class="w-full">
+                <thead class="sticky top-0 bg-white shadow-sm">
+                    <tr class="bg-neutral-100">
                         <th class="w-16 px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">ID</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">
                             <div class="flex items-center cursor-pointer" @click="toggleSort('name')">
@@ -107,7 +110,7 @@
                             <select 
                                 :value="tag.admin"
                                 @change="checkAndUpdateField(tag, 'admin', $event)"
-                                class="px-2 py-1 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-xl"
+                                class="px-2 py-1 w-full md:w-auto border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-xl"
                             >
                                 <option :value="0">Guest</option>
                                 <option :value="1">Admin</option>
@@ -153,97 +156,118 @@
                     </tr>
                 </tbody>
             </table>
+        </div>
 
-            <div class="mt-6">
-                <Pagination 
-                    v-if="pagination"
-                    :pagination="pagination"
-                    @paginate="handlePageChange"
-                />
-            </div>
+        <!-- Fixed Footer with Pagination -->
+        <div class="flex-none mt-4">
+            <Pagination 
+                v-if="pagination"
+                :pagination="pagination"
+                @paginate="handlePageChange"
+            />
         </div>
 
         <!-- Create Modal -->
-        <div v-if="showCreateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div class="bg-white p-6 rounded-lg w-full max-w-md">
-                <h2 class="text-2xl font-bold mb-4">Add New Tag</h2>
-                
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Name</label>
-                        <input 
-                            v-model="newTag.name"
-                            type="text"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            placeholder="Enter tag name"
-                        >
+        <teleport to="body">
+            <div v-if="showCreateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
+                <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
+                    <!-- Header -->
+                    <div class="p-8 pb-6">
+                        <h2 class="text-2xl font-bold mb-2">Add New Tag</h2>
+                        <p class="text-gray-500 font-normal">Create a new tag for categorizing events</p>
                     </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Rank</label>
-                        <input 
-                            v-model.number="newTag.rank"
-                            type="number"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            min="0"
-                        >
-                    </div>
+                    <!-- Scrollable Content -->
+                    <div class="p-8 overflow-y-auto flex-1">
+                        <div class="space-y-6">
+                            <!-- Name field -->
+                            <div>
+                                <p class="text-gray-500 font-normal mb-4">Name</p>
+                                <input 
+                                    v-model="newTag.name"
+                                    type="text"
+                                    class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4"
+                                    placeholder="Enter tag name"
+                                >
+                            </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Type</label>
-                        <select 
-                            v-model="newTag.admin"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                        >
-                            <option :value="1">Admin</option>
-                            <option :value="0">Guest</option>
-                        </select>
-                    </div>
+                            <!-- Rank and Type fields in grid -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <p class="text-gray-500 font-normal mb-4">Rank</p>
+                                    <select 
+                                        v-model.number="newTag.rank"
+                                        class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4 bg-white"
+                                    >
+                                        <option v-for="n in 6" :key="n-1" :value="n-1">{{ n-1 }}</option>
+                                    </select>
+                                </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Icon</label>
-                        <input 
-                            type="file"
-                            ref="createTagFileInput"
-                            class="hidden"
-                            accept="image/*"
-                            @change="handleCreateTagImage"
-                        >
-                        <div 
-                            @click="$refs.createTagFileInput.click()"
-                            class="mt-1 cursor-pointer hover:opacity-75 transition-opacity"
-                        >
-                            <img 
-                                v-if="newTagPreviewImage"
-                                :src="newTagPreviewImage"
-                                class="h-24 w-24 rounded object-cover"
-                            >
-                            <div 
-                                v-else
-                                class="h-24 w-24 rounded bg-gray-200 flex items-center justify-center"
-                            >
-                                <i class="fas fa-plus text-gray-400"></i>
+                                <div>
+                                    <p class="text-gray-500 font-normal mb-4">Type</p>
+                                    <select 
+                                        v-model="newTag.admin"
+                                        class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4 bg-white"
+                                    >
+                                        <option :value="1">Admin</option>
+                                        <option :value="0">Guest</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Icon Upload -->
+                            <div>
+                                <p class="text-gray-500 font-normal mb-4">Icon</p>
+                                <input 
+                                    type="file"
+                                    ref="createTagFileInput"
+                                    class="hidden"
+                                    accept="image/*"
+                                    @change="handleCreateTagImage"
+                                >
+                                <div 
+                                    @click="$refs.createTagFileInput.click()"
+                                    class="cursor-pointer hover:opacity-75 transition-opacity"
+                                >
+                                    <img 
+                                        v-if="newTagPreviewImage"
+                                        :src="newTagPreviewImage"
+                                        class="h-32 w-32 rounded-2xl object-cover"
+                                    >
+                                    <div 
+                                        v-else
+                                        class="h-32 w-32 rounded-2xl border border-neutral-400 flex flex-col items-center justify-center gap-2"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        <span class="text-gray-400 text-lg text-center">Add Icon</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="mt-6 flex justify-end space-x-3">
-                    <button 
-                        @click="showCreateModal = false"
-                        class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                    >
-                        Cancel
-                    </button>
-                    <button 
-                        @click="createTag"
-                        class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                    >
-                        Create
-                    </button>
+                    <!-- Footer -->
+                    <div class="p-8 border-t border-neutral-400 bg-white md:rounded-b-2xl">
+                        <div class="flex justify-end space-x-4">
+                            <button 
+                                @click="showCreateModal = false"
+                                class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neu text-xl"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                @click="createTag"
+                                class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl"
+                            >
+                                Create
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
+        </teleport>
     </div>
 </template>
 

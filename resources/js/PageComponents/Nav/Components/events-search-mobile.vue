@@ -18,12 +18,12 @@
             </div>
             <div class="w-full flex-grow flex flex-col mt-10">
                 <div class="w-full border border-slate-400 rounded-2xl flex items-center">
-                    <svg class="w-8 h-8 fill-black z-[1002] ml-8">
+                    <svg class="w-8 h-8 fill-black z-50 ml-8">
                         <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
                     </svg>
                     <input 
                         ref="event"
-                        class="relative text-1xl p-8 w-full font-bold z-[1001] bg-transparent focus:border-none placeholder-slate-400"
+                        class="relative text-1xl p-8 w-full font-bold z-40 bg-transparent focus:border-none placeholder-slate-400"
                         v-model="eventInput"
                         placeholder="Search Events"
                         @input="debounceEventSearch"
@@ -84,12 +84,12 @@
             </div>
             <div class="w-full flex-grow flex flex-col mt-10 overflow-auto">
                 <div class="w-full border border-slate-400 rounded-2xl flex items-center">
-                    <svg class="w-8 h-8 fill-black z-[1002] ml-8">
+                    <svg class="w-8 h-8 fill-black z-50 ml-8">
                         <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
                     </svg>
                     <input 
                         ref="organizer"
-                        class="relative text-1xl p-8 w-full font-bold z-[1001] bg-transparent focus:border-none placeholder-slate-400"
+                        class="relative text-1xl p-8 w-full font-bold z-40 bg-transparent focus:border-none placeholder-slate-400"
                         v-model="organizerInput"
                         placeholder="Search Organizers"
                         @input="debounceOrganizerSearch"

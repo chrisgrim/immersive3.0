@@ -1,6 +1,6 @@
 <template>
     <div 
-        class="fixed bottom-0 left-0 right-0 h-32 bg-white border-t border-neutral-200 z-[1000]"
+        class="fixed bottom-0 left-0 right-0 h-32 bg-white border-t border-neutral-200 z-40"
         :style="{
             transform: `translateY(${isHidden ? '100%' : '0'})`,
             transition: 'transform 0.3s ease-in-out'

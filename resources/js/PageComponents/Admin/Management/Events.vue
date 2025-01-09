@@ -34,26 +34,26 @@
         </div>
 
         <!-- Scrollable Table Section -->
-        <div class="flex-1 overflow-auto border border-neutral-200">
-            <table class="w-full">
-                <thead class="sticky top-0 bg-white">
-                    <tr class="bg-gray-50">
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Organization</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days Left</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Clicks</th>
+        <div class="flex-1 overflow-auto border border-neutral-200 rounded-xl">
+            <table class="w-full overflow-hidden">
+                <thead class="sticky top-0 bg-white shadow-sm">
+                    <tr class="bg-neutral-100">
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider min-w-[4rem]">ID</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider min-w-[4rem]">Image</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider min-w-[18rem]">Name</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider min-w-[18rem]">Organization</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Days Left</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Clicks</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 text-xl">
                     <tr v-for="event in events" :key="event.id">
-                        <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-gray-50">
+                        <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-ne">
                             {{ event.id }}
                         </td>
-                        <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-gray-50">
+                        <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-ne">
                             <picture class="block h-10 w-10">
                                 <source 
                                     v-if="event.images && event.images.length > 0"
@@ -73,16 +73,16 @@
                                 >
                             </picture>
                         </td>
-                        <td @click="showActionModal(event)" class="px-6 py-4 max-w-[25rem] whitespace-normal break-words cursor-pointer hover:bg-gray-50">
+                        <td @click="showActionModal(event)" class="px-6 py-4 max-w-[25rem] whitespace-normal break-words cursor-pointer hover:bg-ne">
                             {{ event.name }}
                         </td>
                         <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words">
                             {{ event.organizer?.name }}
                         </td>
-                        <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-gray-50">
+                        <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-ne">
                             {{ formatLocation(event) }}
                         </td>
-                        <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-gray-50">
+                        <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-ne">
                             {{ event.category?.name }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
@@ -181,7 +181,7 @@
                     </a>
                     <a 
                         :href="`/events/${selectedEvent?.slug}`"
-                        class="block w-full text-center px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                        class="block w-full text-center px-4 py-2 bg-ne0 text-white rounded-lg hover:bg-gray-600"
                     >
                         View Event
                     </a>
@@ -366,6 +366,7 @@ onMounted(() => {
 <style scoped>
 input {
     background: transparent;
+    width: 100%;
 }
 
 input:hover {
@@ -397,5 +398,4 @@ th::after {
     width: 100%;
     border-bottom: 1px solid #e5e7eb;
 }
-
 </style> 

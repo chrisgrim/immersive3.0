@@ -196,6 +196,30 @@
                 </div>
             </div>
         </div>
+        <!-- Clear Dates Confirmation Modal -->
+        <div v-if="showClearConfirmation" 
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+             @click="showClearConfirmation = false">
+            <div class="bg-white p-8 rounded-2xl w-[400px] mx-4" 
+                 @click.stop>
+                <h3 class="text-2xl mb-4">Clear all dates?</h3>
+                <p class="text-gray-600 mb-6">This will remove all selected dates and show times. This action cannot be undone.</p>
+                <div class="flex justify-end gap-4">
+                    <button 
+                        @click="showClearConfirmation = false"
+                        class="px-6 py-2 border rounded-lg hover:bg-gray-100"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        @click="confirmClearAllDates"
+                        class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
+                    >
+                        Clear All
+                    </button>
+                </div>
+            </div>
+        </div>
     </main>
 </template>
 
@@ -238,6 +262,7 @@ const selectedTimezone = ref(Intl.DateTimeFormat().resolvedOptions().timeZone);
 const userGMTOffset = ref('');
 const showEmbargoModal = ref(false);
 const tempEmbargoDate = ref(null);
+const showClearConfirmation = ref(false);
 
 // 6. Validation Rules
 const rules = {
@@ -413,10 +438,15 @@ const setSpecificDates = () => {
 };
 
 const clearAllDates = () => {
+    showClearConfirmation.value = true;
+};
+
+const confirmClearAllDates = () => {
     date.value = [];
     selectedDates.value = [];
     events.value = [];
     event.show_times = '';
+    showClearConfirmation.value = false;
 };
 
 // 12. Embargo Date Methods

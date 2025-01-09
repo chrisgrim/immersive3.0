@@ -1,7 +1,7 @@
 <template>
-    <div class="flex flex-col h-full w-full">
+    <div class="h-[calc(100vh-12rem)] flex flex-col md:h-[calc(100vh-12rem)] max-h-[calc(100vh-10rem)]">
         <!-- Fixed Header Section -->
-        <div class="flex-none overflow-hidden">
+        <div class="flex-none">
             <h1 class="text-2xl font-bold mb-6">Event Reviews</h1>
             
             <!-- Search and Filter Section -->
@@ -25,18 +25,18 @@
         </div>
 
         <!-- Scrollable Table Section -->
-        <div class="w-full overflow-auto border border-neutral-200">
+        <div class="flex-1 overflow-auto border border-neutral-200 rounded-xl">
             <table class="w-full overflow-hidden">
                 <thead class="sticky top-0 bg-white">
-                    <tr class="bg-gray-50">
-                        <th class="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
-                        <th class="w-48 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event</th>
-                        <th class="w-48 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reviewer</th>
-                        <th class="w-48 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">URL</th>
-                        <th class="w-96 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Review</th>
-                        <th class="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
-                        <th class="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th class="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <tr class="bg-neutral-100">
+                        <th class="w-24 px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                        <th class="w-48 px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Event</th>
+                        <th class="w-48 px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Reviewer</th>
+                        <th class="w-48 px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">URL</th>
+                        <th class="w-96 px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Review</th>
+                        <th class="w-24 px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Rating</th>
+                        <th class="w-32 px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="w-24 px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 text-xl">
@@ -113,7 +113,7 @@
         </div>
 
         <!-- Fixed Footer with Pagination -->
-        <div class="flex-none mt-6">
+        <div class="flex-none mt-4">
             <Pagination 
                 v-if="pagination"
                 :pagination="pagination"
@@ -144,112 +144,124 @@
         </div>
 
         <!-- Create Review Modal -->
-        <div v-if="showCreateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-white rounded-lg p-6 max-w-2xl w-full">
-                <h3 class="text-xl font-bold mb-4">Add New Review</h3>
-                <form @submit.prevent="createReview" class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Event</label>
-                        <input 
-                            v-model="eventSearch"
-                            placeholder="Search for event..."
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            @input="searchEvents"
-                        >
-                        <!-- Event Search Results -->
-                        <div v-if="eventSearchResults.length > 0" class="mt-1 border rounded-md shadow-sm max-h-96 overflow-y-auto">
-                            <div 
-                                v-for="event in eventSearchResults" 
-                                :key="event.id"
-                                @click="selectEvent(event)"
-                                class="p-4 hover:bg-gray-100 cursor-pointer border-b last:border-b-0 flex items-center space-x-4"
+        <div v-if="showCreateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
+            <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
+                <!-- Header -->
+                <div class="p-8 pb-6">
+                    <h2 class="text-2xl font-bold mb-2">Add New Review</h2>
+                    <p class="text-gray-500 font-normal">Create a new review for an event</p>
+                </div>
+
+                <!-- Scrollable Content -->
+                <div class="p-8 overflow-y-auto flex-1">
+                    <form @submit.prevent="createReview" class="space-y-6">
+                        <div>
+                            <p class="text-gray-500 font-normal mb-4">Event</p>
+                            <input 
+                                v-model="eventSearch"
+                                placeholder="Search for event..."
+                                class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4"
+                                @input="searchEvents"
                             >
-                                <img 
-                                    :src="`${imageUrl}${event.thumbImagePath}`"
-                                    :alt="event.name"
-                                    class="h-20 w-32 object-cover rounded"
+                            <!-- Event Search Results -->
+                            <div v-if="eventSearchResults.length > 0" class="mt-2 border border-neutral-400 rounded-2xl shadow-sm max-h-96 overflow-y-auto">
+                                <div 
+                                    v-for="event in eventSearchResults" 
+                                    :key="event.id"
+                                    @click="selectEvent(event)"
+                                    class="p-4 hover:bg-ne cursor-pointer border-b last:border-b-0 flex items-center space-x-4"
                                 >
-                                <div>
-                                    <div class="font-medium">{{ event.name }}</div>
-                                    <div class="text-sm text-gray-500">{{ event.start_date }}</div>
+                                    <img 
+                                        :src="`${imageUrl}${event.thumbImagePath}`"
+                                        :alt="event.name"
+                                        class="h-20 w-32 object-cover rounded-xl"
+                                    >
+                                    <div>
+                                        <div class="text-xl">{{ event.name }}</div>
+                                        <div class="text-gray-500">{{ event.start_date }}</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Selected Event Preview -->
-                    <div v-if="selectedEvent" class="p-4 bg-gray-50 rounded-lg">
-                        <div class="flex items-center space-x-4">
-                            <img 
-                                :src="`${imageUrl}${selectedEvent.thumbImagePath}`"
-                                :alt="selectedEvent.name"
-                                class="h-20 w-32 object-cover rounded"
-                            >
-                            <div>
-                                <div class="font-medium">{{ selectedEvent.name }}</div>
-                                <div class="text-sm text-gray-500">{{ selectedEvent.start_date }}</div>
+                        <!-- Selected Event Preview -->
+                        <div v-if="selectedEvent" class="p-4 bg-ne rounded-2xl border border-neutral-400">
+                            <div class="flex items-center space-x-4">
+                                <img 
+                                    :src="`${imageUrl}${selectedEvent.thumbImagePath}`"
+                                    :alt="selectedEvent.name"
+                                    class="h-20 w-32 object-cover rounded-xl"
+                                >
+                                <div>
+                                    <div class="text-xl">{{ selectedEvent.name }}</div>
+                                    <div class="text-gray-500">{{ selectedEvent.start_date }}</div>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Reviewer Name</label>
-                            <input 
-                                v-model="newReview.reviewer_name"
-                                required
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            >
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <p class="text-gray-500 font-normal mb-4">Reviewer Name</p>
+                                <input 
+                                    v-model="newReview.reviewer_name"
+                                    required
+                                    class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4"
+                                    placeholder="Enter reviewer name"
+                                >
+                            </div>
+                            <div>
+                                <p class="text-gray-500 font-normal mb-4">URL</p>
+                                <input 
+                                    v-model="newReview.url"
+                                    required
+                                    type="url"
+                                    class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4"
+                                    placeholder="Enter review URL"
+                                >
+                            </div>
                         </div>
+
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">URL</label>
-                            <input 
-                                v-model="newReview.url"
+                            <p class="text-gray-500 font-normal mb-4">Review</p>
+                            <textarea 
+                                v-model="newReview.review"
                                 required
-                                type="url"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            >
+                                rows="6"
+                                class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4"
+                                placeholder="Enter review text"
+                            ></textarea>
                         </div>
-                    </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Review</label>
-                        <textarea 
-                            v-model="newReview.review"
-                            required
-                            rows="6"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                        ></textarea>
-                    </div>
+                        <div>
+                            <p class="text-gray-500 font-normal mb-4">Rating (1-5)</p>
+                            <select 
+                                v-model.number="newReview.rank"
+                                required
+                                class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4 bg-white"
+                            >
+                                <option v-for="n in 5" :key="n" :value="n">{{ n }}</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Rating (1-5)</label>
-                        <input 
-                            v-model.number="newReview.rank"
-                            type="number"
-                            min="1"
-                            max="5"
-                            required
-                            class="mt-1 block w-32 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                        >
-                    </div>
-
-                    <div class="flex justify-end space-x-3 pt-4">
+                <!-- Footer -->
+                <div class="p-8 border-t border-neutral-400 bg-white md:rounded-b-2xl">
+                    <div class="flex justify-end space-x-4">
                         <button 
-                            type="button"
                             @click="closeCreateModal"
-                            class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-ne text-xl"
                         >
                             Cancel
                         </button>
                         <button 
-                            type="submit"
-                            class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                            @click="createReview"
+                            class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl"
                         >
                             Create
                         </button>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     </div>

@@ -1,7 +1,7 @@
 <template>
-    <div class="flex flex-col h-full w-full">
+    <div class="h-[calc(100vh-12rem)] flex flex-col md:h-[calc(100vh-12rem)] max-h-[calc(100vh-10rem)]">
         <!-- Fixed Header Section -->
-        <div class="flex-none overflow-hidden">
+        <div class="flex-none">
             <h1 class="text-2xl font-bold mb-6">User Management</h1>
             
             <!-- Search and Filter Section -->
@@ -29,28 +29,28 @@
         </div>
 
         <!-- Loading State -->
-        <div v-if="loading" class="text-center">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <div v-if="loading" class="flex-1 flex items-center justify-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
 
         <!-- Empty State -->
-        <div v-else-if="users.length === 0" class="text-center text-gray-500">
+        <div v-else-if="users.length === 0" class="flex-1 flex items-center justify-center text-gray-500">
             No users found
         </div>
 
-        <!-- Users Table - Update the wrapper div -->
-        <div v-else class="w-full overflow-auto border border-neutral-200">
-            <table class="w-full overflow-hidden">
+        <!-- Users Table -->
+        <div v-else class="flex-1 overflow-auto border border-neutral-200 rounded-xl">
+            <table class="w-full">
                 <thead class="sticky top-0 bg-white">
-                    <tr class="bg-gray-50">
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verified</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Organizations</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delete</th>
+                    <tr class="bg-neutral-100">
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Verified</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Organizations</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Delete</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 text-xl">
@@ -130,7 +130,7 @@
                             <div class="relative inline-block">
                                 <button 
                                     @click="toggleOrgList(user)"
-                                    class="px-3 py-1 border rounded-md hover:bg-gray-50 focus:outline-none"
+                                    class="px-3 py-1 border rounded-md hover:bg-n focus:outline-none"
                                 >
                                     {{ (user.organizers?.length || 0) + (user.teams?.length || 0) }} Organizations
                                 </button>
@@ -173,7 +173,7 @@
         </div>
 
         <!-- Fixed Footer with Pagination -->
-        <div class="flex-none mt-6">
+        <div class="flex-none mt-4">
             <Pagination 
                 v-if="pagination"
                 :pagination="pagination"

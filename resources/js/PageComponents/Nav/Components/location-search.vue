@@ -8,7 +8,7 @@
            </svg>
            <input 
                ref="loc"
-               class="relative text-1xl rounded-full h-full pl-24 bg-transparent w-full font-bold z-[1001] focus:border-none focus:rounded-full focus:bg-white focus:shadow-custom-7 placeholder-black"
+               class="relative text-1xl rounded-full h-full pl-24 bg-transparent w-full font-bold z-40 focus:border-none focus:rounded-full focus:bg-white focus:shadow-custom-7 placeholder-black"
                v-model="searchInput"
                placeholder="Search by City"
                @input="updateLocations"
@@ -49,7 +49,7 @@
            <!-- Date Picker Dropdown -->
            <div 
                v-if="dateDropdown" 
-               class="absolute -left-0 w-[calc(100%+10.5rem)] mt-8 bg-white rounded-5xl shadow-custom-7 p-8 z-[1001]"
+               class="absolute -left-0 w-[calc(100%+10.5rem)] mt-8 bg-white rounded-5xl shadow-custom-7 p-8 z-40"
                @click.stop
            >
                <VueDatePicker

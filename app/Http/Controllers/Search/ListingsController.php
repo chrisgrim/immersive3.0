@@ -61,12 +61,26 @@ class ListingsController extends Controller
             $filters['categories'] = Query::terms()->field('category_id')->values($categoryIds);
         }
 
+        // Add tag filter
+        if ($request->tag) {
+            $tagIds = is_array($request->tag) 
+                ? $request->tag 
+                : explode(",", $request->tag);
+            
+            $filters['searchedTags'] = Genre::find($tagIds);
+            $filters['tags'] = Query::bool()
+                ->must(
+                    Query::terms()
+                        ->field('genres.genre_id')
+                        ->values($tagIds)
+                );
+        }
+
         // Price filters
         if ($request->price0 !== null) {
             $minPrice = (float) $request->price0;
             $maxPrice = (float) $request->price1;
             
-            // If max price is 670 (or your max value), treat it as no upper limit
             $top = $maxPrice === 670 ? 9999 : $maxPrice;
             
             $filters['prices'] = Query::range()
@@ -131,7 +145,6 @@ class ListingsController extends Controller
 
     public function index(Request $request)
     {
-        
         // Get base data and filters
         $baseData = $this->getBaseData();
         $locationFilters = $this->buildLocationFilter($request);
@@ -155,6 +168,11 @@ class ListingsController extends Controller
         // Add category filter
         if ($searchFilters['categories'] ?? null) {
             $query->filter($searchFilters['categories']);
+        }
+
+        // Add tag filter
+        if ($searchFilters['tags'] ?? null) {
+            $query->filter($searchFilters['tags']);
         }
 
         // Add geo filter if needed

@@ -7,17 +7,13 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use App\Services\ImageHandler;
 use App\Http\Requests\StoreProfileRequest;
-use Illuminate\Support\Facades\Log;
-
 
 class ProfilesController extends Controller
 {
-
     public function __construct()
     {
         $this->middleware(['auth', 'verified'])->except('show');
     }
-
 
     public function show(User $user)
     {
@@ -35,26 +31,41 @@ class ProfilesController extends Controller
         return view('Auth.user-account');
     }
 
-
     public function update(StoreProfileRequest $request, User $user)
     {
         try {
             if ($request->hasFile('image')) {
                 // Delete existing images
                 foreach ($user->images as $image) {
-                    ImageHandler::deleteImage($image);
+                    try {
+                        ImageHandler::deleteImage($image);
+                    } catch (\Exception $e) {
+                        // Continue with the upload even if deletion fails
+                    }
                 }
-                
-                // Save new image
-                ImageHandler::saveImage($request->file('image'), $user, 600, 600, 'user-images');
+
+                // Save new image with correct type parameter
+                ImageHandler::saveImage(
+                    $request->file('image'), 
+                    $user, 
+                    600,  // width
+                    600,  // height
+                    'user-images'  // type parameter to match expected path structure
+                );
+
+                // If this is just an image upload, return early
+                if (count($request->allFiles()) === 1 && count($request->all()) === 1) {
+                    return $user->fresh(['images']);
+                }
             }
 
+            // Handle other profile updates
             $userData = $request->only('name', 'email') + [
                 'newsletter_type' => $request->input('newsletter_type', 'n'),
                 'silence' => $request->input('silence', 'y')
             ];
 
-            if ($request->filled('email') && $request->email != $user->email) {
+            if ($request->filled('email') && $request->email !== $user->email) {
                 $userData['email_verified_at'] = null;
                 $user->update($userData);
                 $user->sendEmailVerificationNotification();
@@ -65,7 +76,7 @@ class ProfilesController extends Controller
             return $user->fresh(['images']);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
+            return response()->json(['error' => 'Failed to update profile. ' . $e->getMessage()], 422);
         }
     }
 
@@ -75,6 +86,4 @@ class ProfilesController extends Controller
         $user->conversations()->detach();
         $user->delete();
     }
-
-
 }

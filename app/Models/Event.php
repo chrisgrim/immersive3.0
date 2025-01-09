@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use App\Models\Events\CuratedEventCheck;
+use App\Models\NameChangeRequest;
 
 /**
  * Event Model
@@ -472,6 +473,11 @@ class Event extends Model
         return self::where('organizer_id', $organizerId)
             ->whereNotIn('status', ['p', 'e']) // Not published or embargoed
             ->count();
+    }
+
+    public function nameChangeRequests()
+    {
+        return $this->morphMany(NameChangeRequest::class, 'requestable');
     }
 
 }

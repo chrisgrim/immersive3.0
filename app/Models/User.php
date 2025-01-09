@@ -15,7 +15,7 @@ use App\Models\Events\EventRequest;
 use App\Models\Messaging\Conversation;
 use App\Models\Curated\Community;
 use App\Models\Curated\Post;
-use App\Models\Featured\Dock;
+use App\Models\Admin\Dock;
 use DB;
 
 class User extends Authenticatable implements MustVerifyEmail

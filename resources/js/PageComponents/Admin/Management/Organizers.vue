@@ -1,7 +1,7 @@
 <template>
-    <div class="flex flex-col h-full w-full">
+    <div class="h-[calc(100vh-12rem)] flex flex-col md:h-[calc(100vh-12rem)] max-h-[calc(100vh-10rem)]">
         <!-- Fixed Header Section -->
-        <div class="flex-none overflow-hidden">
+        <div class="flex-none">
             <h1 class="text-2xl font-bold mb-6">Organizer Management</h1>
             
             <!-- Search Section -->
@@ -26,123 +26,52 @@
         </div>
 
         <!-- Loading State -->
-        <div v-if="loading" class="text-center">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <div v-if="loading" class="flex-1 flex items-center justify-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
 
         <!-- Empty State -->
-        <div v-else-if="organizers.length === 0" class="text-center text-gray-500">
+        <div v-else-if="organizers.length === 0" class="flex-1 flex items-center justify-center text-gray-500">
             No organizers found
         </div>
 
         <!-- Organizers Table -->
-        <div v-else class="w-full overflow-auto border border-neutral-200">
-            <table class="w-full overflow-hidden">
-                <thead class="sticky top-0 bg-white">
-                    <tr class="bg-gray-50">
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Members</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delete</th>
+        <div v-else class="flex-1 overflow-auto border border-neutral-200 rounded-xl">
+            <table class="w-full">
+                <thead class="sticky top-0 bg-white shadow-sm">
+                    <tr class="bg-neutral-100">
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider min-w-[18rem]">Name</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Members</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Delete</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 text-xl">
                     <tr v-for="organizer in organizers" :key="organizer.id">
                         <td class="px-6 py-4 whitespace-nowrap">{{ organizer.id }}</td>
-                        <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words">
+                        <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words min-w-[18rem]">
                             {{ organizer.name }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             {{ organizer.email }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="relative inline-block" v-click-outside="handleOwnerClickOutside">
-                                <button 
-                                    @click.stop="toggleOwnerSearch(organizer)"
-                                    class="px-2 py-1 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-xl"
-                                >
-                                    {{ organizer.owner?.name }}
-                                </button>
-                                
-                                <div 
-                                    v-if="activeOwnerSearch === organizer.id"
-                                    class="absolute left-0 mt-1 w-64 bg-white border rounded-md shadow-lg z-50"
-                                    @click.stop
-                                >
-                                    <!-- Search Owner -->
-                                    <div class="p-2">
-                                        <input
-                                            v-model="ownerSearch"
-                                            placeholder="Search users..."
-                                            class="w-full px-2 py-1 border rounded text-sm"
-                                        >
-                                        <!-- Search Results -->
-                                        <div v-if="ownerSearchResults.length > 0" 
-                                             class="absolute left-0 right-0 mt-1 bg-white border rounded-md shadow-lg z-50">
-                                            <div v-for="user in ownerSearchResults" 
-                                                 :key="user.id" 
-                                                 @click="updateOwner(organizer, user)"
-                                                 class="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm">
-                                                {{ user.name }}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <button 
+                                @click="toggleOwnerSearch(organizer)"
+                                class="px-2 py-1 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-xl"
+                            >
+                                {{ organizer.owner?.name }}
+                            </button>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="relative inline-block" v-click-outside="handleMembersClickOutside">
-                                <button 
-                                    @click.stop="toggleMembersList(organizer)"
-                                    class="px-3 py-1 border rounded-md hover:bg-gray-50 focus:outline-none"
-                                >
-                                    {{ organizer.users?.length || 0 }} Members
-                                </button>
-                                
-                                <div 
-                                    v-if="activeMembersList === organizer.id"
-                                    class="absolute w-64 bg-white border rounded-md shadow-lg z-50"
-                                    style="left: 0;"
-                                    @click.stop
-                                >
-                                    <!-- Search New Members -->
-                                    <div class="p-2 border-b">
-                                        <input
-                                            v-model="newMemberSearch"
-                                            placeholder="Search users..."
-                                            class="w-full px-2 py-1 border rounded text-sm"
-                                            @focus="showMemberSearchResults = true"
-                                        >
-                                        <!-- Search Results -->
-                                        <div v-if="showMemberSearchResults && memberSearchResults.length > 0" 
-                                             class="absolute left-0 right-0 mt-1 bg-white border rounded-md shadow-lg z-50">
-                                            <div v-for="user in memberSearchResults" 
-                                                 :key="user.id" 
-                                                 @click="addMember(organizer, user)"
-                                                 class="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm">
-                                                {{ user.name }}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Current Members -->
-                                    <div class="max-h-48 overflow-y-auto">
-                                        <div v-for="user in organizer.users" 
-                                             :key="user.id" 
-                                             class="py-1 px-2 flex justify-between items-center">
-                                            <span class="text-sm">{{ user.name }}</span>
-                                            <button 
-                                                @click="removeMember(organizer, user)"
-                                                class="text-red-600 hover:text-red-800 text-sm"
-                                            >
-                                                Remove
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <button 
+                                @click="toggleMembersList(organizer)"
+                                class="px-3 py-1 border rounded-md hover:bg- focus:outline-none"
+                            >
+                                {{ organizer.users?.length || 0 }} Members
+                            </button>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <button 
@@ -158,7 +87,7 @@
         </div>
 
         <!-- Fixed Footer with Pagination -->
-        <div class="flex-none mt-6">
+        <div class="flex-none mt-4">
             <Pagination 
                 v-if="pagination"
                 :pagination="pagination"
@@ -187,6 +116,130 @@
                 </div>
             </div>
         </div>
+
+        <!-- Owner Selection Modal -->
+        <div v-if="showOwnerModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
+            <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
+                <!-- Header -->
+                <div class="p-8 pb-6">
+                    <h2 class="text-2xl font-bold mb-2">Change Owner</h2>
+                    <p class="text-gray-500 font-normal">Select a new owner for {{ selectedOrganizer?.name }}</p>
+                </div>
+
+                <!-- Scrollable Content -->
+                <div class="p-8 overflow-y-auto flex-1">
+                    <div class="space-y-6">
+                        <div>
+                            <p class="text-gray-500 font-normal mb-4">Search Users</p>
+                            <input 
+                                v-model="ownerSearch"
+                                placeholder="Search by name or email..."
+                                class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4"
+                            >
+                        </div>
+
+                        <!-- Search Results -->
+                        <div v-if="ownerSearchResults.length > 0" class="space-y-2">
+                            <div 
+                                v-for="user in ownerSearchResults" 
+                                :key="user.id"
+                                @click="updateOwner(selectedOrganizer, user)"
+                                class="p-4 border border-neutral-400 rounded-2xl hover:bg- cursor-pointer"
+                            >
+                                <div class="text-xl">{{ user.name }}</div>
+                                <div class="text-gray-500">{{ user.email }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="p-8 border-t border-neutral-400 bg-white md:rounded-b-2xl">
+                    <div class="flex justify-end space-x-4">
+                        <button 
+                            @click="closeOwnerModal"
+                            class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg- text-xl"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Members Management Modal -->
+        <div v-if="showMembersModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
+            <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
+                <!-- Header -->
+                <div class="p-8 pb-6">
+                    <h2 class="text-2xl font-bold mb-2">Manage Members</h2>
+                    <p class="text-gray-500 font-normal">Add or remove members for {{ selectedOrganizer?.name }}</p>
+                </div>
+
+                <!-- Scrollable Content -->
+                <div class="p-8 overflow-y-auto flex-1">
+                    <div class="space-y-6">
+                        <!-- Add New Members -->
+                        <div>
+                            <p class="text-gray-500 font-normal mb-4">Add New Member</p>
+                            <input 
+                                v-model="newMemberSearch"
+                                placeholder="Search by name or email..."
+                                class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4"
+                            >
+                        </div>
+
+                        <!-- Search Results -->
+                        <div v-if="memberSearchResults.length > 0" class="space-y-2">
+                            <div 
+                                v-for="user in memberSearchResults" 
+                                :key="user.id"
+                                @click="addMember(selectedOrganizer, user)"
+                                class="p-4 border border-neutral-400 rounded-2xl hover:bg- cursor-pointer"
+                            >
+                                <div class="text-xl">{{ user.name }}</div>
+                                <div class="text-gray-500">{{ user.email }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Current Members -->
+                        <div v-if="selectedOrganizer?.users?.length">
+                            <p class="text-gray-500 font-normal mb-4">Current Members</p>
+                            <div class="space-y-2">
+                                <div 
+                                    v-for="user in selectedOrganizer.users" 
+                                    :key="user.id"
+                                    class="p-4 border border-neutral-400 rounded-2xl flex justify-between items-center"
+                                >
+                                    <div>
+                                        <div class="text-xl">{{ user.name }}</div>
+                                        <div class="text-gray-500">{{ user.email }}</div>
+                                    </div>
+                                    <button 
+                                        @click="removeMember(selectedOrganizer, user)"
+                                        class="text-red-600 hover:text-red-800 text-xl"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="p-8 border-t border-neutral-400 bg-white md:rounded-b-2xl">
+                    <div class="flex justify-end space-x-4">
+                        <button 
+                            @click="closeMembersModal"
+                            class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg- text-xl"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -209,6 +262,9 @@ const showMemberSearchResults = ref(false)
 const activeOwnerSearch = ref(null)
 const ownerSearch = ref('')
 const ownerSearchResults = ref([])
+const showOwnerModal = ref(false)
+const showMembersModal = ref(false)
+const selectedOrganizer = ref(null)
 
 const filters = ref({
     search: '',
@@ -254,7 +310,8 @@ onMounted(() => {
 })
 
 const toggleMembersList = (organizer) => {
-    activeMembersList.value = activeMembersList.value === organizer.id ? null : organizer.id
+    selectedOrganizer.value = organizer
+    showMembersModal.value = true
     newMemberSearch.value = ''
     memberSearchResults.value = []
 }
@@ -268,7 +325,6 @@ const addMember = async (organizer, user) => {
         Object.assign(organizer, response.data)
         newMemberSearch.value = ''
         memberSearchResults.value = []
-        showMemberSearchResults.value = false
     } catch (error) {
         alert(error.response?.data?.message || 'Error adding member')
     }
@@ -335,7 +391,8 @@ const handlePageChange = (page) => {
 }
 
 const toggleOwnerSearch = (organizer) => {
-    activeOwnerSearch.value = activeOwnerSearch.value === organizer.id ? null : organizer.id
+    selectedOrganizer.value = organizer
+    showOwnerModal.value = true
     ownerSearch.value = ''
     ownerSearchResults.value = []
 }
@@ -348,9 +405,7 @@ const updateOwner = async (organizer, user) => {
                 user_id: user.id
             })
             Object.assign(organizer, response.data)
-            ownerSearch.value = ''
-            ownerSearchResults.value = []
-            activeOwnerSearch.value = null
+            closeOwnerModal()
         }
     } catch (error) {
         console.error('Error updating owner:', error)
@@ -383,6 +438,20 @@ const handleOwnerClickOutside = () => {
 const handleMembersClickOutside = () => {
     activeMembersList.value = null
     showMemberSearchResults.value = false
+}
+
+const closeOwnerModal = () => {
+    showOwnerModal.value = false
+    selectedOrganizer.value = null
+    ownerSearch.value = ''
+    ownerSearchResults.value = []
+}
+
+const closeMembersModal = () => {
+    showMembersModal.value = false
+    selectedOrganizer.value = null
+    newMemberSearch.value = ''
+    memberSearchResults.value = []
 }
 </script>
 

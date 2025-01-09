@@ -1,5 +1,5 @@
 <nav 
-    style="width:100%; margin:auto; height:8rem; z-index: 1001; position: relative;">
+    style="width:100%; margin:auto; height:8rem; z-index: 49; position: relative;">
 	<div 
         style="margin: auto; position: relative; height: 100%; display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; align-items: center; max-width: 1280px; padding: 0 8rem;">
         <div class="inline-block relative leading-none col-span-1 z-40">

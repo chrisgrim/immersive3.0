@@ -26,7 +26,7 @@
                     </svg>
                     <input 
                         ref="loc"
-                        class="relative text-1xl p-8 w-full font-bold z-[1001] bg-transparent focus:border-none placeholder-slate-400"
+                        class="relative text-1xl p-8 w-full font-bold z-40 bg-transparent focus:border-none placeholder-slate-400"
                         v-model="searchInput"
                         placeholder="Search by City"
                         @input="updateLocations"
