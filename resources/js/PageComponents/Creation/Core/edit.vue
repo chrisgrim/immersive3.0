@@ -6,7 +6,7 @@
             <div class="mx-auto flex flex-1 flex-col md:flex-row">
                 <!-- Navigation Sidebar with own scroll -->
                 <div 
-                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full md:w-1/3 md:block" 
+                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full lg-air:w-[31rem] xl-air:w-[50rem] lg-air:block" 
                     :class="{ 'hidden': currentSection }">
                     <div class="flex items-center justify-center">
                         <NavSidebar 
@@ -51,7 +51,7 @@
                     <!-- Scrollable Component Area -->
                     <div class="flex-1 overflow-y-auto">
                         <div 
-                            class="w-full md:w-2/3 mx-auto"
+                            class="w-full xl:w-2/3 mx-auto"
                             :class="currentSection ? 'pt-4 md:pt-40 md:pb-40' : 'pt-20 md:pt-40 md:pb-40'">
                             <div class="p-8">
                                 <component :is="currentComponent" ref="currentComponentRef" />
@@ -61,14 +61,16 @@
                     
                     <!-- Fixed Footer -->
                     <div class="flex border-t border-gray-200 bg-white h-32 justify-end items-center">
-                        <div class="px-8 py-6">
+                        <div class="px-8 py-6 flex gap-4">
+
+                            <!-- Update button -->
                             <button 
                                 @click="saveChanges"
-                                :disabled="isSubmitting"
+                                :disabled="isSubmitting || isSubmittingEvent"
                                 :class="{
                                     'px-6 py-3 rounded-lg transition-colors': true,
                                     'bg-black text-white hover:bg-gray-800': !isSubmitting,
-                                    'bg-gray-300 text-gray-500 cursor-not-allowed': isSubmitting
+                                    'bg-gray-300 text-gray-500 cursor-not-allowed': isSubmitting || isSubmittingEvent
                                 }"
                             >
                                 <div class="flex items-center gap-2">
@@ -94,6 +96,43 @@
                                         />
                                     </svg>
                                     {{ isSubmitting ? 'Updating...' : 'Update' }}
+                                </div>
+                            </button>
+
+                            <!-- Resubmit button -->
+                            <button 
+                                v-if="event.status === 'n'"
+                                @click="submitEvent"
+                                :disabled="isSubmitting || isSubmittingEvent"
+                                :class="{
+                                    'px-6 py-3 rounded-lg transition-colors border border-black': true,
+                                    'bg-white text-black hover:bg-gray-100': !isSubmittingEvent,
+                                    'bg-gray-300 text-gray-500 cursor-not-allowed': isSubmitting || isSubmittingEvent
+                                }"
+                            >
+                                <div class="flex items-center gap-2">
+                                    <svg 
+                                        v-if="isSubmittingEvent"
+                                        class="animate-spin h-5 w-5" 
+                                        xmlns="http://www.w3.org/2000/svg" 
+                                        fill="none" 
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <circle 
+                                            class="opacity-25" 
+                                            cx="12" 
+                                            cy="12" 
+                                            r="10" 
+                                            stroke="currentColor" 
+                                            stroke-width="4"
+                                        />
+                                        <path 
+                                            class="opacity-75" 
+                                            fill="currentColor" 
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                        />
+                                    </svg>
+                                    {{ isSubmittingEvent ? 'Submitting...' : 'Resubmit' }}
                                 </div>
                             </button>
                         </div>
@@ -169,6 +208,7 @@ const event = reactive(props.event);
 const user = reactive(props.user);
 const currentStep = ref('Name'); // Default to Name in edit mode
 const isSubmitting = ref(false);
+const isSubmittingEvent = ref(false);
 const errors = ref({});
 const currentComponentRef = ref(null);
 
@@ -223,7 +263,7 @@ const saveChanges = async () => {
         if (!isValid) return;
 
         const submitData = await currentComponentRef.value.submitData();
-        if (!submitData) return; // Component handled the submission
+        if (!submitData) return;
         
         isSubmitting.value = true;
         const response = await axios.post(`/api/hosting/event/${event.slug}`, submitData);
@@ -281,6 +321,18 @@ provide('errors', errors);
 provide('setComponentReady', (ready) => {
     isComponentReady.value = ready;
 });
+
+const submitEvent = async () => {
+    try {
+        isSubmittingEvent.value = true;
+        const response = await axios.post(`/hosting/event/${event.slug}/submit`);
+        window.location.href = '/hosting/events?submitted=' + encodeURIComponent(event.name);
+    } catch (error) {
+        console.error('Submission error:', error);
+    } finally {
+        isSubmittingEvent.value = false;
+    }
+};
 </script>
 
 <style scoped>

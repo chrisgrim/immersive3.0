@@ -472,8 +472,9 @@ const selectEmbargoDate = (selectedDate) => {
 const confirmEmbargoDate = () => {
     if (tempEmbargoDate.value) {
         const date = new Date(tempEmbargoDate.value);
-        date.setHours(11, 0, 0, 0);
+        date.setUTCHours(12, 0, 0, 0);
         event.embargo_date = date.toISOString().slice(0, 19).replace('T', ' ');
+        console.log('Set embargo_date to:', event.embargo_date);
         showEmbargoModal.value = false;
         tempEmbargoDate.value = null;
     }
@@ -513,6 +514,7 @@ defineExpose({
             show_times: event.show_times,
             embargo_date: event.embargo_date
         };
+        console.log('Submitting data:', data);
         return data;
     }
 });
@@ -586,6 +588,10 @@ const getMonthDate = (offset) => {
     date.setMonth(date.getMonth() + offset);
     return date;
 };
+
+// Add these with your other refs (in section "2. Injected Dependencies & Core State")
+const isDark = ref(false);  // for dark mode state
+const tz = computed(() => selectedTimezone.value);  // use the selected timezone
 </script>
 
 <style>

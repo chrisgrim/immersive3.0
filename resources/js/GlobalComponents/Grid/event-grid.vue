@@ -1,10 +1,21 @@
 <template>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 3xl:grid-cols-4 gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8" 
+         :class="{
+            'lg:grid-cols-2': columns === 2,
+            'lg:grid-cols-3': columns === 3,
+            'lg:grid-cols-3 xl:grid-cols-4': columns === 4,
+            'lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5': columns === 5,
+            '3xl:grid-cols-4': columns === 3
+         }">
         <div 
             v-for="card in items" 
             :key="card.id"
             class="flex flex-col group">
-            <a :href="getUrl(card)" class="block h-full flex flex-col">
+            <a 
+                :href="getUrl(card)" 
+                class="block h-full flex flex-col"
+                @click="(e) => hasClickListener && handleClick(e, card)"
+            >
                 <!-- Event Image Container with 3:4 aspect ratio -->
                 <div class="relative overflow-hidden rounded-2xl bg-gray-100 transition-transform duration-200 ease-in-out group-hover:scale-[1.02]">
                     <div class="pb-[133.33%]"></div>
@@ -27,7 +38,7 @@
                     <button 
                         v-if="card.category"
                         @click.prevent="handleCategoryClick(card.category.id)"
-                        class="mt-6 uppercase text-md font-bold text-left w-auto"
+                        class="mt-6 uppercase text-md font-light text-left w-auto"
                     >
                         {{ card.category.name }}
                     </button>
@@ -46,7 +57,7 @@
 </template>
 
 <script setup>
-import { defineProps, computed } from 'vue'
+import { defineProps, defineEmits, computed } from 'vue'
 
 const props = defineProps({
     items: {
@@ -56,8 +67,24 @@ const props = defineProps({
     user: {
         type: Object,
         default: () => ({})
+    },
+    columns: {
+        type: Number,
+        default: 3,
+        validator: (value) => [2, 3, 4, 5].includes(value)
+    },
+    hasClickListener: {
+        type: Boolean,
+        default: false
     }
 })
+
+const emit = defineEmits(['click:item'])
+
+const handleClick = (event, card) => {
+    event.preventDefault()
+    emit('click:item', card)
+}
 
 const imageUrl = computed(() => import.meta.env.VITE_IMAGE_URL)
 

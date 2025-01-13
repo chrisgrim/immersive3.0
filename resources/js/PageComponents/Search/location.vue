@@ -11,10 +11,12 @@
                 
                 <div class="w-full">     
                     <div class="px-8">
-                        <EventList 
+                        <EventList
                             v-if="events.data.length"
+                            :items="events.data"
                             :user="user"
-                            :items="events.data" />
+                            :columns="4"
+                        />
                         <div class="mt-6">
                             <Pagination 
                                 v-if="events"
@@ -38,7 +40,7 @@
 <script setup>
 import { ref, defineProps, onMounted, watch, onUnmounted } from 'vue'
 import Nav from './Components/nav.vue'
-import EventList from './Components/album.vue'
+import EventList from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 import Map from './Components/map.vue'
 import axios from 'axios'

@@ -1,6 +1,6 @@
 <template>
     <div>
-        <div class="m-auto w-full px-8 my-32 lg-air:px-16 xl-air:px-32">
+        <div class="m-auto w-full px-8 my-32 lg-air:px-16 2xl-air:px-32">
             <div class="flex items-center justify-between gap-8">
                 <div class="w-2/3">
                     <div class="w-full">

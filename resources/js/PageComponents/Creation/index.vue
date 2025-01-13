@@ -316,6 +316,12 @@ const viewEvent = (event) => {
 };
 
 const editEvent = (event) => {
+	console.log('editEvent called with:', {
+		event: event,
+		status: event.status,
+		notes: event.notes
+	});
+
 	if (event.status === 'r') {
 		alert('This event is under review and cannot be edited.');
 		return;
@@ -323,7 +329,10 @@ const editEvent = (event) => {
 	
 	// Get the status info to determine the correct view
 	const statusInfo = getStatusInfo(event, cleanDate);
+	console.log('statusInfo:', statusInfo);
+
 	const editUrl = statusInfo.url || `/hosting/event/${event.slug}/edit`;
+	console.log('Final editUrl:', editUrl);
 	
 	window.location.href = editUrl;
 };
@@ -355,11 +364,17 @@ const eventPassed = (event) => {
 };
 
 const getStatusInfo = (event, cleanDateFn) => {
+	console.log('getStatusInfo called with:', {
+		event: event,
+		status: event.status,
+		notes: event.notes
+	});
+
 	if (eventPassed(event)) {
 		return { color: 'bg-slate-200', progress: 'event has no more dates', url: `/hosting/event/${event.slug}/edit` };
 	}
 
-	// Map status codes to steps and their info - adjusted to match new order
+	// Map status codes to steps and their info
 	const statusInfo = {
 		'0': { color: 'bg-orange-400', progress: 'add event type', view: 'EventType' },
 		'1': { color: 'bg-orange-400', progress: 'add category', view: 'Category' },
@@ -377,20 +392,24 @@ const getStatusInfo = (event, cleanDateFn) => {
 		'p': { color: 'bg-green-500', progress: 'approved', url: `/hosting/event/${event.slug}/edit` },
 		'e': { color: 'bg-green-500', progress: `event live at ${cleanDateFn(event.embargo_date)}`, url: `/hosting/event/${event.slug}/edit` },
 		'r': { color: 'bg-black', progress: 'under moderator review', url: null },
-		'n': { color: 'bg-red-500', progress: 'revise and resubmit', view: 'Review' }
+		'n': { color: 'bg-red-500', progress: 'revise and resubmit', url: `/hosting/event/${event.slug}/edit` },
 	};
 
 	const info = statusInfo[event.status] || { color: 'bg-white', progress: '-', view: 'EventType' };
+	console.log('Selected status info:', info);
 	
 	// If there's a direct URL, use it, otherwise construct the edit URL with query parameter
 	if (info.url) {
+		console.log('Using direct URL:', info.url);
 		return info;
 	}
 
-	return {
+	const result = {
 		...info,
 		url: `/hosting/event/${event.slug}/edit?view=${info.view}`
 	};
+	console.log('Constructed URL result:', result);
+	return result;
 };
 
 const cleanDate = (data) => dayjs(data).format("MMM DD, YYYY");

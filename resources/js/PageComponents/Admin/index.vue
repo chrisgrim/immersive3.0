@@ -5,7 +5,7 @@
             <div class="w-full flex flex-1 flex-col md:flex-row">
                 <!-- Navigation Sidebar -->
                 <div 
-                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full md:w-1/5 md:block" 
+                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full lg:w-[31rem] lg:block" 
                     :class="{ 'hidden': currentView }">
 
                     <div class="p-8 space-y-6">
@@ -13,10 +13,58 @@
                         <div class="nav-section">
                             <h2 class="text-4xl font-medium mb-6">Approval Queue</h2>
                             <ul class="space-y-2">
-                                <li><a @click="handleNavigation('approve-events')" :class="['nav-link', currentView === 'approve-events' ? 'bg-blue-50 text-blue-600' : '']">Events</a></li>
-                                <li><a @click="handleNavigation('approve-organizers')" :class="['nav-link', currentView === 'approve-organizers' ? 'bg-blue-50 text-blue-600' : '']">Organizers</a></li>
-                                <li><a @click="handleNavigation('approve-communities')" :class="['nav-link', currentView === 'approve-communities' ? 'bg-blue-50 text-blue-600' : '']">Communities</a></li>
-                                <li><a @click="handleNavigation('approve-requests')" :class="['nav-link', currentView === 'approve-requests' ? 'bg-blue-50 text-blue-600' : '']">Requests</a></li>
+                                <li>
+                                    <a @click="handleNavigation('approve-events')" 
+                                       :class="['nav-link', currentView === 'approve-events' ? 'bg-blue-50 text-blue-600' : '']"
+                                    >
+                                        <div class="flex items-center justify-between">
+                                            <span>Events</span>
+                                            <span v-if="counts.events > 0" 
+                                                  class="bg-red-500 text-white text-sm px-2 py-1 rounded-full">
+                                                {{ counts.events }}
+                                            </span>
+                                        </div>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a @click="handleNavigation('approve-organizers')" 
+                                       :class="['nav-link', currentView === 'approve-organizers' ? 'bg-blue-50 text-blue-600' : '']"
+                                    >
+                                        <div class="flex items-center justify-between">
+                                            <span>Organizers</span>
+                                            <span v-if="counts.organizers > 0" 
+                                                  class="bg-red-500 text-white text-sm px-2 py-1 rounded-full">
+                                                {{ counts.organizers }}
+                                            </span>
+                                        </div>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a @click="handleNavigation('approve-communities')" 
+                                       :class="['nav-link', currentView === 'approve-communities' ? 'bg-blue-50 text-blue-600' : '']"
+                                    >
+                                        <div class="flex items-center justify-between">
+                                            <span>Communities</span>
+                                            <span v-if="counts.communities > 0" 
+                                                  class="bg-red-500 text-white text-sm px-2 py-1 rounded-full">
+                                                {{ counts.communities }}
+                                            </span>
+                                        </div>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a @click="handleNavigation('approve-requests')" 
+                                       :class="['nav-link', currentView === 'approve-requests' ? 'bg-blue-50 text-blue-600' : '']"
+                                    >
+                                        <div class="flex items-center justify-between">
+                                            <span>Requests</span>
+                                            <span v-if="counts.requests > 0" 
+                                                  class="bg-red-500 text-white text-sm px-2 py-1 rounded-full">
+                                                {{ counts.requests }}
+                                            </span>
+                                        </div>
+                                    </a>
+                                </li>
                             </ul>
                         </div>
 
@@ -76,13 +124,14 @@
 
                     <!-- Component Content Area -->
                     <div class="flex-1 min-w-0 overflow-hidden z-50 md:z-0 bg-white">
-                        <div class="p-8 h-full">
+                        <div class="h-full">
                             <component 
                                 :is="currentComponent"
                                 :event="selectedEvent"
                                 @select-event="handleEventSelect"
                                 @approved="clearSelectedEvent"
                                 @rejected="clearSelectedEvent"
+                                @update-counts="fetchCounts"
                             ></component>
                         </div>
                     </div>
@@ -112,19 +161,28 @@ import axios from 'axios'
 const isMobile = ref(false)
 const currentView = ref(null)
 const selectedEvent = ref(null)
+const counts = ref({
+    events: 0,
+    organizers: 0,
+    communities: 0,
+    requests: 0
+})
 
 const checkMobile = () => {
     isMobile.value = window.innerWidth < 768
 }
 
 const handleNavigation = (view) => {
+    selectedEvent.value = null
     if (view) {
         const url = new URL(window.location)
         url.searchParams.set('view', view)
+        url.searchParams.delete('eventId')
         window.history.pushState({}, '', url)
     } else {
         const url = new URL(window.location)
         url.searchParams.delete('view')
+        url.searchParams.delete('eventId')
         window.history.pushState({}, '', url)
     }
     currentView.value = view
@@ -159,11 +217,22 @@ const clearSelectedEvent = () => {
 
 const fetchEvent = async (eventId) => {
     try {
-        const response = await axios.get(`/api/admin/events/${eventId}`)
-        selectedEvent.value = response.data
+        const response = await axios.get(`/api/admin/events/${eventId}`);
+        selectedEvent.value = {
+            ...response.data.event,
+            duplicateEvents: response.data.duplicateEvents
+        };
     } catch (error) {
-        console.error('Error fetching event:', error)
-        // Handle error appropriately
+        console.error('Error fetching event:', error);
+    }
+};
+
+const fetchCounts = async () => {
+    try {
+        const response = await axios.get('/api/admin/approval-counts')
+        counts.value = response.data
+    } catch (error) {
+        console.error('Error fetching approval counts:', error)
     }
 }
 
@@ -182,6 +251,12 @@ onMounted(() => {
     if (eventId) {
         fetchEvent(eventId)
     }
+
+    fetchCounts()
+    const countInterval = setInterval(fetchCounts, 60000)
+    onUnmounted(() => {
+        clearInterval(countInterval)
+    })
 })
 
 onUnmounted(() => {

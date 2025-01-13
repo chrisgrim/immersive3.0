@@ -1,6 +1,6 @@
 <template>
     <div class="my-8 md:mt-16 md:mb-24 pb-16 bg-slate-100">
-        <div class="justify-between flex px-8 lg-air:px-16 xl-air:px-32 my-8 lg:my-12">
+        <div class="justify-between flex px-8 lg-air:px-16 2xl-air:px-32 my-8 lg:my-12">
             <div v-if="shelf.name" class="mt-8 mb-8 md:mt-24">
                 <div>
                     <h2 class="text-5xl text-black font-bold">{{ shelf.name }}</h2>

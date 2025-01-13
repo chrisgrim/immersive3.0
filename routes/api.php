@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\AdminReviewController;
 use App\Http\Controllers\Admin\AdminPicksController;
 use App\Http\Controllers\Admin\AdminDocksController;
 use App\Http\Controllers\Admin\AdminRequestsController;
+use App\Http\Controllers\Admin\DashboardController;
 
 // Controller Imports - Other
 use App\Http\Controllers\Creation\HostEventController;
@@ -34,6 +35,9 @@ use App\Models\Events\{
     MobilityAdvisory,
     InteractiveLevel
 };
+
+// Cached Data Routes
+use App\Http\Controllers\Api\CachedDataController;
 
 /*
 |--------------------------------------------------------------------------
@@ -76,6 +80,7 @@ Route::controller(SearchController::class)->group(function () {
 */
 
 Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
+    Route::get('/approval-counts', [DashboardController::class, 'getApprovalCounts']);
     
     // Approval Routes
     Route::prefix('approve')->group(function () {
@@ -182,5 +187,9 @@ Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
         Route::post('/docks/{dock}/shelves', 'toggleShelf');
     });
 });
+
+// Cached Data Routes
+Route::get('/categories/active/cached', [CachedDataController::class, 'getActiveCategories']);
+Route::get('/genres/active/cached', [CachedDataController::class, 'getActiveGenres']);
 
 

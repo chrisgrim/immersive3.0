@@ -71,7 +71,7 @@
                 </div>
             @endif
 
-            <div class="max-w-screen-2xl relative h-full m-auto px-8 lg-air:px-16 xl-air:px-32">
+            <div class="max-w-screen-2xl relative h-full m-auto px-8 lg-air:px-16 2xl-air:px-32">
                 @if($dock->type === 'i')
                     @include('Curated.icon')
                 @endif
@@ -99,18 +99,18 @@
 
     <div>
         @if(isset($staffpicks) && count($staffpicks))
-            <section id="staffpicks" class="max-w-screen-2xl relative h-full m-auto px-8 lg-air:px-16 xl-air:px-32">
+            <section id="staffpicks" class="max-w-screen-2xl relative h-full m-auto px-8 lg-air:px-16 2xl-air:px-32">
                 <vue-staff-picks :staffpicks="{{ json_encode($staffpicks) }}"></vue-staff-picks>
             </section>
         @endif
 
-        <section id="partners" class="max-w-screen-2xl relative h-full m-auto px-8 lg-air:px-16 xl-air:px-32">
+        <section id="partners" class="max-w-screen-2xl relative h-full m-auto px-8 lg-air:px-16 2xl-air:px-32">
             <div class="my-8 md:mt-16 md:mb-24">
                 <vue-partners></vue-partners>
             </div>
         </section>
 
-        <section class="max-w-screen-2xl relative h-full m-auto px-8 lg-air:px-16 xl-air:px-32">
+        <section class="max-w-screen-2xl relative h-full m-auto px-8 lg-air:px-16 2xl-air:px-32">
             <div class="my-8 md:mt-16 md:mb-24">
                 <div class="flex flex-col items-center min-h-[26rem] justify-center">
                     <h3>Read The 2020 Immersive Entertainment Industry Annual Report</h3>

@@ -47,7 +47,7 @@
 @endsection
 
 @section('content')
-<div class="max-w-screen-xl-air mx-auto py-36">
+<div class="max-w-screen-2xl-air mx-auto py-36">
     {{-- Header Section - Narrow --}}
     <div class="w-full lg:w-1/2 mx-auto px-8">
         {{-- Post Header --}}

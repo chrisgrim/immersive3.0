@@ -1,5 +1,5 @@
 <template>
-    <div class="max-w-screen-xl-air mx-auto">
+    <div class="max-w-screen-2xl-air mx-auto">
         <div class="w-full lg:w-1/2 mx-auto px-4">
             <div class="my-8 pb-80 relative ">
                 <div class="flex gap-8 mt-4 px-4 mb-16">

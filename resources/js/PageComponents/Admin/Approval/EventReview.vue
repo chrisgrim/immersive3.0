@@ -1,278 +1,426 @@
 <template>
-    <main class="w-full min-h-fit">
-        <div class="flex flex-col w-full">
-            <h2>Review Event</h2>
+    <div class="h-[calc(100vh-12rem)] flex flex-col md:h-[calc(100vh-12rem)] max-h-[calc(100vh-10rem)]">
+        <!-- Fixed Header Section -->
+        <div class="flex-none px-8">
+            <h2 class="text-2xl font-bold mb-6">Review Event</h2>
+        </div>
 
-            <!-- Main Content -->
-            <div class="gap-8 mt-8">
-                <!-- Images Section -->
-                <div class="grid gap-4">
-                    <!-- Single Image -->
-                    <div v-if="event.images?.length === 1" 
-                         class="aspect-[3/2] w-full overflow-hidden md:rounded-xl">
-                        <img :src="imageUrl + event.images[0].large_image_path"
-                             :alt="`${event.name} Immersive Event - Main Image`"
-                             class="w-full h-full object-cover"
-                        />
-                    </div>
-
-                    <!-- Multiple Images -->
-                    <div v-else 
-                         class="grid gap-2 md:rounded-xl overflow-hidden grid-cols-2"
-                         :class="{
-                            'grid-cols-2': event.images?.length === 2,
-                            'grid-cols-[2fr_1fr]': event.images?.length === 3,
-                            'grid-cols-2': event.images?.length >= 4
-                         }">
-                        <!-- Left Side -->
-                        <div v-if="event.images?.length >= 4" class="grid gap-2 overflow-hidden">
-                            <div class="aspect-[3/2]">
-                                <img :src="imageUrl + event.images[0].large_image_path"
-                                     :alt="`${event.name} Immersive Event - Main Image`"
-                                     class="w-full h-full object-cover"
-                                />
-                            </div>
-                            <div v-if="event.images?.length === 4" class="aspect-[3/2]">
-                                <img :src="imageUrl + event.images[1].large_image_path"
-                                     :alt="`${event.name} Immersive Event - Image 2`"
-                                     class="w-full h-full object-cover"
-                                />
-                            </div>
-                        </div>
-                        <div v-else class="aspect-[3/2]">
-                            <img :src="imageUrl + event.images[0].large_image_path"
-                                 :alt="`${event.name} Immersive Event - Main Image`"
-                                 class="w-full h-full object-cover"
-                            />
-                        </div>
-
-                        <!-- Right Side -->
-                        <div v-if="event.images?.length === 2" class="aspect-[3/2]">
-                            <img :src="imageUrl + event.images[1].large_image_path"
-                                 :alt="`${event.name} Immersive Event - Image 2`"
-                                 class="w-full h-full object-cover"
-                            />
-                        </div>
-                        <div v-else-if="event.images?.length === 3" class="grid gap-2">
-                            <div v-for="(image, key) in event.images.slice(1)" 
-                                 :key="image.id"
-                                 class="aspect-[3/2]">
-                                <img :src="imageUrl + image.large_image_path"
-                                     :alt="`${event.name} Immersive Event - Image ${key + 2}`"
-                                     class="w-full h-full object-cover"
-                                />
-                            </div>
-                        </div>
-                        <div v-else-if="event.images?.length === 4" class="grid gap-2">
-                            <div v-for="(image, key) in event.images.slice(2)" 
-                                 :key="image.id"
-                                 class="aspect-[3/2]">
-                                <img :src="imageUrl + image.large_image_path"
-                                     :alt="`${event.name} Immersive Event - Image ${key + 3}`"
-                                     class="w-full h-full object-cover"
-                                />
-                            </div>
-                        </div>
-                        <div v-else-if="event.images?.length === 5" class="grid grid-cols-2 gap-2">
-                            <div v-for="(image, key) in event.images.slice(1, 5)" 
-                                 :key="image.id">
-                                <img :src="imageUrl + image.large_image_path"
-                                     :alt="`${event.name} Immersive Event - Image ${key + 2}`"
-                                     class="w-full h-full object-cover"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Event Details -->
-                <div class="w-full mt-8">
-                    <h2 class="text-4xl">Name:</h2>
-                    <p class="2xl">{{ event.name }}</p>
-                    <p class="text-gray-500 font-normal">{{ event.tag_line }}</p>
-                    
-                    <!-- Description -->
-                    <div class="mt-8">
-                        <p class="font-semibold">Description</p>
-                        <p class="text-gray-500 font-normal whitespace-pre-line">{{ event.description }}</p>
-                    </div>
-
-                    <!-- Embargo Date -->
-                    <div v-if="event.embargo_date" class="mt-8">
-                        <p class="font-semibold">Goes Live</p>
-                        <p class="text-gray-500 font-normal">
-                            {{ formatEmbargoDate(event.embargo_date) }}
-                        </p>
+        <!-- After Fixed Header Section and before Scrollable Content Section -->
+        <div v-if="props.event?.duplicateEvents?.length" class="flex-none px-8 mb-4">
+            <div class="p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+                <h3 class="text-yellow-800 font-semibold mb-2">⚠️ Possible Duplicate Events Found:</h3>
+                <div class="space-y-2">
+                    <div v-for="duplicate in props.event.duplicateEvents" 
+                         :key="duplicate.id" 
+                         class="flex items-center justify-between">
+                        <span class="text-yellow-700">{{ duplicate.name }}</span>
+                        <a :href="`/events/${duplicate.slug}`" 
+                           target="_blank"
+                           class="text-blue-600 hover:text-blue-800 underline">
+                            View Event
+                        </a>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Location Section -->
-            <div class="mt-12 border-t pt-8">
-                <div v-if="event.hasLocation">
-                    <h2 class="text-4xl">Location:</h2>
-                    <p class="text-gray-500 font-normal">{{ event.location.venue }}</p>
-                    <p class="text-gray-500 font-normal">{{ event.location.street }}</p>
-                    <p class="text-gray-500 font-normal">{{ event.location.city }}, {{ event.location.region }} {{ event.location.postal_code }}</p>
-                </div>
-                <div v-else>
-                    <h2 class="text-4xl">Remote:</h2>
-                    <div class="flex flex-wrap gap-4 mt-1">
-                        <div v-for="location in event.remotelocations" 
-                             :key="location.id" 
-                             class="text-gray-500 font-normal border border-gray-300 rounded-lg px-4 py-2">
-                            {{ location.name }}
+        <!-- Scrollable Content Section -->
+        <div class="flex-1 overflow-auto">
+            <div class="max-w-screen-xl mx-auto px-8 pt-8">
+                <div class="w-full md:w-[61rem] mx-auto pb-24 space-y-8">
+                    <!-- Images Section -->
+                    <div v-if="props.event?.images?.length" class="p-8 shadow-custom-1 rounded-3xl">
+                        <div class="grid gap-4">
+                            <!-- Single Image -->
+                            <div v-if="props.event?.images?.length === 1" 
+                                 class="aspect-[3/4] w-[30rem] overflow-hidden rounded-xl">
+                                <img :src="imageUrl + props.event?.images[0].large_image_path"
+                                     :alt="`${props.event?.name} Immersive Event - Main Image`"
+                                     class="w-full h-full object-cover"
+                                />
+                            </div>
+
+                            <!-- Multiple Images -->
+                            <div v-else 
+                                 class="grid gap-2 rounded-xl overflow-hidden"
+                                 :class="{
+                                     'grid-cols-3': props.event?.images?.length === 2 || props.event?.images?.length > 3,
+                                     'grid-cols-2': props.event?.images?.length === 3
+                                 }">
+                                <!-- First Image -->
+                                <div v-if="props.event?.images?.length === 2" 
+                                     class="col-span-1 h-full">
+                                    <img :src="imageUrl + props.event?.images[0].large_image_path"
+                                         :alt="`${props.event?.name} Immersive Event - Main Image`"
+                                         class="w-full h-full object-cover rounded-lg"
+                                    />
+                                </div>
+
+                                <!-- Right Side Image (for 2 images) -->
+                                <template v-if="props.event?.images?.length === 2">
+                                    <div class="col-span-2 h-full">
+                                        <img :src="imageUrl + props.event?.images[1].large_image_path"
+                                             :alt="`${props.event?.name} Immersive Event - Image 2`"
+                                             class="w-full h-full object-cover rounded-lg"
+                                        />
+                                    </div>
+                                </template>
+
+                                <!-- First Image (for 3 images) -->
+                                <div v-if="props.event?.images?.length === 3" 
+                                     class="h-full">
+                                    <img :src="imageUrl + props.event?.images[0].large_image_path"
+                                         :alt="`${props.event?.name} Immersive Event - Main Image`"
+                                         class="w-full h-full object-cover rounded-lg"
+                                    />
+                                </div>
+
+                                <!-- Special 3-image layout -->
+                                <template v-if="props.event?.images?.length === 3">
+                                    <div class="grid grid-rows-2 gap-2 h-full">
+                                        <div class="aspect-[3/2]">
+                                            <img :src="imageUrl + props.event?.images[1].large_image_path"
+                                                 :alt="`${props.event?.name} Immersive Event - Image 2`"
+                                                 class="w-full h-full object-cover rounded-lg"
+                                            />
+                                        </div>
+                                        <div class="aspect-[3/2]">
+                                            <img :src="imageUrl + props.event?.images[2].large_image_path"
+                                                 :alt="`${props.event?.name} Immersive Event - Image 3`"
+                                                 class="w-full h-full object-cover rounded-lg"
+                                            />
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- 4+ images layout -->
+                                <template v-else-if="props.event?.images?.length > 3">
+                                    <!-- First Column (1/3 width) -->
+                                    <div class="col-span-1 h-full">
+                                        <img :src="imageUrl + props.event?.images[0].large_image_path"
+                                             :alt="`${props.event?.name} Immersive Event - Main Image`"
+                                             class="w-full h-full object-cover rounded-lg"
+                                        />
+                                    </div>
+
+                                    <!-- Second Column (2/3 width) -->
+                                    <div class="col-span-2 grid grid-cols-2 grid-rows-2 gap-2">
+                                        <div v-for="index in Math.min(4, props.event?.images.length - 1)" 
+                                             :key="index"
+                                             class="aspect-[3/2]">
+                                            <img :src="imageUrl + props.event?.images[index].large_image_path"
+                                                 :alt="`${props.event?.name} Immersive Event - Image ${index + 1}`"
+                                                 class="w-full h-full object-cover rounded-lg"
+                                            />
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- Categories and Genres Section -->
-            <div class="mt-12 border-t pt-8">
-                <h2 class="text-4xl">Categories & Genres:</h2>
-                <div class="grid grid-cols-2 gap-8 mt-4">
-                    <div>
-                        <p class="font-semibold">Category</p>
-                        <p class="text-gray-500 font-normal">{{ event.category?.name }}</p>
+                    <!-- After Images Section -->
+                    <div v-if="props.event?.youtube_url" class="p-8 shadow-custom-1 rounded-3xl">
+                        <h3 class="text-xl font-semibold mb-4">Video</h3>
+                        <div class="relative w-full" style="padding-top: 56.25%"> <!-- 16:9 Aspect Ratio -->
+                            <iframe
+                                :src="getYoutubeEmbedUrl(props.event.youtube_url)"
+                                class="absolute top-0 left-0 w-full h-full rounded-xl"
+                                frameborder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowfullscreen
+                            ></iframe>
+                        </div>
                     </div>
-                    <div>
-                        <p class="font-semibold">Genres</p>
-                        <div class="flex flex-wrap gap-4 mt-1">
-                            <div v-for="genre in event.genres" 
-                                 :key="genre.id" 
-                                 class="text-gray-500 font-normal border border-gray-300 rounded-lg px-4 py-2">
+
+                    <!-- Add after Images Section and before Name & Description -->
+                    <div v-if="props.event?.video" class="p-8 shadow-custom-1 rounded-3xl">
+                        <div class="relative w-full aspect-video">
+                            <iframe
+                                :src="`https://www.youtube.com/embed/${props.event.video}`"
+                                class="absolute top-0 left-0 w-full h-full rounded-xl"
+                                frameborder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowfullscreen
+                            ></iframe>
+                        </div>
+                    </div>
+
+                    <!-- Name & Description -->
+                    <div class="p-8 shadow-custom-1 rounded-3xl">
+                        <h3 class="text-5xl leading-tight font-semibold mb-3">{{ props.event?.name }}</h3>
+                        <p class="text-1xl mb-16">{{ props.event?.tag_line }}</p>
+                        <p class="text-regular whitespace-pre-line">{{ props.event?.description }}</p>
+                    </div>
+
+                    <!-- Organizer Section -->
+                    <div class="p-8 shadow-custom-1 rounded-3xl">
+                        <h3 class="text-xl font-semibold mb-4">Event Organizer:</h3>
+                        <div class="flex flex-col gap-4">
+                            <!-- Organizer Header -->
+                            <div class="flex items-center">
+                                <div v-if="props.event?.organizer?.largeImagePath" class="flex-shrink-0">
+                                    <img 
+                                        :src="`${imageUrl}${props.event.organizer.largeImagePath}`"
+                                        :alt="props.event?.organizer?.name"
+                                        class="w-16 h-16 rounded-full object-cover"
+                                    />
+                                </div>
+                                <div class="flex-grow mt-4">
+                                    <h4 class="text-4xl font-medium">{{ props.event?.organizer?.name }}</h4>
+                                    <p class="text-gray-600 text-xl">Created: {{ formatDate(props.event?.organizer?.created_at) }}</p>
+                                </div>
+                            </div>
+
+                            <!-- Description -->
+                            <div v-if="props.event?.organizer?.description" class="mt-2">
+                                <p class="text-gray-700 whitespace-pre-line">{{ props.event?.organizer?.description }}</p>
+                            </div>
+
+                            <!-- Social Links -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                <!-- Website -->
+                                <a v-if="props.event?.organizer?.website" 
+                                   :href="props.event.organizer.website"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="flex items-center gap-4 px-4 py-3 border border-neutral-300 rounded-2xl hover:border-black group">
+                                    <div class="w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                        <component :is="RiSearchLine" class="w-6 h-6 text-neutral-700" />
+                                    </div>
+                                    <span class="truncate">{{ props.event.organizer.website }}</span>
+                                </a>
+
+                                <!-- Twitter -->
+                                <a v-if="props.event?.organizer?.twitterHandle" 
+                                   :href="`https://twitter.com/${props.event.organizer.twitterHandle}`"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="flex items-center gap-4 px-4 py-3 border border-neutral-300 rounded-2xl hover:border-black group">
+                                    <div class="w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                        <component :is="RiTwitterLine" class="w-6 h-6 text-neutral-700" />
+                                    </div>
+                                    <span class="truncate">@{{ props.event.organizer.twitterHandle }}</span>
+                                </a>
+
+                                <!-- Instagram -->
+                                <a v-if="props.event?.organizer?.instagramHandle" 
+                                   :href="`https://instagram.com/${props.event.organizer.instagramHandle}`"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="flex items-center gap-4 px-4 py-3 border border-neutral-300 rounded-2xl hover:border-black group">
+                                    <div class="w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                        <component :is="RiInstagramLine" class="w-6 h-6 text-neutral-700" />
+                                    </div>
+                                    <span class="truncate">@{{ props.event.organizer.instagramHandle }}</span>
+                                </a>
+
+                                <!-- Facebook -->
+                                <a v-if="props.event?.organizer?.facebookHandle" 
+                                   :href="`https://facebook.com/${props.event.organizer.facebookHandle}`"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="flex items-center gap-4 px-4 py-3 border border-neutral-300 rounded-2xl hover:border-black group">
+                                    <div class="w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                        <component :is="RiFacebookBoxLine" class="w-6 h-6 text-neutral-700" />
+                                    </div>
+                                    <span class="truncate">{{ props.event.organizer.facebookHandle }}</span>
+                                </a>
+
+                                <!-- Patreon -->
+                                <a v-if="props.event?.organizer?.patreon" 
+                                   :href="`https://patreon.com/${props.event.organizer.patreon}`"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="flex items-center gap-4 px-4 py-3 border border-neutral-300 rounded-2xl hover:border-black group">
+                                    <div class="w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                        <component :is="RiPatreonLine" class="w-6 h-6 text-neutral-700" />
+                                    </div>
+                                    <span class="truncate">{{ props.event.organizer.patreon }}</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Location -->
+                    <div class="p-8 shadow-custom-1 rounded-3xl">
+                        <h3 class="text-xl font-semibold mb-4">
+                            {{ props.event?.hasLocation ? 'Location:' : 'Remote Event:' }}
+                        </h3>
+                        <div v-if="props.event?.hasLocation">
+                            <div class="mb-4">
+                                <p class="text-black font-medium mb-4">{{ props.event?.location.venue }}</p>
+                                <p class="text-neutral-500 font-normal text-1xl leading-tight">{{ props.event?.location.street }}</p>
+                                <p class="text-neutral-500 font-normal text-1xl leading-tight">{{ props.event?.location.city }}, {{ props.event?.location.region }} {{ props.event?.location.postal_code }}</p>
+                            </div>
+                            <!-- Map -->
+                            <div class="w-full h-60 rounded-lg overflow-hidden">
+                                <l-map 
+                                    ref="locationMapRef"
+                                    :zoom="map.zoom" 
+                                    :center="map.center"
+                                    :style="{
+                                        height: '100%',
+                                        width: '100%'
+                                    }"
+                                    @ready="onMapReady"
+                                    :options="{ 
+                                        scrollWheelZoom: false, 
+                                        zoomControl: false,
+                                        dragging: false,
+                                        touchZoom: false,
+                                        doubleClickZoom: false,
+                                        boxZoom: false,
+                                        tap: false
+                                    }"
+                                >
+                                    <l-tile-layer :url="map.url" />
+                                    <l-marker 
+                                        :lat-lng="map.center"
+                                        :icon="icon"
+                                    />
+                                </l-map>
+                            </div>
+                        </div>
+                        <div v-else>
+                            <p class="font-medium mb-4">Available Platforms</p>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                <div v-for="location in props.event?.remotelocations" 
+                                     :key="location.id"
+                                     class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl">
+                                    {{ location.name }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Category & Genres -->
+                    <div class="p-8 shadow-custom-1 rounded-3xl">
+                        <h3 class="text-xl font-semibold mb-4">Category:</h3>
+                        <div class="flex gap-4 mb-4">
+                            <img 
+                                v-if="categoryImagePath"
+                                :src="categoryImagePath"
+                                class="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                                :alt="props.event?.category?.name"
+                            />
+                            <div class="flex-1 min-w-0 justify-center flex flex-col">
+                                <p class="text-gray-600 mb-2">{{ props.event?.category?.name }}</p>
+                                <p class="text-gray-500 text-sm">{{ props.event?.subcategory?.name }}</p>
+                            </div>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-4 mt-16">Tags:</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mt-8">
+                            <div v-for="genre in props.event?.genres" 
+                                 :key="genre.id"
+                                 class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-1xl">
                                 {{ genre.name }}
                             </div>
-                            <p v-if="!event.genres?.length" class="text-gray-500 font-normal">
-                                No genres set
+                        </div>
+                    </div>
+
+                    <!-- Shows & Tickets -->
+                    <div class="p-8 shadow-custom-1 rounded-3xl">
+                        <h3 class="text-xl font-semibold mb-4">Dates:</h3>
+                        <div class="flex justify-between items-center mb-4">
+                            <p class="text-gray-600">{{ formatDateRange(props.event?.shows) }}</p>
+                            <p class="text-gray-600">{{ props.event?.shows?.length || 0 }} show{{ props.event?.shows?.length !== 1 ? 's' : '' }}</p>
+                        </div>
+                        
+                        <!-- Add Embargo Date Display -->
+                        <div v-if="props.event?.embargo_date" class="mt-4 mb-8 p-4 bg-yellow-50 rounded-xl">
+                            <p class="text-yellow-800">
+                                <span class="font-semibold">⚠️ Embargoed until:</span> 
+                                {{ formatEmbargoDate(props.event.embargo_date) }}
                             </p>
                         </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Shows & Tickets Section -->
-            <div class="mt-12 border-t pt-8">
-                <h2 class="text-4xl">Shows:</h2>
-                <div class="grid grid-cols-2 gap-8 mt-12">
-                    <div>
-                        <p class="font-semibold">Date Range</p>
-                        <p class="text-gray-500 font-normal">{{ formatDateRange(event.shows) }}</p>
+                        <h3 class="text-xl font-semibold mb-4 mt-16">Tickets:</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div v-for="ticket in props.event?.shows?.[0]?.tickets" 
+                                 :key="ticket.id"
+                                 class="flex flex-col border border-neutral-300 rounded-2xl">
+                                <p class="px-4 pt-4 text-1xl font-semibold">{{ ticket.name }}</p>
+                                <div class="flex-grow flex flex-col justify-end px-4 pb-4">
+                                    <p class="text-1xl font-semibold mt-14 leading-tight">${{ ticket.ticket_price }}</p>
+                                    <p v-if="ticket.description" class="text-lg text-gray-600 leading-tight">
+                                        {{ ticket.description }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-16">
+                            <h3 class="text-xl font-semibold mb-4">Ticket Link:</h3>
+                            <a v-if="props.event?.ticketUrl"
+                                :href="props.event?.ticketUrl"
+                                target="_blank"
+                                rel="nofollow noopener"
+                                class="text-blue-600 hover:text-blue-800 text-1xl">
+                                {{ props.event?.ticketUrl}}
+                            </a>
+                        </div>
                     </div>
-                    <div>
-                        <p class="font-semibold">Number of Shows</p>
-                        <p class="text-gray-500 font-normal">
-                            {{ event.showtype === 'a' ? 'Always available' : `${event.shows?.length || 0} shows` }}
-                        </p>
-                    </div>
-                    <div>
-                        <p class="font-semibold">Tickets</p>
-                        <div class="flex flex-row gap-2">
-                            <template v-if="event.shows?.length && event.shows[0].tickets?.length">
-                                <p v-for="ticket in event.shows[0].tickets" 
-                                   :key="ticket.id" 
-                                   class="text-gray-500 font-normal border border-gray-300 p-4 rounded-lg">
-                                    {{ ticket.name }}<br> 
-                                    ${{ ticket.ticket_price }}<br>
-                                    <span class="text-1xl">{{ ticket.description }}</span>
-                                </p>
-                            </template>
-                            <p v-else class="text-gray-500 font-normal">
-                                No tickets set
-                            </p>
+
+                    <!-- Advisories -->
+                    <div class="p-8 shadow-custom-1 rounded-3xl">
+                        <h3 class="text-xl font-semibold mb-4">Advisories:</h3>
+                        <div class="space-y-8">
+                            <!-- Audience -->
+                            <div v-if="props.event?.advisories?.audience">
+                                <p class="font-medium mb-4">Audience</p>
+                                <p class="text-neutral-700 text-1xl whitespace-pre-line">{{ props.event?.advisories?.audience }}</p>
+                            </div>
+
+                            <!-- Content Advisories -->
+                            <div>
+                                <p class="font-medium mb-4">Content Advisories</p>
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    <div v-for="advisory in props.event?.content_advisories" 
+                                         :key="advisory.id"
+                                         class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl">
+                                        {{ advisory.name }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Mobility Advisories -->
+                            <div>
+                                <p class="font-medium mb-4">Mobility Advisories</p>
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    <div v-for="advisory in props.event?.mobility_advisories" 
+                                         :key="advisory.id"
+                                         class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl">
+                                        {{ advisory.name }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Interaction Level -->
+                            <div>
+                                <p class="font-medium mb-4">Interaction Level</p>
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    <div class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl">
+                                        {{ props.event?.interactive_level?.name }}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Advisories Section -->
-            <div class="mt-12 border-t pt-8">
-                <h2 class="text-4xl">Advisories:</h2>
-                <div class="grid grid-cols-2 gap-8 mt-4">
-                    <!-- Content Advisories -->
-                    <div>
-                        <p class="font-semibold">Content Advisories</p>
-                        <ul class="list-disc ml-4 mt-2 text-gray-500 font-normal">
-                            <li v-for="advisory in event.content_advisories" 
-                                :key="advisory.id">
-                                {{ advisory.name }}
-                            </li>
-                        </ul>
-                        <div v-if="event.advisories?.sexual" class="mt-4">
-                            <p class="font-semibold">Sexual Content Description:</p>
-                            <p class="text-gray-500 font-normal">{{ event.advisories.sexualDescription }}</p>
-                        </div>
-                    </div>
-
-                    <!-- Mobility Advisories -->
-                    <div>
-                        <p class="font-semibold">Mobility Advisories</p>
-                        <ul class="list-disc ml-4 mt-2 text-gray-500 font-normal">
-                            <li v-for="advisory in event.mobility_advisories" 
-                                :key="advisory.id">
-                                {{ advisory.name }}
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-8 mt-4">
-                    <!-- Interaction Advisories -->
-                    <div class="mt-8">
-                        <p class="font-semibold">Interaction Level</p>
-                        <p class="text-gray-500 font-normal">{{ event.interactive_level.name }}</p>
-                    </div>
-
-                    <!-- Audience Role -->
-                    <div class="mt-8">
-                        <p class="font-semibold">Audience Role</p>
-                        <p class="text-gray-500 font-normal">{{ event.advisories.audience }}</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Video Section -->
-            <div v-if="event.video" class="mt-12 border-t pt-8">
-                <h2 class="text-4xl">Video:</h2>
-                <div class="relative aspect-video w-full max-w-3xl mt-4">
-                    <iframe
-                        :src="`https://www.youtube.com/embed/${event.video}`"
-                        class="absolute top-0 left-0 w-full h-full rounded-xl"
-                        frameborder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowfullscreen
-                    ></iframe>
-                </div>
-            </div>
-
-            <!-- Organizer Section -->
-            <div class="mt-12 border-t pt-8">
-                <h2 class="text-4xl">Organizer:</h2>
-                <div class="flex items-start gap-6 mt-4">
-                    <div class="flex-shrink-0">
-                        <img v-if="event.organizer?.images?.[0]?.thumb_image_path" 
-                             :src="imageUrl + event.organizer.images[0].thumb_image_path"
-                             :alt="event.organizer?.name"
-                             class="w-24 h-24 rounded-full object-cover"
-                        />
-                        <div v-else 
-                             class="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center">
-                            <span class="text-gray-400 text-2xl">
-                                {{ event.organizer?.name?.charAt(0)?.toUpperCase() || 'O' }}
-                            </span>
-                        </div>
-                    </div>
-                    <div class="flex-grow">
-                        <h3 class="text-2xl font-semibold">{{ event.organizer?.name }}</h3>
-                        <p class="text-gray-500 font-normal mt-2 whitespace-pre-line">
-                            {{ event.organizer?.description }}
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Approval Actions -->
-            <div class="sticky bottom-0 bg-white border-t mt-8 p-4 flex justify-end gap-4">
+        <!-- Fixed Footer Section -->
+        <div class="flex-none border-t bg-white p-4">
+            <div class="max-w-screen-xl mx-auto flex justify-end gap-4">
+                <!-- Add Edit Button -->
+                <a 
+                    :href="`/hosting/event/${props.event?.slug}/edit`"
+                    target="_blank"
+                    class="px-6 py-2 border border-blue-500 text-blue-500 rounded-lg hover:bg-blue-50"
+                >
+                    Edit Event
+                </a>
                 <button 
                     @click="onReject"
                     class="px-6 py-2 border border-red-500 text-red-500 rounded-lg hover:bg-red-50"
@@ -288,42 +436,69 @@
             </div>
         </div>
 
-        <!-- Rejection Modal -->
-        <div v-if="showRejectionModal" 
-             class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-            <div class="bg-white rounded-lg p-6 w-full max-w-md">
-                <h3 class="text-xl font-semibold mb-4">Rejection Reason</h3>
-                <textarea
-                    v-model="rejectionReason"
-                    class="w-full h-32 border rounded-lg p-2 mb-4"
-                    placeholder="Please provide a reason for rejection..."
-                    :class="{ 'border-red-500': rejectionError }"
-                ></textarea>
-                <p v-if="rejectionError" class="text-red-500 text-sm mb-4">
-                    {{ rejectionError }}
-                </p>
-                <div class="flex justify-end gap-4">
-                    <button 
-                        @click="showRejectionModal = false"
-                        class="px-4 py-2 border rounded-lg"
-                    >
-                        Cancel
-                    </button>
-                    <button 
-                        @click="submitRejection"
-                        class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-                    >
-                        Submit
-                    </button>
+        <!-- Add this right before the final closing </div> -->
+        <teleport to="body">
+            <div v-if="showRejectModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
+                <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh]">
+                    <!-- Header -->
+                    <div class="p-8 pb-6">
+                        <h2 class="text-2xl font-bold mb-2">Reject Event</h2>
+                        <p class="text-gray-500 font-normal">Please provide a reason for rejecting this event</p>
+                    </div>
+
+                    <!-- Content -->
+                    <div class="p-8 pt-0 overflow-y-auto flex-1">
+                        <div class="space-y-6">
+                            <div>
+                                <p class="text-gray-500 font-normal mb-4">Reason</p>
+                                <textarea 
+                                    v-model="rejectionReason"
+                                    class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4"
+                                    placeholder="Enter reason for rejection..."
+                                    rows="4"
+                                ></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="p-8 border-t border-neutral-400">
+                        <div class="flex justify-end space-x-4">
+                            <button 
+                                @click="closeRejectModal"
+                                class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                @click="confirmReject"
+                                :disabled="!rejectionReason.trim()"
+                                class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Reject
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    </main>
+        </teleport>
+    </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { inject, computed, ref, watch, onMounted } from 'vue';
 import moment from 'moment-timezone';
+import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import axios from 'axios';
+import { 
+    RiSearchLine,
+    RiTwitterLine,
+    RiInstagramLine,
+    RiFacebookBoxLine,
+    RiPatreonLine 
+} from '@remixicon/vue';
 
 const props = defineProps({
     event: {
@@ -332,11 +507,7 @@ const props = defineProps({
     }
 });
 
-const emit = defineEmits(['approved', 'rejected']);
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
-const showRejectionModal = ref(false);
-const rejectionReason = ref('');
-const rejectionError = ref('');
 
 const formatDateRange = (shows) => {
     if (!shows?.length) return 'No dates set';
@@ -352,36 +523,154 @@ const formatEmbargoDate = (date) => {
     return moment(date).format('MMM D, YYYY');
 };
 
-const onApprove = async () => {
-    try {
-        await axios.post(`/api/admin/approve/events/${props.event.slug}/approve`);
-        emit('approved');
-    } catch (error) {
-        console.error('Error approving event:', error);
+const categoryImagePath = computed(() => {
+    if (props.event?.category?.images?.[0]?.path) {
+        return `${imageUrl}${props.event.category.images[0].path}`;
     }
+    if (props.event?.category?.thumbImagePath) {
+        return `${imageUrl}${props.event.category.thumbImagePath}`;
+    }
+    return null;
+});
+
+const locationMapRef = ref(null);
+
+const map = ref({
+    zoom: 14,
+    center: computed(() => [
+        parseFloat(props.event?.location?.latitude) || 40.7127753,
+        parseFloat(props.event?.location?.longitude) || -74.0059728
+    ]),
+    url: 'https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=5Pwt4rF8iefMU4hIcRqZJ0GXPqWi5l4NVjEn4owEBKOdGyuJVARXbYTBDO2or3cU'
+});
+
+const icon = L.divIcon({
+    className: 'custom-div-icon',
+    html: `
+        <div style="position: relative; width: 30px; height: 30px;">
+            <div style="
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 25px;
+                height: 25px;
+                background: #ff385c;
+                border: 3.5px solid white;
+                border-radius: 50%;
+                box-shadow: 0 0 0 5px #ff385c;
+            "></div>
+            <div style="
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 40px;
+                height: 40px;
+                background: rgba(255, 56, 92, 0.35);
+                border-radius: 50%;
+                animation: markerPulse 2s infinite;
+            "></div>
+        </div>
+    `,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15]
+});
+
+const onMapReady = () => {
+    setTimeout(() => {
+        if (locationMapRef.value?.leafletObject) {
+            locationMapRef.value.leafletObject.invalidateSize();
+            locationMapRef.value.leafletObject.setView(map.value.center, map.value.zoom);
+        }
+    }, 100);
 };
+
+const getYoutubeEmbedUrl = (url) => {
+    if (!url) return '';
+    
+    // Handle different YouTube URL formats
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    
+    if (match && match[2].length === 11) {
+        return `https://www.youtube.com/embed/${match[2]}`;
+    }
+    
+    return url;
+};
+
+const showRejectModal = ref(false);
+const rejectionReason = ref('');
+const processing = ref(false);
 
 const onReject = () => {
-    showRejectionModal.value = true;
+    showRejectModal.value = true;
 };
 
-const submitRejection = async () => {
-    if (!rejectionReason.value.trim()) {
-        rejectionError.value = 'Please provide a reason for rejection';
-        return;
-    }
+const closeRejectModal = () => {
+    showRejectModal.value = false;
+    rejectionReason.value = '';
+};
 
+const confirmReject = async () => {
+    if (!rejectionReason.value.trim()) return;
+    
     try {
+        processing.value = true;
         await axios.post(`/api/admin/approve/events/${props.event.slug}/reject`, {
             reason: rejectionReason.value
         });
-        showRejectionModal.value = false;
-        rejectionReason.value = '';
-        rejectionError.value = '';
-        emit('rejected');
+        
+        closeRejectModal();
+        window.location.href = '/admin/dashboard?view=approve-events';
     } catch (error) {
         console.error('Error rejecting event:', error);
-        rejectionError.value = 'Failed to reject event. Please try again.';
+        // Optionally add error handling UI
+    } finally {
+        processing.value = false;
     }
 };
+
+const onApprove = async () => {
+    try {
+        processing.value = true;
+        await axios.post(`/api/admin/approve/events/${props.event.slug}/approve`);
+        window.location.href = '/admin/dashboard?view=approve-events';
+    } catch (error) {
+        console.error('Error approving event:', error);
+        // Optionally add error handling UI
+    } finally {
+        processing.value = false;
+    }
+};
+
+const formatDate = (date) => {
+    return moment(date).format('MMM D, YYYY');
+};
+
+// Component API
+defineExpose({
+    isValid: async () => true, // Review page is always valid
+    submitData: () => ({}) // No data to submit from review page
+});
+
+watch(() => props.event, (newValue) => {
+    console.log('Event props in EventReview:', newValue); // Log whenever the event prop changes
+}, { immediate: true, deep: true });
 </script>
+
+<style>
+@import 'leaflet/dist/leaflet.css';
+
+@keyframes markerPulse {
+    0% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(3);
+        opacity: 0;
+    }
+}
+</style>

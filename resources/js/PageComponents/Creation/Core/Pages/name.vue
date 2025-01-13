@@ -270,6 +270,12 @@ const confirmNameChange = async () => {
         showNameChangeModal.value = false;
         emit('showSuccess');
         
+        // Update the event data with the fresh data from response
+        if (response.data.event) {
+            // Update name change requests
+            event.name_change_requests = response.data.event.name_change_requests;
+        }
+        
         // Reset the name back to original
         event.name = originalName.value;
         

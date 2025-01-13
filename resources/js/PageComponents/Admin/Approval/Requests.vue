@@ -130,6 +130,8 @@ const showRejectModal = ref(false)
 const rejectionReason = ref('')
 const pendingRejectRequest = ref(null)
 
+const emit = defineEmits(['update-counts'])
+
 const showToastMessage = (message) => {
     toastMessage.value = message
     showToast.value = true
@@ -168,6 +170,9 @@ const handleApprove = async (request) => {
         // Remove the request from the list
         requests.value = requests.value.filter(r => r.id !== request.id)
         
+        // Emit event to update counts
+        emit('update-counts')
+        
         if (response.data.requiresRefresh) {
             // Handle any necessary UI updates
         }
@@ -202,6 +207,10 @@ const confirmReject = async () => {
         
         // Remove the request from the list
         requests.value = requests.value.filter(r => r.id !== pendingRejectRequest.value.id)
+        
+        // Emit event to update counts
+        emit('update-counts')
+        
         closeRejectModal()
     } catch (error) {
         console.error('Error rejecting request:', error)

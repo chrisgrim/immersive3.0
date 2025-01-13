@@ -184,10 +184,13 @@ onUnmounted(() => {
     window.removeEventListener('max-price-update', handleMaxPriceUpdate)
 })
 
+const categories = ref([])
+
+// Update the categories fetch in onMounted
 onMounted(async () => {
     try {
-        // Fetch categories
-        const response = await axios.get('/api/categories')
+        // Fetch only active categories
+        const response = await axios.get('/api/categories/active/cached')
         categories.value = response.data
         
         // Initialize selected categories from URL
@@ -203,8 +206,6 @@ onMounted(async () => {
         console.error('Error fetching categories:', error)
     }
 })
-
-const categories = ref([])
 
 // First 10 categories for the quick bar
 const quickBarCategories = computed(() => {

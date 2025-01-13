@@ -10,7 +10,9 @@ export default {
     theme: {
         screens: {
             'lg-air': '950px',
-            'xl-air': '1440px',
+            'xl-air': '1140px',
+            '1xl-air': '1300px',
+            '2xl-air': '1440px',
             // Keep default Tailwind breakpoints if needed
             'sm': '640px',
             'md': '768px',

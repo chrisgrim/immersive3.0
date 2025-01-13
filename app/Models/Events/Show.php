@@ -121,7 +121,7 @@ private static function createOrUpdateShow($date, $eventId, $oldTickets)
         // Prepare update data
         $updateData = [
             'show_times' => $request->showTimes,
-            'embargo_date' => $request->embargoDate,
+            'embargo_date' => $request->embargo_date,
             'closingDate' => $lastDate,
             'showtype' => $type,
         ];

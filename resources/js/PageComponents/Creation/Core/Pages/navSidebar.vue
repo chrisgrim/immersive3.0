@@ -27,7 +27,7 @@
     </div>
 
     <!-- Main Navigation -->
-    <nav class="flex-shrink-0 space-y-8 w-full p-8 mx-auto md:max-w-[34rem] pt-12 md:pt-28">
+    <nav class="flex-shrink-0 space-y-8 w-full p-8 mx-auto lg-air:max-w-[34rem] pt-12 lg-air:pt-28">
         <!-- Header with back button (hidden on mobile when section is active) -->
         <div 
             v-if="!isMobile || !activeSection"

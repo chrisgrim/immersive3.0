@@ -57,7 +57,7 @@
     <div id="bodyArea" class="show">
         <div class="show-content">
             {{-- Title section spans full width for both layouts --}}
-            <div class="relative w-full m-auto p-8 lg-air:px-16 xl-air:px-32 max-w-screen-xl">
+            <div class="relative w-full m-auto p-8 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
                 <div class="flex flex-col justify-center py-12 bg-white">
 
                     {{-- Event Title --}}
@@ -72,7 +72,7 @@
 
             @if(count($event->images) <= 1)
                 {{-- Single image layout --}}
-                <div class="relative w-full m-auto p-8 lg-air:px-16 xl-air:px-32 max-w-screen-xl">
+                <div class="relative w-full m-auto p-8 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
                     <div class="md:flex md:gap-20">
                         <div class="flex-grow">
                             @include('Events.Show.header')
@@ -93,7 +93,7 @@
             @else
                 {{-- Multiple images layout --}}
                 @include('Events.Show.header')
-                <div class="relative w-full m-auto p-8 lg-air:px-16 xl-air:px-32 max-w-screen-xl">
+                <div class="relative w-full m-auto p-8 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
                     <div class="md:flex md:gap-20 lg:gap-36 border-b">
                         <div class="flex-1 min-w-0">
                             @include('Events.Show.about')
@@ -114,7 +114,7 @@
             @endif
 
             {{-- Rest of your content --}}
-            <div class="relative w-full m-auto p-8 lg-air:px-16 xl-air:px-32 max-w-screen-xl">
+            <div class="relative w-full m-auto p-8 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
                 @if ($event->eventreviews && count($event->eventreviews) > 0)
                     @include('Events.Show.reviews')
                 @endif

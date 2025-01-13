@@ -11,31 +11,13 @@
         </div>
         
         <div v-else>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                <a 
-                    v-for="event in events" 
-                    :key="event.slug" 
-                    href="#"
-                    class="bg-white hover:opacity-75 transition-opacity duration-200"
-                    @click.prevent="handleEventSelect(event)"
-                >
-                    <div class="aspect-[3/2] w-full">
-                        <img 
-                            :src="getImageUrl(event)"
-                            :alt="event.name" 
-                            class="w-full h-full object-cover rounded-2xl"
-                            @error="handleImageError"
-                        >
-                    </div>
-                    <div class="p-4">
-                        <h3 class="text-xl font-semibold mb-2">{{ event.name }}</h3>
-                        <div class="text-xl text-gray-600 space-y-1">
-                            <div>Organizer: {{ event.organizer?.name }}</div>
-                            <div>Cost: {{ event.cost || 'Free' }}</div>
-                        </div>
-                    </div>
-                </a>
-            </div>
+            <event-grid 
+                :items="events"
+                :user="user"
+                :columns="5"
+                :hasClickListener="true"
+                @click:item="handleEventSelect"
+            />
 
             <div class="mt-6">
                 <Pagination 
@@ -51,11 +33,22 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
+import EventGrid from '@/GlobalComponents/Grid/event-grid.vue'
 
-const imageUrl = import.meta.env.VITE_IMAGE_URL
 const events = ref([])
 const loading = ref(true)
 const pagination = ref(null)
+
+const emit = defineEmits(['select-event', 'update-counts'])
+
+const handleEventSelect = async (event) => {
+    try {
+        const response = await axios.get(`/api/admin/events/${event.slug}`)
+        emit('select-event', response.data)
+    } catch (error) {
+        console.error('Error fetching event details:', error)
+    }
+}
 
 const handlePageChange = (page) => {
     fetchEvents(page)
@@ -79,32 +72,6 @@ const fetchEvents = async (page = 1) => {
         console.error('Error fetching events:', error)
     } finally {
         loading.value = false
-    }
-}
-
-const getImageUrl = (event) => {
-    if (event.images && event.images.length > 0) {
-        return `${imageUrl}${event.images[0].large_image_path}`
-    }
-    return 'https://placehold.co/600x400?text=No+Image'
-}
-
-const handleImageError = (e) => {
-    e.target.src = 'https://placehold.co/600x400?text=No+Image'
-}
-
-const openEvent = (event) => {
-    window.location.href = `/admin/events/${event.slug}`;
-}
-
-const emit = defineEmits(['select-event'])
-
-const handleEventSelect = async (event) => {
-    try {
-        const response = await axios.get(`/api/admin/events/${event.slug}`)
-        emit('select-event', response.data)
-    } catch (error) {
-        console.error('Error fetching event details:', error)
     }
 }
 

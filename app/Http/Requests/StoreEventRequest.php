@@ -24,7 +24,7 @@ class StoreEventRequest extends FormRequest
             'show_times' => 'nullable|string|max:500',
             'tag_line' => 'sometimes|string|max:255',
             'hasLocation' => 'sometimes|boolean',
-            'embargo_date' => 'nullable|date',
+            'embargo_date' => 'nullable|date_format:Y-m-d H:i:s|after:now',
             'remote_description' => 'nullable|string|max:3000',
             'call_to_action' => 'nullable|string|max:255',
             'video' => 'nullable|string|max:255',
@@ -57,7 +57,7 @@ class StoreEventRequest extends FormRequest
             'tickets.*.name' => 'required_with:tickets|string|max:40',
             'tickets.*.ticket_price' => 'sometimes|required|numeric|min:0',
             'tickets.*.description' => 'sometimes|nullable|string|max:200',
-            'tickets.*.currency' => 'sometimes|required|string|size:1',
+            'tickets.*.currency' => 'sometimes|required|string|max:3',
             // Add validation for images
             'images' => 'nullable|array',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',

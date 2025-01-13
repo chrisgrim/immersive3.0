@@ -5,7 +5,7 @@
         <div class="mx-auto relative h-full grid gap-0 items-center
             grid-cols-[auto_minmax(30rem,_1fr)_auto] px-8
             lg-air:grid-cols-[auto_minmax(30rem,_3fr)_auto]
-            xl-air:grid-cols-[1fr_3fr_1fr]">
+            2xl-air:grid-cols-[1fr_3fr_1fr]">
             
             <div class="col-span-1 inline-block relative leading-none">
                 <a aria-label="Home Button" href="/">
