@@ -37,7 +37,7 @@ use App\Models\Events\{
 };
 
 // Cached Data Routes
-use App\Http\Controllers\Api\CachedDataController;
+use App\Http\Controllers\CachedDataController;
 
 /*
 |--------------------------------------------------------------------------
@@ -191,5 +191,6 @@ Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
 // Cached Data Routes
 Route::get('/categories/active/cached', [CachedDataController::class, 'getActiveCategories']);
 Route::get('/genres/active/cached', [CachedDataController::class, 'getActiveGenres']);
+Route::get('/price/max/cached', [CachedDataController::class, 'getMaxPrice']);
 
 

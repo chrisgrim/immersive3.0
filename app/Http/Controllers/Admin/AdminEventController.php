@@ -12,6 +12,7 @@ use App\Mail\EventApproved;
 use App\Mail\EventComments;
 use App\Models\Messaging\Message;
 use App\Services\ImageHandler;
+use Illuminate\Support\Facades\Cache;
 
 
 class AdminEventController extends Controller
@@ -145,8 +146,12 @@ class AdminEventController extends Controller
         $event->update([
             'status' => $status,
             'slug' => $slug,
-            'published_at' => now()->format('Y-m-d H:i:s'),  // Explicitly format the date
+            'published_at' => now()->format('Y-m-d H:i:s'),
         ]);
+
+        // Clear caches since we're publishing a new event
+        Cache::forget('active-categories');
+        Cache::forget('active-genres');
 
         // Send notifications if not self-approving
         if (auth()->id() !== $event->user->id) {

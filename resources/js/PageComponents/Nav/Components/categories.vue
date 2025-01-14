@@ -1,64 +1,108 @@
 <template>
-    <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-        <!-- Background overlay -->
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="$emit('close')"></div>
+    <teleport to="body">
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
+            <div class="bg-white w-full md:max-w-4xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
+                <!-- Header -->
+                <div class="p-8 pb-6">
+                    <h2 class="text-2xl font-bold mb-2">Categories</h2>
+                </div>
 
-        <!-- Modal panel -->
-        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-            <div class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full max-w-3xl">
-                <!-- Content -->
-                <div class="bg-white px-8 py-6">
+                <!-- Scrollable Content -->
+                <div class="p-8 pt-0 overflow-y-auto flex-1">
                     <div class="grid grid-cols-2 gap-4">
                         <button 
                             v-for="category in categories" 
                             :key="category.id"
-                            class="flex items-center gap-4 p-4 rounded-lg hover:bg-gray-50 text-left"
+                            class="flex items-center gap-4 p-4 rounded-full text-left border transition-all"
+                            :class="{ 
+                                'border-2 border-black bg-neutral-100': isSelected(category.id),
+                                'border-gray-200 hover:bg-gray-50': !isSelected(category.id)
+                            }"
+                            @click="toggleCategory(category.id)"
                         >
-                            <div class="w-6 h-6 border-2 border-gray-300 rounded-full flex items-center justify-center">
-                                <!-- Add checkmark if selected -->
-                            </div>
-                            <span class="text-lg text-gray-800">{{ category.name }}</span>
+                            <img 
+                                :src="getCategoryIcon(category)"
+                                :alt="category.name"
+                                class="w-12 h-12 object-cover rounded-full"
+                            >
+                            <span class="text-1xl text-gray-800">{{ category.name }}</span>
                         </button>
                     </div>
+                </div>
 
-                    <!-- Footer -->
-                    <div class="mt-8 flex justify-between">
+                <!-- Footer -->
+                <div class="p-8 border-t border-neutral-400 bg-white md:rounded-b-2xl">
+                    <div class="flex justify-end space-x-4">
                         <button 
                             @click="$emit('close')"
-                            class="text-lg text-gray-600 hover:text-gray-800"
+                            class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl"
                         >
                             Cancel
                         </button>
                         <button 
-                            class="px-8 py-2 bg-[#E94362] text-white rounded-full text-lg hover:bg-[#d33d5a]"
+                            @click="submitSelection"
+                            class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl"
                         >
-                            Submit
+                            Apply Filters
                         </button>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    </teleport>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+
+const imageUrl = import.meta.env.VITE_IMAGE_URL
 
 const props = defineProps({
     categories: {
         type: Array,
         required: true
+    },
+    selectedCategories: {
+        type: Array,
+        required: true
     }
 })
 
-const selectedCategories = ref([])
+const emit = defineEmits(['close', 'update:selected'])
+
+const localSelected = ref([...props.selectedCategories])
+
+onMounted(() => {
+    localSelected.value = [...new Set(props.selectedCategories)];
+})
 
 const toggleCategory = (categoryId) => {
-    const index = selectedCategories.value.indexOf(categoryId)
-    if (index === -1) {
-        selectedCategories.value.push(categoryId)
+    console.log('Toggling category:', categoryId); // Debug log
+    console.log('Before toggle:', localSelected.value); // Debug log
+    
+    if (localSelected.value.includes(categoryId)) {
+        // Remove if present
+        localSelected.value = localSelected.value.filter(id => id !== categoryId);
     } else {
-        selectedCategories.value.splice(index, 1)
+        // Add if not present
+        localSelected.value.push(categoryId);
     }
+    
+    console.log('After toggle:', localSelected.value); // Debug log
+}
+
+const isSelected = (categoryId) => {
+    return localSelected.value.includes(categoryId);
+}
+
+const submitSelection = () => {
+    emit('update:selected', localSelected.value)
+    emit('close')
+}
+
+const getCategoryIcon = (category) => {
+    return category.images?.find(img => img.rank === 1)?.thumb_image_path 
+        ? `${imageUrl}${category.images.find(img => img.rank === 1).thumb_image_path}`
+        : ''
 }
 </script>

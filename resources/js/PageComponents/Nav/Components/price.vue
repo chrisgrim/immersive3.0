@@ -1,32 +1,21 @@
 <template>
-    <div class="relative">
-        <button 
-            ref="priceButton"
-            @click="togglePrice" 
-            :class="{ 'bg-gray-100': hasPrice }" 
-            class="px-8 py-4 rounded-full bg-white border border-gray-200 hover:bg-gray-50"
-        >
-            <span class="text-lg font-medium">
-                <template v-if="hasPrice">
-                    ${{ modelValue[0] }} - ${{ modelValue[1] }}
-                </template>
-                <template v-else>
-                    Price
-                </template>
-            </span>
-        </button>
+    <div class="fixed inset-0 z-50 overflow-y-auto" @click.self="$emit('close')">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black opacity-40"></div>
+            
+            <div class="relative bg-white rounded-3xl w-full max-w-2xl">
+                <!-- Header -->
+                <div class="flex justify-between items-center p-8 border-b border-gray-100">
+                    <h2 class="text-2xl font-semibold">Price Range</h2>
+                    <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
 
-        <div 
-            v-if="isShowing"
-            ref="pricePopUp"
-            class="absolute mt-4 right-0 z-50"
-            @click.stop
-        > 
-            <div 
-                class="bg-white shadow-lg rounded-3xl w-[500px]"
-                @click.stop
-            >
-                <div class="p-12">
+                <!-- Price Slider -->
+                <div class="p-8">
                     <vue-slider
                         v-model="localPrice"
                         tooltip="always"
@@ -37,27 +26,31 @@
                         class="py-8"
                     />
                 </div>
-                <div class="px-8 py-6 border-t border-gray-100 flex justify-between items-center">
-                    <button 
-                        v-if="hasPrice" 
-                        @click.stop="clear" 
-                        class="text-gray-500 hover:text-gray-700"
-                    >
-                        Clear
-                    </button>
-                    <button 
-                        v-else
-                        @click.stop="hidePrice" 
-                        class="text-gray-500 hover:text-gray-700"
-                    >
-                        Cancel
-                    </button>
-                    <button 
-                        @click.stop="submit" 
-                        class="px-8 py-4 rounded-full bg-default-red text-white hover:bg-red-600"
-                    >
-                        Submit
-                    </button>
+
+                <!-- Footer -->
+                <div class="p-8 border-t border-neutral-400 bg-white md:rounded-b-2xl">
+                    <div class="flex justify-end space-x-4">
+                        <button 
+                            v-if="hasPrice"
+                            @click="clear" 
+                            class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl"
+                        >
+                            Clear
+                        </button>
+                        <button 
+                            v-else
+                            @click="$emit('close')" 
+                            class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            @click="submit" 
+                            class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl"
+                        >
+                            Apply Filters
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -65,7 +58,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import VueSlider from 'vue-slider-component'
 import 'vue-slider-component/theme/antd.css'
 
@@ -74,20 +67,14 @@ const props = defineProps({
         type: Array,
         required: true
     },
-    isShowing: {
-        type: Boolean,
-        default: false
-    },
     maxPrice: {
         type: Number,
-        default: 670
+        required: true
     }
 })
 
-const emit = defineEmits(['update:modelValue', 'update:showing', 'filter-update'])
+const emit = defineEmits(['update:selected', 'close'])
 
-const priceButton = ref(null)
-const pricePopUp = ref(null)
 const localPrice = ref(props.modelValue)
 
 watch(() => props.modelValue, (newValue) => {
@@ -95,48 +82,19 @@ watch(() => props.modelValue, (newValue) => {
 }, { immediate: true })
 
 const hasPrice = computed(() => {
-    return props.modelValue[0] !== 0 || props.modelValue[1] !== props.maxPrice
+    return localPrice.value[0] !== 0 || localPrice.value[1] !== props.maxPrice
 })
 
 const sliderFormat = (v) => `$${('' + v).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
 
-const togglePrice = () => {
-    emit('update:showing', !props.isShowing)
-}
-
-const hidePrice = () => {
-    emit('update:showing', false)
-}
-
 const clear = () => {
     localPrice.value = [0, props.maxPrice]
-    emit('update:modelValue', [0, props.maxPrice])
-    emit('filter-update', 'price', [0, props.maxPrice])
-    hidePrice()
+    emit('update:selected', 'price', [0, props.maxPrice])
+    emit('close')
 }
 
 const submit = () => {
-    emit('update:modelValue', localPrice.value)
-    emit('filter-update', 'price', localPrice.value)
-    hidePrice()
+    emit('update:selected', 'price', localPrice.value)
+    emit('close')
 }
-
-const onClickOutside = (event) => {
-    if (
-        (!priceButton.value || !priceButton.value.contains(event.target)) &&
-        (!pricePopUp.value || !pricePopUp.value.contains(event.target))
-    ) {
-        hidePrice()
-    }
-}
-
-onMounted(() => {
-    setTimeout(() => {
-        document.addEventListener('click', onClickOutside)
-    }, 0)
-})
-
-onBeforeUnmount(() => {
-    document.removeEventListener('click', onClickOutside)
-})
 </script>

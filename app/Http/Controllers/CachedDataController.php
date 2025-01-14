@@ -1,40 +1,49 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Cache;
 use App\Models\Category;
 use App\Models\Genre;
 use Illuminate\Support\Facades\DB;
+use App\Models\Event;
+use Carbon\Carbon;
 
 class CachedDataController extends Controller
 {
     public function getActiveCategories()
     {
-        return Cache::remember('active-categories', 3600, function () {
-            return Category::select('categories.*')
-                ->join('events', 'events.category_id', '=', 'categories.id')
-                ->where('events.status', 'published')
-                ->where('events.embargo_date', '<=', now())
-                ->groupBy('categories.id')
-                ->with(['images' => function ($query) {
+        return Cache::rememberForever('active-categories', function () {
+            return Category::with(['images' => function($query) {
                     $query->where('rank', 1);
                 }])
+                ->whereHas('events', function($query) {
+                    $query->where('status', 'p')
+                          ->where(function ($q) {
+                              $q->where('closingDate', '>=', now()->startOfDay())
+                                ->orWhereNull('closingDate');
+                          });
+                })
+                ->orderBy('rank', 'desc')
                 ->get();
         });
     }
 
     public function getActiveGenres()
     {
-        return Cache::remember('active-genres', 3600, function () {
-            return Genre::select('genres.*')
-                ->join('event_genre', 'event_genre.genre_id', '=', 'genres.id')
-                ->join('events', 'events.id', '=', 'event_genre.event_id')
-                ->where('events.status', 'published')
-                ->where('events.embargo_date', '<=', now())
-                ->groupBy('genres.id')
+        return Cache::rememberForever('active-genres', function () {
+            return Genre::where('admin', true)
+                ->whereHas('events', function($query) {
+                    $query->where('status', 'p')
+                          ->where(function ($q) {
+                              $q->where('closingDate', '>=', now()->startOfDay())
+                                ->orWhereNull('closingDate');
+                          });
+                })
+                ->orderBy('name')
                 ->get();
         });
     }
+
 }

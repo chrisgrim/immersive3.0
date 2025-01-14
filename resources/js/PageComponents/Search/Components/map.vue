@@ -5,50 +5,41 @@
         <div 
             :class="[ isFullMap ? 'relative' : 'sticky top-64' ]"
             class="search__map overflow-hidden w-full h-full">
-            <div 
-                v-show="modelValue.loading"
-                class="flex items-center justify-center absolute h-full w-full z-40">
+            <!-- Loading Spinner -->
+            <div v-show="modelValue.loading" class="flex items-center justify-center absolute h-full w-full z-40">
                 <div class="bg-white shadow-custom-1 w-16 h-16 rounded-full flex items-center justify-center">
-                    <div
-                        class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"
-                        role="status">
+                    <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" role="status">
                         <span class="sr-only">Loading...</span>
                     </div>
                 </div>
             </div>
+
+            <!-- Toggle Map Button -->
             <div class="absolute z-[500] left-20 top-12">
-                <button 
-                    @click="toggleMap"
-                    class="bg-white flex border-none h-16 w-16 rounded-2xl items-center justify-center shadow-custom-1">
+                <button @click="toggleMap" class="bg-white flex border-none h-16 w-16 rounded-2xl items-center justify-center shadow-custom-1">
                     <svg class="h-12 w-12">
                         <use :xlink:href="isFullMap ? '/storage/website-files/icons.svg#ri-arrow-right-s-line' : '/storage/website-files/icons.svg#ri-arrow-left-s-line'" />
                     </svg>
                 </button>
             </div>
+
+            <!-- Map Container -->
             <div class="w-full h-full relative">
                 <l-map
+                    ref="map"
                     :zoom="modelValue.location.zoom"
                     :center="modelValue.location.center"
-                    @update:center="centerUpdate"
-                    @update:bounds="boundsUpdate"
-                    @update:zoom="zoomUpdate"
-                    ref="map"
                     :maxZoom="mapConfig.max" 
                     :minZoom="mapConfig.min"
                     :options="{ scrollWheelZoom: false, zoomControl: true }"
+                    @update:center="centerUpdate"
+                    @update:bounds="boundsUpdate"
+                    @update:zoom="zoomUpdate"
                     class="!w-full !h-full !absolute !inset-0">
-                    <l-tile-layer 
-                        :url="mapConfig.url" 
-                        :attribution="mapConfig.attribution" />
+                    <l-tile-layer :url="mapConfig.url" :attribution="mapConfig.attribution" />
                     <marker-cluster :options="{ maxClusterRadius: 40 }">
-                        <l-marker 
-                            v-for="event in events"
-                            :key="event.id" 
-                            :lat-lng="event.location_latlon">
-                            <l-icon
-                                :iconSize="[getMarkerWidth(event), 30]"
-                                :iconAnchor="[getMarkerWidth(event)/2, 4]"
-                                class-name="icons">
+                        <l-marker v-for="event in events" :key="event.id" :lat-lng="event.location_latlon">
+                            <l-icon :iconSize="[getMarkerWidth(event), 30]" :iconAnchor="[getMarkerWidth(event)/2, 4]" class-name="icons">
                                 <p :class="[
                                     'font-semibold px-4 py-1 rounded-full border-2 border-black text-center inline-block min-w-[3rem] whitespace-nowrap',
                                     isSelected(event) ? 'bg-black text-white' : 'bg-white text-black'
@@ -67,63 +58,29 @@
     </section>
 </template>
 
-<style>
-.icons {
-    @apply bg-transparent border-0 shadow-none !important;
-}
-
-.leaflet-container {
-    @apply !w-full !h-full !absolute !inset-0;
-}
-
-.search__map {
-    @apply relative h-full;
-}
-.leaflet-pane .leaflet-div-icon {
-    background: transparent;
-    border: none;
-}
-
-.leaflet-popup-content-wrapper {
-    @apply !p-0 !rounded-2xl;
-}
-.leaflet-popup-close-button {
-    display: none;
-}
-.leaflet-popup-content {
-    @apply !w-[300px] !m-0;
-    margin: 0;
-    border-radius: 1rem;
-    overflow: hidden;
-}
-</style>
-
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import 'leaflet/dist/leaflet.css'
-import L from 'leaflet'
 import { LMap, LTileLayer, LMarker, LPopup, LIcon } from '@vue-leaflet/vue-leaflet'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import MarkerCluster from './LMarkerCluster.vue'
 import PopupContent from "./map-element.vue"
 
+// Props & Emits
 const props = defineProps({
-    modelValue: {
-        type: Object,
-        required: true
-    },
-    events: {
-        type: Array,
-        required: true
-    }
+    modelValue: { type: Object, required: true },
+    events: { type: Array, required: true }
 })
-
 const emit = defineEmits(['update:modelValue', 'submit', 'fullMap'])
 
+// Refs & State
 const map = ref(null)
+const isInitialLoad = ref(true)
+const selectedMarker = ref(null)
 let timeout = null
 
+// Map Configuration
 const mapConfig = {
     max: 20,
     min: 8,
@@ -131,27 +88,22 @@ const mapConfig = {
     attribution: '<a href="http://jawg.io" title="Tiles Courtesy of Jawg Maps" target="_blank">&copy; <b>Jawg</b>Maps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 }
 
-const markerIcon = L.icon({
-    iconUrl: '/storage/images/vendor/leaflet/dist/marker-icon.png',
-    iconSize: [32, 37],
-    iconAnchor: [16, 37]
-})
-
+// Computed
 const isFullMap = computed(() => props.modelValue.location.fullMap)
 
-const getFixedPrice = (event) => {
-    return event.price_range.replace(/\d+(\.\d{1,2})?/g, dec => parseInt(dec))
-}
+// Methods
+const getFixedPrice = (event) => event.price_range.replace(/\d+(\.\d{1,2})?/g, dec => parseInt(dec))
 
-const update = () => {
-    emit('submit', true)
-}
+const getMarkerWidth = (event) => getFixedPrice(event).length * 12 + 32
+
+const isSelected = (event) => selectedMarker.value === event.id
 
 const debounce = () => {
     if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => { update() }, 400)
+    timeout = setTimeout(() => emit('submit', true), 400)
 }
 
+// Map Event Handlers
 const toggleMap = () => {
     emit('fullMap')
     emit('update:modelValue', {
@@ -184,6 +136,11 @@ const centerUpdate = (center) => {
 }
 
 const boundsUpdate = (bounds) => {
+    if (isInitialLoad.value) {
+        isInitialLoad.value = false
+        return
+    }
+
     emit('update:modelValue', {
         ...props.modelValue,
         location: {
@@ -195,23 +152,39 @@ const boundsUpdate = (bounds) => {
     debounce()
 }
 
-const getMarkerWidth = (event) => {
-    // Calculate approximate width based on price text
-    const price = getFixedPrice(event)
-    // Approximate width calculation (adjust multiplier as needed)
-    return price.length * 12 + 32 // 12px per character + padding
-}
+// Watchers
+watch(() => props.modelValue.location.center, async (newCenter) => {
+    if (newCenter) {
+        await nextTick()
+        if (map.value?.leafletObject) {
+            map.value.leafletObject.setView(newCenter, props.modelValue.location.zoom)
+        }
+    }
+}, { immediate: true })
 
-// Add ref for tracking selected marker
-const selectedMarker = ref(null)
+watch(() => map.value?.leafletObject, (mapInstance) => {
+    if (mapInstance && props.modelValue.location.center) {
+        mapInstance.setView(props.modelValue.location.center, props.modelValue.location.zoom)
+    }
+})
 
-// Add method to check if marker is selected
-const isSelected = (event) => {
-    return selectedMarker.value === event.id
-}
-
-// Add method to handle marker selection
-const handleMarkerClick = (event) => {
-    selectedMarker.value = event.id
-}
+// Lifecycle
+onMounted(() => {
+    isInitialLoad.value = true
+})
 </script>
+
+<style>
+.icons { @apply bg-transparent border-0 shadow-none !important; }
+.leaflet-container { @apply !w-full !h-full !absolute !inset-0; }
+.search__map { @apply relative h-full; }
+.leaflet-pane .leaflet-div-icon { background: transparent; border: none; }
+.leaflet-popup-content-wrapper { @apply !p-0 !rounded-2xl; }
+.leaflet-popup-close-button { display: none; }
+.leaflet-popup-content {
+    @apply !w-[300px] !m-0;
+    margin: 0;
+    border-radius: 1rem;
+    overflow: hidden;
+}
+</style>

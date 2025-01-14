@@ -16,15 +16,19 @@ use App\Http\Requests\StoreEventRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Services\NameChangeRequestService;
+use Illuminate\Support\Facades\Cache;
+use App\Http\Controllers\CachedDataController;
 
 class HostEventController extends Controller
 {
     protected $nameChangeService;
+    protected $cachedDataController;
 
-    public function __construct(NameChangeRequestService $nameChangeService)
+    public function __construct(NameChangeRequestService $nameChangeService, CachedDataController $cachedDataController)
     {
         $this->middleware(['auth', 'verified']);
         $this->nameChangeService = $nameChangeService;
+        $this->cachedDataController = $cachedDataController;
     }
 
     public function edit(Event $event)
@@ -54,6 +58,9 @@ class HostEventController extends Controller
 
     public function update(StoreEventRequest $request, Event $event)
     {
+        $wasPublished = in_array($event->status, ['p', 'e']);
+        $oldStatus = $event->status;  // Store original status
+        $oldCategoryId = $event->category_id;
         $validatedData = $request->validated();
 
         // First handle location type change
@@ -221,6 +228,23 @@ class HostEventController extends Controller
             $event->genres()->sync(
                 collect($validatedData['genres'])->pluck('id')
             );
+            
+            if ($wasPublished || in_array($event->status, ['p', 'e'])) {
+                Cache::forget('active-genres');
+            }
+        }
+
+        // Check if category changed
+        if ($oldCategoryId !== $event->category_id) {
+            if ($wasPublished || in_array($event->status, ['p', 'e'])) {
+                Cache::forget('active-categories');
+            }
+        }
+
+        // After any update that might change status
+        if ($oldStatus === 'e' && $event->status === 'p') {
+            Cache::forget('active-categories');
+            Cache::forget('active-genres');
         }
 
         return response()->json([
@@ -283,10 +307,16 @@ class HostEventController extends Controller
 
     public function destroy(Event $event)
     {
-        // Optional: Add authorization check if needed
-        // $this->authorize('delete', $event);
+        $wasPublished = in_array($event->status, ['p', 'e']);
+        
 
         $event->delete();
+
+        if ($wasPublished) {
+            \Log::info('Was publiush');
+            Cache::forget('active-categories');
+            Cache::forget('active-genres');
+        }
 
         return response()->json([
             'message' => 'Event deleted successfully'

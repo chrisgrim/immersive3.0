@@ -86,18 +86,18 @@ const handleFilterUpdate = async (event) => {
             max: value[1]
         }
     } else {
-        activeFilters.value[type === 'category' ? 'categories' : type] = value
+        activeFilters.value[type] = value
     }
     
     try {
-        const params = new URLSearchParams()
+        const params = new URLSearchParams(window.location.search)
         
-        if (activeFilters.value.categories.length) {
-            params.set('category', activeFilters.value.categories.join(','))
+        if (activeFilters.value.category?.length) {
+            params.set('category', activeFilters.value.category)
         }
         
-        if (activeFilters.value.tags.length) {
-            params.set('tags', activeFilters.value.tags.join(','))
+        if (activeFilters.value.tag?.length) {
+            params.set('tag', activeFilters.value.tag)
         }
         
         if (type === 'price') {
@@ -105,13 +105,21 @@ const handleFilterUpdate = async (event) => {
             params.set('price1', value[1])
         }
         
-        if (activeFilters.value.dates.start || activeFilters.value.dates.end) {
+        if (activeFilters.value.dates?.start || activeFilters.value.dates?.end) {
             params.set('start', activeFilters.value.dates.start)
             params.set('end', activeFilters.value.dates.end)
         }
         
         const response = await axios.get(`/api/index/search?${params.toString()}`)
         events.value = response.data
+        
+        console.log('Got new search results with maxPrice:', response.data.maxPrice)
+        if (response.data.maxPrice) {
+            console.log('Emitting updated max price:', response.data.maxPrice)
+            window.dispatchEvent(new CustomEvent('max-price-update', {
+                detail: response.data.maxPrice
+            }))
+        }
     } catch (error) {
         console.error('Error applying filters:', error)
     }
@@ -148,9 +156,16 @@ onMounted(async () => {
     
     await nextTick()
     
-    window.dispatchEvent(new CustomEvent('max-price-update', {
-        detail: props.maxPrice
-    }))
+    // Wait for QuickBar to be ready
+    window.addEventListener('quickbar-ready', () => {
+        console.log('Search component received quickbar-ready')
+        if (props.maxPrice) {
+            console.log('Emitting initial max price:', props.maxPrice)
+            window.dispatchEvent(new CustomEvent('max-price-update', {
+                detail: props.maxPrice
+            }))
+        }
+    }, { once: true }) // Only listen once
 })
 
 onUnmounted(() => {

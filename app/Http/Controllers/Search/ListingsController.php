@@ -12,14 +12,6 @@ use Illuminate\Http\Request;
 
 class ListingsController extends Controller
 {
-    protected function getBaseData()
-    {
-        return [
-            'maxprice' => ceil(Event::getMostExpensive()),
-            'categories' => Category::all(),
-            'tags' => Genre::where('admin', 1)->orderBy('rank', 'desc')->get(),
-        ];
-    }
 
     protected function buildLocationFilter(Request $request)
     {
@@ -145,8 +137,6 @@ class ListingsController extends Controller
 
     public function index(Request $request)
     {
-        // Get base data and filters
-        $baseData = $this->getBaseData();
         $locationFilters = $this->buildLocationFilter($request);
         $searchFilters = $this->buildSearchFilters($request);
         $boundaryFilter = $this->buildMapBoundaryFilter($request);
@@ -191,24 +181,37 @@ class ListingsController extends Controller
             ->sortRaw(['published_at' => 'desc'])
             ->paginate(20);
 
+        // Get max price from current filtered results
+        $maxPrice = Event::searchQuery($query)
+            ->aggregate('max_price', [
+                'max' => [
+                    'field' => 'priceranges.price'
+                ]
+            ])
+            ->execute()
+            ->aggregations()
+            ->get('max_price')['value'] ?? 0;
+
         // Format results
         $searchedEvents = tap($results->toArray(), function (array &$content) {
             $content['data'] = Arr::pluck($content['data'], 'model');
         });
 
         // Prepare view data
-        $viewData = array_merge($baseData, [
+        $viewData = [
+            'categories' => Category::all(),
+            'tags' => Genre::where('admin', 1)->orderBy('rank', 'desc')->get(),
+            'maxprice' => ceil($maxPrice),
             'searchedEvents' => $searchedEvents,
             'searchedCategories' => $searchFilters['searchedCategories'] ?? [],
             'searchedTags' => $searchFilters['searchedTags'] ?? [],
-        ], $locationFilters);
+        ];
 
-        // Return appropriate view
-        if ($request->searchType === 'inPerson' && isset($request->live)) {
-            return view('Search.location', $viewData);
-        }
-        
-        return view('search.all', $viewData);
+        $viewData = array_merge($viewData, $locationFilters);
+
+        return $request->searchType === 'inPerson' && isset($request->live)
+            ? view('Search.location', $viewData)
+            : view('search.all', $viewData);
     }
 
     public function apiIndex(Request $request)
@@ -248,9 +251,21 @@ class ListingsController extends Controller
             ->sortRaw(['published_at' => 'desc'])
             ->paginate(20);
 
-        // Format results
-        return tap($results->toArray(), function (array &$content) {
+        // Get max price from current filtered results
+        $maxPrice = Event::searchQuery($query)
+            ->aggregate('max_price', [
+                'max' => [
+                    'field' => 'priceranges.price'
+                ]
+            ])
+            ->execute()
+            ->aggregations()
+            ->get('max_price')['value'] ?? 0;
+
+        // Format results and include maxPrice
+        return tap($results->toArray(), function (array &$content) use ($maxPrice) {
             $content['data'] = Arr::pluck($content['data'], 'model');
+            $content['maxPrice'] = ceil($maxPrice);
         });
     }
 
