@@ -79,11 +79,14 @@ class Post extends Model
     }
 
     /**
-     * Get the user that owns the post.
+     * Get the event and its first image that is featured in the post.
      */
     public function featuredEventImage()
     {
-        return $this->belongsTo(Event::class, 'event_id', 'id');
+        return $this->belongsTo(Event::class, 'event_id', 'id')
+            ->with(['images' => function($query) {
+                $query->orderBy('rank', 'asc')->limit(1);
+            }]);
     }
 
     /**

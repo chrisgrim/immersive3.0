@@ -245,6 +245,12 @@ class ListingsController extends Controller
                 fn($q) => $q->filter($request->live === 'true' ? $boundaryFilter : $locationFilters['geoFilter'])
             );
 
+        // Add debug logging for the filters
+        \Log::info('Search Filters', [
+            'tag_filter' => $searchFilters['tags'] ?? null,
+            'query' => $query
+        ]);
+
         // Execute search
         $results = Event::searchQuery($query)
             ->load(['genres', 'category'])

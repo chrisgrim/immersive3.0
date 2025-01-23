@@ -24,6 +24,7 @@ Route::GET('/events/{event}', [EventController::class, 'show']);
 
 
 Route::GET('/organizers/{organizer}', [OrganizerController::class, 'show'])->name('Organizers.show');
+Route::GET('/organizers/{organizer}/edit', [OrganizerController::class, 'edit'])->name('Organizers.edit');
 Route::GET('/teams', [OrganizerController::class, 'teams'])->name('Organizers.teams');
 Route::POST('/teams/switch/{organizer}', [OrganizerController::class, 'switchTeam'])->name('team.switch');
 
@@ -42,7 +43,7 @@ Route::POST('/hosting/event/{event}/name-change', [HostEventController::class, '
 Route::post('/organizers', [OrganizerController::class, 'store'])->name('organizers.store');
 Route::post('/organizers/{organizer}', [OrganizerController::class, 'update'])->name('organizers.update');
 Route::post('/organizers/{organizer}/image', [OrganizerController::class, 'updateImage'])->name('organizers.updateImage');
-
+Route::post('/organizers/{organizer}/name-change', [OrganizerController::class, 'requestNameChange'])->name('organizers.name-change');
 
 Route::GET('/users/{user}', [ProfilesController::class, 'show']);
 Route::GET('/account-settings', [ProfilesController::class, 'account']);

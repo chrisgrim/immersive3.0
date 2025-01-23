@@ -15,7 +15,7 @@
             </div>
 
             <!-- Toggle Map Button -->
-            <div class="absolute z-[500] left-20 top-12">
+            <div class="absolute z-[500] left-12 top-12">
                 <button @click="toggleMap" class="bg-white flex border-none h-16 w-16 rounded-2xl items-center justify-center shadow-custom-1">
                     <svg class="h-12 w-12">
                         <use :xlink:href="isFullMap ? '/storage/website-files/icons.svg#ri-arrow-right-s-line' : '/storage/website-files/icons.svg#ri-arrow-left-s-line'" />
@@ -186,5 +186,25 @@ onMounted(() => {
     margin: 0;
     border-radius: 1rem;
     overflow: hidden;
+}
+
+.leaflet-left {
+    right: 3rem !important;
+    left: auto !important;
+}
+.leaflet-top {
+    top: 2rem;
+}
+.leaflet-bar {
+    border: none !important;
+    margin: 0 !important;
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 2px 16px rgb(0 0 0 / 12%) !important;
+}
+.leaflet-touch .leaflet-bar a {
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
 }
 </style>

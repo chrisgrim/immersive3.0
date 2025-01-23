@@ -17,7 +17,8 @@ class HostController extends Controller
     public function show()
     {
         $organizer = auth()->user()->organizer()
-            ->with(['events' => function ($query) {
+            ->withUserRole()
+            ->with(['images', 'events' => function ($query) {
                 $query->with('images');
             }])
             ->first();

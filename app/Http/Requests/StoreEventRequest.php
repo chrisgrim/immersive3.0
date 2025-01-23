@@ -89,7 +89,8 @@ class StoreEventRequest extends FormRequest
 
             // Add validation for genres
             'genres' => 'sometimes|array|max:10',
-            'genres.*.id' => 'sometimes|required|exists:genres,id',
+            'genres.*.id' => 'sometimes|required',
+            'genres.*.name' => 'required|string|max:50',
 
             'status' => 'sometimes|string',
         ];

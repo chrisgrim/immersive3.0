@@ -50,10 +50,10 @@
                         <p class="text-gray-500 font-normal">Tag Line</p>
                         <textarea 
                             name="tag_line" 
-                            class="text-2xl border border-[#222222] focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4 w-full mt-4" 
+                            class="text-2xl border border-[#222222] focus:border-black rounded-2xl p-4 w-full mt-4" 
                             :class="{ 
-                                'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showTagLineError,
-                                'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !showTagLineError 
+                                'border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showTagLineError,
+                                'focus:shadow-[0_0_0_1.5px_black]': !showTagLineError 
                             }"
                             v-model="event.tag_line" 
                             @input="handleTagLineInput"
@@ -64,7 +64,7 @@
                         <!-- Tag Line Character Count -->
                         <div class="flex justify-end mt-1 relative" 
                              :class="{'text-red-500': isTagLineNearLimit, 'text-gray-500': !isTagLineNearLimit}">
-                            {{ event.tag_line?.length || 0 }}/255
+                            {{ event.tag_line?.length || 0 }}/150
                                 <!-- Tag Line Error Messages -->
                             <p v-if="showTagLineMaxLengthError" 
                             class="text-red-500 text-1xl px-4 absolute left-0 top-0">
@@ -155,7 +155,7 @@ const rules = {
         },
         tag_line: {
             required,
-            maxLength: maxLength(255),
+            maxLength: maxLength(150),
         },
     }
 };
@@ -219,8 +219,8 @@ const handleNameInput = () => {
 
 const handleTagLineInput = () => {
     $v.value.event.tag_line.$touch();
-    if (event.tag_line?.length > 255) {
-        event.tag_line = event.tag_line.slice(0, 255);
+    if (event.tag_line?.length > 150) {
+        event.tag_line = event.tag_line.slice(0, 150);
     }
 };
 

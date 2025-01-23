@@ -15,9 +15,11 @@
                         <!-- Venue Input -->
                         <div class="px-8 py-6 border-black border border-b-0 rounded-t-3xl">
                             <input 
-                                class="w-full focus:outline-none" 
+                                class="w-full focus:outline-none"
+                                :class="{ 'text-red-500': event.location.venue?.length === 80 }"
                                 placeholder="Add venue name (optional)" 
                                 v-model="event.location.venue"
+                                maxlength="80"
                                 type="text">
                         </div>
                         <!-- Address Details (clickable) -->
@@ -104,9 +106,9 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, inject } from 'vue';
-import "leaflet/dist/leaflet.css";
 import { LMap, LTileLayer, LMarker, LIcon } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet";
+import 'leaflet/dist/leaflet.css'
 import { RiCheckboxBlankLine, RiCheckboxLine } from "@remixicon/vue";
 
 const event = inject('event');
@@ -243,6 +245,7 @@ const setPlace = (place) => {
     };
 
     const street = place.formatted_address?.split(', ')[0] || '';
+    const currentVenue = event.location?.venue || '';
 
     event.location = {
         latitude: place.geometry?.location.lat() || 0,
@@ -255,7 +258,8 @@ const setPlace = (place) => {
         region: getAddressComponent('administrative_area_level_1') || '',
         postal_code: getAddressComponent('postal_code') || '',
         country: getAddressComponent('country') || '',
-        hiddenLocationToggle: event.location?.hiddenLocationToggle || false
+        hiddenLocationToggle: event.location?.hiddenLocationToggle || false,
+        venue: currentVenue
     };
 
     if (place.geometry?.location) {
@@ -316,6 +320,12 @@ onUnmounted(() => {
 
 defineExpose({
     isValid: async () => {
+        // Validate venue length
+        if (event.location.venue?.length > 80) {
+            errors.value = { location: ['Venue name cannot exceed 80 characters'] };
+            return false;
+        }
+
         const isValid = event.location && 
                        event.location.latitude && 
                        event.location.longitude && 
@@ -343,3 +353,28 @@ defineExpose({
     })
 });
 </script>
+
+<style>
+.leaflet-left {
+    right: 3rem !important;
+    left: auto !important;
+}
+.leaflet-top {
+    top: 2rem;
+}
+.leaflet-bar {
+    border: none !important;
+    margin: 0 !important;
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 2px 16px rgb(0 0 0 / 12%) !important;
+}
+.leaflet-touch .leaflet-bar a {
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
+}
+.leaflet-control-attribution {
+    display: none;
+}
+</style>

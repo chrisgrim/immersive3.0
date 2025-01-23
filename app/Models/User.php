@@ -61,7 +61,7 @@ class User extends Authenticatable implements MustVerifyEmail
      * @var array
      */
     protected $appends = [
-        'hasCreatedOrganizers', 'hasMessages', 'hexColor', 'isCurator', 'isAdmin', 'isModerator', 'isUser'
+        'hasCreatedOrganizers', 'hasMessages', 'hexColor', 'isCurator', 'isAdmin', 'isModerator', 'isUser', 'isCommunityMember'
     ];
 
     /**
@@ -86,7 +86,10 @@ class User extends Authenticatable implements MustVerifyEmail
             'hexColor' => $this->hexColor,
             'hasMessages' => $this->hasMessages,
             'thumbImagePath' => $this->thumbImagePath,
+            'isModerator' => $this->isModerator,
+            'isAdmin' => $this->isAdmin,
             'isCurator' => $this->isCurator,
+            'isCommunityMember' => $this->isCommunityMember,
             'hasMessages' => $this->hasMessages,
             'unread' => $this->unread,
             'hasCreatedOrganizers' => $this->hasCreatedOrganizers,
@@ -381,5 +384,27 @@ class User extends Authenticatable implements MustVerifyEmail
         }
     }
 
-    
+    /**
+    * Determine if the user is a curator for any community
+    *
+    * @return bool
+    */
+    public function isCommunityMember() 
+    {
+        return $this->communities()->exists() || 
+               $this->type === 'm' || 
+               $this->type === 'a';
+    }
+
+    /**
+    * Get the attribute for checking if user is in any community
+    *
+    * @return bool
+    */
+    public function getIsCommunityMemberAttribute()
+    {
+        return $this->communities()->exists() || 
+               $this->type === 'm' || 
+               $this->type === 'a';
+    }
 }

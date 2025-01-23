@@ -59,8 +59,8 @@
             class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 w-full max-w-full"
         >
             <h3 class="text-xl font-semibold mb-4">Name</h3>
-            <p class="text-gray-600 mb-2 break-words overflow-hidden">{{ event.name || 'No name set' }}</p>
-            <p class="text-gray-500 text-sm break-words overflow-hidden">{{ event.tag_line || 'No tagline set' }}</p>
+            <p class="text-gray-600 mb-2 leading-tight break-words hyphens-auto overflow-hidden">{{ event.name || 'No name set' }}</p>
+            <p class="text-gray-500 text-xl leading-tight break-words hyphens-auto overflow-hidden">{{ event.tag_line || 'No tagline set' }}</p>
         </div>
 
         <!-- Category -->
@@ -159,7 +159,7 @@
             class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
         >
             <h3 class="text-xl font-semibold mb-4">Description</h3>
-            <p class="text-gray-600 line-clamp-2">{{ event.description || 'No description set' }}</p>
+            <p class="text-gray-600 line-clamp-2 break-words hyphens-auto">{{ event.description || 'No description set' }}</p>
         </div>
 
         <!-- Dates -->
@@ -170,8 +170,12 @@
             <div class="flex justify-between items-start">
                 <h3 class="text-xl font-semibold">Dates</h3>
             </div>
-            <p class="text-gray-600 mt-4">{{ showsCount }} shows total</p>
-            <p class="text-gray-500 text-sm">{{ remainingShows }} upcoming</p>
+            <p class="text-gray-600 mt-4">
+                {{ typeof showsCount === 'string' ? showsCount : `${showsCount} shows total` }}
+            </p>
+            <p v-if="typeof showsCount === 'number'" class="text-gray-500 text-sm">
+                {{ remainingShows }} upcoming
+            </p>
         </div>
 
         <!-- Tickets -->
@@ -423,10 +427,12 @@ const onMapReady = () => {
 };
 
 const showsCount = computed(() => {
+    if (props.event.showtype === 'a') return 'Anytime';
     return props.event.shows ? Object.keys(props.event.shows).length : 0;
 });
 
 const remainingShows = computed(() => {
+    if (props.event.showtype === 'a') return '';
     if (!props.event.shows) return 0;
     const now = new Date();
     const futureShows = props.event.shows.filter(show => {

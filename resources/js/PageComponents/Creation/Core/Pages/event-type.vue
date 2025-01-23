@@ -4,7 +4,6 @@
         <div v-if="!state.userAccepts && event.hasLocation === null" class="w-full">
             <div class="flex justify-center w-full">
                 <div class="w-full">
-                    <h5 class="font-bold">Step 2</h5>
                     <h3 class="mt-10 text-6xl mb-8">The right fit:</h3>
                     <p class="font-light">Immersive experiences are experiences that have some type of immersive aspect. They must meet these standards:</p>
                     <div class="rounded-2xl overflow-hidden my-12 w-1/2">
@@ -19,7 +18,7 @@
                     </ul>
                 </div>
             </div>
-            <div class="w-full flex justify-end">
+            <div class="w-full flex justify-start mt-8">
                 <button 
                     class="p-4 bg-black text-white rounded-2xl" 
                     @click="handleAccept"
@@ -27,6 +26,10 @@
                     I accept
                 </button>
             </div>
+            <p v-if="showAcceptanceError" 
+               class="text-red-500 text-1xl mt-4 mb-8">
+                Please accept before continuing
+            </p>
         </div>
 
         <!-- Event Type Selection -->
@@ -52,13 +55,11 @@
                     </button>
                 </div>
             </div>
+            <p v-if="showEventTypeError" 
+               class="text-red-500 text-1xl mt-4 mb-8">
+                Please choose an event type
+            </p>
         </div>
-
-        <!-- Validation Error Message -->
-        <p v-if="showError" 
-           class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
-            Please select an event type
-        </p>
     </main>
 </template>
 
@@ -89,45 +90,60 @@ const eventTypeOptions = [
 // 4. State Management
 const state = ref({
     userAccepts: false,
-    hasValidationError: false
+    hasAcceptanceError: false,
+    hasEventTypeError: false
 });
 
 // 5. Computed Properties
-const showError = computed(() => {
-    return state.value.hasValidationError && event.hasLocation === null;
+const showAcceptanceError = computed(() => {
+    return state.value.hasAcceptanceError && !state.value.userAccepts;
+});
+
+const showEventTypeError = computed(() => {
+    return state.value.hasEventTypeError && event.hasLocation === null;
 });
 
 // 6. Validation Rules
 const rules = {
+    hasAccepted: { required },
     hasLocation: { required }
 };
 
 const $v = useVuelidate(rules, {
+    hasAccepted: computed(() => state.value.userAccepts),
     hasLocation: computed(() => event.hasLocation)
 });
 
 // 7. Methods
 const handleAccept = () => {
     state.value.userAccepts = true;
+    state.value.hasAcceptanceError = false;
 };
 
 const onSelect = (hasLocation) => {
     event.hasLocation = hasLocation;
-    state.value.hasValidationError = false;
+    state.value.hasEventTypeError = false;
 };
 
 // 8. Component API
 defineExpose({
     isValid: async () => {
         await $v.value.$validate();
-        const isValid = !$v.value.$error;
         
-        if (!isValid) {
-            state.value.hasValidationError = true;
-            errors.value = { eventType: ['Please select an event type'] };
+        // Only check acceptance if hasLocation hasn't been set yet
+        if (event.hasLocation === null && !state.value.userAccepts) {
+            state.value.hasAcceptanceError = true;
+            errors.value = { eventType: ['Please accept before continuing'] };
+            return false;
         }
         
-        return isValid;
+        if (event.hasLocation === null) {
+            state.value.hasEventTypeError = true;
+            errors.value = { eventType: ['Please select an event type'] };
+            return false;
+        }
+        
+        return true;
     },
     submitData: () => {
         return {

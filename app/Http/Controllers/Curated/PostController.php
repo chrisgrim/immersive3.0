@@ -64,7 +64,13 @@ class PostController extends Controller
      */
     public function show(Community $community, Post $post)
     {
-        $post->load('cards', 'user');
+        $post->load([
+            'cards.images',
+            'cards.event',
+            'user',
+            'images',
+            'featuredEventImage.images'
+        ]);
         
         // Get authenticated user or null for guests
         $user = auth()->user();

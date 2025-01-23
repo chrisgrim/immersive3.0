@@ -130,9 +130,14 @@
                     </div>
                 </div>
             </div>
+            
 
             <!-- YouTube Section -->
             <div class="mt-16 max-w-[64rem] mx-auto">
+                <p v-if="showMainImageError" 
+                   class="text-red-500 text-1xl text-center mb-4">
+                    Please add a poster image for your event
+                </p>
                 <h3 class="text-2xl mb-4">Add a YouTube Video (Optional)</h3>
                 <div class="relative">
                     <input 
@@ -233,6 +238,7 @@ const handleMainFileChange = async (event) => {
         const isValid = await validateFile(file);
         if (isValid) {
             console.log('File validated, preparing cropper');
+            showMainImageError.value = false;
             const reader = new FileReader();
             reader.onload = (e) => {
                 cropperImage.value = e.target.result;
@@ -251,6 +257,8 @@ const onChange = ({ coordinates, canvas }) => {
 
 const completeCrop = () => {
     console.log('Starting crop completion');
+    showMainImageError.value = false;
+    
     console.log('State before crop:', {
         mainImage: mainImage.value,
         secondaryImages: [...images.value],
@@ -373,7 +381,14 @@ const props = defineProps({
 
 // Update submitData to handle both new and existing images
 defineExpose({
-    isValid: async () => true,
+    isValid: async () => {
+        if (!mainImage.value) {
+            showMainImageError.value = true;
+            return false;
+        }
+        showMainImageError.value = false;
+        return true;
+    },
     submitData: () => {
         const formData = new FormData();
         const currentImages = [];
@@ -573,6 +588,8 @@ const startOperation = () => {
 const finishOperation = () => {
     setComponentReady(true);
 };
+
+const showMainImageError = ref(false);
 </script>
 
 <style>

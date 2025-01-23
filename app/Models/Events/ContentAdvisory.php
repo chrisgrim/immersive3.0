@@ -23,8 +23,9 @@ class ContentAdvisory extends Model
     public static function saveAdvisories($event, $advisories)
     {
         foreach ($advisories as $content) {
-            // Ensure $content is treated as a string
+            // Ensure $content is treated as a string and normalize it
             $name = is_array($content) ? $content['name'] : $content;
+            $name = trim(ucfirst(strtolower($name))); // Normalize case and trim spaces
 
             ContentAdvisory::firstOrCreate([
                 'slug' => Str::slug($name)
@@ -36,7 +37,8 @@ class ContentAdvisory extends Model
         }
 
         $newSync = ContentAdvisory::whereIn('slug', collect($advisories)->map(function ($item) {
-            return Str::slug(is_array($item) ? $item['name'] : $item); 
+            $name = is_array($item) ? $item['name'] : $item;
+            return Str::slug(trim(strtolower($name))); // Normalize for lookup
         })->toArray())->get();
 
         $event->contentadvisories()->sync($newSync);

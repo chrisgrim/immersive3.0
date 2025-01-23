@@ -10,9 +10,11 @@ use App\Models\Curated\Community;
 use Illuminate\Support\Str;
 use App\Models\User;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Foundation\Validation\ValidationException;
+use Illuminate\Validation\ValidationException;
 use App\Services\ImageHandler;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\CuratorInvitation;
 
 class CommunityActions
 {
@@ -147,6 +149,62 @@ class CommunityActions
     {
         $community->update([ 'user_id' => $request->id ]);
         return $community->fresh()->load('curators', 'owner');
+    }
+
+    /**
+     * Invite a curator to the community
+     *
+     * @param  Request  $request
+     * @param  Community  $community
+     * @return \Illuminate\Http\Response
+     */
+    public function inviteCurator(Request $request, Community $community)
+    {
+        // Check if user exists in EI
+        $user = User::where('email', $request->email)->first();
+        if (!$user) {
+            throw ValidationException::withMessages([
+                'email' => 'This email is not registered with EI. Users must have an EI account to be a curator.'
+            ]);
+        }
+
+        // Check if user is already a curator
+        $existingCurator = $community->curators()
+            ->where('id', $user->id)
+            ->exists();
+
+        if ($existingCurator) {
+            throw ValidationException::withMessages([
+                'email' => 'This person is already a curator of this community.'
+            ]);
+        }
+
+        // Check if there's already a pending invitation
+        $existingInvitation = $community->curatorInvitations()
+            ->where('email', $request->email)
+            ->whereNull('accepted_at')
+            ->where('expires_at', '>', now())
+            ->exists();
+
+        if ($existingInvitation) {
+            throw ValidationException::withMessages([
+                'email' => 'An invitation has already been sent to this email address.'
+            ]);
+        }
+
+        // Create invitation record
+        $invitation = $community->curatorInvitations()->create([
+            'email' => $request->email,
+            'token' => Str::random(32),
+            'expires_at' => now()->addDays(7)
+        ]);
+
+        // Send invitation email
+        Mail::to($request->email)->send(new CuratorInvitation($community, $invitation));
+
+        return response()->json([
+            'message' => 'Invitation sent successfully'
+        ]);
     }
 
 }

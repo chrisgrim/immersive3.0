@@ -9,9 +9,13 @@
                 </svg>
                 <input 
                     ref="searchInput"
-                    class="text-2xl border-gray-300 relative p-8 w-full border rounded-3xl focus:rounded-t-3xl focus:rounded-b-none h-24"
+                    :class="[
+                        'text-2xl border-gray-300 relative p-8 w-full border rounded-3xl focus:rounded-t-3xl focus:rounded-b-none h-24',
+                        { 'border-red-500 shadow-[0_0_0_1.5px_#ef4444]': error }
+                    ]"
                     v-model="searchTerm"
                     :placeholder="placeholder"
+                    :maxlength="maxInputLength"
                     @input="filterRemoteLocations"
                     @focus="onDropdown"
                     @keydown.enter.prevent="handleEnter"
@@ -57,6 +61,14 @@ const props = defineProps({
     placeholder: {
     	type: String,
     	default: "", 
+    },
+    maxInputLength: {
+        type: Number,
+        default: 255
+    },
+    error: {
+        type: Boolean,
+        default: false
     }
 });
 

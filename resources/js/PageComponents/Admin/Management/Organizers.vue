@@ -51,7 +51,7 @@
                 <tbody class="divide-y divide-gray-200 text-xl">
                     <tr v-for="organizer in organizers" :key="organizer.id">
                         <td class="px-6 py-4 whitespace-nowrap">{{ organizer.id }}</td>
-                        <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words min-w-[18rem]">
+                        <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto min-w-[18rem]">
                             {{ organizer.name }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">

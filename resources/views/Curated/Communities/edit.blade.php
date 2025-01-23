@@ -9,17 +9,16 @@
     @if (Browser::isMobile())
         @include('Nav.index-mobile')
     @else
-        @include('Nav.event-desktop')
+        @include('Nav.nav-full')
     @endif
     
 @endsection
 
 @section('content')
 
-    <vue-community-edit
-        :loadshelves="{{ json_encode($shelves) }}"
-        :loadcommunity="{{ $community->toJson() }}"
-        :user="{{ $user ? $user->toJson() : 'null' }}" />
+<div>
+    <vue-community-edit :community="{{ $community->toJson() }}" />
+</div>
 
 @endsection
 

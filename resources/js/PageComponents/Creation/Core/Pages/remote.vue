@@ -13,7 +13,20 @@
                     placeholder="Select remote locations"
                     @onSelect="itemSelected"
                     @onSearch="term => fetchRemoteLocations(term)"
+                    :error="showDropdownError"
+                    :max-selections="10"
+                    :max-input-length="50"
                 />
+                <div v-if="showError" class="mt-4">
+                    <p class="text-red-500 text-1xl">
+                        Please select at least one remote location
+                    </p>
+                </div>
+                <div v-if="showMaxError" class="mt-4">
+                    <p class="text-red-500 text-1xl">
+                        Maximum of 10 remote locations allowed
+                    </p>
+                </div>
                 <List 
                     class="mt-6"
                     :item-height="'h-24'"
@@ -21,12 +34,6 @@
                     @onSelect="itemRemoved"
                 />
 
-                <!-- Error Message -->
-                <div v-if="showError" class="mt-4">
-                    <p class="text-red-500 text-1xl">
-                        Please select at least one remote location
-                    </p>
-                </div>
             </div>
         </div>
     </main>
@@ -67,6 +74,20 @@ const $v = useVuelidate(rules, {
 // Computed Properties
 const showError = computed(() => {
     return $v.value.$dirty && $v.value.$error;
+});
+
+const showMaxError = computed(() => {
+    return event.remotelocations?.length >= 10;
+});
+
+const showDropdownError = computed(() => {
+    if (event.remotelocations?.length >= 10) {
+        return 'Maximum of 10 remote locations allowed';
+    }
+    if ($v.value.$dirty && $v.value.$error) {
+        return 'Please select at least one remote location';
+    }
+    return null;
 });
 
 // Methods

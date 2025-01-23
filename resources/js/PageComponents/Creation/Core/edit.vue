@@ -102,7 +102,7 @@
                             <!-- Resubmit button -->
                             <button 
                                 v-if="event.status === 'n'"
-                                @click="submitEvent"
+                                @click="handleSubmitClick"
                                 :disabled="isSubmitting || isSubmittingEvent"
                                 :class="{
                                     'px-6 py-3 rounded-lg transition-colors border border-black': true,
@@ -172,6 +172,34 @@
                 </div>
             </div>
         </Transition>
+
+        <!-- Confirmation Modal -->
+        <Teleport to="body">
+            <div v-if="showConfirmModal" 
+                 class="fixed inset-0 flex items-center justify-center z-50"
+            >
+                <div class="absolute inset-0 bg-black/50" @click="showConfirmModal = false"></div>
+                <div class="relative bg-white rounded-xl p-12 max-w-xl w-full mx-4">
+                    <h3 class="text-xl font-medium mb-2">Ready to Submit?</h3>
+                    <p class="text-gray-500 mb-4">Have you made all your changes to your event?</p>
+                    
+                    <div class="flex justify-end gap-3">
+                        <button 
+                            @click="showConfirmModal = false"
+                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            @click="handleConfirmedSubmit"
+                            class="px-4 py-2 text-white bg-black rounded-lg hover:bg-gray-800"
+                        >
+                            Submit
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
     </div>
 </template>
 
@@ -256,6 +284,7 @@ const goToPrevious = () => {
 };
 
 const showSuccessModal = ref(false);
+const showConfirmModal = ref(false);
 
 const saveChanges = async () => {
     try {
@@ -332,6 +361,15 @@ const submitEvent = async () => {
     } finally {
         isSubmittingEvent.value = false;
     }
+};
+
+const handleSubmitClick = () => {
+    showConfirmModal.value = true;
+};
+
+const handleConfirmedSubmit = async () => {
+    showConfirmModal.value = false;
+    await submitEvent();
 };
 </script>
 

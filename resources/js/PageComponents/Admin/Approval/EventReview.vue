@@ -148,9 +148,9 @@
 
                     <!-- Name & Description -->
                     <div class="p-8 shadow-custom-1 rounded-3xl">
-                        <h3 class="text-5xl leading-tight font-semibold mb-3">{{ props.event?.name }}</h3>
-                        <p class="text-1xl mb-16">{{ props.event?.tag_line }}</p>
-                        <p class="text-regular whitespace-pre-line">{{ props.event?.description }}</p>
+                        <h3 class="text-5xl leading-tight font-semibold mb-3 break-words hyphens-auto">{{ props.event?.name }}</h3>
+                        <p class="text-1xl mb-16 break-words hyphens-auto">{{ props.event?.tag_line }}</p>
+                        <p class="text-regular whitespace-pre-line break-words hyphens-auto">{{ props.event?.description }}</p>
                     </div>
 
                     <!-- Organizer Section -->
@@ -287,7 +287,7 @@
                             <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 <div v-for="location in props.event?.remotelocations" 
                                      :key="location.id"
-                                     class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl">
+                                     class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl break-words hyphens-auto">
                                     {{ location.name }}
                                 </div>
                             </div>
@@ -313,7 +313,7 @@
                         <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mt-8">
                             <div v-for="genre in props.event?.genres" 
                                  :key="genre.id"
-                                 class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-1xl">
+                                 class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-1xl break-words hyphens-auto">
                                 {{ genre.name }}
                             </div>
                         </div>
@@ -340,10 +340,10 @@
                             <div v-for="ticket in props.event?.shows?.[0]?.tickets" 
                                  :key="ticket.id"
                                  class="flex flex-col border border-neutral-300 rounded-2xl">
-                                <p class="px-4 pt-4 text-1xl font-semibold">{{ ticket.name }}</p>
+                                <p class="px-4 pt-4 text-1xl font-semibold break-words hyphens-auto">{{ ticket.name }}</p>
                                 <div class="flex-grow flex flex-col justify-end px-4 pb-4">
                                     <p class="text-1xl font-semibold mt-14 leading-tight">${{ ticket.ticket_price }}</p>
-                                    <p v-if="ticket.description" class="text-lg text-gray-600 leading-tight">
+                                    <p v-if="ticket.description" class="text-lg text-gray-600 leading-tight break-words hyphens-auto">
                                         {{ ticket.description }}
                                     </p>
                                 </div>
@@ -377,7 +377,7 @@
                                 <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
                                     <div v-for="advisory in props.event?.content_advisories" 
                                          :key="advisory.id"
-                                         class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl">
+                                         class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl break-words hyphens-auto">
                                         {{ advisory.name }}
                                     </div>
                                 </div>
@@ -389,7 +389,7 @@
                                 <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
                                     <div v-for="advisory in props.event?.mobility_advisories" 
                                          :key="advisory.id"
-                                         class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl">
+                                         class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl break-words hyphens-auto">
                                         {{ advisory.name }}
                                     </div>
                                 </div>
@@ -399,7 +399,7 @@
                             <div>
                                 <p class="font-medium mb-4">Interaction Level</p>
                                 <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                    <div class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl">
+                                    <div class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl break-words hyphens-auto">
                                         {{ props.event?.interactive_level?.name }}
                                     </div>
                                 </div>

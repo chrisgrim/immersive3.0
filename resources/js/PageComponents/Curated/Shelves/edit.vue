@@ -1,60 +1,66 @@
 <template>
     <div class="rounded-2xl mb-8 p-2 border">
         <div class="m-4">
-            <!-- Shelf Header with Toggle -->
-            <div class="flex items-center justify-between">
-                <template v-if="editName && shelf.status !== 'a'">
-                    <div class="field h3">
-                        <input 
-                            type="text" 
-                            v-model="shelf.name"
-                            :class="{ 'error': v$.shelf.name.$error }"
-                            class="w-full border border-black rounded-lg p-2"
-                            placeholder="Shelf Name">
-                        <div v-if="v$.shelf.name.$error" class="validation-error">
-                            <p class="error" v-if="!v$.shelf.name.required">Please add a name.</p>
-                            <p class="error" v-if="!v$.shelf.name.maxLength">The name is too long.</p>
+            <!-- Shelf Header -->
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-4 p-6">
+                    <template v-if="editName && shelf.status !== 'a'">
+                        <div class="field h3">
+                            <input 
+                                type="text" 
+                                v-model="shelf.name"
+                                :class="{ 'error': v$.shelf.name.$error }"
+                                class="w-full border border-black rounded-lg p-2"
+                                placeholder="Shelf Name">
+                            <div v-if="v$.shelf.name.$error" class="validation-error">
+                                <p class="error" v-if="!v$.shelf.name.required">Please add a name.</p>
+                                <p class="error" v-if="!v$.shelf.name.maxLength">The name is too long.</p>
+                            </div>
                         </div>
-                    </div>
-                </template>
-                <template v-else>
-                    <div 
-                        @mouseover="hover = true"
-                        @mouseleave="hover = false"
-                        @click="editName=true"
-                        class="inline-flex items-center">
-                        <template v-if="shelf.name">
-                            <h3>{{ shelf.name }}</h3>
-                        </template>
-                        <template v-else>
-                            <h3>Edit Name</h3>
-                        </template>
-                        <template v-if="!editName && hover && shelf.status !== 'a'">
-                            <button class="border-none underline p-0 block w-8 h-8 rounded-full justify-center items-center">
-                                <svg class="h-8 w-8">
-                                    <use :xlink:href="`/storage/website-files/icons.svg#ri-pencil-line`" />
-                                </svg>
-                            </button>
-                        </template>
-                    </div>
-                </template>
+                    </template>
+                    <template v-else>
+                        <div 
+                            @mouseover="hover = true"
+                            @mouseleave="hover = false"
+                            @click="editName=true"
+                            class="inline-flex items-center">
+                            <template v-if="shelf.name">
+                                <h3>{{ shelf.name }}</h3>
+                            </template>
+                            <template v-else>
+                                <h3>Edit Name</h3>
+                            </template>
+                            <template v-if="!editName && hover && shelf.status !== 'a'">
+                                <button class="border-none underline p-0 block w-8 h-8 rounded-full justify-center items-center">
+                                    <svg class="h-8 w-8">
+                                        <use :xlink:href="`/storage/website-files/icons.svg#ri-pencil-line`" />
+                                    </svg>
+                                </button>
+                            </template>
+                        </div>
 
-                <div class="flex gap-2">
+                        <!-- Create Post Button -->
+                        <a 
+                            :href="`/posts/${community.slug}/create?shelf=${shelf.id}`"
+                            class="inline-flex items-center border border-neutral-300 rounded-full ml-8 p-4 pr-6 gap-2 text-gray-600 hover:bg-black hover:text-white"
+                        >
+                            <div class="rounded-full w-8 h-8 flex items-center justify-center">
+                                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                </svg>
+                            </div>
+                            <span class="text-xl font-bold">Create Post</span>
+                        </a>
+                    </template>
+                </div>
+
+                <!-- Delete Button -->
+                <div v-if="!shelf.posts?.data?.length && shelf.name !== 'Archived'">
                     <button 
-                        v-if="!shelf.posts?.data?.length && shelf.name !== 'Archived'"
                         @click="$emit('delete', shelf)"
                         class="p-2 bg-black hover:bg-gray-100 rounded-full group">
                         <svg class="w-8 h-8 fill-white group-hover:fill-black">
                             <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
-                        </svg>
-                    </button>
-                    <button 
-                        v-if="shelf.posts?.data?.length"
-                        @click="isMinimized = !isMinimized"
-                        class="p-2 bg-black hover:bg-gray-100 rounded-full group">
-                        <svg class="w-8 h-8 transition-transform duration-200 fill-white group-hover:fill-black" 
-                             :class="{ 'rotate-180': !isMinimized }">
-                            <use :xlink:href="`/storage/website-files/icons.svg#ri-arrow-down-s-line`" />
                         </svg>
                     </button>
                 </div>
@@ -70,17 +76,8 @@
                     @click="patchShelf">Save</button>
             </div>
 
-            <!-- Empty State with Create Post Button -->
-            <div v-if="!shelf.posts?.data?.length" class="flex mt-2">
-                <a :href="`/posts/${community.slug}/create?shelf=${shelf.id}`"
-                   class="rounded-2xl border border-black py-2 px-4 hover:bg-black hover:text-white">
-                    Create Post
-                </a>
-            </div>
-
             <!-- Collection Album (Posts) -->
-            <div v-show="!isMinimized && shelf.posts?.data?.length" 
-                 class="posts transition-all duration-200">
+            <div class="posts">
                 <CollectionAlbum
                     v-model="shelf"
                     :community="community"
@@ -117,7 +114,6 @@ const posts = ref(props.loadshelf.posts || [])
 const editName = ref(false)
 const hover = ref(false)
 const serverErrors = ref(null)
-const isMinimized = ref(false)
 
 // Validation rules
 const rules = {

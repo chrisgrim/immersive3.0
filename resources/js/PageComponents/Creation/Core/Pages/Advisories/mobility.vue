@@ -18,6 +18,11 @@
                         </div>
                     </button>
                 </div>
+                <!-- Add error message -->
+                <p v-if="!hasSelectedWheelchair && $v.$dirty" 
+                   class="text-red-500 text-1xl mt-2 py-2 leading-tight">
+                    Please select whether the event is wheelchair accessible
+                </p>
             </div>
 
             <!-- Additional Advisories Selection -->
@@ -28,8 +33,19 @@
                     :list="mobilityAdvisoryList"
                     :creatable="true"
                     placeholder="Additional advisories"
-                    @onSelect="itemSelected" 
+                    @onSelect="itemSelected"
+                    :error="showAdvisoriesError"
+                    :max-selections="10"
+                    :max-input-length="50"
                 />
+                <div v-if="(hasSelectedWheelchair && !hasRequiredAdvisories && $v.hasAdditionalAdvisories.$error) || mobilityAdvisories.length >= 10" class="mt-4">
+                    <p class="text-red-500 text-1xl">
+                        {{ mobilityAdvisories.length >= 10 
+                            ? 'Maximum of 10 mobility advisories allowed' 
+                            : 'Please select at least one additional mobility advisory' 
+                        }}
+                    </p>
+                </div>
                 <List 
                     class="mt-6"
                     :item-height="'h-24'"
@@ -37,19 +53,6 @@
                     @onSelect="itemRemoved"
                 />
 
-                <!-- Additional Advisories Error -->
-                <div v-if="hasSelectedWheelchair && !hasRequiredAdvisories && $v.hasAdditionalAdvisories.$error" class="mt-4">
-                    <p class="text-red-500 text-1xl">
-                        Please select at least one additional mobility advisory
-                    </p>
-                </div>
-            </div>
-
-            <!-- Wheelchair Selection Error -->
-            <div v-if="!hasSelectedWheelchair && $v.hasSelectedWheelchair.$error" class="mt-4">
-                <p class="text-red-500 text-1xl">
-                    Please select whether the event is wheelchair accessible
-                </p>
             </div>
         </div>
     </main>
@@ -89,7 +92,9 @@ const hasRequiredAdvisories = computed(() => otherAdvisories.value.length > 0);
 
 // 5. Validation Rules
 const rules = {
-    hasSelectedWheelchair: { required },
+    hasSelectedWheelchair: { 
+        required: (value) => value === true || value === false 
+    },
     hasAdditionalAdvisories: { 
         required: () => hasRequiredAdvisories.value 
     }
@@ -120,6 +125,9 @@ const onSelectWheelchair = (isAccessible) => {
 };
 
 const itemSelected = (item) => {
+    if (mobilityAdvisories.value.length >= 10) {
+        return;
+    }
     otherAdvisories.value.push(item);
     mobilityAdvisoryList.value = mobilityAdvisoryList.value.filter(advisory => 
         !otherAdvisories.value.find(selected => selected.id === advisory.id)
@@ -151,16 +159,16 @@ const fetchMobilityAdvisories = async () => {
 // 9. Component API
 defineExpose({
     isValid: async () => {
-        await $v.value.$touch();
+        $v.value.$touch();
         await $v.value.$validate();
 
         if (!hasSelectedWheelchair.value) {
-            errors.value = { mobilityAdvisories: ['Please select whether the event is wheelchair accessible'] };
+            errors.value = { mobility: ['Please select whether the event is wheelchair accessible'] };
             return false;
         }
 
         if (!hasRequiredAdvisories.value) {
-            errors.value = { mobilityAdvisories: ['Please select at least one additional mobility advisory'] };
+            errors.value = { mobility: ['Please select at least one additional mobility advisory'] };
             return false;
         }
 
@@ -195,5 +203,16 @@ onMounted(async () => {
             });
         }
     }
+});
+
+// Add computed property for error state
+const showAdvisoriesError = computed(() => {
+    if (mobilityAdvisories.value.length >= 10) {
+        return 'Maximum of 10 mobility advisories allowed';
+    }
+    if (hasSelectedWheelchair.value && !hasRequiredAdvisories.value && $v.value.hasAdditionalAdvisories.$error) {
+        return 'Please select at least one additional mobility advisory';
+    }
+    return null;
 });
 </script>

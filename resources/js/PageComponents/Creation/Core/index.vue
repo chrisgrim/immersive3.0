@@ -219,7 +219,7 @@ const goToNext = async () => {
         }
 
         const submitData = await currentComponentRef.value.submitData();
-        
+        console.log(submitData);
         if (!event.status || (event.status !== 'p' && event.status !== 'e')) {
             const currentStepValue = STEP_MAP[currentStep.value];
             const existingStepValue = event.status || '0';

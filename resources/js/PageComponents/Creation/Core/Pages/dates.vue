@@ -34,7 +34,7 @@
                                 Show has specific dates
                             </h4>
                             <p class="text-1xl mt-4 text-gray-700 font-light">
-                                Either random or days of the week.
+                                Select all show dates.
                             </p>
                         </div>
                     </button>
@@ -47,7 +47,7 @@
                                 Always
                             </h4>
                             <p class="text-1xl mt-4 text-gray-700 font-light">
-                                Show is everyday or always available at any time.
+                                Show is available at any time.
                             </p>
                         </div>
                     </button>
@@ -57,36 +57,38 @@
         </div>
         <div 
         v-else 
-        class="relative border border-gray-200 rounded-4xl overflow-hidden">
-            <div class="flex-grow relative w-full border bg-white overflow-y-auto overflow-x-hidden h-[45rem]">
-                <VueDatePicker
-                    v-model="date"
-                    multi-dates
-                    disable-year-select
-                    disable-month-select
-                    :multi-calendars="displayedMonths"
-                    :enable-time-picker="false"
-                    :dark="isDark"
-                    :timezone="tz"
-                    :preview-date="new Date()"
-                    :min-date="new Date()"
-                    inline
-                    auto-apply
-                    @update:model-value="onDateSelect"
-                    month-name-format="long"
-                    hide-offset-dates
-                    :month-change-on-scroll="false"
-                    week-start="0"
-                />
-                
-                <!-- Load More Button -->
-                <div v-if="displayedMonths === 3" class="w-full flex justify-center my-8">
-                    <button 
-                        @click="loadMoreMonths"
-                        class="text-black underline font-semibold hover:text-gray-600"
-                    >
-                        Show more dates
-                    </button>
+        class="relative rounded-4xl">
+        <div class="flex-grow shadow-[0_0_0_2.5px_black] overflow-hidden border-black rounded-2xl relative w-full  bg-white overflow-y-auto overflow-x-hidden h-[45rem]">
+                <div class="w-full h-full overflow-x-hidden">
+                    <VueDatePicker
+                        v-model="date"
+                        multi-dates
+                        disable-year-select
+                        disable-month-select
+                        :multi-calendars="displayedMonths"
+                        :enable-time-picker="false"
+                        :dark="isDark"
+                        :timezone="tz"
+                        :preview-date="new Date()"
+                        :min-date="new Date()"
+                        inline
+                        auto-apply
+                        @update:model-value="onDateSelect"
+                        month-name-format="long"
+                        hide-offset-dates
+                        :month-change-on-scroll="false"
+                        week-start="0"
+                    />
+                    
+                    <!-- Load More Button -->
+                    <div v-if="displayedMonths === 3" class="w-full flex justify-center my-8">
+                        <button 
+                            @click="loadMoreMonths"
+                            class="text-black underline font-semibold hover:text-gray-600"
+                        >
+                            Show more dates
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="w-full h-full flex flex-col justify-between bg-white">
@@ -245,9 +247,6 @@ const displayedMonths = ref(3);
 // 3. Calendar State
 const events = ref([]);
 const selectedDates = ref([]);
-const tempSelectedDates = ref([]);
-const tempShowTimes = ref('');
-const previousShowType = ref(null);
 
 // 4. Prompt State
 const promptVisible = ref(false);
@@ -519,38 +518,27 @@ defineExpose({
     }
 });
 
-// 15. Watchers
-watch(() => event.showtype, (newType, oldType) => {
-    if (oldType === 's' && newType === 'a') {
-        tempSelectedDates.value = [...selectedDates.value];
-        tempShowTimes.value = event.show_times;
-        previousShowType.value = 's';
-        selectedDates.value = [];
-        events.value = [];
-        event.show_times = '';
-    } else if (oldType === 'a' && newType === 's') {
-        selectedDates.value = [];
-        events.value = [];
-    } else if (newType === null && previousShowType.value === 's') {
-        selectedDates.value = [...tempSelectedDates.value];
-        event.show_times = tempShowTimes.value;
-        events.value = tempSelectedDates.value.map(date => ({
-            start: date,
-            end: date,
-            title: 'Selected'
-        }));
-    }
-}, { deep: true });
-
-// 16. Lifecycle Hooks
+// 15. Lifecycle Hooks
 onMounted(() => {
+    console.log('Component mounted');
+    console.log('Initial event.shows:', event.shows);
+    
     initializeTimezones();
-    if (event.shows?.length > 0) {
+    
+    // Clear any existing dates first
+    date.value = [];
+    selectedDates.value = [];
+    events.value = [];
+    
+    // Only set dates if we have shows and we're in specific dates mode
+    if (event.shows?.length > 0 && event.showtype === 's') {
         const showDates = event.shows.map(show => {
             const date = new Date(show.date);
-            date.setHours(11, 0, 0, 0);
+            date.setHours(12, 0, 0, 0);
             return date;
         });
+        
+        console.log('Initial show dates:', showDates);
         
         date.value = showDates;
         selectedDates.value = showDates.map(d => d.toISOString().split('T')[0]);
@@ -559,6 +547,12 @@ onMounted(() => {
             end: date,
             title: 'Selected'
         }));
+        
+        console.log('Initial state set:', {
+            date: date.value,
+            selectedDates: selectedDates.value,
+            events: events.value
+        });
     }
     
     windowWidth.value = window?.innerWidth ?? 0;
@@ -569,7 +563,7 @@ onUnmounted(() => {
     window?.removeEventListener('resize', handleResize);
 });
 
-// 17. Utility Methods
+// 16. Utility Methods
 const loadMoreMonths = () => {
     displayedMonths.value = 6;
     setTimeout(() => {

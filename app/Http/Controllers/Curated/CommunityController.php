@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Curated;
 
 use Illuminate\Http\Request;
 use App\Models\Curated\Community;
+use App\Models\Curated\CuratorInvitation;
 use App\Models\Featured\Section;
 use App\Models\Featured\Feature;
 use App\Models\Curated\Post;
@@ -99,10 +100,29 @@ class CommunityController extends Controller
     /**
      * Show the form for editing the specified resource.
      *
-     * @param  \App\Curated\Community  $community
+     * @param  \App\Models\Curated\Community  $community
      * @return \Illuminate\Http\Response
      */
     public function edit(Community $community)
+    {
+        $this->authorize('update', $community);
+        
+        return view('Curated.Communities.edit', [
+            'community' => $community->load([
+                'owner',
+                'curators',
+                'images'
+            ])
+        ]);
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     *
+     * @param  \App\Curated\Community  $community
+     * @return \Illuminate\Http\Response
+     */
+    public function listings(Community $community)
     {
         $this->authorize('update', $community);
         
@@ -120,7 +140,7 @@ class CommunityController extends Controller
                 return $shelf;
             });
 
-        return view('Curated.Communities.edit', [
+        return view('Curated.Communities.listings', [
             'community' => $community->load('owner', 'curators', 'images'),
             'shelves' => $shelves,
             'user' => $user,
@@ -137,6 +157,51 @@ class CommunityController extends Controller
     public function update(StoreCommunityRequest $request, Community $community, CommunityActions $communityActions)
     {
         try {
+            // Handle ownership transfer and curator updates together
+            if ($request->has('curator_ids')) {
+                // Handle ownership transfer first if requested
+                if ($request->has('new_owner_id')) {
+                    $communityActions->updateOwner(
+                        new Request(['id' => $request->new_owner_id]), 
+                        $community
+                    );
+                    
+                    // Make sure the old owner is included in curator_ids if not already
+                    if (!in_array($community->user_id, $request->curator_ids)) {
+                        $request->merge([
+                            'curator_ids' => array_merge($request->curator_ids, [$community->user_id])
+                        ]);
+                    }
+                }
+
+                // Remove all curators not in the new list
+                $currentCuratorIds = $community->curators->pluck('id')->toArray();
+                $newCuratorIds = $request->curator_ids;
+                
+                $curatorsToRemove = array_diff($currentCuratorIds, $newCuratorIds);
+                foreach ($curatorsToRemove as $curatorId) {
+                    $communityActions->removeCurator(
+                        new Request(['id' => $curatorId]), 
+                        $community
+                    );
+                }
+
+                // Add any new curators
+                $curatorsToAdd = array_diff($newCuratorIds, $currentCuratorIds);
+                foreach ($curatorsToAdd as $curatorId) {
+                    $curator = User::findOrFail($curatorId);
+                    $communityActions->addCurator(
+                        new Request(['email' => $curator->email]), 
+                        $community, 
+                        $curator
+                    );
+                }
+
+                $community = $community->fresh()->load('curators', 'owner', 'images');
+                return $community;
+            }
+
+            // Handle regular updates
             return $communityActions->update($request, $community);
         } catch (\Exception $e) {
             throw $e;
@@ -200,5 +265,103 @@ class CommunityController extends Controller
         return $communityActions->updateOwner($request, $community);
     }
 
+    /**
+     * Invite a curator to the community
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Curated\Community  $community
+     * @return \Illuminate\Http\Response
+     */
+    public function inviteCurator(Request $request, Community $community, CommunityActions $communityActions)
+    {
+        $request->validate([
+            'email' => 'required|email'
+        ]);
+
+        return $communityActions->inviteCurator($request, $community);
+    }
+
+    /**
+     * Accept a curator invitation
+     *
+     * @param  string  $token
+     * @return \Illuminate\Http\Response
+     */
+    public function acceptInvitation($token)
+    {
+        $invitation = CuratorInvitation::where('token', $token)->first();
+        
+        if (!$invitation) {
+            abort(404, 'Invalid invitation token');
+        }
+        
+        if ($invitation->accepted_at) {
+            return redirect("/communities/{$invitation->community->slug}/edit")
+                ->with('info', 'This invitation has already been accepted.');
+        }
+        
+        if ($invitation->expires_at < now()) {
+            abort(404, 'This invitation has expired. Please request a new invitation.');
+        }
+
+        if (!auth()->check()) {
+            session(['pending_curator_invitation' => $token]);
+            return redirect()->route('login')
+                ->withErrors(['email' => 'Please log in with ' . $invitation->email . ' to accept the curator invitation.']);
+        }
+
+        // Verify the logged-in user's email matches the invitation
+        if (auth()->user()->email !== $invitation->email) {
+            auth()->logout();
+            return redirect()->route('login')
+                ->withErrors(['email' => 'Please log in with ' . $invitation->email . ' to accept the curator invitation.']);
+        }
+
+        // Add user as curator
+        $invitation->community->curators()->attach(auth()->id());
+        
+        // Mark invitation as accepted
+        $invitation->update([
+            'accepted_at' => now()
+        ]);
+
+        return redirect("/communities/{$invitation->community->slug}/listings")
+            ->with('success', 'You are now a curator of this community.');
+    }
+
+    /**
+     * Update curator-related settings for the community
+     */
+    public function updateCurators(Request $request, Community $community)
+    {
+        $this->authorize('manageCurators', $community);
+        
+        if ($request->has('curator_ids')) {
+            // Handle ownership transfer first if requested
+            if ($request->has('new_owner_id')) {
+                $this->updateOwner(
+                    new Request(['id' => $request->new_owner_id]), 
+                    $community
+                );
+            }
+
+            // Update curators
+            $community->curators()->sync($request->curator_ids);
+        }
+
+        return $community->fresh()->load('curators', 'owner');
+    }
+
+    /**
+     * Remove self from community curators
+     */
+    public function removeSelf(Community $community)
+    {
+        $this->authorize('removeSelf', $community);
+        
+        $community->curators()->detach(auth()->id());
+        
+        return $community->fresh()->load('curators', 'owner');
+    }
 
 }

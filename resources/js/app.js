@@ -24,7 +24,7 @@ const Login = defineAsyncComponent(() => import('./Auth/login.vue'));
 const Inbox = defineAsyncComponent(() => import('./PageComponents/Messaging/inbox.vue'));
 
 const Organizer = defineAsyncComponent(() => import('./PageComponents/Organizer/show.vue'));
-
+const OrganizerEdit = defineAsyncComponent(() => import('./PageComponents/Organizer/edit.vue'));
 
 const Hosting = defineAsyncComponent(() => import('./PageComponents/Creation/index.vue'));
 const GettingStarted = defineAsyncComponent(() => import('./PageComponents/Creation/initial.vue'));
@@ -35,6 +35,7 @@ const Admin = defineAsyncComponent(() => import('./PageComponents/Admin/index.vu
 
 const CommunityShow = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/show.vue'));
 const CommunityEdit = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/edit.vue'));
+const CommunityListings = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/listings.vue'));
 const CommunityIndex = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/index.vue'));
 
 const PostEdit = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/edit.vue'));
@@ -80,6 +81,7 @@ app.component('vue-user-login', Login);
 app.component('vue-inbox', Inbox);
 
 app.component('vue-organizer', Organizer);
+app.component('vue-organizer-edit', OrganizerEdit);
 
 app.component('vue-hosting', Hosting);
 app.component('vue-getting-started', GettingStarted);
@@ -89,6 +91,7 @@ app.component('vue-hosting-event-edit', HostingEventEdit);
 app.component('vue-admin', Admin);
 app.component('vue-community-show', CommunityShow);
 app.component('vue-community-edit', CommunityEdit);
+app.component('vue-community-listings', CommunityListings);
 app.component('vue-community-index', CommunityIndex);
 
 app.component('vue-post-edit', PostEdit);

@@ -142,15 +142,21 @@ class Organizer extends Model
         return $query
             ->addSelect(['user_role' => function($query) {
                 $query->selectRaw("CASE 
-                    WHEN ? = 'a' THEN 'moderator'
                     WHEN organizers.user_id = ? THEN 'owner'
+                    WHEN ? = 'a' THEN 'admin'
+                    WHEN ? = 'm' THEN 'moderator'
                     ELSE (
                         SELECT role 
                         FROM organizer_user 
                         WHERE organizer_id = organizers.id 
                         AND user_id = ?
                     )
-                    END", [auth()->user()->type, auth()->id(), auth()->id()]);
+                    END", [
+                        auth()->id(), 
+                        auth()->user()->type,
+                        auth()->user()->type,
+                        auth()->id()
+                    ]);
             }]);
     }
 

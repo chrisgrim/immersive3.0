@@ -16,16 +16,25 @@ Route::controller(CommunityController::class)->group(function () {
     Route::get('/communities/{community}', 'show');
     Route::get('/communities/{community}/shelves/paginate', 'paginate');
     Route::get('/communities/{community}/edit', 'edit');
-    Route::post('/communities/{community}', 'update');
+    Route::get('/communities/{community}/listings', 'listings');
+    Route::post('/communities/{community}', 'update')
+        ->middleware('can:update,community');
+    Route::post('/communities/{community}/curators', 'updateCurators')
+        ->middleware('can:manageCurators,community');
     Route::delete('/communities/{community}', 'destroy');
     
     // Curator Management
     Route::post('/communities/{community}/curators/add', 'addCurator')
-        ->middleware('can:owner,community');
+        ->middleware('can:manageCurators,community');
     Route::post('/communities/{community}/curators/remove', 'removeCurator')
-        ->middleware('can:update,community');
+        ->middleware('can:manageCurators,community');
+    Route::post('/communities/{community}/curators/remove-self', 'removeSelf')
+        ->middleware('can:removeSelf,community');
     Route::post('/communities/{community}/curators/owner', 'updateOwner')
-        ->middleware('can:owner,community');
+        ->middleware('can:manageCurators,community');
+    Route::post('/communities/{community}/curators/invite', 'inviteCurator')
+        ->middleware('can:manageCurators,community');
+    Route::get('/curator-invitations/{token}', 'acceptInvitation')->name('curator.accept-invitation');
     Route::get('/create/communities/thanks', 'submitted');
 });
 

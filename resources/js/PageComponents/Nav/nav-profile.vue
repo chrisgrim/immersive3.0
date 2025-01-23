@@ -85,7 +85,7 @@
                             <div v-if="user.unread" class="ml-2 rounded-full bg-red-300 w-4 h-4 top-0 right-0"></div>
                         </a>
                         <a 
-                            v-if="user.isCurator"
+                            v-if="user.isCommunityMember"
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
                             href="/communities">
                             Communities

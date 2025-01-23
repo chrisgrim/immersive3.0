@@ -4,48 +4,65 @@
             <!-- Events List Section -->
             <section 
                 :class="{ 'w-0 hidden' : searchData.location.fullMap }"
-                class="z-10 relative inline-block w-[59%] min-h-[calc(100vh-8rem)]">
+                class="z-10 relative inline-block w-[59%] min-h-[calc(100vh-8rem)]"
+            >
                 <div class="inline-block text-left pt-16 pb-4 px-8">
-                    <p v-if="events.data && events.data.length">{{ events.total }} immersive events.</p>
+                    <p v-if="hasEvents">{{ events.total }} immersive events.</p>
                     <p v-else>There are no location based events in {{ searchData.location.name }} with these filters.</p>
                 </div>
                 
                 <div class="px-8">
                     <EventList
-                        v-if="events.data.length"
+                        v-if="hasEvents"
                         :items="events.data"
                         :user="user"
                         :columns="4"
                     />
-                    <div class="mt-6">
-                        <Pagination 
-                            v-if="events"
-                            :pagination="events"
-                            @paginate="handlePageChange"
-                        />
-                    </div>
+                    <Pagination 
+                        v-if="events"
+                        class="mt-6"
+                        :pagination="events"
+                        @paginate="handlePageChange"
+                    />
                 </div>
             </section>
 
             <!-- Map Component -->
             <Map
-                @submit="onSubmit"
-                @fullMap="fullMap"
                 v-model="searchData"
                 :key="mapKey"
-                :events="events.data" 
+                :events="events.data"
+                @submit="onSubmit"
+                @fullMap="fullMap"
             />
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, defineProps, onMounted, watch, onUnmounted } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import axios from 'axios'
 import Nav from './Components/nav.vue'
 import EventList from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 import Map from './Components/map.vue'
-import axios from 'axios'
+
+// Constants
+const DEFAULT_LOCATION = {
+    name: 'Search by City',
+    fullMap: false,
+    live: false,
+    zoom: 13,
+    center: [40.7127753, -74.0059728],
+    mapboundary: null
+}
+
+const DEFAULT_FILTERS = {
+    categories: [],
+    tags: [],
+    price: { min: 0, max: 100 },
+    dates: { start: null, end: null }
+}
 
 // Props
 const props = defineProps({
@@ -65,29 +82,51 @@ const props = defineProps({
 
 // Refs & State
 const childNav = ref(null)
+const mapKey = ref(0)
 const events = ref({
     data: props.searchedEvents?.data || [],
     total: props.searchedEvents?.total || 0
 })
-const mapKey = ref(0)
-const searchData = ref({
-    location: {
-        name: 'Search by City',
-        fullMap: false,
-        live: false,
-        zoom: 13,
-        center: [40.7127753, -74.0059728],
-        mapboundary: null
-    }
-})
-const activeFilters = ref({
-    categories: [],
-    tags: [],
-    price: { min: 0, max: 100 },
-    dates: { start: null, end: null }
-})
+const searchData = ref({ location: { ...DEFAULT_LOCATION } })
+const activeFilters = ref({ ...DEFAULT_FILTERS })
 
-// Filter Handling Methods
+// Computed
+const hasEvents = computed(() => events.value.data && events.value.data.length)
+
+// URL Parameter Handling
+const buildSearchParams = (type, value) => {
+    const currentParams = new URLSearchParams(window.location.search)
+    const params = new URLSearchParams()
+
+    // Copy location params
+    const locationParams = ['searchType', 'lat', 'lng', 'live', 'NElat', 'NElng', 'SWlat', 'SWlng', 'city']
+    locationParams.forEach(param => {
+        if (currentParams.has(param)) params.set(param, currentParams.get(param))
+    })
+    
+    // Handle different filter types
+    if (type === 'location') {
+        Object.entries(value).forEach(([key, val]) => params.set(key, val))
+    }
+    if (activeFilters.value.categories.length) {
+        params.set('category', activeFilters.value.categories.join(','))
+    }
+    if (activeFilters.value.tag) {
+        params.set('tag', activeFilters.value.tag)
+    }
+    if (type === 'price') {
+        params.set('price0', value[0])
+        params.set('price1', value[1])
+    }
+    if (activeFilters.value.dates.start || activeFilters.value.dates.end) {
+        params.set('start', activeFilters.value.dates.start)
+        params.set('end', activeFilters.value.dates.end)
+    }
+
+    return params
+}
+
+// Filter Handling
 const handleFilterUpdate = async (event) => {
     const { type, value } = event.detail
     
@@ -112,38 +151,6 @@ const handleFilterUpdate = async (event) => {
     } catch (error) {
         console.error('Error applying filters:', error)
     }
-}
-
-const buildSearchParams = (type, value) => {
-    const currentParams = new URLSearchParams(window.location.search)
-    const params = new URLSearchParams()
-
-    // Copy location params
-    const locationParams = ['searchType', 'lat', 'lng', 'live', 'NElat', 'NElng', 'SWlat', 'SWlng', 'city']
-    locationParams.forEach(param => {
-        if (currentParams.has(param)) params.set(param, currentParams.get(param))
-    })
-    
-    // Handle different filter types
-    if (type === 'location') {
-        Object.entries(value).forEach(([key, val]) => params.set(key, val))
-    }
-    if (activeFilters.value.categories.length) {
-        params.set('category', activeFilters.value.categories.join(','))
-    }
-    if (activeFilters.value.tags.length) {
-        params.set('tags', activeFilters.value.tags.join(','))
-    }
-    if (type === 'price') {
-        params.set('price0', value[0])
-        params.set('price1', value[1])
-    }
-    if (activeFilters.value.dates.start || activeFilters.value.dates.end) {
-        params.set('start', activeFilters.value.dates.start)
-        params.set('end', activeFilters.value.dates.end)
-    }
-
-    return params
 }
 
 // Initialization Methods
@@ -193,7 +200,6 @@ const onSubmit = () => {
 }
 
 const updateEvents = (value) => events.value = value
-
 const fullMap = () => mapKey.value += 1
 
 const handlePageChange = (page) => {
@@ -206,16 +212,7 @@ const handlePageChange = (page) => {
 }
 
 const clear = () => {
-    searchData.value = {
-        location: {
-            name: 'Search by City',
-            fullMap: false,
-            live: false,
-            zoom: 13,
-            center: [40.7127753, -74.0059728],
-            mapboundary: null
-        }
-    }
+    searchData.value = { location: { ...DEFAULT_LOCATION } }
 }
 
 const handleCategoryFilter = async (categoryId) => {
@@ -229,7 +226,7 @@ const handleCategoryFilter = async (categoryId) => {
     }
 }
 
-// Lifecycle & Watchers
+// Lifecycle
 onMounted(() => {
     window.addEventListener('filter-update', handleFilterUpdate)
     initializeFiltersFromUrl()
@@ -241,6 +238,7 @@ onUnmounted(() => {
     window.removeEventListener('filter-update', handleFilterUpdate)
 })
 
+// Watchers
 watch(() => window.location.search, async (newSearch) => {
     const categoryId = new URLSearchParams(newSearch).get('category')
     if (categoryId) await handleCategoryFilter(categoryId)

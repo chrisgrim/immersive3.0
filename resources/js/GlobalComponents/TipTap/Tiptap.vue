@@ -4,7 +4,8 @@
 
         <EditorContent 
             :editor="editor" 
-            class="editor-content break-words whitespace-pre-wrap text-2xl" />
+            class="editor-content break-words hyphens-auto whitespace-pre-wrap text-2xl" 
+        />
 
         <div class="flex justify-end gap-2 p-2 border-t">
             <button 

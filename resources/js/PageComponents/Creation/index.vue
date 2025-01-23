@@ -1,20 +1,36 @@
 <template>
-	<div class="flex justify-end">
-		<div class="px-8 md:px-32 w-full ml-[-2rem] mt-20 md:mt-12">
+	<div class="flex justify-center md:justify-end">
+		<div class="px-8 md:px-32 w-full md:ml-[-2rem] mt-8 md:mt-12">
 			<!-- Header Section -->
 			<div class="w-full flex flex-col">
 				<!-- Organizer Name and Create Button -->
-				<div class="w-full flex items-center justify-between mb-20">
-					<a :href="`/organizers/${organizer.slug}`" class="group inline-flex items-center gap-1">
-						<h2 class="font-medium group-hover:underline">{{organizer.name}}</h2>
-					</a>
-					<div class="flex gap-4">
-						<div @click="createNewEvent" class="cursor-pointer">
-							<div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
-								+
-							</div>
+				<div class="w-full flex items-center justify-between mb-20 shadow-custom-6 md:shadow-none p-8 md:p-0 rounded-2xl">
+					<a :href="`/organizers/${organizer.slug}`" class="group flex flex-col md:flex-row items-center gap-8">
+						<!-- Organizer Image -->
+						<template v-if="organizer.images?.length > 0">
+							<picture class="w-20 h-20 flex-shrink-0">
+								<source 
+									:srcset="`${imageUrl}${organizer.images[0].large_image_path}`"
+									type="image/webp"
+								>
+								<img 
+									:src="`${imageUrl}${organizer.images[0].large_image_path}`"
+									class="w-20 h-20 rounded-full object-cover"
+									alt="Organizer image"
+								/>
+							</picture>
+						</template>
+						<div v-else class="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+							<span class="text-2xl font-bold text-gray-400">
+								{{ organizer.name?.charAt(0).toUpperCase() || '?' }}
+							</span>
 						</div>
-						<a :href="`/organizers/${organizer.slug}`" class="cursor-pointer">
+						
+						<h2 class="font-medium group-hover:underline break-words hyphens-auto">{{organizer.name}}</h2>
+					</a>
+					
+					<div class="flex gap-4">
+						<a :href="`/organizers/${organizer.slug}/edit`" class="cursor-pointer">
 							<div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center hover:bg-gray-200">
 								<svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -25,7 +41,12 @@
 				</div>
 
 				<!-- Filter Buttons -->
-				<div class="flex gap-4 flex-wrap">
+				<div class="flex gap-6 flex-wrap">
+					<div @click="createNewEvent" class="cursor-pointer">
+							<div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
+								+
+							</div>
+						</div>
 					<button 
 						v-for="filter in filters" 
 						:key="filter.id"
@@ -58,7 +79,7 @@
 					 @click="openModal(event)"
 					 class="block cursor-pointer">
 					<div class="group relative grid grid-cols-2 md:grid-cols-4 gap-8 p-4 items-center hover:bg-gray-100 rounded-2xl grid-cols-[4rem_auto] md:grid-cols-[16rem_30%_auto_auto]">
-						<div class="aspect-[3/4] h-24">
+						<div class="aspect-[3/4] h-24 overflow-hidden">
 							<template v-if="event.images?.length > 0">
 								<picture>
 									<source :srcset="`${imageUrl}${event.images[0].large_image_path}`" type="image/webp">
@@ -72,7 +93,7 @@
 									<source :srcset="`${imageUrl}${event.thumbImagePath}`" type="image/webp">
 									<img :src="`${imageUrl}${event.thumbImagePath.slice(0, -4)}jpg`"
 										 :alt="`${event.name} Immersive Event`"
-										 class="h-full w-full object-cover rounded-2xl">
+										 class="h-full w-full object-cover rounded-2xl break-words hyphens-auto">
 								</picture>
 							</template>
 							<template v-else>
@@ -81,7 +102,7 @@
 						</div>
 						<div class="">
 							<div class="flex items-center gap-2">
-								<p class="text-2xl font-medium">{{ event.name }}</p>
+								<p class="text-2xl font-medium break-words hyphens-auto">{{ event.name }}</p>
 								<svg v-if="event.status === 'r'" 
 									 class="h-5 w-5 text-gray-500" 
 									 fill="none" 
@@ -163,7 +184,7 @@
 				</div>
 
 				<!-- Event Name -->
-				<h2 class="text-3xl md:text-4xl font-bold mb-8 md:mb-12 text-center">{{ selectedEvent.name }}</h2>
+				<h2 class="text-3xl md:text-4xl font-bold mb-8 md:mb-12 text-center break-words hyphens-auto">{{ selectedEvent.name }}</h2>
 
 				<!-- Action Buttons -->
 				<div class="flex flex-col md:flex-row gap-4 md:gap-6 mb-12 md:mb-0">
@@ -200,7 +221,7 @@
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 						</svg>
 					</div>
-					<h3 class="text-2xl md:text-3xl font-bold mb-4">Thanks for submitting {{ submittedEventName }}!</h3>
+					<h3 class="text-2xl md:text-3xl font-bold mb-4 break-words hyphens-auto">Thanks for submitting {{ submittedEventName }}!</h3>
 					<p class="text-gray-600 mb-8">Your event will be reviewed in the next few days.</p>
 					<button 
 						@click="closeSubmissionModal" 

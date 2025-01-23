@@ -7,7 +7,7 @@
                 <div class="mt-6">
                     <textarea 
                         name="description" 
-                        class="text-2xl font-normal border border-[#222222] focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4 w-full mt-8" 
+                        class="text-2xl font-normal border border-[#222222] focus:border-black rounded-2xl p-4 w-full mt-8" 
                         :class="{ 
                             'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showError,
                             'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !showError 

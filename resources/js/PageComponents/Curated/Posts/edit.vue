@@ -4,12 +4,36 @@
             <div class="my-8 pb-80 relative ">
                 <div class="flex gap-8 mt-4 px-4 mb-16">
                     <div class="flex w-full justify-between items-center">
-                        <ToggleSwitch
-                        v-model="isLive"
-                        left-label="Draft"
-                        right-label="Live"
-                        text-size="sm"
-                        @update:modelValue="handleStatusChange" />
+                        <div>
+                            <div class="flex items-center gap-4">
+                                <ToggleSwitch
+                                v-model="isLive"
+                                left-label="Draft"
+                                right-label="Live"
+                                text-size="sm"
+                                @update:modelValue="handleStatusChange" />
+                                <a 
+                                    v-if="isLive"
+                                    :href="`/communities/${community.slug}/${post.slug}`"
+                                    class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                                    title="View live community"
+                                >
+                                    <svg 
+                                        class="w-6 h-6 text-gray-600" 
+                                        viewBox="0 0 24 24" 
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        stroke-width="2" 
+                                        stroke-linecap="round" 
+                                        stroke-linejoin="round"
+                                    >
+                                        <path d="M7 17L17 7"/>
+                                        <path d="M7 7h10v10"/>
+                                    </svg>
+                                </a>
+                            </div>
+                        </div>
+                        
                         <div @click.stop>
                             <div v-if="!selectedShelf">
                                 <Dropdown
@@ -315,6 +339,36 @@
                 </div>
             </div>
         </div>
+        <Transition
+            enter-active-class="transform ease-out duration-300 transition"
+            enter-from-class="translate-y-2 opacity-0"
+            enter-to-class="translate-y-0 opacity-100"
+            leave-active-class="transition ease-in duration-200"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+        >
+            <div 
+                v-if="showSuccessModal"
+                class="fixed top-36 right-4 z-50 bg-white rounded-xl shadow-lg p-4 max-w-sm border"
+            >
+                <div class="flex items-center gap-3">
+                    <svg 
+                        class="w-6 h-6 text-green-500 flex-shrink-0" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                    >
+                        <path 
+                            stroke-linecap="round" 
+                            stroke-linejoin="round" 
+                            stroke-width="2" 
+                            d="M5 13l4 4L19 7"
+                        />
+                    </svg>
+                    <p class="text-gray-600">Post updated successfully</p>
+                </div>
+            </div>
+        </Transition>
     </div>
 </template>
 
@@ -370,6 +424,7 @@ const options = ref([])
 const showImageModal = ref(false)
 const searchQuery = ref('')
 const events = ref([])
+const showSuccessModal = ref(false)
 
 // Validation rules
 const rules = {
@@ -546,8 +601,10 @@ const updatePost = (value) => {
 
 const onUpdated = () => {
     v$.value.$reset()
-    updated.value = true
-    setTimeout(() => updated.value = false, 3000)
+    showSuccessModal.value = true
+    setTimeout(() => {
+        showSuccessModal.value = false
+    }, 3000)
 }
 
 const showAddButtonOptions = () => {

@@ -141,4 +141,9 @@ class Community extends Model
         return $this->morphMany(Image::class, 'imageable');
     }
 
+    public function curatorInvitations()
+    {
+        return $this->hasMany(CuratorInvitation::class);
+    }
+
 }

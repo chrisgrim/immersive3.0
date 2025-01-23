@@ -20,7 +20,7 @@
 
                     <!-- Category Input -->
                     <input 
-                        :class="{ 'border-red-500': showError }"
+                        :class="{ 'border-red-500 shadow-[0_0_0_1.5px_#ef4444]': showError }"
                         class="text-2xl relative p-8 w-full border mb-12 rounded-3xl focus:rounded-3xl"
                         v-model="state.category"
                         placeholder="Select Category"

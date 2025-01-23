@@ -63,7 +63,7 @@ import VueSlider from 'vue-slider-component'
 import 'vue-slider-component/theme/antd.css'
 
 const props = defineProps({
-    modelValue: {
+    priceRange: {
         type: Array,
         required: true
     },
@@ -73,11 +73,11 @@ const props = defineProps({
     }
 })
 
-const emit = defineEmits(['update:selected', 'close'])
+const emit = defineEmits(['update:price', 'close'])
 
-const localPrice = ref(props.modelValue)
+const localPrice = ref(props.priceRange)
 
-watch(() => props.modelValue, (newValue) => {
+watch(() => props.priceRange, (newValue) => {
     localPrice.value = newValue
 }, { immediate: true })
 
@@ -89,12 +89,12 @@ const sliderFormat = (v) => `$${('' + v).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
 
 const clear = () => {
     localPrice.value = [0, props.maxPrice]
-    emit('update:selected', 'price', [0, props.maxPrice])
+    emit('update:price', [0, props.maxPrice])
     emit('close')
 }
 
 const submit = () => {
-    emit('update:selected', 'price', localPrice.value)
+    emit('update:price', localPrice.value)
     emit('close')
 }
 </script>

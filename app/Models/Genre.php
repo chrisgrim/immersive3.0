@@ -64,6 +64,7 @@ class Genre extends Model
     {
     	return $this->belongsToMany(Event::class);
     }
+    
 
     /**
      * This saves a new Genre type
@@ -97,5 +98,37 @@ class Genre extends Model
     public function images()
     {
         return $this->morphMany(Image::class, 'imageable');
+    }
+
+    /**
+     * Save and sync genres for an event
+     *
+     * @param \App\Models\Event $event
+     * @param array $genres
+     * @return void
+     */
+    public static function saveGenres($event, $genres)
+    {
+        foreach ($genres as $content) {
+            // Ensure $content is treated as a string and normalize it
+            $name = is_array($content) ? $content['name'] : $content;
+            $name = trim(ucfirst(strtolower($name))); // Normalize case and trim spaces
+
+            Genre::firstOrCreate([
+                'slug' => Str::slug($name)
+            ],
+            [
+                'user_id' => auth()->user()->id,
+                'name' => $name,
+                'admin' => false,
+            ]);
+        }
+
+        $newSync = Genre::whereIn('slug', collect($genres)->map(function ($item) {
+            $name = is_array($item) ? $item['name'] : $item;
+            return Str::slug(trim(strtolower($name))); // Normalize for lookup
+        })->toArray())->get();
+
+        $event->genres()->sync($newSync);
     }
 }

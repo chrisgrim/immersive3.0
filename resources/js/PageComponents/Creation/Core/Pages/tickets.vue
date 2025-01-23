@@ -50,16 +50,18 @@
             <!-- Ticket Name Input -->
             <div class="mt-8">
                 <input 
-                    class="w-2/3 border border-[#e5e7eb] text-[#222222] text-3xl p-4 rounded-2xl relative focus:border-black focus:shadow-[0_0_0_1.5px_black]" 
+                    class="w-2/3 border border-[#e5e7eb] text-[#222222] text-3xl p-4 rounded-2xl relative"
                     :class="{ 
-                        'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error
+                        'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error,
+                        'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !($v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error)
                     }"
                     type="text" 
                     v-model="state.formattedName" 
                     @input="updateTicketName"
                     maxlength="40"
                     placeholder="Ticket Name"
-                    name="Name">
+                    name="Name"
+                >
                 <div class="flex justify-end mt-1 w-2/3" 
                      :class="{'text-red-500': isNameNearLimit, 'text-gray-500': !isNameNearLimit}">
                     {{ state.formattedName?.length || 0 }}/40
@@ -80,9 +82,10 @@
             <!-- Additional Details Input -->
             <div class="mt-8">
                 <input 
-                    class="w-full border border-[#e5e7eb] text-[#222222] text-3xl p-4 rounded-2xl relative focus:border-black focus:shadow-[0_0_0_1.5px_black]"
+                    class="w-full border border-[#e5e7eb] text-[#222222] text-3xl p-4 rounded-2xl relative"
                     :class="{ 
-                        'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error
+                        'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error,
+                        'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !($v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error)
                     }"
                     type="text" 
                     v-model="state.formattedDescription" 
@@ -122,7 +125,9 @@
                         <component :is="state.hoveredLocation === index ? RiCloseCircleFill : RiCloseCircleLine" />
                     </div>
                     <div class="flex items-start justify-start w-full h-16 rounded-2xl">
-                        {{ ticket.name }}
+                        <span class="overflow-hidden w-full break-words hyphens-auto">
+                            {{ ticket.name }}
+                        </span>
                     </div>
                     <div class="overflow-hidden w-full">
                         <h4 class="text-lg h-10 leading-tight overflow-hidden text-ellipsis whitespace-nowrap text-black">
@@ -139,17 +144,19 @@
                     <span class="text-lg">Add Ticket Type</span>
                 </div>
             </div>
-            <div class="mt-12">
+            <div class="mt-12" ref="ticketUrlSection">
                 <h3 class="text-2xl mb-4">Ticket URL <span class="text-red-500">*</span></h3>
                 <input 
-                    class="w-full border border-[#e5e7eb] text-[#222222] text-xl p-4 rounded-2xl relative focus:border-black focus:shadow-[0_0_0_1.5px_black]"
+                    class="w-full border border-[#e5e7eb] text-[#222222] text-xl p-4 rounded-2xl relative"
                     :class="{ 
-                        'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': state.ticketUrlError || (!state.ticketUrl && $v.$dirty)
+                        'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': hasUrlError,
+                        'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !hasUrlError
                     }"
                     type="url" 
                     v-model="state.ticketUrl" 
                     placeholder="https://..."
                     @input="validateTicketUrl"
+                    maxlength="255"
                 >
                 <div v-if="state.ticketUrlError || (!state.ticketUrl && $v.$dirty)" 
                      class="text-red-500 text-1xl mt-2 px-4">
@@ -171,6 +178,7 @@ import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 const MAX_TICKET_PRICE = 9999.99;
 const MAX_DESCRIPTION_LENGTH = 60;
 const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$'];
+const MAX_URL_LENGTH = 255;
 
 // 3. Props & Injections
 const event = inject('event');
@@ -250,10 +258,29 @@ const rules = {
                 maxLength: maxLength(MAX_DESCRIPTION_LENGTH) 
             }
         })
+    },
+    ticketUrl: { 
+        required,
+        maxLength: maxLength(MAX_URL_LENGTH),
+        url: helpers.withMessage(
+            'Please enter a valid URL (e.g., https://example.com)',
+            (value) => {
+                if (!value) return true;
+                try {
+                    new URL(value);
+                    return true;
+                } catch {
+                    return false;
+                }
+            }
+        )
     }
 };
 
-const $v = useVuelidate(rules, { tickets });
+const $v = useVuelidate(rules, { 
+    tickets,
+    ticketUrl: computed(() => state.value.ticketUrl)
+});
 
 // 6. Methods - Ticket Management
 const handleDivClick = (index) => {
@@ -328,18 +355,11 @@ const updateAdditionalDetails = (e) => {
 };
 
 const validateTicketUrl = () => {
-    if (!state.value.ticketUrl) {
-        state.value.ticketUrlError = true;
-        return;
+    if (state.value.ticketUrl?.length > MAX_URL_LENGTH) {
+        state.value.ticketUrl = state.value.ticketUrl.slice(0, MAX_URL_LENGTH);
     }
-    
-    // More comprehensive URL validation
-    try {
-        new URL(state.value.ticketUrl);
-        state.value.ticketUrlError = false;
-    } catch {
-        state.value.ticketUrlError = true;
-    }
+    $v.value.$touch();
+    state.value.ticketUrlError = $v.value.ticketUrl.$error;
 };
 
 // 9. Methods - UI Interactions
@@ -382,6 +402,11 @@ defineExpose({
         const isValid = !$v.value.tickets.$invalid && 
                        state.value.ticketUrl && 
                        !state.value.ticketUrlError;
+        
+        // If not valid and there's a ticket URL error, scroll to the section
+        if (!isValid && (state.value.ticketUrlError || !state.value.ticketUrl)) {
+            ticketUrlSection.value?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
                        
         console.log('Tickets validation:', {
             ticketsCount: tickets.length,
@@ -437,6 +462,15 @@ const isDescriptionNearLimit = computed(() => {
     const count = state.value.formattedDescription?.length || 0;
     return count > 55; // Show warning when near limit
 });
+
+// Add this computed property
+const hasUrlError = computed(() => 
+    state.value.ticketUrlError || 
+    (!state.value.ticketUrl && $v.value.$dirty) || 
+    (state.value.ticketUrl?.length >= MAX_URL_LENGTH)
+);
+
+const ticketUrlSection = ref(null);
 </script>
 <style>
 /* Your existing styles can remain unchanged */

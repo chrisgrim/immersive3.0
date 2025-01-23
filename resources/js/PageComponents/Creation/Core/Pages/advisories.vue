@@ -42,7 +42,7 @@
                         </div>
                     </div>
                     <p v-if="$v.selectedContact.$error" 
-                       class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
+                       class="text-red-500 text-1xl mt-2 py-2 leading-tight">
                         Please select a contact level
                     </p>
                 </div>
@@ -92,24 +92,30 @@
                             <textarea 
                                 v-model="event.advisories.audience"
                                 @input="$v.event.advisories.audience.$touch"
-                                class="w-full p-4 text-1xl border rounded-2xl relative focus:border-black focus:shadow-[0_0_0_1.5px_black] outline-none"
+                                class="w-full p-4 text-1xl border rounded-2xl relative outline-none"
                                 :class="{ 
-                                    'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.event.advisories.audience.$error 
+                                    'border-red-500': 
+                                        $v.event.advisories.audience.$error || 
+                                        event.advisories.audience?.length === 1000,
+                                    'focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]':
+                                        $v.event.advisories.audience.$error || 
+                                        event.advisories.audience?.length === 1000,
+                                    'focus:border-black focus:shadow-[0_0_0_1.5px_black]': 
+                                        !$v.event.advisories.audience.$error && 
+                                        event.advisories.audience?.length < 1000
                                 }"
                                 placeholder="Describe the role your audience will play..."
                                 rows="4"
+                                maxlength="1000"
                             ></textarea>
-                            <div class="flex justify-end mt-1 relative text-gray-500">
-                                {{ event.advisories.audience?.length || 0 }}/1000
-                                <p v-if="$v.event.advisories.audience.$error" 
-                                   class="text-red-500 text-1xl px-4 absolute left-0 top-0">
-                                    {{ $v.event.advisories.audience.required.$invalid ? 'Audience role is required' : 'Audience role is too long' }}
-                                </p>
-                            </div>
+                            <p v-if="$v.event.advisories.audience.$error" 
+                               class="text-red-500 text-1xl px-4 mt-1">
+                                {{ $v.event.advisories.audience.required.$invalid ? 'Audience role is required' : 'Audience role is too long' }}
+                            </p>
                         </div>
                     </div>
                     <p v-if="$v.selectedInteractive.$error" 
-                       class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
+                        class="text-red-500 text-1xl mt-2 py-2 leading-tight">
                         Please select an interaction level
                     </p>
                 </div>

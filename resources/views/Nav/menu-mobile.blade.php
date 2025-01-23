@@ -43,7 +43,7 @@
             </a>
         @endif
 
-        @if(auth()->user()->isCurator)
+        @if(auth()->user()->isCommunityMember)
             <a href="/communities" class="flex items-center justify-between text-2xl py-4">
                 Communities
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

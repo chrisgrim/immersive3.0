@@ -53,19 +53,23 @@ class Show extends Model
     $firstShow = $event->shows()->first();
     $old_tickets = $firstShow && $firstShow->tickets()->exists() ? $firstShow->tickets()->get() : null;
 
-    // Delete all old shows and their tickets if showtype is 'a' or delete those not in the new date array if 's'
-    $showsToDelete = $event->shows();
-    if ($request->showtype === 's') {
-        $showsToDelete = $showsToDelete->whereNotIn('date', $request->dateArray);
+    // Always delete all existing shows when changing showtype
+    if ($request->showtype !== $event->showtype) {
+        $event->shows()->each(function ($show) {
+            $show->tickets()->delete();
+            $show->delete();
+        });
+    } else {
+        // Only delete shows not in the new date array if staying on same showtype
+        $showsToDelete = $event->shows();
+        if ($request->showtype === 's') {
+            $showsToDelete = $showsToDelete->whereNotIn('date', $request->dateArray);
+        }
+        $showsToDelete->get()->each(function ($show) {
+            $show->tickets()->delete();
+            $show->delete();
+        });
     }
-
-    // Get the shows to delete
-    $showsToDelete = $showsToDelete->get();
-
-    $showsToDelete->each(function ($show) {
-        $show->tickets()->delete();
-        $show->delete();
-    });
 
     // Handle show creation based on showtype
     if ($request->showtype === 's') {

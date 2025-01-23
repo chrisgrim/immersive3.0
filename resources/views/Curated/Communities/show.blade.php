@@ -17,7 +17,7 @@
 @section('content')
 
     <vue-community-show
-        :curator="{{ auth()->user() ? auth()->user()->can('update', $community) ? 'true' : 'false' : 'null' }}"
+        :can-edit="{{ auth()->user() ? auth()->user()->can('update', $community) ? 'true' : 'false' : 'null' }}"
         :loadshelves="{{ json_encode($shelves) }}" 
         :value="{{ $community }}" />
 

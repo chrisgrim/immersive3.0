@@ -8,14 +8,16 @@
 
 @section('nav')
     @if (in_array($event->status, ['p', 'e', 'n']) || (auth()->user()->isAdmin() && $event->status === 'r'))
-        @include('Nav.creation-desktop')
+        @include('Nav.nav-full')
     @endif
 @endsection
 
 
 @section('content')
     @if (in_array($event->status, ['p', 'e', 'n']) || (auth()->user()->isAdmin() && $event->status === 'r'))
+    <div>
         <vue-hosting-event-edit :event="{{ $event }}" :user="user" />
+    </div>
     @else
         <vue-hosting-event :event="{{ $event }}" :user="user" />
     @endif

@@ -1,28 +1,46 @@
 <template>
     <div class="bg-white py-4 h-full">
-        <div class="w-full h-full mx-auto flex items-center justify-between">
-            <!-- Scrollable Categories (first 10 only) -->
-            <div class="flex-1 flex space-x-4 overflow-x-auto">
-                <button 
-                    v-for="category in quickBarCategories" 
-                    :key="category.id"
-                    class="flex flex-col items-center min-w-[64px] p-2"
-                    @click="selectCategory(category.id)"
-                    :class="{'bg-gray-100 rounded-lg': isCategorySelected(category.id)}"
-                >
-                    <img 
-                        :src="getCategoryIcon(category)" 
-                        :alt="category.name"
-                        class="w-16 h-16 object-cover"
-                    >
-                    <span class="text-sm mt-1 max-w-[10rem] text-center break-words">{{ category.name }}</span>
-                </button>
+        <div class="quick-bar-container w-full h-full mx-auto flex items-center justify-between">
+            <!-- Scrollable Categories Container -->
+            <div class="flex-1 mr-4 overflow-hidden transition-all duration-300 ease-in-out">
+                <div class="flex w-full">
+                    <!-- Visible Categories -->
+                    <div class="flex w-full">
+                        <button 
+                            v-for="category in visibleQuickBarCategories" 
+                            :key="category.id"
+                            class="flex flex-col items-center w-[100px] flex-shrink-0 p-2 rounded-lg"
+                            @click="selectCategory(category.id)"
+                            :class="{'': isCategorySelected(category.id)}"
+                        >
+                            <img 
+                                :src="getCategoryIcon(category)" 
+                                :alt="category.name"
+                                class="w-16 h-16 object-cover transition-opacity duration-200 group-hover:opacity-100"
+                                :class="{
+                                    'opacity-50 hover:opacity-100': !isCategorySelected(category.id), 
+                                    'opacity-100': isCategorySelected(category.id)
+                                }"
+                            >
+                            <span 
+                                class="text-sm mt-1 w-full text-center break-words hyphens-auto transition-opacity duration-200 group-hover:opacity-100"
+                                :class="{
+                                    'opacity-50 hover:opacity-100': !isCategorySelected(category.id), 
+                                    'opacity-100': isCategorySelected(category.id)
+                                }"
+                            >
+                                {{ category.name }}
+                            </span>
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Action Buttons -->
-            <div class="flex space-x-4">
+            <div class="flex space-x-4 flex-shrink-0">
                 <!-- Categories Button -->
                 <button 
+                    v-if="overflowCategories.length > 0"
                     @click="openModal('categories')"
                     class="p-4 rounded-2xl bg-white border border-gray-300 hover:bg-gray-200"
                     :class="{ 'bg-gray-100': selectedCategoriesCount > 0 }"
@@ -37,7 +55,7 @@
                     </span>
                 </button>
                 
-                <!-- Tags Button -->
+                <!-- Rest of the action buttons remain unchanged -->
                 <button 
                     @click="openModal('tags')"
                     class="p-4 rounded-2xl bg-white border border-gray-300 hover:bg-gray-200"
@@ -53,7 +71,6 @@
                     </span>
                 </button>
                 
-                <!-- Price Button -->
                 <button 
                     v-if="shouldShowPriceFilter"
                     @click="openModal('price')"
@@ -69,14 +86,6 @@
                         </template>
                     </span>
                 </button>
-                
-                <PriceModal 
-                    v-if="activeModal === 'price'"
-                    :model-value="priceRange"
-                    :max-price="maxPrice"
-                    @update:selected="handlePriceUpdate"
-                    @close="closeModal"
-                />
             </div>
         </div>
 
@@ -95,6 +104,13 @@
             @update:selected="selectTags"
             @close="closeModal"
         />
+        <PriceModal
+        v-if="activeModal === 'price'"
+        :price-range="priceRange"
+        :max-price="maxPrice"
+        @update:price="handlePriceUpdate"
+        @close="closeModal"
+    />
     </div>
 </template>
 
@@ -240,8 +256,16 @@ const visibleCategories = computed(() => {
 
 // Categories for the modal (excluding the ones in quick bar)
 const modalCategories = computed(() => {
-    const quickBarIds = quickBarCategories.value.map(cat => cat.id)
-    return visibleCategories.value.filter(category => !quickBarIds.includes(category.id))
+    const isLocationSearch = window.location.pathname === '/index/search' && 
+                           new URLSearchParams(window.location.search).get('searchType') === 'inPerson'
+    
+    // Filter categories based on location search
+    const filteredCategories = isLocationSearch 
+        ? categories.value.filter(category => !category.remote)
+        : categories.value
+
+    // Return categories that aren't in the visible quick bar
+    return filteredCategories.slice(visibleCategoryCount.value)
 })
 
 const getCategoryIcon = (category) => {
@@ -343,24 +367,26 @@ const selectTags = (tagIds) => {
     emitFilterUpdate('tag', selectedTags.value.toString());
 }
 
-const handlePriceUpdate = (type, value) => {
-    if (type === 'price') {
-        priceRange.value = value
-        
-        // Dispatch the event in the format the search component expects
-        window.dispatchEvent(new CustomEvent('filter-update', {
-            detail: {
-                type: 'price',
-                value: value
-            }
-        }))
-        
-        // Update URL
-        const params = new URLSearchParams(window.location.search)
-        params.set('price0', value[0].toString())
-        params.set('price1', value[1].toString())
-        window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`)
-    }
+const handlePriceUpdate = (newPrice) => {
+    console.log('Price update received:', newPrice)
+    priceRange.value = newPrice
+    
+    // Dispatch the event in the format the search component expects
+    window.dispatchEvent(new CustomEvent('filter-update', {
+        detail: {
+            type: 'price',
+            value: newPrice
+        }
+    }))
+    
+    // Update URL
+    const params = new URLSearchParams(window.location.search)
+    params.set('price0', newPrice[0].toString())
+    params.set('price1', newPrice[1].toString())
+    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`)
+    
+    // Close the modal
+    closeModal()
 }
 
 const updateDateRange = (range) => {
@@ -441,4 +467,57 @@ onMounted(async () => {
         console.error('Error fetching data:', error);
     }
 });
+
+// Add these new computed properties
+const containerWidth = ref(0)
+const categoryWidth = 100 // Width of each category in pixels
+const actionButtonsWidth = 180 // Width reserved for action buttons
+
+// Update the calculation to be more precise and consider full width
+const visibleCategoryCount = computed(() => {
+    if (containerWidth.value === 0) return 0
+    const availableWidth = containerWidth.value - actionButtonsWidth - 16 // Subtract margin
+    const count = Math.floor(availableWidth / categoryWidth)
+    return Math.max(0, Math.min(count, visibleCategories.value.length))
+})
+
+// Split categories into visible and overflow
+const visibleQuickBarCategories = computed(() => {
+    return visibleCategories.value.slice(0, visibleCategoryCount.value)
+})
+
+const overflowCategories = computed(() => {
+    return visibleCategories.value.slice(visibleCategoryCount.value)
+})
+
+// Initialize the container width measurement
+onMounted(() => {
+    // Initial measurement
+    const updateContainerWidth = () => {
+        const container = document.querySelector('.quick-bar-container')
+        if (container) {
+            containerWidth.value = container.offsetWidth
+        }
+    }
+
+    // Set up ResizeObserver
+    const observer = new ResizeObserver(() => {
+        updateContainerWidth()
+    })
+
+    // Initial measurement and start observing
+    const container = document.querySelector('.quick-bar-container')
+    if (container) {
+        updateContainerWidth()
+        observer.observe(container)
+    }
+
+    // Cleanup
+    onUnmounted(() => {
+        if (container) {
+            observer.unobserve(container)
+        }
+        observer.disconnect()
+    })
+})
 </script>

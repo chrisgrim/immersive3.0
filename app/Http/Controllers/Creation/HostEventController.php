@@ -17,18 +17,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Services\NameChangeRequestService;
 use Illuminate\Support\Facades\Cache;
-use App\Http\Controllers\CachedDataController;
 
 class HostEventController extends Controller
 {
     protected $nameChangeService;
-    protected $cachedDataController;
 
-    public function __construct(NameChangeRequestService $nameChangeService, CachedDataController $cachedDataController)
+    public function __construct(NameChangeRequestService $nameChangeService)
     {
         $this->middleware(['auth', 'verified']);
         $this->nameChangeService = $nameChangeService;
-        $this->cachedDataController = $cachedDataController;
     }
 
     public function edit(Event $event)
@@ -225,9 +222,7 @@ class HostEventController extends Controller
 
         // Handle genres
         if (isset($validatedData['genres'])) {
-            $event->genres()->sync(
-                collect($validatedData['genres'])->pluck('id')
-            );
+            Genre::saveGenres($event, $validatedData['genres']);
             
             if ($wasPublished || in_array($event->status, ['p', 'e'])) {
                 Cache::forget('active-genres');

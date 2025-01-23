@@ -73,10 +73,10 @@
                                 >
                             </picture>
                         </td>
-                        <td @click="showActionModal(event)" class="px-6 py-4 max-w-[25rem] whitespace-normal break-words cursor-pointer hover:bg-ne">
+                        <td @click="showActionModal(event)" class="px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto cursor-pointer hover:bg-ne">
                             {{ event.name }}
                         </td>
-                        <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words">
+                        <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto">
                             {{ event.organizer?.name }}
                         </td>
                         <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-ne">

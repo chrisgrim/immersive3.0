@@ -6,7 +6,7 @@
 
 @section('nav')
 
-    @include('Nav.creation-desktop')  
+    @include('Nav.nav-full')  
     
 @endsection
 

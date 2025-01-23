@@ -17,6 +17,11 @@
                         </div>
                     </button>
                 </div>
+                <!-- Add error message -->
+                <p v-if="!hasSelectedSexual && $v.$dirty" 
+                   class="text-red-500 text-1xl mt-2 py-2 leading-tight">
+                    Please select whether there is sexual content
+                </p>
             </div>
 
             <!-- Additional Advisories Selection -->
@@ -28,7 +33,18 @@
                     :creatable="true"
                     placeholder="Additional advisories"
                     @onSelect="itemSelected" 
+                    :error="showAdvisoriesError"
+                    :max-selections="10"
+                    :max-input-length="50"
                 />
+                <div v-if="(hasSelectedSexual && !hasRequiredAdvisories && $v.hasAdditionalAdvisories.$error) || contentAdvisories.length >= 10" class="mt-4">
+                    <p class="text-red-500 text-1xl">
+                        {{ contentAdvisories.length >= 10 
+                            ? 'Maximum of 10 content advisories allowed' 
+                            : 'Please select at least one additional content advisory' 
+                        }}
+                    </p>
+                </div>
                 <List 
                     class="mt-6"
                     :selections="contentAdvisories" 
@@ -36,12 +52,6 @@
                     @onSelect="itemRemoved"
                 />
 
-                <!-- Move the error message here -->
-                <div v-if="hasSelectedSexual && !hasRequiredAdvisories && $v.hasAdditionalAdvisories.$error" class="mt-4">
-                    <p class="text-red-500 text-1xl">
-                        Please select at least one additional content advisory
-                    </p>
-                </div>
 
                 <!-- Sexual Content Description -->
                 <div v-if="Boolean(event.advisories.sexual)" class="mt-12">
@@ -49,9 +59,10 @@
                     <textarea 
                         v-model="event.advisories.sexualDescription"
                         @input="handleDescriptionInput"
-                        class="w-full p-4 text-1xl border rounded-2xl relative focus:border-black focus:shadow-[0_0_0_1.5px_black] outline-none"
+                        class="w-full p-4 text-1xl border rounded-2xl relative outline-none"
                         :class="{ 
-                            'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showDescriptionError
+                            'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showDescriptionError,
+                            'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !showDescriptionError 
                         }"
                         rows="4"
                     ></textarea>
@@ -65,13 +76,6 @@
                         </p>
                     </div>
                 </div>
-            </div>
-
-            <!-- Add this after the buttons -->
-            <div v-if="!hasSelectedSexual && $v.hasSelectedSexual.$error" class="mt-4">
-                <p class="text-red-500 text-1xl px-4">
-                    Please select whether there is sexual content
-                </p>
             </div>
         </div>
     </main>
@@ -121,9 +125,21 @@ const showDescriptionError = computed(() => {
             !event.advisories.sexualDescription?.trim());
 });
 
+const showAdvisoriesError = computed(() => {
+    if (contentAdvisories.value.length >= 10) {
+        return 'Maximum of 10 content advisories allowed';
+    }
+    if (hasSelectedSexual.value && !hasRequiredAdvisories.value && $v.value.hasAdditionalAdvisories.$error) {
+        return 'Please select at least one additional content advisory';
+    }
+    return null;
+});
+
 // 5. Validation Rules
 const rules = {
-    hasSelectedSexual: { required },
+    hasSelectedSexual: { 
+        required: (value) => value === true || value === false 
+    },
     hasAdditionalAdvisories: { 
         required: () => hasRequiredAdvisories.value 
     },
@@ -172,6 +188,9 @@ const onSelectSexual = (hasSexualContent) => {
 };
 
 const itemSelected = (item) => {
+    if (contentAdvisories.value.length >= 10) {
+        return;
+    }
     otherAdvisories.value.push(item);
     contentAdvisoryList.value = contentAdvisoryList.value.filter(advisory => 
         !otherAdvisories.value.find(selected => selected.id === advisory.id)
@@ -213,16 +232,16 @@ const fetchContentAdvisories = async () => {
 // 9. Component API
 defineExpose({
     isValid: async () => {
-        await $v.value.$touch();
+        $v.value.$touch();
         await $v.value.$validate();
 
         if (!hasSelectedSexual.value) {
-            errors.value = { advisories: ['Please select whether there is sexual content'] };
+            errors.value = { content: ['Please select whether there is sexual content'] };
             return false;
         }
 
         if (!hasRequiredAdvisories.value) {
-            errors.value = { advisories: ['Please select at least one additional content advisory'] };
+            errors.value = { content: ['Please select at least one additional content advisory'] };
             return false;
         }
 
@@ -230,11 +249,11 @@ defineExpose({
             const description = event.advisories.sexualDescription?.trim() || '';
             if (!description) {
                 $v.value.event.advisories.sexualDescription.$touch();
-                errors.value = { advisories: ['Please explain the sexual content'] };
+                errors.value = { content: ['Please explain the sexual content'] };
                 return false;
             }
             if (description.length > 1000) {
-                errors.value = { advisories: ['Sexual content description is too long'] };
+                errors.value = { content: ['Sexual content description is too long'] };
                 return false;
             }
         }

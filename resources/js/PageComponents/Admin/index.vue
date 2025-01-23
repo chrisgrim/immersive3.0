@@ -124,7 +124,7 @@
 
                     <!-- Component Content Area -->
                     <div class="flex-1 min-w-0 overflow-hidden z-50 md:z-0 bg-white">
-                        <div class="h-full">
+                        <div class="h-full p-8">
                             <component 
                                 :is="currentComponent"
                                 :event="selectedEvent"

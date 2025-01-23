@@ -4,7 +4,7 @@
 @endsection 
 
 @section('nav')
-    @include('Nav.creation-desktop')
+    @include('Nav.nav-limited')
 @endsection
 
 @section('content')

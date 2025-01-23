@@ -48,7 +48,7 @@
     @if (Browser::isMobile())
         @include('Nav.event-mobile')
     @else
-        @include('Nav.event-desktop')
+        @include('Nav.nav-limited-search')
     @endif
     
 @endsection

@@ -8,7 +8,7 @@
 @if (Browser::isMobile())
     @include('Nav.index-mobile')
 @else
-    @include('Nav.search-desktop')
+    @include('Nav.nav-full-search')
 @endif
 @endsection
 

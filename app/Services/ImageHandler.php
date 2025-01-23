@@ -19,7 +19,8 @@ class ImageHandler
             throw new \Exception('The file is not an image.');
         }
 
-        $slug = $model->slug;
+        // Get or generate slug
+        $slug = $model->slug ?? ($model->id ?? uniqid());
         $directory = "$type/$slug";
         $fileName = $slug . '-' . $rank;
 
@@ -99,8 +100,19 @@ class ImageHandler
         // Get directory path
         $directory = dirname("/public/{$image->large_image_path}");
         
+        // Get the parent model before deleting the image
+        $parent = $image->imageable;
+        
         // Delete the image record from database
         $image->delete();
+
+        // If parent model has image path columns, clear them
+        if ($parent && \Schema::hasColumns($parent->getTable(), ['largeImagePath', 'thumbImagePath'])) {
+            $parent->update([
+                'largeImagePath' => null,
+                'thumbImagePath' => null
+            ]);
+        }
 
         // Check if directory is empty and delete it if it is
         try {

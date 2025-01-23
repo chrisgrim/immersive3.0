@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Services\ImageHandler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 
 class AdminCategoryController extends Controller
 {
@@ -113,6 +114,8 @@ class AdminCategoryController extends Controller
                 $imageIndex
             );
         }
+
+        Cache::forget('active-categories');
 
         return $category->load('images');
     }
