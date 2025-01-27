@@ -3,7 +3,6 @@
         <div class="flex flex-col w-full">
             <div>
                 <h2>What's your organization called?</h2>
-                <p class="text-gray-500 font-normal mt-4">Enter your organization's name</p>
                 <div class="mt-6">
                     <!-- Organization Name Input -->
                     <textarea 
@@ -50,10 +49,10 @@
                         <p class="text-gray-500 font-normal mt-8">Description</p>
                         <textarea 
                             name="description" 
-                            class="text-2xl border border-[#222222] focus:border-black rounded-2xl p-4 w-full mt-4" 
+                            class="text-2xl border border-[#222222] rounded-2xl p-4 w-full mt-4" 
                             :class="{ 
                                 'border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showDescriptionError,
-                                'focus:shadow-[0_0_0_1.5px_black]': !showDescriptionError 
+                                'focus:shadow-[0_0_0_1.5px_black] focus:border-black': !showDescriptionError 
                             }"
                             v-model="organizer.description" 
                             @input="handleDescriptionInput"

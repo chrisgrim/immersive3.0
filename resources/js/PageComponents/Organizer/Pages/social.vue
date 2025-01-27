@@ -13,7 +13,7 @@
                             @click="handleDivClick(media.name)"
                             :class="{
                                 'border-[#e5e7eb] text-gray-400': !organizer[media.model] && currentMedia !== media.name,
-                                'border-black text-black border-2 bg-gray-100': organizer[media.model] || currentMedia === media.name,
+                                'border-black text-black border-2 bg-neutral-100': organizer[media.model] || currentMedia === media.name,
                             }"
                             class="relative h-48 flex flex-col items-start justify-between p-4 border rounded-2xl transition-colors duration-200"
                         >

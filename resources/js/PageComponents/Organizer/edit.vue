@@ -5,7 +5,7 @@
             <div class="mx-auto flex flex-1 flex-col md:flex-row">
                 <!-- Navigation Sidebar with own scroll -->
                 <div 
-                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full lg-air:w-[31rem] xl-air:w-[50rem] lg-air:block" 
+                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full lg-air:w-[50rem] xl-air:w-[56rem] lg-air:block" 
                     :class="{ 'hidden': currentSection }">
                     <div class="flex items-center justify-center">
                         <NavSidebar 
@@ -140,7 +140,6 @@
 import { ref, provide, reactive, computed, onMounted, onUnmounted } from 'vue';
 import NavSidebar from './Pages/navSidebar.vue';
 import Name from './Pages/name.vue';
-import Description from './Pages/description.vue';
 import Image from './Pages/image.vue';
 import Social from './Pages/social.vue';
 
@@ -164,11 +163,10 @@ const currentComponentRef = ref(null);
 const showSuccessModal = ref(false);
 
 // Define available steps
-const steps = ['Name', 'Description', 'Image', 'Social'];
+const steps = ['Name', 'Image', 'Social'];
 
 const components = {
     Name,
-    Description,
     Image,
     Social
 };

@@ -158,12 +158,12 @@ const user = reactive({
     isAdmin: window.Laravel?.user?.isAdmin
 });
 
-const currentSection = ref('Name');
+const currentSection = ref(window.Laravel.isMobile ? null : 'Name');
 const isSubmitting = ref(false);
 const errors = ref({});
 const currentComponentRef = ref(null);
 const showSuccessModal = ref(false);
-const isMobile = ref(false);
+const isMobile = ref(window.Laravel.isMobile);
 
 // Define available steps
 const steps = ['Name', 'Description', 'Image', 'Curators'];
@@ -183,10 +183,6 @@ const handleNavigation = (section) => {
     } else {
         currentSection.value = section;
     }
-};
-
-const checkMobile = () => {
-    isMobile.value = window.innerWidth < 768;
 };
 
 const saveChanges = async () => {
@@ -221,12 +217,11 @@ const saveChanges = async () => {
 };
 
 onMounted(() => {
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
+    // No need for resize listener anymore
 });
 
 onUnmounted(() => {
-    window.removeEventListener('resize', checkMobile);
+    // No need to remove listener
 });
 
 // Provide shared state

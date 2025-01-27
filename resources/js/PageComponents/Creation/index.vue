@@ -5,7 +5,7 @@
 			<div class="w-full flex flex-col">
 				<!-- Organizer Name and Create Button -->
 				<div class="w-full flex items-center justify-between mb-20 shadow-custom-6 md:shadow-none p-8 md:p-0 rounded-2xl">
-					<a :href="`/organizers/${organizer.slug}`" class="group flex flex-col md:flex-row items-center gap-8">
+					<a :href="`/organizers/${organizer.slug}`" class="group flex flex-row items-center gap-8">
 						<!-- Organizer Image -->
 						<template v-if="organizer.images?.length > 0">
 							<picture class="w-20 h-20 flex-shrink-0">
@@ -26,10 +26,10 @@
 							</span>
 						</div>
 						
-						<h2 class="font-medium group-hover:underline break-words hyphens-auto">{{organizer.name}}</h2>
+						<h2 class="text-2xl md:text-5xl font-medium group-hover:underline break-words hyphens-auto leading-tight">{{organizer.name}}</h2>
 					</a>
 					
-					<div class="flex gap-4">
+					<div class="hidden md:flex gap-4">
 						<a :href="`/organizers/${organizer.slug}/edit`" class="cursor-pointer">
 							<div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center hover:bg-gray-200">
 								<svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -41,12 +41,12 @@
 				</div>
 
 				<!-- Filter Buttons -->
-				<div class="flex gap-6 flex-wrap">
+				<div class="hidden md:flex gap-6 flex-wrap">
 					<div @click="createNewEvent" class="cursor-pointer">
-							<div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
-								+
-							</div>
+						<div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
+							+
 						</div>
+					</div>
 					<button 
 						v-for="filter in filters" 
 						:key="filter.id"
@@ -61,10 +61,76 @@
 						{{ filter.name }} ({{ getFilteredEvents(filter.id).length }})
 					</button>
 				</div>
+
+				<!-- Mobile dropdown -->
+				<div class="flex justify-between items-center md:hidden mb-16">
+					<h3 class="text-5xl leading-tight">Your <br>Listings</h3>
+					<div class="flex gap-4">
+						<div @click="createNewEvent" class="cursor-pointer flex">
+							<div class="rounded-full bg-gray-100 w-16 h-16 flex items-center justify-center text-4xl font-light hover:bg-gray-200">
+								+
+							</div>
+						</div>
+						<div @click="isOpen = !isOpen" class="cursor-pointer flex">
+							<div class="rounded-full bg-gray-100 w-16 h-16 flex items-center justify-center hover:bg-gray-200">
+								<svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M3 6h18M3 12h18M3 18h18" stroke-linecap="round" stroke-linejoin="round"/>
+								</svg>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="md:hidden">
+					<div class="flex gap-4 items-center">
+						<div class="relative flex-1">
+							<!-- Dropdown menu -->
+							<teleport to="body">
+								<div v-if="isOpen" 
+									 class="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50"
+									 @click="isOpen = false">
+									<div class="bg-white w-full rounded-t-2xl p-8 max-h-[80vh] overflow-y-auto" 
+										 @click.stop>
+										<!-- Modal Header -->
+										<div class="flex justify-between items-center mb-6">
+											<h3 class="text-2xl font-medium">Filter Events</h3>
+											<button @click="isOpen = false">
+												<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+													<path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
+												</svg>
+											</button>
+										</div>
+										
+										<!-- Filter Options -->
+										<div class="space-y-4">
+											<button 
+												v-for="filter in filters" 
+												:key="filter.id"
+												@click="selectFilter(filter.id)"
+												class="w-full p-4 text-left rounded-xl transition-colors"
+												:class="{ 
+													'bg-black text-white': currentFilter === filter.id,
+													'hover:bg-gray-100': currentFilter !== filter.id
+												}"
+											>
+												<div class="flex justify-between items-center">
+													<span class="text-lg">{{ filter.name }}</span>
+													<span class="text-sm" :class="{ 'opacity-75': currentFilter === filter.id }">
+														{{ getFilteredEvents(filter.id).length }}
+													</span>
+												</div>
+											</button>
+										</div>
+									</div>
+								</div>
+							</teleport>
+						</div>
+					</div>
+				</div>
 			</div>
 
 			<!-- Event List Headers -->
-			<div class="w-full">
+			<div class="w-full hidden md:block">
 				<div class="grid gap-8 py-4 h-36 items-center grid-cols-[8rem_auto] md:grid-cols-[16rem_30%_auto_auto]">
 					<h5 class="font-medium">Events</h5>
 					<div class="hidden md:block"></div>
@@ -78,7 +144,7 @@
 					 :key="event.id"
 					 @click="openModal(event)"
 					 class="block cursor-pointer">
-					<div class="group relative grid grid-cols-2 md:grid-cols-4 gap-8 p-4 items-center hover:bg-gray-100 rounded-2xl grid-cols-[4rem_auto] md:grid-cols-[16rem_30%_auto_auto]">
+					<div class="group relative grid grid-cols-2 md:grid-cols-4 gap-8 px-0 md:px-4 p-4 items-center hover:bg-gray-100 rounded-2xl grid-cols-[4rem_auto] md:grid-cols-[16rem_30%_auto_auto]">
 						<div class="aspect-[3/4] h-24 overflow-hidden">
 							<template v-if="event.images?.length > 0">
 								<picture>
@@ -309,6 +375,8 @@ const filters = [
 	{ id: 'past', name: 'Past Events' },
 	{ id: 'archived', name: 'Archived' }
 ];
+
+const isOpen = ref(false);
 
 onMounted(() => {
 	const urlParams = new URLSearchParams(window.location.search);
@@ -553,6 +621,11 @@ const cancelNameChange = () => {
 	showNameChangeModal.value = false;
 	event.name = originalName.value;
 	$v.value.event.name.$reset();
+};
+
+const selectFilter = (id) => {
+	currentFilter.value = id;
+	isOpen.value = false;
 };
 </script>
 

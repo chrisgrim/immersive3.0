@@ -112,25 +112,12 @@
                     </div>
                 </div>
 
-                <template v-if="hover && !onEdit">
-                    <div class="absolute top-[-1rem] right-[-1rem]">
-                        <button 
-                            @click="deleteCard"
-                            class="w-12 h-12 flex rounded-full justify-center items-center border-2 bg-white hover:bg-black hover:text-white">
-                            <svg class="w-12 h-12">
-                                <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
-                            </svg>
-                        </button>
-                    </div>
-                </template>
             </template>
             
             <template v-else>
                 <!-- Regular Image -->
                 <template v-if="!card.event_id && card.type === 'i'">
-                    <div 
-                        :class="['relative rounded-2xl overflow-hidden mb-8 cursor-pointer', isVisible ? 'aspect-[16/9]' : 'h-16']" 
-                        @click="onEdit = true">
+                    <div :class="['relative rounded-2xl overflow-hidden mb-8 cursor-pointer', isVisible ? 'aspect-[16/9]' : 'h-16']" >
                         <picture v-if="isVisible && hasImage">
                             <source 
                                 type="image/webp" 
@@ -141,14 +128,6 @@
                                 :src="imageUrl + hasImage"
                                 :alt="card.name || 'Card image'">
                         </picture>
-                        <div v-if="onEdit" class="absolute top-4 right-4">
-                            <ToggleSwitch
-                                v-model="isVisible"
-                                left-label="Hidden"
-                                right-label="Visible"
-                                text-size="sm"
-                                @update:modelValue="handleVisibilityChange" />
-                        </div>
                     </div>
                 </template>
 
@@ -213,17 +192,18 @@
                     </template>
                 </div>
 
-                <template v-if="hover && !onEdit">
-                    <div class="absolute top-[-1rem] right-[-1rem]">
-                        <button 
-                            @click="deleteCard"
-                            class="w-12 h-12 flex rounded-full justify-center items-center border-2 bg-white hover:bg-black hover:text-white">
-                            <svg class="w-12 h-12">
-                                <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
-                            </svg>
-                        </button>
-                    </div>
-                </template>
+                
+            </template>
+            <template v-if="hover && !onEdit">
+                <div class="absolute top-[-1rem] right-[-1rem]">
+                    <button 
+                        @click="deleteCard"
+                        class="w-12 h-12 flex rounded-full justify-center items-center border-2 bg-white hover:bg-black group">
+                        <svg class="w-12 h-12 fill-black hover:fill-white">
+                            <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
+                        </svg>
+                    </button>
+                </div>
             </template>
             
         </div>
@@ -353,18 +333,6 @@ const appendCardData = () => {
     formData.value.append('type', card.value.type)
 }
 
-const addImageSubmit = (image) => {
-    disabled.value = true
-    formData.value.append('image', image)
-    if (card.value.type === 'h') formData.value.append('type', 'e')
-    updateCard()
-}
-
-const removeImage = () => {
-    disabled.value = true
-    formData.value.append('type', 'h')
-    updateCard()
-}
 
 const clear = () => {
     console.log('onEdit', onEdit.value)

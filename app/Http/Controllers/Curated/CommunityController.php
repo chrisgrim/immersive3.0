@@ -332,7 +332,7 @@ class CommunityController extends Controller
     /**
      * Update curator-related settings for the community
      */
-    public function updateCurators(Request $request, Community $community)
+    public function updateCurators(Request $request, Community $community, CommunityActions $communityActions)
     {
         $this->authorize('manageCurators', $community);
         
@@ -341,7 +341,8 @@ class CommunityController extends Controller
             if ($request->has('new_owner_id')) {
                 $this->updateOwner(
                     new Request(['id' => $request->new_owner_id]), 
-                    $community
+                    $community,
+                    $communityActions
                 );
             }
 

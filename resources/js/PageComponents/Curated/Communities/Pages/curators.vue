@@ -26,7 +26,7 @@
                         </div>
                         <div v-if="canManageCurators" class="flex items-center gap-4">
                             <div v-if="pendingNewOwner" class="text-orange-500">
-                                Pending transfer to {{ pendingNewOwner.name }}
+                                Update to transfer to {{ pendingNewOwner.name }}
                                 <button 
                                     @click="pendingNewOwner = null; newOwnerId = null"
                                     class="ml-2 text-gray-500 hover:text-gray-700"

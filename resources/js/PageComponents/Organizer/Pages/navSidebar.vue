@@ -7,7 +7,7 @@
         <div class="flex items-center gap-4">
             <button 
                 @click="$emit('navigate', null)"
-                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-gray-200 transition-colors"
             >
                 <svg 
                     class="w-8 h-8" 
@@ -27,7 +27,7 @@
     </div>
 
     <!-- Main Navigation -->
-    <nav class="flex-shrink-0 space-y-8 w-full p-8 mx-auto lg-air:max-w-[34rem] pt-12 lg-air:pt-28">
+    <nav class="flex-shrink-0 space-y-8 w-full p-8 mx-auto mb-20 lg-air:max-w-[40rem] pt-12 lg-air:pt-28">
         <!-- Header with back button (hidden on mobile when section is active) -->
         <div 
             v-if="!isMobile || !activeSection"
@@ -50,23 +50,23 @@
                     <path d="M12 19l-7-7 7-7"/>
                 </svg>
             </a>
-            <a href="/hosting/events" class="text-4xl font-semibold truncate">Listings</a>
+            <a href="/hosting/events" class="text-5xl font-semibold truncate">Listings</a>
         </div>
 
         <!-- Name -->
-        <div 
+        <button
             @click="$emit('navigate', 'Name')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 w-full max-w-full"
+            class="w-full p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-neutral-50 bg-neutral-50 w-full"
         >
             <h3 class="text-xl font-semibold mb-4">Name</h3>
-            <p class="text-gray-600 mb-2 break-words hyphens-auto overflow-hidden">{{ organizer.name || 'No name set' }}</p>
-            <p class="text-gray-500 text-lg leading-tight break-words hyphens-auto overflow-hidden">{{ organizer.description || 'No description set' }}</p>
-        </div>
+            <p class="text-4xl text-gray-600 mb-2 break-words hyphens-auto overflow-hidden">{{ organizer.name || 'No name set' }}</p>
+            <p class="text-gray-500 text-lg line-clamp-3 leading-tight break-words hyphens-auto overflow-hidden">{{ organizer.description || 'No description set' }}</p>
+        </button>
 
         <!-- Images -->
-        <div 
+        <button
             @click="$emit('navigate', 'Image')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
+            class="w-full p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-neutral-50 bg-neutral-50 overflow-hidden"
         >
             <h3 class="text-xl font-semibold mb-4">Image</h3>
             <div class="flex gap-4 justify-center mb-8">
@@ -80,7 +80,11 @@
                             :src="organizerImage"
                             class="w-40 h-40 rounded-full object-cover"
                             alt="Organizer image"
+                            @error="console.error('Error loading image: ' + organizerImage)"
                         />
+                        <template v-if="!organizerImage">
+                            <span>Error loading image</span>
+                        </template>
                     </picture>
                 </template>
                 <div v-else class="w-40 h-40 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
@@ -89,12 +93,12 @@
                     </span>
                 </div>
             </div>
-        </div>
+        </button>
 
         <!-- Social Links -->
-        <div 
+        <button
             @click="$emit('navigate', 'Social')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
+            class="w-full p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-neutral-50 bg-neutral-50 overflow-hidden"
         >
             <h3 class="text-xl font-semibold mb-4">Social Links</h3>
             <div class="space-y-2">
@@ -126,7 +130,7 @@
                     No social links set
                 </div>
             </div>
-        </div>
+        </button>
     </nav>
 </template>
 
