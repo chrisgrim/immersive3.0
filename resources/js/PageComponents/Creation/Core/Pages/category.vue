@@ -3,7 +3,7 @@
         <div class="flex flex-col w-full">
             <!-- Header -->
             <div class="w-full">
-                <h2>What Category does your event fall into?</h2>
+                <h2 class="text-black">What Category does your event fall into?</h2>
             </div>
 
             <!-- Main Content -->
@@ -11,8 +11,8 @@
                 <div class="w-full relative" ref="categoryDrop" v-click-outside="handleClickOutside">
                     <!-- Dropdown Arrow -->
                     <svg 
-                        :class="{'transform rotate-90': state.dropdown}"
-                        class="w-10 h-10 fill-black absolute z-10 right-4 top-8 cursor-pointer" 
+                        :class="{'rotate-90': state.dropdown}"
+                        class="w-10 h-10 fill-black absolute z-10 right-4 top-8 transition-transform duration-200" 
                         @click="onDropdown"
                     >
                         <use :xlink:href="`/storage/website-files/icons.svg#ri-arrow-right-s-line`" />
@@ -20,8 +20,14 @@
 
                     <!-- Category Input -->
                     <input 
-                        :class="{ 'border-red-500 shadow-[0_0_0_1.5px_#ef4444]': showError }"
-                        class="text-2xl relative p-8 w-full border mb-12 rounded-3xl focus:rounded-3xl"
+                        :class="[
+                            'text-2xl relative p-8 w-full border rounded-3xl transition-all duration-200',
+                            {
+                                'border-red-500 hover:border-red-500 focus:border-red-500 focus:shadow-focus-error': showError,
+                                'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !showError,
+                                'focus:rounded-t-3xl focus:rounded-b-none': state.dropdown
+                            }
+                        ]"
                         v-model="state.category"
                         placeholder="Select Category"
                         @input="filterCategories"
@@ -36,7 +42,7 @@
                     </p>
 
                     <!-- Selected Category Preview -->
-                    <div v-if="event.category">
+                    <div class="mt-12" v-if="event.category">
                         <img 
                             class="h-[30rem] w-full object-cover rounded-3xl" 
                             :src="`${imageUrl}${event.category.largeImagePath}`" 
@@ -47,12 +53,13 @@
 
                     <!-- Category Dropdown -->
                     <ul v-if="state.dropdown" 
-                        class="overflow-auto bg-white w-full list-none rounded-b-3xl absolute top-24 m-0 z-10 border-[#e5e7eb] border max-h-[45rem]"
+                        class="overflow-auto bg-white w-full list-none rounded-b-3xl absolute top-24 m-0 z-10 border border-[#222222] shadow-focus-black max-h-[45rem]"
                     >
                         <li v-for="item in state.filteredCategories"
                             :key="item.id"
-                            class="py-6 px-6 flex items-center gap-8 hover:bg-gray-300 cursor-pointer" 
+                            class="py-6 px-6 flex items-center gap-8 hover:bg-neutral-100 transition-colors duration-200 cursor-pointer" 
                             @click="selectCategory(item)"
+                            @mousedown.stop.prevent
                         >
                             <img 
                                 class="w-16" 

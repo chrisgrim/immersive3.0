@@ -2,9 +2,9 @@
     <div class="w-full">
         <div class="relative w-full">
             <div class="w-full mb-16">
-                <h2 v-if="locationSearch">Where is your event located?</h2>
-                <h2 v-else>Does this look right?</h2>
-                <p v-if="locationSearch" class="text-gray-500 font-normal mt-4">Enter your address and select from the dropdown.</p>
+                <h2 v-if="locationSearch" class="text-black">Where is your event located?</h2>
+                <h2 v-else class="text-black">Does this look right?</h2>
+                <p v-if="locationSearch" class="text-neutral-500 font-normal mt-4">Enter your address and select from the dropdown.</p>
                 <p v-else class="text-gray-500 font-normal mt-4">Make sure to double check your location and address.</p>
             </div>
             <div 

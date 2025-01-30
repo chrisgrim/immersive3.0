@@ -31,7 +31,7 @@ class CommunityController extends Controller
     public function index()
     {
         $user = auth()->user();
-        $communities = auth()->user()->communities;
+        $communities = auth()->user()->communities()->with(['images'])->get();
         return view('Curated.Communities.index', compact('communities', 'user'));
     }
 

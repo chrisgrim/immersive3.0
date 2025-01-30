@@ -101,16 +101,16 @@
                             Account
                         </a>
                         <a 
-                            v-if="user.teams && user.teams.length > 1"
+                            v-if="user.teams && Object.keys(user.teams).length > 1"
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
                             href="/teams">
                             Switch Organizations
                         </a>
                         <a 
-                            v-else-if="user.teams && user.teams.length === 1"
+                            v-else-if="user.teams && Object.keys(user.teams).length === 1"
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
                             href="/hosting/events">
-                            {{ user.teams[0].name }}
+                            {{ Object.values(user.teams)[0] }}
                         </a>
                         <a 
                             v-if="user.isCurator"

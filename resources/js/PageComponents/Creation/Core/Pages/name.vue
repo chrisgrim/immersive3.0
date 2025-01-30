@@ -2,18 +2,18 @@
     <main class="w-full min-h-fit">
         <div class="flex flex-col w-full">
             <div>
-                <h2>What's your event called?</h2>
-                <p class="text-gray-500 font-normal mt-4">Enter a unique name for your event</p>
+                <h2 class="text-black">What's your event called?</h2>
+                <p class="text-neutral-500 font-normal mt-4">Enter a unique name for your event</p>
                 <div class="mt-6">
                     <!-- Event Name Input -->
                     <textarea 
                         name="name" 
                         :class="[
-                            'text-4xl font-normal border rounded-2xl p-4 w-full mt-8',
+                            'text-4xl font-normal border rounded-2xl p-4 w-full mt-8 transition-all duration-200',
                             {
-                                'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showNameError,
-                                'border-[#222222] focus:border-black focus:shadow-[0_0_0_1.5px_black]': !showNameError,
-                                'bg-gray-100 text-gray-500 cursor-not-allowed': hasPendingNameChange
+                                'border-red-500 focus:border-red-500 focus:shadow-focus-error': showNameError,
+                                'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !showNameError,
+                                'bg-neutral-100 text-neutral-500 cursor-not-allowed': hasPendingNameChange
                             }
                         ]"
                         v-model="event.name" 
@@ -27,7 +27,7 @@
                     <div class="flex justify-end mt-1" 
                          :class="{
                              'text-red-500': isNameNearLimit, 
-                             'text-gray-500': !isNameNearLimit
+                             'text-neutral-500': !isNameNearLimit
                          }">
                         {{ event.name?.length || 0 }}/100
                         <span v-if="hasPendingNameChange" class="ml-2 italic">
@@ -47,13 +47,13 @@
 
                     <!-- Tag Line Section -->
                     <div v-if="event.name">
-                        <p class="text-gray-500 font-normal">Tag Line</p>
+                        <p class="text-neutral-500 font-normal">Tag Line</p>
                         <textarea 
                             name="tag_line" 
-                            class="text-2xl border border-[#222222] focus:border-black rounded-2xl p-4 w-full mt-4" 
+                            class="text-2xl border rounded-2xl p-4 w-full mt-4 transition-all duration-200" 
                             :class="{ 
-                                'border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showTagLineError,
-                                'focus:shadow-[0_0_0_1.5px_black]': !showTagLineError 
+                                'border-red-500 focus:border-red-500 focus:shadow-focus-error': showTagLineError,
+                                'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !showTagLineError 
                             }"
                             v-model="event.tag_line" 
                             @input="handleTagLineInput"
@@ -63,19 +63,18 @@
 
                         <!-- Tag Line Character Count -->
                         <div class="flex justify-end mt-1 relative" 
-                             :class="{'text-red-500': isTagLineNearLimit, 'text-gray-500': !isTagLineNearLimit}">
+                             :class="{'text-red-500': isTagLineNearLimit, 'text-neutral-500': !isTagLineNearLimit}">
                             {{ event.tag_line?.length || 0 }}/150
-                                <!-- Tag Line Error Messages -->
+                            <!-- Tag Line Error Messages -->
                             <p v-if="showTagLineMaxLengthError" 
-                            class="text-red-500 text-1xl px-4 absolute left-0 top-0">
+                               class="text-red-500 text-1xl px-4 absolute left-0 top-0">
                                 Event tag line is too long.
                             </p>
                             <p v-if="showTagLineRequiredError" 
-                            class="text-red-500 text-1xl px-4 absolute left-0 top-0">
+                               class="text-red-500 text-1xl px-4 absolute left-0 top-0">
                                 Tag line is required
                             </p>
                         </div>
-
                     </div>
                 </div>
             </div>

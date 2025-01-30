@@ -27,7 +27,7 @@
     </div>
 
     <!-- Main Navigation -->
-    <nav class="flex-shrink-0 space-y-8 w-full p-8 mx-auto lg-air:max-w-[34rem] pt-12 lg-air:pt-28">
+    <nav class="flex-shrink-0 space-y-8 w-full p-8 mx-auto mb-20 lg-air:max-w-[40rem] pt-12 lg-air:pt-28">
         <!-- Header with back button (hidden on mobile when section is active) -->
         <div 
             v-if="!isMobile || !activeSection"
@@ -50,13 +50,13 @@
                     <path d="M12 19l-7-7 7-7"/>
                 </svg>
             </a>
-            <a href="/hosting/events" class="text-4xl font-semibold truncate">Listings</a>
+            <a href="/hosting/events" class="ml-4 text-5xl font-semibold truncate">Listings</a>
         </div>
 
         <!-- Name & Tag Line -->
         <div 
             @click="$emit('navigate', 'Name')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 w-full max-w-full"
+            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 w-full max-w-full"
         >
             <h3 class="text-xl font-semibold mb-4">Name</h3>
             <p class="text-gray-600 mb-2 leading-tight break-words hyphens-auto overflow-hidden">{{ event.name || 'No name set' }}</p>
@@ -66,7 +66,7 @@
         <!-- Category -->
         <div 
             @click="$emit('navigate', 'Category')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
+            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
         >
             <h3 class="text-xl font-semibold mb-4">Category</h3>
             <div class="flex gap-4">
@@ -78,7 +78,6 @@
                 />
                 <div class="flex-1 min-w-0 justify-center flex flex-col">
                     <p class="text-gray-600 mb-2 truncate">{{ categoryName }}</p>
-                    <p class="text-gray-500 text-sm truncate">{{ subcategoryName }}</p>
                 </div>
             </div>
         </div>
@@ -86,21 +85,21 @@
         <!-- Genres -->
         <div 
             @click="$emit('navigate', 'Genres')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
+            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
         >
             <h3 class="text-xl font-semibold mb-4">Genres</h3>
             <div class="flex flex-wrap gap-2">
                 <span 
                     v-for="genre in event.genres?.slice(0, 3)" 
                     :key="genre.id"
-                    class="px-3 py-1 bg-gray-100 rounded-full text-sm"
+                    class="px-3 py-1 bg-gray-100 rounded-full text-lg"
                 >
                     {{ genre.name }}
                 </span>
-                <span v-if="event.genres?.length > 3" class="text-gray-500 text-sm">
+                <span v-if="event.genres?.length > 3" class="text-gray-500 text-lg">
                     +{{ event.genres.length - 3 }} more
                 </span>
-                <span v-if="!event.genres?.length" class="text-gray-500 text-sm">
+                <span v-if="!event.genres?.length" class="text-gray-500 text-lg">
                     No genres selected
                 </span>
             </div>
@@ -109,7 +108,7 @@
         <!-- Location -->
         <div 
             @click="$emit('navigate', props.event?.hasLocation ? 'Location' : 'Remote')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
+            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
         >
             <h3 class="text-xl font-semibold mb-4">Location</h3>
             <template v-if="props.event?.hasLocation">
@@ -144,7 +143,7 @@
                     </div>
                     <div class="flex-1 min-w-0 justify-center flex flex-col">
                         <p class="text-gray-600 mb-2 truncate">{{ props.event?.location?.city || 'No city set' }}</p>
-                        <p class="text-gray-500 text-sm truncate">{{ props.event?.location?.venue || 'No venue set' }}</p>
+                        <p class="text-gray-500 text-lg truncate">{{ props.event?.location?.venue || 'No venue set' }}</p>
                     </div>
                 </div>
             </template>
@@ -156,7 +155,7 @@
         <!-- Description -->
         <div 
             @click="$emit('navigate', 'Description')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
+            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
         >
             <h3 class="text-xl font-semibold mb-4">Description</h3>
             <p class="text-gray-600 line-clamp-2 break-words hyphens-auto">{{ event.description || 'No description set' }}</p>
@@ -165,7 +164,7 @@
         <!-- Dates -->
         <div 
             @click="$emit('navigate', 'Dates')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
+            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
         >
             <div class="flex justify-between items-start">
                 <h3 class="text-xl font-semibold">Dates</h3>
@@ -181,7 +180,7 @@
         <!-- Tickets -->
         <div 
             @click="$emit('navigate', 'Tickets')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
+            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
         >
             <h3 class="text-xl font-semibold mb-4">Tickets</h3>
             <p class="text-gray-600 mb-2">{{ ticketCount }} ticket types</p>
@@ -191,7 +190,7 @@
         <!-- Images -->
         <div 
             @click="$emit('navigate', 'Images')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
+            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
         >
             <h3 class="text-xl font-semibold mb-4">Images</h3>
             <div class="flex gap-4">
@@ -215,7 +214,7 @@
         <!-- Advisories -->
         <div 
             @click="$emit('navigate', 'Advisories')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
+            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
         >
             <h3 class="text-xl font-semibold mb-4">Advisories</h3>
             <div class="space-y-4">
@@ -224,7 +223,7 @@
                     <div class="flex flex-wrap gap-2">
                         <span 
                             v-if="event.interactive_level"
-                            class="px-3 py-1 bg-gray-100 rounded-full text-sm"
+                            class="px-3 py-1 bg-gray-100 rounded-full text-lg"
                         >
                             {{ event.interactive_level.name }}
                         </span>
@@ -240,7 +239,7 @@
                         <span 
                             v-for="contact in event.contact_levels?.slice(0, 3)" 
                             :key="contact.id"
-                            class="px-3 py-1 bg-gray-100 rounded-full text-sm"
+                            class="px-3 py-1 bg-gray-100 rounded-full text-lg"
                         >
                             {{ contact.name }}
                         </span>
@@ -258,21 +257,21 @@
         <!-- Content Advisories -->
         <div 
             @click="$emit('navigate', 'Content')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
+            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
         >
             <h3 class="text-xl font-semibold mb-4">Content Advisories</h3>
             <div class="flex flex-wrap gap-2">
                 <span 
                     v-for="content in event.content_advisories?.slice(0, 3)" 
                     :key="content.id"
-                    class="px-3 py-1 bg-gray-100 rounded-full text-sm"
+                    class="px-3 py-1 bg-gray-100 rounded-full text-lg"
                 >
                     {{ content.name }}
                 </span>
-                <span v-if="event.content_advisories?.length > 3" class="text-gray-500 text-sm">
+                <span v-if="event.content_advisories?.length > 3" class="text-gray-500 text-lg">
                     +{{ event.content_advisories.length - 3 }} more
                 </span>
-                <span v-if="!event.content_advisories?.length" class="text-gray-500 text-sm">
+                <span v-if="!event.content_advisories?.length" class="text-gray-500 text-lg">
                     No content advisories selected
                 </span>
             </div>
@@ -281,21 +280,21 @@
         <!-- Mobility -->
         <div 
             @click="$emit('navigate', 'Mobility')"
-            class="p-6 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
+            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
         >
             <h3 class="text-xl font-semibold mb-4">Mobility</h3>
             <div class="flex flex-wrap gap-2">
                 <span 
                     v-for="mobility in event.mobility_advisories?.slice(0, 3)" 
                     :key="mobility.id"
-                    class="px-3 py-1 bg-gray-100 rounded-full text-sm"
+                    class="px-3 py-1 bg-gray-100 rounded-full text-lg"
                 >
                     {{ mobility.name }}
                 </span>
-                <span v-if="event.mobility?.length > 3" class="text-gray-500 text-sm">
+                <span v-if="event.mobility?.length > 3" class="text-gray-500 text-lg">
                     +{{ event.mobility.length - 3 }} more
                 </span>
-                <span v-if="!event.mobility_advisories?.length" class="text-gray-500 text-sm">
+                <span v-if="!event.mobility_advisories?.length" class="text-gray-500 text-lg">
                     No mobility options selected
                 </span>
             </div>
@@ -387,10 +386,6 @@ const imageCount = computed(() => {
 
 const categoryName = computed(() => {
     return props.event.category?.name || 'No category set';
-});
-
-const subcategoryName = computed(() => {
-    return props.event.subcategory?.name || 'No subcategory set';
 });
 
 const locationMapRef = ref(null);

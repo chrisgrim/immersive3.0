@@ -4,14 +4,18 @@
             <div class="w-full relative">
                 <svg 
                     :class="{'rotate-90': dropdown}"
-                    class="w-10 h-10 fill-black absolute z-10 right-4 top-8">
+                    class="w-10 h-10 fill-black absolute z-10 right-4 top-8 transition-transform duration-200">
                     <use :xlink:href="`/storage/website-files/icons.svg#ri-arrow-right-s-line`" />
                 </svg>
                 <input 
                     ref="searchInput"
                     :class="[
-                        'text-2xl border-gray-300 relative p-8 w-full border rounded-3xl focus:rounded-t-3xl focus:rounded-b-none h-24',
-                        { 'border-red-500 shadow-[0_0_0_1.5px_#ef4444]': error }
+                        'text-2xl relative p-8 w-full border rounded-3xl transition-all duration-200',
+                        {
+                            'border-red-500 hover:border-red-500 focus:border-red-500 focus:shadow-focus-error': error,
+                            'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !error,
+                            'focus:rounded-t-3xl focus:rounded-b-none': dropdown 
+                        }
                     ]"
                     v-model="searchTerm"
                     :placeholder="placeholder"
@@ -22,10 +26,10 @@
                     autocomplete="off"
                     type="text">
                 <ul 
-                    class="overflow-auto bg-white w-full list-none rounded-b-3xl absolute top-24 m-0 z-10 border-[#e5e7eb] border max-h-[40rem]" 
+                    class="overflow-auto bg-white w-full list-none rounded-b-3xl absolute top-24 m-0 z-10 border border-[#222222] shadow-focus-black max-h-[40rem]" 
                     v-if="dropdown">
                     <li 
-                        class="py-6 px-6 flex items-center gap-8 hover:bg-gray-300" 
+                        class="py-6 px-6 flex items-center gap-8 hover:bg-neutral-100 transition-colors duration-200" 
                         v-for="item in filteredItems"
                         :key="item.id"
                         @click="selectItem(item)"
@@ -34,7 +38,7 @@
                     </li>
                     <li 
                         v-if="creatable && searchTerm && !filteredItems.length"
-                        class="py-6 px-6 flex items-center gap-8 hover:bg-gray-300 cursor-pointer"
+                        class="py-6 px-6 flex items-center gap-8 hover:bg-neutral-100 cursor-pointer transition-colors duration-200"
                         @click="createItem(searchTerm)"
                         @mousedown.stop.prevent>
                         Create: "{{ searchTerm }}"

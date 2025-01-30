@@ -10,8 +10,7 @@
                     <div class="flex items-center justify-center">
                         <NavSidebar 
                             :organizer="organizer"
-                            :is-mobile="isMobile"
-                            :active-section="currentSection"
+                            :currentStep="currentStep"
                             @navigate="handleNavigation"
                         />
                     </div>
@@ -23,7 +22,7 @@
                     :class="currentSection ? 'flex' : 'hidden md:flex'">
                     <!-- Mobile back button -->
                     <div 
-                        v-if="isMobile && currentSection" 
+                        v-if="window?.Laravel?.isMobile && currentSection" 
                         class="relative bg-white px-8 pt-12 pb-4"
                     >
                         <div class="flex items-center gap-4">
@@ -137,7 +136,7 @@
 </template>
 
 <script setup>
-import { ref, provide, reactive, computed, onMounted, onUnmounted } from 'vue';
+import { ref, provide, reactive, computed } from 'vue';
 import NavSidebar from './Pages/navSidebar.vue';
 import Name from './Pages/name.vue';
 import Image from './Pages/image.vue';
@@ -161,6 +160,7 @@ const isSubmitting = ref(false);
 const errors = ref({});
 const currentComponentRef = ref(null);
 const showSuccessModal = ref(false);
+const currentSection = ref(null);
 
 // Define available steps
 const steps = ['Name', 'Image', 'Social'];
@@ -171,24 +171,10 @@ const components = {
     Social
 };
 
-const currentComponent = computed(() => {
-    console.log('Current step:', currentStep.value);
-    console.log('Available components:', Object.keys(components));
-    console.log('Selected component:', components[currentStep.value]);
-    return components[currentStep.value];
-});
-
-// Add these new refs and functions
-const isMobile = ref(false);
-const currentSection = ref(null);
-
-const checkMobile = () => {
-    isMobile.value = window.innerWidth < 768;
-};
+const currentComponent = computed(() => components[currentStep.value]);
 
 const handleNavigation = (section) => {
-    console.log('Navigation triggered with section:', section);
-    if (isMobile.value) {
+    if (window?.Laravel?.isMobile) {
         currentSection.value = section;
         if (section) {
             setStep(section);
@@ -199,11 +185,8 @@ const handleNavigation = (section) => {
 };
 
 const setStep = (step) => {
-    console.log('Setting step:', step);
     if (steps.includes(step)) {
         currentStep.value = step;
-    } else {
-        console.log('Step not found in available steps:', steps);
     }
 };
 
@@ -216,7 +199,6 @@ const saveChanges = async () => {
         if (!submitData) return;
         
         isSubmitting.value = true;
-        console.log('Submitting data:', submitData);
         const response = await axios.post(`/organizers/${organizer.slug}`, submitData);
         
         if (response.data.organizer) {
@@ -232,15 +214,6 @@ const saveChanges = async () => {
         isSubmitting.value = false;
     }
 };
-
-onMounted(() => {
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-});
-
-onUnmounted(() => {
-    window.removeEventListener('resize', checkMobile);
-});
 
 // Provide shared state
 provide('organizer', organizer);

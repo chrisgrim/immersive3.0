@@ -2,8 +2,8 @@
     <main class="w-full min-h-fit">
         <div class="w-full">
             <div class="w-full max-w-[64rem] mx-auto mb-16">
-                <h2 v-if="showCropper || !mainImage">Add the poster image of your event</h2>
-                <h2 v-else>Add additional images</h2>
+                <h2 v-if="showCropper || !mainImage" class="text-black">Add the poster image of your event</h2>
+                <h2 v-else class="text-black">Add additional images</h2>
             </div>
 
             <!-- Show cropper when editing -->
@@ -20,13 +20,13 @@
                     <div class="mt-4 flex justify-end gap-2">
                         <button 
                             @click="cancelCrop"
-                            class="px-4 py-2 border rounded-lg hover:bg-gray-100"
+                            class="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors duration-200"
                         >
                             Cancel
                         </button>
                         <button 
                             @click="completeCrop"
-                            class="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
+                            class="px-4 py-2 bg-[#222222] text-white rounded-lg hover:bg-neutral-800 transition-colors duration-200"
                         >
                             Save
                         </button>
@@ -41,7 +41,7 @@
                     <!-- Empty Main Image Slot -->
                     <div 
                         @click="triggerMainFileInput"
-                        class="relative w-[30rem] h-[40rem] flex items-center justify-center border border-dashed border-neutral-400 rounded-2xl cursor-pointer hover:border-black hover:border-2 bg-neutral-100"
+                        class="relative w-[30rem] h-[40rem] flex items-center justify-center border border-dashed border-neutral-300 rounded-2xl cursor-pointer hover:border-solid hover:border-[#222222] hover:shadow-focus-black transition-all duration-200 bg-neutral-50"
                     >
                         <input 
                             type="file" 
@@ -50,7 +50,7 @@
                             accept="image/*"
                             @change="handleMainFileChange" 
                         />
-                        <component :is="RiImageCircleLine" style="width:4rem; height: 4rem;" />
+                        <component :is="RiImageCircleLine" class="w-16 h-16 text-neutral-400" />
                     </div>
                 </div>
 
@@ -78,7 +78,7 @@
                             />
                             <div 
                                 v-if="images.length"
-                                class="absolute inset-0 cursor-pointer hover:bg-black/10 rounded-2xl transition-colors"
+                                class="absolute inset-0 cursor-pointer hover:bg-black/10 rounded-2xl transition-colors duration-200"
                                 @click="triggerMainFileInput"
                             />
                         </div>
@@ -114,7 +114,7 @@
                             <template v-for="i in remainingSlots" :key="'empty-' + i">
                                 <div 
                                     @click="triggerFileInput"
-                                    class="relative aspect-[3/2] flex items-center justify-center border border-dashed border-gray-300 rounded-2xl cursor-pointer hover:border-black hover:border-2"
+                                    class="relative aspect-[3/2] flex items-center justify-center border border-dashed border-neutral-300 rounded-2xl cursor-pointer hover:border-solid hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
                                 >
                                     <input 
                                         type="file" 
@@ -123,7 +123,7 @@
                                         accept="image/*"
                                         @change="handleFileChange" 
                                     />
-                                    <component :is="RiImageCircleLine" style="width:4rem; height: 4rem;" />
+                                    <component :is="RiImageCircleLine" class="w-16 h-16 text-neutral-400" />
                                 </div>
                             </template>
                         </div>
@@ -131,7 +131,6 @@
                 </div>
             </div>
             
-
             <!-- YouTube Section -->
             <div class="mt-16 max-w-[64rem] mx-auto">
                 <p v-if="showMainImageError" 
@@ -144,7 +143,7 @@
                         type="text"
                         v-model="youtubeUrl"
                         placeholder="Paste YouTube URL here"
-                        class="w-full p-4 pr-12 border rounded-xl"
+                        class="w-full p-4 pr-12 border border-neutral-300 rounded-xl transition-all duration-200 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black"
                         @input="handleYoutubeInput"
                     />
                     <div v-if="youtubeId" 
@@ -594,6 +593,6 @@ const showMainImageError = ref(false);
 
 <style>
 .vue-advanced-cropper {
-    background-color: #f3f4f6;
+    background-color: rgb(250 250 250);
 }
 </style>

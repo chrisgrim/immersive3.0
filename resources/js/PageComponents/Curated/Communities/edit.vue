@@ -4,7 +4,7 @@
             <div class="mx-auto flex flex-1 flex-col md:flex-row">
                 <!-- Navigation Sidebar -->
                 <div 
-                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full lg-air:w-[31rem] xl-air:w-[50rem] lg-air:block" 
+                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full lg-air:w-[50rem] xl-air:w-[56rem] lg-air:block" 
                     :class="{ 'hidden': currentSection }">
                     <div class="flex items-center justify-center">
                         <NavSidebar 

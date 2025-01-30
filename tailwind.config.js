@@ -52,8 +52,10 @@ export default {
                 'custom-4': '0 2px 0 0 rgb(0 0 0 / 10%), 0 0 0 0.5px rgb(0 0 0 / 4%)',
                 'custom-5': '2px 3px 5px #f3f3f3',
                 'custom-6': '0px 6px 16px rgb(0 0 0 / 22%)',
-                'custom-7':' 0px 5px 16px 2px rgb(0 0 0 / 18%)',
-                'light': '0 1px 12px rgba(0, 0, 0, 0.08)'
+                'custom-7': '0px 5px 16px 2px rgb(0 0 0 / 18%)',
+                'light': '0 1px 12px rgba(0, 0, 0, 0.08)',
+                'focus-black': '0 0 0 1.5px black, 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+                'focus-error': '0 0 0 1.5px #ef4444, 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)'
             },
             colors: {
                 'button-red-1': '#e61e4d',

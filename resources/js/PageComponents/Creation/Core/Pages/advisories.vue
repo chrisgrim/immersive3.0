@@ -2,7 +2,7 @@
     <main class="w-full min-h-fit">
         <div class="flex flex-col w-full">
             <div class="flex flex-col gap-24">
-                <h2>Contact Advisories</h2>
+                <h2 class="text-black">Contact Advisories</h2>
                 
                 <!-- Contact Level Section -->
                 <div class="w-full">
@@ -13,7 +13,7 @@
                                 v-for="contact in contactLevelList" 
                                 :key="contact.id" 
                                 @click="selectContactLevel(contact)"
-                                class="relative cursor-pointer items-end flex justify-between p-8 h-48 border rounded-2xl hover:shadow-[0_0_0_1.5px_black]"
+                                class="relative cursor-pointer items-end flex justify-between p-8 h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
                             >
                                 <div class="w-full">
                                     <h4 class="text-2xl leading-tight">{{ contact.name }}</h4>
@@ -21,11 +21,11 @@
                             </div>
                         </div>
                     </div>
-                    <div v-else class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-gray-100">
+                    <div v-else class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 transition-all duration-200">
                         <div>
                             <h4 class="text-1xl leading-tight"
                                 :class="{
-                                    'text-[#adadad]': selectedContact.model,
+                                    'text-neutral-400': selectedContact.model,
                                     'text-black': selectedContact.model 
                                 }"
                             >
@@ -55,26 +55,26 @@
                             v-for="interactive in contentInteractiveList" 
                             :key="interactive.id" 
                             @click="selectInteractiveLevel(interactive)"
-                            class="relative cursor-pointer flex flex-col p-8 border rounded-2xl hover:shadow-[0_0_0_1.5px_black]"
+                            class="relative cursor-pointer flex flex-col p-8 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
                         >
                             <div class="w-full">
                                 <h4 class="text-2xl leading-tight mb-2">{{ interactive.name }}</h4>
-                                <p class="text-lg leading-snug text-gray-600">{{ interactive.description }}</p>
+                                <p class="text-lg leading-snug text-neutral-600">{{ interactive.description }}</p>
                             </div>
                         </div>
                     </div>
                     <div v-else>
-                        <div class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-gray-100 w-full">
+                        <div class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 w-full transition-all duration-200">
                             <div class="max-w-2xl">
                                 <h4 class="text-1xl leading-tight mb-2"
                                     :class="{
-                                        'text-[#adadad]': selectedInteractive.model,
+                                        'text-neutral-400': selectedInteractive.model,
                                         'text-black': selectedInteractive.model 
                                     }"
                                 >
                                     {{ selectedInteractive.name }}
                                 </h4>
-                                <p class="text-lg leading-snug text-gray-600">{{ selectedInteractive.description }}</p>
+                                <p class="text-lg leading-snug text-neutral-600">{{ selectedInteractive.description }}</p>
                             </div>
                             <div 
                                 @mouseenter="hoveredLocation = 'closeInteractive'"
@@ -92,15 +92,15 @@
                             <textarea 
                                 v-model="event.advisories.audience"
                                 @input="$v.event.advisories.audience.$touch"
-                                class="w-full p-4 text-1xl border rounded-2xl relative outline-none"
+                                class="w-full p-4 text-1xl border border-neutral-300 rounded-2xl relative outline-none transition-all duration-200"
                                 :class="{ 
                                     'border-red-500': 
                                         $v.event.advisories.audience.$error || 
                                         event.advisories.audience?.length === 1000,
-                                    'focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]':
+                                    'focus:border-red-500 focus:shadow-focus-error':
                                         $v.event.advisories.audience.$error || 
                                         event.advisories.audience?.length === 1000,
-                                    'focus:border-black focus:shadow-[0_0_0_1.5px_black]': 
+                                    'hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': 
                                         !$v.event.advisories.audience.$error && 
                                         event.advisories.audience?.length < 1000
                                 }"

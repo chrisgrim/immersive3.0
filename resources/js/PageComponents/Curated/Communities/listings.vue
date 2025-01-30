@@ -49,10 +49,28 @@
                 </div>
                 
                 <div class="w-1/3 rounded-2xl overflow-hidden">
-                    <img 
-                        :src="`${imageUrl}${community.thumbImagePath}`"
-                        :alt="community.name"
-                        class="w-full h-full object-cover">
+                    <template v-if="communityImage">
+                        <picture class="w-full h-full">
+                            <source 
+                                :srcset="communityImage"
+                                type="image/webp"
+                            >
+                            <img 
+                                :src="communityImage"
+                                :alt="community.name"
+                                class="w-full h-full object-cover"
+                                @error="handleImageError"
+                            >
+                        </picture>
+                    </template>
+                    <div 
+                        v-else 
+                        class="w-full h-full bg-neutral-100 flex items-center justify-center"
+                    >
+                        <span class="text-6xl font-bold text-gray-400">
+                            {{ community.name?.charAt(0).toUpperCase() || '?' }}
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -99,7 +117,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import Shelf from '../Shelves/edit.vue'
 import draggable from 'vuedraggable'
 
@@ -125,6 +143,27 @@ const imageUrl = import.meta.env.VITE_IMAGE_URL || ''
 
 const currentCuratorIndex = ref(0)
 let curatorInterval
+
+// Computed properties
+const communityImage = computed(() => {
+    // First check for images array
+    const firstImage = community.value.images?.[0];
+    if (firstImage) {
+        return `${imageUrl}${firstImage.large_image_path}`;
+    }
+    
+    // Then check for thumbImagePath
+    if (community.value.thumbImagePath) {
+        return `${imageUrl}${community.value.thumbImagePath}`;
+    }
+    
+    return null;
+});
+
+const handleImageError = () => {
+    console.error('Failed to load community image');
+    // You could set a flag here to force the fallback display if needed
+};
 
 // Methods
 const addShelf = async () => {

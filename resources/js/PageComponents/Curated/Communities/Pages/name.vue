@@ -3,7 +3,7 @@
         <div class="flex flex-col w-full">
             <div>
                 <h2>Community Name</h2>
-                <p class="text-gray-500 font-normal mt-4">Enter a name for your community</p>
+                <p class="text-neutral-500 font-normal mt-4">Enter a name for your community</p>
                 <div class="mt-6">
                     <!-- Name Input -->
                     <textarea 
@@ -11,8 +11,8 @@
                         :class="[
                             'text-4xl font-normal border rounded-2xl p-4 w-full mt-8',
                             {
-                                'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showNameError,
-                                'border-[#222222] focus:border-black focus:shadow-[0_0_0_1.5px_black]': !showNameError
+                                'border-red-500 focus:shadow-focus-error': showNameError,
+                                'border-[#222222] focus:shadow-focus-black': !showNameError
                             }
                         ]"
                         v-model="community.name" 
@@ -23,19 +23,19 @@
                     
                     <!-- Name Character Count -->
                     <div class="flex justify-end mt-1" 
-                         :class="{'text-red-500': isNameNearLimit, 'text-gray-500': !isNameNearLimit}">
+                         :class="{'text-red-500': isNameNearLimit, 'text-neutral-500': !isNameNearLimit}">
                         {{ community.name?.length || 0 }}/100
                     </div>
 
                     <!-- Blurb Input -->
                     <div class="mt-8">
-                        <p class="text-gray-500 font-normal">Blurb</p>
+                        <p class="text-neutral-500 font-normal">Blurb</p>
                         <textarea 
                             name="blurb" 
-                            class="text-2xl border border-[#222222] focus:border-black rounded-2xl p-4 w-full mt-4" 
+                            class="text-2xl border rounded-2xl p-4 w-full mt-4" 
                             :class="{ 
-                                'border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showBlurbError,
-                                'focus:shadow-[0_0_0_1.5px_black]': !showBlurbError 
+                                'border-red-500 focus:shadow-focus-error': showBlurbError,
+                                'border-[#222222] focus:shadow-focus-black': !showBlurbError 
                             }"
                             v-model="community.blurb" 
                             @input="handleBlurbInput"
@@ -45,7 +45,7 @@
 
                         <!-- Blurb Character Count -->
                         <div class="flex justify-end mt-1" 
-                             :class="{'text-red-500': isBlurbNearLimit, 'text-gray-500': !isBlurbNearLimit}">
+                             :class="{'text-red-500': isBlurbNearLimit, 'text-neutral-500': !isBlurbNearLimit}">
                             {{ community.blurb?.length || 0 }}/254
                         </div>
                     </div>

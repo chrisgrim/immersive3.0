@@ -8,18 +8,18 @@
                     <textarea 
                         name="name" 
                         :class="[
-                            'text-4xl font-normal border rounded-2xl p-4 w-full mt-8',
+                            'text-4xl p-4 border rounded-2xl mt-1 block w-full',
                             {
-                                'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showNameError,
-                                'border-[#222222] focus:border-black focus:shadow-[0_0_0_1.5px_black]': !showNameError,
-                                'bg-gray-100 text-gray-500 cursor-not-allowed': hasPendingNameChange
+                                'border-red-500 focus:border-red-500 focus:shadow-focus-error': showNameError,
+                                'border-[#222222] focus:border-black focus:shadow-focus-black': !showNameError,
+                                'bg-gray-100 text-gray-500 cursor-not-allowed': hasPendingNameChange || organizer.status !== 'p'
                             }
                         ]"
                         v-model="organizer.name" 
                         @input="handleNameInput"
                         placeholder="Enter organization name"
-                        rows="3" 
-                        :disabled="hasPendingNameChange"
+                        rows="2" 
+                        :disabled="hasPendingNameChange || organizer.status !== 'p'"
                     />
                     
                     <!-- Name Character Count -->
@@ -31,6 +31,9 @@
                         {{ organizer.name?.length || 0 }}/60
                         <span v-if="hasPendingNameChange" class="ml-2 italic">
                             (Name change pending approval)
+                        </span>
+                        <span v-else-if="organizer.status !== 'p'" class="ml-2 italic">
+                            (Organization pending review)
                         </span>
                     </div>
 
@@ -46,18 +49,20 @@
 
                     <!-- Description Section -->
                     <div v-if="organizer.name">
-                        <p class="text-gray-500 font-normal mt-8">Description</p>
+                        <p class="text-black font-medium mb-4">Description</p>
                         <textarea 
                             name="description" 
-                            class="text-2xl border border-[#222222] rounded-2xl p-4 w-full mt-4" 
-                            :class="{ 
-                                'border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showDescriptionError,
-                                'focus:shadow-[0_0_0_1.5px_black] focus:border-black': !showDescriptionError 
-                            }"
+                            :class="[
+                                'p-4 border rounded-2xl mt-1 block w-full',
+                                {
+                                    'border-red-500 focus:border-red-500 focus:shadow-focus-error': showDescriptionError,
+                                    'border-[#222222] focus:border-black focus:shadow-focus-black': !showDescriptionError
+                                }
+                            ]"
                             v-model="organizer.description" 
                             @input="handleDescriptionInput"
                             placeholder="Tell people about your organization"
-                            rows="4" 
+                            rows="9" 
                         />
 
                         <!-- Description Character Count -->

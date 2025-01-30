@@ -5,15 +5,15 @@
         </template>
         <template v-else>
             <div v-if="!selectedDatesCount" class="px-8 md:px-0 pb-8">
-                <h2>Select Dates</h2>
+                <h2 class="text-black">Select Dates</h2>
             </div>
             <div v-else class="flex justify-between items-center px-8 md:px-0 pb-8">
-                <h2>{{ selectedDatesCount }} {{ selectedDatesCount === 1 ? 'Night' : 'Nights' }}</h2>
+                <h2 class="text-black">{{ selectedDatesCount }} {{ selectedDatesCount === 1 ? 'Night' : 'Nights' }}</h2>
                 <div 
                     @mouseover="hoveredLocation = 'clearAllDates'" 
                     @mouseout="hoveredLocation = null" 
                     @click="clearAllDates" 
-                    class="cursor-pointer bg-white"
+                    class="cursor-pointer"
                 >
                     <component :is="hoveredLocation === 'clearAllDates' ? RiCloseCircleFill : RiCloseCircleLine" />
                 </div>
@@ -28,25 +28,38 @@
                 <div class="pt-16 flex flex-col gap-8">
                     <button 
                         @click="setSpecificDates"
-                        class="border-gray-300 border rounded-2xl flex justify-between items-center w-full pb-4 hover:border-2 hover hover:border-black h-48 p-8">
+                        :class="[
+                            'border rounded-2xl flex justify-between items-center w-full h-48 p-8 transition-all duration-200',
+                            {
+                                'border-[#222222] shadow-focus-black': event.showtype === 's',
+                                'border-neutral-300 hover:border-[#222222] hover:shadow-focus-black hover:bg-neutral-50': event.showtype !== 's'
+                            }
+                        ]"
+                    >
                         <div class="w-full text-left">
                             <h4 class="font-bold text-3xl">
                                 Show has specific dates
                             </h4>
-                            <p class="text-1xl mt-4 text-gray-700 font-light">
+                            <p class="text-1xl mt-4 text-neutral-700 font-light">
                                 Select all show dates.
                             </p>
                         </div>
                     </button>
                     <button 
                         @click="event.showtype = 'a'"
-                        :class="{ '!border-black !border-2 bg-[#f7f7f7]' : event.showtype === 'a' }"
-                        class="border-gray-300 border rounded-2xl flex justify-between items-center w-full hover:border-2 hover hover:border-black h-48 p-8">
+                        :class="[
+                            'border rounded-2xl flex justify-between items-center w-full h-48 p-8 transition-all duration-200',
+                            {
+                                'border-[#222222] shadow-focus-black': event.showtype === 'a',
+                                'border-neutral-300 hover:border-[#222222] hover:shadow-focus-black hover:bg-neutral-50': event.showtype !== 'a'
+                            }
+                        ]"
+                    >
                         <div class="w-full text-left">
                             <h4 class="font-bold text-3xl">
                                 Always
                             </h4>
-                            <p class="text-1xl mt-4 text-gray-700 font-light">
+                            <p class="text-1xl mt-4 text-neutral-700 font-light">
                                 Show is available at any time.
                             </p>
                         </div>
@@ -58,7 +71,7 @@
         <div 
         v-else 
         class="relative rounded-4xl">
-        <div class="flex-grow shadow-[0_0_0_2.5px_black] overflow-hidden border-black rounded-2xl relative w-full  bg-white overflow-y-auto overflow-x-hidden h-[45rem]">
+        <div class="flex-grow border-[#222222] shadow-focus-black overflow-hidden rounded-2xl relative w-full  bg-white overflow-y-auto overflow-x-hidden h-[45rem]">
                 <div class="w-full h-full overflow-x-hidden">
                     <VueDatePicker
                         v-model="date"
@@ -96,7 +109,8 @@
                     <div class="">
                         <div v-if="selectedDatesCount" class="p-8 relative flex flex-col gap-4">
 
-                            <div v-if="promptVisible" class="p-4 rounded-2xl relative bg-black text-white border-black border hover:bg-neutral-700 hover:shadow-[0_0_0_1.5px_black]">
+                            <div v-if="promptVisible" 
+                                 class="p-4 rounded-2xl relative bg-black text-white border-black border hover:bg-neutral-800 transition-colors">
                                 <div class="cursor-pointer" @click="handlePromptYes">
                                     <p class="text-white">{{ promptMessage }}</p>
                                 </div>
@@ -105,7 +119,11 @@
                             <div class="flex flex-col">
                                 <textarea 
                                     name="Show times" 
-                                    class="text-2xl font-normal border border-gray-300 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4 w-full" 
+                                    class="text-2xl font-normal border rounded-2xl p-4 w-full" 
+                                    :class="{ 
+                                        'border-red-500 focus:shadow-focus-error': $v.event.show_times.$error,
+                                        'border-neutral-300 focus:border-[#222222] focus:shadow-focus-black': !$v.event.show_times.$error
+                                    }"
                                     v-model="event.show_times" 
                                     @input="$v.event.show_times.$touch"
                                     placeholder="Please provide a brief description of your show times, e.g., doors open at 7 PM, show starts at 8 PM"
@@ -113,21 +131,25 @@
                                     style="white-space: pre-wrap;"
                                 ></textarea>
                                 <p v-if="$v.event.show_times.$dirty && $v.event.show_times.maxLength.$invalid" 
-                                   class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
+                                   class="text-red-500 text-1xl mt-2 px-4">
                                     Too many characters
                                 </p>
                             </div>
-                            <div class="flex w-full border p-4 rounded-2xl border-gray-300 hover:bg-gray-100 hover:shadow-[0_0_0_2px_black]">
+                            <div class="flex w-full border p-4 rounded-2xl border-neutral-300 hover:border-[#222222] hover:bg-neutral-50 hover:shadow-focus-black transition-all duration-200">
                                 <p class="text-lg">Timezone: </p>
-                                <select id="timezone" v-model="selectedTimezone" class="pl-2 ml-2 font-bold w-full cursor-pointer hover:bg-transparent">
-                                    <option v-for="timezone in timezones" :key="timezone.name" :value="timezone.name">
+                                <select id="timezone" 
+                                        v-model="selectedTimezone" 
+                                        class="pl-2 ml-2 font-bold w-full cursor-pointer bg-transparent">
+                                    <option v-for="timezone in timezones" 
+                                            :key="timezone.name" 
+                                            :value="timezone.name">
                                         {{ timezone.name }}
                                     </option>
                                 </select>
                             </div>
 
                             <div class="flex flex-col gap-2">
-                                <div v-if="!hasEmbargoDate" class="flex items-center justify-between p-4 border rounded-2xl hover:border-black">
+                                <div v-if="!hasEmbargoDate" class="flex items-center justify-between p-4 border border-neutral-300 rounded-2xl hover:border-[#222222]">
                                     <div class="flex justify-between items-center w-full">
                                         <span>Publish event the date it's approved</span>
                                         <button 
@@ -193,7 +215,10 @@
                         </div>
                     </div>
                     <div class="w-full flex justify-between p-8">
-                        <button @click="event.showtype = null" class="mt-8 text-xl rounded-2xl underline">Switch show type</button>
+                        <button @click="event.showtype = null" 
+                                class="mt-8 text-xl rounded-2xl hover:text-neutral-600 transition-colors underline">
+                            Switch show type
+                        </button>
                     </div>
                 </div>
             </div>

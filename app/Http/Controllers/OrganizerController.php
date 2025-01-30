@@ -21,10 +21,7 @@ class OrganizerController extends Controller
 
     public function show(Organizer $organizer)
     {
-        if($organizer->status !== 'p') { 
-            return redirect('/');
-        }
-        
+        // Load the organizer with all needed relations in one query
         $organizer = Organizer::where('id', $organizer->id)
             ->withPaginatedEvents()
             ->withUserRole()
@@ -32,6 +29,14 @@ class OrganizerController extends Controller
                 $query->where('status', 'pending')->latest();
             }])
             ->firstOrFail();
+        
+        // Since 'show' is excepted from auth middleware, we need to check for user
+        if ($organizer->status !== 'p' && 
+            (!auth()->check() || 
+            (!auth()->user()->isAdmin() && !auth()->user()->belongsToOrganization($organizer)))
+        ) { 
+            return redirect('/');
+        }
         
         return view('Organizers.show', compact('organizer'));
     }

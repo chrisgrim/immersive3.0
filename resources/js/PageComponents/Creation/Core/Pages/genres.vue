@@ -2,7 +2,7 @@
     <main class="w-full min-h-fit">
         <div class="flex flex-col w-full">
             <div>
-                <h2>What genres best describe your event?</h2>
+                <h2 class="text-black">What genres best describe your event?</h2>
                 <p class="text-gray-500 font-normal mt-4">Tags will help users with the more finite categorization of your event.</p>
                 
                 <div class="w-full mt-14">

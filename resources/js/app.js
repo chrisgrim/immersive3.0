@@ -37,7 +37,7 @@ const CommunityShow = defineAsyncComponent(() => import('./PageComponents/Curate
 const CommunityEdit = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/edit.vue'));
 const CommunityListings = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/listings.vue'));
 const CommunityIndex = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/index.vue'));
-
+const CommunityCreate = defineAsyncComponent(() => import('./PageComponents/Curated/Communities/create.vue'));
 const PostEdit = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/edit.vue'));
 const PostCreate = defineAsyncComponent(() => import('./PageComponents/Curated/Posts/create.vue'));
 
@@ -93,7 +93,7 @@ app.component('vue-community-show', CommunityShow);
 app.component('vue-community-edit', CommunityEdit);
 app.component('vue-community-listings', CommunityListings);
 app.component('vue-community-index', CommunityIndex);
-
+app.component('vue-community-create', CommunityCreate);
 app.component('vue-post-edit', PostEdit);
 app.component('vue-post-create', PostCreate);
 

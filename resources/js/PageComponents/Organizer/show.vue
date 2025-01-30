@@ -158,26 +158,50 @@
             <div class="flex-1 leading-none">
                 <!-- Description -->
                 <div class="whitespace-pre-wrap mb-8">
-                    <div class="flex items-center gap-8">
+                    <div class="flex items-center gap-8 mb-8">
                         <h3 class="text-black text-5xl font-bold leading-tight break-words hyphens-auto">
                             About {{ organizer.name }}
                         </h3>
                     </div>
-                    
+                    <div v-if="canEdit" class="flex items-center gap-4 mb-8">
+                        <!-- Edit Button - shown only to owners and moderators -->
+                        <a :href="`/organizers/${organizer.slug}/edit`" 
+                            class="cursor-pointer">
+                            <div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center hover:bg-gray-200">
+                                <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path stroke-linecap="round" 
+                                            stroke-linejoin="round" 
+                                            stroke-width="2" 
+                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </div>
+                        </a>
+                        <!-- New button with three lines and dots -->
+                        <a 
+                            href="/hosting/events" 
+                            class="cursor-pointer"
+                        >
+                            <div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center hover:bg-gray-200">
+                                <svg 
+                                    class="w-8 h-8" 
+                                    viewBox="0 0 24 24" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    stroke-width="2"
+                                >
+                                    <g stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="4" cy="6" r="1" fill="currentColor"/>
+                                        <line x1="8" y1="6" x2="20" y2="6"/>
+                                        <circle cx="4" cy="12" r="1" fill="currentColor"/>
+                                        <line x1="8" y1="12" x2="20" y2="12"/>
+                                        <circle cx="4" cy="18" r="1" fill="currentColor"/>
+                                        <line x1="8" y1="18" x2="20" y2="18"/>
+                                    </g>
+                                </svg>
+                            </div>
+                        </a>
+                    </div>
                     <p class="text-3xl mt-8 mb-8 break-words hyphens-auto">{{ organizer.description }}</p>
-                    <!-- Edit Button - shown only to owners and moderators -->
-                    <a v-if="canEdit" 
-                        :href="`/organizers/${organizer.slug}/edit`" 
-                        class="cursor-pointer">
-                        <div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center hover:bg-gray-200">
-                            <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path stroke-linecap="round" 
-                                        stroke-linejoin="round" 
-                                        stroke-width="2" 
-                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                        </div>
-                    </a>
                     <!-- Events Section -->
                     <div class="mt-20">
                         <h3 class="text-black text-4xl font-bold leading-tight mb-12">

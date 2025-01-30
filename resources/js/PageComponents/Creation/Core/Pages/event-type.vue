@@ -20,7 +20,7 @@
             </div>
             <div class="w-full flex justify-start mt-8">
                 <button 
-                    class="p-4 bg-black text-white rounded-2xl" 
+                    class="p-4 bg-black text-white rounded-2xl hover:bg-neutral-800 transition-colors" 
                     @click="handleAccept"
                 >
                     I accept
@@ -35,20 +35,25 @@
         <!-- Event Type Selection -->
         <div v-else class="w-full">
             <div class="flex flex-col w-full">
-                <h2>What type of event are you hosting?</h2>
+                <h2 class="text-black">What type of event are you hosting?</h2>
                 <div class="pt-16 flex flex-col gap-8">
                     <button 
                         v-for="option in eventTypeOptions" 
                         :key="option.value"
                         @click="onSelect(option.value)"
-                        :class="{ '!border-black !border-2 bg-[#f7f7f7]' : event.hasLocation === option.value }"
-                        class="border-gray-300 border rounded-2xl flex justify-between items-center w-full hover:border-2 hover:border-black h-48 p-8"
+                        :class="[
+                            'border rounded-2xl flex justify-between items-center w-full h-48 p-8 transition-all duration-200',
+                            {
+                                'border-[#222222] shadow-focus-black': event.hasLocation === option.value,
+                                'border-neutral-200 hover:border-[#222222] hover:shadow-focus-black hover:bg-neutral-50': event.hasLocation !== option.value
+                            }
+                        ]"
                     >
                         <div class="w-full text-left">
                             <h4 class="font-bold text-3xl">
                                 {{ option.label }}
                             </h4>
-                            <p class="text-1xl mt-4 text-gray-700 font-light">
+                            <p class="text-1xl mt-4 text-neutral-700 font-light">
                                 {{ option.description }}
                             </p>
                         </div>

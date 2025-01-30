@@ -65,6 +65,13 @@ class User extends Authenticatable implements MustVerifyEmail
     ];
 
     /**
+     * The relationships that should be eager loaded.
+     *
+     * @var array
+     */
+    protected $with = ['organizer', 'teams'];
+
+    /**
      * Get the indexable data array for the model.
      *
      * @return array
@@ -86,16 +93,17 @@ class User extends Authenticatable implements MustVerifyEmail
             'hexColor' => $this->hexColor,
             'hasMessages' => $this->hasMessages,
             'thumbImagePath' => $this->thumbImagePath,
-            'isModerator' => $this->isModerator,
-            'isAdmin' => $this->isAdmin,
-            'isCurator' => $this->isCurator,
+            'isModerator' => $this->type === 'm' || $this->type === 'a',
+            'isAdmin' => $this->type === 'a',
+            'isCurator' => $this->type === 'c' || $this->type === 'm' || $this->type === 'a',
             'isCommunityMember' => $this->isCommunityMember,
-            'hasMessages' => $this->hasMessages,
             'unread' => $this->unread,
             'hasCreatedOrganizers' => $this->hasCreatedOrganizers,
-            'organizer' => $this->organizer,
-            'teams' => $this->teams,
-
+            'organizer' => $this->organizer ? [
+                'id' => $this->organizer->id,
+                'name' => $this->organizer->name,
+            ] : null,
+            'teams' => $this->teams->pluck('name', 'id'),
         ];
     }
 

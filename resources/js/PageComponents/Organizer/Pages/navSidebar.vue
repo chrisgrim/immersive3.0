@@ -1,13 +1,13 @@
 <template>
     <!-- Mobile Back Button (shown only when a section is active) -->
     <div 
-        v-if="isMobile && activeSection" 
+        v-if="isMobile && currentStep" 
         class="fixed top-0 left-0 right-0 z-50 bg-white border-b p-4"
     >
         <div class="flex items-center gap-4">
             <button 
                 @click="$emit('navigate', null)"
-                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-gray-200 transition-colors"
+                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors"
             >
                 <svg 
                     class="w-8 h-8" 
@@ -22,7 +22,7 @@
                     <path d="M12 19l-7-7 7-7"/>
                 </svg>
             </button>
-            <h2 class="text-xl font-semibold">{{ activeSection }}</h2>
+            <h2 class="text-xl font-semibold">{{ currentStep }}</h2>
         </div>
     </div>
 
@@ -30,12 +30,12 @@
     <nav class="flex-shrink-0 space-y-8 w-full p-8 mx-auto mb-20 lg-air:max-w-[40rem] pt-12 lg-air:pt-28">
         <!-- Header with back button (hidden on mobile when section is active) -->
         <div 
-            v-if="!isMobile || !activeSection"
+            v-if="!isMobile || !currentStep"
             class="w-full flex items-center gap-4 pb-8"
         >
             <a 
-                href="/hosting/events" 
-                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0"
+                :href="`/organizers/${organizer.slug}`" 
+                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"
             >
                 <svg 
                     class="w-8 h-8" 
@@ -50,23 +50,41 @@
                     <path d="M12 19l-7-7 7-7"/>
                 </svg>
             </a>
-            <a href="/hosting/events" class="text-5xl font-semibold truncate">Listings</a>
+            <a 
+                :href="`/organizers/${organizer.slug}`" 
+                class="ml-4 text-5xl font-semibold truncate"
+            >
+                Organizer
+            </a>
         </div>
 
         <!-- Name -->
         <button
             @click="$emit('navigate', 'Name')"
-            class="w-full p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-neutral-50 bg-neutral-50 w-full"
+            :class="[
+                'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
+                {
+                    'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Name',
+                    'border border-neutral-200': currentStep !== 'Name'
+                }
+            ]"
         >
-            <h3 class="text-xl font-semibold mb-4">Name</h3>
-            <p class="text-4xl text-gray-600 mb-2 break-words hyphens-auto overflow-hidden">{{ organizer.name || 'No name set' }}</p>
-            <p class="text-gray-500 text-lg line-clamp-3 leading-tight break-words hyphens-auto overflow-hidden">{{ organizer.description || 'No description set' }}</p>
+        
+            <h3 class="text-xl font-semibold mb-4 text-black">Name</h3>
+            <p class="text-4xl text-neutral-600 mb-4 break-words hyphens-auto overflow-hidden">{{ organizer.name || 'No name set' }}</p>
+            <p class="text-neutral-500 text-2xl line-clamp-3 leading-tight break-words hyphens-auto overflow-hidden">{{ organizer.description || 'No description set' }}</p>
         </button>
 
         <!-- Images -->
         <button
             @click="$emit('navigate', 'Image')"
-            class="w-full p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-neutral-50 bg-neutral-50 overflow-hidden"
+            :class="[
+                'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                {
+                    'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Image',
+                    'border border-neutral-200': currentStep !== 'Image'
+                }
+            ]"
         >
             <h3 class="text-xl font-semibold mb-4">Image</h3>
             <div class="flex gap-4 justify-center mb-8">
@@ -87,8 +105,8 @@
                         </template>
                     </picture>
                 </template>
-                <div v-else class="w-40 h-40 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                    <span class="text-2xl font-bold text-gray-400">
+                <div v-else class="w-40 h-40 rounded-full bg-neutral-200 flex items-center justify-center flex-shrink-0">
+                    <span class="text-2xl font-bold text-neutral-400">
                         {{ organizer.name?.charAt(0).toUpperCase() || '?' }}
                     </span>
                 </div>
@@ -98,35 +116,41 @@
         <!-- Social Links -->
         <button
             @click="$emit('navigate', 'Social')"
-            class="w-full p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-neutral-50 bg-neutral-50 overflow-hidden"
+            :class="[
+                'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                {
+                    'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Social',
+                    'border border-neutral-200': currentStep !== 'Social'
+                }
+            ]"
         >
-            <h3 class="text-xl font-semibold mb-4">Social Links</h3>
+            <h3 class="text-xl font-semibold mb-4 text-black">Social Links</h3>
             <div class="space-y-2">
                 <div v-if="organizer.website" class="flex items-center gap-2">
-                    <component :is="RiSearchLine" class="w-5 h-5 text-gray-500" />
-                    <span class="text-gray-600 truncate">Website</span>
+                    <component :is="RiSearchLine" class="w-5 h-5 text-neutral-500" />
+                    <span class="text-neutral-600 truncate">Website</span>
                 </div>
                 <div v-if="organizer.email" class="flex items-center gap-2">
-                    <component :is="RiMailLine" class="w-5 h-5 text-gray-500" />
-                    <span class="text-gray-600 truncate">{{ organizer.email }}</span>
+                    <component :is="RiMailLine" class="w-5 h-5 text-neutral-500" />
+                    <span class="text-neutral-600 truncate">{{ organizer.email }}</span>
                 </div>
                 <div v-if="organizer.twitterHandle" class="flex items-center gap-2">
-                    <component :is="RiTwitterLine" class="w-5 h-5 text-gray-500" />
-                    <span class="text-gray-600 truncate">@{{ organizer.twitterHandle }}</span>
+                    <component :is="RiTwitterLine" class="w-5 h-5 text-neutral-500" />
+                    <span class="text-neutral-600 truncate">@{{ organizer.twitterHandle }}</span>
                 </div>
                 <div v-if="organizer.instagramHandle" class="flex items-center gap-2">
-                    <component :is="RiInstagramLine" class="w-5 h-5 text-gray-500" />
-                    <span class="text-gray-600 truncate">@{{ organizer.instagramHandle }}</span>
+                    <component :is="RiInstagramLine" class="w-5 h-5 text-neutral-500" />
+                    <span class="text-neutral-600 truncate">@{{ organizer.instagramHandle }}</span>
                 </div>
                 <div v-if="organizer.facebookHandle" class="flex items-center gap-2">
-                    <component :is="RiFacebookBoxLine" class="w-5 h-5 text-gray-500" />
-                    <span class="text-gray-600 truncate">{{ organizer.facebookHandle }}</span>
+                    <component :is="RiFacebookBoxLine" class="w-5 h-5 text-neutral-500" />
+                    <span class="text-neutral-600 truncate">{{ organizer.facebookHandle }}</span>
                 </div>
                 <div v-if="organizer.patreon" class="flex items-center gap-2">
-                    <component :is="RiPatreonLine" class="w-5 h-5 text-gray-500" />
-                    <span class="text-gray-600 truncate">{{ organizer.patreon }}</span>
+                    <component :is="RiPatreonLine" class="w-5 h-5 text-neutral-500" />
+                    <span class="text-neutral-600 truncate">{{ organizer.patreon }}</span>
                 </div>
-                <div v-if="!hasSocialLinks" class="text-gray-500">
+                <div v-if="!hasSocialLinks" class="text-neutral-500">
                     No social links set
                 </div>
             </div>
@@ -150,15 +174,13 @@ const props = defineProps({
         type: Object,
         required: true
     },
-    isMobile: {
-        type: Boolean,
-        default: false
-    },
-    activeSection: {
+    currentStep: {
         type: String,
         default: null
     }
 });
+
+const isMobile = computed(() => window?.Laravel?.isMobile ?? false);
 
 const imageUrl = computed(() => import.meta.env.VITE_IMAGE_URL);
 
@@ -194,26 +216,3 @@ const hasSocialLinks = computed(() => {
 
 defineEmits(['navigate']);
 </script>
-
-<style>
-/* Mobile-specific styles */
-@media (max-width: 767px) {
-    .fixed-nav {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        overflow-y: auto;
-        background: white;
-        z-index: 40;
-    }
-}
-
-/* Adjust spacing for mobile */
-@media (max-width: 767px) {
-    .space-y-6 > :not([hidden]) ~ :not([hidden]) {
-        margin-top: 1rem;
-    }
-}
-</style>

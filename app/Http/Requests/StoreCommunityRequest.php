@@ -30,16 +30,16 @@ class StoreCommunityRequest extends FormRequest
             $rules['name'] = [
                 'required', 
                 'string',
-                'max:100',
+                'max:60',
                 new UniqueSlugRule($this->name, Community::class, 'slug', $this->route('community')?->id)
             ];
             // If name is present, blurb is required
-            $rules['blurb'] = 'required|string|min:1|max:254';
+            $rules['blurb'] = 'required|string|min:1|max:160';
         }
 
         // Only apply description rules if description is being updated
         if ($this->has('description')) {
-            $rules['description'] = 'required|string|max:5000';
+            $rules['description'] = 'required|string|max:2000';
         }
 
         // Only apply image rules if image is being updated
@@ -66,16 +66,16 @@ class StoreCommunityRequest extends FormRequest
         return [
             'name.required' => 'A community name is required',
             'name.string' => 'The name must be text',
-            'name.max' => 'The community name cannot be longer than 100 characters',
+            'name.max' => 'The community name cannot be longer than 60 characters',
             
             'blurb.required' => 'A short description is required',
             'blurb.string' => 'The short description must be text',
             'blurb.min' => 'The short description must not be empty',
-            'blurb.max' => 'The short description cannot be longer than 254 characters',
+            'blurb.max' => 'The short description cannot be longer than 160 characters',
             
             'description.required' => 'A description is required',
             'description.string' => 'The description must be text',
-            'description.max' => 'The description cannot be longer than 5000 characters',
+            'description.max' => 'The description cannot be longer than 2000 characters',
             
             'image.required' => 'An image file is required',
             'image.image' => 'The file must be an image',

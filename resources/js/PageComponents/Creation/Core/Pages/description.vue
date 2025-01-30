@@ -2,22 +2,23 @@
     <main class="w-full min-h-fit">
         <div class="flex flex-col w-full">
             <div>
-                <h2>Describe your event</h2>
-                <p class="text-gray-500 font-normal mt-4">Let our users know everything about your event.</p>
+                <h2 class="text-black">Describe your event</h2>
+                <p class="text-neutral-500 font-normal mt-4">Let our users know everything about your event.</p>
                 <div class="mt-6">
                     <textarea 
                         name="description" 
-                        class="text-2xl font-normal border border-[#222222] focus:border-black rounded-2xl p-4 w-full mt-8" 
+                        class="text-2xl font-normal border rounded-2xl p-4 w-full mt-8" 
                         :class="{ 
-                            'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showError,
-                            'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !showError 
+                            'border-red-500 focus:border-red-500 focus:shadow-focus-error': showError,
+                            'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !showError 
                         }"
                         v-model="event.description" 
                         @input="handleInput"
                         placeholder="Tell us about your event..."
-                        rows="8" />
+                        rows="10" 
+                    />
                     <div class="flex justify-end mt-1" 
-                         :class="{'text-red-500': isNearLimit, 'text-gray-500': !isNearLimit}">
+                         :class="{'text-red-500': isNearLimit, 'text-neutral-500': !isNearLimit}">
                         {{ characterCount }}/2000
                     </div>
                     <p v-if="showMaxLengthError" 

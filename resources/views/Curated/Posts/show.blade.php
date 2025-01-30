@@ -64,7 +64,29 @@
     <div class="w-full lg:w-1/2 mx-auto px-8">
         {{-- Post Header --}}
         <div class="mb-8 md:mb-12">
-            <h1 class="font-semibold text-4xl md:text-6xl text-black leading-[3rem] md:leading-[5rem]">{{ $post->name }}</h1>
+            <div class="flex items-center gap-4">
+                <h1 class="font-semibold text-4xl md:text-6xl text-black leading-[3rem] md:leading-[5rem]">{{ $post->name }}</h1>
+                
+                @if (auth()->check() && (auth()->user()->isAdmin || auth()->user()->isModerator || auth()->user()->can('edit', $post)))
+                    <a 
+                        href="/posts/{{ $post->slug }}/edit" 
+                        class="inline-flex items-center justify-center p-4 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"
+                    >
+                        <svg 
+                            class="w-6 h-6" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            stroke-width="2" 
+                            stroke-linecap="round" 
+                            stroke-linejoin="round"
+                        >
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
+                    </a>
+                @endif
+            </div>
         </div>
         <div class="mb-8 md:mb-12">
             <p class="text-1xl">

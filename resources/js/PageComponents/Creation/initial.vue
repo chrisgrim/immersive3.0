@@ -7,147 +7,169 @@
                         <h5 class="font-bold">Step 1</h5>
                         <h3 class="mt-10 mb-28 text-6xl leading-[4rem]">Let's create your organization</h3>
                     </div>
-                    <div class="flex flex-row items-center w-full">
-                        <div>
-                            <!-- Clickable Image/Upload Area -->
-                            <div class="w-60 relative">
+                    
+                    <!-- Name and Image Section -->
+                    <div class="flex flex-row items-start w-full gap-8">
+                        <!-- Image Upload -->
+                        <div class="w-60">
+                            <p class="text-black font-medium mb-4">Profile Image</p>
+                            <div class="relative">
                                 <div class="aspect-square w-full rounded-full">
                                     <label
                                         for="image-upload"
                                         :class="{
-                                            'absolute inset-0 flex justify-center items-center cursor-pointer rounded-full hover:border-gray-500 group': true,
-                                            'border-4 border-black': !imagePreview,
+                                            'absolute inset-0 flex justify-center items-center cursor-pointer rounded-full group': true,
+                                            'border-2 border-black': !imagePreview,
                                             'border-none': imagePreview,
                                         }"
                                     >
-                                        <div class="cursor-pointer overflow-hidden w-full h-full rounded-full group-hover:shadow-2xl relative flex items-center justify-center">
+                                        <div class="cursor-pointer overflow-hidden w-full h-full rounded-full relative flex items-center justify-center">
                                             <template v-if="imagePreview">
                                                 <img class="absolute inset-0 w-full h-full object-cover" :src="imagePreview" :alt="team.name + `'s account`">
                                             </template>
-                                                <component :is="RiImageAddLine" class="group-hover:text-gray-500" style="width: 50px; height: 50px;"/>
-
+                                            <component :is="RiImageAddLine" class="w-12 h-12 group-hover:text-neutral-500"/>
                                         </div>
                                     </label>
                                 </div>
-                            </div>
-                            <input type="file" id="image-upload" @change="updateImage" hidden>
-                        </div>
-                        <div class="ml-8 align-bottom relative flex flex-col w-full">
-                            <div class="relative w-full flex">
-                                <div v-if="isEditingName || !team.name" class="w-full">
-                                    <textarea 
-                                        id="Name" 
-                                        rows="3" 
-                                        placeholder="Team Name" 
-                                        ref="nameInput" 
-                                        @input="clearError('name')"
-                                        v-model="team.name" 
-                                        @blur="handleBlurName" 
-                                        @focus="handleFocusName"
-                                        class="text-4xl p-4 border focus:border-indigo-500 focus:ring-indigo-500 rounded-2xl focus:shadow-lg mt-1 block w-full">
-                                    </textarea>
-                                </div>
-                                <h2 v-else @click="toggleEditName" class="font-bold text-6xl leading-[4rem] w-full flex items-center overflow-hidden">
-                                    <span class="w-full">{{ team.name }}</span>
-                                </h2>
-                            </div>
-                            <p v-if="$v.team.name.$dirty && $v.team.name.required.$invalid" class="text-white bg-red-500 text-lg mt-1 px-4 py-2">The team name is required</p>
-                            <div v-if="errors && errors.name" class="w-full">
-                                <p class="text-white bg-red-500 text-lg mt-1 px-4 py-2">{{ errors.name[0] }}</p>
+                                <input type="file" id="image-upload" @change="updateImage" accept="image/*" class="hidden">
                             </div>
                         </div>
-                    </div>
-                    <div v-if="errors && errors.image" class="w-full mt-4">
-                        <p class="text-white bg-red-500 text-lg mt-1 px-4 py-2">{{ errors.image[0] }}</p>
-                    </div>
-                </div>
-                <!-- Team Information Form -->
-                <div v-if="team.name || team.description" class="mt-12 w-full overflow-auto">
-                    <div class="w-full">
-                        <textarea 
-                            id="description" 
-                            rows="6" 
-                            placeholder="Now please add a description about your organization for our users." 
-                            ref="descriptionInput"
-                            @input="clearError('description')"
-                            v-model="team.description" 
-                            @blur="handleBlurDescription" 
-                            @focus="handleFocusDescription"
-                            :class="{
-                                'p-4 border focus:border-indigo-500 focus:ring-indigo-500 rounded-2xl focus:shadow-lg mt-1 block w-full': true,
-                                'border-0': !isEditingDescription && team.description
-                            }"
-                            required>
-                        </textarea>
-                    </div>
-                    <p v-if="$v.team.description.$dirty && $v.team.description.$invalid" class="text-white bg-red-500 text-lg mt-1 px-4 py-2">The team description is required</p>
-                    <div v-if="errors && errors.description" class="w-full">
-                        <p class="text-white bg-red-500 text-lg mt-1 px-4 py-2">{{ errors.description[0] }}</p>
-                    </div>
-                </div>
-                <div v-if="team.description" class="w-full mt-12">
-                    <div class="grid grid-cols-3 gap-4">
-                        <div 
-                            v-for="media in socialMediaList" 
-                            :key="media.name" 
-                            @click="handleDivClick(media.name)"
-                            :class="{
-                                'border-[#e5e7eb] text-gray-400': !team[media.model] && currentMedia !== media.name,
-                                'border-black text-black border-2 bg-gray-100': team[media.model] || currentMedia === media.name,
-                            }"
-                            class="relative h-48 flex flex-col items-start justify-between p-4 border rounded-2xl transition-colors duration-200"
-                        >
-                            <div class="flex items-start justify-start w-full h-16 rounded-2xl">
-                                <component
-                                    :is="media.icon"
-                                    class="w-12 h-12"
-                                    :class="{
-                                        'text-[#adadad]': !team[media.model] && currentMedia !== media.name,
-                                        'text-black': team[media.model] || currentMedia === media.name,
-                                    }"
-                                />
-                            </div>
-                            <div v-if="currentMedia === media.name" class="w-full">
+
+                        <!-- Name Input -->
+                        <div class="flex-1">
+                            <div class="relative w-full">
+                                <p class="text-black font-medium mb-4">Name</p>
                                 <textarea 
-                                    :placeholder="media.placeholder" 
-                                    v-model="team[media.model]" 
-                                    @blur="handleInputBlur(media.name)"
-                                    rows="2"
-                                    class="p-2 mt-2 border-none focus:border-black focus:ring-black rounded-md focus:shadow-lg w-full text-lg resize-none"
-                                    @click.stop
-                                    :ref="el => inputRefs[media.name] = el"
-                                ></textarea>
+                                    id="Name" 
+                                    rows="3" 
+                                    placeholder="Organization Name" 
+                                    ref="nameInput" 
+                                    @input="handleNameInput"
+                                    v-model="team.name" 
+                                    :class="[
+                                        'text-4xl p-4 border rounded-2xl mt-1 block w-full',
+                                        {
+                                            'border-red-500 focus:border-red-500 focus:shadow-focus-error': showNameError,
+                                            'border-[#222222] focus:border-black focus:shadow-focus-black': !showNameError
+                                        }
+                                    ]"
+                                />
+                                <!-- Name Character Count -->
+                                <div class="flex justify-end mt-1" 
+                                     :class="{'text-red-500': isNameNearLimit, 'text-gray-500': !isNameNearLimit}">
+                                    {{ team.name?.length || 0 }}/80
+                                </div>
+                                <!-- Name Error Messages -->
+                                <p v-if="showNameMaxLengthError" 
+                                   class="text-red-500 text-1xl mt-1 px-4">
+                                    Organization name is too long.
+                                </p>
+                                <p v-if="showNameRequiredError" 
+                                   class="text-red-500 text-1xl mt-1 px-4">
+                                    Organization name is required
+                                </p>
                             </div>
-                            <div v-else class="overflow-hidden w-full">
-                                <h4 class="text-lg h-10 leading-tight overflow-hidden text-ellipsis whitespace-nowrap"
-                                    :class="{
-                                        'text-[#adadad]': !team[media.model],
-                                        'text-black': team[media.model],
-                                    }">
-                                    {{ team[media.model] || media.placeholder }}
-                                </h4>
-                            </div>
-                            <!-- Validation message for email -->
-                            <p v-if="media.name === 'email' && $v.team.email.$dirty && $v.team.email.email.$invalid" 
-                               class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
-                                The email must be a valid email
-                            </p>
-                            <p v-if="media.name === 'website' && $v.team.website.$dirty && $v.team.website.url.$invalid" 
-                               class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
-                                Please be sure to have https:// and .com
-                            </p>
                         </div>
                     </div>
-                </div>
-                <div v-if="team.name && team.description" class="w-full flex justify-end">
-                    <button 
-                        class="text-right p-4 rounded-2xl bg-black text-white mt-8"
-                        :class="{ 'opacity-50 cursor-not-allowed': isSubmitting }"
-                        :disabled="isSubmitting"
-                        @click="onSubmit"
-                    >
-                        Create Team
-                    </button>
+
+                    <!-- Description Section -->
+                    <div v-if="team.name" class="mt-12 w-full">
+                        <div class="w-full">
+                            <p class="text-black font-medium mb-4">Description</p>
+                            <textarea 
+                                id="description" 
+                                rows="6" 
+                                placeholder="Add a description about your organization" 
+                                ref="descriptionInput"
+                                @input="handleDescriptionInput"
+                                v-model="team.description" 
+                                :class="[
+                                    'p-4 border rounded-2xl mt-1 block w-full',
+                                    {
+                                        'border-red-500 focus:border-red-500 focus:shadow-focus-error': showDescriptionError,
+                                        'border-[#222222] focus:border-black focus:shadow-focus-black': !showDescriptionError
+                                    }
+                                ]"
+                            />
+                            <!-- Description Character Count -->
+                            <div class="flex justify-end mt-1" 
+                                 :class="{'text-red-500': isDescriptionNearLimit, 'text-gray-500': !isDescriptionNearLimit}">
+                                {{ team.description?.length || 0 }}/2000
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Social Media Section -->
+                    <div v-if="team.description" class="w-full mt-12">
+                        <p class="text-black font-medium mb-4">Social Media</p>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div 
+                                v-for="media in socialMediaList" 
+                                :key="media.name" 
+                                @click="handleDivClick(media.name)"
+                                :class="{
+                                    'border-[#222222] text-gray-400': !team[media.model] && currentMedia !== media.name,
+                                    'border-black text-black border-2': team[media.model] || currentMedia === media.name,
+                                }"
+                                class="relative h-48 flex flex-col items-start justify-between p-4 border rounded-2xl transition-colors duration-200"
+                            >
+                                <div class="flex items-start justify-start w-full h-16 rounded-2xl">
+                                    <component
+                                        :is="media.icon"
+                                        class="w-12 h-12"
+                                        :class="{
+                                            'text-[#adadad]': !team[media.model] && currentMedia !== media.name,
+                                            'text-black': team[media.model] || currentMedia === media.name,
+                                        }"
+                                    />
+                                </div>
+                                <div v-if="currentMedia === media.name" class="w-full">
+                                    <textarea 
+                                        :placeholder="media.placeholder" 
+                                        v-model="team[media.model]" 
+                                        @blur="handleInputBlur(media.name)"
+                                        rows="2"
+                                        class="p-2 mt-2 border-none focus:border-black focus:ring-black rounded-md focus:shadow-lg w-full text-lg resize-none"
+                                        @click.stop
+                                        :ref="el => inputRefs[media.name] = el"
+                                    ></textarea>
+                                </div>
+                                <div v-else class="overflow-hidden w-full">
+                                    <h4 class="text-lg h-10 leading-tight overflow-hidden text-ellipsis whitespace-nowrap"
+                                        :class="{
+                                            'text-[#adadad]': !team[media.model],
+                                            'text-black': team[media.model],
+                                        }">
+                                        {{ team[media.model] || media.placeholder }}
+                                    </h4>
+                                </div>
+                                <!-- Validation message for email -->
+                                <p v-if="media.name === 'email' && $v.team.email.$dirty && $v.team.email.email.$invalid" 
+                                   class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
+                                    The email must be a valid email
+                                </p>
+                                <p v-if="media.name === 'website' && $v.team.website.$dirty && $v.team.website.url.$invalid" 
+                                   class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
+                                    Please be sure to have https:// and .com
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div v-if="team.name && team.description" class="w-full flex justify-end mt-12">
+                        <button 
+                            class="text-right p-4 rounded-2xl transition-colors duration-200"
+                            :class="{
+                                'bg-black text-white hover:bg-gray-800': isFormComplete,
+                                'bg-gray-200 text-gray-400 cursor-not-allowed': !isFormComplete || isSubmitting
+                            }"
+                            :disabled="!isFormComplete || isSubmitting"
+                            @click="onSubmit"
+                        >
+                            {{ isSubmitting ? 'Creating...' : 'Create Organization' }}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -155,7 +177,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, nextTick, shallowRef } from 'vue';
+import { ref, reactive, nextTick, computed } from 'vue';
 import { useVuelidate } from '@vuelidate/core';
 import { required, email, maxLength, url } from '@vuelidate/validators';
 
@@ -199,11 +221,11 @@ const rules = {
     team: {
         name: {
             required,
-            maxLength: maxLength(120),
+            maxLength: maxLength(80),
         },
         description: {
             required,
-            maxLength: maxLength(20000),
+            maxLength: maxLength(2000),
         },
         email: {
             email,
@@ -229,6 +251,50 @@ const imagePreview = ref(null);
 const errors = ref({});
 const isSubmitting = ref(false);
 const inputRefs = reactive({});
+
+// Computed Properties
+const isFormComplete = computed(() => {
+    return (
+        team.name?.trim() && 
+        team.description?.trim() && 
+        imageFile.value && 
+        !$v.value.$invalid
+    );
+});
+
+const showNameError = computed(() => {
+    return $v.value.team.name.$dirty && $v.value.team.name.$error;
+});
+
+const showNameMaxLengthError = computed(() => {
+    return $v.value.team.name.$dirty && $v.value.team.name.maxLength.$invalid;
+});
+
+const showNameRequiredError = computed(() => {
+    return $v.value.team.name.$dirty && $v.value.team.name.required.$invalid;
+});
+
+const isNameNearLimit = computed(() => {
+    const count = team.name?.length || 0;
+    return count > 65;
+});
+
+const showDescriptionError = computed(() => {
+    return $v.value.team.description.$dirty && $v.value.team.description.$error;
+});
+
+const showDescriptionMaxLengthError = computed(() => {
+    return $v.value.team.description.$dirty && $v.value.team.description.maxLength.$invalid;
+});
+
+const showDescriptionRequiredError = computed(() => {
+    return $v.value.team.description.$dirty && $v.value.team.description.required.$invalid;
+});
+
+const isDescriptionNearLimit = computed(() => {
+    const count = team.description?.length || 0;
+    return count > 1800;
+});
 
 // Methods
 const updateImage = (event) => {
@@ -333,14 +399,28 @@ const clearError = (field) => {
     }
 };
 
-const socialMediaList = shallowRef([
-    { name: 'website', icon: RiSearchLine, placeholder: 'Website', model: 'website', showInput: false },
-    { name: 'email', icon: RiMailLine, placeholder: 'Email', model: 'email', showInput: false },
-    { name: 'instagramHandle', icon: RiInstagramLine, placeholder: 'Instagram Handle', model: 'instagramHandle', showInput: false },
-    { name: 'twitterHandle', icon: RiTwitterLine, placeholder: 'Twitter Handle', model: 'twitterHandle', showInput: false },
-    { name: 'facebookHandle', icon: RiFacebookLine, placeholder: 'Facebook Handle', model: 'facebookHandle', showInput: false },
-    { name: 'patreon', icon: RiPatreonLine, placeholder: 'Patreon Handle', model: 'patreon', showInput: false }
-]);
+const handleNameInput = () => {
+    $v.value.team.name.$touch();
+    if (team.name?.length > 80) {
+        team.name = team.name.slice(0, 80);
+    }
+};
+
+const handleDescriptionInput = () => {
+    $v.value.team.description.$touch();
+    if (team.description?.length > 2000) {
+        team.description = team.description.slice(0, 2000);
+    }
+};
+
+const socialMediaList = [
+    { name: 'website', icon: RiSearchLine, placeholder: 'Website', model: 'website' },
+    { name: 'email', icon: RiMailLine, placeholder: 'Email', model: 'email' },
+    { name: 'instagramHandle', icon: RiInstagramLine, placeholder: 'Instagram Handle', model: 'instagramHandle' },
+    { name: 'twitterHandle', icon: RiTwitterLine, placeholder: 'Twitter Handle', model: 'twitterHandle' },
+    { name: 'facebookHandle', icon: RiFacebookLine, placeholder: 'Facebook Handle', model: 'facebookHandle' },
+    { name: 'patreon', icon: RiPatreonLine, placeholder: 'Patreon Handle', model: 'patreon' }
+];
 
 </script>
 

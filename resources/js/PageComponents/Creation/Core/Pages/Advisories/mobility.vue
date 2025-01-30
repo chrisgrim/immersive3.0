@@ -1,7 +1,7 @@
 <template>
     <main class="w-full min-h-fit">
         <div class="flex flex-col w-full">
-            <h2>Mobility Advisories</h2>
+            <h2 class="text-black">Mobility Advisories</h2>
             
             <!-- Initial Wheelchair Selection -->
             <div v-if="!hasSelectedWheelchair">
@@ -11,7 +11,7 @@
                         v-for="option in WHEELCHAIR_OPTIONS" 
                         :key="option.value"
                         @click="onSelectWheelchair(option.value)"
-                        class="border-gray-300 border rounded-2xl flex justify-between items-center hover:shadow-[0_0_0_1.5px_black] hover:border-black px-12 py-8"
+                        class="border-neutral-300 border rounded-2xl flex justify-between items-center hover:border-[#222222] hover:shadow-focus-black transition-all duration-200 px-12 py-8"
                     >
                         <div class="text-left">
                             <h4 class="font-bold text-3xl">{{ option.label }}</h4>

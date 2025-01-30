@@ -1,7 +1,7 @@
 <template>
     <main class="w-full min-h-fit">
         <div class="flex flex-col w-full">
-            <h2>Content Advisories</h2>
+            <h2 class="text-black">Content Advisories</h2>
             <!-- Initial Sexual Content Selection -->
             <div v-if="!hasSelectedSexual">
                 <p class="font-strong mt-6">Is there sexual content in your event?</p>
@@ -10,14 +10,13 @@
                         v-for="option in SEXUAL_OPTIONS" 
                         :key="option.value"
                         @click="onSelectSexual(option.value)"
-                        class="border-gray-300 border rounded-2xl flex justify-between items-center hover:shadow-[0_0_0_1.5px_black] hover:border-black px-12 py-8"
+                        class="border-neutral-300 border rounded-2xl flex justify-between items-center hover:border-[#222222] hover:shadow-focus-black transition-all duration-200 px-12 py-8"
                     >
                         <div class="text-left">
                             <h4 class="font-bold text-3xl">{{ option.label }}</h4>
                         </div>
                     </button>
                 </div>
-                <!-- Add error message -->
                 <p v-if="!hasSelectedSexual && $v.$dirty" 
                    class="text-red-500 text-1xl mt-2 py-2 leading-tight">
                     Please select whether there is sexual content
@@ -52,21 +51,20 @@
                     @onSelect="itemRemoved"
                 />
 
-
                 <!-- Sexual Content Description -->
                 <div v-if="Boolean(event.advisories.sexual)" class="mt-12">
-                    <p class="text-gray-500 font-normal mb-4">Explain more about the sexual content</p>
+                    <p class="text-neutral-500 font-normal mb-4">Explain more about the sexual content</p>
                     <textarea 
                         v-model="event.advisories.sexualDescription"
                         @input="handleDescriptionInput"
-                        class="w-full p-4 text-1xl border rounded-2xl relative outline-none"
+                        class="w-full p-4 text-1xl border border-neutral-300 rounded-2xl relative outline-none transition-all duration-200 hover:border-[#222222]"
                         :class="{ 
-                            'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': showDescriptionError,
-                            'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !showDescriptionError 
+                            'border-red-500 focus:border-red-500 focus:shadow-focus-error': showDescriptionError,
+                            'focus:border-[#222222] focus:shadow-focus-black': !showDescriptionError 
                         }"
                         rows="4"
                     ></textarea>
-                    <div class="flex justify-end mt-1 relative text-gray-500">
+                    <div class="flex justify-end mt-1 relative text-neutral-500">
                         {{ event.advisories.sexualDescription?.length || 0 }}/1000
                         <p v-if="showDescriptionError" 
                            class="text-red-500 text-1xl px-4 absolute left-0 top-0">

@@ -1,8 +1,7 @@
 <template>
     <main class="w-full min-h-fit">
         <div class="w-full">
-            <h2>Tickets</h2>
-            <p class="text-gray-500 font-normal mt-4">Enter your ticket details</p>
+            <h2 class="text-black">Tickets</h2>
             <!-- Price Section -->
             <div class="mt-12">
                 <div class="flex items-center">
@@ -16,7 +15,7 @@
                         name="price"
                         class="text-[6rem] md:text-[11rem] font-bold text-heavy w-full overflow-hidden leading-tight ml-4"
                         :class="{ 
-                            'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.ticket_price.$error
+                            'border-red-500 focus:shadow-focus-error': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.ticket_price.$error
                         }"
                         v-model="state.formattedPrice"
                         @input="updateTicketPrice"
@@ -35,13 +34,13 @@
                         Please enter a valid price.
                     </span>
                 </div>
-                <div v-if="state.showCurrencyDropdown" class="absolute mt-2 border border-gray-300 rounded-lg bg-white shadow-lg z-50">
+                <div v-if="state.showCurrencyDropdown" class="absolute mt-2 border border-neutral-300 rounded-lg bg-white shadow-lg z-50">
                     <ul class="flex flex-col m-0">
                         <li 
                             v-for="currency in CURRENCY_SYMBOLS" 
                             :key="currency" 
                             @click="selectCurrency(currency)"
-                            class="w-full p-4 cursor-pointer hover:bg-gray-100 text-center"
+                            class="w-full p-4 cursor-pointer hover:bg-neutral-50 text-center"
                         >{{ currency }}</li>
                     </ul>
                 </div>
@@ -50,10 +49,10 @@
             <!-- Ticket Name Input -->
             <div class="mt-8">
                 <input 
-                    class="w-2/3 border border-[#e5e7eb] text-[#222222] text-3xl p-4 rounded-2xl relative"
+                    class="w-2/3 border border-neutral-300 text-[#222222] text-3xl p-4 rounded-2xl relative transition-all duration-200"
                     :class="{ 
-                        'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error,
-                        'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !($v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error)
+                        'border-red-500 focus:shadow-focus-error': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error,
+                        'hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !($v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error)
                     }"
                     type="text" 
                     v-model="state.formattedName" 
@@ -63,7 +62,7 @@
                     name="Name"
                 >
                 <div class="flex justify-end mt-1 w-2/3" 
-                     :class="{'text-red-500': isNameNearLimit, 'text-gray-500': !isNameNearLimit}">
+                     :class="{'text-red-500': isNameNearLimit, 'text-neutral-500': !isNameNearLimit}">
                     {{ state.formattedName?.length || 0 }}/40
                 </div>
                 <div v-if="$v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error" 
@@ -82,10 +81,10 @@
             <!-- Additional Details Input -->
             <div class="mt-8">
                 <input 
-                    class="w-full border border-[#e5e7eb] text-[#222222] text-3xl p-4 rounded-2xl relative"
+                    class="w-full border border-neutral-300 text-[#222222] text-3xl p-4 rounded-2xl relative transition-all duration-200"
                     :class="{ 
-                        'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error,
-                        'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !($v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error)
+                        'border-red-500 focus:shadow-focus-error': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error,
+                        'hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !($v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error)
                     }"
                     type="text" 
                     v-model="state.formattedDescription" 
@@ -95,7 +94,7 @@
                     maxlength="60"
                 >
                 <div class="flex justify-end mt-1" 
-                     :class="{'text-red-500': isDescriptionNearLimit, 'text-gray-500': !isDescriptionNearLimit}">
+                     :class="{'text-red-500': isDescriptionNearLimit, 'text-neutral-500': !isDescriptionNearLimit}">
                     {{ state.formattedDescription?.length || 0 }}/60
                 </div>
                 <div v-if="$v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error" 
@@ -112,10 +111,10 @@
                     @mouseleave="state.hoveredLocation = null"
                     @click="handleDivClick(index)"
                     :class="{
-                        'border-[#e5e7eb]': !ticket.ticket_price && state.currentMedia !== index,
-                        'border-black text-black border-2 bg-gray-100': state.currentMedia === index,
+                        'border-neutral-300': !ticket.ticket_price && state.currentMedia !== index,
+                        'border-[#222222] shadow-focus-black bg-neutral-50': state.currentMedia === index,
                     }"
-                    class="relative h-48 flex flex-col items-start justify-between p-4 border rounded-2xl transition-colors duration-200 hover:border-black hover:border-2"
+                    class="relative h-48 flex flex-col items-start justify-between p-4 border rounded-2xl transition-all duration-200 hover:border-[#222222] hover:shadow-focus-black"
                 >
                     <div 
                         v-if="tickets.length > 1"
@@ -138,7 +137,7 @@
                 <div 
                     v-if="tickets.length < 5"
                     @click="addTicket"
-                    class="relative h-48 flex flex-col items-center justify-center p-4 border border-dashed border-[#e5e7eb] text-gray-400 rounded-2xl transition-colors duration-200 cursor-pointer hover:bg-gray-100"
+                    class="relative h-48 flex flex-col items-center justify-center p-4 border border-dashed border-neutral-300 text-neutral-400 rounded-2xl transition-all duration-200 cursor-pointer hover:border-[#222222] hover:bg-neutral-50"
                 >
                     <span class="text-2xl font-bold">+</span>
                     <span class="text-lg">Add Ticket Type</span>
@@ -147,10 +146,10 @@
             <div class="mt-12" ref="ticketUrlSection">
                 <h3 class="text-2xl mb-4">Ticket URL <span class="text-red-500">*</span></h3>
                 <input 
-                    class="w-full border border-[#e5e7eb] text-[#222222] text-xl p-4 rounded-2xl relative"
+                    class="w-full border border-neutral-300 text-[#222222] text-xl p-4 rounded-2xl relative transition-all duration-200"
                     :class="{ 
-                        'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': hasUrlError,
-                        'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !hasUrlError
+                        'border-red-500 focus:shadow-focus-error': hasUrlError,
+                        'hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !hasUrlError
                     }"
                     type="url" 
                     v-model="state.ticketUrl" 
