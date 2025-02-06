@@ -11,6 +11,10 @@ use App\Http\Requests\UpdateOrganizerRequest;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use App\Services\NameChangeRequestService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\View\View;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class OrganizerController extends Controller
 {
@@ -53,15 +57,9 @@ class OrganizerController extends Controller
         return view('Organizers.edit', compact('organizer'));
     }
 
-    public function teams()
+    public function teams(Request $request): View
     {
-        $teams = auth()->user()->allTeams()->map(function ($team) {
-            $team->events_count = $team->events()->count();
-            $team->published_events_count = $team->events()->whereIn('status', ['p', 'e'])->count();
-            return $team;
-        });
-        
-        return view('Organizers.teams', compact('teams'));
+        return view('Organizers.teams');
     }
 
     public function switchTeam(Organizer $organizer)
@@ -73,11 +71,14 @@ class OrganizerController extends Controller
     public function store(StoreOrganizerRequest $request)
     {
         try {
-            // Create the organizer
+            // Create the organizer with user_id
             $organizer = auth()->user()->organizers()->create($request->validated());
             
+            // Also attach the creating user as owner in pivot table
+            $organizer->users()->attach(auth()->id(), ['role' => 'owner']);
+
             if ($request->hasFile('image')) {
-                ImageHandler::saveImage($request->file('image'), $organizer, 800, 800, 'organizer');
+                ImageHandler::saveImage($request->file('image'), $organizer, 800, 800, 'organizer-images');
             }
 
             // Update current_team_id for the user
@@ -146,8 +147,8 @@ class OrganizerController extends Controller
         try {
             $data = $request->validated();
             
-            // Remove name from update if it's different (should be handled through name change request)
-            if (isset($data['name']) && $data['name'] !== $organizer->name) {
+            // Only remove name from update if status is 'p' and name is different
+            if ($organizer->status === 'p' && isset($data['name']) && $data['name'] !== $organizer->name) {
                 unset($data['name']);
             }
             
@@ -196,6 +197,65 @@ class OrganizerController extends Controller
             Log::error('Failed to update organizer: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Failed to update organizer.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function searchTeams(Request $request)
+    {
+        $query = auth()->user()->teams()
+            ->with('images')
+            ->withCount(['events', 'events as published_events_count' => function ($query) {
+                $query->whereIn('status', ['p', 'e']);
+            }]);
+
+        // Apply search if query exists
+        if ($search = $request->get('q')) {
+            $query->where('name', 'like', '%' . $search . '%');
+        }
+
+        $teams = $query->paginate(40)->through(function ($team) {
+            return [
+                'id' => $team->id,
+                'name' => $team->name,
+                'slug' => $team->slug,
+                'events_count' => $team->events_count,
+                'published_events_count' => $team->published_events_count,
+                'role' => $team->membership->role,
+                'images' => $team->images,
+                'thumbImagePath' => $team->thumbImagePath,
+                'largeImagePath' => $team->largeImagePath,
+                'created_at' => $team->created_at
+            ];
+        });
+
+        return response()->json([
+            'teams' => $teams,
+            'current_team_id' => auth()->user()->current_team_id
+        ]);
+    }
+
+    public function submit(Organizer $organizer)
+    {
+        try {
+            // Update the organizer status to 'r' (review)
+            $organizer->update(['status' => 'r']);
+            
+            // Refresh organizer with relationships
+            $organizer = Organizer::withUserRole()
+                ->with(['images'])
+                ->find($organizer->id);
+            
+            return response()->json([
+                'message' => 'Organizer submitted successfully',
+                'organizer' => $organizer
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to submit organizer: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to submit organizer.',
                 'error' => $e->getMessage()
             ], 500);
         }

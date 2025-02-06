@@ -12,11 +12,11 @@
         
         <div v-else>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                <a 
+                <div 
                     v-for="community in communities" 
                     :key="community.id" 
-                    href="#"
-                    class="bg-white hover:opacity-75 transition-opacity duration-200"
+                    @click="handleCommunitySelect(community)"
+                    class="bg-white hover:opacity-75 transition-opacity duration-200 cursor-pointer"
                 >
                     <div class="aspect-[3/2] w-full">
                         <img 
@@ -33,7 +33,7 @@
                             <div>Members: {{ community.member_count || 0 }}</div>
                         </div>
                     </div>
-                </a>
+                </div>
             </div>
 
             <div class="mt-6">
@@ -51,10 +51,15 @@
 import { ref, onMounted } from 'vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 
+const emit = defineEmits(['select-community'])
 const imageUrl = import.meta.env.VITE_IMAGE_URL
 const communities = ref([])
 const loading = ref(true)
 const pagination = ref(null)
+
+const handleCommunitySelect = (community) => {
+    emit('select-community', community)
+}
 
 const handlePageChange = (page) => {
     fetchCommunities(page)

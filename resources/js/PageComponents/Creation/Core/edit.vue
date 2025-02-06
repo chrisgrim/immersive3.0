@@ -11,8 +11,7 @@
                     <div class="flex items-center justify-center">
                         <NavSidebar 
                             :event="event"
-                            :is-mobile="isMobile"
-                            :active-section="currentSection"
+                            :currentStep="currentStep"
                             @navigate="handleNavigation"
                         />
                     </div>
@@ -204,7 +203,7 @@
 </template>
 
 <script setup>
-import { ref, provide, reactive, computed, onMounted, onUnmounted } from 'vue';
+import { ref, provide, reactive, computed } from 'vue';
 import NavSidebar from './Pages/navSidebar.vue';
 import EventType from './Pages/event-type.vue';
 import Category from './Pages/category.vue';
@@ -234,11 +233,15 @@ const props = defineProps({
 
 const event = reactive(props.event);
 const user = reactive(props.user);
-const currentStep = ref('Name'); // Default to Name in edit mode
+const currentStep = ref('Name');
 const isSubmitting = ref(false);
 const isSubmittingEvent = ref(false);
 const errors = ref({});
 const currentComponentRef = ref(null);
+
+// Get isMobile from window.Laravel
+const isMobile = computed(() => window?.Laravel?.isMobile ?? false);
+const currentSection = ref(null);
 
 // Simplified steps for edit mode
 const steps = computed(() => event.hasLocation ? 
@@ -311,14 +314,6 @@ const saveChanges = async () => {
     }
 };
 
-// Add these new refs and functions
-const isMobile = ref(false);
-const currentSection = ref(null);
-
-const checkMobile = () => {
-    isMobile.value = window.innerWidth < 768;
-};
-
 const handleNavigation = (section) => {
     if (isMobile.value) {
         currentSection.value = section;
@@ -329,18 +324,6 @@ const handleNavigation = (section) => {
         setStep(section);
     }
 };
-
-onMounted(() => {
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    if (event.location?.latitude && event.location?.longitude) {
-        event.hasLocation = true;
-    }
-});
-
-onUnmounted(() => {
-    window.removeEventListener('resize', checkMobile);
-});
 
 // Provide shared state
 provide('event', event);

@@ -14,57 +14,69 @@
                             <p class="text-gray-500 text-xl">Curated by:</p>
                             <transition name="fade" mode="out-in">
                                 <p :key="currentCuratorIndex" class="text-2xl font-semibold">
-                                    {{ community.curators[currentCuratorIndex].name }}
+                                    {{ community.curators[currentCuratorIndex].name || community.curators[currentCuratorIndex].email }}
                                 </p>
                             </transition>
                         </div>
                         <div class="flex items-center gap-4 mt-8">
-                            <!-- Edit Button -->
-                            <a 
-                                v-if="canEdit"
-                                :href="`/communities/${community.slug}/edit`" 
-                                class="cursor-pointer"
-                            >
-                                <div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center hover:bg-gray-200">
-                                    <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                        <path 
-                                            stroke-linecap="round" 
-                                            stroke-linejoin="round" 
-                                            stroke-width="2" 
-                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-                                        />
-                                    </svg>
-                                </div>
-                            </a>
+                            <template v-if="canEdit">
+                                <!-- Edit Button -->
+                                <a 
+                                    :href="`/communities/${community.slug}/edit`" 
+                                    class="cursor-pointer"
+                                >
+                                    <div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center hover:bg-gray-200">
+                                        <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                            <path 
+                                                stroke-linecap="round" 
+                                                stroke-linejoin="round" 
+                                                stroke-width="2" 
+                                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+                                            />
+                                        </svg>
+                                    </div>
+                                </a>
 
-                            <!-- Listings Button -->
-                            <a 
-                                :href="`/communities/${community.slug}/listings`" 
-                                class="cursor-pointer"
-                            >
-                                <div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center hover:bg-gray-200">
-                                    <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                        <path 
-                                            stroke-linecap="round" 
-                                            stroke-linejoin="round" 
-                                            stroke-width="2" 
-                                            d="M8 6h13M8 12h13M8 18h13" 
-                                        />
-                                        <circle cx="3" cy="6" r="1" />
-                                        <circle cx="3" cy="12" r="1" />
-                                        <circle cx="3" cy="18" r="1" />
-                                    </svg>
-                                </div>
-                            </a>
+                                <!-- Listings Button -->
+                                <a 
+                                    :href="`/communities/${community.slug}/listings`" 
+                                    class="cursor-pointer"
+                                >
+                                    <div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center hover:bg-gray-200">
+                                        <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                            <path 
+                                                stroke-linecap="round" 
+                                                stroke-linejoin="round" 
+                                                stroke-width="2" 
+                                                d="M8 6h13M8 12h13M8 18h13" 
+                                            />
+                                            <circle cx="3" cy="6" r="1" />
+                                            <circle cx="3" cy="12" r="1" />
+                                            <circle cx="3" cy="18" r="1" />
+                                        </svg>
+                                    </div>
+                                </a>
+                            </template>
                         </div>
                     </div>
                 </div>
                 
                 <div class="w-1/3 rounded-2xl overflow-hidden">
-                    <img 
-                        :src="`${imageUrl}${community.thumbImagePath}`"
-                        :alt="community.name"
-                        class="w-full h-full object-cover">
+                    <picture>
+                        <source 
+                            :srcset="community.images?.[0]?.path?.replace('.jpg', '.webp') || `${imageUrl}${community.largeImagePath}`.replace('.jpg', '.webp')"
+                            type="image/webp"
+                        >
+                        <source 
+                            :srcset="community.images?.[0]?.path || `${imageUrl}${community.largeImagePath}`"
+                            type="image/jpeg"
+                        >
+                        <img 
+                            :src="community.images?.[0]?.path || `${imageUrl}${community.largeImagePath}`"
+                            :alt="community.name"
+                            class="w-full h-full object-cover"
+                        >
+                    </picture>
                 </div>
             </div>
         </div>

@@ -12,28 +12,33 @@
         
         <div v-else>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                <a 
+                <div 
                     v-for="organizer in organizers" 
                     :key="organizer.id" 
-                    href="#"
-                    class="bg-white hover:opacity-75 transition-opacity duration-200"
+                    @click="!loading && handleOrganizerSelect(organizer)"
+                    :class="[
+                        'bg-white transition-opacity duration-200 cursor-pointer flex flex-col items-center',
+                        loading ? 'opacity-50 cursor-wait' : 'hover:opacity-75'
+                    ]"
                 >
-                    <div class="aspect-[3/2] w-full">
-                        <img 
-                            :src="getImageUrl(organizer)"
-                            :alt="organizer.name" 
-                            class="w-full h-full object-cover rounded-2xl"
-                            @error="handleImageError"
-                        >
+                    <div class="aspect-square w-1/2 mb-4">
+                        <picture>
+                            <source 
+                                :srcset="getWebpUrl(organizer)" 
+                                type="image/webp"
+                            >
+                            <img 
+                                :src="getImageUrl(organizer)"
+                                :alt="organizer.name" 
+                                class="w-full h-full object-cover rounded-full"
+                                @error="handleImageError"
+                            >
+                        </picture>
                     </div>
-                    <div class="p-4">
-                        <h3 class="text-xl font-semibold mb-2">{{ organizer.name }}</h3>
-                        <div class="text-xl text-gray-600 space-y-1">
-                            <div>Email: {{ organizer.email }}</div>
-                            <div>Phone: {{ organizer.phone || 'N/A' }}</div>
-                        </div>
+                    <div class="text-center">
+                        <h3 class="mt-2 mb-4 text-2xl text-black font-medium leading-tight line-clamp-2 break-words hyphens-auto">{{ organizer.name }}</h3>
                     </div>
-                </a>
+                </div>
             </div>
 
             <div class="mt-6">
@@ -53,8 +58,38 @@ import Pagination from '@/GlobalComponents/pagination.vue'
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL
 const organizers = ref([])
-const loading = ref(true)
+const loading = ref(false)
 const pagination = ref(null)
+
+const emit = defineEmits(['select-organizer', 'update-counts'])
+
+const handleOrganizerSelect = async (organizer) => {
+    if (loading.value) return
+    
+    try {
+        loading.value = true
+        console.log('Attempting to fetch organizer:', organizer);
+        
+        const slug = organizer.slug || organizer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        const url = `/api/admin/organizers/${slug}`;
+        console.log('Request URL:', url);
+        
+        const response = await axios.get(url);
+        console.log('Response received:', response.data);
+        
+        emit('select-organizer', response.data);
+        console.log('Emitted select-organizer event');
+    } catch (error) {
+        console.error('Error details:', {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            url: error.config?.url
+        });
+    } finally {
+        loading.value = false
+    }
+}
 
 const handlePageChange = (page) => {
     fetchOrganizers(page)
@@ -81,15 +116,24 @@ const fetchOrganizers = async (page = 1) => {
     }
 }
 
+const getWebpUrl = (organizer) => {
+    if (organizer.images && organizer.images.length > 0) {
+        // Assuming the webp path is similar but with .webp extension
+        const imagePath = organizer.images[0].large_image_path
+        return `${imageUrl}${imagePath.replace(/\.[^/.]+$/, '.webp')}`
+    }
+    return 'https://placehold.co/600x400.webp?text=No+Image'
+}
+
 const getImageUrl = (organizer) => {
     if (organizer.images && organizer.images.length > 0) {
         return `${imageUrl}${organizer.images[0].large_image_path}`
     }
-    return 'https://placehold.co/600x400?text=No+Image'
+    return 'https://placehold.co/600x400.jpg?text=No+Image'
 }
 
 const handleImageError = (e) => {
-    e.target.src = 'https://placehold.co/600x400?text=No+Image'
+    e.target.src = 'https://placehold.co/600x400.jpg?text=No+Image'
 }
 
 onMounted(() => {

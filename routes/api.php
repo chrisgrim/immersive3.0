@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\DashboardController;
 
 // Controller Imports - Other
 use App\Http\Controllers\Creation\HostEventController;
+use App\Http\Controllers\OrganizerController;
 
 // Model Imports
 use App\Models\Category;
@@ -73,6 +74,11 @@ Route::controller(SearchController::class)->group(function () {
     Route::get('search/nav/genres', 'navGenres');
 });
 
+// Teams Search Route
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('/teams/search', [OrganizerController::class, 'searchTeams'])->name('api.teams.search');
+});
+
 /*
 |--------------------------------------------------------------------------
 | Admin Routes
@@ -82,6 +88,21 @@ Route::controller(SearchController::class)->group(function () {
 Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
     Route::get('/approval-counts', [DashboardController::class, 'getApprovalCounts']);
     
+    // Organizers - All non-approval organizer routes
+    Route::controller(AdminOrganizerController::class)->group(function () {
+        Route::get('/organizers/{organizer}', 'show');
+        Route::prefix('manage')->group(function () {
+            Route::get('/organizers', 'index');
+            Route::patch('/organizers/{organizer}', 'update');
+            Route::delete('/organizers/{organizer}', 'destroy');
+        });
+    });
+
+    // Communities
+    Route::controller(AdminCommunityController::class)->group(function () {
+        Route::get('/communities/{community}', 'show');
+    });
+
     // Approval Routes
     Route::prefix('approve')->group(function () {
         // Events
@@ -91,16 +112,18 @@ Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
             Route::post('/events/{event}/reject', 'reject');
         });
         
-        // Organizers
+        // Organizers approval routes
         Route::controller(AdminOrganizerController::class)->group(function () {
             Route::get('/organizers', 'getPending');
-            Route::post('/organizers/{organizer}', 'approve');
+            Route::post('/organizers/{organizer}/approve', 'approve');
+            Route::post('/organizers/{organizer}/reject', 'reject');
         });
         
-        // Communities
+        // Communities approval routes
         Route::controller(AdminCommunityController::class)->group(function () {
             Route::get('/communities', 'getPending');
-            Route::post('/communities/{community}', 'approve');
+            Route::post('/communities/{community}/approve', 'approve');
+            Route::post('/communities/{community}/reject', 'reject');
         });
 
         // Name Change Requests
@@ -118,13 +141,6 @@ Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
             Route::get('/users', 'index');
             Route::patch('/users/{user}', 'update');
             Route::delete('/users/{user}', 'destroy');
-        });
-        
-        // Organizers Management
-        Route::controller(AdminOrganizerController::class)->group(function () {
-            Route::get('/organizers', 'index');
-            Route::patch('/organizers/{organizer}', 'update');
-            Route::delete('/organizers/{organizer}', 'destroy');
         });
         
         // Events Management
@@ -172,7 +188,11 @@ Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
     });
 
     // Events
-    Route::get('/events/{event}', [AdminEventController::class, 'show']);
+    Route::controller(AdminEventController::class)->group(function () {
+        Route::get('/events/{event}', 'show');
+        Route::post('/events/{event}/duplicate', [HostEventController::class, 'duplicate'])
+            ->middleware(['can:moderate,App\Models\Event']);
+    });
 
     // Docks
     Route::controller(AdminDocksController::class)->group(function () {

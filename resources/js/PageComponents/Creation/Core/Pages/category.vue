@@ -43,11 +43,14 @@
 
                     <!-- Selected Category Preview -->
                     <div class="mt-12" v-if="event.category">
-                        <img 
-                            class="h-[30rem] w-full object-cover rounded-3xl" 
-                            :src="`${imageUrl}${event.category.largeImagePath}`" 
-                            :alt="event.category.name"
-                        >
+                        <div class="aspect-video w-full rounded-3xl overflow-hidden">
+                            <img 
+                                v-if="event.category.images?.[0]?.largeImagePath || event.category.largeImagePath"
+                                class="w-full h-full object-cover" 
+                                :src="`${imageUrl}${event.category.images?.[0]?.largeImagePath || event.category.largeImagePath}`" 
+                                :alt="event.category.name"
+                            >
+                        </div>
                         <p class="text-xl mt-8">{{ event.category.description }}</p>
                     </div>
 

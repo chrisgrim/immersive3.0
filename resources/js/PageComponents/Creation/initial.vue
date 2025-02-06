@@ -257,7 +257,6 @@ const isFormComplete = computed(() => {
     return (
         team.name?.trim() && 
         team.description?.trim() && 
-        imageFile.value && 
         !$v.value.$invalid
     );
 });

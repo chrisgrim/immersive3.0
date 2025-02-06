@@ -12,14 +12,14 @@
                             {
                                 'border-red-500 focus:border-red-500 focus:shadow-focus-error': showNameError,
                                 'border-[#222222] focus:border-black focus:shadow-focus-black': !showNameError,
-                                'bg-gray-100 text-gray-500 cursor-not-allowed': hasPendingNameChange || organizer.status !== 'p'
+                                'bg-gray-100 text-gray-500 cursor-not-allowed': hasPendingNameChange || (organizer.status !== 'p' && organizer.status !== 'n')
                             }
                         ]"
                         v-model="organizer.name" 
                         @input="handleNameInput"
                         placeholder="Enter organization name"
                         rows="2" 
-                        :disabled="hasPendingNameChange || organizer.status !== 'p'"
+                        :disabled="hasPendingNameChange || (organizer.status !== 'p' && organizer.status !== 'n')"
                     />
                     
                     <!-- Name Character Count -->
@@ -32,7 +32,7 @@
                         <span v-if="hasPendingNameChange" class="ml-2 italic">
                             (Name change pending approval)
                         </span>
-                        <span v-else-if="organizer.status !== 'p'" class="ml-2 italic">
+                        <span v-else-if="organizer.status !== 'p' && organizer.status !== 'n'" class="ml-2 italic">
                             (Organization pending review)
                         </span>
                     </div>
@@ -273,7 +273,7 @@ defineExpose({
         return isValid;
     },
     submitData: async () => {
-        if (organizer.name !== originalName.value) {
+        if (organizer.name !== originalName.value && organizer.status !== 'n') {
             pendingNameChange.value = organizer.name;
             showNameChangeModal.value = true;
             return false;

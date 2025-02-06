@@ -3,16 +3,26 @@
 namespace App\Models\Messaging;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Event;
-use App\Models\User;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\User;
 
 class Conversation extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['opener_id', 'receiver_id', 'event_id','user_one','user_two', 'event_name'];
+    protected $fillable = [
+        'user_one',
+        'user_two',
+        'subject',
+        'conversable_type',
+        'conversable_id'
+    ];
     
+    public function conversable()
+    {
+        return $this->morphTo();
+    }
+
     public function messages()
     {
         return $this->hasMany(Message::class)->orderBy('updated_at', 'ASC');
@@ -21,11 +31,6 @@ class Conversation extends Model
     public function latestMessages()
     {
         return $this->hasMany(Message::class)->orderBy('updated_at', 'DESC');
-    }
-
-    public function event()
-    {
-        return $this->belongsTo(Event::class)->withTrashed();
     }
 
     public function users()
@@ -42,5 +47,4 @@ class Conversation extends Model
     {
         return $this->belongsTo(User::class, 'user_two');
     }
-
 }

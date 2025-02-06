@@ -258,14 +258,23 @@ const completeCrop = () => {
     console.log('Starting crop completion');
     showMainImageError.value = false;
     
-    console.log('State before crop:', {
-        mainImage: mainImage.value,
-        secondaryImages: [...images.value],
-        deletedImages: [...deletedImages.value]
-    });
-
     const canvas = document.querySelector('.vue-advanced-cropper canvas');
-    canvas.toBlob((blob) => {
+    const currentWidth = canvas.width;
+    const currentHeight = canvas.height;
+    
+    // Calculate scale needed to ensure minimum 400px on smallest side
+    const smallestSide = Math.min(currentWidth, currentHeight);
+    const scale = smallestSide < 400 ? (400 / smallestSide) : 1;
+    
+    // Create new canvas with scaled dimensions if needed
+    const outputCanvas = document.createElement('canvas');
+    outputCanvas.width = Math.round(currentWidth * scale);
+    outputCanvas.height = Math.round(currentHeight * scale);
+    
+    const outputCtx = outputCanvas.getContext('2d');
+    outputCtx.drawImage(canvas, 0, 0, outputCanvas.width, outputCanvas.height);
+    
+    outputCanvas.toBlob((blob) => {
         const file = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -291,15 +300,9 @@ const completeCrop = () => {
             showCropper.value = false;
             cropperImage.value = '';
             setComponentReady(true);
-
-            console.log('State after crop completion:', {
-                mainImage: mainImage.value,
-                secondaryImages: [...images.value],
-                deletedImages: [...deletedImages.value]
-            });
         };
         reader.readAsDataURL(file);
-    }, 'image/jpeg');
+    }, 'image/jpeg', 0.95);
 };
 
 const cancelCrop = () => {
@@ -366,8 +369,8 @@ const validateFile = (file) => {
 };
 
 // Constants
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB instead of 2MB
-const MIN_DIMENSION = 800; // Minimum pixels for shortest side
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MIN_DIMENSION = 400; // Minimum pixels for shortest side (lowered from 800)
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
 
 // Add the props and loadImages method here

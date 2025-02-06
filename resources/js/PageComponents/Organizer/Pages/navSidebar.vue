@@ -2,7 +2,7 @@
     <!-- Mobile Back Button (shown only when a section is active) -->
     <div 
         v-if="isMobile && currentStep" 
-        class="fixed top-0 left-0 right-0 z-50 bg-white border-b p-4"
+        class="fixed top-0 left-0 right-0 z-50 bg-white border-neutral-300 border-b p-4"
     >
         <div class="flex items-center gap-4">
             <button 
@@ -27,11 +27,11 @@
     </div>
 
     <!-- Main Navigation -->
-    <nav class="flex-shrink-0 space-y-8 w-full p-8 mx-auto mb-20 lg-air:max-w-[40rem] pt-12 lg-air:pt-28">
-        <!-- Header with back button (hidden on mobile when section is active) -->
+    <nav class="relative flex flex-col items-center flex-shrink-0 w-full mx-auto pt-12">
+        <!-- Static Header -->
         <div 
             v-if="!isMobile || !currentStep"
-            class="w-full flex items-center gap-4 pb-8"
+            class="w-full flex items-center gap-4 pb-8 z-50 bg-white p-4 lg-air:max-w-[40rem]"
         >
             <a 
                 :href="`/organizers/${organizer.slug}`" 
@@ -58,103 +58,107 @@
             </a>
         </div>
 
-        <!-- Name -->
-        <button
-            @click="$emit('navigate', 'Name')"
-            :class="[
-                'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
-                {
-                    'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Name',
-                    'border border-neutral-200': currentStep !== 'Name'
-                }
-            ]"
-        >
-        
-            <h3 class="text-xl font-semibold mb-4 text-black">Name</h3>
-            <p class="text-4xl text-neutral-600 mb-4 break-words hyphens-auto overflow-hidden">{{ organizer.name || 'No name set' }}</p>
-            <p class="text-neutral-500 text-2xl line-clamp-3 leading-tight break-words hyphens-auto overflow-hidden">{{ organizer.description || 'No description set' }}</p>
-        </button>
+        <!-- Scrollable Content -->
+        <div class="w-full flex flex-col items-center overflow-y-auto max-h-[calc(100vh-19rem)]">
+            <div class="space-y-8 lg-air:max-w-[40rem] p-8 mb-20">
+                <!-- Name -->
+                <button
+                    @click="$emit('navigate', 'Name')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Name',
+                            'border border-neutral-200': currentStep !== 'Name'
+                        }
+                    ]"
+                >
+                    <h3 class="text-xl font-semibold mb-4 text-black">Name</h3>
+                    <p class="text-4xl text-neutral-600 mb-4 break-words hyphens-auto overflow-hidden">{{ organizer.name || 'No name set' }}</p>
+                    <p class="text-neutral-500 text-2xl line-clamp-3 leading-tight break-words hyphens-auto overflow-hidden">{{ organizer.description || 'No description set' }}</p>
+                </button>
 
-        <!-- Images -->
-        <button
-            @click="$emit('navigate', 'Image')"
-            :class="[
-                'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
-                {
-                    'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Image',
-                    'border border-neutral-200': currentStep !== 'Image'
-                }
-            ]"
-        >
-            <h3 class="text-xl font-semibold mb-4">Image</h3>
-            <div class="flex gap-4 justify-center mb-8">
-                <template v-if="organizerImage">
-                    <picture class="w-40 h-40 flex-shrink-0">
-                        <source 
-                            :srcset="organizerImage"
-                            type="image/webp"
-                        >
-                        <img 
-                            :src="organizerImage"
-                            class="w-40 h-40 rounded-full object-cover"
-                            alt="Organizer image"
-                            @error="console.error('Error loading image: ' + organizerImage)"
-                        />
-                        <template v-if="!organizerImage">
-                            <span>Error loading image</span>
+                <!-- Images -->
+                <button
+                    @click="$emit('navigate', 'Image')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Image',
+                            'border border-neutral-200': currentStep !== 'Image'
+                        }
+                    ]"
+                >
+                    <h3 class="text-xl font-semibold mb-4">Image</h3>
+                    <div class="flex gap-4 justify-center mb-8">
+                        <template v-if="organizerImage">
+                            <picture class="w-40 h-40 flex-shrink-0">
+                                <source 
+                                    :srcset="organizerImage"
+                                    type="image/webp"
+                                >
+                                <img 
+                                    :src="organizerImage"
+                                    class="w-40 h-40 rounded-full object-cover"
+                                    alt="Organizer image"
+                                    @error="console.error('Error loading image: ' + organizerImage)"
+                                />
+                                <template v-if="!organizerImage">
+                                    <span>Error loading image</span>
+                                </template>
+                            </picture>
                         </template>
-                    </picture>
-                </template>
-                <div v-else class="w-40 h-40 rounded-full bg-neutral-200 flex items-center justify-center flex-shrink-0">
-                    <span class="text-2xl font-bold text-neutral-400">
-                        {{ organizer.name?.charAt(0).toUpperCase() || '?' }}
-                    </span>
-                </div>
-            </div>
-        </button>
+                        <div v-else class="w-40 h-40 rounded-full bg-neutral-200 flex items-center justify-center flex-shrink-0">
+                            <span class="text-2xl font-bold text-neutral-400">
+                                {{ organizer.name?.charAt(0).toUpperCase() || '?' }}
+                            </span>
+                        </div>
+                    </div>
+                </button>
 
-        <!-- Social Links -->
-        <button
-            @click="$emit('navigate', 'Social')"
-            :class="[
-                'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
-                {
-                    'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Social',
-                    'border border-neutral-200': currentStep !== 'Social'
-                }
-            ]"
-        >
-            <h3 class="text-xl font-semibold mb-4 text-black">Social Links</h3>
-            <div class="space-y-2">
-                <div v-if="organizer.website" class="flex items-center gap-2">
-                    <component :is="RiSearchLine" class="w-5 h-5 text-neutral-500" />
-                    <span class="text-neutral-600 truncate">Website</span>
-                </div>
-                <div v-if="organizer.email" class="flex items-center gap-2">
-                    <component :is="RiMailLine" class="w-5 h-5 text-neutral-500" />
-                    <span class="text-neutral-600 truncate">{{ organizer.email }}</span>
-                </div>
-                <div v-if="organizer.twitterHandle" class="flex items-center gap-2">
-                    <component :is="RiTwitterLine" class="w-5 h-5 text-neutral-500" />
-                    <span class="text-neutral-600 truncate">@{{ organizer.twitterHandle }}</span>
-                </div>
-                <div v-if="organizer.instagramHandle" class="flex items-center gap-2">
-                    <component :is="RiInstagramLine" class="w-5 h-5 text-neutral-500" />
-                    <span class="text-neutral-600 truncate">@{{ organizer.instagramHandle }}</span>
-                </div>
-                <div v-if="organizer.facebookHandle" class="flex items-center gap-2">
-                    <component :is="RiFacebookBoxLine" class="w-5 h-5 text-neutral-500" />
-                    <span class="text-neutral-600 truncate">{{ organizer.facebookHandle }}</span>
-                </div>
-                <div v-if="organizer.patreon" class="flex items-center gap-2">
-                    <component :is="RiPatreonLine" class="w-5 h-5 text-neutral-500" />
-                    <span class="text-neutral-600 truncate">{{ organizer.patreon }}</span>
-                </div>
-                <div v-if="!hasSocialLinks" class="text-neutral-500">
-                    No social links set
-                </div>
+                <!-- Social Links -->
+                <button
+                    @click="$emit('navigate', 'Social')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Social',
+                            'border border-neutral-200': currentStep !== 'Social'
+                        }
+                    ]"
+                >
+                    <h3 class="text-xl font-semibold mb-4 text-black">Social Links</h3>
+                    <div class="space-y-2">
+                        <div v-if="organizer.website" class="flex items-center gap-2">
+                            <component :is="RiSearchLine" class="w-5 h-5 text-neutral-500" />
+                            <span class="text-neutral-600 truncate">Website</span>
+                        </div>
+                        <div v-if="organizer.email" class="flex items-center gap-2">
+                            <component :is="RiMailLine" class="w-5 h-5 text-neutral-500" />
+                            <span class="text-neutral-600 truncate">{{ organizer.email }}</span>
+                        </div>
+                        <div v-if="organizer.twitterHandle" class="flex items-center gap-2">
+                            <component :is="RiTwitterLine" class="w-5 h-5 text-neutral-500" />
+                            <span class="text-neutral-600 truncate">@{{ organizer.twitterHandle }}</span>
+                        </div>
+                        <div v-if="organizer.instagramHandle" class="flex items-center gap-2">
+                            <component :is="RiInstagramLine" class="w-5 h-5 text-neutral-500" />
+                            <span class="text-neutral-600 truncate">@{{ organizer.instagramHandle }}</span>
+                        </div>
+                        <div v-if="organizer.facebookHandle" class="flex items-center gap-2">
+                            <component :is="RiFacebookBoxLine" class="w-5 h-5 text-neutral-500" />
+                            <span class="text-neutral-600 truncate">{{ organizer.facebookHandle }}</span>
+                        </div>
+                        <div v-if="organizer.patreon" class="flex items-center gap-2">
+                            <component :is="RiPatreonLine" class="w-5 h-5 text-neutral-500" />
+                            <span class="text-neutral-600 truncate">{{ organizer.patreon }}</span>
+                        </div>
+                        <div v-if="!hasSocialLinks" class="text-neutral-500">
+                            No social links set
+                        </div>
+                    </div>
+                </button>
             </div>
-        </button>
+        </div>
     </nav>
 </template>
 

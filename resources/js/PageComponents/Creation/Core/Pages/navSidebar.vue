@@ -1,8 +1,8 @@
 <template>
     <!-- Mobile Back Button (shown only when a section is active) -->
     <div 
-        v-if="isMobile && activeSection" 
-        class="fixed top-0 left-0 right-0 z-50 bg-white border-b p-4"
+        v-if="isMobile && currentStep" 
+        class="fixed top-0 left-0 right-0 z-50 bg-white border-neutral-300 border-b p-4"
     >
         <div class="flex items-center gap-4">
             <button 
@@ -22,16 +22,16 @@
                     <path d="M12 19l-7-7 7-7"/>
                 </svg>
             </button>
-            <h2 class="text-xl font-semibold">{{ activeSection }}</h2>
+            <h2 class="text-xl font-semibold">{{ currentStep }}</h2>
         </div>
     </div>
 
     <!-- Main Navigation -->
-    <nav class="flex-shrink-0 space-y-8 w-full p-8 mx-auto mb-20 lg-air:max-w-[40rem] pt-12 lg-air:pt-28">
-        <!-- Header with back button (hidden on mobile when section is active) -->
+    <nav class="relative flex flex-col items-center flex-shrink-0 w-full mx-auto pt-12">
+        <!-- Static Header -->
         <div 
-            v-if="!isMobile || !activeSection"
-            class="w-full flex items-center gap-4 pb-8"
+            v-if="!isMobile || !currentStep"
+            class="w-full flex items-center gap-4 pb-8 z-50 bg-white p-4 lg-air:max-w-[40rem]"
         >
             <a 
                 href="/hosting/events" 
@@ -53,250 +53,325 @@
             <a href="/hosting/events" class="ml-4 text-5xl font-semibold truncate">Listings</a>
         </div>
 
-        <!-- Name & Tag Line -->
-        <div 
-            @click="$emit('navigate', 'Name')"
-            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 w-full max-w-full"
-        >
-            <h3 class="text-xl font-semibold mb-4">Name</h3>
-            <p class="text-gray-600 mb-2 leading-tight break-words hyphens-auto overflow-hidden">{{ event.name || 'No name set' }}</p>
-            <p class="text-gray-500 text-xl leading-tight break-words hyphens-auto overflow-hidden">{{ event.tag_line || 'No tagline set' }}</p>
-        </div>
-
-        <!-- Category -->
-        <div 
-            @click="$emit('navigate', 'Category')"
-            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
-        >
-            <h3 class="text-xl font-semibold mb-4">Category</h3>
-            <div class="flex gap-4">
-                <img 
-                    v-if="categoryImagePath"
-                    :src="categoryImagePath"
-                    class="w-16 h-16 rounded-lg object-cover flex-shrink-0"
-                    :alt="categoryName"
-                />
-                <div class="flex-1 min-w-0 justify-center flex flex-col">
-                    <p class="text-gray-600 mb-2 truncate">{{ categoryName }}</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Genres -->
-        <div 
-            @click="$emit('navigate', 'Genres')"
-            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
-        >
-            <h3 class="text-xl font-semibold mb-4">Genres</h3>
-            <div class="flex flex-wrap gap-2">
-                <span 
-                    v-for="genre in event.genres?.slice(0, 3)" 
-                    :key="genre.id"
-                    class="px-3 py-1 bg-gray-100 rounded-full text-lg"
+        <!-- Scrollable Content -->
+        <div class="w-full flex flex-col items-center overflow-y-auto max-h-[calc(100vh-19rem)]">
+            <div class="space-y-8 lg-air:max-w-[40rem] p-8 mb-20">
+                <!-- Name & Tag Line -->
+                <button
+                    @click="$emit('navigate', 'Name')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Name',
+                            'border border-neutral-200': currentStep !== 'Name'
+                        }
+                    ]"
                 >
-                    {{ genre.name }}
-                </span>
-                <span v-if="event.genres?.length > 3" class="text-gray-500 text-lg">
-                    +{{ event.genres.length - 3 }} more
-                </span>
-                <span v-if="!event.genres?.length" class="text-gray-500 text-lg">
-                    No genres selected
-                </span>
-            </div>
-        </div>
+                    <h3 class="text-xl font-semibold mb-4 text-black">Name</h3>
+                    <p class="text-4xl text-neutral-600 mb-4 break-words hyphens-auto overflow-hidden">
+                        {{ event.name || 'No name set' }}
+                    </p>
+                    <p class="text-neutral-500 text-2xl line-clamp-3 leading-tight break-words hyphens-auto overflow-hidden">
+                        {{ event.tag_line || 'No tagline set' }}
+                    </p>
+                </button>
 
-        <!-- Location -->
-        <div 
-            @click="$emit('navigate', props.event?.hasLocation ? 'Location' : 'Remote')"
-            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
-        >
-            <h3 class="text-xl font-semibold mb-4">Location</h3>
-            <template v-if="props.event?.hasLocation">
-                <div class="flex gap-4">
-                    <div class="w-full h-60 rounded-lg overflow-hidden flex-shrink-0">
-                        <l-map 
-                            ref="locationMapRef"
-                            :zoom="14" 
-                            :center="mapCenter"
-                            :style="{
-                                height: '100%',
-                                width: '100%',
-                                minHeight: isMobile ? '200px' : '240px'
-                            }"
-                            @ready="onMapReady"
-                            :options="{ 
-                                scrollWheelZoom: false, 
-                                zoomControl: false,
-                                dragging: false,
-                                touchZoom: false,
-                                doubleClickZoom: false,
-                                boxZoom: false,
-                                tap: false
-                            }"
+                <!-- Category -->
+                <button
+                    @click="$emit('navigate', 'Category')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Category',
+                            'border border-neutral-200': currentStep !== 'Category'
+                        }
+                    ]"
+                >
+                    <h3 class="text-xl font-semibold mb-4 text-black">Category</h3>
+                    <div class="flex gap-4">
+                        <img 
+                            v-if="categoryImagePath"
+                            :src="categoryImagePath"
+                            class="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                            :alt="categoryName"
+                        />
+                        <div class="flex-1 min-w-0 justify-center flex flex-col">
+                            <p class="text-neutral-600 mb-2 truncate">{{ categoryName }}</p>
+                        </div>
+                    </div>
+                </button>
+
+                <!-- Genres -->
+                <button
+                    @click="$emit('navigate', 'Genres')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Genres',
+                            'border border-neutral-200': currentStep !== 'Genres'
+                        }
+                    ]"
+                >
+                    <h3 class="text-xl font-semibold mb-4 text-black">Genres</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <span 
+                            v-for="genre in event.genres?.slice(0, 3)" 
+                            :key="genre.id"
+                            class="px-3 py-1 bg-neutral-100 rounded-full text-lg text-neutral-600"
                         >
-                            <l-tile-layer url="https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=5Pwt4rF8iefMU4hIcRqZJ0GXPqWi5l4NVjEn4owEBKOdGyuJVARXbYTBDO2or3cU" />
-                            <l-marker 
-                                :lat-lng="mapCenter"
-                                :icon="icon"
+                            {{ genre.name }}
+                        </span>
+                        <span v-if="event.genres?.length > 3" class="text-neutral-500 text-lg text-neutral-600">
+                            +{{ event.genres.length - 3 }} more
+                        </span>
+                        <span v-if="!event.genres?.length" class="text-neutral-500 text-lg text-neutral-600">
+                            No genres selected
+                        </span>
+                    </div>
+                </button>
+
+                <!-- Location -->
+                <button
+                    @click="$emit('navigate', props.event?.hasLocation ? 'Location' : 'Remote')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Location',
+                            'border border-neutral-200': currentStep !== 'Location'
+                        }
+                    ]"
+                >
+                    <h3 class="text-xl font-semibold mb-4 text-black">Location</h3>
+                    <template v-if="props.event?.hasLocation">
+                        <div class="flex gap-4">
+                            <div class="w-full h-60 rounded-lg overflow-hidden flex-shrink-0">
+                                <l-map 
+                                    ref="locationMapRef"
+                                    :zoom="14" 
+                                    :center="mapCenter"
+                                    :style="{
+                                        height: '100%',
+                                        width: '100%',
+                                        minHeight: isMobile ? '200px' : '240px'
+                                    }"
+                                    @ready="onMapReady"
+                                    :options="{ 
+                                        scrollWheelZoom: false, 
+                                        zoomControl: false,
+                                        dragging: false,
+                                        touchZoom: false,
+                                        doubleClickZoom: false,
+                                        boxZoom: false,
+                                        tap: false
+                                    }"
+                                >
+                                    <l-tile-layer url="https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=5Pwt4rF8iefMU4hIcRqZJ0GXPqWi5l4NVjEn4owEBKOdGyuJVARXbYTBDO2or3cU" />
+                                    <l-marker 
+                                        :lat-lng="mapCenter"
+                                        :icon="icon"
+                                    />
+                                </l-map>
+                            </div>
+                            <div class="flex-1 min-w-0 justify-center flex flex-col">
+                                <p class="text-neutral-600 mb-2 truncate">{{ props.event?.location?.city || 'No city set' }}</p>
+                                <p class="text-neutral-500 text-lg truncate">{{ props.event?.location?.venue || 'No venue set' }}</p>
+                            </div>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <p class="text-neutral-600">Remote Event</p>
+                    </template>
+                </button>
+
+                <!-- Description -->
+                <button
+                    @click="$emit('navigate', 'Description')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Description',
+                            'border border-neutral-200': currentStep !== 'Description'
+                        }
+                    ]"
+                >
+                    <h3 class="text-xl font-semibold mb-4 text-black">Description</h3>
+                    <p class="text-neutral-600 line-clamp-2 break-words hyphens-auto">{{ event.description || 'No description set' }}</p>
+                </button>
+
+                <!-- Dates -->
+                <button
+                    @click="$emit('navigate', 'Dates')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Dates',
+                            'border border-neutral-200': currentStep !== 'Dates'
+                        }
+                    ]"
+                >
+                    <div class="flex justify-between items-start">
+                        <h3 class="text-xl font-semibold text-black">Dates</h3>
+                    </div>
+                    <p class="text-neutral-600 mt-4">
+                        {{ typeof showsCount === 'string' ? showsCount : `${showsCount} shows total` }}
+                    </p>
+                    <p v-if="typeof showsCount === 'number'" class="text-neutral-500 text-sm">
+                        {{ remainingShows }} upcoming
+                    </p>
+                </button>
+
+                <!-- Tickets -->
+                <button
+                    @click="$emit('navigate', 'Tickets')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Tickets',
+                            'border border-neutral-200': currentStep !== 'Tickets'
+                        }
+                    ]"
+                >
+                    <h3 class="text-xl font-semibold mb-4 text-black">Tickets</h3>
+                    <p class="text-neutral-600 mb-2">{{ ticketCount }} ticket types</p>
+                    <p class="text-neutral-500 text-sm">{{ ticketPriceRange }}</p>
+                </button>
+
+                <!-- Images -->
+                <button
+                    @click="$emit('navigate', 'Images')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Images',
+                            'border border-neutral-200': currentStep !== 'Images'
+                        }
+                    ]"
+                >
+                    <h3 class="text-xl font-semibold mb-4 text-black">Images</h3>
+                    <div class="flex gap-4">
+                        <picture v-if="firstImagePath" class="w-16 h-16 flex-shrink-0">
+                            <source 
+                                :srcset="firstImagePath"
+                                type="image/webp"
+                            >
+                            <img 
+                                :src="firstImagePath.replace('.webp', '.jpg')"
+                                class="w-16 h-16 rounded-lg object-cover"
+                                alt="Event image"
                             />
-                        </l-map>
+                        </picture>
+                        <div class="flex-1 min-w-0 justify-center flex flex-col">
+                            <p class="text-neutral-600">{{ imageCount }} images</p>
+                        </div>
                     </div>
-                    <div class="flex-1 min-w-0 justify-center flex flex-col">
-                        <p class="text-gray-600 mb-2 truncate">{{ props.event?.location?.city || 'No city set' }}</p>
-                        <p class="text-gray-500 text-lg truncate">{{ props.event?.location?.venue || 'No venue set' }}</p>
+                </button>
+
+                <!-- Advisories -->
+                <button
+                    @click="$emit('navigate', 'Advisories')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Advisories',
+                            'border border-neutral-200': currentStep !== 'Advisories'
+                        }
+                    ]"
+                >
+                    <h3 class="text-xl font-semibold mb-4 text-black">Advisories</h3>
+                    <div class="space-y-4">
+                        <!-- Interactive Level -->
+                        <div>
+                            <div class="flex flex-wrap gap-2">
+                                <span 
+                                    v-if="event.interactive_level"
+                                    class="px-3 py-1 bg-neutral-100 rounded-full text-lg text-neutral-600"
+                                >
+                                    {{ event.interactive_level.name }}
+                                </span>
+                                <span v-else class="text-neutral-500 text-sm text-neutral-600">
+                                    No interaction level set
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Contact Levels -->
+                        <div>
+                            <div class="flex flex-wrap gap-2">
+                                <span 
+                                    v-for="contact in event.contact_levels?.slice(0, 3)" 
+                                    :key="contact.id"
+                                    class="px-3 py-1 bg-neutral-100 rounded-full text-lg text-neutral-600"
+                                >
+                                    {{ contact.name }}
+                                </span>
+                                <span v-if="event.contact_levels?.length > 3" class="text-neutral-500 text-sm text-neutral-600">
+                                    +{{ event.contact_levels.length - 3 }} more
+                                </span>
+                                <span v-if="!event.contact_levels?.length" class="text-neutral-500 text-sm text-neutral-600">
+                                    No contact levels set
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </template>
-            <template v-else>
-                <p class="text-gray-600">Remote Event</p>
-            </template>
-        </div>
+                </button>
 
-        <!-- Description -->
-        <div 
-            @click="$emit('navigate', 'Description')"
-            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
-        >
-            <h3 class="text-xl font-semibold mb-4">Description</h3>
-            <p class="text-gray-600 line-clamp-2 break-words hyphens-auto">{{ event.description || 'No description set' }}</p>
-        </div>
-
-        <!-- Dates -->
-        <div 
-            @click="$emit('navigate', 'Dates')"
-            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
-        >
-            <div class="flex justify-between items-start">
-                <h3 class="text-xl font-semibold">Dates</h3>
-            </div>
-            <p class="text-gray-600 mt-4">
-                {{ typeof showsCount === 'string' ? showsCount : `${showsCount} shows total` }}
-            </p>
-            <p v-if="typeof showsCount === 'number'" class="text-gray-500 text-sm">
-                {{ remainingShows }} upcoming
-            </p>
-        </div>
-
-        <!-- Tickets -->
-        <div 
-            @click="$emit('navigate', 'Tickets')"
-            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
-        >
-            <h3 class="text-xl font-semibold mb-4">Tickets</h3>
-            <p class="text-gray-600 mb-2">{{ ticketCount }} ticket types</p>
-            <p class="text-gray-500 text-sm">{{ ticketPriceRange }}</p>
-        </div>
-
-        <!-- Images -->
-        <div 
-            @click="$emit('navigate', 'Images')"
-            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
-        >
-            <h3 class="text-xl font-semibold mb-4">Images</h3>
-            <div class="flex gap-4">
-                <picture v-if="firstImagePath" class="w-16 h-16 flex-shrink-0">
-                    <source 
-                        :srcset="firstImagePath"
-                        type="image/webp"
-                    >
-                    <img 
-                        :src="firstImagePath.replace('.webp', '.jpg')"
-                        class="w-16 h-16 rounded-lg object-cover"
-                        alt="Event image"
-                    />
-                </picture>
-                <div class="flex-1 min-w-0 justify-center flex flex-col">
-                    <p class="text-gray-600">{{ imageCount }} images</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Advisories -->
-        <div 
-            @click="$emit('navigate', 'Advisories')"
-            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
-        >
-            <h3 class="text-xl font-semibold mb-4">Advisories</h3>
-            <div class="space-y-4">
-                <!-- Interactive Level -->
-                <div>
+                <!-- Content Advisories -->
+                <button
+                    @click="$emit('navigate', 'Content')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Content',
+                            'border border-neutral-200': currentStep !== 'Content'
+                        }
+                    ]"
+                >
+                    <h3 class="text-xl font-semibold mb-4 text-black">Content Advisories</h3>
                     <div class="flex flex-wrap gap-2">
                         <span 
-                            v-if="event.interactive_level"
-                            class="px-3 py-1 bg-gray-100 rounded-full text-lg"
+                            v-for="content in event.content_advisories?.slice(0, 3)" 
+                            :key="content.id"
+                            class="px-3 py-1 bg-neutral-100 rounded-full text-lg text-neutral-600"
                         >
-                            {{ event.interactive_level.name }}
+                            {{ content.name }}
                         </span>
-                        <span v-else class="text-gray-500 text-sm">
-                            No interaction level set
+                        <span v-if="event.content_advisories?.length > 3" class="text-neutral-500 text-lg text-neutral-600">
+                            +{{ event.content_advisories.length - 3 }} more
+                        </span>
+                        <span v-if="!event.content_advisories?.length" class="text-neutral-500 text-lg text-neutral-600">
+                            No content advisories selected
                         </span>
                     </div>
-                </div>
+                </button>
 
-                <!-- Contact Levels -->
-                <div>
+                <!-- Mobility -->
+                <button
+                    @click="$emit('navigate', 'Mobility')"
+                    :class="[
+                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Mobility',
+                            'border border-neutral-200': currentStep !== 'Mobility'
+                        }
+                    ]"
+                >
+                    <h3 class="text-xl font-semibold mb-4 text-black">Mobility</h3>
                     <div class="flex flex-wrap gap-2">
                         <span 
-                            v-for="contact in event.contact_levels?.slice(0, 3)" 
-                            :key="contact.id"
-                            class="px-3 py-1 bg-gray-100 rounded-full text-lg"
+                            v-for="mobility in event.mobility_advisories?.slice(0, 3)" 
+                            :key="mobility.id"
+                            class="px-3 py-1 bg-neutral-100 rounded-full text-lg text-neutral-600"
                         >
-                            {{ contact.name }}
+                            {{ mobility.name }}
                         </span>
-                        <span v-if="event.contact_levels?.length > 3" class="text-gray-500 text-sm">
-                            +{{ event.contact_levels.length - 3 }} more
+                        <span v-if="event.mobility?.length > 3" class="text-neutral-500 text-lg text-neutral-600">
+                            +{{ event.mobility.length - 3 }} more
                         </span>
-                        <span v-if="!event.contact_levels?.length" class="text-gray-500 text-sm">
-                            No contact levels set
+                        <span v-if="!event.mobility_advisories?.length" class="text-neutral-500 text-lg text-neutral-600">
+                            No mobility options selected
                         </span>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Content Advisories -->
-        <div 
-            @click="$emit('navigate', 'Content')"
-            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
-        >
-            <h3 class="text-xl font-semibold mb-4">Content Advisories</h3>
-            <div class="flex flex-wrap gap-2">
-                <span 
-                    v-for="content in event.content_advisories?.slice(0, 3)" 
-                    :key="content.id"
-                    class="px-3 py-1 bg-gray-100 rounded-full text-lg"
-                >
-                    {{ content.name }}
-                </span>
-                <span v-if="event.content_advisories?.length > 3" class="text-gray-500 text-lg">
-                    +{{ event.content_advisories.length - 3 }} more
-                </span>
-                <span v-if="!event.content_advisories?.length" class="text-gray-500 text-lg">
-                    No content advisories selected
-                </span>
-            </div>
-        </div>
-
-        <!-- Mobility -->
-        <div 
-            @click="$emit('navigate', 'Mobility')"
-            class="p-8 border shadow-custom-1 rounded-3xl cursor-pointer hover:bg-gray-50 overflow-hidden"
-        >
-            <h3 class="text-xl font-semibold mb-4">Mobility</h3>
-            <div class="flex flex-wrap gap-2">
-                <span 
-                    v-for="mobility in event.mobility_advisories?.slice(0, 3)" 
-                    :key="mobility.id"
-                    class="px-3 py-1 bg-gray-100 rounded-full text-lg"
-                >
-                    {{ mobility.name }}
-                </span>
-                <span v-if="event.mobility?.length > 3" class="text-gray-500 text-lg">
-                    +{{ event.mobility.length - 3 }} more
-                </span>
-                <span v-if="!event.mobility_advisories?.length" class="text-gray-500 text-lg">
-                    No mobility options selected
-                </span>
+                </button>
             </div>
         </div>
     </nav>
@@ -313,15 +388,13 @@ const props = defineProps({
         type: Object,
         required: true
     },
-    isMobile: {
-        type: Boolean,
-        default: false
-    },
-    activeSection: {
+    currentStep: {
         type: String,
         default: null
     }
 });
+
+const isMobile = computed(() => window?.Laravel?.isMobile ?? false);
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 

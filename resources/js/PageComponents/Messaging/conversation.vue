@@ -1,5 +1,5 @@
 <template>
-    <div v-if="conversation.messages && conversation.event" class="bg-white z-[1002] md:z-0 md:h-[calc(100vh-8rem)] flex flex-col justify-between relative overflow-auto">
+    <div v-if="conversation.messages && conversation.conversable" class="bg-white z-[1002] md:z-0 md:h-[calc(100vh-8rem)] flex flex-col justify-between relative overflow-auto">
 
         <div class="p-8 border-b border-neutral-200 flex relative items-center gap-8 sticky top-0 bg-white z-10">
             <div v-if="showBackButton" class="relative bg-white py-6 z-10">
@@ -12,17 +12,21 @@
                     </svg>
                 </button>
             </div>
-            <picture>
-                <source :srcset="`${imageUrl}${conversation.event.thumbImagePath}`" type="image/webp">
-                <img :src="`${imageUrl}${conversation.event.thumbImagePath.slice(0, -4)}jpg`" :alt="`${conversation.event.name} Immersive Event`" class="w-20 aspect-[3/4] object-cover rounded-xl ml-8 md:ml-0">
+            <picture v-if="conversation.conversable.thumbImagePath">
+                <source :srcset="`${imageUrl}${conversation.conversable.thumbImagePath}`" type="image/webp">
+                <img 
+                    :src="`${imageUrl}${conversation.conversable.thumbImagePath.slice(0, -4)}jpg`" 
+                    :alt="`${conversation.conversable.name}`" 
+                    class="w-20 aspect-[3/4] object-cover rounded-xl ml-8 md:ml-0"
+                >
             </picture>
             <a 
-                :href="`/events/${conversation.event.slug}`" 
+                :href="getConversableLink"
                 target="_blank" 
                 rel="noopener noreferrer" 
                 class="text-2xl md:text-3xl ml-8 md:ml-0 hover:underline"
             >
-                {{ conversation.event.name }}
+                {{ conversation.subject }}
             </a>
         </div>
 
@@ -124,10 +128,31 @@ const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const textareaRef = ref(null);
 const error = ref(null);
 
+const conversableType = computed(() => {
+    const conversable = conversation.value?.conversable;
+    if (!conversable) return null;
+    
+    return conversable.constructor?.name || conversable.type || null;
+});
+
 const messageClasses = computed(() => message => ({
     'bg-neutral-700 text-white [&_p]:text-white rounded-t-2xl rounded-l-2xl': message.user_id === props.currentUserId,
     'bg-neutral-100 rounded-t-2xl rounded-r-2xl': message.user_id !== props.currentUserId
 }));
+
+const getConversableLink = computed(() => {
+    const conversable = conversation.value?.conversable;
+    if (!conversable) return '#';
+    
+    switch(conversableType.value) {
+        case 'Event':
+            return `/events/${conversable.slug}`;
+        case 'Organizer':
+            return `/organizers/${conversable.slug}`;
+        default:
+            return '#';
+    }
+});
 
 const onSubmit = async () => {
     if (!newMessage.value.trim() || disabled.value) return;
@@ -178,6 +203,7 @@ onMounted(() => {
 watchEffect(() => {
     if (props.value) {
         conversation.value = props.value;
+        console.log('Conversation updated:', conversation.value);
         nextTick(() => {
             scrollToBottom();
         });

@@ -1,7 +1,7 @@
 <template>
-    <div class="relative text-1xl font-medium w-full h-screen md:h-[calc(100vh-8rem)] flex flex-col">
+    <div class="relative text-1xl font-medium w-full h-full flex flex-col">
         <!-- Main Content Area -->
-        <div class="flex-1 flex h-full overflow-hidden">
+        <div class="flex-1 flex overflow-hidden">
             <div class="w-full flex flex-1 flex-col md:flex-row">
                 <!-- Navigation Sidebar -->
                 <div 
@@ -94,7 +94,7 @@
 
                 <!-- Main Content Column -->
                 <div 
-                    class="flex-1 flex flex-col min-w-0"
+                    class="flex-1 flex flex-col min-w-0 h-full overflow-hidden"
                     :class="currentView ? 'flex' : 'hidden md:flex'">
                     <!-- Mobile back button -->
                     <div 
@@ -123,14 +123,22 @@
                     </div>
 
                     <!-- Component Content Area -->
-                    <div class="flex-1 min-w-0 overflow-hidden z-50 md:z-0 bg-white">
-                        <div class="h-full p-8">
+                    <div class="flex-1 min-w-0 overflow-y-auto bg-white">
+                        <div class="p-8">
                             <component 
                                 :is="currentComponent"
                                 :event="selectedEvent"
+                                :organizer="selectedOrganizer"
+                                :community="selectedCommunity"
                                 @select-event="handleEventSelect"
+                                @select-organizer="handleOrganizerSelect"
+                                @select-community="handleCommunitySelect"
                                 @approved="clearSelectedEvent"
                                 @rejected="clearSelectedEvent"
+                                @organizer-approved="clearSelectedOrganizer"
+                                @organizer-rejected="clearSelectedOrganizer"
+                                @community-approved="clearSelectedCommunity"
+                                @community-rejected="clearSelectedCommunity"
                                 @update-counts="fetchCounts"
                             ></component>
                         </div>
@@ -146,7 +154,9 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import ApproveEvents from './Approval/Events.vue'
 import EventReview from './Approval/EventReview.vue'
 import ApproveOrganizers from './Approval/Organizers.vue'
+import OrganizerReview from './Approval/OrganizerReview.vue'
 import ApproveCommunities from './Approval/Communities.vue'
+import CommunityReview from './Approval/CommunityReview.vue'
 import ManageUsers from './Management/Users.vue'
 import ManageOrganizers from './Management/Organizers.vue'
 import ManageEvents from './Management/Events.vue'
@@ -161,6 +171,8 @@ import axios from 'axios'
 const isMobile = ref(false)
 const currentView = ref(null)
 const selectedEvent = ref(null)
+const selectedOrganizer = ref(null)
+const selectedCommunity = ref(null)
 const counts = ref({
     events: 0,
     organizers: 0,
@@ -174,15 +186,21 @@ const checkMobile = () => {
 
 const handleNavigation = (view) => {
     selectedEvent.value = null
+    selectedOrganizer.value = null
+    selectedCommunity.value = null
     if (view) {
         const url = new URL(window.location)
         url.searchParams.set('view', view)
         url.searchParams.delete('eventId')
+        url.searchParams.delete('organizerId')
+        url.searchParams.delete('communityId')
         window.history.pushState({}, '', url)
     } else {
         const url = new URL(window.location)
         url.searchParams.delete('view')
         url.searchParams.delete('eventId')
+        url.searchParams.delete('organizerId')
+        url.searchParams.delete('communityId')
         window.history.pushState({}, '', url)
     }
     currentView.value = view
@@ -194,10 +212,19 @@ const handlePopState = () => {
     currentView.value = view || null
     
     const eventId = urlParams.get('eventId')
+    const organizerId = urlParams.get('organizerId')
+    const communityId = urlParams.get('communityId')
+    
     if (eventId) {
         fetchEvent(eventId)
+    } else if (organizerId) {
+        fetchOrganizer(organizerId)
+    } else if (communityId) {
+        fetchCommunity(communityId)
     } else {
         selectedEvent.value = null
+        selectedOrganizer.value = null
+        selectedCommunity.value = null
     }
 }
 
@@ -208,10 +235,38 @@ const handleEventSelect = (event) => {
     window.history.pushState({}, '', url)
 }
 
+const handleOrganizerSelect = (organizer) => {
+    selectedOrganizer.value = organizer
+    const url = new URL(window.location)
+    url.searchParams.set('organizerId', organizer.id)
+    window.history.pushState({}, '', url)
+}
+
+const handleCommunitySelect = (community) => {
+    selectedCommunity.value = community
+    const url = new URL(window.location)
+    url.searchParams.set('communityId', community.id)
+    window.history.pushState({}, '', url)
+}
+
 const clearSelectedEvent = () => {
     selectedEvent.value = null
     const url = new URL(window.location)
     url.searchParams.delete('eventId')
+    window.history.pushState({}, '', url)
+}
+
+const clearSelectedOrganizer = () => {
+    selectedOrganizer.value = null
+    const url = new URL(window.location)
+    url.searchParams.delete('organizerId')
+    window.history.pushState({}, '', url)
+}
+
+const clearSelectedCommunity = () => {
+    selectedCommunity.value = null
+    const url = new URL(window.location)
+    url.searchParams.delete('communityId')
     window.history.pushState({}, '', url)
 }
 
@@ -224,6 +279,24 @@ const fetchEvent = async (eventId) => {
         };
     } catch (error) {
         console.error('Error fetching event:', error);
+    }
+};
+
+const fetchOrganizer = async (organizerId) => {
+    try {
+        const response = await axios.get(`/api/admin/organizers/${organizerId}`);
+        selectedOrganizer.value = response.data.organizer;
+    } catch (error) {
+        console.error('Error fetching organizer:', error);
+    }
+};
+
+const fetchCommunity = async (communityId) => {
+    try {
+        const response = await axios.get(`/api/admin/communities/${communityId}`);
+        selectedCommunity.value = response.data.community;
+    } catch (error) {
+        console.error('Error fetching community:', error);
     }
 };
 
@@ -248,8 +321,14 @@ onMounted(() => {
     }
     
     const eventId = urlParams.get('eventId')
+    const organizerId = urlParams.get('organizerId')
+    const communityId = urlParams.get('communityId')
     if (eventId) {
         fetchEvent(eventId)
+    } else if (organizerId) {
+        fetchOrganizer(organizerId)
+    } else if (communityId) {
+        fetchCommunity(communityId)
     }
 
     fetchCounts()
@@ -267,6 +346,12 @@ onUnmounted(() => {
 const currentComponent = computed(() => {
     if (selectedEvent.value) {
         return EventReview
+    }
+    if (selectedOrganizer.value) {
+        return OrganizerReview
+    }
+    if (selectedCommunity.value) {
+        return CommunityReview
     }
 
     const components = {

@@ -132,7 +132,7 @@
                                     @click="toggleOrgList(user)"
                                     class="px-3 py-1 border rounded-md hover:bg-n focus:outline-none"
                                 >
-                                    {{ (user.organizers?.length || 0) + (user.teams?.length || 0) }} Organizations
+                                    {{ user.teams?.length || 0 }} Organizations
                                 </button>
                                 
                                 <div 
@@ -140,12 +140,7 @@
                                     class="absolute left-0 mt-1 w-64 bg-white border rounded-md shadow-lg z-50"
                                 >
                                     <div class="p-2 max-h-48 overflow-y-auto">
-                                        <div v-if="user.organizers?.length || user.teams?.length">
-                                            <template v-for="org in user.organizers" :key="`org-${org.id}`">
-                                                <div class="py-1 text-sm">
-                                                    {{ org.name }} <span class="text-gray-500">(Owner)</span>
-                                                </div>
-                                            </template>
+                                        <div v-if="user.teams?.length">
                                             <template v-for="team in user.teams" :key="`team-${team.id}`">
                                                 <div class="py-1 text-sm">
                                                     {{ team.name }} <span class="text-gray-500">({{ team.membership.role }})</span>

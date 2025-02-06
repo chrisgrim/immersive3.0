@@ -259,11 +259,7 @@ const setStep = (step) => {
 };
 
 onMounted(() => {
-    // First, ensure event.hasLocation is properly set
-    if (event.location?.latitude && event.location?.longitude) {
-        event.hasLocation = true;
-    }
-
+    // Remove the automatic hasLocation override
     // Check for view parameter in URL
     const urlParams = new URLSearchParams(window.location.search);
     const viewStep = urlParams.get('view');

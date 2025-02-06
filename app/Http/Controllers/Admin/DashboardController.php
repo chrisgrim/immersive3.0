@@ -37,7 +37,7 @@ class DashboardController extends Controller
         return response()->json([
             'events' => Event::where('status', 'r')->count(),
             'organizers' => Organizer::where('status', 'r')->count(),
-            'communities' => Community::where('status', 'pending')->count(),
+            'communities' => Community::where('status', 'r')->count(),
             'requests' => NameChangeRequest::where('status', 'pending')->count()
         ]);
     }

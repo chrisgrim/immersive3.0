@@ -25,6 +25,7 @@ const Inbox = defineAsyncComponent(() => import('./PageComponents/Messaging/inbo
 
 const Organizer = defineAsyncComponent(() => import('./PageComponents/Organizer/show.vue'));
 const OrganizerEdit = defineAsyncComponent(() => import('./PageComponents/Organizer/edit.vue'));
+const OrganizerIndex = defineAsyncComponent(() => import('./PageComponents/Organizer/index.vue'));
 
 const Hosting = defineAsyncComponent(() => import('./PageComponents/Creation/index.vue'));
 const GettingStarted = defineAsyncComponent(() => import('./PageComponents/Creation/initial.vue'));
@@ -82,6 +83,7 @@ app.component('vue-inbox', Inbox);
 
 app.component('vue-organizer', Organizer);
 app.component('vue-organizer-edit', OrganizerEdit);
+app.component('vue-organizer-index', OrganizerIndex);
 
 app.component('vue-hosting', Hosting);
 app.component('vue-getting-started', GettingStarted);

@@ -480,4 +480,84 @@ class Event extends Model
         return $this->morphMany(NameChangeRequest::class, 'requestable');
     }
 
+    /**
+     * Create a duplicate of the event
+     *
+     * @return \App\Models\Event
+     */
+    public function duplicate()
+    {
+        // Create new event with duplicated attributes
+        $newEvent = $this->replicate(['location_latlon']);
+        $newEvent->slug = Str::slug('new-event-' . Str::random(6));
+        $newEvent->status = '0'; // Set as draft
+        $newEvent->name = $this->name . ' (Copy)';
+        $newEvent->published_at = null;
+        $newEvent->hasLocation = $this->hasLocation; // Copy the hasLocation flag
+        $newEvent->save();
+
+        // Always duplicate location since it's always created
+        if ($this->location) {
+            $newLocation = $this->location->replicate();
+            $newLocation->event_id = $newEvent->id;
+            $newLocation->save();
+        }
+
+        // Duplicate advisories
+        if ($this->advisories) {
+            $newAdvisories = $this->advisories->replicate();
+            $newAdvisories->event_id = $newEvent->id;
+            $newAdvisories->save();
+        }
+
+        // Sync relationships
+        $newEvent->genres()->sync($this->genres->pluck('id'));
+        $newEvent->contentadvisories()->sync($this->contentadvisories->pluck('id'));
+        $newEvent->mobilityadvisories()->sync($this->mobilityadvisories->pluck('id'));
+        $newEvent->contactlevels()->sync($this->contactlevels->pluck('id'));
+        $newEvent->remotelocations()->sync($this->remotelocations->pluck('id'));
+
+        // Duplicate price ranges
+        foreach ($this->priceranges as $priceRange) {
+            $newPriceRange = $priceRange->replicate();
+            $newPriceRange->event_id = $newEvent->id;
+            $newPriceRange->save();
+        }
+
+        // Duplicate shows and their tickets
+        foreach ($this->shows as $show) {
+            $newShow = $show->replicate();
+            $newShow->event_id = $newEvent->id;
+            $newShow->save();
+
+            // Duplicate tickets for this show
+            foreach ($show->tickets as $ticket) {
+                $newTicket = $ticket->replicate();
+                $newTicket->ticket_type = get_class($newShow);
+                $newTicket->ticket_id = $newShow->id;
+                $newTicket->save();
+            }
+        }
+
+        // Duplicate images
+        foreach ($this->images as $image) {
+            $newImage = $image->replicate();
+            $newImage->imageable_id = $newEvent->id;
+            $newImage->save();
+        }
+
+        return $newEvent->fresh([
+            'location',
+            'advisories',
+            'genres',
+            'contentadvisories',
+            'mobilityadvisories',
+            'contactlevels',
+            'remotelocations',
+            'priceranges',
+            'shows.tickets',
+            'images'
+        ]);
+    }
+
 }

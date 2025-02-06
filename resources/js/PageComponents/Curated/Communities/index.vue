@@ -71,7 +71,15 @@
                     <div class="hidden md:block">
                         <div class="flex flex-col">
                             <p class="text-lg text-gray-500">
-                                {{ isPublic(community) ? 'Published' : 'Under Review' }}
+                                {{ community.status === 'n' ? 'Changes Requested' : isPublic(community) ? 'Published' : 'Under Review' }}
+                            </p>
+                            <p v-if="!isPublic(community) && community.name_change_requests?.length" 
+                               class="text-sm text-gray-400 italic mt-1">
+                                Name change requested
+                            </p>
+                            <p v-else-if="!isPublic(community) && community.status === 'p'" 
+                               class="text-sm text-gray-400 italic mt-1">
+                                Pending initial review
                             </p>
                         </div>
                     </div>

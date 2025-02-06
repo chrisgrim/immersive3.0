@@ -84,8 +84,7 @@
                             Inbox
                             <div v-if="user.unread" class="ml-2 rounded-full bg-red-300 w-4 h-4 top-0 right-0"></div>
                         </a>
-                        <a 
-                            v-if="user.isCommunityMember"
+                        <a
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
                             href="/communities">
                             Communities
@@ -101,16 +100,16 @@
                             Account
                         </a>
                         <a 
-                            v-if="user.teams && Object.keys(user.teams).length > 1"
+                            v-if="!user.hasCreatedOrganizers"
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
-                            href="/teams">
-                            Switch Organizations
+                            href="/hosting/getting-started">
+                            List Your Event
                         </a>
                         <a 
-                            v-else-if="user.teams && Object.keys(user.teams).length === 1"
+                            v-else
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
-                            href="/hosting/events">
-                            {{ Object.values(user.teams)[0] }}
+                            href="/teams">
+                            Organizations
                         </a>
                         <a 
                             v-if="user.isCurator"

@@ -4,12 +4,12 @@ namespace App\Models\Messaging;
 
 use App\Models\User;
 use App\Models\Event;
-
+use App\Models\Organizer;
 use Illuminate\Database\Eloquent\Model;
 
 class Message extends Model
 {
-    protected $fillable = ['message', 'user_id', 'conversation_id','is_seen', 'deleted_from_sender','deleted_from_receiver'];
+    protected $fillable = ['message', 'user_id', 'conversation_id', 'is_seen', 'deleted_from_sender', 'deleted_from_receiver'];
 
     /**
     * The relations to eager load on every query. I am adding shows here because I need to filter by dates for the search
@@ -22,6 +22,10 @@ class Message extends Model
         'APPROVED' => 'Your event has been approved!',
         'APPROVED_EMBARGOED' => 'Your event has been approved and will be displayed on your chosen date.',
         'REJECTED' => 'We have reviewed your event submission and have some feedback that needs to be addressed. Please see the details below:',
+        'ORGANIZER_REJECTED' => 'We have reviewed your organizer profile and have some feedback that needs to be addressed. Please see the details below:',
+        'ORGANIZER_APPROVED' => 'Your organization profile has been approved!',
+        'COMMUNITY_REJECTED' => 'We have reviewed your community and have some feedback that needs to be addressed. Please see the details below:',
+        'COMMUNITY_APPROVED' => 'Your community has been approved!',
     ];
 
     public function sender()
@@ -44,32 +48,36 @@ class Message extends Model
         return $this->belongsTo(Conversation::class);
     }
 
+    public function organizer()
+    {
+        return $this->belongsTo(Organizer::class);
+    }
+
     /**
-     * Create a notification message for an event
+     * Create a notification message for any model type
      *
-     * @param Event $event
+     * @param Model $model The model instance (Event, Organizer, etc.)
      * @param string $message
      * @param string $slug
      * @return Message
      */
-    public static function eventnotification(Event $event, string $message, string $slug): Message
+    public static function notification(Model $model, string $message, string $slug): Message
     {
         $adminId = auth()->id();
 
-        // Find existing conversation or create new one
         $conversation = Conversation::firstOrCreate(
             [
-                'event_id' => $event->id,
+                'conversable_type' => get_class($model),
+                'conversable_id' => $model->id,
                 'user_one' => $adminId,
-                'user_two' => $event->user_id
+                'user_two' => $model->user_id
             ],
             [
-                'event_name' => $event->name
+                'subject' => $model->name
             ]
         );
 
-        // Create the notification message
-        $message = self::create([
+        return self::create([
             'conversation_id' => $conversation->id,
             'user_id' => $adminId,
             'message' => $message,
@@ -77,7 +85,5 @@ class Message extends Model
             'deleted_from_sender' => false,
             'deleted_from_receiver' => false
         ]);
-
-        return $message;
     }
 }

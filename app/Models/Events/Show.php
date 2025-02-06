@@ -48,67 +48,68 @@ class Show extends Model
 
     
     public static function saveShows($request, $event)
-{
-    // Check if tickets exist for this show and save them as $old_tickets
-    $firstShow = $event->shows()->first();
-    $old_tickets = $firstShow && $firstShow->tickets()->exists() ? $firstShow->tickets()->get() : null;
+    {
+        // Check if tickets exist for this show and save them as $old_tickets
+        $firstShow = $event->shows()->first();
+        $old_tickets = $firstShow && $firstShow->tickets()->exists() ? $firstShow->tickets()->get() : null;
 
-    // Always delete all existing shows when changing showtype
-    if ($request->showtype !== $event->showtype) {
-        $event->shows()->each(function ($show) {
-            $show->tickets()->delete();
-            $show->delete();
-        });
-    } else {
-        // Only delete shows not in the new date array if staying on same showtype
-        $showsToDelete = $event->shows();
+        // Always delete all existing shows when changing showtype
+        if ($request->showtype !== $event->showtype) {
+            $event->shows()->each(function ($show) {
+                $show->tickets()->delete();
+                $show->delete();
+            });
+        } else {
+            // Only delete shows not in the new date array if staying on same showtype
+            $showsToDelete = $event->shows();
+            if ($request->showtype === 's') {
+                $showsToDelete = $showsToDelete->whereNotIn('date', $request->dateArray);
+            }
+            $showsToDelete->get()->each(function ($show) {
+                $show->tickets()->delete();
+                $show->delete();
+            });
+        }
+
+        // Handle show creation based on showtype
         if ($request->showtype === 's') {
-            $showsToDelete = $showsToDelete->whereNotIn('date', $request->dateArray);
+            foreach ($request->dateArray as $date) {
+                self::createOrUpdateShow($date, $event->id, $old_tickets);
+            }
+        } elseif (in_array($request->showtype, ['a', 'o', 'l'])) {
+            // For 'always available', 'on request', and 'limited availability' shows
+            $sixMonthsFromNow = Carbon::now()->addMonths(6)->format('Y-m-d H:i:s');
+            self::createOrUpdateShow($sixMonthsFromNow, $event->id, $old_tickets);
         }
-        $showsToDelete->get()->each(function ($show) {
-            $show->tickets()->delete();
-            $show->delete();
-        });
+
+        // Update the event's showtype to the new value
+        $event->update(['showtype' => $request->showtype]);
     }
 
-    // Handle show creation based on showtype
-    if ($request->showtype === 's') {
-        foreach ($request->dateArray as $date) {
-            self::createOrUpdateShow($date, $event->id, $old_tickets);
-        }
-    } elseif ($request->showtype === 'a') {
-        $sixMonthsFromNow = Carbon::now()->addMonths(6)->format('Y-m-d H:i:s');
-        self::createOrUpdateShow($sixMonthsFromNow, $event->id, $old_tickets);
-    }
+    private static function createOrUpdateShow($date, $eventId, $oldTickets)
+    {
+        // Format the date to match the datetime column in Laravel
+        $formattedDate = \Carbon\Carbon::parse($date)->format('Y-m-d H:i:s');
 
-    // Update the event's showtype to the new value
-    $event->update(['showtype' => $request->showtype]);
-}
+        $show = self::updateOrCreate([
+            'date' => $formattedDate,
+            'event_id' => $eventId
+        ]);
 
-private static function createOrUpdateShow($date, $eventId, $oldTickets)
-{
-    // Format the date to match the datetime column in Laravel
-    $formattedDate = \Carbon\Carbon::parse($date)->format('Y-m-d H:i:s');
-
-    $show = self::updateOrCreate([
-        'date' => $formattedDate,
-        'event_id' => $eventId
-    ]);
-
-    // If tickets were already entered, add them to the new dates
-    if ($oldTickets) {
-        foreach ($oldTickets as $ticket) {
-            $show->tickets()->updateOrCreate([
-                'name' => $ticket['name'],
-            ], [
-                'description' => $ticket['description'],
-                'currency' => $ticket['currency'],
-                'ticket_price' => $ticket['ticket_price'],
-                'type' => $ticket['type']
-            ]);
+        // If tickets were already entered, add them to the new dates
+        if ($oldTickets) {
+            foreach ($oldTickets as $ticket) {
+                $show->tickets()->updateOrCreate([
+                    'name' => $ticket['name'],
+                ], [
+                    'description' => $ticket['description'],
+                    'currency' => $ticket['currency'],
+                    'ticket_price' => $ticket['ticket_price'],
+                    'type' => $ticket['type']
+                ]);
+            }
         }
     }
-}
 
 
     /**
@@ -149,13 +150,16 @@ private static function createOrUpdateShow($date, $eventId, $oldTickets)
 
     private static function calculateLastDate(Event $event, string $type): string
     {
-        if ($type === 'a') {
+        if ($type === 'a' || $type === 'o' || $type === 'l') {
+            // For 'always available', 'on request', and 'limited availability' shows
             return Carbon::now()->addMonths(6)->format('Y-m-d H:i:s');
         }
         
-        return $event->shows()
+        // For single shows, get the last date from shows
+        $lastShow = $event->shows()
             ->orderBy('date', 'DESC')
-            ->first()
-            ->date;
+            ->first();
+        
+        return $lastShow ? $lastShow->date : Carbon::now()->format('Y-m-d H:i:s');
     }
 }

@@ -23,7 +23,7 @@ class StoreProfileRequest extends FormRequest
             'newsletter_type' => 'sometimes|string|in:a,m,u,n',
             'silence' => 'sometimes|string|in:y,n',
             'image' => [
-                'sometimes',
+                'nullable',
                 'file',
                 'mimes:jpeg,png,webp',
                 'max:5120', // 5MB max

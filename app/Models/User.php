@@ -69,7 +69,7 @@ class User extends Authenticatable implements MustVerifyEmail
      *
      * @var array
      */
-    protected $with = ['organizer', 'teams'];
+    protected $with = ['organizer'];
 
     /**
      * Get the indexable data array for the model.
@@ -103,7 +103,6 @@ class User extends Authenticatable implements MustVerifyEmail
                 'id' => $this->organizer->id,
                 'name' => $this->organizer->name,
             ] : null,
-            'teams' => $this->teams->pluck('name', 'id'),
         ];
     }
 
@@ -134,25 +133,17 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Get all of the teams the user belongs to.
+     * Get all of the teams (organizations) the user belongs to or owns.
      *
      * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
      */
     public function teams()
     {
         return $this->belongsToMany(Organizer::class)
-                        ->orderBy('created_at', 'DESC')
-                        ->withPivot('role')
-                        ->withTimestamps()
-                        ->as('membership');
-    }
-
-    public function allTeams()
-    {
-        $ownedTeams = $this->organizers;
-        $memberTeams = $this->teams;
-
-        return $ownedTeams->concat($memberTeams)->sortByDesc('created_at')->values();
+            ->orderBy('created_at', 'DESC')
+            ->withPivot('role')
+            ->withTimestamps()
+            ->as('membership');
     }
 
     /**

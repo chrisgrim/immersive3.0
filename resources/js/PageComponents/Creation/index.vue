@@ -253,22 +253,28 @@
 				<h2 class="text-3xl md:text-4xl font-bold mb-8 md:mb-12 text-center break-words hyphens-auto">{{ selectedEvent.name }}</h2>
 
 				<!-- Action Buttons -->
-				<div class="flex flex-col md:flex-row gap-4 md:gap-6 mb-12 md:mb-0">
+				<div class="flex flex-col md:flex-row gap-2 md:gap-6 mb-12 md:mb-0">
 					<button 
 						v-if="isEventPublished(selectedEvent)"
 						@click="viewEvent(selectedEvent)"
-						class="w-full px-8 py-4 bg-black text-white rounded-xl hover:bg-gray-800">
+						class="w-full text-lg px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800">
 						View Event
 					</button>
 					<button 
 						v-if="selectedEvent.status !== 'r'"
 						@click="editEvent(selectedEvent)"
-						class="w-full px-8 py-4 border border-black rounded-xl hover:bg-gray-100">
+						class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100">
 						Edit Event
 					</button>
 					<button 
+						v-if="canModerate && selectedEvent.status !== 'r'"
+						@click="duplicateEvent(selectedEvent)"
+						class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100">
+						Duplicate Event
+					</button>
+					<button 
 						@click="confirmRemoveEvent(selectedEvent)"
-						class="w-full px-8 py-4 border border-red-500 text-red-500 rounded-xl hover:bg-red-50">
+						class="w-full text-lg px-6 py-3 border border-red-500 text-red-500 rounded-xl hover:bg-red-50">
 						Delete Event
 					</button>
 				</div>
@@ -626,6 +632,29 @@ const cancelNameChange = () => {
 const selectFilter = (id) => {
 	currentFilter.value = id;
 	isOpen.value = false;
+};
+
+const canModerate = computed(() => {
+	return props.organizer?.user_role === 'admin' || props.organizer?.user_role === 'moderator';
+});
+
+const duplicateEvent = async (event) => {
+	if (event.status === 'r') {
+		alert('This event is under moderator review and cannot be duplicated.');
+		return;
+	}
+	
+	try {
+		const response = await axios.post(`/api/admin/events/${event.slug}/duplicate`);
+		window.location.href = `/hosting/event/${response.data.event.slug}/edit`;
+	} catch (error) {
+		if (error.response?.status === 422) {
+			alert(error.response.data.message);
+		} else {
+			console.error('Error duplicating event:', error);
+			alert('Failed to duplicate event. Please try again.');
+		}
+	}
 };
 </script>
 

@@ -27,16 +27,16 @@
             </svg>
         </a>
 
-        @if(auth()->user()->teams && count(auth()->user()->teams) > 1)
-            <a href="/teams" class="flex items-center justify-between text-2xl py-4">
-                Switch Organizations
+        @if(!auth()->user()->hasCreatedOrganizers)
+            <a href="/hosting/getting-started" class="flex items-center justify-between text-2xl py-4">
+                List Your Event
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 18l6-6-6-6"/>
                 </svg>
             </a>
-        @elseif(auth()->user()->teams && count(auth()->user()->teams) === 1)
-            <a href="/hosting/events" class="flex items-center justify-between text-2xl py-4">
-                {{ auth()->user()->teams[0]->name }}
+        @else
+            <a href="/teams" class="flex items-center justify-between text-2xl py-4">
+                Organizations
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 18l6-6-6-6"/>
                 </svg>

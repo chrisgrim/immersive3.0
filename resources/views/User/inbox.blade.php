@@ -17,7 +17,7 @@
 
 <div>
     <vue-inbox 
-        :events="{{ json_encode($conversations) }}"
+        :conversations="{{ json_encode($conversations) }}"
         :user="user"
     ></vue-inbox>
 </div>

@@ -23,7 +23,7 @@ class ConversationsController extends Controller
                   ->orWhere('user_two', auth()->id());
         })
         ->with([
-            'event', 
+            'conversable', 
             'messages' => function($query) {
                 $query->latest()
                       ->limit(20);
@@ -51,7 +51,7 @@ class ConversationsController extends Controller
         auth()->user()->update(['unread' => null]);
 
         return $conversation->load([
-            'event',
+            'conversable',
             'messages' => function($query) {
                 $query->orderBy('created_at', 'asc')
                       ->with('user')
@@ -98,7 +98,7 @@ class ConversationsController extends Controller
         $conversation->touch();
         
         return $conversation->fresh()->load([
-            'event',
+            'conversable',
             'messages' => function($query) {
                 $query->orderBy('created_at', 'asc');
             },
@@ -112,10 +112,12 @@ class ConversationsController extends Controller
         $query = Conversation::where(function($query) {
             $query->where('user_one', auth()->id())
                   ->orWhere('user_two', auth()->id());
-        })->with('event');
+        })
+        ->where('conversable_type', 'App\\Models\\Event')
+        ->with('conversable');
 
         if ($request->search) {
-            $query->where('event_name', 'LIKE', "%$request->search%");
+            $query->where('subject', 'LIKE', "%$request->search%");
         }
 
         return $query->orderBy('updated_at', 'desc')
@@ -141,9 +143,9 @@ class ConversationsController extends Controller
             $attributes = [
                 'email' => $receiver->email,
                 'receiver' => $receiver->name,
-                'body' => "You have a new message about the event {$conversation->event_name}",
+                'body' => "You have a new message about " . $conversation->subject,
                 'sender' => auth()->user()->name,
-                'event' => $conversation->event_name,
+                'subject' => $conversation->subject,
                 'app_url' => config('app.url'),
                 'id' => $conversation->id
             ];

@@ -2,28 +2,27 @@
 
 namespace App\Mail;
 
-use App\Models\Event;
-use App\Models\Messaging\Message;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Database\Eloquent\Model;
 
-class EventComments extends Mailable
+class Comments extends Mailable
 {
     use Queueable, SerializesModels;
 
     public $attributes;
 
-    public function __construct(Event $event, string $message)
+    public function __construct(Model $model, string $message)
     {
         $this->attributes = [
             'sender' => auth()->user()->name,
-            'event' => $event->name,
+            'subject' => $model->name,
             'body' => $message,
             'app_url' => config('app.url'),
-            'id' => $event->id
+            'id' => $model->id
         ];
     }
 
@@ -31,7 +30,7 @@ class EventComments extends Mailable
     {
         return new Envelope(
             from: 'admin@everythingimmersive.com',
-            subject: 'Update About Your Event'
+            subject: 'Update About Your Content'
         );
     }
 

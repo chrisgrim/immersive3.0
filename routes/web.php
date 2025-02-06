@@ -10,6 +10,7 @@ use App\Http\Controllers\Search\ListingsController;
 use App\Http\Controllers\Creation\HostController;
 use App\Http\Controllers\Creation\HostEventController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Curated\CommunityController;
 
 
 Route::GET('/', [IndexController::class, 'index']);
@@ -44,6 +45,7 @@ Route::post('/organizers', [OrganizerController::class, 'store'])->name('organiz
 Route::post('/organizers/{organizer}', [OrganizerController::class, 'update'])->name('organizers.update');
 Route::post('/organizers/{organizer}/image', [OrganizerController::class, 'updateImage'])->name('organizers.updateImage');
 Route::post('/organizers/{organizer}/name-change', [OrganizerController::class, 'requestNameChange'])->name('organizers.name-change');
+Route::post('/organizers/{organizer}/submit', [OrganizerController::class, 'submit'])->name('organizers.submit');
 
 Route::GET('/users/{user}', [ProfilesController::class, 'show']);
 Route::GET('/account-settings', [ProfilesController::class, 'account']);
@@ -58,6 +60,10 @@ Route::POST('/inbox/fetch/events', [ConversationsController::class, 'events']);
 
 // Admin Routes
 Route::GET('/admin/dashboard', [DashboardController::class, 'index'])->name('admin.index');
+
+Route::post('/communities/{community}/submit', [CommunityController::class, 'submit'])
+    ->name('communities.submit')
+    ->middleware(['auth', 'verified']);
 
 require __DIR__.'/auth.php';
 require __DIR__.'/curated.php';

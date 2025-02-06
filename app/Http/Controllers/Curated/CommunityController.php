@@ -14,6 +14,9 @@ use Illuminate\Validation\ValidationException;
 use App\Http\Requests\StoreCommunityRequest;
 use App\Actions\Curated\CommunityActions;
 use App\Http\Controllers\Controller;
+use App\Services\NameChangeRequestService;
+use App\Services\ImageHandler;
+use Illuminate\Support\Facades\Log;
 
 class CommunityController extends Controller
 {
@@ -111,7 +114,10 @@ class CommunityController extends Controller
             'community' => $community->load([
                 'owner',
                 'curators',
-                'images'
+                'images',
+                'nameChangeRequests' => function($query) {
+                    $query->where('status', 'pending')->latest();
+                }
             ])
         ]);
     }
@@ -157,7 +163,7 @@ class CommunityController extends Controller
     public function update(StoreCommunityRequest $request, Community $community, CommunityActions $communityActions)
     {
         try {
-            // Handle ownership transfer and curator updates together
+            // Handle curator updates
             if ($request->has('curator_ids')) {
                 // Handle ownership transfer first if requested
                 if ($request->has('new_owner_id')) {
@@ -202,8 +208,56 @@ class CommunityController extends Controller
             }
 
             // Handle regular updates
-            return $communityActions->update($request, $community);
+            $data = $request->validated();
+            
+            // Only remove name from update if status is 'p' and name is different
+            if ($community->status === 'p' && isset($data['name']) && $data['name'] !== $community->name) {
+                // Create a name change request instead of direct update
+                $nameChangeService = new NameChangeRequestService();
+                $result = $nameChangeService->handleNameChange(
+                    $community,
+                    $data['name'],
+                    'User requested name change'
+                );
+                unset($data['name']);
+            }
+            
+            // Handle image updates
+            if ($request->hasFile('image')) {
+                // Delete existing images if there are any
+                if ($community->images()->exists()) {
+                    foreach ($community->images as $image) {
+                        ImageHandler::deleteImage($image);
+                    }
+                }
+                ImageHandler::saveImage($request->file('image'), $community, 800, 800, 'community-images');
+            } elseif ($request->has('remove_image')) {
+                if ($community->images()->exists()) {
+                    foreach ($community->images as $image) {
+                        ImageHandler::deleteImage($image);
+                    }
+                }
+            }
+            
+            // Remove image-related keys from data array
+            unset($data['image']);
+            unset($data['remove_image']);
+            
+            // Update other fields if any
+            if (!empty($data)) {
+                $community->update($data);
+            }
+            
+            // Refresh community with relationships
+            $community = $community->fresh()->load('curators', 'owner', 'images', 'nameChangeRequests');
+            
+            return response()->json([
+                'message' => 'Community updated successfully',
+                'community' => $community
+            ]);
+            
         } catch (\Exception $e) {
+            Log::error('Failed to update community: ' . $e->getMessage());
             throw $e;
         }
     }
@@ -363,6 +417,57 @@ class CommunityController extends Controller
         $community->curators()->detach(auth()->id());
         
         return $community->fresh()->load('curators', 'owner');
+    }
+
+    /**
+     * Resubmit the community for review
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Curated\Community  $community
+     * @return \Illuminate\Http\Response
+     */
+    public function submit(Request $request, Community $community)
+    {
+        $this->authorize('update', $community);
+
+        // Update the status to 'r' (review)
+        $community->update(['status' => 'r']);
+
+        return $community->fresh();
+    }
+
+    public function requestNameChange(Request $request, Community $community)
+    {
+        try {
+            $request->validate([
+                'requested_name' => 'required|string|max:255',
+                'current_name' => 'required|string'
+            ]);
+
+            $nameChangeService = new NameChangeRequestService();
+            $result = $nameChangeService->handleNameChange(
+                $community,
+                $request->requested_name,
+                'User requested name change'
+            );
+
+            // Refresh community with relationships
+            $community = Community::with(['curators', 'owner', 'images', 'nameChangeRequests' => function($query) {
+                $query->where('status', 'pending');
+            }])->find($community->id);
+
+            return response()->json([
+                'message' => $result['message'] ?? 'Name change request submitted successfully',
+                'community' => $community
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to submit name change request: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to submit name change request.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
 }

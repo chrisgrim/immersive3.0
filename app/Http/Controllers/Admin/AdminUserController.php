@@ -11,9 +11,7 @@ class AdminUserController extends Controller
 {
     public function index(Request $request)
     {
-        $query = User::query()
-            ->with(['organizers', 'teams'])
-            ->withCount(['organizers', 'teams']);
+        $query = User::query()->with(['teams']);
 
         if ($search = $request->input('search')) {
             $query->where(function($q) use ($search) {

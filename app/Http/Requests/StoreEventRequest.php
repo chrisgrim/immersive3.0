@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 class StoreEventRequest extends FormRequest
 {
@@ -60,10 +62,16 @@ class StoreEventRequest extends FormRequest
             'tickets.*.currency' => 'sometimes|required|string|max:3',
             // Add validation for images
             'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
+            'images.*' => [
+                'image',
+                'mimes:jpeg,png,jpg,webp',
+                'max:5120',
+                'dimensions:min_width=400,min_height=400,max_width=10000,max_height=10000'
+            ],
             'ranks' => 'nullable|array',
             'ranks.*' => 'integer|min:0|max:4',
             'currentImages' => 'nullable|json',
+            'deletedImages' => 'nullable|json',
             // Add validation for contentAdvisories
             'contentAdvisories' => 'nullable|array',
             'contentAdvisories.*.name' => 'sometimes|string|max:100',
@@ -101,5 +109,34 @@ class StoreEventRequest extends FormRequest
         return [
             'location.postal_code' => 'postal code',
         ];
+    }
+
+    public function messages()
+    {
+        return [
+            'images.*.dimensions' => 'Images must be at least 400x400 pixels and no larger than 10000x10000 pixels.',
+        ];
+    }
+
+    protected function failedValidation(Validator $validator)
+    {
+        // Log the image details if it exists
+        if ($this->hasFile('images')) {
+            foreach ($this->file('images') as $index => $image) {
+                $size = getimagesize($image->getPathname());
+                \Log::info("Image validation failed for index {$index}", [
+                    'width' => $size[0] ?? 'unknown',
+                    'height' => $size[1] ?? 'unknown',
+                    'mime' => $image->getMimeType(),
+                    'size' => $image->getSize(),
+                    'original_name' => $image->getClientOriginalName()
+                ]);
+            }
+        }
+
+        throw new HttpResponseException(response()->json([
+            'message' => 'The given data was invalid.',
+            'errors' => $validator->errors(),
+        ], 422));
     }
 }

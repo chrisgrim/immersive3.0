@@ -29,29 +29,35 @@
                 <input 
                     v-else
                     ref="searchInput"
-                    @input="searchEvents"
+                    @input="searchConversations"
                     @blur="handleBlur"
-                    v-model="eventSearch"
+                    v-model="searchQuery"
                     class="px-8 py-4 w-full rounded-lg" 
-                    placeholder="Filter by event name" 
+                    placeholder="Search conversations" 
                     type="text"
                 >
             </div>
             <div 
-                v-if="eventList"
-                v-for="eventConvo in eventList" :key="eventConvo.id"
-                @click="fetchConversation(eventConvo.id)"
+                v-if="conversationList"
+                v-for="convo in conversationList" 
+                :key="convo.id"
+                @click="fetchConversation(convo.id)"
                 class="flex items-center cursor-pointer px-8 md:px-4 md:p-4 hover:bg-neutral-100 relative rounded-2xl mb-10 md:mb-4"
-                :class="{ 'bg-neutral-100': conversation && eventConvo.id === conversation.id }">
+                :class="{ 'bg-neutral-100': conversation && convo.id === conversation.id }"
+            >
                 <div class="mr-auto text-xl flex items-center">
-                    <picture v-if="eventConvo.event">
-                        <source :srcset="`${imageUrl}${eventConvo.event.thumbImagePath}`" type="image/webp">
-                        <img :src="`${imageUrl}${eventConvo.event.thumbImagePath.slice(0, -4)}jpg`" :alt="`${eventConvo.event.name} Immersive Event`" class="min-h-20 min-w-20 w-20 object-cover rounded-2xl">
+                    <picture v-if="convo.conversable?.thumbImagePath">
+                        <source :srcset="`${imageUrl}${convo.conversable.thumbImagePath}`" type="image/webp">
+                        <img 
+                            :src="`${imageUrl}${convo.conversable.thumbImagePath.slice(0, -4)}jpg`" 
+                            :alt="`${convo.subject}`" 
+                            class="min-h-20 min-w-20 w-20 object-cover rounded-2xl"
+                        >
                     </picture>
                     <div class="ml-4">
-                        <p class="text-xl leading-tight">{{ eventConvo.event_name }}</p>
+                        <p class="text-xl leading-tight">{{ convo.subject }}</p>
                         <p class="text-sm text-neutral-500">
-                            Messages: {{ eventConvo.messages?.length || 0 }}
+                            Messages: {{ convo.messages?.length || 0 }}
                         </p>
                     </div>
                 </div>
@@ -86,7 +92,7 @@ import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import Conversation from './conversation.vue';
 
 const props = defineProps({
-    events: {
+    conversations: {
         type: Array,
         required: true
     },
@@ -97,10 +103,10 @@ const props = defineProps({
 });
 
 const hasError = ref(false);
-const eventList = ref(props.events || []);
+const conversationList = ref(props.conversations || []);
 const conversation = ref(null);
-const eventSearch = ref('');
-const url = new URL(window.location.href).searchParams.get("event");
+const searchQuery = ref('');
+const url = new URL(window.location.href).searchParams.get("conversation");
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 let timeout = null;
 const isSearching = ref(false);
@@ -108,25 +114,24 @@ const searchInput = ref(null);
 const isDesktop = ref(window.innerWidth >= 768);
 const isMobileAndConversationSelected = computed(() => !isDesktop.value && conversation.value);
 
-const searchEvents = () => {
+const searchConversations = () => {
     clearTimeout(timeout);
-    timeout = setTimeout(fetchEvents, 300);
+    timeout = setTimeout(fetchConversations, 300);
 };
 
-const fetchEvents = async () => {
-    const response = await axios.post(`/inbox/fetch/events`, { search: eventSearch.value });
-    eventList.value = response.data;
+const fetchConversations = async () => {
+    const response = await axios.post(`/inbox/fetch/conversations`, { search: searchQuery.value });
+    conversationList.value = response.data;
 };
 
 const fetchConversation = async (convoId) => {
     hasError.value = false;
     try {
         const response = await axios.get(`/inbox/fetch/conversation/${convoId}`);
-        console.log('Response:', response.data);
         if (response.data) {
             conversation.value = response.data;
             if (isDesktop.value) {
-                history.pushState(null, null, `/inbox?event=${convoId}`);
+                history.pushState(null, null, `/inbox?conversation=${convoId}`);
             }
         }
     } catch (error) {
@@ -147,7 +152,7 @@ const toggleSearch = () => {
 };
 
 const handleBlur = () => {
-    if (!eventSearch.value) {
+    if (!searchQuery.value) {
         isSearching.value = false;
     }
 };
@@ -164,12 +169,10 @@ const handleResize = () => {
 };
 
 onMounted(async () => {
-    console.log('Initial events:', props.events);
     if (url) {
         await fetchConversation(url);
-    } else if (isDesktop.value && props.events?.length > 0) {
-        console.log('Loading first conversation:', props.events[0]);
-        await fetchConversation(props.events[0].id);
+    } else if (isDesktop.value && props.conversations?.length > 0) {
+        await fetchConversation(props.conversations[0].id);
     }
     window.addEventListener('resize', handleResize);
 });

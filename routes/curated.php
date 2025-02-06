@@ -36,6 +36,10 @@ Route::controller(CommunityController::class)->group(function () {
         ->middleware('can:manageCurators,community');
     Route::get('/curator-invitations/{token}', 'acceptInvitation')->name('curator.accept-invitation');
     Route::get('/create/communities/thanks', 'submitted');
+    
+    // Name Change Request
+    Route::post('/communities/{community}/name-change', 'requestNameChange')
+        ->middleware('can:update,community');
 });
 
 // Shelves

@@ -8,8 +8,7 @@ use Illuminate\Http\Request;
 use Carbon\Carbon;
 use App\Scopes\PublishedScope;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\EventApproved;
-use App\Mail\EventComments;
+use App\Mail\Comments;
 use App\Models\Messaging\Message;
 use App\Services\ImageHandler;
 use Illuminate\Support\Facades\Cache;
@@ -159,8 +158,8 @@ class AdminEventController extends Controller
                 ? Message::MESSAGES['APPROVED_EMBARGOED']
                 : Message::MESSAGES['APPROVED'];
             
-            Message::eventnotification($event, $message, $event->slug);
-            Mail::to($event->user)->send(new EventComments($event, $message));
+            Message::notification($event, $message, $event->slug);
+            Mail::to($event->user)->send(new Comments($event, $message));
         }
 
         return response()->json([
@@ -183,15 +182,16 @@ class AdminEventController extends Controller
 
         // Create rejection message with reason
         $message = "Your event has been rejected.\n\nReason: {$validated['reason']}";
-        
+        $inAppMessage = "Your event has been rejected.\n\nReason: {$validated['reason']}";
+
         if(auth()->id() !== $event->user->id) {
             $message = Message::MESSAGES['REJECTED'] . "\n\nReason: {$validated['reason']}";
             
             // Send in-app notification
-            Message::eventnotification($event, $message, $event->slug);
+            Message::notification($event, $inAppMessage, $event->slug);
             
             // Send email notification
-            Mail::to($event->user)->send(new EventComments($event, $message));
+            Mail::to($event->user)->send(new Comments($event, $message));
         }
 
         return response()->json([

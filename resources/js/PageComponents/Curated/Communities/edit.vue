@@ -59,14 +59,16 @@
                     
                     <!-- Fixed Footer -->
                     <div class="flex border-t border-gray-200 bg-white h-32 justify-end items-center">
-                        <div class="px-8 py-6">
+                        <div class="px-8 py-6 flex gap-4">
+                            <!-- Update button -->
                             <button 
-                                @click="saveChanges"
-                                :disabled="isSubmitting"
+                                type="button"
+                                @click.prevent="saveChanges"
+                                :disabled="isSubmitting || isSubmittingEvent"
                                 :class="{
                                     'px-6 py-3 rounded-lg transition-colors': true,
                                     'bg-black text-white hover:bg-gray-800': !isSubmitting,
-                                    'bg-gray-300 text-gray-500 cursor-not-allowed': isSubmitting
+                                    'bg-gray-300 text-gray-500 cursor-not-allowed': isSubmitting || isSubmittingEvent
                                 }"
                             >
                                 <div class="flex items-center gap-2">
@@ -92,6 +94,43 @@
                                         />
                                     </svg>
                                     {{ isSubmitting ? 'Updating...' : 'Update' }}
+                                </div>
+                            </button>
+
+                            <!-- Submit button -->
+                            <button 
+                                v-if="community.status === 'n'"
+                                @click="handleSubmitClick"
+                                :disabled="isSubmitting || isSubmittingEvent"
+                                :class="{
+                                    'px-6 py-3 rounded-lg transition-colors border border-black': true,
+                                    'bg-white text-black hover:bg-gray-100': !isSubmittingEvent,
+                                    'bg-gray-300 text-gray-500 cursor-not-allowed': isSubmitting || isSubmittingEvent
+                                }"
+                            >
+                                <div class="flex items-center gap-2">
+                                    <svg 
+                                        v-if="isSubmittingEvent"
+                                        class="animate-spin h-5 w-5" 
+                                        xmlns="http://www.w3.org/2000/svg" 
+                                        fill="none" 
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <circle 
+                                            class="opacity-25" 
+                                            cx="12" 
+                                            cy="12" 
+                                            r="10" 
+                                            stroke="currentColor" 
+                                            stroke-width="4"
+                                        />
+                                        <path 
+                                            class="opacity-75" 
+                                            fill="currentColor" 
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                        />
+                                    </svg>
+                                    {{ isSubmittingEvent ? 'Submitting...' : 'Resubmit' }}
                                 </div>
                             </button>
                         </div>
@@ -131,6 +170,34 @@
                 </div>
             </div>
         </Transition>
+
+        <!-- Add Confirmation Modal -->
+        <Teleport to="body">
+            <div v-if="showConfirmModal" 
+                 class="fixed inset-0 flex items-center justify-center z-50"
+            >
+                <div class="absolute inset-0 bg-black/50" @click="showConfirmModal = false"></div>
+                <div class="relative bg-white rounded-xl p-12 max-w-xl w-full mx-4">
+                    <h3 class="text-xl font-medium mb-2">Ready to Submit?</h3>
+                    <p class="text-gray-500 mb-4">Have you made all your changes to your community?</p>
+                    
+                    <div class="flex justify-end gap-3">
+                        <button 
+                            @click="showConfirmModal = false"
+                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            @click="handleConfirmedSubmit"
+                            class="px-4 py-2 text-white bg-black rounded-lg hover:bg-gray-800"
+                        >
+                            Submit
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
     </div>
 </template>
 
@@ -164,6 +231,8 @@ const errors = ref({});
 const currentComponentRef = ref(null);
 const showSuccessModal = ref(false);
 const isMobile = ref(window.Laravel.isMobile);
+const showConfirmModal = ref(false);
+const isSubmittingEvent = ref(false);
 
 // Define available steps
 const steps = ['Name', 'Description', 'Image', 'Curators'];
@@ -185,13 +254,26 @@ const handleNavigation = (section) => {
     }
 };
 
+const handleSubmitClick = () => {
+    showConfirmModal.value = true;
+};
+
 const saveChanges = async () => {
     try {
         const isValid = await currentComponentRef.value.isValid();
         if (!isValid) return;
 
         const submitData = await currentComponentRef.value.submitData();
-        if (!submitData) return;
+        console.log('Submit data:', submitData);
+        
+        // If submitData is false, it means the component handled the update internally
+        if (submitData === false) {
+            showSuccessModal.value = true;
+            setTimeout(() => {
+                showSuccessModal.value = false;
+            }, 3000);
+            return;
+        }
         
         isSubmitting.value = true;
         
@@ -201,9 +283,15 @@ const saveChanges = async () => {
             : `/communities/${community.slug}`;
             
         const response = await axios.post(endpoint, submitData);
+        console.log('Save changes response:', response.data);
         
         if (response.data) {
-            Object.assign(community, response.data);
+            if (response.data.community) {
+                Object.assign(community, response.data.community);
+            } else {
+                Object.assign(community, response.data);
+            }
+            
             showSuccessModal.value = true;
             setTimeout(() => {
                 showSuccessModal.value = false;
@@ -211,8 +299,68 @@ const saveChanges = async () => {
         }
     } catch (error) {
         console.error('Error:', error);
+        if (error.response?.data?.message) {
+            alert(error.response.data.message);
+        } else {
+            alert('An error occurred while saving changes.');
+        }
     } finally {
         isSubmitting.value = false;
+    }
+};
+
+const submitForReview = async () => {
+    try {
+        isSubmittingEvent.value = true;
+        const response = await axios.post(`/communities/${community.slug}/submit`);
+        
+        if (response.data) {
+            Object.assign(community, response.data);
+            showSuccessModal.value = true;
+            setTimeout(() => {
+                showSuccessModal.value = false;
+            }, 3000);
+            
+            // Redirect after successful submission
+            window.location.href = `/communities/${community.slug}`;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    } finally {
+        isSubmittingEvent.value = false;
+        showConfirmModal.value = false;
+    }
+};
+
+const handleConfirmedSubmit = async () => {
+    try {
+        const isValid = await currentComponentRef.value.isValid();
+        if (!isValid) return;
+
+        const submitData = await currentComponentRef.value.submitData();
+        if (!submitData) return;
+        
+        isSubmittingEvent.value = true;
+        
+        // First save any changes
+        submitData.submit = true;
+        
+        const endpoint = currentSection.value === 'Curators' 
+            ? `/communities/${community.slug}/curators`
+            : `/communities/${community.slug}`;
+            
+        const response = await axios.post(endpoint, submitData);
+        
+        if (response.data) {
+            Object.assign(community, response.data);
+            // Then submit for review
+            await submitForReview();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    } finally {
+        isSubmittingEvent.value = false;
+        showConfirmModal.value = false;
     }
 };
 

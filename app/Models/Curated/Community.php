@@ -10,6 +10,8 @@ use Elastic\ScoutDriverPlus\Searchable;
 use App\Models\Image;
 use App\Models\Featured\Section;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\NameChangeRequest;
+use Illuminate\Support\Str;
 
 class Community extends Model
 {
@@ -51,6 +53,16 @@ class Community extends Model
                 ImageFile::deletePreviousImages($post);
                 $post->delete();
             });
+        });
+
+        static::creating(function ($community) {
+            $community->slug = Str::slug($community->name);
+        });
+
+        static::updating(function ($community) {
+            if ($community->isDirty('name')) {
+                $community->slug = Str::slug($community->name);
+            }
         });
     }
 
@@ -144,6 +156,14 @@ class Community extends Model
     public function curatorInvitations()
     {
         return $this->hasMany(CuratorInvitation::class);
+    }
+
+    /**
+     * Get the name change requests for the community.
+     */
+    public function nameChangeRequests()
+    {
+        return $this->morphMany(NameChangeRequest::class, 'requestable');
     }
 
 }

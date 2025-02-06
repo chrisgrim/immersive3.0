@@ -14,14 +14,22 @@
                     <h3 class="text-xl font-semibold mb-4">Owner</h3>
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-4">
-                            <img 
-                                :src="community.owner?.avatar" 
-                                class="w-12 h-12 rounded-full"
-                                alt="Owner avatar"
-                            >
+                            <div v-if="community.owner?.avatar" class="w-12 h-12">
+                                <picture>
+                                    <source :srcset="community.owner.avatar" type="image/webp">
+                                    <img 
+                                        :src="community.owner.avatar.replace(/\.webp$/, '.jpg')"
+                                        class="w-12 h-12 rounded-full"
+                                        alt="Owner avatar"
+                                    >
+                                </picture>
+                            </div>
+                            <div v-else class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-xl font-medium">
+                                {{ (community.owner?.name || community.owner?.email || '?')[0].toUpperCase() }}
+                            </div>
                             <div>
-                                <p class="font-medium">{{ community.owner?.name }}</p>
-                                <p class="text-gray-500">{{ community.owner?.email }}</p>
+                                <p class="font-medium">{{ community.owner?.name || community.owner?.email }}</p>
+                                <p v-if="community.owner?.name" class="text-gray-500">{{ community.owner?.email }}</p>
                             </div>
                         </div>
                         <div v-if="canManageCurators" class="flex items-center gap-4">
@@ -66,14 +74,22 @@
                             class="flex items-center justify-between p-4 border rounded-xl"
                         >
                             <div class="flex items-center gap-4">
-                                <img 
-                                    :src="curator.avatar" 
-                                    class="w-12 h-12 rounded-full"
-                                    alt="Curator avatar"
-                                >
+                                <div v-if="curator.avatar" class="w-12 h-12">
+                                    <picture>
+                                        <source :srcset="curator.avatar" type="image/webp">
+                                        <img 
+                                            :src="curator.avatar.replace(/\.webp$/, '.jpg')"
+                                            class="w-12 h-12 rounded-full"
+                                            alt="Curator avatar"
+                                        >
+                                    </picture>
+                                </div>
+                                <div v-else class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-xl font-medium">
+                                    {{ (curator.name || curator.email || '?')[0].toUpperCase() }}
+                                </div>
                                 <div>
-                                    <p class="font-medium">{{ curator.name }}</p>
-                                    <p class="text-gray-500">{{ curator.email }}</p>
+                                    <p class="font-medium">{{ curator.name || curator.email }}</p>
+                                    <p v-if="curator.name" class="text-gray-500">{{ curator.email }}</p>
                                 </div>
                             </div>
                             <button 
@@ -141,14 +157,22 @@
                                 @click="selectNewOwner(curator)"
                                 class="flex items-center gap-4 p-4 border rounded-xl cursor-pointer hover:bg-gray-50"
                             >
-                                <img 
-                                    :src="curator.avatar" 
-                                    class="w-12 h-12 rounded-full"
-                                    alt="Curator avatar"
-                                >
+                                <div v-if="curator.avatar" class="w-12 h-12">
+                                    <picture>
+                                        <source :srcset="curator.avatar" type="image/webp">
+                                        <img 
+                                            :src="curator.avatar.replace(/\.webp$/, '.jpg')"
+                                            class="w-12 h-12 rounded-full"
+                                            alt="Curator avatar"
+                                        >
+                                    </picture>
+                                </div>
+                                <div v-else class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-xl font-medium">
+                                    {{ (curator.name || curator.email || '?')[0].toUpperCase() }}
+                                </div>
                                 <div>
-                                    <p class="font-medium">{{ curator.name }}</p>
-                                    <p class="text-gray-500">{{ curator.email }}</p>
+                                    <p class="font-medium">{{ curator.name || curator.email }}</p>
+                                    <p v-if="curator.name" class="text-gray-500">{{ curator.email }}</p>
                                 </div>
                             </div>
                         </div>

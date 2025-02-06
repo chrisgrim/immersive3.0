@@ -288,6 +288,6 @@ const organizerImage = computed(() => {
 });
 
 const canEdit = computed(() => {
-    return ['owner', 'moderator'].includes(props.organizer.user_role);
+    return ['owner', 'moderator', 'admin'].includes(props.organizer.user_role);
 });
 </script>

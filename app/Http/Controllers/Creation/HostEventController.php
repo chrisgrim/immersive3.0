@@ -49,7 +49,6 @@ class HostEventController extends Controller
                 $query->where('status', 'pending')->latest();
             }
         ]);
-
         return view('Creation.edit', compact('event'));
     }
 
@@ -362,6 +361,44 @@ class HostEventController extends Controller
             \Log::error('Failed to submit name change request: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Failed to submit name change request.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function duplicate(Event $event)
+    {
+        // Check unpublished events count
+        $unpublishedCount = Event::countUnpublishedEvents($event->organizer_id);
+        
+        if ($unpublishedCount >= 5) {
+            return response()->json([
+                'message' => 'You can only have 5 unpublished events at a time.'
+            ], 422);
+        }
+
+        try {
+            $newEvent = $event->duplicate();
+
+            return response()->json([
+                'message' => 'Event duplicated successfully.',
+                'event' => $newEvent->load([
+                    'shows.tickets', 
+                    'location', 
+                    'images', 
+                    'advisories', 
+                    'mobilityAdvisories', 
+                    'contentAdvisories', 
+                    'contactLevels', 
+                    'interactive_level',
+                    'category',
+                    'genres'
+                ])
+            ], 201);
+        } catch (\Exception $e) {
+            \Log::error('Failed to duplicate event: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to duplicate event.',
                 'error' => $e->getMessage()
             ], 500);
         }
