@@ -213,6 +213,12 @@ class HostEventController extends Controller
             $event->save();
         }
 
+        // Handle Age Limit
+        if (isset($validatedData['ageLimit'])) {
+            $event->age_limits_id = $validatedData['ageLimit']['id'];
+            $event->save();
+        }
+
         // Store just the YouTube ID
         if ($request->has('video')) {
             $event->video = $request->video ?: null;
@@ -254,6 +260,7 @@ class HostEventController extends Controller
                 'interactive_level',
                 'category',
                 'genres',
+                'age_limits',
                 'nameChangeRequests' => function($query) {
                     $query->where('status', 'pending')->latest();
                 }

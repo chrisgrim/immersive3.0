@@ -101,13 +101,25 @@
                                             <div 
                                                 v-for="post in dock.shelves[0].posts.slice(0, 4)" 
                                                 :key="post.id" 
-                                                class="aspect-square w-12 rounded-lg overflow-hidden bg-gray-200"
+                                                class="aspect-square w-12 rounded-lg overflow-hidden"
                                             >
-                                                <img 
-                                                    :src="getImageUrl(post.thumbImagePath)" 
-                                                    :alt="post.name"
-                                                    class="w-full h-full object-cover"
-                                                >
+                                                <template v-if="getPostImage(post)">
+                                                    <img 
+                                                        :src="getImageUrl(getPostImage(post))" 
+                                                        :alt="post.name"
+                                                        class="w-full h-full object-cover"
+                                                    >
+                                                </template>
+                                                <template v-else>
+                                                    <div 
+                                                        class="w-full h-full flex items-center justify-center"
+                                                        style="background-color: #c69669"
+                                                    >
+                                                        <span class="text-xl font-bold text-white">
+                                                            {{ post.name?.charAt(0).toUpperCase() || '?' }}
+                                                        </span>
+                                                    </div>
+                                                </template>
                                             </div>
                                         </div>
                                     </div>
@@ -319,13 +331,25 @@
                                 <div 
                                     v-for="post in shelf.posts.slice(0, 4)" 
                                     :key="post.id" 
-                                    class="aspect-square w-16 rounded-lg overflow-hidden bg-gray-200"
+                                    class="aspect-square w-16 rounded-lg overflow-hidden"
                                 >
-                                    <img 
-                                        :src="getImageUrl(post.thumbImagePath)" 
-                                        :alt="post.name"
-                                        class="w-full h-full object-cover"
-                                    >
+                                    <template v-if="getPostImage(post)">
+                                        <img 
+                                            :src="getImageUrl(getPostImage(post))" 
+                                            :alt="post.name"
+                                            class="w-full h-full object-cover"
+                                        >
+                                    </template>
+                                    <template v-else>
+                                        <div 
+                                            class="w-full h-full flex items-center justify-center"
+                                            style="background-color: #c69669"
+                                        >
+                                            <span class="text-2xl font-bold text-white">
+                                                {{ post.name?.charAt(0).toUpperCase() || '?' }}
+                                            </span>
+                                        </div>
+                                    </template>
                                     <div class="p-1 text-xs truncate">{{ post.name }}</div>
                                 </div>
                             </div>
@@ -593,6 +617,40 @@ const getContentCount = (dock) => {
 const getImageUrl = (path) => {
     if (!path) return ''
     return `${imageUrl}${path}`
+}
+
+const getPostImage = (post) => {
+    // First check for post images
+    if (post.images && post.images.length > 0) {
+        return post.images[0].thumb_image_path || post.images[0].large_image_path
+    }
+    
+    // Then check for featured event image
+    if (post.featured_event_image) {
+        return post.featured_event_image.thumbImagePath || post.featured_event_image.largeImagePath
+    }
+    
+    // Then check for images in limited cards
+    if (post.limited_cards && post.limited_cards.length > 0) {
+        for (const card of post.limited_cards) {
+            if (card.event) {
+                if (card.event.thumbImagePath) {
+                    return card.event.thumbImagePath
+                }
+                if (card.event.largeImagePath) {
+                    return card.event.largeImagePath
+                }
+            }
+        }
+    }
+    
+    // Finally check post's own image paths
+    if (post.thumbImagePath || post.largeImagePath) {
+        return post.thumbImagePath || post.largeImagePath
+    }
+    
+    // Return null if no image is found
+    return null
 }
 
 // Lifecycle hooks

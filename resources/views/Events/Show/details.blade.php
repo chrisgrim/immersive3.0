@@ -1,78 +1,79 @@
-<section class="py-12 px-8 md:py-16 md:px-0">
-    <div>
-        <div class="title first">
-            <h3 class="font-semibold md:font-medium">Audience Role</h3>
-        </div>     
-        <div class="my-8">
-            <vue-show-more text="{{ $event->advisories['audience']}}" :limit="30" />
-        </div> 
-    </div>
-    <div>
-        <div>
-            <h3 class="font-semibold md:font-medium">Content Advisories</h3>
+<section class="py-12 px-8 md:py-20 md:px-0 border-b border-neutral-200">
+    {{-- Audience Role Section --}}
+    <div class="mb-16">
+        <h3 class="text-2xl font-medium text-black mb-8">Audience Role</h3>
+        <div class="p-8 border rounded-2xl border-neutral-200 hover:bg-neutral-50 transition-all duration-200">
+         <div>
+            <vue-show-more text="{{ $event->advisories['audience']}}" :limit="80" />
+         </div>
+         <div class="mt-4">
+            <p class="font-medium text-lg text-black">Ages: {{ $event->age_limits ? $event->age_limits['name'] : $event->advisories['ageRestriction'] }}</p>
+         </div>
         </div>
-        <ul class="my-8 list-disc">
-            @foreach($event->contentAdvisories as $item)
-                <li>
-                    <p>{{ $item['name'] }}</p>
-                </li>
-            @endforeach
-            <li>
-                <p> {{ $event->age_limits ? $event->age_limits['name'] : $event->advisories['ageRestriction'] }} </p>
-            </li>
-        </ul>
     </div>
 
-    <div>
-        <div>
-            <h3 class="font-semibold md:font-medium">Interaction Advisories</h3>
-        </div>
-        <ul class="my-8 list-disc">
-            @foreach($event->contactLevels as $item)
-                <li>
-                    <p> {{ $item['name'] }} </p>
-                </li>
-            @endforeach
-        </ul>
-    </div>
-
-    <div>
-        <div>
-            <h3 class="font-semibold md:font-medium">Mobility Advisories</h3>
-        </div>
-        <ul class="my-8 list-disc">
-            @foreach($event->mobilityAdvisories as $item)
-                <li>
-                    <p> {{ $item['name'] }} </p>
-                </li>
-            @endforeach
-            <li>
-                <p>Event is <span>@if(!$event->advisories['wheelchairReady']) not @endif</span> wheelchair accessible.</p>
-            </li>
-        </ul>
-    </div>
-
-    @if($event->advisories['sexual'])
-        <div class="title">
-            <h3 class="mb-4">Sexual Advisories</h3>
-        </div>
-        <ul class="info">
-            <li>
-                <p> {{ $event->advisories['sexualDescription'] }} </p>
-            </li>
-        </ul>
-    @endif
-
-    <div>
-        <h3 class="mb-4">Tags</h3>
-        @foreach($event->genres as $item)                
-            <div class="inline-block rounded-md border border-slate-200 mr-4 mt-4 px-4 {{ $item['admin'] == 1 ? 'cursor-pointer hover:bg-gray-400 hover:text-white hover:border-white' : '' }}">
-                @if($item['admin'] == 1)
-                    <a href="/index/search?tag={{ $item['id'] }}&searchType=allEvents"><b><span> {{ $item['name'] }} </span></b></a>
-                @else
-                    <span>{{ $item['name'] }}</span>
-                @endif
+    {{-- Combined Advisories Section --}}
+    <div class="mb-16">
+        <h3 class="text-2xl font-medium text-black mt-8 mb-4">Content Advisories</h3>
+        <div class="grid">
+            {{-- Content Advisories --}}
+            <div class="border border-neutral-200 p-6 rounded-2xl hover:bg-neutral-50 transition-all duration-200">
+                <div class="flex flex-col gap-4">
+                    @foreach($event->contentAdvisories as $item)
+                        <span class="block rounded-xl text-1xl">• {{ $item['name'] }}</span>
+                    @endforeach
+                </div>
             </div>
-        @endforeach
+
+            <h3 class="text-2xl font-medium text-black mt-8 mb-4">Interaction Advisories</h3>
+            {{-- Interaction Advisories --}}
+            <div class="border border-neutral-200 p-6 rounded-2xl hover:bg-neutral-50 transition-all duration-200">
+                <div class="flex flex-col gap-4">
+                    @foreach($event->contactLevels as $item)
+                        <span class="block rounded-xl text-1xl">• {{ $item['name'] }}</span>
+                    @endforeach
+                </div>
+            </div>
+
+            <h3 class="text-2xl font-medium text-black mt-8 mb-4">Mobility Advisories</h3>
+            {{-- Mobility Advisories --}}
+            <div class="border border-neutral-200 p-6 rounded-2xl hover:bg-neutral-50 transition-all duration-200">
+                <div class="flex flex-col gap-4">
+                    <span class="block text-1xl">
+                        • Event is <span>@if(!$event->advisories['wheelchairReady']) not @endif</span> wheelchair accessible
+                    </span>
+                    @foreach($event->mobilityAdvisories as $item)
+                        <span class="block rounded-xl text-1xl">• {{ $item['name'] }}</span>
+                    @endforeach
+                </div>
+            </div>
+
+            {{-- Sexual Advisories (Conditional) --}}
+            @if($event->advisories['sexual'])
+                <div class="border-2 border-[#222222] p-6 rounded-2xl hover:bg-neutral-50 transition-all duration-200">
+                    <h4 class="text-lg font-medium text-black mb-4">Sexual Content</h4>
+                    <p class="text-[#222222]">{{ $event->advisories['sexualDescription'] }}</p>
+                </div>
+            @endif
+        </div>
+    </div>
+
+    {{-- Tags Section --}}
+    <div>
+        <h3 class="text-2xl font-medium text-black mb-8">Tags</h3>
+        <div class="flex flex-wrap gap-4">
+            @foreach($event->genres as $item)
+                <div class="border-2 border-[#222222] px-6 py-4 rounded-2xl hover:bg-neutral-50 transition-all duration-200 
+                    {{ $item['admin'] == 1 ? 'cursor-pointer' : '' }}">
+                    @if($item['admin'] == 1)
+                        <a href="/index/search?tag={{ $item['id'] }}&searchType=allEvents" class="text-[#222222]">
+                            <span class="font-medium">{{ $item['name'] }}</span>
+                        </a>
+                    @else
+                        <span class="text-[#222222]">{{ $item['name'] }}</span>
+                    @endif
+                </div>
+            @endforeach
+        </div>
     </div>
 </section>

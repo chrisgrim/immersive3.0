@@ -3,8 +3,74 @@
     $name = null;
     $imageUrl = "https://ei-test.sfo3.digitaloceanspaces.com/public/";
 
+    $getPostImage = function($post) {
+        // Most common case first
+        if ($post->thumbImagePath) {
+            return $post->thumbImagePath;
+        }
+
+        // Featured event image check
+        if ($post->featuredEventImage) {
+            return is_string($post->featuredEventImage) 
+                ? $post->featuredEventImage 
+                : ($post->featuredEventImage->thumbImagePath ?? $post->featuredEventImage->largeImagePath ?? null);
+        }
+
+        // Check cards if no featured image
+        if (isset($post->cards)) {
+            // Look for event card with image
+            $eventCard = $post->cards->firstWhere('type', 'e');
+            if ($eventCard && isset($eventCard->event) && isset($eventCard->event->thumbImagePath)) {
+                return $eventCard->event->thumbImagePath;
+            }
+
+            // Look for image card
+            $imageCard = $post->cards->firstWhere('type', 'i');
+            if ($imageCard && isset($imageCard->thumbImagePath)) {
+                return $imageCard->thumbImagePath;
+            }
+        }
+
+        // Fallback to images collection
+        return !empty($post->images) ? $post->images->first()?->path : null;
+    };
+
+    $getFirstLetter = function($name) {
+        if (!$name) return '?';
+        $firstChar = $name[0];
+        if (preg_match('/[A-Za-z]/', $firstChar)) return strtoupper($firstChar);
+        if (preg_match('/[0-9]/', $firstChar)) return $firstChar;
+        return '?';
+    };
+
+    $getElementUrl = function($element) use ($dock) {
+        if (count($dock->shelves)) {
+            return '/communities/' . $element->community->slug . '/' . $element->slug;
+        }
+        if (count($dock->communities)) {
+            return '/communities/' . $element->slug;
+        }
+        return '#';
+    };
+
+    $mapPost = function($post) {
+        return (object)[
+            'id' => $post->id,
+            'name' => $post->name,
+            'slug' => $post->slug,
+            'event_id' => $post->event_id,
+            'featuredEventImage' => $post->featuredEventImage,
+            'limitedCards' => $post->limitedCards ?? collect(),
+            'community' => $post->community,
+            'created_at' => $post->created_at,
+            'cards' => $post->cards ?? collect(),
+            'images' => $post->images ?? collect(),
+            'thumbImagePath' => $post->thumbImagePath ?? null
+        ];
+    };
+
     if (count($dock->shelves)) {
-        $elements = $dock->shelves[0]->publishedPosts;
+        $elements = collect($dock->shelves[0]->publishedPosts)->map($mapPost);
         $name = $dock->shelves[0]->name;
     } elseif (count($dock->communities)) {
         $elements = $dock->communities;
@@ -13,21 +79,23 @@
     }
 
     $name = $dock->name ?? $name;
-    $mobile = Browser::isMobile();
+    $cardWidth = 'width: ' . (Browser::isMobile() ? '85' : '27') . 'vw';
 @endphp
 
-
-
-<div class="my-8 md:mt-16 md:mb-24">
-    <div class="justify-between flex px-8 lg-air:px-16 2xl-air:px-32 my-8 lg:my-12">
+<div class="md:mb-24 pb-16 bg-slate-100">
+    <div class="justify-between items-center h-40 flex px-8 lg-air:px-16 2xl-air:px-32">
         @if($name)
-            <h2>{{ $name }}</h2>
+            <div class="">
+                <div>
+                    <h2 class="text-5xl text-black font-bold">{{ $name }}</h2>
+                </div>
+            </div>
         @endif
         
-        <div class="inline-block invisible md:visible">
+        <div class="inline-flex items-end gap-2 invisible md:visible">
             <button 
                 aria-label="Scroll Left"
-                class="rounded-full w-16 h-16 border border-gray-300 p-0" 
+                class="rounded-full w-14 h-14 border border-gray-300 p-0 bg-white hover:shadow-md transition-shadow" 
                 onclick="window.scrollDockLeft()">
                 <svg class="w-2/4 h-full m-auto">
                     <use href="/storage/website-files/icons.svg#ri-arrow-left-s-line" />
@@ -35,7 +103,7 @@
             </button>
             <button 
                 aria-label="Scroll Right"
-                class="rounded-full w-16 h-16 border border-gray-300 p-0" 
+                class="rounded-full w-14 h-14 border border-gray-300 p-0 bg-white hover:shadow-md transition-shadow" 
                 onclick="window.scrollDockRight()">
                 <svg class="w-2/4 h-full m-auto">
                     <use href="/storage/website-files/icons.svg#ri-arrow-right-s-line" />
@@ -44,51 +112,43 @@
         </div>
     </div>
 
-    <div class="h-[calc(125vw-10rem)] overflow-y-hidden overflow-x-auto whitespace-nowrap md:h-128">
+    <div class="overflow-y-hidden overflow-x-auto whitespace-nowrap scrollbar-hide">
         <div id="dock-scroll-container" 
-             class="overflow-x-auto flex h-[calc(125vw-6.25rem)] custom-h-1 scroll-p-10 md:h-auto lg:scroll-p-32" 
+             class="overflow-x-auto flex scroll-p-10 lg:scroll-p-32 scrollbar-hide" 
              style="scroll-snap-type: x mandatory;">
             @foreach($elements as $element)
-                <div class="ml-6 first:ml-0 snap-start snap-always md:min-w-[48rem] md:max-w-[68rem] lg:flex-[1_0_calc(50%-9rem)] first:pl-8 last:pr-8 lg-air:first:pl-16 lg-air:last:pr-16 2xl-air:first:pl-32 2xl-air:last:pr-32 flex-[1_0_calc(50%-1rem)] first:ml-0">
-                    <a href="{{ count($dock->shelves) 
-                        ? '/communities/' . $element->community->slug . '/' . $element->slug 
-                        : (count($dock->communities) 
-                            ? '/communities/' . $element->slug 
-                            : '#') }}" 
-                       class="relative block w-full">
-                        <div class="relative h-[calc(125vw-10rem)] rounded-2xl overflow-hidden md:h-[32rem]">
-                            <div class="absolute inset-[-1px]">
-                                <picture>
-                                    @php
-                                        $imagePath = $element->event_id && $element->featuredEventImage 
-                                            ? $element->featuredEventImage->thumbImagePath 
-                                            : $element->largeImagePath;
-                                    @endphp
-
-                                    <source 
-                                        type="image/webp" 
-                                        srcset="{{ $imageUrl }}{{ $imagePath }}">
-                                    <img 
-                                        class="h-full w-full absolute object-cover align-bottom"
-                                        loading="lazy" 
-                                        src="{{ $imageUrl }}{{ Str::replaceLast('webp', 'jpg', $imagePath) }}"
-                                        alt="{{ $element->name }}">
-                                </picture>
-                                <div class="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent"></div>
+                <div class="ml-10 first:ml-0 snap-start snap-always first:pl-8 last:pr-8 md:first:pl-32 md:last:pr-32">
+                    <a href="{{ $getElementUrl($element) }}" 
+                       class="block w-full pb-16">
+                        <div class="rounded-2xl overflow-hidden h-full border border-gray-300 w-[25vw]">
+                            <div class="w-full aspect-square">
+                                @php
+                                    $imagePath = $getPostImage($element);
+                                @endphp
+                                @if($imagePath)
+                                    <picture>
+                                        <source 
+                                            type="image/webp" 
+                                            srcset="{{ $imageUrl }}{{ $imagePath }}">
+                                        <img 
+                                            class="h-full w-full object-cover"
+                                            loading="lazy" 
+                                            src="{{ $imageUrl }}{{ Str::replaceLast('webp', 'jpg', $imagePath) }}"
+                                            alt="{{ $element->name }}">
+                                    </picture>
+                                @else
+                                    <div class="w-full h-full flex items-center justify-center" 
+                                         style="background-color: #c69669">
+                                        <span class="text-6xl font-bold text-white">
+                                            {{ $getFirstLetter($element->name) }}
+                                        </span>
+                                    </div>
+                                @endif
                             </div>
                             
-                            <div class="relative content-start flex h-full p-10 flex-col w-96">
-                                <div class="flex-1 md:w-[30rem] lg:w-96">
-                                    <div class="overflow-hidden text-ellipsis text-white text-lg">
-                                        {{ $element->blurb }}
-                                    </div>
-                                    <div class="text-white mt-4 whitespace-normal text-5xl font-medium">
-                                        {{ $element->name }}
-                                    </div>
-                                </div>
-                                <button class="border-none rounded-2xl p-4 text-black bg-white w-40 font-bold text-xl">
-                                    Show me
-                                </button>
+                            <div class="text-left bg-white p-8">
+                                <h3 class="text-3.5xl font-medium text-black">{{ $element->name }}</h3>
+                                <p class="text-gray-600 text-lg my-4">{{ $element->created_at ? date('F j, Y', strtotime($element->created_at)) : '' }}</p>
                             </div>
                         </div>
                     </a>
@@ -97,3 +157,26 @@
         </div>
     </div>
 </div>
+
+<script>
+window.scrollDockLeft = function() {
+    const container = document.getElementById('dock-scroll-container');
+    if (container) {
+        container.scrollBy({
+            left: -container.offsetWidth,
+            behavior: 'smooth'
+        });
+    }
+}
+
+window.scrollDockRight = function() {
+    const container = document.getElementById('dock-scroll-container');
+    if (container) {
+        container.scrollBy({
+            left: container.offsetWidth,
+            behavior: 'smooth'
+        });
+    }
+}
+
+</script>

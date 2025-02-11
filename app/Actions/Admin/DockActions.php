@@ -26,7 +26,14 @@ class DockActions
 
         return $dock->fresh([
             'shelves.posts' => function($query) {
-                $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order')
+                $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order', 'event_id')
+                      ->with([
+                          'featuredEventImage',
+                          'images',
+                          'limitedCards.event' => function($query) {
+                              $query->select('id', 'thumbImagePath', 'largeImagePath');
+                          }
+                      ])
                       ->orderBy('order')
                       ->limit(4);
             }

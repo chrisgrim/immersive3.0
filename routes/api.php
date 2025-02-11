@@ -64,6 +64,7 @@ Route::controller(EventAttributesController::class)->group(function () {
     Route::get('/interactivelevels', 'interactiveLevels');
     Route::get('/contentadvisories', 'contentAdvisories');
     Route::get('/mobilityadvisories', 'mobilityAdvisories');
+    Route::get('/agelimits', 'ageLimits');
 });
 
 // Navigation Search Routes

@@ -11,6 +11,7 @@ use App\Models\Events\ContactLevel;
 use App\Models\Events\InteractiveLevel;
 use App\Models\Events\ContentAdvisory;
 use App\Models\Events\MobilityAdvisory;
+use App\Models\Events\AgeLimit;
 
 class EventAttributesController extends Controller
 {
@@ -140,6 +141,11 @@ class EventAttributesController extends Controller
             ->get();
 
         return response()->json($advisories);
+    }
+
+    public function ageLimits()
+    {
+        return AgeLimit::orderBy('age')->get();
     }
 
     /**

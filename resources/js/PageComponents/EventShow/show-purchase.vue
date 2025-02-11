@@ -2,7 +2,7 @@
     <div :class="[
         'inline-block border w-full bg-white',
         singleImage 
-            ? 'md:sticky md:top-20 md:rounded-2xl md:shadow-custom-1 md:flex-col py-6 px-8' 
+            ? 'md:sticky md:top-60 md:rounded-2xl md:shadow-custom-1 md:flex-col py-6 px-8' 
             : 'fixed bottom-0 left-0 z-30 flex py-6 px-8 md:sticky md:top-36 md:pb-12 md:mt-16 md:rounded-2xl md:flex-col md:shadow-custom-1 md:mb-16'
     ]">
         <div 
@@ -165,11 +165,19 @@
                 </button>
             </a>
         </div>
+
+        <div v-if="canEdit" class="mt-4 md:mt-8 absolute bottom-[-7rem] right-0">
+            <a :href="`/hosting/event/${event.slug}/edit`">
+                <button class="font-medium py-4 px-4 rounded-2xl w-full bg-white border border-neutral-300 hover:border-[#222222] hover:shadow-focus-black transition-all duration-200">
+                    Edit Event
+                </button>
+            </a>
+        </div>
     </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, nextTick, inject } from 'vue';
 import axios from 'axios';
 import ShowMore from '@/GlobalComponents/show-more.vue';
 import flatPickr from 'vue-flatpickr-component';
@@ -178,8 +186,17 @@ import dayjs from 'dayjs';
 const props = defineProps({
     event: Object,
     tickets: Array,
-    mobile: Boolean,
-    singleImage: Boolean
+    singleImage: Boolean,
+    user: Object
+});
+
+// Safely check for mobile status
+const mobile = computed(() => {
+    return window?.Laravel?.isMobile ?? false;
+});
+
+const canEdit = computed(() => {
+    return props.user && (props.user.isAdmin || props.user.isModerator);
 });
 
 const initializeCalendarObject = () => ({

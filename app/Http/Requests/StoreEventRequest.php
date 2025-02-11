@@ -101,6 +101,9 @@ class StoreEventRequest extends FormRequest
             'genres.*.name' => 'required|string|max:50',
 
             'status' => 'sometimes|string',
+
+            // Add this to your rules array
+            'ageLimit.id' => 'sometimes|exists:age_limits,id',
         ];
     }
 

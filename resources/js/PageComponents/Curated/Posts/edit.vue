@@ -302,22 +302,25 @@
             </transition-group>
         </div>
         <div v-if="showImageModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-white rounded-2xl p-16 max-w-2xl w-full mx-4" @click.stop>
-                <div class="flex justify-between items-center mb-6">
+            <div class="bg-white rounded-3xl p-8 max-w-3xl w-full mx-4" @click.stop>
+                <div class="flex justify-between items-center mb-8">
                     <h2 class="text-2xl font-bold">Add Featured Image</h2>
-                    <button @click="showImageModal = false">
-                        <component :is="RiCloseCircleLine" class="w-6 h-6" />
+                    <button 
+                        @click="showImageModal = false"
+                        class="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
+                    >
+                        <component :is="RiCloseCircleLine" class="w-10 h-10" />
                     </button>
                 </div>
                 
-                <div class="space-y-4">
+                <div class="space-y-6">
                     <!-- Upload Image Option -->
                     <div 
                         @click="triggerFileInput"
-                        class="p-4 border border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-black hover:border-2 flex items-center gap-4"
+                        class="p-8 border border-neutral-300 hover:border-[#222222] rounded-3xl cursor-pointer transition-all duration-200 flex items-center gap-4"
                     >
-                        <component :is="RiImageCircleLine" class="w-8 h-8" />
-                        <span class="text-lg">Upload an image</span>
+                        <component :is="RiImageCircleLine" class="w-10 h-10" />
+                        <span class="text-2xl">Upload an image</span>
                         <input 
                             type="file" 
                             class="hidden fileInput" 
@@ -327,14 +330,8 @@
                     </div>
 
                     <!-- Select Event Option -->
-                    <div class="p-4 border border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-black hover:border-2">
-                        <Dropdown
-                            :list="events"
-                            :placeholder="'Search for event'"
-                            @onSelect="handleEventSelect"
-                            @input="debounce"
-                            v-model="searchQuery"
-                        />
+                    <div class="p-8 border border-neutral-300 hover:border-[#222222] rounded-3xl cursor-pointer transition-all duration-200">
+                        <EventSearch @select="handleEventSelect" />
                     </div>
                 </div>
             </div>
@@ -386,6 +383,7 @@ import DropdownList from '@/GlobalComponents/dropdown-list.vue'
 import { RiImageCircleLine, RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import axios from 'axios'
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue'
+import EventSearch from './event-search.vue'
 
 const props = defineProps({
     value: Object,
@@ -419,11 +417,7 @@ const topPosition = ref(null)
 const isDragging = ref(false)
 const hoveredImage = ref(false)
 const imageUrl = import.meta.env.VITE_IMAGE_URL
-const showEventSearch = ref(false)
-const options = ref([])
 const showImageModal = ref(false)
-const searchQuery = ref('')
-const events = ref([])
 const showSuccessModal = ref(false)
 
 // Validation rules
@@ -519,8 +513,12 @@ const resetPost = () => {
 }
 
 const debounce = () => {
+    console.log('Debounce called with query:', searchQuery.value);
     if (timeout.value) clearTimeout(timeout.value)
-    timeout.value = setTimeout(fetchEvents, 300)
+    timeout.value = setTimeout(() => {
+        console.log('Executing debounced fetch with query:', searchQuery.value);
+        fetchEvents()
+    }, 300)
 }
 
 const debouncePostOrder = () => {
@@ -780,11 +778,6 @@ const removeShelf = async () => {
     }
 }
 
-const toggleStatus = () => {
-    post.value.status = post.value.status === 'p' ? 'd' : 'p'
-    patchPost()
-}
-
 // Add computed
 const hasImage = computed(() => {
     if (post.value?.event_id) {
@@ -813,13 +806,6 @@ const triggerFileInput = () => {
     }
 }
 
-const updateType = () => {
-    post.value.type = post.value.type === 'h' ? 's' : 'h'
-    formData.value = new FormData()
-    formData.value.append('type', post.value.type)
-    patchPost()
-}
-
 const handleEventSelect = (event) => {
     if (event) {
         post.value.event_id = event.id
@@ -827,34 +813,6 @@ const handleEventSelect = (event) => {
         showImageModal.value = false
     }
 }
-
-// Function to fetch events based on the search query
-const fetchEvents = async () => {
-    try {
-        const response = await axios.get('/api/search/nav/events', {
-            params: { 
-                query: searchQuery.value,
-                limit: 10 // Optional: limit initial results
-            }
-        })
-        
-        events.value = response.data.map(item => ({
-            id: item.model.id,
-            name: item.model.name,
-            thumbImagePath: item.model.thumbImagePath
-        }))
-    } catch (error) {
-        console.error('Error fetching events:', error)
-        events.value = []
-    }
-}
-
-// Add a watch for searchQuery
-watch(searchQuery, (newValue) => {
-    if (newValue?.length >= 0) { // Changed from > 2 to >= 0
-        debounce()
-    }
-})
 
 // Add this watcher for showImageModal
 watch(showImageModal, async (isOpen) => {
@@ -877,5 +835,7 @@ const handleVisibilityChange = (value) => {
     post.value.type = value ? 's' : 'h'
     patchPost()
 }
+
+
 </script>
 

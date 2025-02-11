@@ -201,7 +201,9 @@
                             </div>
                         </a>
                     </div>
-                    <p class="text-3xl mt-8 mb-8 break-words hyphens-auto">{{ organizer.description }}</p>
+                    <p class="text-3xl mt-8 mb-8 break-words hyphens-auto">
+                        <vue-show-more text="{{ organizer.description }}" :limit="70" />
+                    </p>
                     <!-- Events Section -->
                     <div class="mt-20">
                         <h3 class="text-black text-4xl font-bold leading-tight mb-12">

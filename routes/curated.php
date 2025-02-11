@@ -7,12 +7,13 @@ use App\Http\Controllers\Curated\ShelfController;
 use App\Http\Controllers\Curated\CardController;
 
 // Resource Routes
-    Route::resource('communities', CommunityController::class);
-    Route::resource('posts', PostController::class);
-    Route::resource('cards', CardController::class);
+    // Route::resource('communities', CommunityController::class);
+    // Route::resource('posts', PostController::class);
+    // Route::resource('cards', CardController::class);
 
 // Communities
 Route::controller(CommunityController::class)->group(function () {
+    Route::get('/communities', 'index');
     Route::get('/communities/{community}', 'show');
     Route::get('/communities/{community}/shelves/paginate', 'paginate');
     Route::get('/communities/{community}/edit', 'edit');

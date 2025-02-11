@@ -17,10 +17,13 @@ class SearchController extends Controller
 
     public function navEvents(Request $request, SearchActions $searchActions)
     {
+        $limit = $request->input('limit', 6);
+        
         $results = Event::searchQuery($searchActions->nameSearch($request))
             ->sort('published_at', 'desc')
-            ->size(6)
+            ->size($limit)
             ->execute();
+        
         return $results->hits();
     }
 

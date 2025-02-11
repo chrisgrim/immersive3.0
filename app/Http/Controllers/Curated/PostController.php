@@ -86,12 +86,19 @@ class PostController extends Controller
     /**
      * Edit the specified resource.
      *
-     * @param  \App\Curated\post  $post
+     * @param  \App\Models\Curated\Community  $community
+     * @param  \App\Models\Curated\Post  $post
      * @return \Illuminate\Http\Response
      */
     public function edit(Community $community, Post $post)
     {
-        $post->load('cards', 'user', 'shelf', 'images');
+        $post->load([
+            'cards', 
+            'user', 
+            'shelf', 
+            'images', 
+            'community.shelves' // Nested eager loading for community and its shelves
+        ]);
         
         return view('Curated.Posts.edit', [
             'post' => $post,

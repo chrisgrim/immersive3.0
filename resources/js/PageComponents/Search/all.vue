@@ -1,9 +1,9 @@
 <template>
-    <div class="max-w-screen-2xl mx-auto px-32 py-16">
+    <div class="max-w-screen-5xl mx-auto px-32 py-16">
         <!-- Main Content -->
         <event-grid 
             :items="events.data"
-            :columns="5"
+            :columns="6"
         />
 
         <!-- Pagination -->

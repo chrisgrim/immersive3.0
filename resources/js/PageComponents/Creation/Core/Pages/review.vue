@@ -174,6 +174,16 @@
                             </div>
                         </div>
 
+                        <!-- Age Limit -->
+                        <div>
+                            <p class="font-medium mb-4">Age Requirement</p>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                <div class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl break-words">
+                                    {{ event.age_limits?.name }}
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Sexual Content Description -->
                         <div v-if="event.advisories?.sexual">
                             <p class="font-medium mb-4">Sexual Content Description</p>

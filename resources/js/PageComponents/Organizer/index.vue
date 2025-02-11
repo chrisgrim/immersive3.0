@@ -147,7 +147,7 @@
             </div>
 
             <!-- Pagination -->
-            <div class="mt-8">
+            <div class="mt-8 mb-20">
                 <pagination 
                     v-if="teams.total > teams.per_page"
                     :pagination="teams"

@@ -27,7 +27,14 @@ class AdminDocksController extends Controller
     {
         $docks = Dock::with([
             'shelves.posts' => function($query) {
-                $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order')
+                $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order', 'event_id')
+                      ->with([
+                          'featuredEventImage',
+                          'images',
+                          'limitedCards.event' => function($query) {
+                              $query->select('id', 'thumbImagePath', 'largeImagePath');
+                          }
+                      ])
                       ->orderBy('order')
                       ->limit(4);
             }
@@ -139,7 +146,14 @@ class AdminDocksController extends Controller
     {
         return Dock::with([
             'shelves.posts' => function($query) {
-                $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order')
+                $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order', 'event_id')
+                      ->with([
+                          'featuredEventImage',
+                          'images',
+                          'limitedCards.event' => function($query) {
+                              $query->select('id', 'thumbImagePath', 'largeImagePath');
+                          }
+                      ])
                       ->orderBy('order')
                       ->limit(4);
             }
@@ -151,7 +165,14 @@ class AdminDocksController extends Controller
     public function getAvailableShelves()
     {
         return Shelf::with(['community', 'posts' => function($query) {
-            $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order')
+            $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order', 'event_id')
+                  ->with([
+                      'featuredEventImage',
+                      'images',
+                      'limitedCards.event' => function($query) {
+                          $query->select('id', 'thumbImagePath', 'largeImagePath');
+                      }
+                  ])
                   ->orderBy('order')
                   ->limit(4);
         }])

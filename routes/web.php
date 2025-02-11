@@ -17,9 +17,7 @@ Route::GET('/', [IndexController::class, 'index']);
 
 Route::GET('/index/search', [ListingsController::class, 'index']);
 
-Route::view('/menu', 'Nav.menu-mobile')
-    ->middleware(['auth'])
-    ->name('menu');
+Route::view('/menu', 'Nav.menu-mobile')->middleware(['auth'])->name('menu');
 
 Route::GET('/events/{event}', [EventController::class, 'show']);
 

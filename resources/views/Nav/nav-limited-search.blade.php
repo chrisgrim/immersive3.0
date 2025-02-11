@@ -1,7 +1,7 @@
 <nav
     style="height: 8rem;"
     class="event-nav">
-    <div class="w-full mx-auto h-32 z-40 fixed top-0 left-0 right-0 bg-white border-b border-gray-200">
+    <div class="w-full mx-auto h-32 z-40 absolute top-0 left-0 right-0 bg-white">
         <div class="mx-auto relative h-full grid gap-0 items-center max-w-screen-xl
             grid-cols-[auto_minmax(30rem,_1fr)_auto] px-8
             lg-air:grid-cols-[auto_minmax(30rem,_3fr)_auto] lg-air:px-16

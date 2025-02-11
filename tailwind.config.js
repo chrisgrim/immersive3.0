@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+import scrollbarHide from 'tailwind-scrollbar-hide'
+
 export default {
     content: [
         './resources/views/**/*.blade.php',
@@ -21,6 +23,7 @@ export default {
             '2xl': '1536px',
             '3xl': '1600px',
             '4xl': '1920px',
+            '5xl': '2500px',
         },
         fontSize: {
             'xs': '.75rem',

@@ -81,15 +81,15 @@ const dropdown = ref(false);
 const searchInput = ref(null);
 const dropdownRef = ref(null);
 
-const emit = defineEmits(['onSelect', 'onCreate']);
+const emit = defineEmits(['onSelect', 'onCreate', 'input']);
 
 const filteredItems = computed(() => {
     if (!searchTerm.value) {
         return props.list;
     }
     const lowercasedSearchTerm = searchTerm.value.toLowerCase();
-    return props.list.filter(item =>
-        item.name.toLowerCase().includes(lowercasedSearchTerm)
+    return props.list.filter(item => 
+        item && item.name && item.name.toLowerCase().includes(lowercasedSearchTerm)
     );
 });
 
@@ -131,6 +131,11 @@ const handleEnter = () => {
     } else if (filteredItems.value.length > 0) {
         selectItem(filteredItems.value[0]);
     }
+};
+
+const filterRemoteLocations = () => {
+    console.log('Dropdown search term:', searchTerm.value);
+    emit('input', searchTerm.value);
 };
 
 </script>

@@ -1,11 +1,11 @@
 <template>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8" 
+    <div class="grid grid-cols-2 gap-8" 
          :class="{
             'lg:grid-cols-2': columns === 2,
-            'lg:grid-cols-3': columns === 3,
-            'lg:grid-cols-3 xl:grid-cols-4': columns === 4,
-            'lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5': columns === 5,
-            '3xl:grid-cols-4': columns === 3
+            'md:grid-cols-3': columns === 3,
+            'md:grid-cols-3 lg:grid-cols-4': columns === 4,
+            'md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5': columns === 5,
+            'md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6': columns === 6
          }">
         <div 
             v-for="card in items" 
@@ -19,15 +19,15 @@
                 <!-- Event Image Container with 3:4 aspect ratio -->
                 <div class="relative overflow-hidden rounded-2xl bg-gray-100 transition-transform duration-200 ease-in-out group-hover:scale-[1.02]">
                     <div class="pb-[133.33%]"></div>
-                    <picture v-if="card.thumbImagePath" class="absolute inset-0">
+                    <picture v-if="card.largeImagePath" class="absolute inset-0">
                         <source 
                             type="image/webp" 
-                            :srcset="`${imageUrl}${card.thumbImagePath}`"
+                            :srcset="`${imageUrl}${card.largeImagePath}`"
                         > 
                         <img 
                             loading="lazy" 
                             class="h-full w-full object-cover"
-                            :src="`${imageUrl}${card.thumbImagePath.slice(0, -4)}jpg`" 
+                            :src="`${imageUrl}${card.largeImagePath.slice(0, -4)}jpg`" 
                             :alt="`${card.name} Event`"
                         >
                     </picture>
@@ -71,7 +71,7 @@ const props = defineProps({
     columns: {
         type: Number,
         default: 3,
-        validator: (value) => [2, 3, 4, 5].includes(value)
+        validator: (value) => [2, 3, 4, 5, 6].includes(value)
     },
     hasClickListener: {
         type: Boolean,

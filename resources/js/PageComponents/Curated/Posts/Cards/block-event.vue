@@ -33,11 +33,8 @@
                         @update:modelValue="handleVisibilityChange" />
                 </div>
                 <div class="field mb-4">
-                    <Dropdown
-                        :list="searchOptions"
-                        :placeholder="'Search for event'"
-                        @onSelect="selectEvent"
-                        @input="debounce"
+                    <EventSearch 
+                        @select="selectEvent"
                         class="w-full" />
                 </div>
                 <div class="field border border-gray-300 rounded-md p-4 mb-4">
@@ -85,7 +82,7 @@ import { required, maxLength } from '@vuelidate/validators'
 import moment from 'moment'
 import Tiptap from './Components/Tiptap.vue'
 import CardImage from './block-image.vue'
-import Dropdown from '@/GlobalComponents/dropdown.vue'
+import EventSearch from '../event-search.vue'
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue'
 
 const props = defineProps({
@@ -116,10 +113,7 @@ const card = ref({
 })
 
 const formData = ref(new FormData())
-const searchInput = ref('')
-const searchOptions = ref([])
 const disabled = ref(false)
-const timeout = ref(null)
 const selectedEvent = ref(null)
 
 const isVisible = computed({
@@ -130,7 +124,7 @@ const isVisible = computed({
 })
 
 onMounted(() => {
-    generateSearchList('')
+    // No need to call generateSearchList here as it's handled by EventSearch
 })
 
 // Validation rules
@@ -198,42 +192,6 @@ const addCardData = () => {
     if (card.value.url) formData.value.append('url', card.value.url)
     if (card.value.name) formData.value.append('name', card.value.name)
     if (card.value.event_id) formData.value.append('event_id', card.value.event_id)
-}
-
-const debounce = (event) => {
-    const query = typeof event === 'object' ? event.target.value : event
-    
-    if (timeout.value) clearTimeout(timeout.value)
-    
-    searchInput.value = query
-    timeout.value = setTimeout(() => {
-        if (query && query.length > 0) {
-            generateSearchList(query)
-        }
-    }, 300)
-}
-
-const generateSearchList = async (query) => {
-    try {
-        const res = await axios.get('/api/search/nav/events', { 
-            params: { 
-                keywords: query,
-                limit: 10
-            } 
-        })
-        
-        searchOptions.value = res.data.map(hit => ({
-            id: hit.model.id,
-            name: hit.model.name,
-            slug: hit.model.slug,
-            tag_line: hit.model.tag_line || '',
-            thumbImagePath: hit.model.thumbImagePath || '',
-            closingDate: hit.model.closingDate || null
-        }))
-    } catch (error) {
-        console.error('Failed to fetch search results:', error)
-        searchOptions.value = []
-    }
 }
 
 const selectEvent = (event) => {

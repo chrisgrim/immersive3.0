@@ -47,6 +47,49 @@
                     </p>
                 </div>
 
+                <!-- Age Limit Section -->
+                <div class="w-full">
+                    <h4 class="mb-8">Age Requirement</h4>
+                    <div v-if="!selectedAge" class="flex flex-col w-full">
+                        <div class="grid grid-cols-3 gap-4">
+                            <div 
+                                v-for="age in ageLimitList" 
+                                :key="age.id" 
+                                @click="selectAgeLimit(age)"
+                                class="relative cursor-pointer items-end flex justify-between p-8 h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
+                            >
+                                <div class="w-full">
+                                    <h4 class="text-2xl leading-tight">{{ age.name }}</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 transition-all duration-200">
+                        <div>
+                            <h4 class="text-1xl leading-tight"
+                                :class="{
+                                    'text-neutral-400': selectedAge.model,
+                                    'text-black': selectedAge.model 
+                                }"
+                            >
+                                {{ selectedAge.name }}
+                            </h4>
+                        </div>
+                        <div 
+                            @mouseenter="hoveredLocation = 'closeAge'"
+                            @mouseleave="hoveredLocation = null"
+                            @click="deselectAgeLimit" 
+                            class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white"
+                        >
+                            <component :is="hoveredLocation === 'closeAge' ? RiCloseCircleFill : RiCloseCircleLine" />
+                        </div>
+                    </div>
+                    <p v-if="$v.selectedAge.$error" 
+                       class="text-red-500 text-1xl mt-2 py-2 leading-tight">
+                        Please select an age requirement
+                    </p>
+                </div>
+
                 <!-- Interactive Level Section -->
                 <div class="w-full">
                     <h4 class="mb-8">Audience Interaction Level</h4>
@@ -135,8 +178,10 @@ import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 const event = inject('event');
 const hoveredLocation = ref(null);
 const selectedContact = ref(null);
+const selectedAge = ref(null);
 const selectedInteractive = ref(null);
 const contactLevelList = ref([]);
+const ageLimitList = ref([]);
 const contentInteractiveList = ref([]);
 
 // 3. Computed
@@ -144,9 +189,14 @@ const currentContactLevel = computed(() =>
     event.contact_levels?.length > 0 ? event.contact_levels[0] : null
 );
 
+const currentAgeLimit = computed(() => 
+    event.age_limits || null
+);
+
 // 4. Validation Rules
 const rules = {
     selectedContact: { required },
+    selectedAge: { required },
     selectedInteractive: { required },
     event: {
         advisories: {
@@ -160,6 +210,7 @@ const rules = {
 
 const $v = useVuelidate(rules, { 
     selectedContact,
+    selectedAge,
     selectedInteractive,
     event
 });
@@ -168,6 +219,11 @@ const $v = useVuelidate(rules, {
 const fetchContactLevels = async () => {
     const response = await axios.get('/api/contactlevels');
     contactLevelList.value = response.data;
+};
+
+const fetchAgeLimits = async () => {
+    const response = await axios.get('/api/agelimits');
+    ageLimitList.value = response.data;
 };
 
 const fetchInteractiveLevel = async () => {
@@ -182,6 +238,14 @@ const selectContactLevel = (contact) => {
 
 const deselectContactLevel = () => {
     selectedContact.value = null;
+};
+
+const selectAgeLimit = (age) => {
+    selectedAge.value = age;
+};
+
+const deselectAgeLimit = () => {
+    selectedAge.value = null;
 };
 
 const selectInteractiveLevel = (interactive) => {
@@ -200,6 +264,7 @@ defineExpose({
     },
     submitData: () => ({
         contactLevel: selectedContact.value,
+        ageLimit: selectedAge.value,
         interactiveLevel: selectedInteractive.value,
         advisories: {
             audience: event.advisories.audience
@@ -211,11 +276,15 @@ defineExpose({
 onMounted(async () => {
     await Promise.all([
         fetchContactLevels(),
+        fetchAgeLimits(),
         fetchInteractiveLevel()
     ]);
     
     if (currentContactLevel.value) {
         selectContactLevel(currentContactLevel.value);
+    }
+    if (currentAgeLimit.value) {
+        selectAgeLimit(currentAgeLimit.value);
     }
     if (event.interactive_level) {
         selectInteractiveLevel(event.interactive_level);
