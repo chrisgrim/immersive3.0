@@ -110,7 +110,7 @@
                     ]"
                 >
                     <h3 class="text-xl font-semibold mb-4">Image</h3>
-                    <div class="aspect-video rounded-xl overflow-hidden bg-neutral-100">
+                    <div class="aspect-[16/9] rounded-xl overflow-hidden bg-neutral-100">
                         <img 
                             v-if="communityImage"
                             :src="communityImage"

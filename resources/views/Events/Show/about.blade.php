@@ -1,7 +1,7 @@
 <section>
     <div class="px-8 md:px-0 md:pb-20 border-b border-neutral-200">
         <div class="py-16 flex items-center gap-4 border-b">
-            <a href="{{ route('Organizers.show', $event->organizer->slug) }}" class="flex items-center gap-8">
+            <a href="{{ route('organizers.show', $event->organizer->slug) }}" class="flex items-center gap-8">
                 @if($event->organizer->thumbImagePath)
                     <div class="w-16 h-16 rounded-full overflow-hidden">
                         <picture>

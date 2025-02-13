@@ -11,62 +11,62 @@ use App\Http\Controllers\Curated\CardController;
     // Route::resource('posts', PostController::class);
     // Route::resource('cards', CardController::class);
 
-// Communities
-Route::controller(CommunityController::class)->group(function () {
-    Route::get('/communities', 'index');
-    Route::get('/communities/{community}', 'show');
-    Route::get('/communities/{community}/shelves/paginate', 'paginate');
-    Route::get('/communities/{community}/edit', 'edit');
-    Route::get('/communities/{community}/listings', 'listings');
-    Route::post('/communities/{community}', 'update')
-        ->middleware('can:update,community');
-    Route::post('/communities/{community}/curators', 'updateCurators')
-        ->middleware('can:manageCurators,community');
-    Route::delete('/communities/{community}', 'destroy');
-    
-    // Curator Management
-    Route::post('/communities/{community}/curators/add', 'addCurator')
-        ->middleware('can:manageCurators,community');
-    Route::post('/communities/{community}/curators/remove', 'removeCurator')
-        ->middleware('can:manageCurators,community');
-    Route::post('/communities/{community}/curators/remove-self', 'removeSelf')
-        ->middleware('can:removeSelf,community');
-    Route::post('/communities/{community}/curators/owner', 'updateOwner')
-        ->middleware('can:manageCurators,community');
-    Route::post('/communities/{community}/curators/invite', 'inviteCurator')
-        ->middleware('can:manageCurators,community');
-    Route::get('/curator-invitations/{token}', 'acceptInvitation')->name('curator.accept-invitation');
-    Route::get('/create/communities/thanks', 'submitted');
-    
-    // Name Change Request
-    Route::post('/communities/{community}/name-change', 'requestNameChange')
-        ->middleware('can:update,community');
-});
+// Community Features
+Route::prefix('communities')->name('communities.')->group(function () {
+    // Public routes
+    Route::GET('/', [CommunityController::class, 'index'])->name('index');
+    Route::GET('/{community}', [CommunityController::class, 'show'])->name('show')->middleware('can:preview,community');
 
-// Shelves
-Route::controller(ShelfController::class)->group(function () {
-    Route::post('/shelves/{community}', 'store');
-    Route::put('/shelves/{shelf}', 'update');
-    Route::put('/shelves/{community}/order', 'order');
-    Route::delete('/shelves/{shelf}', 'destroy');
-    Route::get('/shelves/{shelf}/paginate', 'paginate');
-});
+    // Protected routes
+    Route::middleware(['auth', 'verified'])->group(function () {
+        // Create
+        Route::GET('/create', [CommunityController::class, 'create'])->name('create');
+        Route::POST('/', [CommunityController::class, 'store'])->name('store');
 
-// Posts
-Route::controller(PostController::class)->group(function () {
-    Route::get('/posts/{community}/create', 'create');
-    Route::post('/posts/{community}/store', 'store');
-    Route::get('/communities/{community}/{post}', 'show');
-    Route::get('/communities/{community}/{post}/edit', 'edit');
-    Route::post('/communities/{community}/{post}/update', 'update');
-    Route::delete('/posts/{post}', 'destroy');
-    Route::put('/posts/{community}/order', 'order');
-});
+        // Update
+        Route::GET('/{community}/edit', [CommunityController::class, 'edit'])->name('edit')->middleware('can:update,community');
+        Route::POST('/{community}', [CommunityController::class, 'update'])->name('update')->middleware('can:update,community');
+        Route::GET('/{community}/listings', [CommunityController::class, 'listings'])->name('listings')->middleware('can:update,community');
+        Route::GET('/submitted', [CommunityController::class, 'submitted'])->name('submitted');
 
-// Cards
-Route::controller(CardController::class)->group(function () {
-    Route::post('/cards/{card}', 'update');
-    Route::post('/cards/{post}/create', 'store');
-    Route::put('/cards/{post}/order', 'order');
-    Route::delete('/cards/{card}', 'destroy');
+        // Curator management
+        Route::POST('/{community}/curators/invite', [CommunityController::class, 'inviteCurator'])->name('curators.invite')->middleware('can:manageCurators,community');
+        Route::GET('/curator-invitations/{token}', [CommunityController::class, 'acceptInvitation'])->name('curators.accept');
+        Route::POST('/{community}/curators', [CommunityController::class, 'updateCurators'])->name('curators.update')->middleware('can:manageCurators,community');
+        Route::POST('/{community}/curators/remove', [CommunityController::class, 'removeCurator'])->name('curators.remove')->middleware('can:manageCurators,community');
+        Route::DELETE('/{community}/curators/self', [CommunityController::class, 'removeSelf'])->name('curators.remove-self')->middleware('can:removeSelf,community');
+
+        // Additional actions
+        Route::POST('/{community}/submit', [CommunityController::class, 'submit'])->name('submit')->middleware('can:update,community');
+        Route::POST('/{community}/name-change', [CommunityController::class, 'requestNameChange'])->name('name.change')->middleware('can:update,community');
+        Route::GET('/{community}/paginate', [CommunityController::class, 'paginate'])->name('paginate');
+
+        // Shelves
+        Route::controller(ShelfController::class)->middleware('can:update,community')->group(function () {
+            Route::POST('/{community}/shelves', 'store');
+            Route::POST('/{community}/shelves/order', 'order');
+            Route::PUT('/{community}/shelves/{shelf}', 'update');
+            Route::DELETE('/{community}/shelves/{shelf}', 'destroy');
+            Route::GET('/{community}/shelves/{shelf}/paginate', 'paginate');
+        });
+
+        // Posts
+        Route::controller(PostController::class)->group(function () {
+            Route::GET('/{community}/posts/create', 'create')->middleware('can:update,community');
+            Route::POST('/{community}/posts', 'store')->middleware('can:update,community');
+            Route::GET('/{community}/posts/{post}', 'show')->middleware('can:preview,community');
+            Route::GET('/{community}/posts/{post}/edit', 'edit')->middleware('can:update,community');
+            Route::POST('/{community}/posts/{post}', 'update')->middleware('can:update,community');
+            Route::DELETE('/{community}/posts/{post}', 'destroy')->middleware('can:update,community');
+            Route::PUT('/{community}/posts/order', 'order')->middleware('can:update,community');
+        });
+
+        // Cards
+        Route::controller(CardController::class)->middleware('can:update,community')->group(function () {
+            Route::POST('/{community}/posts/{post}/cards', 'store');
+            Route::POST('/{community}/posts/{post}/cards/{card}', 'update');
+            Route::PUT('/{community}/posts/{post}/cards/order', 'order');
+            Route::DELETE('/{community}/posts/{post}/cards/{card}', 'destroy');
+        });
+    });
 });

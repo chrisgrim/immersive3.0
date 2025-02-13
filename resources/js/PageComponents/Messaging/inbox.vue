@@ -1,88 +1,134 @@
 <template>
-    <div class="w-full grid md:grid-cols-[35rem_1fr] md:h-[calc(100vh-8rem)]">
-        <div 
-            class="md:px-8 overflow-auto h-screen md:h-full border-r"
-            :class="{ 'hidden md:block': isMobileAndConversationSelected }"
-        >
-            <div class="h-32 flex items-center justify-between mt-12 px-8 md:px-0 md:mt-0 mb-8 md:mb-0 border-b border-neutral-200 md:border-none">
-                <template v-if="!isSearching">
-                    <h1 class="text-5xl md:text-4xl font-medium">Messages</h1>
-                    <button 
-                        @click="toggleSearch"
-                        class="p-4 rounded-full bg-neutral-100 hover:bg-gray-100"
-                    >
-                        <svg 
-                            width="18" 
-                            height="18" 
-                            viewBox="0 0 24 24" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            stroke-width="2" 
-                            stroke-linecap="round" 
-                            stroke-linejoin="round"
-                        >
-                            <circle cx="11" cy="11" r="8"></circle>
-                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                        </svg>
-                    </button>
-                </template>
-                <input 
-                    v-else
-                    ref="searchInput"
-                    @input="searchConversations"
-                    @blur="handleBlur"
-                    v-model="searchQuery"
-                    class="px-8 py-4 w-full rounded-lg" 
-                    placeholder="Search conversations" 
-                    type="text"
+    <div class="relative text-1xl font-medium w-full h-[calc(100vh-8rem)] flex flex-col">
+        <!-- Main Content Area with separate scrolling -->
+        <div class="flex-1 flex h-full">
+            <div class="mx-auto flex flex-1 flex-col md:flex-row">
+                <!-- Navigation Sidebar with own scroll -->
+                <div 
+                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full lg-air:w-[50rem] xl-air:w-[56rem] lg-air:block"
+                    :class="{ 'hidden': isMobileAndConversationSelected }"
                 >
-            </div>
-            <div 
-                v-if="conversationList"
-                v-for="convo in conversationList" 
-                :key="convo.id"
-                @click="fetchConversation(convo.id)"
-                class="flex items-center cursor-pointer px-8 md:px-4 md:p-4 hover:bg-neutral-100 relative rounded-2xl mb-10 md:mb-4"
-                :class="{ 'bg-neutral-100': conversation && convo.id === conversation.id }"
-            >
-                <div class="mr-auto text-xl flex items-center">
-                    <picture v-if="convo.conversable?.thumbImagePath">
-                        <source :srcset="`${imageUrl}${convo.conversable.thumbImagePath}`" type="image/webp">
-                        <img 
-                            :src="`${imageUrl}${convo.conversable.thumbImagePath.slice(0, -4)}jpg`" 
-                            :alt="`${convo.subject}`" 
-                            class="min-h-20 min-w-20 w-20 object-cover rounded-2xl"
-                        >
-                    </picture>
-                    <div class="ml-4">
-                        <p class="text-xl leading-tight">{{ convo.subject }}</p>
-                        <p class="text-sm text-neutral-500">
-                            Messages: {{ convo.messages?.length || 0 }}
-                        </p>
+                    <div class="flex items-center justify-center">
+                        <nav class="relative flex flex-col items-center flex-shrink-0 w-full mx-auto pt-12">
+                            <!-- Static Header -->
+                            <div class="w-full flex flex-col items-center bg-white py-4 px-8">
+                                <div class="w-full max-w-[58rem] lg-air:max-w-[40rem] space-y-8 md:px-8">
+                                    <div class="flex items-center justify-between w-full h-20">
+                                        <template v-if="!isSearching">
+                                            <h1 class="text-5xl font-semibold truncate">Messages</h1>
+                                            <button 
+                                                @click="toggleSearch"
+                                                class="w-16 h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex items-center justify-center"
+                                            >
+                                                <svg 
+                                                    width="24" 
+                                                    height="24" 
+                                                    viewBox="0 0 24 24" 
+                                                    fill="none" 
+                                                    stroke="currentColor" 
+                                                    stroke-width="2" 
+                                                    stroke-linecap="round" 
+                                                    stroke-linejoin="round"
+                                                >
+                                                    <circle cx="11" cy="11" r="8"></circle>
+                                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                                </svg>
+                                            </button>
+                                        </template>
+                                        
+                                        <div v-else class="w-full h-full">
+                                            <div class="flex border border-black rounded-full items-center h-full">
+                                                <input 
+                                                    ref="searchInput"
+                                                    @input="searchConversations"
+                                                    @blur="handleBlur"
+                                                    v-model="searchQuery"
+                                                    class="w-full px-4 py-3 bg-transparent border-none" 
+                                                    placeholder="Search conversations" 
+                                                    type="text"
+                                                >
+                                                <button
+                                                    @click="clearSearch"
+                                                    class="px-4 text-black hover:text-gray-600"
+                                                >
+                                                    <svg 
+                                                        xmlns="http://www.w3.org/2000/svg" 
+                                                        fill="none" 
+                                                        viewBox="0 0 24 24" 
+                                                        stroke="currentColor" 
+                                                        class="w-8 h-8"
+                                                    >
+                                                        <path 
+                                                            stroke-linecap="round" 
+                                                            stroke-linejoin="round" 
+                                                            stroke-width="2" 
+                                                            d="M6 18L18 6M6 6l12 12" 
+                                                        />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Scrollable Content -->
+                            <div class="w-full flex flex-col items-center overflow-y-auto max-h-[calc(100vh-19rem)]">
+                                <div class="w-full space-y-8 max-w-[58rem] lg-air:max-w-[40rem] p-8 mb-20 ">
+                                    <div 
+                                        v-if="conversationList"
+                                        v-for="convo in conversationList" 
+                                        :key="convo.id"
+                                        @click="fetchConversation(convo.id)"
+                                        class="flex w-full items-center cursor-pointer hover:bg-neutral-50 relative rounded-3xl border border-neutral-200 p-8"
+                                        :class="{ 'border-[#222222] shadow-focus-black bg-neutral-50': conversation && convo.id === conversation.id }"
+                                    >
+                                        <div class="mr-auto text-xl flex items-center">
+                                            <picture v-if="convo.conversable?.thumbImagePath">
+                                                <source :srcset="`${imageUrl}${convo.conversable.thumbImagePath}`" type="image/webp">
+                                                <img 
+                                                    :src="`${imageUrl}${convo.conversable.thumbImagePath.slice(0, -4)}jpg`" 
+                                                    :alt="`${convo.subject}`" 
+                                                    class="min-h-20 min-w-20 w-20 object-cover rounded-2xl"
+                                                >
+                                            </picture>
+                                            <div class="ml-4">
+                                                <p class="text-xl leading-tight">{{ convo.subject }}</p>
+                                                <p class="text-sm text-neutral-500">
+                                                    Messages: {{ convo.messages?.length || 0 }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </nav>
                     </div>
                 </div>
-            </div>
-        </div>
-        <div 
-            class="flex flex-col relative h-full w-full"
-            :class="{ 'hidden md:flex': !isMobileAndConversationSelected }"
-        >
-            <div v-if="hasError" class="flex flex-col items-center justify-center p-4 h-full w-full">
-                <div>
-                    <h3>Sorry, something went wrong.</h3>
+
+                <!-- Main Content Column -->
+                <div 
+                    class="flex-1 flex-col h-full w-full md:w-auto"
+                    :class="{ 'hidden md:flex': !isMobileAndConversationSelected, 'flex': isMobileAndConversationSelected }"
+                >
+                    <div v-if="hasError" class="flex flex-col items-center justify-center p-4 h-full w-full">
+                        <div>
+                            <h3>Sorry, something went wrong.</h3>
+                        </div>
+                        <div class="mt-8">
+                            <p>Please reach out to support@everythingimmersive.com </p>
+                        </div>
+                    </div>
+                    <Conversation 
+                        v-if="conversation"
+                        v-model:value="conversation"
+                        @update:value="updateConversation"
+                        :showBackButton="!isDesktop"
+                        @backClick="closeConversation"
+                        :currentUserId="props.user.id"
+                    />
                 </div>
-                <div class="mt-8">
-                    <p>Please reach out to support@everythingimmersive.com </p>
-                </div>
             </div>
-            <Conversation 
-                v-if="conversation"
-                v-model:value="conversation"
-                @update:value="updateConversation"
-                :showBackButton="!isDesktop"
-                @backClick="closeConversation"
-                :currentUserId="props.user.id"
-            />
         </div>
     </div>
 </template>
@@ -111,7 +157,7 @@ const imageUrl = import.meta.env.VITE_IMAGE_URL;
 let timeout = null;
 const isSearching = ref(false);
 const searchInput = ref(null);
-const isDesktop = ref(window.innerWidth >= 768);
+const isDesktop = ref(!window.Laravel.isMobile);
 const isMobileAndConversationSelected = computed(() => !isDesktop.value && conversation.value);
 
 const searchConversations = () => {
@@ -120,8 +166,14 @@ const searchConversations = () => {
 };
 
 const fetchConversations = async () => {
-    const response = await axios.post(`/inbox/fetch/conversations`, { search: searchQuery.value });
-    conversationList.value = response.data;
+    try {
+        const response = await axios.post('/inbox/fetch/conversations', { 
+            search: searchQuery.value 
+        });
+        conversationList.value = response.data;
+    } catch (error) {
+        console.error('Error fetching conversations:', error);
+    }
 };
 
 const fetchConversation = async (convoId) => {
@@ -164,8 +216,10 @@ const closeConversation = () => {
     }
 };
 
-const handleResize = () => {
-    isDesktop.value = window.innerWidth >= 768;
+const clearSearch = () => {
+    searchQuery.value = '';
+    isSearching.value = false;
+    conversationList.value = props.conversations;
 };
 
 onMounted(async () => {
@@ -174,11 +228,9 @@ onMounted(async () => {
     } else if (isDesktop.value && props.conversations?.length > 0) {
         await fetchConversation(props.conversations[0].id);
     }
-    window.addEventListener('resize', handleResize);
 });
 
 onUnmounted(() => {
     clearTimeout(timeout);
-    window.removeEventListener('resize', handleResize);
 });
 </script>

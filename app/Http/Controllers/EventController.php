@@ -23,17 +23,7 @@ use Illuminate\Support\Facades\Cache;
 
 
 class EventController extends Controller
-{
-
-
-    // public function __construct()
-    // {
-    //     $this->middleware(['auth', 'verified'])->except('index','show', 'fetch');
-    //     $this->middleware('can:update,event')
-    //     ->except(['index','create','show','store','fetch']);
-    // }
-
-   
+{ 
     public function show(Event $event)
     {
         abort_if($event->status !== 'p', 404);

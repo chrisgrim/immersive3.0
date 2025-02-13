@@ -9,7 +9,7 @@
         $element = $dock->shelves[0]->publishedPosts[0] ?? null;
         $name = $dock->shelves[0]->name ?? null;
         if ($element) {
-            $url = "/communities/{$element->community->slug}/{$element->slug}";
+            $url = "/communities/{$element->community->slug}/posts/{$element->slug}";
         }
     } elseif (count($dock->communities)) {
         $element = $dock->communities[0] ?? null;

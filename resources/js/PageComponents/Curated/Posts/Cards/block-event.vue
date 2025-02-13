@@ -93,6 +93,10 @@ const props = defineProps({
     position: {
         type: Number,
         required: true
+    },
+    community: {
+        type: Object,
+        required: true
     }
 })
 
@@ -171,7 +175,10 @@ const saveCard = async () => {
     addCardData()
     try {
         console.log('Saving card with order:', card.value.order)
-        const res = await axios.post(`/cards/${props.post.slug}/create`, formData.value)
+        const res = await axios.post(
+            `/communities/${props.community.slug}/posts/${props.post.slug}/cards`,
+            formData.value  // Use the FormData we prepared in addCardData()
+        )
         emit('update', res.data)
         disabled.value = false
     } catch (error) {
@@ -189,9 +196,13 @@ const addCardData = () => {
     formData.value.append('order', card.value.order)
     formData.value.append('type', card.value.type)
     formData.value.append('post_id', card.value.post_id)
+    formData.value.append('community_id', props.community.id)
+    formData.value.append('position', props.position)  // Add position
+    if (selectedEvent.value) {
+        formData.value.append('event_id', selectedEvent.value.id)
+    }
     if (card.value.url) formData.value.append('url', card.value.url)
     if (card.value.name) formData.value.append('name', card.value.name)
-    if (card.value.event_id) formData.value.append('event_id', card.value.event_id)
 }
 
 const selectEvent = (event) => {

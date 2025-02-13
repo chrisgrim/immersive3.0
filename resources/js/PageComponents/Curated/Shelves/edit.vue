@@ -41,7 +41,7 @@
 
                         <!-- Create Post Button -->
                         <a 
-                            :href="`/posts/${community.slug}/create?shelf=${shelf.id}`"
+                            :href="`/communities/${community.slug}/posts/create?shelf=${shelf.id}`"
                             class="inline-flex items-center border border-neutral-300 rounded-full ml-8 p-4 pr-6 gap-2 text-gray-600 hover:bg-black hover:text-white"
                         >
                             <div class="rounded-full w-8 h-8 flex items-center justify-center">
@@ -134,7 +134,7 @@ const patchShelf = async () => {
     if (!isValid) return
 
     try {
-        const res = await axios.put(`/shelves/${shelf.value.id}`, shelf.value)
+        const res = await axios.put(`/communities/${props.community.slug}/shelves/${shelf.value.id}`, shelf.value)
         shelf.value = res.data
         clear()
     } catch (err) {

@@ -96,7 +96,7 @@
                         </a>
                         <a 
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
-                            href="/account-settings">
+                            href="/users/account-settings">
                             Account
                         </a>
                         <a 

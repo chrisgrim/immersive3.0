@@ -3,7 +3,7 @@
 
 You've been invited to be a curator for {{ $community->name }}.
 
-@component('mail::button', ['url' => url("/curator-invitations/{$invitation->token}")])
+@component('mail::button', ['url' => url("/communities/curator-invitations/{$invitation->token}")])
 Accept Invitation
 @endcomponent
 

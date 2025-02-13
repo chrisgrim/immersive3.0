@@ -203,8 +203,8 @@ async function submitPost() {
     if (!isValid) return
 
     try {
-        const res = await axios.post(`/posts/${props.community.slug}/store`, post.value)
-        window.location.href = `/communities/${props.community.slug}/${res.data.slug}/edit`
+        const res = await axios.post(`/communities/${props.community.slug}/posts`, post.value)
+        window.location.href = `/communities/${props.community.slug}/posts/${res.data.slug}/edit`
     } catch (err) {
         onErrors(err)
     }

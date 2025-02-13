@@ -133,17 +133,14 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Get all of the teams (organizations) the user belongs to or owns.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     * Get all teams/organizations the user belongs to
      */
     public function teams()
     {
-        return $this->belongsToMany(Organizer::class)
-            ->orderBy('created_at', 'DESC')
-            ->withPivot('role')
-            ->withTimestamps()
-            ->as('membership');
+        return $this->belongsToMany(Organizer::class, 'organizer_user')
+                    ->withPivot('role')
+                    ->as('membership')  // This names the pivot relationship
+                    ->orderBy('organizers.created_at', 'desc');
     }
 
     /**

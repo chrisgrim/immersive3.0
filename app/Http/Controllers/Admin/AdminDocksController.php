@@ -14,7 +14,6 @@ class AdminDocksController extends Controller
 
     public function __construct(DockActions $dockActions)
     {
-        $this->middleware(['auth', 'verified'])->except('show');
         $this->dockActions = $dockActions;
     }
 

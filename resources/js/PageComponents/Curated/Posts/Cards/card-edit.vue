@@ -92,11 +92,15 @@
                             v-else 
                             class="space-y-6 md:w-[65%]">
 
-                            <h3 class="text-4xl font-bold mt-0">{{ card.event?.name }}</h3>
+                            <h3 class="text-4xl font-bold mt-0">{{ hasName }}</h3>
                             <!-- Event Dates -->
 
                             <div class="card-blurb text-2xl leading-tight">
-                                <div v-html="card.blurb" />
+                                <vue-show-more 
+                                    :text="stripHtml(card.blurb)"
+                                    :limit="50"
+                                    white-space="pre-wrap"
+                                />
                             </div>
                             
                             <p class="text-gray-600 text-xl">
@@ -227,6 +231,10 @@ const props = defineProps({
         type: Boolean,
         default: false
     },
+    community: {
+        type: Object,
+        required: true
+    }
 })
 
 const emit = defineEmits(['update'])
@@ -283,9 +291,7 @@ const hasImage = computed(() => {
 })
 
 const hasName = computed(() => 
-    card.value?.event?.name && !card.value?.name 
-        ? card.value.event.name 
-        : card.value?.name || ''
+    card.value?.name || card.value?.event?.name || ''
 )
 
 const hasUrl = computed(() => {
@@ -302,7 +308,10 @@ const updateCard = async () => {
 
     appendCardData()
     try {
-        const res = await axios.post(`/cards/${card.value.id}`, formData.value)
+        const res = await axios.post(
+            `/communities/${props.community.slug}/posts/${props.parentCard.post.slug}/cards/${card.value.id}`, 
+            formData.value
+        )
         card.value = res.data
         cardBeforeEdit.value = { ...res.data }
         clear()
@@ -317,11 +326,38 @@ const resetCard = () => {
 }
 
 const deleteCard = async () => {
+    if (!props.parentCard?.post?.slug) {
+        console.error('Post slug is missing from parentCard:', props.parentCard)
+        return
+    }
+
+    const url = `/communities/${props.community.slug}/posts/${props.parentCard.post.slug}/cards/${card.value.id}`
+    console.log('Attempting to delete card:', {
+        url,
+        community: props.community.slug,
+        post: props.parentCard.post.slug,
+        cardId: card.value.id
+    })
+
     try {
-        const res = await axios.delete(`/cards/${card.value.id}`)
+        const res = await axios.delete(url)
+        console.log('Delete response:', res.data)
         emit('update', res.data)
     } catch (error) {
-        console.error('Failed to delete card:', error)
+        // If we get a 404, the card might have already been deleted
+        if (error.response?.status === 404) {
+            console.warn('Card not found - might have been already deleted')
+            emit('update')
+            return
+        }
+
+        console.error('Failed to delete card:', {
+            error,
+            response: error.response?.data,
+            status: error.response?.status,
+            url,
+            message: error.response?.data?.message
+        })
     }
 }
 
@@ -331,8 +367,9 @@ const appendCardData = () => {
     if (card.value.url) formData.value.append('url', card.value.url)
     if (card.value.blurb) formData.value.append('blurb', card.value.blurb)
     formData.value.append('type', card.value.type)
+    formData.value.append('community_id', props.community.id)
+    formData.value.append('post_id', props.parentCard.post.id)
 }
-
 
 const clear = () => {
     console.log('onEdit', onEdit.value)
@@ -359,6 +396,14 @@ const isVisible = computed({
 const handleVisibilityChange = (value) => {
     card.value.type = value ? 'e' : 'h'
 }
+
+// Add this function to strip HTML tags
+const stripHtml = (html) => {
+    if (!html) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || '';
+};
 </script>
 
 <style scoped>

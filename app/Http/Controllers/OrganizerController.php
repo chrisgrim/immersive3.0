@@ -18,11 +18,6 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class OrganizerController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware(['auth', 'verified'])->except(['show']);
-    }
-
     public function show(Organizer $organizer)
     {
         // Load the organizer with all needed relations in one query
@@ -42,7 +37,7 @@ class OrganizerController extends Controller
             return redirect('/');
         }
         
-        return view('Organizers.show', compact('organizer'));
+        return view('organizers.show', compact('organizer'));
     }
 
     public function edit(Organizer $organizer)
@@ -54,12 +49,12 @@ class OrganizerController extends Controller
             }])
             ->findOrFail($organizer->id);
         
-        return view('Organizers.edit', compact('organizer'));
+        return view('organizers.edit', compact('organizer'));
     }
 
     public function teams(Request $request): View
     {
-        return view('Organizers.teams');
+        return view('organizers.teams');
     }
 
     public function switchTeam(Organizer $organizer)
@@ -204,36 +199,45 @@ class OrganizerController extends Controller
 
     public function searchTeams(Request $request)
     {
-        $query = auth()->user()->teams()
-            ->with('images')
-            ->withCount(['events', 'events as published_events_count' => function ($query) {
-                $query->whereIn('status', ['p', 'e']);
-            }]);
+        try {
+            $query = auth()->user()->teams()
+                ->with('images')
+                ->withCount(['events', 'events as published_events_count' => function ($query) {
+                    $query->whereIn('status', ['p', 'e']);
+                }]);
 
-        // Apply search if query exists
-        if ($search = $request->get('q')) {
-            $query->where('name', 'like', '%' . $search . '%');
+            if ($search = $request->get('q')) {
+                $query->where('name', 'like', '%' . $search . '%');
+            }
+
+            $teams = $query->paginate(40)->through(function ($team) {
+                return [
+                    'id' => $team->id,
+                    'name' => $team->name,
+                    'slug' => $team->slug,
+                    'events_count' => $team->events_count,
+                    'published_events_count' => $team->published_events_count,
+                    'role' => $team->membership->role,
+                    'images' => $team->images,
+                    'thumbImagePath' => $team->thumbImagePath,
+                    'largeImagePath' => $team->largeImagePath,
+                    'created_at' => $team->created_at
+                ];
+            });
+
+            return response()->json([
+                'teams' => $teams,
+                'current_team_id' => auth()->user()->current_team_id
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in searchTeams:', [
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
         }
-
-        $teams = $query->paginate(40)->through(function ($team) {
-            return [
-                'id' => $team->id,
-                'name' => $team->name,
-                'slug' => $team->slug,
-                'events_count' => $team->events_count,
-                'published_events_count' => $team->published_events_count,
-                'role' => $team->membership->role,
-                'images' => $team->images,
-                'thumbImagePath' => $team->thumbImagePath,
-                'largeImagePath' => $team->largeImagePath,
-                'created_at' => $team->created_at
-            ];
-        });
-
-        return response()->json([
-            'teams' => $teams,
-            'current_team_id' => auth()->user()->current_team_id
-        ]);
     }
 
     public function submit(Organizer $organizer)

@@ -26,9 +26,11 @@ class ShelfController extends Controller
      * update an existing model
      *
      * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Curated\Community  $community
+     * @param  \App\Models\Curated\Shelf  $shelf
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, Shelf $shelf, ShelfActions $shelfActions)
+    public function update(Request $request, Community $community, Shelf $shelf, ShelfActions $shelfActions)
     {
         return $shelfActions->update($request, $shelf);
     }
@@ -36,10 +38,11 @@ class ShelfController extends Controller
     /**
      * Destroy the specified resource.
      *
-     * @param  \App\Curated\Community  $community
+     * @param  \App\Models\Curated\Community  $community
+     * @param  \App\Models\Curated\Shelf  $shelf
      * @return \Illuminate\Http\Response
      */
-    public function destroy(Shelf $shelf, ShelfActions $shelfActions)
+    public function destroy(Community $community, Shelf $shelf, ShelfActions $shelfActions)
     {
         return $shelfActions->destroy($shelf);
     }
@@ -47,12 +50,16 @@ class ShelfController extends Controller
     /**
      * Paginate the specified resource.
      *
-     * @param  \App\Curated\Community  $community
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Curated\Community  $community
+     * @param  \App\Models\Curated\Shelf  $shelf
      * @return \Illuminate\Http\Response
      */
-    public function paginate(Request $request, Shelf $shelf, ShelfActions $shelfActions)
+    public function paginate(Request $request, Community $community, Shelf $shelf, ShelfActions $shelfActions)
     {
-        if ($request->type==='published') { return $shelf->publishedPosts()->paginate(8); }
+        if ($request->type === 'published') {
+            return $shelf->publishedPosts()->paginate(8);
+        }
         return $shelf->posts()->paginate(8);
     }
 

@@ -92,13 +92,24 @@
                                     <p v-if="curator.name" class="text-gray-500">{{ curator.email }}</p>
                                 </div>
                             </div>
-                            <button 
-                                v-if="canManageCurators || curator.id === user.id"
-                                @click="removeCurator(curator)"
-                                class="text-red-500 hover:text-red-700"
-                            >
-                                {{ curator.id === user.id ? 'Leave' : 'Remove' }}
-                            </button>
+                            <div class="flex items-center gap-4">
+                                <div v-if="pendingRemoval && pendingRemoval.id === curator.id" class="text-orange-500">
+                                    Update to remove {{ curator.name }}
+                                    <button 
+                                        @click="pendingRemoval = null"
+                                        class="ml-2 text-gray-500 hover:text-gray-700"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                                <button 
+                                    v-else-if="canManageCurators || curator.id === user.id"
+                                    @click="markForRemoval(curator)"
+                                    class="text-red-500 hover:text-red-700"
+                                >
+                                    {{ curator.id === user.id ? 'Leave' : 'Remove' }}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -214,6 +225,7 @@ const inviting = ref(false);
 const localCurators = ref([]);
 const newOwnerId = ref(null);
 const pendingNewOwner = ref(null);
+const pendingRemoval = ref(null);
 
 // Initialize local curators with community curators
 onMounted(() => {
@@ -250,33 +262,12 @@ const inviteCurator = async () => {
 };
 
 const removeCurator = async (curator) => {
-    // Don't allow removing the owner
-    if (curator.id === community.owner?.id) {
-        alert('Cannot remove the community owner.');
-        return;
-    }
-
-    // Don't allow removing pending new owner
-    if (curator.id === pendingNewOwner.value?.id) {
-        alert('Cannot remove the pending new owner. Cancel the ownership transfer first.');
-        return;
-    }
-
-    // For self-removal, show confirmation and handle redirect
-    if (curator.id === user.id) {
-        if (!confirm('Are you sure you want to leave this community? You will lose access to manage its content.')) {
-            return;
-        }
-    }
-
     try {
         const endpoint = curator.id === user.id
-            ? `/communities/${community.slug}/curators/remove-self`
+            ? `/communities/${community.slug}/curators/self`  // Changed to match route
             : `/communities/${community.slug}/curators/remove`;
             
-        const response = await axios.post(endpoint, {
-            id: curator.id
-        });
+        const response = await axios.delete(endpoint);  // Changed to DELETE for self-removal
         
         if (response.data) {
             localCurators.value = localCurators.value.filter(c => c.id !== curator.id);
@@ -304,12 +295,41 @@ const selectNewOwner = (curator) => {
     }
 };
 
+const markForRemoval = (curator) => {
+    // Don't allow removing the owner
+    if (curator.id === community.owner?.id) {
+        alert('Cannot remove the community owner.');
+        return;
+    }
+
+    // Don't allow removing pending new owner
+    if (curator.id === pendingNewOwner.value?.id) {
+        alert('Cannot remove the pending new owner. Cancel the ownership transfer first.');
+        return;
+    }
+
+    // For self-removal, show confirmation
+    if (curator.id === user.id) {
+        if (confirm('Are you sure you want to leave this community? You will lose access to manage its content.')) {
+            removeCurator(curator);  // Direct call to removeCurator
+        }
+        return;
+    }
+
+    // Mark curator for removal
+    pendingRemoval.value = curator;
+};
+
 // Component API
 defineExpose({
     isValid: () => true,
     submitData: () => {
+        const remainingCurators = localCurators.value
+            .filter(curator => curator.id !== pendingRemoval.value?.id)
+            .map(curator => curator.id);
+            
         const data = {
-            curator_ids: localCurators.value.map(curator => curator.id)
+            curator_ids: remainingCurators
         };
         
         if (newOwnerId.value) {
@@ -319,4 +339,10 @@ defineExpose({
         return data;
     }
 });
+
+// Watch for successful updates to clear pending states
+watch(() => community.curators, (newCurators) => {
+    localCurators.value = [...newCurators];
+    pendingRemoval.value = null;
+}, { deep: true });
 </script>

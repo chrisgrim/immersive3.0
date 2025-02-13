@@ -11,11 +11,6 @@ use App\Mail\Message;
 
 class ConversationsController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware(['auth', 'verified']);
-    }
-
     public function index()
     {
         $conversations = Conversation::where(function($query) {
@@ -122,6 +117,31 @@ class ConversationsController extends Controller
 
         return $query->orderBy('updated_at', 'desc')
                      ->limit(20)
+                     ->get();
+    }
+
+    public function search(Request $request)
+    {
+        $query = Conversation::where(function($query) {
+            $query->where('user_one', auth()->id())
+                  ->orWhere('user_two', auth()->id());
+        })
+        ->with([
+            'conversable', 
+            'messages' => function($query) {
+                $query->latest()
+                      ->limit(20);
+            },
+            'userone',
+            'usertwo'
+        ]);
+
+        if ($request->search) {
+            $query->where('subject', 'LIKE', "%{$request->search}%");
+        }
+
+        return $query->latest('updated_at')
+                     ->limit(50)
                      ->get();
     }
 

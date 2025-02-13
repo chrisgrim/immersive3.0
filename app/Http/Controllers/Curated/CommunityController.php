@@ -19,13 +19,7 @@ use App\Services\ImageHandler;
 use Illuminate\Support\Facades\Log;
 
 class CommunityController extends Controller
-{
-
-    public function __construct()
-    {
-        $this->middleware(['auth', 'verified'])->except('show');
-    }
-    
+{   
      /**
      * Display a listing of the resource.
      *
@@ -230,7 +224,7 @@ class CommunityController extends Controller
                         ImageHandler::deleteImage($image);
                     }
                 }
-                ImageHandler::saveImage($request->file('image'), $community, 800, 800, 'community-images');
+                ImageHandler::saveImage($request->file('image'), $community, 1200, 675, 'community-images');
             } elseif ($request->has('remove_image')) {
                 if ($community->images()->exists()) {
                     foreach ($community->images as $image) {

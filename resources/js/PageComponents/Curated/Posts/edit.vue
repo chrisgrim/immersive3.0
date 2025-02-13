@@ -14,22 +14,11 @@
                                 @update:modelValue="handleStatusChange" />
                                 <a 
                                     v-if="isLive"
-                                    :href="`/communities/${community.slug}/${post.slug}`"
+                                    :href="`/communities/${community.slug}/posts/${post.slug}`"
                                     class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
                                     title="View live community"
                                 >
-                                    <svg 
-                                        class="w-6 h-6 text-gray-600" 
-                                        viewBox="0 0 24 24" 
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        stroke-width="2" 
-                                        stroke-linecap="round" 
-                                        stroke-linejoin="round"
-                                    >
-                                        <path d="M7 17L17 7"/>
-                                        <path d="M7 7h10v10"/>
-                                    </svg>
+                                    <component :is="RiExternalLinkLine" class="w-6 h-6 text-gray-600" />
                                 </a>
                             </div>
                         </div>
@@ -164,9 +153,9 @@
                             <div :key="card.id">
                                 <div v-if="activeCardId === card.id && newCardPosition === post.cards.indexOf(card)">
                                     <div v-if="blockType" class="mb-4">
-                                        <EventBlock v-if="blockType==='e'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
-                                        <ImageBlock v-if="blockType==='i'" @update="handleNewCardUpdate" @cancel="clear" :post="post" :position="newCardPosition" />
-                                        <TextBlock v-if="blockType==='t'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
+                                        <EventBlock v-if="blockType==='e'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" :community="community" />
+                                        <ImageBlock v-if="blockType==='i'" @update="handleNewCardUpdate" @cancel="clear" :post="post" :position="newCardPosition" :community="community" />
+                                        <TextBlock v-if="blockType==='t'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" :community="community" />
                                     </div>
                                 </div>
                                 <div class="card-wrapper group mb-4">
@@ -174,9 +163,7 @@
                                         <button 
                                             @click="showAddButtonOptionsForCard(card, 'top')"
                                             class="absolute left-1/2 transform -translate-x-1/2 -top-6 bg-white rounded-full border shadow-sm p-2 hover:shadow-md z-10 hidden group-hover:block">
-                                            <svg class="w-6 h-6">
-                                                <use :xlink:href="`/storage/website-files/icons.svg#ri-add-circle-line`" />
-                                            </svg>
+                                            <component :is="RiAddLine" class="w-6 h-6" />
                                         </button>
                                         <div 
                                             v-if="activeAddButton === `${card.id}-top`"
@@ -201,15 +188,14 @@
                                     <div>   
                                         <EditCard 
                                             @update="updatePost"
-                                            :parent-card="card" />
+                                            :parent-card="{ ...card, post }"
+                                            :community="community" />
                                     </div>
                                     <div class="relative">
                                         <button 
                                             @click="showAddButtonOptionsForCard(card, 'bottom')"
                                             class="absolute left-1/2 transform -translate-x-1/2 -bottom-6 bg-white rounded-full border shadow-sm p-2 hover:shadow-md z-10 hidden group-hover:block">
-                                            <svg class="w-6 h-6">
-                                                <use :xlink:href="`/storage/website-files/icons.svg#ri-add-circle-line`" />
-                                            </svg>
+                                            <component :is="RiAddLine" class="w-6 h-6" />
                                         </button>
                                         <div 
                                             v-if="activeAddButton === `${card.id}-bottom`"
@@ -234,9 +220,9 @@
                                 </div>
                                 <div v-if="activeCardId === card.id && newCardPosition === post.cards.indexOf(card) + 1">
                                     <div v-if="blockType" class="mt-4">
-                                        <EventBlock v-if="blockType==='e'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
-                                        <ImageBlock v-if="blockType==='i'" @update="handleNewCardUpdate" @cancel="clear" :post="post" :position="newCardPosition" />
-                                        <TextBlock v-if="blockType==='t'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
+                                        <EventBlock v-if="blockType==='e'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" :community="community" />
+                                        <ImageBlock v-if="blockType==='i'" @update="handleNewCardUpdate" @cancel="clear" :post="post" :position="newCardPosition" :community="community" />
+                                        <TextBlock v-if="blockType==='t'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" :community="community" />
                                     </div>
                                 </div>
                             </div>
@@ -250,10 +236,7 @@
                                     @click="showAddButtonOptions"
                                     class="border-none h-16 items-center flex px-4">
                                     Add card
-                                    <svg class="w-8 ml-2">
-                                        <use v-if="!buttonOptions" :xlink:href="`/storage/website-files/icons.svg#ri-add-circle-line`" />
-                                        <use v-else :xlink:href="`/storage/website-files/icons.svg#ri-close-circle-line`" />
-                                    </svg>
+                                    <component :is="RiAddLine" class="w-8 ml-2" />
                                 </button>
                                 <template v-if="buttonOptions">
                                     <button 
@@ -274,9 +257,9 @@
                                 </template>
                             </template>
                             <template v-else>
-                                <EventBlock v-if="blockType==='e'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
-                                <ImageBlock v-if="blockType==='i'" @update="handleNewCardUpdate" @cancel="clear" :post="post" :position="newCardPosition" />
-                                <TextBlock v-if="blockType==='t'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" />
+                                <EventBlock v-if="blockType==='e'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" :community="community" />
+                                <ImageBlock v-if="blockType==='i'" @update="handleNewCardUpdate" @cancel="clear" :post="post" :position="newCardPosition" :community="community" />
+                                <TextBlock v-if="blockType==='t'" @cancel="clear" @update="handleNewCardUpdate" :post="post" :position="newCardPosition" :community="community" />
                             </template>
                         </div>
                     </div>
@@ -349,19 +332,7 @@
                 class="fixed top-36 right-4 z-50 bg-white rounded-xl shadow-lg p-4 max-w-sm border"
             >
                 <div class="flex items-center gap-3">
-                    <svg 
-                        class="w-6 h-6 text-green-500 flex-shrink-0" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        viewBox="0 0 24 24"
-                    >
-                        <path 
-                            stroke-linecap="round" 
-                            stroke-linejoin="round" 
-                            stroke-width="2" 
-                            d="M5 13l4 4L19 7"
-                        />
-                    </svg>
+                    <component :is="RiCheckLine" class="w-6 h-6 text-green-500 flex-shrink-0" />
                     <p class="text-gray-600">Post updated successfully</p>
                 </div>
             </div>
@@ -380,7 +351,14 @@ import TextBlock from './Cards/block-text.vue'
 import Draggable from "vuedraggable"
 import Dropdown from '@/GlobalComponents/dropdown.vue'
 import DropdownList from '@/GlobalComponents/dropdown-list.vue'
-import { RiImageCircleLine, RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
+import { 
+    RiImageCircleLine, 
+    RiCloseCircleLine, 
+    RiCloseCircleFill, 
+    RiAddLine,
+    RiExternalLinkLine,
+    RiCheckLine 
+} from "@remixicon/vue";
 import axios from 'axios'
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue'
 import EventSearch from './event-search.vue'
@@ -472,7 +450,7 @@ const patchPost = async () => {
     addPostData()
     try {
         const res = await axios.post(
-            `/communities/${props.community.slug}/${post.value.slug}/update`, 
+            `/communities/${props.community.slug}/posts/${post.value.slug}`, 
             formData.value
         )
         post.value = res.data
@@ -480,11 +458,10 @@ const patchPost = async () => {
         onUpdated()
         clear()
 
-        // Check if slug changed and redirect
         if (res.data.slug_changed) {
             setTimeout(() => {
-                window.location.href = `/communities/${props.community.slug}/${res.data.slug}/edit`
-            }, 1000) // Wait for "Updated" message to show
+                window.location.href = `/communities/${props.community.slug}/posts/${res.data.slug}/edit`
+            }, 1000)
         }
     } catch (err) {
         console.error('Patch error:', err)
@@ -498,11 +475,13 @@ const updatePostOrder = async () => {
             ...item,
             order: index
         }))
-        await axios.put(`/cards/${post.value.slug}/order`, list)
+        await axios.put(
+            `/communities/${props.community.slug}/posts/${post.value.slug}/cards/order`, 
+            list
+        )
         onUpdated()
     } catch (error) {
         console.error('Error updating card order:', error)
-        // Optionally revert changes on error
         post.value = { ...postBeforeEdit.value }
     }
 }
@@ -534,9 +513,8 @@ const addImage = (image) => {
     formData.value.append('image', image)
     loading.value = true
     
-    // Send directly as POST request
     axios.post(
-        `/communities/${props.community.slug}/${post.value.slug}/update`, 
+        `/communities/${props.community.slug}/posts/${post.value.slug}`, 
         formData.value
     )
     .then(res => {
@@ -556,9 +534,8 @@ const deleteImage = () => {
     formData.value = new FormData()
     formData.value.append('deleteImage', true)
     
-    // Send directly as POST request
     axios.post(
-        `/communities/${props.community.slug}/${post.value.slug}/update`, 
+        `/communities/${props.community.slug}/posts/${post.value.slug}`, 
         formData.value
     )
     .then(res => {
@@ -741,12 +718,11 @@ const handleStatusChange = (value) => {
 const handleShelfSelect = async (shelf) => {
     try {
         post.value.shelf_id = Number(shelf.id)
-        // Don't call clear() after this update
         const formDataCopy = new FormData()
         formDataCopy.append('shelf_id', shelf.id)
         
         const res = await axios.post(
-            `/communities/${props.community.slug}/${post.value.slug}/update`, 
+            `/communities/${props.community.slug}/posts/${post.value.slug}`, 
             formDataCopy
         )
         
@@ -761,12 +737,11 @@ const handleShelfSelect = async (shelf) => {
 const removeShelf = async () => {
     try {
         post.value.shelf_id = null
-        // Don't call clear() after this update
         const formDataCopy = new FormData()
         formDataCopy.append('shelf_id', '')
         
         const res = await axios.post(
-            `/communities/${props.community.slug}/${post.value.slug}/update`, 
+            `/communities/${props.community.slug}/posts/${post.value.slug}`, 
             formDataCopy
         )
         
@@ -781,11 +756,11 @@ const removeShelf = async () => {
 // Add computed
 const hasImage = computed(() => {
     if (post.value?.event_id) {
-        return post.value.featured_event_image?.thumbImagePath
+        return post.value.featured_event_image?.largeImagePath
     } else if (post.value?.images?.length > 0) {
-        return post.value.images[0].thumb_image_path || post.value.images[0].large_image_path
+        return post.value.images[0].large_image_path
     } else {
-        return post.value?.thumbImagePath
+        return post.value?.largeImagePath
     }
 })
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 
 class AdminUserController extends Controller
 {
@@ -75,10 +76,21 @@ class AdminUserController extends Controller
             ], 403);
         }
 
-        $user->delete();
-        
-        return response()->json([
-            'message' => 'User deleted successfully'
-        ]);
+        try {
+            DB::transaction(function() use ($user) {
+                // Delete related records first
+                DB::table('conversation_user')->where('user_id', $user->id)->delete();
+                
+                $user->delete();
+            });
+            
+            return response()->json([
+                'message' => 'User deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to delete user. They may have associated records that need to be handled first.'
+            ], 500);
+        }
     }
 } 

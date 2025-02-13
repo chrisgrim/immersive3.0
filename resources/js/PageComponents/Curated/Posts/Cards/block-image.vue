@@ -53,6 +53,10 @@ const props = defineProps({
     position: {
         type: Number,
         required: true
+    },
+    community: {
+        type: Object,
+        required: true
     }
 })
 
@@ -64,6 +68,7 @@ const imageUrl = import.meta.env.VITE_IMAGE_URL
 const card = ref({
     thumbImagePath: null,
     post_id: props.post.id,
+    community_id: props.community.id,
     type: 'i',
     order: props.position
 })
@@ -90,7 +95,10 @@ const isVisible = computed({
 const saveCard = async () => {
     addCardData()
     try {
-        const res = await axios.post(`/cards/${props.post.slug}/create`, formData.value)
+        const res = await axios.post(
+            `/communities/${props.community.slug}/posts/${props.post.slug}/cards`, 
+            formData.value
+        )
         emit('update', res.data)
         disabled.value = false
     } catch (error) {
@@ -103,9 +111,15 @@ const cancelCard = () => {
 }
 
 const addCardData = () => {
+    formData.value = new FormData()
     formData.value.append('type', card.value.type)
     formData.value.append('order', card.value.order)
-    if (imageFile.value?.file) formData.value.append('image', imageFile.value.file)
+    formData.value.append('post_id', card.value.post_id)
+    formData.value.append('community_id', props.community.id)
+    formData.value.append('position', props.position)
+    if (imageFile.value?.file) {
+        formData.value.append('image', imageFile.value.file)
+    }
 }
 
 const onFileChange = async (event) => {
@@ -129,7 +143,6 @@ const onFileChange = async (event) => {
     reader.readAsDataURL(file)
 }
 
-// Add this method to handle visibility changes
 const handleVisibilityChange = (value) => {
     card.value.type = value ? 'i' : 'h'
 }

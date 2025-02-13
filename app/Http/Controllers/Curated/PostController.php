@@ -16,22 +16,6 @@ use Illuminate\Support\Collection;
 
 class PostController extends Controller
 {
-
-    public function __construct()
-    {
-        $this->middleware(['auth', 'verified'])->except('show');
-    }
-
-    /**
-     * Show the form for editing a resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index(Community $community)
-    {
-        //
-    }
-
     /**
      * Show the form for creating a new resource.
      *
@@ -149,10 +133,11 @@ class PostController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param  \App\post $post
+     * @param  \App\Models\Curated\Community  $community
+     * @param  \App\Models\Curated\Post  $post
      * @return \Illuminate\Http\Response
      */
-    public function destroy(Post $post, PostActions $postActions)
+    public function destroy(Community $community, Post $post, PostActions $postActions)
     {
         return $postActions->destroy($post);
     }

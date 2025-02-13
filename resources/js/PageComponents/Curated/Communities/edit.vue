@@ -286,10 +286,16 @@ const saveChanges = async () => {
         console.log('Save changes response:', response.data);
         
         if (response.data) {
+            // Update the community object with the new data
             if (response.data.community) {
                 Object.assign(community, response.data.community);
             } else {
-                Object.assign(community, response.data);
+                // For image uploads, the response structure might be different
+                if (currentSection.value === 'Image' && response.data.images) {
+                    community.images = response.data.images;
+                } else {
+                    Object.assign(community, response.data);
+                }
             }
             
             showSuccessModal.value = true;

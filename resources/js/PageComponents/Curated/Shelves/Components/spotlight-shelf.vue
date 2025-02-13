@@ -7,7 +7,7 @@
                         <p class="text-gray-500">{{ shelf.name }}: </p>
                         <h2 class="text-6xl leading-[4.5rem] mt-8 font-medium text-black">{{ firstPost?.name }}</h2>
                     </div>
-                    <a :href="`/communities/${community.slug}/${firstPost?.slug}`">
+                    <a :href="`/communities/${community.slug}/posts/${firstPost?.slug}`">
                         <button class="bg-[#ff385c] text-white border-none p-6 mt-8 rounded-2xl font-bold text-xl">
                             Check it out
                         </button>

@@ -19,7 +19,7 @@
                          style="grid-template-columns: 8rem auto 15% 1%;">
                         <div class="px-6 flex items-center">
                             <a v-if="community?.slug && element?.slug" 
-                               :href="`/communities/${community.slug}/${element.slug}/edit`"
+                               :href="`/communities/${community.slug}/posts/${element.slug}/edit`"
                                class="block w-full h-16">
                                 <CardImage 
                                     :element="element"
@@ -29,7 +29,9 @@
                         </div>
                         <div>
                             <div class="flex items-center gap-2">
-                                <a v-if="community?.slug && element?.slug" :href="`/communities/${community.slug}/${element.slug}/edit`" class="hover:underline">
+                                <a v-if="community?.slug && element?.slug" 
+                                   :href="`/communities/${community.slug}/posts/${element.slug}/edit`" 
+                                   class="hover:underline">
                                     <p class="text-2xl font-medium">{{ element.name }}</p>
                                 </a>
                             </div>
@@ -133,7 +135,7 @@ const fetchMorePosts = async () => {
     
     try {
         const nextPage = currentPage.value + 1
-        const response = await axios.get(`/shelves/${props.modelValue.id}/paginate`, {
+        const response = await axios.get(`/communities/${props.community.slug}/shelves/${props.modelValue.id}/paginate`, {
             params: {
                 page: nextPage
             }
@@ -197,7 +199,7 @@ const deletePost = async () => {
     if (!selectedPost.value) return
     
     try {
-        await axios.delete(`/posts/${selectedPost.value.slug}`)
+        await axios.delete(`/communities/${props.community.slug}/posts/${selectedPost.value.slug}`)
         posts.value = posts.value.filter(post => post.id !== selectedPost.value.id)
         closeDeleteModal()
     } catch (error) {
@@ -212,7 +214,7 @@ const updateShelfOrder = async () => {
     }))
     
     try {
-        await axios.put(`/posts/${props.community.slug}/order`, list)
+        await axios.put(`/communities/${props.community.slug}/posts/order`, list)
     } catch (error) {
         console.error('Order update failed:', error)
     }

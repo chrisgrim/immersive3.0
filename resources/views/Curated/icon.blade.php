@@ -36,7 +36,7 @@
 
     $getElementUrl = function($element) use ($dock) {
         if (count($dock->shelves)) {
-            return '/communities/' . $element->community->slug . '/' . $element->slug;
+            return '/communities/' . $element->community->slug . '/posts/' . $element->slug;
         }
         if (count($dock->communities)) {
             return '/communities/' . $element->slug;

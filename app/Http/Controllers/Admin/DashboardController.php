@@ -12,14 +12,6 @@ use App\Models\NameChangeRequest;
 class DashboardController extends Controller
 {
     /**
-     * Create a new controller instance.
-     */
-    public function __construct()
-    {
-        // $this->middleware(['auth', 'admin']);
-    }
-
-    /**
      * Display admin dashboard
      */
     public function index()

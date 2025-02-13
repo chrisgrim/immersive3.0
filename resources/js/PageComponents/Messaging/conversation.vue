@@ -1,5 +1,5 @@
 <template>
-    <div v-if="conversation.messages && conversation.conversable" class="bg-white z-[1002] md:z-0 md:h-[calc(100vh-8rem)] flex flex-col justify-between relative overflow-auto">
+    <div v-if="conversation.messages" class="bg-white z-[1002] md:z-0 md:h-[calc(100vh-8rem)] flex flex-col justify-between relative overflow-auto">
 
         <div class="p-8 border-b border-neutral-200 flex relative items-center gap-8 sticky top-0 bg-white z-10">
             <div v-if="showBackButton" class="relative bg-white py-6 z-10">
@@ -12,15 +12,37 @@
                     </svg>
                 </button>
             </div>
-            <picture v-if="conversation.conversable.thumbImagePath">
-                <source :srcset="`${imageUrl}${conversation.conversable.thumbImagePath}`" type="image/webp">
-                <img 
-                    :src="`${imageUrl}${conversation.conversable.thumbImagePath.slice(0, -4)}jpg`" 
-                    :alt="`${conversation.conversable.name}`" 
-                    class="w-20 aspect-[3/4] object-cover rounded-xl ml-8 md:ml-0"
-                >
-            </picture>
+            
+            <!-- Image or placeholder -->
+            <div 
+                class="w-20 overflow-hidden ml-8 md:ml-0 flex-shrink-0"
+                :class="{
+                    'aspect-[3/4] rounded-xl': isEvent,
+                    'aspect-[4/3] rounded-xl': isCommunity,
+                    'aspect-square rounded-full': isOrganizer
+                }"
+            >
+                <div class="w-full h-full">
+                    <picture v-if="conversation.conversable?.thumbImagePath" class="w-full h-full">
+                        <source :srcset="`${imageUrl}${conversation.conversable.thumbImagePath}`" type="image/webp">
+                        <img 
+                            :src="`${imageUrl}${conversation.conversable.thumbImagePath.slice(0, -4)}jpg`" 
+                            :alt="`${conversation.conversable.name}`" 
+                            class="w-full h-full object-cover"
+                        >
+                    </picture>
+                    <div 
+                        v-else 
+                        class="w-full h-full bg-neutral-200 flex items-center justify-center text-3xl text-neutral-500"
+                    >
+                        {{ conversation.subject[0].toUpperCase() }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Show link if conversable exists, otherwise just show text -->
             <a 
+                v-if="conversation.conversable"
                 :href="getConversableLink"
                 target="_blank" 
                 rel="noopener noreferrer" 
@@ -28,6 +50,12 @@
             >
                 {{ conversation.subject }}
             </a>
+            <span 
+                v-else 
+                class="text-2xl md:text-3xl ml-8 md:ml-0 text-neutral-500"
+            >
+                {{ conversation.subject }} (Removed)
+            </span>
         </div>
 
         <div ref="messagesContainer" class="flex flex-col overflow-y-auto overflow-x-hidden px-8 flex-grow items-start pb-40 md:pb-0">
@@ -128,12 +156,13 @@ const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const textareaRef = ref(null);
 const error = ref(null);
 
-const conversableType = computed(() => {
-    const conversable = conversation.value?.conversable;
-    if (!conversable) return null;
-    
-    return conversable.constructor?.name || conversable.type || null;
+const getConversableType = computed(() => {
+    return conversation.value?.conversable_type?.split('\\').pop() || null;
 });
+
+const isEvent = computed(() => getConversableType.value === 'Event');
+const isOrganizer = computed(() => getConversableType.value === 'Organizer');
+const isCommunity = computed(() => getConversableType.value === 'Community');
 
 const messageClasses = computed(() => message => ({
     'bg-neutral-700 text-white [&_p]:text-white rounded-t-2xl rounded-l-2xl': message.user_id === props.currentUserId,
@@ -144,11 +173,16 @@ const getConversableLink = computed(() => {
     const conversable = conversation.value?.conversable;
     if (!conversable) return '#';
     
-    switch(conversableType.value) {
+    // Get type from the conversable_type if available
+    const type = conversation.value?.conversable_type?.split('\\').pop() || conversable.type;
+    
+    switch(type) {
         case 'Event':
             return `/events/${conversable.slug}`;
         case 'Organizer':
             return `/organizers/${conversable.slug}`;
+        case 'Community':
+            return `/communities/${conversable.slug}`;
         default:
             return '#';
     }

@@ -24,7 +24,6 @@ class HostEventController extends Controller
 
     public function __construct(NameChangeRequestService $nameChangeService)
     {
-        $this->middleware(['auth', 'verified']);
         $this->nameChangeService = $nameChangeService;
     }
 

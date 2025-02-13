@@ -11,7 +11,7 @@
                     :key="post.id"
                     class="relative">
                     <div class="flex w-full flex-col overflow-hidden relative">
-                        <a :href="`/communities/${community.slug}/${post.slug}`"
+                        <a :href="`/communities/${community.slug}/posts/${post.slug}`"
                         class="block h-full absolute w-full rounded-2xl top-0 left-0 z-10">
                         </a>
                         

@@ -67,9 +67,9 @@
             <div class="flex items-center gap-4">
                 <h1 class="font-semibold text-4xl md:text-6xl text-black leading-[3rem] md:leading-[5rem]">{{ $post->name }}</h1>
                 
-                @if (auth()->check() && (auth()->user()->isAdmin || auth()->user()->isModerator || auth()->user()->can('edit', $post)))
+                @if (auth()->check() && (auth()->user()->isAdmin || auth()->user()->isModerator || auth()->user()->can('update', $community)))
                     <a 
-                        href="/communities/{{ $post->community->slug }}/{{ $post->slug }}/edit" 
+                        href="/communities/{{ $post->community->slug }}/posts/{{ $post->slug }}/edit" 
                         class="inline-flex items-center justify-center p-4 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"
                     >
                         <svg 
@@ -250,23 +250,27 @@
 
                                         {{-- Event Content --}}
                                         <div class="space-y-6 md:w-[65%] my-auto">
-                                            {{-- Event Title --}}
-                                            <a href="/events/{{ $card->event->slug }}">
-                                                <h3 class="text-4xl font-bold mt-0">{{ $card->event->name }}</h3>
+                                            {{-- Title with Link --}}
+                                            <a href="{{ $card->url ?? '/events/' . $card->event->slug }}">
+                                                <h3 class="text-4xl font-bold mt-0">{{ $card->name ?? $card->event->name }}</h3>
                                             </a>
+
+                                            {{-- Blurb --}}
                                             @if(Str::of($card->blurb)->stripTags()->trim()->isNotEmpty())
                                                 {!! Str::words($card->blurb, 50, '...') !!}
                                             @endif
 
                                             {{-- Event Dates --}}
-                                            <p class="text-gray-600 text-xl">
-                                                Booking Through: {{ \Carbon\Carbon::parse($card->event->end_date)->format('l, F j Y') }}
-                                            </p>
+                                            @if($card->event)
+                                                <p class="text-gray-600 text-xl">
+                                                    Booking Through: {{ \Carbon\Carbon::parse($card->event->end_date)->format('l, F j Y') }}
+                                                </p>
+                                            @endif
 
                                             {{-- Check it out Button --}}
                                             <div>
                                                 <a 
-                                                    href="/events/{{ $card->event->slug }}" 
+                                                    href="{{ $card->url ?? '/events/' . $card->event->slug }}" 
                                                     class="inline-block bg-black text-white px-8 py-4 rounded-2xl hover:bg-gray-800 transition-colors">
                                                     Read More
                                                 </a>

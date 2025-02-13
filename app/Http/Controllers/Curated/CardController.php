@@ -8,28 +8,20 @@ use App\Models\Curated\Post;
 use App\Actions\Curated\CardActions;
 use Illuminate\Support\Facades\Storage;
 use App\Http\Controllers\Controller;
+use App\Models\Curated\Community;
 
 class CardController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware(['auth', 'verified'])->except('show');
-    }
-
     /**
      * Store a newly created resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Curated\Community  $community
+     * @param  \App\Models\Curated\Post  $post
      * @return \Illuminate\Http\Response
      */
-    public function store(Request $request, Post $post, CardActions $cardActions)
-    {
-        \Log::info('CardController@store hit', [
-            'request' => $request->all(),
-            'post_id' => $post->id,
-            'files' => $request->files->all()
-        ]);
-        
+    public function store(Request $request, Community $community, Post $post, CardActions $cardActions)
+    {   
         return $cardActions->create($request, $post);
     }
 
@@ -48,10 +40,12 @@ class CardController extends Controller
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Card  $card
+     * @param  \App\Models\Curated\Community  $community
+     * @param  \App\Models\Curated\Post  $post
+     * @param  \App\Models\Curated\Card  $card
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, Card $card, CardActions $cardActions)
+    public function update(Request $request, Community $community, Post $post, Card $card, CardActions $cardActions)
     {
         return $cardActions->update($request, $card);
     }
@@ -59,10 +53,12 @@ class CardController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param  \App\Card $card
+     * @param  \App\Models\Curated\Community  $community
+     * @param  \App\Models\Curated\Post  $post
+     * @param  \App\Models\Curated\Card  $card
      * @return \Illuminate\Http\Response
      */
-    public function destroy(Card $card, CardActions $cardActions)
+    public function destroy(Community $community, Post $post, Card $card, CardActions $cardActions)
     {
         return $cardActions->destroy($card);
     }
@@ -70,10 +66,12 @@ class CardController extends Controller
     /**
      * Order the specified resource.
      *
-     * @param  \App\Curated\card  $card
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Curated\Community  $community
+     * @param  \App\Models\Curated\Post  $post
      * @return \Illuminate\Http\Response
      */
-    public function order(Request $request, Post $post, CardActions $cardActions)
+    public function order(Request $request, Community $community, Post $post, CardActions $cardActions)
     {
         $cardActions->reorder($request);
     }

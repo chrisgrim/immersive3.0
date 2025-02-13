@@ -8,7 +8,7 @@
 
             <div class="mb-8 flex flex-col items-center justify-center">
                 <!-- Image Upload Area -->
-                <div class="relative w-full max-w-[45rem] aspect-video">
+                <div class="relative w-full max-w-[45rem] aspect-[16/9]">
                     <input 
                         type="file" 
                         ref="fileInput"
@@ -54,7 +54,7 @@
                 <div class="mt-8 text-gray-500 text-center">
                     <p>Image requirements:</p>
                     <ul class="list-disc list-inside">
-                        <li>Minimum 800 x 450 pixels</li>
+                        <li>Minimum 400 x 225 pixels</li>
                         <li>Maximum file size: 10MB</li>
                         <li>Supported formats: JPEG, PNG, WebP</li>
                     </ul>
@@ -76,8 +76,8 @@ const validationError = ref('');
 
 // Constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const MIN_WIDTH = 800;
-const MIN_HEIGHT = 450;
+const MIN_WIDTH = 400;  // Updated to smaller size
+const MIN_HEIGHT = 225; // Updated to maintain 16:9 ratio
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 // Methods

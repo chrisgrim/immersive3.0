@@ -5,7 +5,7 @@
     <div v-else>
         <div class="m-auto w-full px-8 my-20 lg-air:px-16 2xl-air:px-32">
             <div class="flex items-center justify-between gap-8">
-                <div class="w-2/3">
+                <div class="w-3/5">
                     <div class="w-full">
                         <div class="flex items-center gap-4 mb-4">
                             <a 
@@ -48,28 +48,30 @@
                     </div>
                 </div>
                 
-                <div class="w-1/3 rounded-2xl overflow-hidden">
-                    <template v-if="communityImage">
-                        <picture class="w-full h-full">
-                            <source 
-                                :srcset="communityImage"
-                                type="image/webp"
-                            >
-                            <img 
-                                :src="communityImage"
-                                :alt="community.name"
-                                class="w-full h-full object-cover"
-                                @error="handleImageError"
-                            >
-                        </picture>
-                    </template>
-                    <div 
-                        v-else 
-                        class="w-full h-full bg-neutral-100 flex items-center justify-center"
-                    >
-                        <span class="text-6xl font-bold text-gray-400">
-                            {{ community.name?.charAt(0).toUpperCase() || '?' }}
-                        </span>
+                <div class="w-2/5">
+                    <div class="relative w-full rounded-2xl overflow-hidden aspect-[16/9]">
+                        <template v-if="communityImage">
+                            <picture class="absolute inset-0">
+                                <source 
+                                    :srcset="communityImage"
+                                    type="image/webp"
+                                >
+                                <img 
+                                    :src="communityImage"
+                                    :alt="community.name"
+                                    class="w-full h-full object-cover"
+                                    @error="handleImageError"
+                                >
+                            </picture>
+                        </template>
+                        <div 
+                            v-else 
+                            class="absolute inset-0 bg-neutral-100 flex items-center justify-center"
+                        >
+                            <span class="text-6xl font-bold text-gray-400">
+                                {{ community.name?.charAt(0).toUpperCase() || '?' }}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -143,6 +145,7 @@ const imageUrl = import.meta.env.VITE_IMAGE_URL || ''
 
 const currentCuratorIndex = ref(0)
 let curatorInterval
+const shelvesBeforeReorder = ref([])
 
 // Computed properties
 const communityImage = computed(() => {
@@ -168,7 +171,7 @@ const handleImageError = () => {
 // Methods
 const addShelf = async () => {
     try {
-        const res = await axios.post(`/shelves/${community.value.slug}`)
+        const res = await axios.post(`/communities/${community.value.slug}/shelves`)
         shelves.value = res.data
     } catch (err) {
         console.error(err)
@@ -185,7 +188,7 @@ const deleteShelf = async (shelf) => {
         return
     }
     try {
-        await axios.delete(`/shelves/${shelf.id}`)
+        await axios.delete(`/communities/${community.value.slug}/shelves/${shelf.id}`)
         shelves.value = shelves.value.filter(s => s.id !== shelf.id)
     } catch (err) {
         console.error('Failed to delete shelf:', err)
@@ -195,14 +198,29 @@ const deleteShelf = async (shelf) => {
 
 const updateShelvesOrder = async () => {
     try {
+        shelvesBeforeReorder.value = [...shelves.value]
+        
         const orderedShelves = shelves.value.map((shelf, index) => ({
             id: shelf.id,
             order: index
         }))
         
-        await axios.put(`/shelves/${community.value.slug}/order`, orderedShelves)
+        console.log('Sending shelf order update:', {
+            url: `/communities/${community.value.slug}/shelves/order`,
+            data: orderedShelves,
+            communitySlug: community.value.slug
+        })
+        
+        const response = await axios.post(`/communities/${community.value.slug}/shelves/order`, orderedShelves)
+        console.log('Shelf order update response:', response.data)
     } catch (error) {
-        console.error('Failed to update shelf order:', error)
+        console.error('Failed to update shelf order:', {
+            error,
+            response: error.response?.data,
+            status: error.response?.status,
+            data: error.response?.config?.data
+        })
+        shelves.value = [...shelvesBeforeReorder.value]
     }
 }
 

@@ -11,14 +11,27 @@ class EventPolicy
     use HandlesAuthorization;
 
     /**
-     * Determine if the user can moderate events.
-     *
-     * @param  \App\Models\User  $user
-     * @return bool
+     * Determine if the user can access hosting features.
      */
-    public function moderate(User $user)
+    public function host(User $user): bool
+    {
+        return $user->teams()->exists() || $user->isModerator();
+    }
+
+    /**
+     * Determine if the user can manage the event.
+     */
+    public function manage(User $user, Event $event): bool
+    {
+        return $user->belongsToOrganization($event->organizer) || 
+               $user->isModerator();
+    }
+
+    /**
+     * Determine if the user can moderate events.
+     */
+    public function moderate(User $user): bool
     {
         return $user->isAdmin() || $user->isModerator();
     }
-
 }

@@ -2,7 +2,7 @@
     <div>
         <div class="m-auto w-full px-8 mb-32 lg-air:px-16 2xl-air:px-32">
             <div class="flex items-center justify-between gap-8">
-                <div class="w-2/3">
+                <div class="w-3/5">
                     <div class="w-full">
                         <div class="flex items-center gap-4">
                             <h2 class="text-6xl mb-4 font-medium text-black leading-tight break-words hyphens-auto">{{ community.name }}</h2>
@@ -61,22 +61,31 @@
                     </div>
                 </div>
                 
-                <div class="w-1/3 rounded-2xl overflow-hidden">
-                    <picture>
-                        <source 
-                            :srcset="community.images?.[0]?.path?.replace('.jpg', '.webp') || `${imageUrl}${community.largeImagePath}`.replace('.jpg', '.webp')"
-                            type="image/webp"
+                <div class="w-2/5">
+                    <div class="relative w-full rounded-2xl overflow-hidden aspect-[16/9]">
+                        <template v-if="communityImage">
+                            <picture class="absolute inset-0">
+                                <source 
+                                    :srcset="communityImage"
+                                    type="image/webp"
+                                >
+                                <img 
+                                    :src="communityImage"
+                                    :alt="community.name"
+                                    class="w-full h-full object-cover"
+                                    @error="handleImageError"
+                                >
+                            </picture>
+                        </template>
+                        <div 
+                            v-else 
+                            class="absolute inset-0 bg-neutral-100 flex items-center justify-center"
                         >
-                        <source 
-                            :srcset="community.images?.[0]?.path || `${imageUrl}${community.largeImagePath}`"
-                            type="image/jpeg"
-                        >
-                        <img 
-                            :src="community.images?.[0]?.path || `${imageUrl}${community.largeImagePath}`"
-                            :alt="community.name"
-                            class="w-full h-full object-cover"
-                        >
-                    </picture>
+                            <span class="text-6xl font-bold text-gray-400">
+                                {{ community.name?.charAt(0).toUpperCase() || '?' }}
+                            </span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -137,6 +146,21 @@ const headerImage = computed(() =>
     props.mobile ? props.value.thumbImagePath : props.value.largeImagePath
 )
 
+const communityImage = computed(() => {
+    // First check for images array
+    const firstImage = community.value.images?.[0];
+    if (firstImage) {
+        return `${imageUrl}${firstImage.large_image_path}`;
+    }
+    
+    // Then check for thumbImagePath
+    if (community.value.thumbImagePath) {
+        return `${imageUrl}${community.value.thumbImagePath}`;
+    }
+    
+    return null;
+});
+
 const currentCuratorIndex = ref(0)
 let curatorInterval
 
@@ -164,7 +188,9 @@ const onBack = () => {
 
 const fetchShelves = async () => {
     try {
-        const res = await axios.get(`/communities/${community.value.slug}/shelves/paginate?page=${shelfContainer.value.next_page_url.slice(-1)}`)
+        const res = await axios.get(
+            `/communities/${community.value.slug}/shelves/${shelfContainer.value.next_page_url.slice(-1)}/paginate`
+        )
         shelfContainer.value = res.data
         shelves.value = [...shelves.value, ...res.data.data]
     } catch (error) {

@@ -10,11 +10,6 @@ use App\Http\Requests\StoreProfileRequest;
 
 class ProfilesController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware(['auth', 'verified'])->except('show');
-    }
-
     public function show(User $user)
     {
         $user->load('images');

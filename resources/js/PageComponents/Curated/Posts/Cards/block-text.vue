@@ -30,6 +30,10 @@ const props = defineProps({
     position: {
         type: Number,
         required: true
+    },
+    community: {
+        type: Object,
+        required: true
     }
 })
 
@@ -38,6 +42,7 @@ const emit = defineEmits(['update', 'cancel'])
 const card = ref({
     blurb: null,
     post_id: props.post.id,
+    community_id: props.community.id,
     type: 't',
     order: props.position
 })
@@ -61,7 +66,18 @@ const saveCard = async () => {
     console.log('Sending card data:', card.value)
     
     try {
-        const res = await axios.post(`/cards/${props.post.slug}/create`, card.value)
+        const formData = new FormData()
+        formData.append('blurb', card.value.blurb)
+        formData.append('type', card.value.type)
+        formData.append('order', card.value.order)
+        formData.append('post_id', card.value.post_id)
+        formData.append('community_id', props.community.id)
+        formData.append('position', props.position)
+
+        const res = await axios.post(
+            `/communities/${props.community.slug}/posts/${props.post.slug}/cards`, 
+            formData
+        )
         console.log('Response received:', res.data)
         emit('update', res.data)
     } catch (error) {

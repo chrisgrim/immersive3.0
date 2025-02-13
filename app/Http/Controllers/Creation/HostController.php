@@ -9,11 +9,6 @@ use Illuminate\Http\Request;
 
 class HostController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware(['auth', 'verified']);
-    }
-
     public function show()
     {
         $organizer = auth()->user()->organizer()

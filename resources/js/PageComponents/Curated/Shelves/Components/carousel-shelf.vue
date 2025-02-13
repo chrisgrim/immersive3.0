@@ -34,18 +34,18 @@
                 <div v-for="post in shelf.published_posts.data"
                      :key="post.id"
                      class="ml-10 first:ml-0 snap-start snap-always w-[calc(31.25%- -7rem)] first:pl-8 last:pr-8 md:first:pl-32 md:last:pr-32">
-                    <a :href="`/communities/${community.slug}/${post.slug}`" 
+                    <a :href="`/communities/${community.slug}/posts/${post.slug}`" 
                        class="block w-full pb-16">
                         <div class="rounded-2xl overflow-hidden h-full border border-gray-300" :style="{ width: `${cardWidth}px` }">
                             <div class="w-full" :style="{ height: `${cardWidth}px` }">
                                 <picture>
                                     <source 
                                         type="image/webp" 
-                                        :srcset="`${imageUrl}${getPostImage(post)}`">
+                                        :srcset="getPostImage(post) ? `${imageUrl}${getPostImage(post)}` : ''">
                                     <img 
                                         class="h-full w-full object-cover"
                                         loading="lazy" 
-                                        :src="`${imageUrl}${getPostImage(post).replace('.webp', '.jpg')}`"
+                                        :src="getPostImage(post) ? `${imageUrl}${getPostImage(post).replace('.webp', '.jpg')}` : ''"
                                         :alt="post.name">
                                 </picture>
                             </div>
@@ -93,13 +93,15 @@ const formatDate = (dateString) => {
 }
 
 const getPostImage = (post) => {
-    if (post.event_id && post.featured_event_image) {
+    if (post.event_id && post.featured_event_image?.thumbImagePath) {
         return post.featured_event_image.thumbImagePath
-    } else if (post.images && post.images.length > 0) {
+    } else if (post.images?.length > 0) {
         return post.images[0].thumb_image_path || post.images[0].large_image_path
-    } else {
+    } else if (post.thumbImagePath) {
         return post.thumbImagePath
     }
+    // Return a default image path or null
+    return null
 }
 
 const scrollLeft = () => {

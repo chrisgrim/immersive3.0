@@ -9,8 +9,11 @@ class UserPolicy
 {
     use HandlesAuthorization;
 
-    public function update(User $user, User $model)
+    /**
+     * Determine if the user can update the profile.
+     */
+    public function update(User $user, User $model): bool
     {
-        return $model->id === $user->id || auth()->user()->type === 'a' || auth()->user()->type === 'm';
+        return $user->id === $model->id || $user->isModerator();
     }
 }
