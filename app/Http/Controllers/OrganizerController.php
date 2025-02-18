@@ -90,7 +90,7 @@ class OrganizerController extends Controller
             } else {
                 // Create a new event and return JSON with the redirect URL for event edit page
                 $event = Event::newEvent($organizer->id);
-                return response()->json(['redirect' => route('event.edit', ['event' => $event->slug])], 200);
+                return response()->json(['redirect' => route('hosting.event.edit', ['event' => $event->slug])], 200);
             }
         } catch (\Exception $e) {
             Log::error('Failed to create organizer: ' . $e->getMessage());

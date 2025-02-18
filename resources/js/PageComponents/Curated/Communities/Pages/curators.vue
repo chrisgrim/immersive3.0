@@ -115,10 +115,10 @@
                 </div>
             </div>
 
-            <!-- Modals only shown if canManageCurators -->
-            <template v-if="canManageCurators">
+            <!-- Modals -->
+            <teleport to="body">
                 <!-- Add Curator Modal -->
-                <div v-if="showAddCurator" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                <div v-if="showAddCurator" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2010]">
                     <div class="bg-white rounded-2xl p-6 w-full max-w-lg">
                         <h3 class="text-xl font-semibold mb-4">Invite Curator</h3>
                         <p class="text-gray-500 mb-4">Enter the email address of the person you'd like to invite as a curator.</p>
@@ -156,7 +156,7 @@
                 </div>
 
                 <!-- Transfer Ownership Modal -->
-                <div v-if="showTransferOwnership" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                <div v-if="showTransferOwnership" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2010]">
                     <div class="bg-white rounded-2xl p-6 w-full max-w-lg">
                         <h3 class="text-xl font-semibold mb-4">Transfer Ownership</h3>
                         <p class="text-gray-500 mb-6">Select a curator to transfer ownership to. You will remain as a curator.</p>
@@ -198,7 +198,7 @@
                         </div>
                     </div>
                 </div>
-            </template>
+            </teleport>
         </div>
     </main>
 </template>

@@ -102,7 +102,7 @@ class AdminOrganizerController extends Controller
             Message::notification($organizer, $message, $organizer->slug);
             
             // Send email notification
-            Mail::to($organizer->user)->send(new Comments($organizer, $message));
+            Mail::to($organizer->user)->send(new Comments($organizer, $message, 'approved'));
         }
 
         return response()->json(['message' => 'Organizer approved successfully']);
@@ -120,8 +120,8 @@ class AdminOrganizerController extends Controller
         ]);
 
         // Create rejection message with reason
-        $message = "Your organizer profile has been rejected.\n\nReason: {$validated['reason']}";
-        $inAppMessage = "Your organizer profile has been rejected.\n\nReason: {$validated['reason']}";
+        $message = "We've reviewed your organizer and have some feedback that needs to be addressed.\n\nReason: {$validated['reason']}";
+        $inAppMessage = "We've reviewed your organizer and have some feedback that needs to be addressed.\n\nReason: {$validated['reason']}";
         
         if(auth()->id() !== $organizer->user_id) {
             $message = Message::MESSAGES['ORGANIZER_REJECTED'] . "\n\nReason: {$validated['reason']}";
@@ -130,7 +130,7 @@ class AdminOrganizerController extends Controller
             Message::notification($organizer, $inAppMessage, $organizer->slug);
             
             // Send email notification
-            Mail::to($organizer->user)->send(new Comments($organizer, $message));
+            Mail::to($organizer->user)->send(new Comments($organizer, $message, 'rejected'));
         }
 
         return response()->json([

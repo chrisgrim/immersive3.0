@@ -1,3 +1,7 @@
+@props([
+    'dock'
+])
+
 @php
     $element = null;
     $name = null;
@@ -24,19 +28,16 @@
     $name = $dock->name ?? $name;
 @endphp
 
-<div class="my-8 md:mt-16 md:mb-24">
-    <div class="w-full relative block overflow-hidden mb-8 rounded-xl md:flex md:h-[45rem]">
-        <div class="flex items-center justify-center p-8 bg-black md:justify-start md:w-2/5 md:px-24 md:py-0">
-            <div class="w-full">
+<div class="my-8 md:mt-16 md:mb-24 px-8 md:px-32 py-24 border-y border-slate-200">
+    <div class="w-full relative block overflow-hidden mb-8 rounded-xl md:flex">
+        <div class="flex items-center justify-center md:justify-start md:w-2/5">
+            <div class="w-4/5">
                 <div>
-                    <p class="text-white mb-2">Spotlight: </p>
-                    <h2 class="text-5xl text-white">{{ $name }}</h2>
-                </div>
-                <div class="h-full mt-4">
-                    <p class="text-2xl text-white">{{ $element->blurb ?? '' }}</p>
+                    <p class="text-gray-500">{{ $name }}: </p>
+                    <h2 class="text-6xl leading-[4.5rem] mt-8 font-medium text-black">{{ $element->name ?? '' }}</h2>
                 </div>
                 <a href="{{ $url }}">
-                    <button class="bg-white border-none p-4 mt-12 rounded-2xl font-bold text-xl">
+                    <button class="bg-[#ff385c] text-white border-none p-6 mt-8 rounded-2xl font-bold text-xl">
                         Check it out
                     </button>
                 </a>
@@ -44,15 +45,19 @@
         </div>
         
         @if($element && $element->largeImagePath)
-            <div class="relative inline-block bg-slate-400 md:w-3/5 md:h-[45rem] after:absolute after:left-0 after:top-0 after:inline-block after:h-full after:w-full after:bg-gradient-to-r from-black via-transparent to-transparent">
-                <picture>
-                    <source type="image/webp" 
+            <div class="rounded-2xl overflow-hidden relative inline-block bg-slate-400 md:w-3/5">
+                <div class="aspect-video">
+                    <picture class="w-full h-full">
+                        <source 
+                            type="image/webp" 
                             srcset="{{ $imageUrl }}{{ $element->largeImagePath }}">
-                    <img loading="lazy"
-                         class="object-cover align-bottom w-full h-full"
-                         src="{{ $imageUrl }}{{ Str::replaceLast('webp', 'jpg', $element->largeImagePath) }}"
-                         alt="{{ $element->name ?? '' }} Community">
-                </picture>
+                        <img 
+                            loading="lazy"
+                            class="object-cover w-full h-full"
+                            src="{{ $imageUrl }}{{ Str::replaceLast('webp', 'jpg', $element->largeImagePath) }}"
+                            alt="{{ $element->name ?? '' }}">
+                    </picture>
+                </div>
             </div>
         @endif
     </div>

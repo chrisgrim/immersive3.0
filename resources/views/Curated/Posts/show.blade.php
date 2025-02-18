@@ -70,7 +70,7 @@
                 @if (auth()->check() && (auth()->user()->isAdmin || auth()->user()->isModerator || auth()->user()->can('update', $community)))
                     <a 
                         href="/communities/{{ $post->community->slug }}/posts/{{ $post->slug }}/edit" 
-                        class="inline-flex items-center justify-center p-4 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"
+                        class="inline-flex items-center justify-center p-4 ml-4 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"
                     >
                         <svg 
                             style="width: 1.5rem; height: 1.5rem;"
@@ -90,7 +90,10 @@
         </div>
         <div class="mb-8 md:mb-12">
             <p class="text-1xl">
-                by <span class="font-semibold">{{ $post->user->name }}</span> 
+                by <a 
+                    href="/communities/{{ $community->slug }}"
+                    class="font-semibold hover:underline"
+                >{{ $post->user->name }}</a> 
                 <span class="mx-2">·</span> 
                 {{ \Carbon\Carbon::parse($post->updated_at)->format('F j, Y') }}
             </p>

@@ -30,7 +30,7 @@ class PostActions
         ]);
 
         if ($request->hasFile('image')) {
-            ImageHandler::saveImage($request->file('image'), $post, 900, 500, 'post-images');
+            ImageHandler::saveImage($request->file('image'), $post, 1000, 563, 'post-images');
         }
 
         return $post;
@@ -77,7 +77,7 @@ class PostActions
                     ImageHandler::deleteImage($image);
                 }
             }
-            ImageHandler::saveImage($request->file('image'), $post, 900, 500, 'post-images');
+            ImageHandler::saveImage($request->file('image'), $post, 1000, 563, 'post-images');
             $post->touch();
         }
 

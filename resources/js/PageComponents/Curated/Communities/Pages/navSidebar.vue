@@ -31,7 +31,7 @@
         <!-- Static Header -->
         <div 
             v-if="!isMobile || !activeSection"
-            class="w-full flex items-center gap-4 pb-8 z-50 bg-white p-4 lg-air:max-w-[40rem]"
+            class="w-full flex items-center gap-4 pb-8 bg-white p-4 lg-air:max-w-[40rem]"
         >
             <a 
                 :href="`/communities/${community.slug}`" 

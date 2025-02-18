@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Elastic\ScoutDriverPlus\Searchable;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\Storage;
@@ -18,7 +17,7 @@ use App\Models\Curated\Post;
 use App\Models\Admin\Dock;
 use DB;
 
-class User extends Authenticatable implements MustVerifyEmail
+class User extends Authenticatable
 {
     use HasFactory;
     use Notifiable;

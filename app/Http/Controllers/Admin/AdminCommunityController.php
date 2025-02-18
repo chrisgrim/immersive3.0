@@ -45,7 +45,7 @@ class AdminCommunityController extends Controller
             Message::notification($community, $message, $community->slug);
             
             // Send email notification
-            Mail::to($community->user)->send(new Comments($community, $message));
+            Mail::to($community->user)->send(new Comments($community, $message, 'approved'));
         }
 
         return response()->json(['message' => 'Community approved successfully']);
@@ -63,8 +63,8 @@ class AdminCommunityController extends Controller
         ]);
 
         // Create rejection message with reason
-        $message = "Your community has been rejected.\n\nReason: {$validated['reason']}";
-        $inAppMessage = "Your community has been rejected.\n\nReason: {$validated['reason']}";
+        $message = "We've reviewed your community and have some feedback that needs to be addressed.\n\nReason: {$validated['reason']}";
+        $inAppMessage = "We've reviewed your community and have some feedback that needs to be addressed.\n\nReason: {$validated['reason']}";
         
         if(auth()->id() !== $community->user_id) {
             $message = Message::MESSAGES['COMMUNITY_REJECTED'] . "\n\nReason: {$validated['reason']}";
@@ -73,7 +73,7 @@ class AdminCommunityController extends Controller
             Message::notification($community, $inAppMessage, $community->slug);
             
             // Send email notification
-            Mail::to($community->user)->send(new Comments($community, $message));
+            Mail::to($community->user)->send(new Comments($community, $message, 'rejected'));
         }
 
         return response()->json([

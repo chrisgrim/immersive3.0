@@ -232,14 +232,24 @@ const rotateCurator = () => {
 
 // Lifecycle hooks
 onMounted(() => {
-    loading.value = false
-    if (shelves.value.length > 0) {
-        active.value = shelves.value[0].id
+    loading.value = false;
+    
+    // Get shelf ID from URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const shelfId = urlParams.get('shelf');
+    
+    if (shelfId && shelves.value.length > 0) {
+        // Set active shelf to the one from URL
+        active.value = parseInt(shelfId);
+    } else if (shelves.value.length > 0) {
+        // Fallback to first shelf
+        active.value = shelves.value[0].id;
     }
+
     if (community.value.curators?.length > 1) {
-        curatorInterval = setInterval(rotateCurator, 3000)
+        curatorInterval = setInterval(rotateCurator, 3000);
     }
-})
+});
 
 onUnmounted(() => {
     if (curatorInterval) {

@@ -1,6 +1,6 @@
 <template>
     <div class="my-8 md:mt-16 md:mb-24 px-8 md:px-32">
-        <div class="w-full relative block overflow-hidden mb-8 rounded-xl md:flex md:h-[45rem]">
+        <div class="w-full relative block overflow-hidden mb-8 rounded-xl md:flex">
             <div class="flex items-center justify-center md:justify-start md:w-2/5">
                 <div class="w-4/5">
                     <div>
@@ -17,16 +17,18 @@
             
             <div v-if="firstPost && getPostImage(firstPost)" 
                  class="rounded-2xl overflow-hidden relative inline-block bg-slate-400 md:w-3/5">
-                <picture>
-                    <source 
-                        type="image/webp" 
-                        :srcset="`${imageUrl}${getPostImage(firstPost)}`">
-                    <img 
-                        loading="lazy"
-                        class="object-cover align-bottom w-full h-full"
-                        :src="`${imageUrl}${getPostImage(firstPost).replace('.webp', '.jpg')}`"
-                        :alt="`${firstPost.name}`">
-                </picture>
+                <div class="aspect-video">
+                    <picture class="w-full h-full">
+                        <source 
+                            type="image/webp" 
+                            :srcset="`${imageUrl}${getPostImage(firstPost)}`">
+                        <img 
+                            loading="lazy"
+                            class="object-cover w-full h-full"
+                            :src="`${imageUrl}${getPostImage(firstPost).replace('.webp', '.jpg')}`"
+                            :alt="`${firstPost.name}`">
+                    </picture>
+                </div>
             </div>
         </div>
     </div>

@@ -159,7 +159,7 @@ class AdminEventController extends Controller
                 : Message::MESSAGES['APPROVED'];
             
             Message::notification($event, $message, $event->slug);
-            Mail::to($event->user)->send(new Comments($event, $message));
+            Mail::to($event->user)->send(new Comments($event, $message, 'approved'));
         }
 
         return response()->json([
@@ -181,8 +181,8 @@ class AdminEventController extends Controller
         ]);
 
         // Create rejection message with reason
-        $message = "Your event has been rejected.\n\nReason: {$validated['reason']}";
-        $inAppMessage = "Your event has been rejected.\n\nReason: {$validated['reason']}";
+        $message = "We've reviewed your event and have some feedback that needs to be addressed.\n\nFeedback: {$validated['reason']}";
+        $inAppMessage = "We've reviewed your event and have some feedback that needs to be addressed.\n\nFeedback: {$validated['reason']}";
 
         if(auth()->id() !== $event->user->id) {
             $message = Message::MESSAGES['REJECTED'] . "\n\nReason: {$validated['reason']}";
@@ -191,7 +191,7 @@ class AdminEventController extends Controller
             Message::notification($event, $inAppMessage, $event->slug);
             
             // Send email notification
-            Mail::to($event->user)->send(new Comments($event, $message));
+            Mail::to($event->user)->send(new Comments($event, $message, 'rejected'));
         }
 
         return response()->json([

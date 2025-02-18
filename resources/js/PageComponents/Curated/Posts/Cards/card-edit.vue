@@ -1,7 +1,7 @@
 <template>
     <div class="relative">
         <div 
-            :class="{ 'cursor-pointer border !border-black': hover && !onEdit }"
+            :class="{ 'cursor-pointer border-2 !border-black': hover && !onEdit }"
             @mouseover="hover = true"
             @mouseleave="hover = false"
             class="block rounded-2xl border-transparent border-2 p-4">

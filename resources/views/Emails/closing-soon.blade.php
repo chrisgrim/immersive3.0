@@ -11,35 +11,41 @@
             </div>
             <div style="text-align: center;margin: auto;">
                 <h2 style="font-family: 'Sen', sans-serif;color: #ff385c;font-size: 1.5rem;margin-bottom: 2rem;">
-                    Curator Invitation
+                    Your Event Is Ending Soon
                 </h2>
 
                 @php
                     $imagePath = '';
-                    if ($community->images && $community->images->count() > 0) {
-                        $imagePath = $community->images->first()->large_image_path;
+                    if ($event->images && $event->images->count() >= 2) {
+                        // Try to get image 2
+                        $imagePath = $event->images->get(1)->large_image_path;
+                    } elseif ($event->images && $event->images->count() >= 1) {
+                        // Fall back to image 1
+                        $imagePath = $event->images->first()->large_image_path;
                     } else {
-                        $imagePath = $community->largeImagePath;
+                        // Last resort: use largeImagePath
+                        $imagePath = $event->largeImagePath;
                     }
+                    // Remove any leading slash to prevent double slash
                     $imagePath = ltrim($imagePath, '/');
                 @endphp
                 
                 <div style="width: 100%; padding-bottom: 66.67%; position: relative; margin: 2rem auto; border-radius: 0.5rem; overflow: hidden;">
                     <img src="{{ rtrim(config('app.image_url'), '/') . '/' . $imagePath }}" 
-                         alt="{{ $community->name }}" 
+                         alt="{{ $event->name }}" 
                          style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;">
                 </div>
             </div>
             <div>
                 <div style="text-align: center;margin: auto;">
                     <span style="font-family: 'Sen', sans-serif;color: #374151;">
-                        <p>You've been invited to be a curator for <strong>{{ $community->name }}</strong>.</p>
-                        <p>This invitation will expire in 7 days.</p>
+                        <p>Your event "<strong>{{ $event->name }}</strong>" only has a few days left before its last listing date on EI.</p>
+                        <p>If this is accurate, no action is needed. Otherwise, use the button below to edit your event and add more dates.</p>
                     </span>
                 </div>
             </div>
             <div style="text-align: center;margin: auto;">
-                <a href="{{ url("/communities/curator-invitations/{$invitation->token}") }}">
+                <a href="{{ url("/hosting/event/{$event->slug}/edit") }}">
                     <button style="
                         border: 1px solid #ff385c;
                         padding: .8rem 1.5rem;
@@ -51,11 +57,17 @@
                         cursor: pointer;
                         transition: all 0.2s;
                         margin-top: 1.5rem;
-                        ">Accept Invitation</button>
+                        ">Update Event</button>
                 </a>
                 <p style="font-family: 'Sen', sans-serif;color: #6d6d6d;margin-top: 2rem;">
                     Thanks,<br>
                     The EI team
+                </p>
+                <p style="font-family: 'Sen', sans-serif;color: #6d6d6d;margin-top: 5rem;font-size: 0.875rem;">
+                    Too many emails? 
+                    <a href="{{ url('/users/account-settings') }}" style="color: #ff385c;text-decoration: underline;">
+                        Click here to change
+                    </a>
                 </p>
             </div>
         </div>

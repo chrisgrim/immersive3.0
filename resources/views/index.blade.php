@@ -71,6 +71,12 @@
                 </div>
             @endif
 
+            @if($dock->type === 's')
+                <div class="max-w-screen-5xl relative m-auto">
+                    @include('Curated.spotlight', ['dock' => $dock])
+                </div>
+            @endif
+
             <div class="max-w-screen-5xl relative h-full m-auto px-8 lg-air:px-16 2xl-air:px-32">
                 @if($dock->type === 'i')
                     @include('Curated.icon')
@@ -90,9 +96,6 @@
                     ])
                 @endif
 
-                @if($dock->type === 's')
-                    @include('Curated.spotlight', ['dock' => $dock])
-                @endif
             </div>
         @endforeach
     @endif

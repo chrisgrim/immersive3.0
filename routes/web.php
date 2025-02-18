@@ -58,18 +58,23 @@ Route::middleware(['auth'])->group(function () {
         });
 
         // Hosting & Event Management
-        Route::prefix('hosting')->name('hosting.')->middleware('can:host,App\Models\Event')->group(function () {
-            Route::GET('/events', [HostController::class, 'show'])->name('dashboard');
+        Route::prefix('hosting')->name('hosting.')->group(function () {
+            // Routes that don't require hosting permissions
             Route::GET('/getting-started', [HostController::class, 'intro'])->name('intro');
             
-            Route::prefix('event')->name('event.')->group(function () {
-                Route::POST('/create', [HostEventController::class, 'create'])->name('create');
+            // Routes that require hosting permissions
+            Route::middleware('can:host,App\Models\Event')->group(function () {
+                Route::GET('/events', [HostController::class, 'show'])->name('dashboard');
                 
-                Route::middleware('can:manage,event')->group(function () {
-                    Route::GET('/{event}/edit', [HostEventController::class, 'edit'])->name('edit');
-                    Route::POST('/{event}/submit', [HostEventController::class, 'submit'])->name('submit');
-                    Route::DELETE('/{event}', [HostEventController::class, 'destroy'])->name('destroy');
-                    Route::POST('/{event}/name-change', [HostEventController::class, 'nameChange'])->name('name.change');
+                Route::prefix('event')->name('event.')->group(function () {
+                    Route::POST('/create', [HostEventController::class, 'create'])->name('create');
+                    
+                    Route::middleware('can:manage,event')->group(function () {
+                        Route::GET('/{event}/edit', [HostEventController::class, 'edit'])->name('edit');
+                        Route::POST('/{event}/submit', [HostEventController::class, 'submit'])->name('submit');
+                        Route::DELETE('/{event}', [HostEventController::class, 'destroy'])->name('destroy');
+                        Route::POST('/{event}/name-change', [HostEventController::class, 'nameChange'])->name('name.change');
+                    });
                 });
             });
         });

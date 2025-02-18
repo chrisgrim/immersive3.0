@@ -109,7 +109,7 @@
                             <!-- Submit Button -->
                             <div class="flex w-full justify-between">
                                 <a 
-                                    :href="`/communities/${community.slug}/edit`"
+                                    :href="`/communities/${community.slug}/listings?shelf=${post.shelf_id}`"
                                     class="mt-8 rounded-2xl border border-black py-4 px-8 bg-white text-black hover:bg-black hover:text-white">
                                     Back
                                 </a>
