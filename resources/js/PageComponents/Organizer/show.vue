@@ -202,7 +202,7 @@
                         </a>
                     </div>
                     <p class="text-3xl mt-8 mb-8 break-words hyphens-auto">
-                        <vue-show-more text="{{ organizer.description }}" :limit="70" />
+                        <vue-show-more :text="organizer.description" :limit="70" />
                     </p>
                     <!-- Events Section -->
                     <div class="mt-20">

@@ -7,7 +7,8 @@
                 </div>
             </div>
             
-            <div class="inline-flex items-end gap-2 invisible md:visible">
+            <div v-if="shelf.published_posts.data.length >= 4" 
+                 class="inline-flex items-end gap-2 invisible md:visible">
                 <button 
                     aria-label="Scroll Left"
                     class="rounded-full w-14 h-14 border border-gray-300 p-0 bg-white hover:shadow-md transition-shadow" 
@@ -75,7 +76,10 @@ const scrollContainer = ref(null)
 const cardWidth = ref(0)
 
 const calculateCardWidth = () => {
-    cardWidth.value = window.innerWidth * 0.27 // 30% of viewport width
+    // Use 75% width for mobile, 27% for desktop
+    cardWidth.value = window.innerWidth < 768 
+        ? window.innerWidth * 0.75  // 75% of viewport width for mobile
+        : window.innerWidth * 0.27  // 27% of viewport width for desktop
 }
 
 onMounted(() => {

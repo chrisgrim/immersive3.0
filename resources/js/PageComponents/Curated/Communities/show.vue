@@ -1,13 +1,13 @@
 <template>
     <div>
-        <div class="m-auto w-full px-8 mb-32 lg-air:px-16 2xl-air:px-32">
-            <div class="flex items-center justify-between gap-8">
-                <div class="w-3/5">
+        <div class="m-auto w-full px-10 my-10 md:my-20 lg-air:px-16 2xl-air:px-32">
+            <div class="flex flex-col-reverse md:flex-row items-center justify-between gap-8 md:gap-16">
+                <div class="w-full md:w-3/5">
                     <div class="w-full">
                         <div class="flex items-center gap-4">
-                            <h2 class="text-6xl mb-4 font-medium text-black leading-tight break-words hyphens-auto">{{ community.name }}</h2>
+                            <h2 class="text-4xl md:text-6xl mb-4 font-medium text-black leading-tight break-words hyphens-auto">{{ community.name }}</h2>
                         </div>
-                        <p class="mb-4 text-2xl">{{ community.blurb }}</p>
+                        <p class="mb-4 text-xl md:text-2xl">{{ community.blurb }}</p>
                         
                         <!-- Rotating Curator Display -->
                         <div v-if="community.curators?.length" class="mt-8">
@@ -61,7 +61,7 @@
                     </div>
                 </div>
                 
-                <div class="w-2/5">
+                <div class="w-full md:w-2/5 mb-0">
                     <div class="relative w-full rounded-2xl overflow-hidden aspect-[16/9]">
                         <template v-if="communityImage">
                             <picture class="absolute inset-0">

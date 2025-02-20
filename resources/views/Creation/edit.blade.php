@@ -7,8 +7,11 @@
 @endsection 
 
 @section('nav')
-    @if (in_array($event->status, ['p', 'e', 'n']) || (auth()->user()->isAdmin() && $event->status === 'r'))
-        @include('Nav.nav-full')
+    @if (Browser::isMobile())
+    @else
+        @if (in_array($event->status, ['p', 'e', 'n']) || (auth()->user()->isAdmin() && $event->status === 'r'))
+            @include('Nav.nav-full')
+        @endif
     @endif
 @endsection
 

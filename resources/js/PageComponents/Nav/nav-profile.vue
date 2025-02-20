@@ -7,7 +7,7 @@
                     class="relative ml-8" 
                     v-if="!user.hasCreatedOrganizers">
                     <a href="/hosting/getting-started">
-                        <span class="text-xl font-medium hover:text-black hover:font-semibold">Submit Your Experience (Free)</span>
+                        <span class="text-xl font-medium hover:text-black hover:font-semibold">Submit Your Experience</span>
                     </a>
                 </div>
                 <div 
@@ -25,7 +25,7 @@
             <template v-else>
                 <div class="relative ml-8">
                     <a href="/register?create=true">
-                        <span class="text-xl font-medium hover:text-black hover:font-semibold">Submit Your Experience (Free)</span>
+                        <span class="text-xl font-medium hover:text-black hover:font-semibold">Submit Your Experience</span>
                     </a>
                 </div>
             </template>
@@ -90,13 +90,8 @@
                         </a>
                         <a 
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
-                            :href="`/users/${user.id}`">
-                            Profile
-                        </a>
-                        <a 
-                            class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
-                            href="/users/account-settings">
-                            Account
+                            :href="`/users/${user.id}/edit`">
+                            User Settings
                         </a>
                         <a 
                             v-if="!user.hasCreatedOrganizers"

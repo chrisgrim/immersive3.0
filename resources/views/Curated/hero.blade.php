@@ -117,10 +117,10 @@
              class="overflow-x-auto flex scroll-p-10 lg:scroll-p-32 scrollbar-hide" 
              style="scroll-snap-type: x mandatory;">
             @foreach($elements as $element)
-                <div class="ml-10 first:ml-0 snap-start snap-always first:pl-8 last:pr-8 md:first:pl-32 md:last:pr-32">
+                <div class="ml-10 first:ml-0 snap-start snap-always first:pl-10 last:pr-10 md:first:pl-32 md:last:pr-32">
                     <a href="{{ $getElementUrl($element) }}" 
                        class="block w-full pb-16">
-                        <div class="rounded-2xl overflow-hidden h-full border border-gray-300 w-[25vw]">
+                        <div class="rounded-2xl overflow-hidden h-full border border-gray-300 w-[75vw] md:w-[25vw]">
                             <div class="w-full aspect-square">
                                 @php
                                     $imagePath = $getPostImage($element);

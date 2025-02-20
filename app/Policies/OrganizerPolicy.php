@@ -10,6 +10,16 @@ use Illuminate\Support\Facades\Log;
 class OrganizerPolicy
 {
     /**
+     * Determine whether the user can view any models.
+     */
+    public function viewAny(User $user, ?string $type = null): bool
+    {
+        Log::info('viewAny called');
+        // Allow users to view teams if they have any organizations (even pending ones)
+        return $user->organizers()->exists();
+    }
+
+    /**
      * Determine whether the user can edit or manage the organizer.
      */
     public function edit(User $user, Organizer $organizer): bool
@@ -24,15 +34,6 @@ class OrganizerPolicy
     public function create(User $user): bool
     {
         return true; // Anyone authenticated can create
-    }
-
-    /**
-     * Determine whether the user can view any teams.
-     */
-    public function viewAny(User $user): bool
-    {
-        Log::info('viewAny called');
-        return true;
     }
 
     /**

@@ -267,7 +267,7 @@
 						Edit Event
 					</button>
 					<button 
-						v-if="canModerate && selectedEvent.status !== 'r'"
+						v-if="selectedEvent.status !== 'r'"
 						@click="duplicateEvent(selectedEvent)"
 						class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100">
 						Duplicate Event
@@ -450,10 +450,6 @@ const confirmRemoveEvent = async (event) => {
 	}
 };
 
-const onSubmit = async () => {
-
-};
-
 const eventPassed = (event) => {
 	return event.status === 'p' && !event.isShowing;
 };
@@ -633,10 +629,6 @@ const selectFilter = (id) => {
 	currentFilter.value = id;
 	isOpen.value = false;
 };
-
-const canModerate = computed(() => {
-	return props.organizer?.user_role === 'admin' || props.organizer?.user_role === 'moderator';
-});
 
 const duplicateEvent = async (event) => {
 	if (event.status === 'r') {

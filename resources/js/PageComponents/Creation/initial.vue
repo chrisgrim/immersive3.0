@@ -1,17 +1,19 @@
 <template>
-    <div class="w-full h-screen">
-        <div class="max-w-screen-xl p-8 m-auto">
-            <div class="w-1/2 m-auto my-28">
+    <div class="w-full min-h-screen">
+        <div class="max-w-screen-xl p-10 m-auto">
+            <div class="w-full md:w-1/2 m-auto my-12 sm:my-28">
                 <div>
-                    <div class="h-60" id="intro" :class="{ shrink: !!team.name || !!team.description }">
+                    <div class="h-40 sm:h-60" id="intro" :class="{ shrink: !!team.name || !!team.description }">
                         <h5 class="font-bold">Step 1</h5>
-                        <h3 class="mt-10 mb-28 text-6xl leading-[4rem]">Let's create your organization</h3>
+                        <h3 class="mt-6 sm:mt-10 mb-16 sm:mb-28 text-4xl sm:text-6xl leading-[3rem] sm:leading-[4rem]">
+                            Let's create your organization
+                        </h3>
                     </div>
                     
                     <!-- Name and Image Section -->
-                    <div class="flex flex-row items-start w-full gap-8">
+                    <div class="flex flex-col sm:flex-row items-center sm:items-start w-full gap-8">
                         <!-- Image Upload -->
-                        <div class="w-60">
+                        <div class="w-48 sm:w-60">
                             <p class="text-black font-medium mb-4">Profile Image</p>
                             <div class="relative">
                                 <div class="aspect-square w-full rounded-full">
@@ -36,7 +38,7 @@
                         </div>
 
                         <!-- Name Input -->
-                        <div class="flex-1">
+                        <div class="flex-1 w-full">
                             <div class="relative w-full">
                                 <p class="text-black font-medium mb-4">Name</p>
                                 <textarea 
@@ -73,7 +75,7 @@
                     </div>
 
                     <!-- Description Section -->
-                    <div v-if="team.name" class="mt-12 w-full">
+                    <div v-if="team.name" class="mt-8 sm:mt-12 w-full">
                         <div class="w-full">
                             <p class="text-black font-medium mb-4">Description</p>
                             <textarea 
@@ -100,18 +102,19 @@
                     </div>
 
                     <!-- Social Media Section -->
-                    <div v-if="team.description" class="w-full mt-12">
+                    <div v-if="team.description" class="w-full mt-8 sm:mt-12">
                         <p class="text-black font-medium mb-4">Social Media</p>
-                        <div class="grid grid-cols-3 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             <div 
                                 v-for="media in socialMediaList" 
                                 :key="media.name" 
                                 @click="handleDivClick(media.name)"
+                                class="relative h-36 sm:h-48 flex flex-col items-start justify-between p-4 border rounded-2xl transition-colors duration-200"
                                 :class="{
-                                    'border-[#222222] text-gray-400': !team[media.model] && currentMedia !== media.name,
-                                    'border-black text-black border-2': team[media.model] || currentMedia === media.name,
+                                    'border-neutral-300 text-gray-400': !team[media.model] && currentMedia !== media.name && !showValidationError(media),
+                                    'border-[#222222] text-black border-2': team[media.model] && !showValidationError(media) || currentMedia === media.name,
+                                    'border-red-500 focus:border-red-500 focus:shadow-focus-error': showValidationError(media)
                                 }"
-                                class="relative h-48 flex flex-col items-start justify-between p-4 border rounded-2xl transition-colors duration-200"
                             >
                                 <div class="flex items-start justify-start w-full h-16 rounded-2xl">
                                     <component
@@ -128,6 +131,7 @@
                                         :placeholder="media.placeholder" 
                                         v-model="team[media.model]" 
                                         @blur="handleInputBlur(media.name)"
+                                        @input="media.inputHandler && media.inputHandler($event)"
                                         rows="2"
                                         class="p-2 mt-2 border-none focus:border-black focus:ring-black rounded-md focus:shadow-lg w-full text-lg resize-none"
                                         @click.stop
@@ -143,23 +147,30 @@
                                         {{ team[media.model] || media.placeholder }}
                                     </h4>
                                 </div>
-                                <!-- Validation message for email -->
+                                <!-- Updated validation messages -->
                                 <p v-if="media.name === 'email' && $v.team.email.$dirty && $v.team.email.email.$invalid" 
-                                   class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
+                                   class="text-red-500 text-sm mt-1 absolute bottom-2">
                                     The email must be a valid email
                                 </p>
-                                <p v-if="media.name === 'website' && $v.team.website.$dirty && $v.team.website.url.$invalid" 
-                                   class="text-white bg-red-500 text-lg mt-1 px-4 py-2 leading-tight">
-                                    Please be sure to have https:// and .com
+                                <p v-if="media.name === 'website' && team.website && $v.team.website.$dirty && $v.team.website.$invalid" 
+                                   class="text-red-500 text-sm mt-1 absolute bottom-2">
+                                    Website must start with https:// (e.g., https://example.com)
+                                </p>
+                                <p v-if="['instagramHandle', 'twitterHandle', 'facebookHandle', 'patreon'].includes(media.name) && 
+                                          team[media.model] && 
+                                          $v.value?.team?.[media.model]?.$dirty && 
+                                          $v.value?.team?.[media.model]?.maxLength?.$invalid" 
+                                   class="text-red-500 text-sm mt-1 absolute bottom-2">
+                                    {{ media.placeholder }} is too long (max {{ media.maxLength }} characters)
                                 </p>
                             </div>
                         </div>
                     </div>
 
                     <!-- Submit Button -->
-                    <div v-if="team.name && team.description" class="w-full flex justify-end mt-12">
+                    <div v-if="team.name && team.description" class="w-full flex justify-center sm:justify-end mt-8 sm:mt-12">
                         <button 
-                            class="text-right p-4 rounded-2xl transition-colors duration-200"
+                            class="w-full sm:w-auto text-center sm:text-right p-4 rounded-2xl transition-colors duration-200"
                             :class="{
                                 'bg-black text-white hover:bg-gray-800': isFormComplete,
                                 'bg-gray-200 text-gray-400 cursor-not-allowed': !isFormComplete || isSubmitting
@@ -179,7 +190,7 @@
 <script setup>
 import { ref, reactive, nextTick, computed } from 'vue';
 import { useVuelidate } from '@vuelidate/core';
-import { required, email, maxLength, url } from '@vuelidate/validators';
+import { required, email, maxLength, helpers } from '@vuelidate/validators';
 
 import { 
     RiSearchLine,
@@ -216,7 +227,10 @@ const props = defineProps({
 // Create a reactive team object for use with Vuelidate
 const team = reactive(props.team);
 
-// Validation rules
+// Updated URL validator that requires https://
+const customURL = helpers.regex(/^https:\/\/([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/);
+
+// Update the validation rules
 const rules = {
     team: {
         name: {
@@ -231,8 +245,16 @@ const rules = {
             email,
         },
         website: {
-            url
-        }
+            url: (value) => {
+                if (!value) return true; // Allow empty website
+                return customURL(value);
+            }
+        },
+        // Add new validations for social media handles
+        instagramHandle: { maxLength: maxLength(30) },
+        twitterHandle: { maxLength: maxLength(15) },
+        facebookHandle: { maxLength: maxLength(50) },
+        patreon: { maxLength: maxLength(30) }
     },
 };
 
@@ -252,13 +274,24 @@ const errors = ref({});
 const isSubmitting = ref(false);
 const inputRefs = reactive({});
 
+// Add debounce for website validation
+let websiteTimeout;
+const handleWebsiteInput = (event) => {
+    clearTimeout(websiteTimeout);
+    websiteTimeout = setTimeout(() => {
+        if (team.website) {
+            $v.value.team.website.$touch();
+        }
+    }, 500); // Wait 500ms after typing stops before validating
+};
+
 // Computed Properties
 const isFormComplete = computed(() => {
-    return (
-        team.name?.trim() && 
-        team.description?.trim() && 
-        !$v.value.$invalid
-    );
+    const hasRequiredFields = team.name?.trim() && team.description?.trim();
+    const hasValidWebsite = !team.website || (team.website && !$v.value.team.website.$invalid);
+    const hasValidEmail = !team.email || (team.email && !$v.value.team.email.$invalid);
+    
+    return hasRequiredFields && hasValidWebsite && hasValidEmail;
 });
 
 const showNameError = computed(() => {
@@ -294,6 +327,22 @@ const isDescriptionNearLimit = computed(() => {
     const count = team.description?.length || 0;
     return count > 1800;
 });
+
+const showValidationError = (media) => {
+    if (!media?.model || !team[media.model]) return false;
+    
+    if (media.name === 'website') {
+        return $v.value?.team?.website?.$dirty && $v.value?.team?.website?.$invalid;
+    }
+    if (media.name === 'email') {
+        return $v.value?.team?.email?.$dirty && $v.value?.team?.email?.$invalid;
+    }
+    // Add validation for social media handles
+    if (['instagramHandle', 'twitterHandle', 'facebookHandle', 'patreon'].includes(media.name)) {
+        return $v.value?.team?.[media.model]?.$dirty && $v.value?.team?.[media.model]?.$invalid;
+    }
+    return false;
+};
 
 // Methods
 const updateImage = (event) => {
@@ -361,6 +410,9 @@ const handleBlurDescription = () => {
 
 const handleInputBlur = (mediaName) => {
     currentMedia.value = null;
+    if (team[mediaName]) {
+        $v.value.team[mediaName].$touch();
+    }
 };
 
 const handleFocusDescription = () => {
@@ -412,13 +464,63 @@ const handleDescriptionInput = () => {
     }
 };
 
+// Add input handlers for social media
+const handleSocialInput = (media) => {
+    if (!media || !media.model || !media.maxLength) return;
+    
+    if (team[media.model]?.length > media.maxLength) {
+        team[media.model] = team[media.model].slice(0, media.maxLength);
+        $v.value?.team?.[media.model]?.$touch();
+    }
+};
+
+// Update socialMediaList with maxLength and inputHandler
 const socialMediaList = [
-    { name: 'website', icon: RiSearchLine, placeholder: 'Website', model: 'website' },
-    { name: 'email', icon: RiMailLine, placeholder: 'Email', model: 'email' },
-    { name: 'instagramHandle', icon: RiInstagramLine, placeholder: 'Instagram Handle', model: 'instagramHandle' },
-    { name: 'twitterHandle', icon: RiTwitterLine, placeholder: 'Twitter Handle', model: 'twitterHandle' },
-    { name: 'facebookHandle', icon: RiFacebookLine, placeholder: 'Facebook Handle', model: 'facebookHandle' },
-    { name: 'patreon', icon: RiPatreonLine, placeholder: 'Patreon Handle', model: 'patreon' }
+    { 
+        name: 'website', 
+        icon: RiSearchLine, 
+        placeholder: 'Website (must start with https://)', 
+        model: 'website',
+        inputHandler: handleWebsiteInput 
+    },
+    { 
+        name: 'email', 
+        icon: RiMailLine, 
+        placeholder: 'Email', 
+        model: 'email' 
+    },
+    { 
+        name: 'instagramHandle', 
+        icon: RiInstagramLine, 
+        placeholder: 'Instagram Handle', 
+        model: 'instagramHandle',
+        maxLength: 30,
+        inputHandler: handleSocialInput 
+    },
+    { 
+        name: 'twitterHandle', 
+        icon: RiTwitterLine, 
+        placeholder: 'Twitter Handle', 
+        model: 'twitterHandle',
+        maxLength: 15,
+        inputHandler: handleSocialInput 
+    },
+    { 
+        name: 'facebookHandle', 
+        icon: RiFacebookLine, 
+        placeholder: 'Facebook Handle', 
+        model: 'facebookHandle',
+        maxLength: 50,
+        inputHandler: handleSocialInput 
+    },
+    { 
+        name: 'patreon', 
+        icon: RiPatreonLine, 
+        placeholder: 'Patreon Handle', 
+        model: 'patreon',
+        maxLength: 30,
+        inputHandler: handleSocialInput 
+    }
 ];
 
 </script>
@@ -432,5 +534,12 @@ const socialMediaList = [
     .shrink {
         height: 0;
         opacity: 0;
+    }
+
+    /* Add responsive text sizing for textareas */
+    @media (max-width: 640px) {
+        textarea {
+            font-size: 16px !important; /* Prevents zoom on mobile */
+        }
     }
 </style>

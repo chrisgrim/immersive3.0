@@ -1,5 +1,5 @@
 <template>
-    <div class="w-full">
+    <div class="w-full pb-10">
         <!-- First Shelf - Grid Layout -->
         <GridShelf 
             v-if="isFirstShelf"

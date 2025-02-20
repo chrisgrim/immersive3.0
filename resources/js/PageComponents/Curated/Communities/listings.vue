@@ -3,116 +3,163 @@
         <p>Loading...</p>
     </div>
     <div v-else>
-        <div class="m-auto w-full px-8 my-20 lg-air:px-16 2xl-air:px-32">
-            <div class="flex items-center justify-between gap-8">
-                <div class="w-3/5">
-                    <div class="w-full">
-                        <div class="flex items-center gap-4 mb-4">
-                            <a 
-                                :href="`/communities/${community.slug}`"
-                                class="text-6xl font-medium text-black break-words hyphens-auto leading-tight hover:underline"
-                            >
-                                {{ community.name }}
-                            </a>
+        <div class="m-auto w-full px-10 my-10 md:my-20 lg-air:px-16 2xl-air:px-32">
+            <!-- Updated Header Section -->
+            <div class="w-full flex items-center justify-between mb-20 shadow-custom-6 md:shadow-none p-8 md:p-0 rounded-2xl">
+                <div class="flex flex-row items-start gap-8 min-w-0">
+                    <!-- Community Image -->
+                    <div class="w-[50%] flex-shrink-0 md:w-[15rem]">
+                        <div class="aspect-[16/9] rounded-2xl overflow-hidden">
+                            <template v-if="communityImage">
+                                <picture class="w-full h-full">
+                                    <source 
+                                        :srcset="communityImage"
+                                        type="image/webp"
+                                    >
+                                    <img 
+                                        :src="communityImage"
+                                        class="w-full h-full object-cover"
+                                        :alt="community.name"
+                                        @error="handleImageError"
+                                    />
+                                </picture>
+                            </template>
+                            <div v-else class="w-full h-full bg-gray-200 flex items-center justify-center">
+                                <span class="text-2xl font-bold text-gray-400">
+                                    {{ community.name?.charAt(0).toUpperCase() || '?' }}
+                                </span>
+                            </div>
                         </div>
-                        <p class="mb-4 text-2xl break-words hyphens-auto">{{ community.blurb }}</p>
+                    </div>
+                    
+                    <div class="flex flex-col min-w-0 flex-1 h-full">
+                        <a :href="`/communities/${community.slug}`" 
+                           class="group text-2xl md:text-5xl font-medium hover:underline break-words hyphens-auto leading-tight">
+                            {{ community.name }}
+                        </a>
                         
-                        <!-- Curator Display -->
-                        <div v-if="community.curators?.length" class="mt-8">
-                            <p class="text-gray-500 text-xl">Curated by:</p>
+                        <!-- Curator Names -->
+                        <div v-if="community.curators?.length" class="w-full mt-4 flex md:flex-row flex-col md:items-center md:gap-4">
+                            <p class="text-xl md:text-2xl text-gray-500 flex-shrink-0">Curated by:</p>
                             <transition name="fade" mode="out-in">
-                                <p :key="currentCuratorIndex" class="text-2xl font-semibold">
+                                <p :key="currentCuratorIndex" class="font-medium truncate min-w-0">
                                     {{ community.curators[currentCuratorIndex].name }}
                                 </p>
                             </transition>
                         </div>
-                        <div class="flex items-center mt-8">
-                            <a 
-                                :href="`/communities/${community.slug}/edit`" 
-                                class="inline-flex items-center justify-center p-6 rounded-full bg-neutral-100 hover:bg-neutral-300"
-                            >
-                                <svg 
-                                    class="w-6 h-6" 
-                                    viewBox="0 0 24 24" 
-                                    fill="none" 
-                                    stroke="currentColor" 
-                                    stroke-width="2" 
-                                    stroke-linecap="round" 
-                                    stroke-linejoin="round"
-                                >
-                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                </svg>
-                            </a>
-                        </div>
                     </div>
                 </div>
                 
-                <div class="w-2/5">
-                    <div class="relative w-full rounded-2xl overflow-hidden aspect-[16/9]">
-                        <template v-if="communityImage">
-                            <picture class="absolute inset-0">
-                                <source 
-                                    :srcset="communityImage"
-                                    type="image/webp"
-                                >
-                                <img 
-                                    :src="communityImage"
-                                    :alt="community.name"
-                                    class="w-full h-full object-cover"
-                                    @error="handleImageError"
-                                >
-                            </picture>
-                        </template>
-                        <div 
-                            v-else 
-                            class="absolute inset-0 bg-neutral-100 flex items-center justify-center"
-                        >
-                            <span class="text-6xl font-bold text-gray-400">
-                                {{ community.name?.charAt(0).toUpperCase() || '?' }}
-                            </span>
+                <div class="hidden md:flex gap-4">
+                    <a :href="`/communities/${community.slug}/edit`" class="cursor-pointer">
+                        <div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center hover:bg-gray-200">
+                            <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                        </div>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Desktop Shelf Buttons -->
+            <div class="hidden md:flex gap-6 flex-wrap mb-12">
+                <button 
+                    @click="addShelf"
+                    class="cursor-pointer rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
+                    +
+                </button>
+                <draggable
+                    v-model="shelves"
+                    :draggable="'.drag'"
+                    @end="updateShelvesOrder"
+                    item-key="id"
+                    class="flex gap-6 flex-wrap">
+                    <template #item="{ element }">
+                        <button 
+                            class="px-6 py-3 rounded-full border text-lg font-medium transition-all drag"
+                            :class="[
+                                active === element.id 
+                                    ? 'border-black bg-black text-white' 
+                                    : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                            ]"
+                            @click="active = element.id">
+                            {{ element.name }}
+                        </button>
+                    </template>
+                </draggable>
+            </div>
+
+            <!-- Mobile Header with Add and Menu Buttons -->
+            <div class="flex justify-between items-center md:hidden mb-16">
+                <h3 class="text-5xl leading-tight">Your <br>Shelves</h3>
+                <div class="flex gap-4">
+                    <div @click="addShelf" class="cursor-pointer flex">
+                        <div class="rounded-full bg-gray-100 w-16 h-16 flex items-center justify-center text-4xl font-light hover:bg-gray-200">
+                            +
+                        </div>
+                    </div>
+                    <div @click="isOpen = !isOpen" class="cursor-pointer flex">
+                        <div class="rounded-full bg-gray-100 w-16 h-16 flex items-center justify-center hover:bg-gray-200">
+                            <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 6h18M3 12h18M3 18h18" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Shelves Section -->
-        <div class="m-auto w-full py-20 px-8 md:px-32">
-            <div class="w-full mb-20">
-                <div class="flex gap-6 flex-wrap mb-12">
-                    <button 
-                        @click="addShelf"
-                        class="cursor-pointer rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
-                        +
-                    </button>
-                    <draggable
-                        v-model="shelves"
-                        :draggable="'.drag'"
-                        @end="updateShelvesOrder"
-                        item-key="id"
-                        class="flex gap-6 flex-wrap">
-                        <template #item="{ element }">
-                            <button 
-                                class="px-6 py-3 rounded-full border text-lg font-medium transition-all drag"
-                                :class="[
-                                    active === element.id 
-                                        ? 'border-black bg-black text-white' 
-                                        : 'border-gray-300 text-gray-700 hover:border-gray-400'
-                                ]"
-                                @click="active = element.id">
-                                {{ element.name }}
+            <!-- Mobile Shelf Selection Modal -->
+            <teleport to="body">
+                <div v-if="isOpen" 
+                     class="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50"
+                     @click="isOpen = false">
+                    <div class="bg-white w-full rounded-t-2xl p-8 max-h-[80vh] overflow-y-auto" 
+                         @click.stop>
+                        <!-- Modal Header -->
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-2xl font-medium">Select Shelf</h3>
+                            <button @click="isOpen = false">
+                                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
                             </button>
-                        </template>
-                    </draggable>
+                        </div>
+                        
+                        <!-- Shelf Options -->
+                        <draggable
+                            v-model="shelves"
+                            :draggable="'.drag'"
+                            @end="updateShelvesOrder"
+                            item-key="id"
+                            class="space-y-4">
+                            <template #item="{ element }">
+                                <button 
+                                    class="w-full p-4 text-left rounded-xl transition-colors drag"
+                                    :class="{ 
+                                        'bg-black text-white': active === element.id,
+                                        'hover:bg-gray-100': active !== element.id
+                                    }"
+                                    @click="selectShelf(element.id)">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-lg">{{ element.name }}</span>
+                                        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                    </div>
+                                </button>
+                            </template>
+                        </draggable>
+                    </div>
                 </div>
+            </teleport>
 
-                <div v-for="shelf in shelves" :key="shelf.id" v-show="active === shelf.id">
-                    <Shelf 
-                        :community="community"
-                        :loadshelf="shelf"
-                        @delete="deleteShelf" />
-                </div>
+            <!-- Shelf Content -->
+            <div v-for="shelf in shelves" :key="shelf.id" v-show="active === shelf.id">
+                <Shelf 
+                    :community="community"
+                    :loadshelf="shelf"
+                    :start-editing="shelf.id === newShelfId"
+                    @delete="deleteShelf" />
             </div>
         </div>
     </div>
@@ -146,6 +193,8 @@ const imageUrl = import.meta.env.VITE_IMAGE_URL || ''
 const currentCuratorIndex = ref(0)
 let curatorInterval
 const shelvesBeforeReorder = ref([])
+const isOpen = ref(false)
+const newShelfId = ref(null)
 
 // Computed properties
 const communityImage = computed(() => {
@@ -172,7 +221,24 @@ const handleImageError = () => {
 const addShelf = async () => {
     try {
         const res = await axios.post(`/communities/${community.value.slug}/shelves`)
+        
+        // Find the newly created shelf by comparing with current shelves
+        const currentIds = new Set(shelves.value.map(s => s.id))
+        const newShelf = res.data.find(shelf => !currentIds.has(shelf.id))
+        
         shelves.value = res.data
+        
+        // Switch to the new shelf and set it for editing
+        if (newShelf) {
+            active.value = newShelf.id
+            newShelfId.value = newShelf.id
+            isOpen.value = false // Close the mobile modal if it's open
+            
+            // Reset newShelfId after a short delay
+            setTimeout(() => {
+                newShelfId.value = null
+            }, 100)
+        }
     } catch (err) {
         console.error(err)
     }
@@ -190,6 +256,13 @@ const deleteShelf = async (shelf) => {
     try {
         await axios.delete(`/communities/${community.value.slug}/shelves/${shelf.id}`)
         shelves.value = shelves.value.filter(s => s.id !== shelf.id)
+        
+        // After deletion, set active to the first shelf in the list
+        if (shelves.value.length > 0) {
+            active.value = shelves.value[0].id
+        } else {
+            active.value = null
+        }
     } catch (err) {
         console.error('Failed to delete shelf:', err)
         alert('Failed to delete shelf')
@@ -229,6 +302,11 @@ const rotateCurator = () => {
         currentCuratorIndex.value = (currentCuratorIndex.value + 1) % community.value.curators.length
     }
 }
+
+const selectShelf = (id) => {
+    active.value = id;
+    isOpen.value = false;
+};
 
 // Lifecycle hooks
 onMounted(() => {

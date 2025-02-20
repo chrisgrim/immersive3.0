@@ -1,22 +1,8 @@
 <template>
-    <div class="my-8 md:mt-16 md:mb-24 px-8 md:px-32">
-        <div class="w-full relative block overflow-hidden mb-8 rounded-xl md:flex">
-            <div class="flex items-center justify-center md:justify-start md:w-2/5">
-                <div class="w-4/5">
-                    <div>
-                        <p class="text-gray-500">{{ shelf.name }}: </p>
-                        <h2 class="text-6xl leading-[4.5rem] mt-8 font-medium text-black">{{ firstPost?.name }}</h2>
-                    </div>
-                    <a :href="`/communities/${community.slug}/posts/${firstPost?.slug}`">
-                        <button class="bg-[#ff385c] text-white border-none p-6 mt-8 rounded-2xl font-bold text-xl">
-                            Check it out
-                        </button>
-                    </a>
-                </div>
-            </div>
-            
+    <div class="my-10 md:mt-16 md:mb-24 px-10 md:px-32">
+        <div class="w-full relative block overflow-hidden mb-8 rounded-xl flex flex-col md:flex-row">
             <div v-if="firstPost && getPostImage(firstPost)" 
-                 class="rounded-2xl overflow-hidden relative inline-block bg-slate-400 md:w-3/5">
+                 class="rounded-2xl overflow-hidden relative inline-block bg-slate-400 w-full md:w-3/5 md:order-last mb-8 md:mb-0">
                 <div class="aspect-video">
                     <picture class="w-full h-full">
                         <source 
@@ -28,6 +14,20 @@
                             :src="`${imageUrl}${getPostImage(firstPost).replace('.webp', '.jpg')}`"
                             :alt="`${firstPost.name}`">
                     </picture>
+                </div>
+            </div>
+            
+            <div class="flex items-center justify-center md:justify-start md:w-2/5">
+                <div class="w-full md:w-4/5">
+                    <div>
+                        <p class="text-gray-500">{{ shelf.name }}: </p>
+                        <h2 class="text-6xl leading-[4.5rem] mt-8 font-medium text-black">{{ firstPost?.name }}</h2>
+                    </div>
+                    <a :href="`/communities/${community.slug}/posts/${firstPost?.slug}`">
+                        <button class="bg-[#ff385c] text-white border-none p-6 mt-8 rounded-2xl font-bold text-xl">
+                            Check it out
+                        </button>
+                    </a>
                 </div>
             </div>
         </div>

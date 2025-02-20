@@ -1,7 +1,7 @@
 <template>
     <main class="w-full min-h-fit">
         <div class="max-w-screen-xl mx-auto">
-            <div class="w-full lg:w-1/2 mx-auto pt-52 pb-40 px-4 md:px-0">
+            <div class="w-full lg:w-1/2 mx-auto pt-52 pb-40 px-10 md:px-0">
                 <div class="flex flex-col w-full">
 
                     <!-- Form Content -->
@@ -11,16 +11,19 @@
                         <div class="mt-6">
                             <!-- Post Name Input -->
                             <textarea 
-                                type="text" 
-                                v-model="post.name"
+                                id="Name" 
+                                rows="2" 
+                                placeholder="Enter post name" 
                                 @input="handleNameInput"
-                                class="text-4xl font-normal border border-[#222222] rounded-2xl p-4 w-full mt-8"
-                                :class="{ 
-                                    'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': v$.post.name.$error && v$.post.name.$dirty,
-                                    'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !v$.post.name.$error || !v$.post.name.$dirty 
-                                }"
-                                placeholder="Enter post name"
-                                rows="2" />
+                                v-model="post.name" 
+                                :class="[
+                                    'text-4xl p-4 border rounded-2xl mt-1 block w-full',
+                                    {
+                                        'border-red-500 focus:border-red-500 focus:shadow-focus-error': showNameError,
+                                        'border-[#222222] focus:border-black focus:shadow-focus-black': !showNameError
+                                    }
+                                ]"
+                            />
                             
                             <!-- Name Character Count -->
                             <div class="flex justify-end mt-1" 
@@ -29,36 +32,48 @@
                             </div>
 
                             <!-- Name Error Messages -->
-                            <div v-if="v$.post.name.$error && v$.post.name.$dirty" class="mt-[-2.5rem] mb-8 px-4">
-                                <p class="text-red-500 text-1xl" v-if="!v$.post.name.required">Please add a name.</p>
-                                <p class="text-red-500 text-1xl" v-if="!v$.post.name.maxLength">The name is too long.</p>
-                                <p class="text-red-500 text-1xl" v-if="!v$.post.name.serverError">Your community already has a post with a similar name</p>
-                            </div>
+                            <p v-if="showNameMaxLengthError" 
+                               class="text-red-500 text-1xl mt-1 px-4">
+                                Post name is too long.
+                            </p>
+                            <p v-if="showNameRequiredError" 
+                               class="text-red-500 text-1xl mt-1 px-4">
+                                Post name is required
+                            </p>
 
                             <!-- Tag Line Section -->
                             <div v-if="post.name">
-                                <p class="text-gray-500 font-normal">Tag Line</p>
+                                <p class="text-black font-medium mb-4">Tag Line</p>
                                 <textarea 
-                                    type="text" 
-                                    v-model="post.blurb"
+                                    id="blurb" 
+                                    rows="2" 
+                                    placeholder="Enter a catchy tagline" 
                                     @input="handleBlurbInput"
-                                    class="text-2xl border border-[#222222] rounded-2xl p-4 w-full mt-4"
-                                    :class="{ 
-                                        'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_1.5px_#ef4444]': v$.post.blurb.$error,
-                                        'focus:border-black focus:shadow-[0_0_0_1.5px_black]': !v$.post.blurb.$error 
-                                    }"
-                                    placeholder="Enter a catchy tagline"
-                                    rows="2" />
+                                    v-model="post.blurb" 
+                                    :class="[
+                                        'text-2xl p-4 border rounded-2xl mt-1 block w-full',
+                                        {
+                                            'border-red-500 focus:border-red-500 focus:shadow-focus-error': showBlurbError,
+                                            'border-[#222222] focus:border-black focus:shadow-focus-black': !showBlurbError
+                                        }
+                                    ]"
+                                />
 
                                 <!-- Blurb Character Count -->
-                                <div class="flex justify-end mt-1 relative" 
+                                <div class="flex justify-end mt-1" 
                                      :class="{'text-red-500': isBlurbNearLimit, 'text-gray-500': !isBlurbNearLimit}">
                                     {{ post.blurb?.length || 0 }}/100
-                                    <div v-if="v$.post.blurb.$error" class="absolute left-0 top-0">
-                                        <p class="text-red-500 text-1xl" v-if="!v$.post.blurb.required">Please add a tag line.</p>
-                                        <p class="text-red-500 text-1xl" v-if="!v$.post.blurb.maxLength">The tag line is too long.</p>
-                                    </div>
                                 </div>
+
+                                <!-- Blurb Error Messages -->
+                                <p v-if="showBlurbMaxLengthError" 
+                                   class="text-red-500 text-1xl mt-1 px-4">
+                                    Tag line is too long.
+                                </p>
+                                <p v-if="showBlurbRequiredError" 
+                                   class="text-red-500 text-1xl mt-1 px-4">
+                                    Tag line is required
+                                </p>
                             </div>
 
                             <!-- Shelf Selection -->
@@ -142,7 +157,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useVuelidate } from '@vuelidate/core'
 import { required, maxLength } from '@vuelidate/validators'
 import { ClickOutsideDirective } from '@/Directives/ClickOutsideDirective.js'
@@ -159,17 +174,22 @@ const props = defineProps({
     }
 })
 
-// Data
-const post = ref(initializePostObject())
+// Create a reactive post object
+const post = reactive({
+    name: '',
+    blurb: '',
+    community_id: props.community.id,
+    shelf_id: null
+})
+
 const serverErrors = ref(null)
 
 // Validation rules
 const rules = {
     post: {
-        name: {
+        name: { 
             required,
-            maxLength: maxLength(100),
-            serverError: () => !serverErrors.value?.name
+            maxLength: maxLength(100)
         },
         blurb: {
             required,
@@ -179,14 +199,45 @@ const rules = {
             required
         }
     }
-}
+};
 
-// Setup vuelidate
-const v$ = useVuelidate(rules, { post }, { 
-    $lazy: true,
-    $autoDirty: false,
-    $rewardEarly: false  // Add this to prevent early validation
-})
+// Initialize Vuelidate
+const v$ = useVuelidate(rules, { post });
+
+// Update computed properties to use nested path
+const showNameError = computed(() => {
+    return v$.value.post.name.$dirty && v$.value.post.name.$error;
+});
+
+const showNameMaxLengthError = computed(() => {
+    return v$.value.post.name.$dirty && v$.value.post.name.maxLength.$invalid;
+});
+
+const showNameRequiredError = computed(() => {
+    return v$.value.post.name.$dirty && v$.value.post.name.required.$invalid;
+});
+
+const showBlurbError = computed(() => {
+    return v$.value.post.blurb.$dirty && v$.value.post.blurb.$error;
+});
+
+const showBlurbMaxLengthError = computed(() => {
+    return v$.value.post.blurb.$dirty && v$.value.post.blurb.maxLength.$invalid;
+});
+
+const showBlurbRequiredError = computed(() => {
+    return v$.value.post.blurb.$dirty && v$.value.post.blurb.required.$invalid;
+});
+
+const isNameNearLimit = computed(() => {
+    const count = post.name?.length || 0;
+    return count > 90;
+});
+
+const isBlurbNearLimit = computed(() => {
+    const count = post.blurb?.length || 0;
+    return count > 90;
+});
 
 // Methods
 function initializePostObject() {
@@ -203,7 +254,7 @@ async function submitPost() {
     if (!isValid) return
 
     try {
-        const res = await axios.post(`/communities/${props.community.slug}/posts`, post.value)
+        const res = await axios.post(`/communities/${props.community.slug}/posts`, post)
         window.location.href = `/communities/${props.community.slug}/posts/${res.data.slug}/edit`
     } catch (err) {
         onErrors(err)
@@ -211,8 +262,8 @@ async function submitPost() {
 }
 
 function clearError() {
-    v$.value.post.$touch()
-    serverErrors.value = null
+    // Don't touch all validations, only clear server errors
+    serverErrors.value = null;
 }
 
 function onErrors(err) {
@@ -223,33 +274,26 @@ function onErrors(err) {
     }
 }
 
-// Add these computed properties
-const isNameNearLimit = computed(() => {
-    const count = post.value.name?.length || 0
-    return count > 90
-})
-
-const isBlurbNearLimit = computed(() => {
-    const count = post.value.blurb?.length || 0
-    return count > 90
-})
-
-// Add these methods
-function handleNameInput() {
-    v$.value.post.name.$touch()
-    if (post.value.name?.length > 100) {
-        post.value.name = post.value.name.slice(0, 100)
+// Update methods to use nested path
+const handleNameInput = () => {
+    // Only touch name validation
+    v$.value.post.name.$touch();
+    if (post.name?.length > 100) {
+        post.name = post.name.slice(0, 100);
     }
-    clearError()
-}
+    clearError();
+};
 
-function handleBlurbInput() {
-    v$.value.post.blurb.$touch()
-    if (post.value.blurb?.length > 100) {
-        post.value.blurb = post.value.blurb.slice(0, 100)
+const handleBlurbInput = () => {
+    // Only touch blurb validation when there's input
+    if (post.blurb?.length > 0) {
+        v$.value.post.blurb.$touch();
     }
-    clearError()
-}
+    if (post.blurb?.length > 100) {
+        post.blurb = post.blurb.slice(0, 100);
+    }
+    clearError();
+};
 
 // Add new refs for dropdown
 const shelfDrop = ref(null)
@@ -270,7 +314,7 @@ const handleClickOutside = (event) => {
 const onDropdown = () => state.value.dropdown = true
 
 const selectShelf = (shelf) => {
-    post.value.shelf_id = shelf.id
+    post.shelf_id = shelf.id
     state.value.shelfName = shelf.name
     state.value.dropdown = false
 }

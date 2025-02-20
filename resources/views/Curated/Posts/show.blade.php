@@ -9,7 +9,7 @@
 
 @section('nav')
     @if (Browser::isMobile())
-        @include('Nav.index-mobile')
+        <vue-nav-bar-mobile :user="user"></vue-nav-bar-mobile>
     @else
         @include('Nav.nav-padded')
     @endif
@@ -47,7 +47,7 @@
 @endsection
 
 @section('content')
-<div class="max-w-screen-5xl px-8 md:px-16 lg:px-40 mx-auto py-36 relative">
+<div class="max-w-screen-5xl px-8 md:px-16 lg:px-40 mx-auto py-16 md:py-36 relative">
     @php
         $imagePath = '';
         

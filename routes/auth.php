@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\LoginCodeController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\SocialAuthController;
+use App\Http\Controllers\Auth\EmailVerificationController;
 use Illuminate\Support\Facades\Route;
 
 // Main auth routes
@@ -39,4 +40,13 @@ Route::get('/auth/google/callback', [SocialAuthController::class, 'handleGoogleC
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
                 ->middleware('auth')
                 ->name('logout');
+
+// Email verification routes
+Route::post('/users/email/verify', [EmailVerificationController::class, 'sendVerificationCode'])
+                ->middleware('auth')
+                ->name('verification.send');
+
+Route::post('/users/email/confirm', [EmailVerificationController::class, 'verifyCode'])
+                ->middleware('auth')
+                ->name('verification.verify');
 

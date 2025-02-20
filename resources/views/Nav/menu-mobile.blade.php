@@ -1,7 +1,7 @@
 @extends('Layouts.master-container')
 
 @section('nav')
-    <vue-nav-bar-mobile></vue-nav-bar-mobile>
+    <vue-nav-bar-mobile :user="user"></vue-nav-bar-mobile>
 @endsection
 
 @section('content')
@@ -13,15 +13,8 @@
     <nav class="flex flex-col gap-8">
 
 
-        <a href="/users/{{ auth()->id() }}" class="flex items-center justify-between text-2xl py-4">
-            Profile
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 18l6-6-6-6"/>
-            </svg>
-        </a>
-
-        <a href="/users/account-settings" class="flex items-center justify-between text-2xl py-4">
-            Account
+        <a href="/users/{{ auth()->id() }}/edit" class="flex items-center justify-between text-2xl py-4">
+            User Settings
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 18l6-6-6-6"/>
             </svg>

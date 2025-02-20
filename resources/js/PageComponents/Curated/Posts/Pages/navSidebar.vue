@@ -1,10 +1,7 @@
 <template>
     <nav class="relative flex flex-col items-center flex-shrink-0 w-full mx-auto pt-12">
         <!-- Header with Community Name and Controls -->
-        <div 
-            v-if="!isMobile || !currentStep"
-            class="w-full flex flex-col gap-4 pb-8 z-50 bg-white p-4 lg-air:max-w-[40rem]"
-        >
+        <div class="w-full flex flex-col gap-4 pb-8 z-50 bg-white p-10 lg-air:max-w-[40rem]">
             <a 
                 :href="`/communities/${community?.slug}/listings?shelf=${post?.shelf?.id}`" 
                 class="flex items-center gap-4"
@@ -23,13 +20,13 @@
                         <path d="M12 19l-7-7 7-7"/>
                     </svg>
                 </div>
-                <span class="ml-4 text-5xl font-semibold truncate">
+                <span class="ml-4 text-3xl md:text-5xl font-semibold truncate">
                     {{ post?.shelf?.name || community?.name }}
                 </span>
             </a>
 
             <!-- Post Controls -->
-            <div class="flex items-center justify-between px-4 mt-8">
+            <div class="flex items-center justify-between mt-8">
                 <!-- Left side controls -->
                 <div class="flex items-center gap-4">
                     <ToggleSwitch
@@ -42,7 +39,7 @@
                     <a 
                         v-if="isLive"
                         :href="`/communities/${community?.slug}/posts/${post?.slug}`"
-                        class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors"
+                        class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors"
                         title="View live post"
                     >
                         <component :is="RiExternalLinkLine" class="w-6 h-6 text-neutral-600" />
@@ -69,8 +66,8 @@
         </div>
 
         <!-- Navigation Items -->
-        <div class="w-full flex flex-col items-center overflow-y-auto max-h-[calc(100vh-19rem)]">
-            <div class="space-y-8 lg-air:max-w-[40rem] p-8 mb-20">
+        <div class="w-full flex flex-col md:items-center overflow-y-auto max-h-[calc(100vh-28rem)]">
+            <div class="space-y-10 lg-air:max-w-[40rem] p-10 mb-20">
                 <!-- Name Section -->
                 <button
                     @click="$emit('navigate', 'Name')"

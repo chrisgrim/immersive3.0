@@ -85,55 +85,57 @@
     };
 @endphp
 
-<div class="whitespace-nowrap overflow-y-hidden overflow-x-auto m-auto w-full">
+<div class="whitespace-nowrap overflow-y-hidden overflow-x-auto m-auto w-full md:px-10 md:px-32">
     <div>
         @if($name)
-            <div class="mt-8 mb-0 md:mt-12">
+            <div class="mt-12 mb-0">
                 <div>
                     <h2 class="text-3.5xl text-black font-bold">{{ $name }}</h2>
                 </div>
             </div>
         @endif
 
-        <div style="scroll-snap-type: x mandatory;" 
-             class="flex w-full scroll-p-7 overflow-auto mt-8 scroll-smooth gap-8">
+        <div class="block md:flex w-full scroll-p-7 overflow-auto mt-8 scroll-smooth gap-8 md:whitespace-nowrap whitespace-normal" 
+             style="scroll-snap-type: x mandatory;">
             @foreach($elements as $element)
-                <div class="relative snap-start snap-always {{ $widthClass }}">
-                    <div class="flex w-full flex-col overflow-hidden relative">
+                <div class="relative snap-start snap-always {{ $widthClass }} mb-8 md:mb-0">
+                    <div class="flex md:block w-full gap-10 md:gap-0 overflow-hidden relative">
                         <a href="{{ $getElementUrl($element) }}" 
                            class="block h-full absolute w-full rounded-2xl top-0 left-0 z-10">
                         </a>
                         
-                        <div class="aspect-[4/3] w-full rounded-2xl overflow-hidden">
-                            @php 
-                                $imagePath = $getPostImage($element);
-                                $firstLetter = $getFirstLetter($element->name);
-                            @endphp
-                            @if($imagePath)
-                                <picture>
-                                    <source 
-                                        srcset="{{ config('app.image_url') }}{{ str_replace(['.jpg', '.jpeg', '.png'], '.webp', $imagePath) }}"
-                                        type="image/webp"
-                                    >
-                                    <img src="{{ config('app.image_url') }}{{ $imagePath }}"
-                                         alt="{{ $element->name }}"
-                                         class="w-full h-full object-cover" />
-                                </picture>
-                            @else
-                                <div class="w-full h-full flex items-center justify-center" 
-                                     style="background-color: #c69669">
-                                    <span class="text-6xl font-bold text-white">
-                                        {{ $firstLetter }}
-                                    </span>
-                                </div>
-                            @endif
+                        <div class="w-1/2 md:w-full">
+                            <div class="aspect-[16/9] w-full rounded-2xl overflow-hidden">
+                                @php 
+                                    $imagePath = $getPostImage($element);
+                                    $firstLetter = $getFirstLetter($element->name);
+                                @endphp
+                                @if($imagePath)
+                                    <picture>
+                                        <source 
+                                            srcset="{{ config('app.image_url') }}{{ str_replace(['.jpg', '.jpeg', '.png'], '.webp', $imagePath) }}"
+                                            type="image/webp"
+                                        >
+                                        <img src="{{ config('app.image_url') }}{{ $imagePath }}"
+                                             alt="{{ $element->name }}"
+                                             class="w-full h-full object-cover" />
+                                    </picture>
+                                @else
+                                    <div class="w-full h-full flex items-center justify-center" 
+                                         style="background-color: #c69669">
+                                        <span class="text-6xl font-bold text-white">
+                                            {{ $firstLetter }}
+                                        </span>
+                                    </div>
+                                @endif
+                            </div>
                         </div>
 
-                        <div class="mb-8 mt-2">
-                            <div class="mt-4 font-medium whitespace-normal">
-                                <p class="text-4xl leading-tight text-black">{{ $element->name }}</p>
+                        <div class="w-1/2 md:w-full md:mb-8 md:mt-4">
+                            <div class="font-medium whitespace-normal">
+                                <p class="text-3xl md:text-4xl leading-tight text-black">{{ $element->name }}</p>
                             </div>
-                            <div class="mt-2 text-xl text-gray-500">
+                            <div class="mt-2 text-lg md:text-xl text-gray-500">
                                 {{ date('F j, Y', strtotime($element->created_at)) }}
                             </div>
                         </div>

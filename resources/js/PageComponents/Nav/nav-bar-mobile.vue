@@ -11,7 +11,7 @@
                 <span class="text-sm">Discover</span>
             </a>
 
-            <a href="/hosting/events" 
+            <a :href="eventsLink" 
                class="flex flex-col items-center gap-1" 
                :class="isEvents ? 'text-primary' : 'text-neutral-400'">
                 <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -43,13 +43,28 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+
+const props = defineProps({
+    user: {
+        type: Object,
+        required: true
+    }
+});
 
 const isHidden = ref(false);
 const isHome = ref(window.location.pathname === '/');
-const isEvents = ref(window.location.pathname === '/hosting/events');
+const isEvents = ref(window.location.pathname === '/hosting/events' || window.location.pathname === '/hosting/getting-started');
 const isInbox = ref(window.location.pathname === '/inbox');
 const isMenu = ref(window.location.pathname === '/menu');
+
+const eventsLink = computed(() => {
+    // Check if user has any events or organizers
+    const hasEvents = props.user.events?.length > 0;
+    const hasOrganizers = props.user.organizers?.length > 0;
+    
+    return hasEvents || hasOrganizers ? '/hosting/events' : '/hosting/getting-started';
+});
 
 let lastScrollY = window.scrollY;
 

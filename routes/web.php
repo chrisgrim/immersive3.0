@@ -32,7 +32,7 @@ Route::middleware(['auth'])->group(function () {
     Route::view('/menu', 'Nav.menu-mobile')->name('menu');
     
     Route::prefix('users')->name('users.')->group(function () {
-        Route::get('/account-settings', [ProfilesController::class, 'account'])->name('account.settings');
+        Route::get('/{user}/edit', [ProfilesController::class, 'edit'])->name('edit')->middleware('can:update,user');
         Route::get('/{user}', [ProfilesController::class, 'show'])->name('show');
         Route::post('/{user}', [ProfilesController::class, 'update'])->name('update')->middleware('can:update,user');
     });

@@ -13,10 +13,12 @@ class EventClosingSoon extends Mailable
     use Queueable, SerializesModels;
 
     public $event;
+    public $user;
 
     public function __construct(Event $event)
     {
         $this->event = $event->load(['images', 'organizer.user']);
+        $this->user = $event->organizer->user;
     }
 
     public function build()
@@ -24,7 +26,8 @@ class EventClosingSoon extends Mailable
         $truncatedName = Str::limit($this->event->name, 40, '...');
         return $this->subject('Your Event Is Closing Soon - ' . $truncatedName)
             ->markdown('Emails.closing-soon', [
-                'event' => $this->event
+                'event' => $this->event,
+                'user' => $this->user
             ]);
     }
 }

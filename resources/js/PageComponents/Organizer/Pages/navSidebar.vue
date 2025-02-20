@@ -1,38 +1,7 @@
 <template>
-    <!-- Mobile Back Button (shown only when a section is active) -->
-    <div 
-        v-if="isMobile && currentStep" 
-        class="fixed top-0 left-0 right-0 z-50 bg-white border-neutral-300 border-b p-4"
-    >
-        <div class="flex items-center gap-4">
-            <button 
-                @click="$emit('navigate', null)"
-                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors"
-            >
-                <svg 
-                    class="w-8 h-8" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    stroke-width="2" 
-                    stroke-linecap="round" 
-                    stroke-linejoin="round"
-                >
-                    <path d="M19 12H5"/>
-                    <path d="M12 19l-7-7 7-7"/>
-                </svg>
-            </button>
-            <h2 class="text-xl font-semibold">{{ currentStep }}</h2>
-        </div>
-    </div>
-
-    <!-- Main Navigation -->
     <nav class="relative flex flex-col items-center flex-shrink-0 w-full mx-auto pt-12">
         <!-- Static Header -->
-        <div 
-            v-if="!isMobile || !currentStep"
-            class="w-full flex items-center gap-4 pb-8 z-50 bg-white p-4 lg-air:max-w-[40rem]"
-        >
+        <div class="w-full flex items-center gap-4 pb-8 z-50 bg-white p-10 lg-air:max-w-[40rem]">
             <a 
                 :href="`/organizers/${organizer.slug}`" 
                 class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"
@@ -52,15 +21,15 @@
             </a>
             <a 
                 :href="`/organizers/${organizer.slug}`" 
-                class="ml-4 text-5xl font-semibold truncate"
+                class="ml-4 text-3xl md:text-5xl font-semibold truncate"
             >
                 Organizer
             </a>
         </div>
 
         <!-- Scrollable Content -->
-        <div class="w-full flex flex-col items-center overflow-y-auto max-h-[calc(100vh-19rem)]">
-            <div class="space-y-8 lg-air:max-w-[40rem] p-8 mb-20">
+        <div class="w-full flex flex-col md:items-center overflow-y-auto max-h-[calc(100vh-20rem)]">
+            <div class="space-y-10 lg-air:max-w-[40rem] p-10 mb-20">
                 <!-- Name -->
                 <button
                     @click="$emit('navigate', 'Name')"
@@ -93,11 +62,12 @@
                         <template v-if="organizerImage">
                             <picture class="w-40 h-40 flex-shrink-0">
                                 <source 
-                                    :srcset="organizerImage"
+                                    :srcset="organizerImage + '?t=' + timestamp"
                                     type="image/webp"
                                 >
                                 <img 
-                                    :src="organizerImage"
+                                    :key="timestamp"
+                                    :src="organizerImage + '?t=' + timestamp"
                                     class="w-40 h-40 rounded-full object-cover"
                                     alt="Organizer image"
                                     @error="console.error('Error loading image: ' + organizerImage)"
@@ -163,7 +133,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { 
     RiSearchLine,
     RiTwitterLine,
@@ -184,6 +154,8 @@ const props = defineProps({
     }
 });
 
+const timestamp = ref(Date.now());
+
 const isMobile = computed(() => window?.Laravel?.isMobile ?? false);
 
 const imageUrl = computed(() => import.meta.env.VITE_IMAGE_URL);
@@ -202,6 +174,11 @@ const organizerImage = computed(() => {
     
     return null;
 });
+
+// Update timestamp when organizer images change
+watch(() => [props.organizer.images, props.organizer.thumbImagePath], () => {
+    timestamp.value = Date.now();
+}, { deep: true });
 
 const hasImage = computed(() => {
     return Boolean(props.organizer.images?.[0] || props.organizer.thumbImagePath);

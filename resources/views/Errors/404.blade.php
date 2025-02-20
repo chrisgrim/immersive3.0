@@ -2,7 +2,7 @@
 
 @section('nav')
     @if (Browser::isMobile())
-        <vue-nav-bar-mobile></vue-nav-bar-mobile>
+        <vue-nav-bar-mobile :user="user"></vue-nav-bar-mobile>
     @else
         @include('Nav.nav-limited-search')
     @endif

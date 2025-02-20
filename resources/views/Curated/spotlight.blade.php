@@ -26,12 +26,64 @@
 
     // Override name if dock name exists
     $name = $dock->name ?? $name;
+
+    // Image handling function
+    $getElementImage = function($element) {
+        // Most common case first
+        if ($element->largeImagePath) {
+            return $element->largeImagePath;
+        }
+
+        // Featured event image check
+        if ($element->featuredEventImage) {
+            return is_string($element->featuredEventImage) 
+                ? $element->featuredEventImage 
+                : ($element->featuredEventImage->largeImagePath ?? $element->featuredEventImage->thumbImagePath ?? null);
+        }
+
+        // Check cards if no featured image
+        if (isset($element->cards)) {
+            // Look for event card with image
+            $eventCard = $element->cards->firstWhere('type', 'e');
+            if ($eventCard && isset($eventCard->event) && isset($eventCard->event->largeImagePath)) {
+                return $eventCard->event->largeImagePath;
+            }
+
+            // Look for image card
+            $imageCard = $element->cards->firstWhere('type', 'i');
+            if ($imageCard && isset($imageCard->largeImagePath)) {
+                return $imageCard->largeImagePath;
+            }
+        }
+
+        // Fallback to images collection
+        return !empty($element->images) ? $element->images->first()?->path : null;
+    };
+
+    $imagePath = $element ? $getElementImage($element) : null;
 @endphp
 
-<div class="my-8 md:mt-16 md:mb-24 px-8 md:px-32 py-24 border-y border-slate-200">
-    <div class="w-full relative block overflow-hidden mb-8 rounded-xl md:flex">
-        <div class="flex items-center justify-center md:justify-start md:w-2/5">
-            <div class="w-4/5">
+<div class="my-8 md:mt-16 md:mb-24 px-10 md:px-32 py-16 md:py-24 border-y border-slate-200">
+    <div class="w-full relative block overflow-hidden mb-8 rounded-xl md:flex flex-col md:flex-row">
+        @if($element && $imagePath)
+            <div class="rounded-2xl overflow-hidden relative inline-block bg-slate-400 md:w-3/5 mb-8 md:mb-0 order-first md:order-last">
+                <div class="aspect-video">
+                    <picture class="w-full h-full">
+                        <source 
+                            type="image/webp" 
+                            srcset="{{ $imageUrl }}{{ $imagePath }}">
+                        <img 
+                            loading="lazy"
+                            class="object-cover w-full h-full"
+                            src="{{ $imageUrl }}{{ Str::replaceLast('webp', 'jpg', $imagePath) }}"
+                            alt="{{ $element->name ?? '' }}">
+                    </picture>
+                </div>
+            </div>
+        @endif
+        
+        <div class="flex items-center justify-center md:justify-start md:w-2/5 mt-8 md:mt-0">
+            <div class="w-full md:w-4/5">
                 <div>
                     <p class="text-gray-500">{{ $name }}: </p>
                     <h2 class="text-6xl leading-[4.5rem] mt-8 font-medium text-black">{{ $element->name ?? '' }}</h2>
@@ -43,22 +95,5 @@
                 </a>
             </div>
         </div>
-        
-        @if($element && $element->largeImagePath)
-            <div class="rounded-2xl overflow-hidden relative inline-block bg-slate-400 md:w-3/5">
-                <div class="aspect-video">
-                    <picture class="w-full h-full">
-                        <source 
-                            type="image/webp" 
-                            srcset="{{ $imageUrl }}{{ $element->largeImagePath }}">
-                        <img 
-                            loading="lazy"
-                            class="object-cover w-full h-full"
-                            src="{{ $imageUrl }}{{ Str::replaceLast('webp', 'jpg', $element->largeImagePath) }}"
-                            alt="{{ $element->name ?? '' }}">
-                    </picture>
-                </div>
-            </div>
-        @endif
     </div>
 </div>

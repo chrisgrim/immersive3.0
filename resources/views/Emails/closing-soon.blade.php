@@ -65,7 +65,7 @@
                 </p>
                 <p style="font-family: 'Sen', sans-serif;color: #6d6d6d;margin-top: 5rem;font-size: 0.875rem;">
                     Too many emails? 
-                    <a href="{{ url('/users/account-settings') }}" style="color: #ff385c;text-decoration: underline;">
+                    <a href="{{ url("/users/{$user->id}/edit") }}" style="color: #ff385c;text-decoration: underline;">
                         Click here to change
                     </a>
                 </p>

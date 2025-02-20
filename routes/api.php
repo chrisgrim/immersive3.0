@@ -67,10 +67,17 @@ Route::GET('/price/max/cached', [CachedDataController::class, 'getMaxPrice']);
 |--------------------------------------------------------------------------
 */
 
+// Add this route before the moderator middleware group
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::GET('/teams/search', [OrganizerController::class, 'searchTeams'])
+        ->name('api.teams.search')
+        ->middleware('can:viewAny,App\Models\Organizer');
+});
+
+// Keep your existing moderator routes
 Route::middleware(['auth:sanctum', 'moderator'])->group(function () {
     Route::GET('/user', fn (Request $request) => $request->user());
-    Route::GET('/teams/search', [OrganizerController::class, 'searchTeams'])->name('api.teams.search');
-
+    
     /*
     |--------------------------------------------------------------------------
     | Admin Routes

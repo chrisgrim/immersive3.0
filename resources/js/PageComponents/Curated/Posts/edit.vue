@@ -26,7 +26,7 @@
                     :class="currentSection ? 'flex' : 'hidden md:flex'">
                     <!-- Mobile back button -->
                     <div 
-                        v-if="window?.Laravel?.isMobile && currentSection" 
+                        v-if="isMobile && currentSection" 
                         class="relative bg-white px-8 pt-12 pb-4"
                     >
                         <div class="flex items-center gap-4">
@@ -193,6 +193,7 @@ const components = {
     Content
 };
 
+const isMobile = computed(() => window?.Laravel?.isMobile ?? false);
 const currentComponent = computed(() => components[currentStep.value]);
 
 const handleNavigation = (section) => {

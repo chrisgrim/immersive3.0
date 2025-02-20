@@ -1,48 +1,64 @@
 <template>
-    <div class="rounded-2xl mb-8 p-2 border">
-        <div class="m-4">
+    <div class="rounded-2xl mb-8">
+        <div class="">
             <!-- Shelf Header -->
-            <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center gap-4 p-6">
-                    <template v-if="editName && shelf.status !== 'a'">
-                        <div class="field h3">
-                            <input 
-                                type="text" 
-                                v-model="shelf.name"
-                                :class="{ 'error': v$.shelf.name.$error }"
-                                class="w-full border border-black rounded-lg p-2"
-                                placeholder="Shelf Name">
-                            <div v-if="v$.shelf.name.$error" class="validation-error">
-                                <p class="error" v-if="!v$.shelf.name.required">Please add a name.</p>
-                                <p class="error" v-if="!v$.shelf.name.maxLength">The name is too long.</p>
+            <div class="flex flex-col mb-4">
+                <div class="flex items-center justify-between py-6">
+                    <!-- Name Section -->
+                    <div class="flex items-center gap-4">
+                        <template v-if="editName && shelf.status !== 'a'">
+                            <div class="field h3">
+                                <input 
+                                    type="text" 
+                                    v-model="shelf.name"
+                                    :class="{ 'error': v$.shelf.name.$error }"
+                                    class="w-full border border-black rounded-lg p-2"
+                                    placeholder="Shelf Name">
+                                <div v-if="v$.shelf.name.$error" class="validation-error">
+                                    <p class="error" v-if="!v$.shelf.name.required">Please add a name.</p>
+                                    <p class="error" v-if="!v$.shelf.name.maxLength">The name is too long.</p>
+                                </div>
                             </div>
-                        </div>
-                    </template>
-                    <template v-else>
-                        <div 
-                            @mouseover="hover = true"
-                            @mouseleave="hover = false"
-                            @click="editName=true"
-                            class="inline-flex items-center">
-                            <template v-if="shelf.name">
-                                <h3>{{ shelf.name }}</h3>
-                            </template>
-                            <template v-else>
-                                <h3>Edit Name</h3>
-                            </template>
-                            <template v-if="!editName && hover && shelf.status !== 'a'">
-                                <button class="border-none underline p-0 block w-8 h-8 rounded-full justify-center items-center">
-                                    <svg class="h-8 w-8">
-                                        <use :xlink:href="`/storage/website-files/icons.svg#ri-pencil-line`" />
-                                    </svg>
-                                </button>
-                            </template>
-                        </div>
+                        </template>
+                        <template v-else>
+                            <div 
+                                @mouseover="hover = true"
+                                @mouseleave="hover = false"
+                                @click="editName=true"
+                                class="inline-flex items-center">
+                                <template v-if="shelf.name">
+                                    <h3>{{ shelf.name }}</h3>
+                                </template>
+                                <template v-else>
+                                    <h3>Edit Name</h3>
+                                </template>
+                                <template v-if="!editName && hover && shelf.status !== 'a'">
+                                    <button class="border-none underline p-0 block w-8 h-8 rounded-full justify-center items-center">
+                                        <svg class="h-8 w-8">
+                                            <use :xlink:href="`/storage/website-files/icons.svg#ri-pencil-line`" />
+                                        </svg>
+                                    </button>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
 
-                        <!-- Create Post Button -->
+                    <!-- Delete Button -->
+                    <div v-if="!shelf.posts?.data?.length && shelf.name !== 'Archived'">
+                        <button 
+                            @click="$emit('delete', shelf)"
+                            class="p-2 bg-black hover:bg-gray-100 rounded-full group">
+                            <svg class="w-8 h-8 fill-white group-hover:fill-black">
+                                <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Create Post Button when there are posts -->
+                    <div v-if="shelf.posts?.data?.length">
                         <a 
                             :href="`/communities/${community.slug}/posts/create?shelf=${shelf.id}`"
-                            class="inline-flex items-center border border-neutral-300 rounded-full ml-8 p-4 pr-6 gap-2 text-gray-600 hover:bg-black hover:text-white"
+                            class="inline-flex items-center border border-neutral-300 rounded-full p-4 pr-6 gap-2 text-gray-600 hover:bg-black hover:text-white"
                         >
                             <div class="rounded-full w-8 h-8 flex items-center justify-center">
                                 <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -51,18 +67,22 @@
                             </div>
                             <span class="text-xl font-bold">Create Post</span>
                         </a>
-                    </template>
+                    </div>
                 </div>
 
-                <!-- Delete Button -->
-                <div v-if="!shelf.posts?.data?.length && shelf.name !== 'Archived'">
-                    <button 
-                        @click="$emit('delete', shelf)"
-                        class="p-2 bg-black hover:bg-gray-100 rounded-full group">
-                        <svg class="w-8 h-8 fill-white group-hover:fill-black">
-                            <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
-                        </svg>
-                    </button>
+                <!-- Create Post Button when no posts -->
+                <div v-if="!shelf.posts?.data?.length">
+                    <a 
+                        :href="`/communities/${community.slug}/posts/create?shelf=${shelf.id}`"
+                        class="inline-flex items-center border border-neutral-300 rounded-full p-4 pr-6 gap-2 text-gray-600 hover:bg-black hover:text-white"
+                    >
+                        <div class="rounded-full w-8 h-8 flex items-center justify-center">
+                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                            </svg>
+                        </div>
+                        <span class="text-xl font-bold">Create Post</span>
+                    </a>
                 </div>
             </div>
 
@@ -90,21 +110,25 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useVuelidate } from '@vuelidate/core'
 import { required, maxLength } from '@vuelidate/validators'
 import CollectionAlbum from './Components/album.vue'
 
 // Props
 const props = defineProps({
-    loadshelf: {
-        type: Object,
-        required: true
-    },
     community: {
         type: Object,
         required: true
     },
+    loadshelf: {
+        type: Object,
+        required: true
+    },
+    startEditing: {
+        type: Boolean,
+        default: false
+    }
 })
 
 // Data
@@ -157,8 +181,19 @@ const clear = () => {
     hover.value = false
 }
 
+const startEditing = () => {
+    editName.value = true
+}
+
 // Add emit
 defineEmits(['delete'])
+
+// Lifecycle hooks
+onMounted(() => {
+    if (props.startEditing) {
+        startEditing()
+    }
+})
 </script>
 
 <style scoped>

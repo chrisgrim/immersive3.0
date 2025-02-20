@@ -1,6 +1,9 @@
 @extends('Layouts.master-container')
 
 @section('meta')
+    
+
+
 @endsection 
 
 @section('nav')
@@ -15,13 +18,14 @@
 
 @section('content')
 
-<div>
-    <vue-inbox 
-        :conversations="{{ json_encode($conversations) }}"
-        :user="user"
-    ></vue-inbox>
-</div>
+	@if(auth()->check() && auth()->user()->can('update', $user) && auth()->user()->email_verified_at !== null)
+        <vue-user-profile :owner="user" :loaduser="{{ $user }}" v-cloak />   
+    @else
+       @include('Auth.user-profile-guest')
+    @endif
+	
 @endsection
 
 @section('footer')
+    
 @endsection 

@@ -6,7 +6,11 @@
 
 @section('nav')
 
-    @include('Nav.nav-full')  
+    @if (Browser::isMobile())
+    <vue-nav-bar-mobile :user="user"></vue-nav-bar-mobile>
+    @else
+        @include('Nav.nav-full')   
+    @endif
     
 @endsection
 

@@ -17,8 +17,7 @@ const ShowPurchase = defineAsyncComponent(() => import('./PageComponents/EventSh
 const ShowMap = defineAsyncComponent(() => import('./PageComponents/EventShow/show-map.vue'));
 
 const ResetPassword = defineAsyncComponent(() => import('./Auth/reset-password.vue'));
-const UserProfile = defineAsyncComponent(() => import('./Auth/user-profile.vue'));
-const UserAccount = defineAsyncComponent(() => import('./Auth/user-account.vue'));
+const UserEdit = defineAsyncComponent(() => import('./Auth/user-edit.vue'));
 const Login = defineAsyncComponent(() => import('./Auth/login.vue'));
 
 const Inbox = defineAsyncComponent(() => import('./PageComponents/Messaging/inbox.vue'));
@@ -75,8 +74,7 @@ app.component('vue-show-purchase', ShowPurchase);
 app.component('vue-show-map', ShowMap);
 
 app.component('vue-reset-password', ResetPassword);
-app.component('vue-user-profile', UserProfile);
-app.component('vue-user-account', UserAccount)
+app.component('vue-user-profile', UserEdit);
 app.component('vue-user-login', Login);
 
 app.component('vue-inbox', Inbox);

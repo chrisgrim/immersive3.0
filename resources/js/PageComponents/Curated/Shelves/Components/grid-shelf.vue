@@ -1,32 +1,34 @@
 <template>
-    <div class="whitespace-nowrap overflow-y-hidden overflow-x-auto m-auto w-full px-8 md:px-32">
+    <div class="whitespace-nowrap overflow-y-hidden overflow-x-auto m-auto w-full px-10 md:px-32">
         <div class="border-t border-gray-300">
-            <div v-if="shelf.name" class="mt-8 mb-0 md:mt-12">
+            <div v-if="shelf.name" class="mt-12 mb-0">
                 <div>
                     <h2 class="text-3.5xl text-black font-bold">{{ shelf.name }}</h2>
                 </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-8 mt-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-10 mt-10">
                 <div v-for="post in gridPosts" 
                     :key="post.id"
                     class="relative">
-                    <div class="flex w-full flex-col overflow-hidden relative">
+                    <div class="flex md:block w-full gap-10 md:gap-0 overflow-hidden relative">
                         <a :href="`/communities/${community.slug}/posts/${post.slug}`"
                         class="block h-full absolute w-full rounded-2xl top-0 left-0 z-10">
                         </a>
                         
-                        <div class="aspect-[4/3] w-full rounded-2xl overflow-hidden">
-                            <img v-if="getPostImage(post)"
-                                :src="`${imageUrl}${getPostImage(post)}`"
-                                :alt="post.name"
-                                class="w-full h-full object-cover" />
+                        <div class="w-1/2 md:w-full">
+                            <div class="aspect-[16/9] w-full rounded-2xl overflow-hidden">
+                                <img v-if="getPostImage(post)"
+                                    :src="`${imageUrl}${getPostImage(post)}`"
+                                    :alt="post.name"
+                                    class="w-full h-full object-cover" />
+                            </div>
                         </div>
 
-                        <div class="mb-8 mt-2">
-                            <div class="mt-4 font-medium whitespace-normal">
-                                <p class="text-4xl leading-tight text-black">{{ post.name }}</p>
+                        <div class="w-1/2 md:w-full md:mb-8 md:mt-4">
+                            <div class="font-medium whitespace-normal">
+                                <p class="text-3xl md:text-4xl leading-tight text-black">{{ post.name }}</p>
                             </div>
-                            <div class="mt-2 text-xl text-gray-500">
+                            <div class="mt-2 text-lg md:text-xl text-gray-500">
                                 {{ formatDate(post.created_at) }}
                             </div>
                         </div>
