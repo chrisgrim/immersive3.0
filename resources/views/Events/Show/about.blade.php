@@ -1,6 +1,6 @@
 <section>
-    <div class="px-8 md:px-0 md:pb-20 border-b border-neutral-200">
-        <div class="py-16 flex items-center gap-4 border-b">
+    <div class="border-b border-neutral-200">
+        <div class="py-8 md:py-16 flex items-center gap-4 border-b">
             <a href="{{ route('organizers.show', $event->organizer->slug) }}" class="flex items-center gap-8">
                 @if($event->organizer->thumbImagePath)
                     <div class="w-16 h-16 rounded-full overflow-hidden">
@@ -28,7 +28,7 @@
             </a>
         </div>
         
-        <div class="mt-16">
+        <div class="py-8 md:py-16">
             <vue-show-more text="{{ $event['description']}}" :limit="70" />
         </div>
     </div>

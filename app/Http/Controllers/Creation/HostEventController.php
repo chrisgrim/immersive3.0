@@ -135,69 +135,66 @@ class HostEventController extends Controller
             Ticket::handleTickets($request, $event);
         }
 
-        if ($request->has('currentImages') || $request->has('deletedImages')) {
-            // Handle deleted images first
+        if ($request->has('currentImages') || $request->has('deletedImages') || $request->hasFile('images')) {
+            // 1. First, get all current images and their ranks
+            $existingImages = $event->images()->orderBy('rank')->get();
+
+            // 2. Handle deletions first
             if ($request->has('deletedImages')) {
                 $deletedImages = json_decode($request->input('deletedImages', '[]'), true);
                 foreach ($deletedImages as $deletedImagePath) {
-                    $image = $event->images()
-                                  ->where('large_image_path', $deletedImagePath)
-                                  ->first();
+                    $image = $existingImages->first(function($img) use ($deletedImagePath) {
+                        return $img->large_image_path === $deletedImagePath;
+                    });
                     if ($image) {
                         ImageHandler::deleteImage($image);
+                        $existingImages = $existingImages->reject(fn($img) => $img->id === $image->id);
                     }
                 }
             }
 
-            // Then update remaining images
+            // 3. Update ranks of existing images
             if ($request->has('currentImages')) {
                 $currentImages = json_decode($request->input('currentImages', '[]'), true);
-                ImageHandler::updateImages($event, $currentImages);
-            }
-
-            // Update status if it's included in the request
-            if (isset($validatedData['status'])) {
-                $event->status = $validatedData['status'];
-                $event->save();
-            }
-        }
-
-        if ($request->hasFile('images')) {
-            \Log::info('Image upload request data:', [
-                'validatedData' => $validatedData,
-                'hasStatus' => isset($validatedData['status']),
-                'status' => $validatedData['status'] ?? 'not set'
-            ]);
-            
-            $ranks = $request->input('ranks', []);
-            
-            foreach ($request->file('images') as $index => $image) {
-                $rank = $ranks[$index] ?? 0;
-                
-                // Delete existing image with the same rank
-                $existingImage = $event->images()
-                    ->where('rank', $rank)
-                    ->first();
+                foreach ($currentImages as $imageData) {
+                    $image = $existingImages->first(function($img) use ($imageData) {
+                        return $img->large_image_path === $imageData['url'];
+                    });
                     
-                if ($existingImage) {
-                    \Log::info('Deleting existing image:', [
-                        'rank' => $rank,
-                        'path' => $existingImage->large_image_path
-                    ]);
-                    ImageHandler::deleteImage($existingImage);
-                }
-                
-                if ((int)$rank === 0) {
-                    ImageHandler::saveImage($image, $event, 900, 1200, 'event-images', $rank);
-                } else {
-                    ImageHandler::saveImage($image, $event, 1200, 800, 'event-images', $rank);
+                    if ($image && $image->rank !== $imageData['rank']) {
+                        $image->rank = $imageData['rank'];
+                        $image->save();
+                    }
                 }
             }
 
-            // Update status if it's included in the request
-            if (isset($validatedData['status'])) {
-                $event->status = $validatedData['status'];
-                $event->save();
+            // 4. Handle new image uploads
+            if ($request->hasFile('images')) {
+                $ranks = $request->input('ranks', []);
+                
+                foreach ($request->file('images') as $index => $image) {
+                    $rank = $ranks[$index] ?? 0;
+                    
+                    // Find and delete any existing image with this rank
+                    $existingImage = $event->images()->where('rank', $rank)->first();
+                    if ($existingImage) {
+                        ImageHandler::deleteImage($existingImage);
+                    }
+                    
+                    // Save new image with appropriate dimensions
+                    if ((int)$rank === 0) {
+                        ImageHandler::saveImage($image, $event, 900, 1200, 'event-images');
+                    } else {
+                        ImageHandler::saveImage($image, $event, 1200, 800, 'event-images');
+                    }
+                    
+                    // Update the rank after saving
+                    $newImage = $event->images()->latest()->first();
+                    if ($newImage) {
+                        $newImage->rank = $rank;
+                        $newImage->save();
+                    }
+                }
             }
         }
 
@@ -309,11 +306,9 @@ class HostEventController extends Controller
     {
         $wasPublished = in_array($event->status, ['p', 'e']);
         
-
         $event->delete();
 
         if ($wasPublished) {
-            \Log::info('Was publiush');
             Cache::forget('active-categories');
             Cache::forget('active-genres');
         }

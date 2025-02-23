@@ -92,6 +92,7 @@
                                 class="contents"
                                 handle=".handle"
                                 item-key="id"
+                                @change="handleSort"
                             >
                                 <template #item="{element, index}">
                                     <div 
@@ -197,9 +198,8 @@ const remainingSlots = computed(() => {
 const handleSort = ({ moved }) => {
     if (moved) {
         images.value.forEach((image, index) => {
-            image.rank = index + 1; // Start secondary images at rank 1
+            image.rank = index + 1;
         });
-        console.log('After sort:', images.value);
     }
 };
 
@@ -210,10 +210,16 @@ const handleFileChange = async (event) => {
         if (isValid) {
             const reader = new FileReader();
             reader.onload = (e) => {
+                // Calculate the next rank based on existing images
+                const nextRank = images.value.length > 0 
+                    ? Math.max(...images.value.map(img => img.rank)) + 1 
+                    : 1;
+                
                 images.value.push({
                     url: e.target.result,
                     file,
-                    rank: images.value.length
+                    rank: nextRank,
+                    id: Date.now() // Add a temporary unique ID for draggable
                 });
             };
             reader.readAsDataURL(file);
@@ -231,12 +237,10 @@ const removeImage = (index) => {
 };
 
 const handleMainFileChange = async (event) => {
-    console.log('Starting main file change');
     const file = event.target.files[0];
     if (file) {
         const isValid = await validateFile(file);
         if (isValid) {
-            console.log('File validated, preparing cropper');
             showMainImageError.value = false;
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -255,7 +259,6 @@ const onChange = ({ coordinates, canvas }) => {
 };
 
 const completeCrop = () => {
-    console.log('Starting crop completion');
     showMainImageError.value = false;
     
     const canvas = document.querySelector('.vue-advanced-cropper canvas');
@@ -278,19 +281,15 @@ const completeCrop = () => {
         const file = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
         const reader = new FileReader();
         reader.onload = (e) => {
-            // Store old main image info
             const oldMainImage = mainImage.value;
             
-            // Set the new main image
             mainImage.value = { 
                 url: e.target.result, 
                 file,
                 rank: 0
             };
             
-            // Handle old main image
             if (oldMainImage?.isExisting) {
-                console.log('Adding old main image to deletedImages:', oldMainImage.url);
                 const oldMainImagePath = oldMainImage.url.replace(imageUrl, '');
                 if (!deletedImages.value.includes(oldMainImagePath)) {
                     deletedImages.value.push(oldMainImagePath);
@@ -319,7 +318,6 @@ const removeMainImage = () => {
 };
 
 const triggerMainFileInput = () => {
-    console.log('1. Clicking main image');
     if (mainFileInput.value) {
         mainFileInput.value.value = '';
         mainFileInput.value.click();
@@ -396,10 +394,14 @@ defineExpose({
         const currentImages = [];
         let newImageCount = 0;
 
-        // Process main image first (always rank 0)
         if (mainImage.value) {
             if (mainImage.value.file) {
-                formData.append('images[]', mainImage.value.file);
+                const fileExtension = mainImage.value.file.name.split('.').pop();
+                const timestamp = Date.now();
+                const newFileName = `image-rank-0-${timestamp}.${fileExtension}`;
+                const newFile = new File([mainImage.value.file], newFileName, { type: mainImage.value.file.type });
+                
+                formData.append('images[]', newFile);
                 formData.append(`ranks[${newImageCount}]`, 0);
                 newImageCount++;
             } else if (mainImage.value.isExisting) {
@@ -411,11 +413,16 @@ defineExpose({
             }
         }
 
-        // Process additional images with sequential ranks starting at 1
+        // Process additional images
         images.value.forEach((image, index) => {
             const rank = index + 1;
             if (image.file) {
-                formData.append('images[]', image.file);
+                const fileExtension = image.file.name.split('.').pop();
+                const timestamp = Date.now();
+                const newFileName = `image-rank-${rank}-${timestamp}.${fileExtension}`;
+                const newFile = new File([image.file], newFileName, { type: image.file.type });
+                
+                formData.append('images[]', newFile);
                 formData.append(`ranks[${newImageCount}]`, rank);
                 newImageCount++;
             } else if (image.isExisting) {
@@ -427,17 +434,8 @@ defineExpose({
             }
         });
 
-        const currentImagesStr = JSON.stringify(currentImages);
-        const deletedImagesStr = JSON.stringify(deletedImages.value);
-
-        console.log('Image Submission:', {
-            existing: currentImages.map(img => ({ id: img.id, rank: img.rank })),
-            new: Array.from({ length: newImageCount }, (_, i) => ({ rank: formData.get(`ranks[${i}]`) })),
-            deleted: deletedImages.value
-        });
-
-        formData.append('currentImages', currentImagesStr);
-        formData.append('deletedImages', deletedImagesStr);
+        formData.append('currentImages', JSON.stringify(currentImages));
+        formData.append('deletedImages', JSON.stringify(deletedImages.value));
         formData.append('video', youtubeId.value || '');
 
         return formData;
@@ -509,23 +507,12 @@ const clearYoutube = () => {
 
 // 7. Initialization
 onMounted(() => {
-    console.log('Initial event images:', event?.images);
-    
     if (event?.images?.length) {
         const sortedImages = [...event.images].sort((a, b) => a.rank - b.rank);
-        console.log('Sorted images with ranks:', sortedImages.map(img => ({
-            id: img.id,
-            rank: img.rank,
-            path: img.large_image_path
-        })));
         
-        // Find all rank 0 images
         const rankZeroImages = sortedImages.filter(img => img.rank === 0);
         
-        // If we have multiple rank 0 images, use the most recent one as main
         if (rankZeroImages.length > 1) {
-            console.warn('Multiple rank 0 images found:', rankZeroImages);
-            // Use the one with the highest ID (most recent) as main
             const mainImg = rankZeroImages.reduce((a, b) => a.id > b.id ? a : b);
             mainImage.value = {
                 url: `${imageUrl}${mainImg.large_image_path}`,
@@ -534,14 +521,12 @@ onMounted(() => {
                 rank: 0
             };
             
-            // Add other rank 0 images to deletedImages
             rankZeroImages
                 .filter(img => img.id !== mainImg.id)
                 .forEach(img => {
                     deletedImages.value.push(img.large_image_path);
                 });
         } else {
-            // Normal case - just one rank 0 image
             const mainImg = rankZeroImages[0];
             if (mainImg) {
                 mainImage.value = {
@@ -553,7 +538,6 @@ onMounted(() => {
             }
         }
 
-        // Set additional images (rank > 0)
         images.value = sortedImages
             .filter(img => img.rank > 0)
             .map(image => ({

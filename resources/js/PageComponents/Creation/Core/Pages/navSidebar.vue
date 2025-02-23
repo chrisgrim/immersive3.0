@@ -3,16 +3,40 @@
     <nav class="relative flex flex-col items-center flex-shrink-0 w-full mx-auto pt-12">
         <!-- Fixed Header -->
         <div class="w-full flex items-center px-8 gap-4 pb-8 z-50 bg-white p-10 lg-air:max-w-[40rem]">
-            <a 
-                :href="`/communities/${community?.slug}/listings?shelf=${post?.shelf?.id}`" 
-                class="flex items-center gap-4"
-            >
+            <div class="flex items-center justify-between w-full">
                 <a 
-                    href="/hosting/events" 
+                    :href="`/communities/${community?.slug}/listings?shelf=${post?.shelf?.id}`" 
+                    class="flex items-center gap-4"
+                >
+                    <a 
+                        href="/hosting/events" 
+                        class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0"
+                    >
+                        <svg 
+                            class="w-8 h-8" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            stroke-width="2" 
+                            stroke-linecap="round" 
+                            stroke-linejoin="round"
+                        >
+                            <path d="M19 12H5"/>
+                            <path d="M12 19l-7-7 7-7"/>
+                        </svg>
+                    </a>
+                    <a href="/hosting/events" class="ml-4 text-3xl md:text-5xl font-semibold truncate">Listings</a>
+                </a>
+                
+                <!-- Go to event link -->
+                <a 
+                    v-if="isPublished"
+                    :href="`/events/${event.slug}`"
                     class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0"
+                    title="View published event"
                 >
                     <svg 
-                        class="w-8 h-8" 
+                        style="width: 1.8rem; height: 1.8rem;"
                         viewBox="0 0 24 24" 
                         fill="none" 
                         stroke="currentColor" 
@@ -20,12 +44,12 @@
                         stroke-linecap="round" 
                         stroke-linejoin="round"
                     >
-                        <path d="M19 12H5"/>
-                        <path d="M12 19l-7-7 7-7"/>
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        <polyline points="15 3 21 3 21 9"/>
+                        <line x1="10" y1="14" x2="21" y2="3"/>
                     </svg>
                 </a>
-                <a href="/hosting/events" class="ml-4 text-3xl md:text-5xl font-semibold truncate">Listings</a>
-            </a>
+            </div>
         </div>
 
         <!-- Scrollable Content -->
@@ -482,6 +506,10 @@ const remainingShows = computed(() => {
         return new Date(show.date) >= now;
     });
     return futureShows.length;
+});
+
+const isPublished = computed(() => {
+    return props.event.status === 'p' || props.event.status === 'e';
 });
 
 defineEmits(['navigate']);

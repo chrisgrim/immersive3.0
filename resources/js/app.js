@@ -10,11 +10,13 @@ const NavProfile = defineAsyncComponent(() => import('./PageComponents/Nav/nav-p
 const NavBarMobile = defineAsyncComponent(() => import('./PageComponents/Nav/nav-bar-mobile.vue'));
 
 const SearchLocation = defineAsyncComponent(() => import('./PageComponents/Search/location.vue'));
+const SearchLocationMobile = defineAsyncComponent(() => import('./PageComponents/Search/location-mobile.vue'));
 
 const ShowMore = defineAsyncComponent(() => import('./GlobalComponents/show-more.vue'));
-
+const VideoPlayer = defineAsyncComponent(() => import('./GlobalComponents/video-player.vue'));
 const ShowPurchase = defineAsyncComponent(() => import('./PageComponents/EventShow/show-purchase.vue'));
 const ShowMap = defineAsyncComponent(() => import('./PageComponents/EventShow/show-map.vue'));
+const ShowGallery = defineAsyncComponent(() => import('./PageComponents/EventShow/show-gallery.vue'));
 
 const ResetPassword = defineAsyncComponent(() => import('./Auth/reset-password.vue'));
 const UserEdit = defineAsyncComponent(() => import('./Auth/user-edit.vue'));
@@ -67,11 +69,13 @@ app.component('vue-nav-profile', NavProfile);
 app.component('vue-nav-bar-mobile', NavBarMobile);
 
 app.component('vue-search-location', SearchLocation);
-
+app.component('vue-search-location-mobile', SearchLocationMobile);
 app.component('vue-show-more', ShowMore);
+app.component('vue-video-player', VideoPlayer);
 
 app.component('vue-show-purchase', ShowPurchase);
 app.component('vue-show-map', ShowMap);
+app.component('vue-show-gallery', ShowGallery);
 
 app.component('vue-reset-password', ResetPassword);
 app.component('vue-user-profile', UserEdit);

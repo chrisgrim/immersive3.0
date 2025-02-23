@@ -1,7 +1,7 @@
 <template>
     <section
         id="location"
-        class="py-12 px-8 md:py-20 md:px-0 border-b border-neutral-200">
+        class="py-16 border-b border-neutral-200">
         <template v-if="event.hasLocation">
             <h2 class="text-4xl font-medium text-black mb-8">Location</h2>
             <div v-if="event.location.hiddenLocationToggle">

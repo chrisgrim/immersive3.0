@@ -19,10 +19,15 @@ class ImageHandler
             throw new \Exception('The file is not an image.');
         }
 
-        // Get or generate slug
-        $slug = $model->slug ?? ($model->id ?? uniqid());
-        $directory = "$type/$slug";
-        $fileName = $slug . '-' . $rank;
+        // Get model ID and slug with fallbacks
+        $modelId = uniqid();
+        $modelSlug = $model->slug ?? Str::random(8);
+        
+        // Create directory using slug (or random string if no slug)
+        $directory = "$type/$modelSlug";
+        
+        // Create filename using both ID and slug
+        $fileName = "{$modelSlug}-{$modelId}";
 
         $imagePath = $image->getPathName();
         $image = Image::read($imagePath);
@@ -68,10 +73,6 @@ class ImageHandler
         // Validate image path has proper subdirectory structure (type-images/slug/filename)
         $pathParts = explode('/', $image->large_image_path);
         if (count($pathParts) < 3 || !str_ends_with($pathParts[0], '-images')) {
-            \Log::error('Invalid image path structure detected', [
-                'path' => $image->large_image_path,
-                'parts' => $pathParts
-            ]);
             throw new \Exception('Invalid image path structure');
         }
 
@@ -82,10 +83,6 @@ class ImageHandler
         // Ensure we're not in a root directory
         $directory = dirname("/public/{$image->large_image_path}");
         if ($directory === '/public' || preg_match('|^/public/[^/]+-images$|', $directory)) {
-            \Log::error('Attempted to delete from root directory', [
-                'directory' => $directory,
-                'image_path' => $image->large_image_path
-            ]);
             throw new \Exception('Cannot delete from root directory');
         }
 
@@ -118,14 +115,10 @@ class ImageHandler
         try {
             $files = Storage::disk('digitalocean')->files($directory);
             if (empty($files)) {
-                \Log::info('Deleting empty directory', ['directory' => $directory]);
                 Storage::disk('digitalocean')->deleteDirectory($directory);
             }
         } catch (\Exception $e) {
-            \Log::error('Error cleaning up directory', [
-                'error' => $e->getMessage(),
-                'directory' => $directory
-            ]);
+            // Silently fail on directory cleanup errors
         }
     }
 
@@ -160,11 +153,11 @@ class ImageHandler
         
         foreach ($images as $image) {
             $newDirectory = "$type-images/$slug-final";
-            
             $currentPath = $image->large_image_path;
             $currentDirectory = dirname($currentPath);
             
-            $newFileName = $slug . '-' . $image->rank;
+            $modelId = uniqid();
+            $newFileName = "$slug-$modelId";
             
             Storage::disk('digitalocean')->copy(
                 "/public/$currentPath", 
@@ -207,7 +200,8 @@ class ImageHandler
                 $currentDirectory = dirname($image->large_image_path);
                 $newDirectory = str_replace($oldSlug, $newSlug, $currentDirectory);
                 
-                $newFileName = $newSlug . '-' . $image->rank;
+                $modelId = uniqid();
+                $newFileName = "$newSlug-$modelId";
                 
                 Storage::disk('digitalocean')->copy(
                     "/public/$image->large_image_path",

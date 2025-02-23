@@ -79,24 +79,59 @@
             <div
                 class="w-full absolute top-0 bottom-0 z-[500] cursor-pointer" 
                 @click="openSearch" />
-            <div class="p-4 border rounded-full flex justify-between items-center shadow-custom-3 m-auto">
-                <div class="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-full bg-default-red">
-                    <svg class="w-8 h-8 fill-white">
-                        <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
+            <div class="w-full flex justify-between items-center gap-10 px-0">
+                <button 
+                    @click="window.history.back()"
+                    class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0"
+                >
+                    <svg 
+                        class="w-6 h-6" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        stroke-width="2" 
+                        stroke-linecap="round" 
+                        stroke-linejoin="round"
+                    >
+                        <path d="M19 12H5"/>
+                        <path d="M12 19l-7-7 7-7"/>
                     </svg>
+                </button>
+                <div class="w-full p-4 border rounded-full flex items-center shadow-custom-3">
+                    <p class="w-full flex items-center justify-center text-center truncate">
+                        <template v-if="city">
+                            <span class="text-black text-1xl font-bold truncate max-w-[40%]">{{ city }}</span>
+                            <span class="text-gray-300 mx-4">|</span>
+                            <span class="text-black text-1xl truncate max-w-[40%]" :class="{ 'font-bold': startDate }">
+                                {{ startDate ? formatDateDisplay : 'Add dates' }}
+                            </span>
+                        </template>
+                        <template v-else>
+                            <svg class="w-6 h-6 fill-[#ff385c] mr-2">
+                                <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
+                            </svg>
+                            <span class="text-black font-bold text-2xl">Search</span>
+                        </template>
+                    </p>
                 </div>
-                <p class="ml-4 flex items-center justify-center gap-2 flex-1 text-center">
-                    <template v-if="city">
-                        <span class="text-black text-1xl font-bold mr-10">{{ city }}</span>
-                        <span class="text-gray-300">|</span>
-                        <span class="ml-10 text-black text-1xl" :class="{ 'font-bold': startDate }">
-                            {{ startDate ? formatDateDisplay : 'Add dates' }}
-                        </span>
-                    </template>
-                    <template v-else>
-                        <span class="text-black text-1xl">Where to?</span>
-                    </template>
-                </p>
+                <button 
+                    @click="openFilters"
+                    class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0"
+                >
+                    <svg 
+                        class="w-6 h-6" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        stroke-width="2" 
+                        stroke-linecap="round" 
+                        stroke-linejoin="round"
+                    >
+                        <line x1="4" y1="6" x2="20" y2="6"/>
+                        <line x1="4" y1="12" x2="20" y2="12"/>
+                        <line x1="4" y1="18" x2="20" y2="18"/>
+                    </svg>
+                </button>
             </div>
         </template>
     </div>
@@ -123,6 +158,33 @@ export default {
     },
 
     computed: {
+        formatDateDisplay() {
+            if (!this.startDate) return '';
+
+            const start = new Date(this.startDate);
+            const end = new Date(this.endDate);
+            
+            // Format dates
+            const formatDate = (date, isEndDate = false) => {
+                const month = date.toLocaleDateString('en-US', { month: 'short' });
+                const day = date.getDate();
+                
+                // If it's the end date and same month as start date, only return day
+                if (isEndDate && start.getMonth() === end.getMonth()) {
+                    return day;
+                }
+                
+                return `${month} ${day}`;
+            };
+
+            // If dates are the same, show only one date
+            if (start.getTime() === end.getTime()) {
+                return formatDate(start);
+            } else {
+                return `${formatDate(start)}-${formatDate(end, true)}`;
+            }
+        },
+        
         searchPlaceholder() {
             if (!this.city) return 'Where to?';
 
@@ -133,43 +195,27 @@ export default {
                 const end = new Date(this.endDate);
                 
                 // Format dates
-                const formatDate = (date) => {
-                    return date.toLocaleDateString('en-US', { 
-                        month: 'short', 
-                        day: 'numeric' 
-                    });
+                const formatDate = (date, isEndDate = false) => {
+                    const month = date.toLocaleDateString('en-US', { month: 'short' });
+                    const day = date.getDate();
+                    
+                    // If it's the end date and same month as start date, only return day
+                    if (isEndDate && start.getMonth() === end.getMonth()) {
+                        return day;
+                    }
+                    
+                    return `${month} ${day}`;
                 };
 
                 // If dates are the same, show only one date
                 if (start.getTime() === end.getTime()) {
                     text += ` · ${formatDate(start)}`;
                 } else {
-                    text += ` · ${formatDate(start)} - ${formatDate(end)}`;
+                    text += ` · ${formatDate(start)}-${formatDate(end, true)}`;
                 }
             }
 
             return text;
-        },
-        formatDateDisplay() {
-            if (!this.startDate) return '';
-
-            const start = new Date(this.startDate);
-            const end = new Date(this.endDate);
-            
-            // Format dates
-            const formatDate = (date) => {
-                return date.toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric' 
-                });
-            };
-
-            // If dates are the same, show only one date
-            if (start.getTime() === end.getTime()) {
-                return formatDate(start);
-            } else {
-                return `${formatDate(start)} - ${formatDate(end)}`;
-            }
         }
     },
 
@@ -261,6 +307,10 @@ export default {
                 this.$refs.searchLocation.clearState(true); // Pass true to indicate this is a clear operation
             }
         },
+        openFilters() {
+            // Emit an event to handle filter options
+            this.$emit('open-filters');
+        }
     },
 
     mounted() {

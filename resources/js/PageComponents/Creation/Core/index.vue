@@ -27,10 +27,10 @@
         <div class="flex-1 overflow-y-auto">
             <div class="max-w-screen-xl mx-auto min-h-full flex">
                 <div :class="[
-                    'w-full mx-auto pt-20 md:pt-20 md:pb-20',
+                    'w-full mx-auto pt-40 md:pb-20',
                     currentComponent.__name === 'images' ? 'lg:w-2/3' : 'lg:w-1/2'
                 ]">
-                    <div class="h-full flex md:items-center p-8">
+                    <div class="h-full flex p-8">
                         <component :is="currentComponent" ref="currentComponentRef" />
                     </div>
                 </div>

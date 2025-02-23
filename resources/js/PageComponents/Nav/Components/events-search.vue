@@ -2,9 +2,9 @@
     <div style="width:100%" v-click-outside="() => dropdown = false">
         <div 
             ref="search"
-            class="w-full z-[10000]">
+            class="w-full z-50">
             <div class="w-full m-auto">
-                <svg class="absolute top-8 left-8 w-8 h-8 fill-black z-[1002]">
+                <svg class="absolute top-8 left-8 w-8 h-8 fill-black z-50">
                     <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
                 </svg>
                 <input 

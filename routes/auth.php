@@ -30,11 +30,17 @@ Route::get('/login/auto/{code}', [LoginCodeController::class, 'autoLogin'])
                 ->middleware('guest')
                 ->name('login.auto');
 
-// Social login
+// Social login - Google
 Route::get('/auth/google', [SocialAuthController::class, 'redirectToGoogle'])
                 ->name('auth.google');
 
 Route::get('/auth/google/callback', [SocialAuthController::class, 'handleGoogleCallback']);
+
+// Social login - GitHub
+Route::get('/auth/github', [SocialAuthController::class, 'redirectToGithub'])
+                ->name('auth.github');
+
+Route::get('/auth/github/callback', [SocialAuthController::class, 'handleGithubCallback']);
 
 // Logout
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])

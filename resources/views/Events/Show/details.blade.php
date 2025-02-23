@@ -1,4 +1,4 @@
-<section class="py-12 px-8 md:py-20 md:px-0 border-b border-neutral-200">
+<section class="py-16 md:px-0 border-b border-neutral-200">
     {{-- Audience Role Section --}}
     <div class="mb-16">
         <h3 class="text-2xl font-medium text-black mb-8">Audience Role</h3>

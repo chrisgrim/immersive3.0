@@ -1,5 +1,5 @@
 <template>
-    <div class="max-w-screen-5xl mx-auto px-32 py-16">
+    <div class="max-w-screen-5xl mx-auto px-10 md:px-32 py-16">
         <!-- Main Content -->
         <event-grid 
             :items="events.data"

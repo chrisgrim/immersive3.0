@@ -13,13 +13,23 @@
 @endsection
 
 @section('content')
-    <vue-search-location 
+    @if (Browser::isMobile())
+        <vue-search-location-mobile 
         :searched-events='@json($searchedEvents)'
         :categories='@json($categories)'
         :tags='@json($tags)'
         :in-person-categories='@json($inPersonCategories)'
-        :max-price="{{ $maxprice }}"
-    ></vue-search-location>
+            :max-price="{{ $maxprice }}"
+        ></vue-search-location-mobile>
+    @else
+        <vue-search-location 
+        :searched-events='@json($searchedEvents)'
+        :categories='@json($categories)'
+        :tags='@json($tags)'
+        :in-person-categories='@json($inPersonCategories)'
+            :max-price="{{ $maxprice }}"
+        ></vue-search-location>
+    @endif
 @endsection
 
 @section('footer')

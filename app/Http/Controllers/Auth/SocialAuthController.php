@@ -111,4 +111,56 @@ class SocialAuthController extends Controller
                 ->withErrors(['error' => 'Failed to login with Apple. Please try again.']);
         }
     }
+
+    public function redirectToGithub()
+    {
+        return Socialite::driver('github')->redirect();
+    }
+
+    public function handleGithubCallback()
+    {
+        try {
+            $githubUser = Socialite::driver('github')->user();
+            
+            $user = User::where('email', $githubUser->email)->first();
+
+            if ($user) {
+                // Update existing user
+                $user->update([
+                    'provider' => 'github',
+                    'provider_id' => $githubUser->id,
+                    'email_verified_at' => $user->email_verified_at ?? now(),
+                ]);
+            } else {
+                // Create new user
+                $user = User::create([
+                    'name' => $githubUser->name ?? $githubUser->nickname,
+                    'email' => $githubUser->email,
+                    'provider' => 'github',
+                    'provider_id' => $githubUser->id,
+                    'email_verified_at' => now(),
+                    'type' => 'g', // general user type
+                    'newsletter_type' => 'n', // default newsletter setting
+                    'silence' => 'n', // default silence setting
+                ]);
+
+                // Save GitHub avatar if available
+                if ($githubUser->avatar) {
+                    $user->update([
+                        'largeImagePath' => $githubUser->avatar,
+                        'thumbImagePath' => $githubUser->avatar
+                    ]);
+                }
+            }
+            
+            Auth::login($user);
+            
+            return redirect()->intended('/');
+            
+        } catch (\Exception $e) {
+            Log::error('GitHub login error: ' . $e->getMessage());
+            return redirect()->route('login')
+                ->withErrors(['error' => 'Failed to login with GitHub. Please try again.']);
+        }
+    }
 }

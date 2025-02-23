@@ -1,4 +1,4 @@
-<section class="py-12 px-8 md:py-20 md:px-0">
+<section class="py-16">
     <div class="flex flex-col md:flex-row md:gap-16">
         <!-- Left Column - Profile Card -->
         <div class="md:w-[36rem] mb-8 md:mb-0">
