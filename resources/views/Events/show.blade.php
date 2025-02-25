@@ -1,4 +1,4 @@
-@extends('Layouts.master-container')
+@extends('layouts.master-container')
 
 @section('meta')
     
@@ -49,7 +49,7 @@
                     document.body.style.overflow = 'hidden';
                     const galleryContainer = document.createElement('div');
                     galleryContainer.id = 'photoGallery';
-                    galleryContainer.innerHTML = `@include('Events.Show.mobile-photo-gallery')`;
+                    galleryContainer.innerHTML = `@include('events.show.mobile-photo-gallery')`;
                     document.body.appendChild(galleryContainer);
                 };
 
@@ -110,13 +110,13 @@
                 @if(count($event->images) > 1)
                     window.addEventListener('showAllPhotos', function(e) {
                         const headerContent = document.getElementById('headerContent');
-                        headerContent.innerHTML = `@include('Events.Show.photo-gallery')`;
+                        headerContent.innerHTML = `@include('events.show.photo-gallery')`;
                         setTimeout(checkScrollPosition, 0);
                     });
 
                     window.closePhotoGallery = function() {
                         const headerContent = document.getElementById('headerContent');
-                        headerContent.innerHTML = `@include('Events.Show.header-multiple')`;
+                        headerContent.innerHTML = `@include('events.show.header-multiple')`;
                     };
 
                     window.checkScrollPosition = function() {
@@ -168,14 +168,14 @@
     @if (Browser::isMobile())
         <vue-nav-bar-mobile :user="user"></vue-nav-bar-mobile>
     @else
-        @include('Nav.nav-limited-search')
+        @include('nav.nav-limited-search')
     @endif
     
 @endsection
 
 @section('content')
     @if (Browser::isMobile())
-        @include('Events.show-mobile')
+        @include('events.show-mobile')
     @else
         <div id="mainContent">
             <div id="bodyArea" class="show">
@@ -224,9 +224,9 @@
                             <div class="md:flex md:gap-32">
                                 <div class="flex-grow">
                                     <div>
-                                        @include('Events.Show.header-old')
-                                        @include('Events.Show.about')
-                                        @include('Events.Show.details')
+                                        @include('events.show.header-old')
+                                        @include('events.show.about')
+                                        @include('events.show.details')
                                     </div>         
                                 </div>
                                 
@@ -305,13 +305,13 @@
                                         </div>
                                     </div>
                                     <div class="">
-                                        @include('Events.Show.about')
-                                        @include('Events.Show.details')
+                                        @include('events.show.about')
+                                        @include('events.show.details')
                                     </div>
                                 </div>
                                 
                                 <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem] pt-16">
-                                    @include('Events.Show.header')
+                                    @include('events.show.header')
                                     <vue-show-purchase
                                         :tickets="{{ $event->shows->first()?->tickets ?? '[]' }}"
                                         :event="{{ $event }}"
@@ -353,7 +353,7 @@
                         </div>
                         <div class="mt-12">
                             <div id="headerContent">
-                                @include('Events.Show.header-multiple')
+                                @include('events.show.header-multiple')
                             </div>
                         </div>
                         <div class="relative w-full m-auto p-8 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
@@ -363,8 +363,8 @@
                                     @if($event->tag_line)
                                         <p class="text-1xl mt-4 text-neutral-700 font-medium border-b border-neutral-200 pb-12">{{ $event->tag_line }}</p>
                                     @endif
-                                    @include('Events.Show.about')
-                                    @include('Events.Show.details')
+                                    @include('events.show.about')
+                                    @include('events.show.details')
                                 </div>
 
                                 <div class="w-full relative shrink-0 md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
@@ -382,10 +382,10 @@
                     {{-- Rest of your content --}}
                     <div class="relative w-full m-auto px-10 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
                         @if ($event->eventreviews && count($event->eventreviews) > 0)
-                            @include('Events.Show.reviews')
+                            @include('events.show.reviews')
                         @endif
                         <vue-show-map :event="{{ $event }}"></vue-show-map>
-                        @include('Events.Show.organizer')
+                        @include('events.show.organizer')
                     </div>
                 </div>
             </div>
@@ -408,7 +408,7 @@
 
             <!-- Share Buttons -->
             <div class="flex justify-evenly items-center mt-16">
-                @include('Events.Show.share-buttons')
+                @include('events.show.share-buttons')
             </div>
 
             <!-- Close Button -->

@@ -9,6 +9,7 @@
         <link rel="mask-icon" href="/storage/website-files/favicons/safari-pinned-tab.svg" color="#f7653b">
         <meta name="msapplication-TileColor" content="#da532c">
         <meta name="theme-color" content="#f7653b">
+        @stack('head')
         @yield('head')
 
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

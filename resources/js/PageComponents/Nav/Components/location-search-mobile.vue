@@ -167,12 +167,8 @@ const setPlace = (place) => {
    searchInput.value = place.name;
    dropdown.value = false;
    
-   // Replace window event with emit
-   emit('update:location', {
-       city: place.name,
-       lat: place.geometry.location.lat(),
-       lng: place.geometry.location.lng()
-   });
+   // Just emit the city name as a string, not an object
+   emit('update:location', place.name);
    
    isVisible.value = 'dates';
 };
@@ -309,6 +305,15 @@ const minDate = computed(() => {
 const handleSearch = () => {
    if (!selectedPlace.value) return;
    
+   // Now emit the complete location data
+   emit('update:location', {
+       city: selectedPlace.value.name,
+       lat: selectedPlace.value.lat,
+       lng: selectedPlace.value.lng,
+       start: date.value?.[0] ? formatForUrl(date.value[0]) : null,
+       end: date.value?.[1] ? formatForUrl(date.value[1]) : null
+   });
+   
    const searchParams = {
        city: selectedPlace.value.name,
        searchType: 'inPerson',
@@ -317,19 +322,6 @@ const handleSearch = () => {
        lng: selectedPlace.value.lng
    };
    
-   // Add date parameters if selected
-   if (date.value && Array.isArray(date.value) && date.value[0]) {
-       const [start, end] = date.value;
-       const formatForUrl = (date) => {
-           return date.toISOString().split('T')[0] + ' 00:00:00';
-       };
-       
-       searchParams.start = formatForUrl(start);
-       if (end) {
-           searchParams.end = formatForUrl(end);
-       }
-   }
-
    // Check current searchType
    const currentParams = new URLSearchParams(window.location.search);
    const currentSearchType = currentParams.get('searchType');
@@ -367,6 +359,11 @@ const handleSearch = () => {
    }
    
    saveSearchData({ name: selectedPlace.value.name });
+};
+
+// Helper function for date formatting
+const formatForUrl = (date) => {
+    return date.toISOString().split('T')[0] + ' 00:00:00';
 };
 
 const clearDates = () => {

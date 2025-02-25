@@ -1,4 +1,4 @@
-@extends('Layouts.master-container')
+@extends('layouts.master-container')
 
 @section('nav')
     <vue-nav-bar-mobile :user="user"></vue-nav-bar-mobile>

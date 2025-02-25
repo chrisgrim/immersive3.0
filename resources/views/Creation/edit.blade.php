@@ -1,8 +1,7 @@
-@extends('Layouts.master-container')
+@extends('layouts.master-container')
 
 @section('meta')
 
-    @vite(['resources/css/leaflet.css'])
 
 @endsection 
 
@@ -10,7 +9,7 @@
     @if (Browser::isMobile())
     @else
         @if (in_array($event->status, ['p', 'e', 'n']) || (auth()->user()->isAdmin() && $event->status === 'r'))
-            @include('Nav.nav-full')
+            @include('nav.nav-full')
         @endif
     @endif
 @endsection

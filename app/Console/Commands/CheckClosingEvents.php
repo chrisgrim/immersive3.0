@@ -29,7 +29,11 @@ class CheckClosingEvents extends Command
      */
     public function handle()
     {
-        // Check for events closing between 4 and 5 days from now
+        // Temporarily disable the command
+        return Command::SUCCESS;
+
+        // Original code commented out
+        /*
         $from = Carbon::now()->addDays(4)->startOfDay();
         $to = Carbon::now()->addDays(5)->endOfDay();
                 
@@ -63,5 +67,6 @@ class CheckClosingEvents extends Command
         }
 
         return Command::SUCCESS;
+        */
     }
 }

@@ -29,7 +29,7 @@ class CommunityController extends Controller
     {
         $user = auth()->user();
         $communities = auth()->user()->communities()->with(['images'])->get();
-        return view('Curated.Communities.index', compact('communities', 'user'));
+        return view('curated.communities.index', compact('communities', 'user'));
     }
 
     /**
@@ -39,7 +39,7 @@ class CommunityController extends Controller
      */
     public function create()
     {
-        return view('Curated.Communities.create');
+        return view('curated.communities.create');
     }
 
     /**
@@ -66,7 +66,7 @@ class CommunityController extends Controller
         });
         
         $community->load('curators', 'images');
-        return view('Curated.Communities.show', compact('community', 'shelves'));
+        return view('curated.communities.show', compact('community', 'shelves'));
     }
 
     /**
@@ -104,7 +104,7 @@ class CommunityController extends Controller
     {
         $this->authorize('update', $community);
         
-        return view('Curated.Communities.edit', [
+        return view('curated.communities.edit', [
             'community' => $community->load([
                 'owner',
                 'curators',
@@ -140,7 +140,7 @@ class CommunityController extends Controller
                 return $shelf;
             });
 
-        return view('Curated.Communities.listings', [
+        return view('curated.communities.listings', [
             'community' => $community->load('owner', 'curators', 'images'),
             'shelves' => $shelves,
             'user' => $user,

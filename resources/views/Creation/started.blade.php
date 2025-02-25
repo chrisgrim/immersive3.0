@@ -1,4 +1,4 @@
-@extends('Layouts.master-container')
+@extends('layouts.master-container')
 
 @section('meta')
     
@@ -7,7 +7,7 @@
 
 @section('nav')
 
-    @include('Nav.nav-full')    
+    @include('nav.nav-full')    
     
 @endsection
 

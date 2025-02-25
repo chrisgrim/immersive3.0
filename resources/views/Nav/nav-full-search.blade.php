@@ -1,5 +1,5 @@
 <nav
-    style="height: 16rem;"
+    style="height: 8rem;"
     class="search-nav">
     <div class="w-full mx-auto h-32 z-40 fixed top-0 left-0 right-0 bg-white border-b border-gray-200">
         <div class="mx-auto relative h-full grid gap-0 items-center
@@ -16,11 +16,6 @@
             </div>
             <vue-nav-search></vue-nav-search>
             <vue-nav-profile class="col-span-1" :user="user"></vue-nav-profile>
-        </div>
-    </div>
-    <div class="w-full mx-auto h-32 z-30 fixed top-32 left-0 right-0 bg-white border-b border-gray-200">
-        <div class="px-8 h-full">
-            <vue-quick-bar></vue-quick-bar>
         </div>
     </div>
 </nav>

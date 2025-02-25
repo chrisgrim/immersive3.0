@@ -76,13 +76,11 @@
         <!-- Default State -->
          
         <template v-else>
-            <div
-                class="w-full absolute top-0 bottom-0 z-[500] cursor-pointer" 
-                @click="openSearch" />
             <div class="w-full flex justify-between items-center gap-10 px-0">
                 <button 
-                    @click="window.history.back()"
-                    class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0"
+                    v-if="!isHomePage"
+                    @click="handleBack"
+                    class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0 z-[501]"
                 >
                     <svg 
                         class="w-6 h-6" 
@@ -97,54 +95,72 @@
                         <path d="M12 19l-7-7 7-7"/>
                     </svg>
                 </button>
-                <div class="w-full p-4 border rounded-full flex items-center shadow-custom-3">
-                    <p class="w-full flex items-center justify-center text-center truncate">
-                        <template v-if="city">
-                            <span class="text-black text-1xl font-bold truncate max-w-[40%]">{{ city }}</span>
-                            <span class="text-gray-300 mx-4">|</span>
-                            <span class="text-black text-1xl truncate max-w-[40%]" :class="{ 'font-bold': startDate }">
-                                {{ startDate ? formatDateDisplay : 'Add dates' }}
-                            </span>
-                        </template>
-                        <template v-else>
-                            <svg class="w-6 h-6 fill-[#ff385c] mr-2">
-                                <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
-                            </svg>
-                            <span class="text-black font-bold text-2xl">Search</span>
-                        </template>
-                    </p>
+                <div class="relative flex-1">
+                    <div
+                        class="w-full absolute top-0 bottom-0 z-[500] cursor-pointer" 
+                        @click="openSearch" 
+                    />
+                    <div class="w-full p-4 border rounded-full flex items-center shadow-custom-3">
+                        <p class="w-full flex items-center justify-center text-center truncate">
+                            <template v-if="city">
+                                <span class="text-black text-1xl font-bold truncate max-w-[40%]">{{ city }}</span>
+                                <span class="text-gray-300 mx-4">|</span>
+                                <span class="text-black text-1xl truncate max-w-[40%]" :class="{ 'font-bold': startDate }">
+                                    {{ startDate ? formatDateDisplay : 'Add dates' }}
+                                </span>
+                            </template>
+                            <template v-else>
+                                <svg class="w-6 h-6 fill-[#ff385c] mr-2">
+                                    <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
+                                </svg>
+                                <span class="text-black font-bold text-2xl">Search</span>
+                            </template>
+                        </p>
+                    </div>
                 </div>
                 <button 
                     @click="openFilters"
-                    class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0"
+                    class="w-[4.5rem] h-[4.5rem] flex-shrink-0 flex items-center justify-center rounded-full shadow-custom-3 transition-colors"
+                    :class="[
+                        hasActiveFilters 
+                            ? 'bg-black hover:bg-gray-800' 
+                            : 'hover:bg-gray-200'
+                    ]"
                 >
                     <svg 
-                        class="w-6 h-6" 
-                        viewBox="0 0 24 24" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        stroke-width="2" 
-                        stroke-linecap="round" 
-                        stroke-linejoin="round"
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 32 32" 
+                        aria-hidden="true" 
+                        role="presentation" 
+                        focusable="false" 
+                        style="display: block; fill: none; height: 16px; width: 16px; stroke-width: 2.5; overflow: visible;"
+                        :style="{ stroke: hasActiveFilters ? 'white' : 'currentcolor' }"
                     >
-                        <line x1="4" y1="6" x2="20" y2="6"/>
-                        <line x1="4" y1="12" x2="20" y2="12"/>
-                        <line x1="4" y1="18" x2="20" y2="18"/>
+                        <path fill="none" d="M7 16H3m26 0H15M29 6h-4m-8 0H3m26 20h-4M7 16a4 4 0 1 0 8 0 4 4 0 0 0-8 0zM17 6a4 4 0 1 0 8 0 4 4 0 0 0-8 0zm0 20a4 4 0 1 0 8 0 4 4 0 0 0-8 0zm0 0H3"></path>
                     </svg>
                 </button>
             </div>
         </template>
     </div>
+    <Filters
+        v-if="showFilters"
+        :show-price="true"
+        :price-range="[0, 3900]"
+        :max-price="3900"
+        @close="showFilters = false"
+    />
 </template>
 
 <script>
 import SearchLocation from './Components/location-search-mobile.vue'
 import SearchEvent from './Components/events-search-mobile.vue'
+import Filters from './Components/filters.vue'
 
 export default {
     components: { 
         SearchLocation, 
-        SearchEvent 
+        SearchEvent,
+        Filters
     },
 
     data() {
@@ -154,6 +170,7 @@ export default {
             city: urlParams.get("city"),
             startDate: urlParams.get("start") ? urlParams.get("start").split(' ')[0] : null,
             endDate: urlParams.get("end") ? urlParams.get("end").split(' ')[0] : null,
+            showFilters: false,
         };
     },
 
@@ -216,6 +233,9 @@ export default {
             }
 
             return text;
+        },
+        isHomePage() {
+            return window.location.pathname === '/';
         }
     },
 
@@ -240,7 +260,11 @@ export default {
         },
         handleLocationUpdate(value) {
             console.log('Parent handleLocationUpdate received:', value);
-            if (value) {
+            if (typeof value === 'string') {
+                // Just update the city name, don't touch the URL
+                this.city = value;
+            } else if (value && typeof value === 'object') {
+                // Full location data with coordinates - update URL and everything
                 this.city = value.city;
                 // Update URL with new coordinates and city
                 const currentParams = new URLSearchParams(window.location.search);
@@ -263,6 +287,7 @@ export default {
                 // Update URL without page reload
                 window.history.replaceState({}, '', `${window.location.pathname}?${currentParams.toString()}`);
             } else {
+                // Clear everything
                 this.city = null;
                 this.startDate = null;
                 this.endDate = null;
@@ -276,12 +301,6 @@ export default {
                 currentParams.delete('end');
                 window.history.replaceState({}, '', `${window.location.pathname}?${currentParams.toString()}`);
             }
-            console.log('Parent state after update:', {
-                city: this.city,
-                startDate: this.startDate,
-                endDate: this.endDate,
-                url: window.location.href
-            });
         },
         handleSearch() {
             // This will trigger the search in the child component
@@ -308,8 +327,10 @@ export default {
             }
         },
         openFilters() {
-            // Emit an event to handle filter options
-            this.$emit('open-filters');
+            this.showFilters = true;
+        },
+        handleBack() {
+            window.location.href = '/';
         }
     },
 

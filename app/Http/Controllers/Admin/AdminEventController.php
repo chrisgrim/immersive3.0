@@ -40,6 +40,20 @@ class AdminEventController extends Controller
                         break;
                 }
             })
+            ->when($request->ending_soon, function ($query) {
+                $query->where(function($q) {
+                    $q->where('closingDate', '<=', now()->addDays(10))
+                      ->where('closingDate', '>', now())
+                      ->where(function($subQ) {
+                          $subQ->where('showtype', 'a')
+                               ->orWhereHas('shows', function($showQ) {
+                                   $showQ->select('event_id')
+                                        ->groupBy('event_id')
+                                        ->havingRaw('COUNT(*) > 100');
+                               });
+                      });
+                });
+            })
             ->when($request->sort, function ($query, $sort) {
                 switch ($sort) {
                     case 'oldest':

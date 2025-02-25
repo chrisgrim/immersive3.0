@@ -25,7 +25,7 @@ class EventClosingSoon extends Mailable
     {
         $truncatedName = Str::limit($this->event->name, 40, '...');
         return $this->subject('Your Event Is Closing Soon - ' . $truncatedName)
-            ->markdown('Emails.closing-soon', [
+            ->markdown('emails.closing-soon', [
                 'event' => $this->event,
                 'user' => $this->user
             ]);

@@ -29,6 +29,15 @@
                         <option value="in_progress">In Progress</option>
                         <option value="deleted">Deleted Events</option>
                     </select>
+                    <button 
+                        @click="toggleEndingSoon"
+                        :class="[
+                            'px-4 py-2 rounded-lg transition-colors',
+                            filters.endingSoon ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                        ]"
+                    >
+                        Ending Soon
+                    </button>
                 </div>
             </div>
         </div>
@@ -203,7 +212,8 @@ const pagination = ref(null)
 const filters = ref({
     search: '',
     sort: 'newest',
-    status: 'published'
+    status: 'published',
+    endingSoon: false
 })
 
 const showModal = ref(false)
@@ -240,7 +250,12 @@ const debounce = (callback, wait) => {
 
 // Watch for filter changes
 watch(
-    [() => filters.value.search, () => filters.value.sort, () => filters.value.status],
+    [
+        () => filters.value.search, 
+        () => filters.value.sort, 
+        () => filters.value.status,
+        () => filters.value.endingSoon
+    ],
     debounce(() => fetchEvents(1), 300)
 )
 
@@ -329,14 +344,30 @@ const updateEventStatus = async (event) => {
     }
 }
 
+const toggleEndingSoon = () => {
+    filters.value.endingSoon = !filters.value.endingSoon;
+    fetchEvents(1);
+}
+
 const fetchEvents = async (page = 1) => {
     try {
         loading.value = true
+        const params = { 
+            page,
+            search: filters.value.search,
+            sort: filters.value.sort,
+            status: filters.value.status
+        }
+
+        // Add ending soon parameters if toggled
+        if (filters.value.endingSoon) {
+            params.ending_soon = true;
+            params.days_threshold = 10;
+            params.show_requirement = true; // New parameter to check for show requirements
+        }
+
         const response = await axios.get('/api/admin/manage/events', {
-            params: { 
-                page,
-                ...filters.value
-            }
+            params: params
         })
         events.value = response.data.data
         pagination.value = {

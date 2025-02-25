@@ -210,7 +210,7 @@ class ListingsController extends Controller
         $viewData = array_merge($viewData, $locationFilters);
 
         return $request->searchType === 'inPerson' && isset($request->live)
-            ? view('Search.location', $viewData)
+            ? view('search.location', $viewData)
             : view('search.all', $viewData);
     }
 

@@ -28,6 +28,7 @@ Route::prefix('communities')->name('communities.')->group(function () {
     Route::prefix('{community}')->group(function () {
         // Public routes
         Route::GET('', [CommunityController::class, 'show'])->name('show');
+        Route::GET('/posts/{post}', [PostController::class, 'show'])->name('posts.show');
         
         // Protected routes
         Route::middleware(['auth', 'verified'])->group(function () {
@@ -56,7 +57,6 @@ Route::prefix('communities')->name('communities.')->group(function () {
                 Route::DELETE('/posts/{post}', 'destroy')->name('posts.destroy')->middleware('can:update,community');
                 Route::PUT('/posts/order', 'order')->name('posts.order')->middleware('can:update,community');
             });
-            Route::GET('/posts/{post}', [PostController::class, 'show'])->name('posts.show');
 
             // Shelves
             Route::controller(ShelfController::class)->middleware('can:update,community')->group(function () {

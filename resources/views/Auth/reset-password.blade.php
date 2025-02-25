@@ -1,4 +1,4 @@
-@extends('Layouts.master-container')
+@extends('layouts.master-container')
 
 @section('meta')
     <title>{{config('app.name')}}</title>
@@ -28,7 +28,7 @@
 
 @section('nav')
 
-	@include('Layouts.nav-container')
+	@include('layouts.nav-container')
     
 @endsection
 

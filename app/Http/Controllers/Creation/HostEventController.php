@@ -48,7 +48,7 @@ class HostEventController extends Controller
                 $query->where('status', 'pending')->latest();
             }
         ]);
-        return view('Creation.edit', compact('event'));
+        return view('creation.edit', compact('event'));
     }
 
     public function update(StoreEventRequest $request, Event $event)

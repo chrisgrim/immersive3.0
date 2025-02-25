@@ -1,8 +1,8 @@
 <div id="mainContent">
-    @include('Events.Show.share-modal')
+    @include('events.show.share-modal')
     <div id="bodyArea" class="show">
         <div class="show-content">
-            @include('Events.Show.header-mobile')
+            @include('events.show.header-mobile')
             <div class="relative w-full m-auto px-10">
                 <div class="">
                     <div class="flex-grow">
@@ -47,8 +47,8 @@
                             </div>
                         @endif
                         <div class="">
-                            @include('Events.Show.about')
-                            @include('Events.Show.details')
+                            @include('events.show.about')
+                            @include('events.show.details')
                         </div>
                     </div>
                 </div>
@@ -57,10 +57,10 @@
             {{-- Rest of your content --}}
             <div class="relative w-full m-auto px-10 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
                 @if ($event->eventreviews && count($event->eventreviews) > 0)
-                    @include('Events.Show.reviews')
+                    @include('events.show.reviews')
                 @endif
                 <vue-show-map :event="{{ $event }}"></vue-show-map>
-                @include('Events.Show.organizer')
+                @include('events.show.organizer')
             </div>
         </div>
     </div>

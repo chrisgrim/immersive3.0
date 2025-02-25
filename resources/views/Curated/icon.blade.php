@@ -89,7 +89,7 @@
                            class="block h-full absolute left-0 top-0 w-full rounded-4 z-10">
                         </a>
                         
-                        @include('Curated.Components.grid-image', [
+                        @include('curated.components.grid-image', [
                             'element' => $element,
                             'community' => $element->community ?? null,
                             'getPostImage' => $getPostImage

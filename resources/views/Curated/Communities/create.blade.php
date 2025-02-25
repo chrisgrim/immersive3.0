@@ -1,4 +1,4 @@
-@extends('Layouts.master-container')
+@extends('layouts.master-container')
 
 @section('meta')
 
@@ -7,9 +7,9 @@
 @section('nav')
 
     @if (Browser::isMobile())
-        @include('Nav.index-mobile')
+        @include('nav.index-mobile')
     @else
-        @include('Nav.nav-limited')
+        @include('nav.nav-limited')
     @endif
     
 @endsection

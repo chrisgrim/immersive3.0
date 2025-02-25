@@ -3,7 +3,7 @@
         :class="[ isFullMap ? 'w-full overflow-hidden mt-64' : 'w-[41%]' ]"
         class="fixed h-[calc(100vh-8rem)] right-0 top-0">
         <div 
-            :class="[ isFullMap ? 'relative' : 'sticky top-32 md:top-64' ]"
+            :class="[ isFullMap ? 'relative' : 'sticky top-32' ]"
             class="search__map overflow-hidden w-full h-full">
             <!-- Loading Spinner -->
             <div v-show="modelValue.loading" class="flex items-center justify-center absolute h-full w-full z-40">

@@ -18,11 +18,11 @@ class HostController extends Controller
             }])
             ->first();
             
-        return view('Creation.index', compact('organizer'));
+        return view('creation.index', compact('organizer'));
     }
 
     public function intro()
     {
-        return view('Creation.started');
+        return view('creation.started');
     }
 }

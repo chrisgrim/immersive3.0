@@ -1,4 +1,4 @@
-@extends('Layouts.master-container')
+@extends('layouts.master-container')
 
 @section('meta')
     <title>{{config('app.name')}}</title>
@@ -45,9 +45,9 @@
 
 @section('nav')
 @if (Browser::isMobile())
-    @include('Nav.index-mobile')
+    @include('nav.index-mobile')
 @else
-    @include('Nav.index-desktop')
+    @include('nav.index-desktop')
 @endif
 @endsection
 
@@ -67,30 +67,30 @@
         @foreach($docks as $dock)
             @if($dock->type === 'h')
                 <div class="max-w-screen-5xl relative m-auto">
-                    @include('Curated.hero')
+                    @include('curated.hero')
                 </div>
             @endif
 
             @if($dock->type === 's')
                 <div class="max-w-screen-5xl relative m-auto">
-                    @include('Curated.spotlight', ['dock' => $dock])
+                    @include('curated.spotlight', ['dock' => $dock])
                 </div>
             @endif
 
             <div class="max-w-screen-5xl relative h-full m-auto px-10 lg-air:px-16 2xl-air:px-32">
                 @if($dock->type === 'i')
-                    @include('Curated.icon')
+                    @include('curated.icon')
                 @endif
 
                 @if($dock->type === 'f')
-                    @include('Curated.album', [
+                    @include('curated.album', [
                         'dock' => $dock,
                         'number' => 'four'
                     ])
                 @endif
 
                 @if($dock->type === 't')
-                    @include('Curated.album', [
+                    @include('curated.album', [
                         'dock' => $dock,
                         'number' => 'three'
                     ])

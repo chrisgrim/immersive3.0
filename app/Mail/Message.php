@@ -32,7 +32,7 @@ class Message extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'Emails.message',
+            view: 'emails.message',
             with: ['attributes' => $this->attributes]
         );
     }

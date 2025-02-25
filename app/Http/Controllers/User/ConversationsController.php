@@ -30,7 +30,7 @@ class ConversationsController extends Controller
         ->limit(50)
         ->get();
 
-        return view('User.inbox', compact('conversations'));
+        return view('user.inbox', compact('conversations'));
     }
 
     public function show(Conversation $conversation)

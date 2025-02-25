@@ -18,7 +18,7 @@ class ProfilesController extends Controller
             'current_team_id', 'card_brand', 'card_last_four', 'email', 'stripe_id'
         ]);
         $user->image = $user->images->first();
-        return view('Auth.user-profile', compact('user'));
+        return view('auth.user-profile', compact('user'));
     }
 
     public function edit(User $user)
@@ -29,7 +29,7 @@ class ProfilesController extends Controller
         // Make these fields visible for the edit view
         $user->makeVisible(['newsletter_type', 'silence']);
         
-        return view('Auth.user-edit', [
+        return view('auth.user-edit', [
             'user' => $user,
             'owner' => $user, // Add owner data that includes newsletter settings
             'image' => $user->images->first()

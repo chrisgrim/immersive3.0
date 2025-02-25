@@ -1,4 +1,4 @@
-@extends('Layouts.master-container')
+@extends('layouts.master-container')
 
 @section('meta')
     <meta name="twitter:card" content="summary_large_image" />
@@ -49,7 +49,7 @@
     @if (Browser::isMobile())
         <vue-nav-bar-mobile :user="user"></vue-nav-bar-mobile>
     @else
-        @include('Nav.nav-limited')
+        @include('nav.nav-limited')
     @endif
     
 @endsection

@@ -23,7 +23,7 @@ class PostController extends Controller
      */
     public function create(Community $community)
     {
-        return view('Curated.Posts.create', [
+        return view('curated.posts.create', [
             'community' => $community,
             'shelves' => $community->shelves()->where('status', '!=', 'a')->get()
         ]);
@@ -59,7 +59,7 @@ class PostController extends Controller
         // Get authenticated user or null for guests
         $user = auth()->user();
         
-        return view('Curated.Posts.show', [
+        return view('curated.posts.show', [
             'post' => $post,
             'curator' => $user ? $user->can('curator', $community) : false,
             'community' => $community,
@@ -84,7 +84,7 @@ class PostController extends Controller
             'community.shelves' // Nested eager loading for community and its shelves
         ]);
         
-        return view('Curated.Posts.edit', [
+        return view('curated.posts.edit', [
             'post' => $post,
             'community' => $community,
             'user' => auth()->user(),

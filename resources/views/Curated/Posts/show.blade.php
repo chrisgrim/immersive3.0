@@ -1,4 +1,4 @@
-@extends('Layouts.master-container')
+@extends('layouts.master-container')
 
 @php
     $imageUrl = config('app.image_url', 'https://your-default-url.com/');
@@ -11,7 +11,7 @@
     @if (Browser::isMobile())
         <vue-nav-bar-mobile :user="user"></vue-nav-bar-mobile>
     @else
-        @include('Nav.nav-padded')
+        @include('nav.nav-padded')
     @endif
 @endsection
 
@@ -47,7 +47,7 @@
 @endsection
 
 @section('content')
-<div class="max-w-screen-5xl px-8 md:px-16 lg:px-40 mx-auto py-16 md:py-36 relative">
+<div class="max-w-screen-5xl px-10 md:px-16 lg:px-40 mx-auto py-16 md:py-36 relative">
     @php
         $imagePath = '';
         
@@ -235,48 +235,56 @@
 
                         @elseif($card->type === 'e')
                             {{-- Event Card --}}
-                            <div class="border rounded-2xl mb-12 md:mb-16 p-12 rounded-2xl overflow-hidden">
+                            <div class="border-t md:border border-neutral-400 md:rounded-2xl py-12 md:mb-16 md:p-12 overflow-hidden">
                                 @if($card->event)
-                                    <div class="flex flex-col md:flex-row gap-16">
-                                        {{-- Event Image --}}
+                                    <div class="flex flex-col md:flex-row md:gap-16">
+                                        {{-- Event Image and Mobile Title --}}
                                         @if($card->event->thumbImagePath)
-                                            <div class="md:w-[35%]">
-                                                <div class="aspect-[3/4] w-full rounded-2xl overflow-hidden">
-                                                    <img 
-                                                        src="{{ $imageUrl . $card->event->thumbImagePath }}" 
-                                                        class="w-full h-full object-cover" 
-                                                        alt="{{ $card->event->name }}"
-                                                    />
+                                            <div class="flex gap-10 w-full md:w-[35%] mb-6 md:mb-0">
+                                                <div class="w-1/5 md:w-full">
+                                                    <div class="aspect-[3/4] w-full rounded-2xl overflow-hidden">
+                                                        <img 
+                                                            src="{{ $imageUrl . $card->event->thumbImagePath }}" 
+                                                            class="w-full h-full object-cover" 
+                                                            alt="{{ $card->event->name }}"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                {{-- Mobile-only title --}}
+                                                <div class="w-4/5 flex items-center md:hidden">
+                                                    <h3 class="text-4xl font-bold mt-0">{{ $card->name ?? $card->event->name }}</h3>
                                                 </div>
                                             </div>
                                         @endif
 
-                                        {{-- Event Content --}}
-                                        <div class="space-y-6 md:w-[65%] my-auto">
-                                            {{-- Title with Link --}}
-                                            <a href="{{ $card->url ?? '/events/' . $card->event->slug }}">
+                                        {{-- Event Content - Right side on desktop --}}
+                                        <div class="md:w-[65%] md:my-auto">
+                                            {{-- Desktop-only title --}}
+                                            <a href="{{ $card->url ?? '/events/' . $card->event->slug }}" class="hidden md:block">
                                                 <h3 class="text-4xl font-bold mt-0">{{ $card->name ?? $card->event->name }}</h3>
                                             </a>
 
-                                            {{-- Blurb --}}
-                                            @if(Str::of($card->blurb)->stripTags()->trim()->isNotEmpty())
-                                                {!! Str::words($card->blurb, 50, '...') !!}
-                                            @endif
+                                            <div class="md:mt-6 space-y-6">
+                                                {{-- Blurb --}}
+                                                @if(Str::of($card->blurb)->stripTags()->trim()->isNotEmpty())
+                                                    {!! Str::words($card->blurb, 40, '...') !!}
+                                                @endif
 
-                                            {{-- Event Dates --}}
-                                            @if($card->event)
-                                                <p class="text-gray-600 text-xl">
-                                                    Booking Through: {{ \Carbon\Carbon::parse($card->event->end_date)->format('l, F j Y') }}
-                                                </p>
-                                            @endif
+                                                {{-- Event Dates --}}
+                                                @if($card->event)
+                                                    <p class="text-gray-600 text-xl">
+                                                        Booking Through: {{ \Carbon\Carbon::parse($card->event->end_date)->format('l, F j Y') }}
+                                                    </p>
+                                                @endif
 
-                                            {{-- Check it out Button --}}
-                                            <div>
-                                                <a 
-                                                    href="{{ $card->url ?? '/events/' . $card->event->slug }}" 
-                                                    class="inline-block bg-black text-white px-8 py-4 rounded-2xl hover:bg-gray-800 transition-colors">
-                                                    Read More
-                                                </a>
+                                                {{-- Check it out Button --}}
+                                                <div>
+                                                    <a 
+                                                        href="{{ $card->url ?? '/events/' . $card->event->slug }}" 
+                                                        class="inline-block bg-black text-white px-8 py-4 rounded-2xl hover:bg-gray-800 transition-colors">
+                                                        Read More
+                                                    </a>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

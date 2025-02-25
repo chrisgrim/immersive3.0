@@ -1,10 +1,10 @@
-@extends('Layouts.master-container')
+@extends('layouts.master-container')
 
 @section('meta')
 @endsection 
 
 @section('nav')
-    @include('Nav.nav-limited')
+    @include('nav.nav-limited')
 @endsection
 
 @section('content')

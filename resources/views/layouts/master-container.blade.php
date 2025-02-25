@@ -3,7 +3,7 @@
 	<head>
         @yield('meta')
         @yield('styles')
-		@include('Layouts.meta')
+		@include('layouts.meta')
 	</head>
 	<body id="app">
         <!-- Google Tag Manager (noscript) -->

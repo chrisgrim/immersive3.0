@@ -1,17 +1,19 @@
 <template>
-    <div class="w-full min-h-[25rem]">
-        <a :href="`/events/${data.slug}?name=${name}&lat=${lat}&lng=${lng}`">
-            <div 
-                class="h-80 bg-cover bg-no-repeat border-t-2xl" 
-                :style="backgroundImage" />
-            <div class="p-4 flex flex-col">
-                <span class="text-2xl font-bold m-0 text-black">{{ data.name }}</span>
-                <span class="text-1xl m-0 text-black">{{ data.price_range ? data.price_range : '' }}</span>
+    <div class="w-full">
+        <a :href="`/events/${data.slug}?name=${name}&lat=${lat}&lng=${lng}`" class="flex gap-4 p-6 items-stretch">
+            <div class="w-28 aspect-[3/4] flex-shrink-0 rounded-xl overflow-hidden">
+                <div 
+                    class="w-full h-full bg-cover bg-center bg-no-repeat rounded-x-xl" 
+                    :style="backgroundImage" 
+                />
+            </div>
+            <div class="flex-1 flex flex-col justify-between py-2">
+                <span class="text-2xl font-medium text-black line-clamp-2">{{ data.name }}</span>
+                <span class="text-lg text-black">{{ formattedPriceRange }}</span>
             </div>
         </a>
     </div>
 </template>
-
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 
@@ -40,6 +42,11 @@ const backgroundImage = computed(() => {
         : `${import.meta.env.VITE_IMAGE_URL}${props.data.thumbImagePath.slice(0, -4)}jpg`
     
     return `background-image: url('${imageUrl}')`
+})
+
+const formattedPriceRange = computed(() => {
+    if (!props.data.price_range) return ''
+    return props.data.price_range.replace(/\.00/g, '')
 })
 
 onMounted(() => {

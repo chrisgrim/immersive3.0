@@ -124,17 +124,34 @@
                             <div class="w-full aspect-square">
                                 @php
                                     $imagePath = $getPostImage($element);
+                                    // Get first element's image for preload
+                                    $isFirstElement = $loop->first;
                                 @endphp
                                 @if($imagePath)
+                                    @if($isFirstElement)
+                                        {{-- Preload first image in head --}}
+                                        @push('head')
+                                        <link 
+                                            rel="preload" 
+                                            as="image" 
+                                            href="{{ $imageUrl }}{{ $imagePath }}"
+                                            type="image/webp"
+                                            fetchpriority="high">
+                                        @endpush
+                                    @endif
                                     <picture>
                                         <source 
                                             type="image/webp" 
                                             srcset="{{ $imageUrl }}{{ $imagePath }}">
                                         <img 
                                             class="h-full w-full object-cover"
-                                            loading="lazy" 
+                                            loading="{{ $isFirstElement ? 'eager' : 'lazy' }}"
+                                            fetchpriority="{{ $isFirstElement ? 'high' : 'auto' }}"
+                                            decoding="async"
                                             src="{{ $imageUrl }}{{ Str::replaceLast('webp', 'jpg', $imagePath) }}"
-                                            alt="{{ $element->name }}">
+                                            alt="{{ $element->name }}"
+                                            width="400"
+                                            height="400">
                                     </picture>
                                 @else
                                     <div class="w-full h-full flex items-center justify-center" 

@@ -29,7 +29,7 @@ Route::GET('/organizers/{organizer}', [OrganizerController::class, 'show'])->nam
 */
 Route::middleware(['auth'])->group(function () {
     // Basic auth routes (no email verification needed)
-    Route::view('/menu', 'Nav.menu-mobile')->name('menu');
+    Route::view('/menu', 'nav.menu-mobile')->name('menu');
     
     Route::prefix('users')->name('users.')->group(function () {
         Route::get('/{user}/edit', [ProfilesController::class, 'edit'])->name('edit')->middleware('can:update,user');
