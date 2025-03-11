@@ -497,9 +497,8 @@ defineExpose({ clearState });
 </script>
 
 <style>
-
 .dp--arrow-btn-nav {
-    display: none;
+    display: none !important;
 }
 
 /* Remove the tabs at the top */
@@ -510,21 +509,20 @@ defineExpose({ clearState });
 /* Calendar styling */
 .dp__calendar {
    width: 100% !important;
-
 }
 
 /* Header month/year styling */
 .dp__month_year_wrap {
-   font-size: 1.7rem;
-   font-weight: 400;
+   font-size: 1.7rem !important;
+   font-weight: 400 !important;
 }
 
 /* Calendar header (days of week) */
 .dp__calendar_header {
-   color: #666;
-   font-weight: normal;
-   margin-bottom: 8px;
-   font-size: 1.2rem;
+   color: #666 !important;
+   font-weight: normal !important;
+   margin-bottom: 8px !important;
+   font-size: 1.2rem !important;
 }
 
 .dp__calendar_row {
@@ -535,25 +533,25 @@ defineExpose({ clearState });
 .dp__calendar_item {
    margin: 0 !important;
    padding: 0 !important;
-   font-size: 1.4rem;
+   font-size: 1.4rem !important;
 }
 
 /* Calendar cells */
 .dp__cell_inner {
-   height: 45px;
-   width: 45px;
+   height: 45px !important;
+   width: 45px !important;
    margin: 0 !important;
    padding: 0 !important;
-   display: flex;
-   align-items: center;
-   justify-content: center;
-   border-radius: 9999px;
-   font-weight: normal;
-   color: #333;
+   display: flex !important;
+   align-items: center !important;
+   justify-content: center !important;
+   border-radius: 9999px !important;
+   font-weight: normal !important;
+   color: #333 !important;
 }
 
 .dp__cell_disabled {
-   opacity: 0.3;
+   opacity: 0.3 !important;
    cursor: auto !important;
 }
 
@@ -594,7 +592,7 @@ defineExpose({ clearState });
 /* Navigation arrows */
 .dp__arrow_bottom,
 .dp__arrow_top {
-   display: none;
+   display: none !important;
 }
 
 /* Today's date */
@@ -604,23 +602,27 @@ defineExpose({ clearState });
 
 /* Calendar container */
 .dp__main {
-   border: none;
-   box-shadow: none;
+   border: none !important;
+   box-shadow: none !important;
 }
 
 /* Remove borders */
 .dp__calendar_header_separator {
-   display: none;
+   display: none !important;
 }
+
 .dp__theme_light {
    border: none !important;
 }
+
 .dp--header-wrap {
-   margin-bottom: 1rem;
+   margin-bottom: 1rem !important;
 }
+
 .dp__menu_inner.dp__flex_display {
-   gap: 4rem;
+   gap: 4rem !important;
 }
+
 .dp__calendar_next {
    margin-inline-start: 0 !important;
 }
@@ -637,6 +639,6 @@ defineExpose({ clearState });
 
 /* Optional: Add smooth transition */
 .dp__calendar {
-    transition: all 0.3s ease;
+    transition: all 0.3s ease !important;
 }
 </style>

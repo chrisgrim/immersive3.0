@@ -123,10 +123,10 @@
                     <!-- Event Count -->
                     <div class="hidden md:block">
                         <div class="flex flex-col">
-                            <p class="text-lg text-gray-500">
+                            <p class="text-1xl text-gray-500">
                                 {{ team.events_count }} total
                             </p>
-                            <p class="text-sm text-gray-400 mt-1">
+                            <p class="text-xl text-gray-400 mt-1">
                                 {{ team.published_events_count }} published
                             </p>
                         </div>
@@ -134,7 +134,7 @@
 
                     <!-- Created Date -->
                     <div class="hidden md:block">
-                        <p class="text-lg text-gray-500">{{ formatDate(team.created_at) }}</p>
+                        <p class="text-1xl text-gray-500">{{ formatDate(team.created_at) }}</p>
                     </div>
 
                     <!-- Arrow Icon -->

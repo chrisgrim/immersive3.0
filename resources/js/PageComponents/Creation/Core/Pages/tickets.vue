@@ -6,24 +6,32 @@
             <div class="mt-12">
                 <div class="flex items-center">
                     <span 
-                        class="text-[6rem] md:text-[11rem] font-bold text-heavy leading-tight cursor-pointer"
+                        class="text-[6rem] md:text-[9.5rem] font-bold text-heavy leading-tight cursor-pointer hover:wiggle"
                         @click="toggleCurrencyDropdown"
                     >{{ state.selectedCurrency }}</span>
+                    
+                    <!-- Show PWYC text when PWYC ticket type is selected -->
+                    <span 
+                        v-if="isPWYCTicket"
+                        class="text-[6rem] md:text-[9.5rem] font-bold text-heavy w-full overflow-hidden leading-tight ml-4"
+                    >PWYC</span>
+                    
+                    <!-- Regular price input for non-PWYC ticket types -->
                     <input
-                        v-if="state.currentMedia !== null && tickets[state.currentMedia]"
+                        v-else-if="state.currentMedia !== null && tickets[state.currentMedia]"
                         type="text"
                         name="price"
-                        class="text-[6rem] md:text-[11rem] font-bold text-heavy w-full overflow-hidden leading-tight ml-4"
-                        :class="{ 
-                            'border-red-500 focus:shadow-focus-error': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.ticket_price.$error
-                        }"
+                        class="text-[6rem] md:text-[9.5rem] font-bold text-heavy w-full overflow-hidden leading-tight ml-4 placeholder-neutral-300 placeholder-opacity-50"
                         v-model="state.formattedPrice"
                         @input="updateTicketPrice"
                         @focus="selectPriceInput"
+                        placeholder="0.00"
+                        ref="priceInput"
+                        autofocus
                     />
                 </div>
-                <div v-if="$v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.ticket_price.$error" 
-                     class="text-red-500 text-1xl mt-[-2.5rem] mb-8 px-4">
+                <div v-if="$v.tickets.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.ticket_price.$error" 
+                     class="text-red-500 text-1xl ml-20 mb-8 px-4">
                     <span v-if="$v.tickets.$each.$response.$errors[state.currentMedia].ticket_price.$minValue">
                         Price cannot be negative.
                     </span>
@@ -46,120 +54,142 @@
                 </div>
             </div>
 
-            <!-- Ticket Name Input -->
-            <div class="mt-8">
-                <input 
-                    class="w-2/3 border border-neutral-300 text-[#222222] text-3xl p-4 rounded-2xl relative transition-all duration-200"
-                    :class="{ 
-                        'border-red-500 focus:shadow-focus-error': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error,
-                        'hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !($v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error)
-                    }"
-                    type="text" 
-                    v-model="state.formattedName" 
-                    @input="updateTicketName"
-                    maxlength="40"
-                    placeholder="Ticket Name"
-                    name="Name"
-                >
-                <div class="flex justify-end mt-1 w-2/3" 
-                     :class="{'text-red-500': isNameNearLimit, 'text-neutral-500': !isNameNearLimit}">
-                    {{ state.formattedName?.length || 0 }}/40
-                </div>
-                <div v-if="$v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error" 
-                     class="text-red-500 text-1xl mt-2 px-4">
-                    <span v-for="error in $v.tickets.$each.$response.$errors[state.currentMedia].name" :key="error.$validator">
-                        {{
-                            error.$validator === 'required' ? 'Ticket name is required.' :
-                            error.$validator === 'maxLength' ? 'Too many characters.' :
-                            error.$validator === 'uniqueTicketName' ? 'Ticket name must be unique.' :
-                            error.$validator === 'ticketNameNotFreeWithNonZeroPrice' ? 'Free ticket must be free.' : ''
-                        }}
-                    </span>
-                </div>
-            </div>
+              <!-- Ticket Name Input -->
+            <div>
+                <div class="mt-8">
+                    <!-- Display selected ticket type as a list -->
+                    <List 
+                        v-if="currentTicketItem.length > 0"
+                        class="mt-6"
+                        :item-height="'h-24'"
+                        :selections="currentTicketItem" 
+                        @onSelect="replaceTicketType"
+                    />
 
-            <!-- Additional Details Input -->
-            <div class="mt-8">
-                <input 
-                    class="w-full border border-neutral-300 text-[#222222] text-3xl p-4 rounded-2xl relative transition-all duration-200"
-                    :class="{ 
-                        'border-red-500 focus:shadow-focus-error': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error,
-                        'hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !($v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error)
-                    }"
-                    type="text" 
-                    v-model="state.formattedDescription" 
-                    @input="updateAdditionalDetails"
-                    name="AdditionalDetails"
-                    placeholder="Additional ticket details (optional)"
-                    maxlength="60"
-                >
-                <div class="flex justify-end mt-1" 
-                     :class="{'text-red-500': isDescriptionNearLimit, 'text-neutral-500': !isDescriptionNearLimit}">
-                    {{ state.formattedDescription?.length || 0 }}/60
-                </div>
-                <div v-if="$v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error" 
-                     class="text-red-500 text-1xl mt-2 px-4">
-                    Too many characters.
-                </div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-4 mt-24">
-                <div 
-                    v-for="(ticket, index) in tickets" 
-                    :key="index" 
-                    @mouseenter="state.hoveredLocation = index"
-                    @mouseleave="state.hoveredLocation = null"
-                    @click="handleDivClick(index)"
-                    :class="{
-                        'border-neutral-300': !ticket.ticket_price && state.currentMedia !== index,
-                        'border-[#222222] shadow-focus-black bg-neutral-50': state.currentMedia === index,
-                    }"
-                    class="relative h-48 flex flex-col items-start justify-between p-4 border rounded-2xl transition-all duration-200 hover:border-[#222222] hover:shadow-focus-black"
-                >
-                    <div 
-                        v-if="tickets.length > 1"
-                        @click.stop="removeTicket(index)" 
-                        class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white p-[0.1rem] rounded-full"
-                    >
-                        <component :is="state.hoveredLocation === index ? RiCloseCircleFill : RiCloseCircleLine" />
-                    </div>
-                    <div class="flex items-start justify-start w-full h-16 rounded-2xl">
-                        <span class="overflow-hidden w-full break-words hyphens-auto">
-                            {{ ticket.name }}
+                    <Dropdown 
+                        v-else
+                        id="ticketName"
+                        class="w-2/3"
+                        :list="state.availableTicketOptions"
+                        :creatable="true"
+                        :loading="state.isLoadingOptions"
+                        placeholder="Select ticket type"
+                        @onSelect="updateTicketName"
+                        :error="$v.tickets.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error ? 'Please select a valid ticket type' : null"
+                        :max-selections="1"
+                        :max-input-length="40"
+                        :reset-on-select="true"
+                    />
+                    
+                    
+                    <div v-if="$v.tickets.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.name.$error" 
+                        class="text-red-500 text-1xl mt-2 px-4">
+                        <span v-for="error in $v.tickets.$each.$response.$errors[state.currentMedia].name" :key="error.$validator">
+                            {{
+                                error.$validator === 'required' ? 'Ticket type is required.' :
+                                error.$validator === 'maxLength' ? 'Too many characters.' :
+                                error.$validator === 'uniqueTicketName' ? 'Ticket type must be unique.' :
+                                error.$validator === 'ticketNameNotFreeWithNonZeroPrice' ? 'Free ticket must be free.' : ''
+                            }}
                         </span>
                     </div>
-                    <div class="overflow-hidden w-full">
-                        <h4 class="text-lg h-10 leading-tight overflow-hidden text-ellipsis whitespace-nowrap text-black">
-                            {{ state.selectedCurrency }}{{ formatPrice(ticket.ticket_price) }}
-                        </h4>
+                </div>
+
+                <div v-if="tickets[0].ticket_price && tickets[0].name">
+
+                    <!-- Additional Details Input -->
+                    <div class="mt-8">
+                        <input 
+                            class="w-full border border-neutral-300 text-[#222222] text-3xl p-4 rounded-2xl relative transition-all duration-200"
+                            :class="{ 
+                                'border-red-500 focus:shadow-focus-error': $v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error,
+                                'hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !($v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error)
+                            }"
+                            type="text" 
+                            v-model="state.formattedDescription" 
+                            @input="updateAdditionalDetails"
+                            name="AdditionalDetails"
+                            placeholder="Additional ticket details (optional)"
+                            maxlength="60"
+                        >
+                        <div 
+                            v-if="isDescriptionNearLimit"
+                            class="flex justify-end mt-1" 
+                            :class="{'text-red-500': isDescriptionNearLimit, 'text-neutral-500': !isDescriptionNearLimit}">
+                            {{ state.formattedDescription?.length || 0 }}/60
+                        </div>
+                        <div v-if="$v.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.description.$error" 
+                            class="text-red-500 text-1xl mt-2 px-4">
+                            Too many characters.
+                        </div>
                     </div>
-                </div>
-                <div 
-                    v-if="tickets.length < 5"
-                    @click="addTicket"
-                    class="relative h-48 flex flex-col items-center justify-center p-4 border border-dashed border-neutral-300 text-neutral-400 rounded-2xl transition-all duration-200 cursor-pointer hover:border-[#222222] hover:bg-neutral-50"
-                >
-                    <span class="text-2xl font-bold">+</span>
-                    <span class="text-lg">Add Ticket Type</span>
-                </div>
-            </div>
-            <div class="mt-12" ref="ticketUrlSection">
-                <h3 class="text-2xl mb-4">Ticket URL <span class="text-red-500">*</span></h3>
-                <input 
-                    class="w-full border border-neutral-300 text-[#222222] text-xl p-4 rounded-2xl relative transition-all duration-200"
-                    :class="{ 
-                        'border-red-500 focus:shadow-focus-error': hasUrlError,
-                        'hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !hasUrlError
-                    }"
-                    type="url" 
-                    v-model="state.ticketUrl" 
-                    placeholder="https://..."
-                    @input="validateTicketUrl"
-                    maxlength="255"
-                >
-                <div v-if="state.ticketUrlError || (!state.ticketUrl && $v.$dirty)" 
-                     class="text-red-500 text-1xl mt-2 px-4">
-                    {{ !state.ticketUrl ? 'Ticket URL is required' : 'Please enter a valid URL (e.g., https://example.com)' }}
+
+                    <div class="mt-8" ref="ticketUrlSection">
+                        <input 
+                            class="w-full border border-neutral-300 text-[#222222] text-3xl p-4 rounded-2xl relative transition-all duration-200"
+                            :class="{ 
+                                'border-red-500 focus:shadow-focus-error': hasUrlError,
+                                'hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !hasUrlError
+                            }"
+                            type="url" 
+                            v-model="state.ticketUrl" 
+                            placeholder="Ticket Url"
+                            @input="validateTicketUrl"
+                            maxlength="255"
+                        >
+                        <div v-if="state.ticketUrlError || (!state.ticketUrl && $v.$dirty)" 
+                            class="text-red-500 text-1xl mt-2 px-4">
+                            {{ !state.ticketUrl ? 'Ticket URL is required' : 'Please enter a valid URL (e.g., https://example.com)' }}
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-4 mt-24">
+                        <div 
+                            v-for="(ticket, index) in tickets" 
+                            :key="index" 
+                            @mouseenter="state.hoveredLocation = index"
+                            @mouseleave="state.hoveredLocation = null"
+                            @click="handleDivClick(index)"
+                            :class="{
+                                'border-neutral-300': !ticket.ticket_price && state.currentMedia !== index,
+                                'border-[#222222] shadow-focus-black bg-neutral-50': state.currentMedia === index,
+                            }"
+                            class="relative h-48 flex flex-col items-start justify-between p-4 border rounded-2xl transition-all duration-200 hover:border-[#222222] hover:shadow-focus-black"
+                        >
+                            <div 
+                                v-if="tickets.length > 1"
+                                @click.stop="removeTicket(index)" 
+                                class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white p-[0.1rem] rounded-full"
+                            >
+                                <component :is="state.hoveredLocation === index ? RiCloseCircleFill : RiCloseCircleLine" />
+                            </div>
+                            <div class="flex items-start justify-start w-full h-16 rounded-2xl">
+                                <span class="overflow-hidden w-full break-words hyphens-auto">
+                                    {{ ticket.name }}
+                                </span>
+                            </div>
+                            <div class="overflow-hidden w-full">
+                                <h4 class="text-lg h-10 leading-tight overflow-hidden text-ellipsis whitespace-nowrap text-black">
+                                    <!-- Show "PWYC" for PWYC tickets, otherwise show currency + price -->
+                                    <template v-if="ticket.name && ticket.name.toLowerCase() === 'pwyc'">
+                                        PWYC
+                                    </template>
+                                    <template v-else>
+                                        {{ state.selectedCurrency }}{{ formatPrice(ticket.ticket_price) }}
+                                    </template>
+                                </h4>
+                            </div>
+                        </div>
+                        <div 
+                            v-if="tickets.length < 5"
+                            @click="addTicket"
+                            class="relative h-48 flex flex-col items-center justify-center p-4 border border-dashed border-neutral-300 text-neutral-400 rounded-2xl transition-all duration-200 cursor-pointer hover:border-[#222222] hover:bg-neutral-50"
+                        >
+                            <span class="text-2xl font-bold">+</span>
+                            <span class="text-lg">Add Ticket Type</span>
+                        </div>
+                    </div>
+                    
                 </div>
             </div>
         </div>
@@ -172,12 +202,22 @@ import { ref, reactive, inject, watch, onMounted, computed } from 'vue';
 import useVuelidate from '@vuelidate/core';
 import { required, maxLength, helpers, minValue, maxValue } from '@vuelidate/validators';
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
+import Dropdown from '@/GlobalComponents/dropdown.vue';
+import List from '@/GlobalComponents/dropdown-list.vue';
 
 // 2. Constants
 const MAX_TICKET_PRICE = 9999.99;
 const MAX_DESCRIPTION_LENGTH = 60;
 const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$'];
 const MAX_URL_LENGTH = 255;
+const TICKET_NAME_OPTIONS = [
+  { id: 'general', name: 'General' },
+  { id: 'student', name: 'Student' },
+  { id: 'senior', name: 'Senior' },
+  { id: 'vip', name: 'VIP' },
+  { id: 'free', name: 'Free' },
+  { id: 'pwyc', name: 'PWYC' }
+];
 
 // 3. Props & Injections
 const event = inject('event');
@@ -189,25 +229,27 @@ const state = ref({
     showAdditionalDetails: false,
     showCurrencyDropdown: false,
     selectedCurrency: '$',
-    formattedPrice: '0.00',
+    formattedPrice: '',
     formattedName: '',
     formattedDescription: '',
     ticketUrl: '',
     ticketUrlError: false,
+    availableTicketOptions: [],
+    isLoadingOptions: false,
 });
 
 // Get tickets from the first show
 const show = event?.shows?.[0];
 const tickets = reactive(show?.tickets?.length 
     ? show.tickets.map(ticket => ({
-        name: ticket.name || 'General',
-        ticket_price: parseFloat(ticket.ticket_price) || 0, // Parse the price to float
+        name: ticket.name || '',
+        ticket_price: ticket.ticket_price !== undefined ? parseFloat(ticket.ticket_price) : '',
         description: ticket.description || '',
         currency: ticket.currency || state.value.selectedCurrency
     }))
     : [{
-        name: 'General',
-        ticket_price: 0,
+        name: '',
+        ticket_price: '',
         description: '',
         currency: state.value.selectedCurrency
     }]
@@ -284,19 +326,45 @@ const $v = useVuelidate(rules, {
 // 6. Methods - Ticket Management
 const handleDivClick = (index) => {
     state.value.currentMedia = index;
-    state.value.formattedPrice = parseFloat(tickets[index].ticket_price).toFixed(2);
+    
+    // Format price if it exists, otherwise keep it empty
+    if (tickets[index].ticket_price !== '') {
+        state.value.formattedPrice = parseFloat(tickets[index].ticket_price).toFixed(2);
+    } else {
+        state.value.formattedPrice = '';
+    }
+    
     state.value.formattedName = tickets[index].name;
     state.value.formattedDescription = tickets[index].description;
+    
+    // Update available ticket options
+    updateAvailableTicketOptions();
+    
+    // Focus the price input safely
+    setTimeout(() => {
+        try {
+            if (priceInput && priceInput.value) {
+                priceInput.value.focus();
+            } else {
+                // Fallback to finding the input by name
+                const pInput = document.querySelector('input[name="price"]');
+                if (pInput) pInput.focus();
+            }
+        } catch (e) {
+            console.log('Could not focus price input', e);
+        }
+    }, 100);
 };
 
 const addTicket = () => {
     if (tickets.length < 5) {
         tickets.push({ 
-            name: `Ticket Name`, 
-            ticket_price: 0, 
+            name: '', 
+            ticket_price: '', 
             description: '', 
             currency: state.value.selectedCurrency 
         });
+        
         handleDivClick(tickets.length - 1);
     }
 };
@@ -313,6 +381,13 @@ const removeTicket = (index) => {
 // 7. Methods - Input Handling
 const updateTicketPrice = (e) => {
     let value = e.target.value.replace(/[^\d.]/g, '');
+
+    // If it's empty, keep it empty
+    if (value === '') {
+        state.value.formattedPrice = '';
+        tickets[state.value.currentMedia].ticket_price = '';
+        return;
+    }
 
     const decimalIndex = value.indexOf('.');
     if (decimalIndex !== -1) {
@@ -331,17 +406,62 @@ const updateTicketPrice = (e) => {
     }
 
     state.value.formattedPrice = value;
-    tickets[state.value.currentMedia].ticket_price = value ? parseFloat(value) : 0;
+    tickets[state.value.currentMedia].ticket_price = value ? parseFloat(value) : '';
 };
 
 // 8. Methods - Form Updates
-const updateTicketName = (e) => {
-    let value = e.target.value;
-    if (value.length > 40) {
-        value = value.slice(0, 40);
+const updateTicketName = (item) => {
+    // Update the ticket name with the selected option
+    state.value.formattedName = item.name;
+    tickets[state.value.currentMedia].name = item.name;
+    
+    // Update available options after selection
+    updateAvailableTicketOptions();
+    
+    // Set price to 0 for Free tickets, auto-fill 0.01 for PWYC (as a minimum)
+    if (item.name.toLowerCase() === 'free') {
+        state.value.formattedPrice = '0.00';
+        tickets[state.value.currentMedia].ticket_price = 0;
+        
+        // Focus the description input safely
+        setTimeout(() => {
+            try {
+                const descriptionInput = document.querySelector('input[name="AdditionalDetails"]');
+                if (descriptionInput) descriptionInput.focus();
+            } catch (e) {
+                console.log('Could not focus description input', e);
+            }
+        }, 100);
+    } else if (item.name.toLowerCase() === 'pwyc') {
+        // For PWYC tickets, set a minimal price
+        state.value.formattedPrice = '0.01';
+        tickets[state.value.currentMedia].ticket_price = 0.01;
+        
+        // Focus the description input since price can't be edited for PWYC
+        setTimeout(() => {
+            try {
+                const descriptionInput = document.querySelector('input[name="AdditionalDetails"]');
+                if (descriptionInput) descriptionInput.focus();
+            } catch (e) {
+                console.log('Could not focus description input', e);
+            }
+        }, 100);
+    } else {
+        // For other types, focus price field safely
+        setTimeout(() => {
+            try {
+                if (priceInput && priceInput.value) {
+                    priceInput.value.focus();
+                } else {
+                    // Fallback to finding the input by name
+                    const pInput = document.querySelector('input[name="price"]');
+                    if (pInput) pInput.focus();
+                }
+            } catch (e) {
+                console.log('Could not focus price input', e);
+            }
+        }, 100);
     }
-    state.value.formattedName = value;
-    tickets[state.value.currentMedia].name = value;
 };
 
 const updateAdditionalDetails = (e) => {
@@ -357,7 +477,17 @@ const validateTicketUrl = () => {
     if (state.value.ticketUrl?.length > MAX_URL_LENGTH) {
         state.value.ticketUrl = state.value.ticketUrl.slice(0, MAX_URL_LENGTH);
     }
-    $v.value.$touch();
+    
+    // Ensure URL starts with https://
+    if (state.value.ticketUrl && !state.value.ticketUrl.match(/^https:\/\//i)) {
+        // If URL doesn't start with http:// or https://, prepend https://
+        if (!state.value.ticketUrl.match(/^http:\/\//i)) {
+            state.value.ticketUrl = 'https://' + state.value.ticketUrl.replace(/^[\/\\]+/, '');
+        }
+    }
+    
+    // Only touch the ticketUrl field, not the entire validation object
+    $v.value.ticketUrl.$touch();
     state.value.ticketUrlError = $v.value.ticketUrl.$error;
 };
 
@@ -386,13 +516,17 @@ const selectCurrency = (currency) => {
 
 // 10. Helper Methods
 const formatPrice = (price) => {
+    if (price === '' || price === null || price === undefined) {
+        return '';
+    }
     return parseFloat(price).toFixed(2);
 };
 
 // 11. Component API
 defineExpose({
     isValid: async () => {
-        $v.value.$touch();
+        // This is where we want to check validation - only when the user tries to proceed
+        $v.value.$touch(); // Mark all fields as touched to trigger validation
         
         if (!state.value.ticketUrl) {
             state.value.ticketUrlError = true;
@@ -418,7 +552,7 @@ defineExpose({
     submitData: () => {
         const formattedTickets = tickets.map(ticket => ({
             name: ticket.name,
-            ticket_price: parseFloat(ticket.ticket_price), // Keep as ticket_price
+            ticket_price: ticket.ticket_price === '' ? 0 : parseFloat(ticket.ticket_price), // Convert empty to 0 for submission
             description: ticket.description || '',
             currency: ticket.currency || state.value.selectedCurrency
         }));
@@ -433,20 +567,50 @@ defineExpose({
 // 12. Watchers
 watch(() => state.value.currentMedia, (newIndex) => {
     if (tickets[newIndex]) {
-        state.value.formattedPrice = parseFloat(tickets[newIndex].ticket_price).toFixed(2);
+        if (tickets[newIndex].ticket_price !== '') {
+            state.value.formattedPrice = parseFloat(tickets[newIndex].ticket_price).toFixed(2);
+        } else {
+            state.value.formattedPrice = '';
+        }
         state.value.formattedName = tickets[newIndex].name;
         state.value.formattedDescription = tickets[newIndex].description;
         state.value.showAdditionalDetails = Boolean(tickets[newIndex].description);
+        
+        updateAvailableTicketOptions();
     }
 });
 
 // 13. Lifecycle Hooks
 onMounted(() => {
     if (tickets.length > 0) {
-        state.value.formattedPrice = parseFloat(tickets[state.value.currentMedia].ticket_price).toFixed(2);
+        // For existing tickets with price data, format it. Otherwise, leave it empty
+        if (tickets[state.value.currentMedia].ticket_price !== '') {
+            state.value.formattedPrice = parseFloat(tickets[state.value.currentMedia].ticket_price).toFixed(2);
+        } else {
+            state.value.formattedPrice = '';
+        }
+        
         state.value.formattedName = tickets[state.value.currentMedia].name;
         state.value.formattedDescription = tickets[state.value.currentMedia].description;
         state.value.showAdditionalDetails = Boolean(tickets[state.value.currentMedia].description);
+        
+        // Initialize available ticket options
+        updateAvailableTicketOptions();
+        
+        // Focus the price input with a small delay to ensure rendering
+        setTimeout(() => {
+            try {
+                if (priceInput && priceInput.value) {
+                    priceInput.value.focus();
+                } else {
+                    // Fallback to finding the input by name
+                    const pInput = document.querySelector('input[name="price"]');
+                    if (pInput) pInput.focus();
+                }
+            } catch (e) {
+                console.log('Could not focus price input', e);
+            }
+        }, 100);
     }
 });
 
@@ -470,8 +634,113 @@ const hasUrlError = computed(() =>
 );
 
 const ticketUrlSection = ref(null);
+const priceInput = ref(null);
+
+// Update the updateAvailableTicketOptions method to optionally include current ticket
+const updateAvailableTicketOptions = (includeCurrentOption = false) => {
+    // Get all currently used ticket names (except current ticket)
+    const usedNames = tickets
+        .filter((_, index) => includeCurrentOption ? index !== state.value.currentMedia : true)
+        .map(ticket => ticket.name.toLowerCase());
+    
+    // Filter out used options
+    state.value.availableTicketOptions = TICKET_NAME_OPTIONS.filter(
+        option => !usedNames.includes(option.name.toLowerCase())
+    );
+    
+    // If we're including the current option but it's not in the predefined options,
+    // add it as a custom option
+    if (includeCurrentOption && tickets[state.value.currentMedia]) {
+        const currentName = tickets[state.value.currentMedia].name;
+        const currentNameLower = currentName.toLowerCase();
+        
+        // Check if the current name is not already in the available options
+        const exists = state.value.availableTicketOptions.some(
+            option => option.name.toLowerCase() === currentNameLower
+        );
+        
+        if (!exists && currentName) {
+            state.value.availableTicketOptions.push({
+                id: currentNameLower,
+                name: currentName
+            });
+        }
+    }
+};
+
+// Add this computed property for current ticket name in proper format for the dropdown
+const currentTicketNameForDropdown = computed(() => {
+    const currentTicket = tickets[state.value.currentMedia];
+    if (!currentTicket || !currentTicket.name) return [];
+    
+    return [{
+        id: currentTicket.name.toLowerCase(),
+        name: currentTicket.name
+    }];
+});
+
+// Add this computed property for the current ticket to display in List
+const currentTicketItem = computed(() => {
+    const currentTicket = tickets[state.value.currentMedia];
+    if (!currentTicket || !currentTicket.name) return [];
+    
+    return [{
+        id: currentTicket.name.toLowerCase(),
+        name: currentTicket.name
+    }];
+});
+
+// Add a method to handle replacing the ticket type when clicking the "x" on the list item
+const replaceTicketType = (item) => {
+    // Clear the ticket name to make the dropdown visible again
+    tickets[state.value.currentMedia].name = '';
+    state.value.formattedName = '';
+    
+    // Update the available options to include previously used options
+    updateAvailableTicketOptions(true);
+};
+
+// Add this computed property for PWYC detection
+const isPWYCTicket = computed(() => {
+    return state.value.currentMedia !== null && 
+           tickets[state.value.currentMedia] && 
+           tickets[state.value.currentMedia].name && 
+           tickets[state.value.currentMedia].name.toLowerCase() === 'pwyc';
+});
 </script>
 <style>
 /* Your existing styles can remain unchanged */
+
+@keyframes wiggle {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(-2deg); }
+  50% { transform: rotate(0deg); }
+  75% { transform: rotate(2deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.hover\:wiggle:hover {
+  animation: wiggle 0.6s ease-in-out infinite;
+  color: #444; /* Darken the text slightly on hover */
+  transition: color 0.3s ease;
+  position: relative;
+}
+
+/* Add a subtle underline animation on hover */
+.hover\:wiggle::after {
+  content: '';
+  position: absolute;
+  bottom: 5px;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background-color: #000;
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.hover\:wiggle:hover::after {
+  transform: scaleX(1);
+}
 </style>
 

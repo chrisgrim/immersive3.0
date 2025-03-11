@@ -64,7 +64,7 @@
                         <!-- Tag Line Character Count -->
                         <div class="flex justify-end mt-1 relative" 
                              :class="{'text-red-500': isTagLineNearLimit, 'text-neutral-500': !isTagLineNearLimit}">
-                            {{ event.tag_line?.length || 0 }}/150
+                            {{ event.tag_line?.length || 0 }}/250
                             <!-- Tag Line Error Messages -->
                             <p v-if="showTagLineMaxLengthError" 
                                class="text-red-500 text-1xl px-4 absolute left-0 top-0">
@@ -154,7 +154,7 @@ const rules = {
         },
         tag_line: {
             required,
-            maxLength: maxLength(150),
+            maxLength: maxLength(250),
         },
     }
 };
@@ -218,8 +218,8 @@ const handleNameInput = () => {
 
 const handleTagLineInput = () => {
     $v.value.event.tag_line.$touch();
-    if (event.tag_line?.length > 150) {
-        event.tag_line = event.tag_line.slice(0, 150);
+    if (event.tag_line?.length > 250) {
+        event.tag_line = event.tag_line.slice(0, 250);
     }
 };
 

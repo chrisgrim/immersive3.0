@@ -1,13 +1,13 @@
 <template>
     <main class="w-full pb-24">
-        <template v-if="event.showtype=== null || event.showtype=== 'a'">
+        <div class="w-full md:w-1/2 mx-auto" v-if="event.showtype=== null || event.showtype=== 'a'">
             <h2>Do you have specific dates?</h2>
-        </template>
-        <template v-else>
+        </div>
+        <div v-else>
             <div v-if="!selectedDatesCount" class="px-8 md:px-0 pb-8">
                 <h2 class="text-black">Select Dates</h2>
             </div>
-            <div v-else class="flex justify-between items-center px-8 md:px-0 pb-8">
+            <div v-else class="flex justify-between items-center px-8 md:px-0 pb-8 w-full md:w-2/3 !pr-4">
                 <h2 class="text-black">{{ selectedDatesCount }} {{ selectedDatesCount === 1 ? 'Night' : 'Nights' }}</h2>
                 <div 
                     @mouseover="hoveredLocation = 'clearAllDates'" 
@@ -22,8 +22,8 @@
                 class="text-red-500 mb-2 p-8">
                 Please select at least one date
             </p>
-        </template>
-        <div v-if="event.showtype=== null || event.showtype=== 'a'">
+        </div>
+        <div class="w-full md:w-1/2 mx-auto" v-if="event.showtype=== null || event.showtype=== 'a'">
             <div class="flex flex-col w-full">
                 <div class="pt-16 flex flex-col gap-8">
                     <button 
@@ -71,154 +71,152 @@
         <div 
         v-else 
         class="relative rounded-4xl">
-        <div class="flex-grow border-[#222222] shadow-focus-black overflow-hidden rounded-2xl relative w-full  bg-white overflow-y-auto overflow-x-hidden h-[45rem]">
-                <div class="w-full h-full overflow-x-hidden">
-                    <VueDatePicker
-                        v-model="date"
-                        multi-dates
-                        disable-year-select
-                        disable-month-select
-                        :multi-calendars="displayedMonths"
-                        :enable-time-picker="false"
-                        :dark="isDark"
-                        :timezone="tz"
-                        :preview-date="new Date()"
-                        :min-date="new Date()"
-                        inline
-                        auto-apply
-                        @update:model-value="onDateSelect"
-                        month-name-format="long"
-                        hide-offset-dates
-                        :month-change-on-scroll="false"
-                        week-start="0"
-                    />
-                    
-                    <!-- Load More Button -->
-                    <div v-if="displayedMonths === 3" class="w-full flex justify-center my-8">
-                        <button 
-                            @click="loadMoreMonths"
-                            class="text-black underline font-semibold hover:text-gray-600"
-                        >
-                            Show more dates
-                        </button>
+            <!-- Create a flex container for desktop layout -->
+            <div class="w-full flex flex-col md:flex-row gap-6">
+                <!-- Calendar container - take most of the width on desktop -->
+                <div class="flex-grow border-[#222222] shadow-focus-black overflow-hidden rounded-2xl relative w-full md:w-2/3 bg-white overflow-y-auto overflow-x-hidden h-[45rem]">
+                    <div class="w-full h-full overflow-x-hidden">
+                        <VueDatePicker
+                            v-model="date"
+                            multi-dates
+                            disable-year-select
+                            disable-month-select
+                            :multi-calendars="displayedMonths"
+                            multi-calendars-solo
+                            :enable-time-picker="false"
+                            :dark="isDark"
+                            :timezone="tz"
+                            :preview-date="new Date()"
+                            :min-date="new Date()"
+                            inline
+                            auto-apply
+                            @update:model-value="onDateSelect"
+                            month-name-format="long"
+                            hide-offset-dates
+                            :month-change-on-scroll="false"
+                            week-start="0"
+                        />
+                        
+                        <!-- Load More Button -->
+                        <div v-if="displayedMonths < 6" class="w-full flex justify-center my-8">
+                            <button 
+                                @click="loadMoreMonths"
+                                class="text-black underline font-semibold hover:text-gray-600"
+                            >
+                                Show more dates
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="w-full h-full flex flex-col justify-between bg-white">
-                <div class="h-full flex flex-col justify-between mt-12">
-                    <div class="">
-                        <div v-if="selectedDatesCount" class="p-8 relative flex flex-col gap-4">
 
-                            <div v-if="promptVisible" 
-                                 class="p-4 rounded-2xl relative bg-black text-white border-black border hover:bg-neutral-800 transition-colors">
-                                <div class="cursor-pointer" @click="handlePromptYes">
-                                    <p class="text-white">{{ promptMessage }}</p>
-                                </div>
-                            </div>
+                <!-- Sidebar container - move to right on desktop -->
+                <div class="w-full md:w-1/3 flex flex-col justify-between bg-white mt-6 md:mt-0 md:pl-6">
+                    <div class="h-full flex flex-col justify-between">
+                        <div class="">
+                            <div class="p-8 relative flex flex-col gap-4">
 
-                            <div class="flex flex-col">
-                                <textarea 
-                                    name="Show times" 
-                                    class="text-2xl font-normal border rounded-2xl p-4 w-full" 
-                                    :class="{ 
-                                        'border-red-500 focus:shadow-focus-error': $v.event.show_times.$error,
-                                        'border-neutral-300 focus:border-[#222222] focus:shadow-focus-black': !$v.event.show_times.$error
-                                    }"
-                                    v-model="event.show_times" 
-                                    @input="$v.event.show_times.$touch"
-                                    placeholder="Please provide a brief description of your show times, e.g., doors open at 7 PM, show starts at 8 PM"
-                                    :rows="textareaRows"
-                                    style="white-space: pre-wrap;"
-                                ></textarea>
-                                <p v-if="$v.event.show_times.$dirty && $v.event.show_times.maxLength.$invalid" 
-                                   class="text-red-500 text-1xl mt-2 px-4">
-                                    Too many characters
-                                </p>
-                            </div>
-                            <div class="flex w-full border p-4 rounded-2xl border-neutral-300 hover:border-[#222222] hover:bg-neutral-50 hover:shadow-focus-black transition-all duration-200">
-                                <p class="text-lg">Timezone: </p>
-                                <select id="timezone" 
-                                        v-model="selectedTimezone" 
-                                        class="pl-2 ml-2 font-bold w-full cursor-pointer bg-transparent">
-                                    <option v-for="timezone in timezones" 
-                                            :key="timezone.name" 
-                                            :value="timezone.name">
-                                        {{ timezone.name }}
-                                    </option>
-                                </select>
-                            </div>
-
-                            <div class="flex flex-col gap-2">
-                                <div v-if="!hasEmbargoDate" class="flex items-center justify-between p-4 border border-neutral-300 rounded-2xl hover:border-[#222222]">
-                                    <div class="flex justify-between items-center w-full">
-                                        <span>Publish event the date it's approved</span>
-                                        <button 
-                                            @click="toggleEmbargoDate" 
-                                            class="px-4 py-2 border rounded-lg bg-black text-white"
-                                        >
-                                            Yes
-                                        </button>
+                                <div v-if="promptVisible" 
+                                     class="p-4 rounded-2xl relative bg-black text-white border-black border hover:bg-neutral-800 transition-colors">
+                                    <div class="cursor-pointer" @click="handlePromptYes">
+                                        <p class="text-white">{{ promptMessage }}</p>
                                     </div>
                                 </div>
-                                
-                                <div v-if="hasEmbargoDate" class="flex justify-between items-center">
-                                    <div @click="showEmbargoCalendar" class="cursor-pointer">
-                                        <p class="text-sm text-gray-600">Goes live:</p>
-                                        <p class="underline">{{ formattedEmbargoDate }}</p>
-                                    </div>
-                                    <div 
-                                        @mouseover="hoveredLocation = 'clearEmbargoDate'" 
-                                        @mouseout="hoveredLocation = null" 
-                                        @click="clearEmbargoToggle" 
-                                        class="cursor-pointer bg-white"
-                                    >
-                                        <component :is="hoveredLocation === 'clearEmbargoDate' ? RiCloseCircleFill : RiCloseCircleLine" />
+
+                                <div class="flex flex-col">
+                                    <textarea 
+                                        name="Show times" 
+                                        class="text-2xl font-normal border rounded-2xl p-4 w-full" 
+                                        :class="{ 
+                                            'border-red-500 focus:shadow-focus-error': $v.event.show_times.$error,
+                                            'border-neutral-300 focus:border-[#222222] focus:shadow-focus-black': !$v.event.show_times.$error
+                                        }"
+                                        v-model="event.show_times" 
+                                        @input="$v.event.show_times.$touch"
+                                        placeholder="Please provide a brief description of your show times, e.g., doors open at 7 PM, show starts at 8 PM"
+                                        :rows="textareaRows"
+                                        style="white-space: pre-wrap;"
+                                    ></textarea>
+                                    <p v-if="$v.event.show_times.$dirty && $v.event.show_times.maxLength.$invalid" 
+                                       class="text-red-500 text-1xl mt-2 px-4">
+                                        Too many characters
+                                    </p>
+                                </div>
+                                <div class="flex w-full border p-4 rounded-2xl border-neutral-300 hover:border-[#222222] hover:bg-neutral-50 hover:shadow-focus-black transition-all duration-200">
+                                    <p class="text-lg">Timezone: </p>
+                                    <select id="timezone" 
+                                            v-model="selectedTimezone" 
+                                            class="pl-2 ml-2 font-bold w-full cursor-pointer bg-transparent">
+                                        <option v-for="timezone in timezones" 
+                                                :key="timezone.name" 
+                                                :value="timezone.name">
+                                            {{ timezone.name }}
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div class="flex flex-col gap-2">
+                                    <div class="flex flex-col p-4 border border-neutral-300 rounded-2xl hover:border-[#222222]">
+                                        <div class="mb-2">
+                                            <p class="text-xl font-medium">Does the event have a specific embargo date?</p>
+                                            <p class="text-lg text-gray-600">(i.e. The date you would like it to first appear on EI)</p>
+                                        </div>
+                                        <div class="flex justify-between items-center w-full mt-2">
+                                            <ToggleSwitch 
+                                                v-model="embargoToggle" 
+                                                leftLabel="No" 
+                                                rightLabel="Yes" 
+                                                @update:modelValue="handleEmbargoToggleChange"
+                                            />
+                                            <div v-if="hasEmbargoDate" class="flex items-center cursor-pointer" @click="showEmbargoCalendar">
+                                                <p class="underline mr-2 text-1xl">{{ formattedEmbargoDate }}</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                            <!-- Embargo Calendar Modal -->
-                            <div v-if="showEmbargoModal" class="c-embargo fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                                <div class="bg-white p-8 rounded-2xl w-[600px]">
-                                    <h3 class="text-2xl mb-4">Choose when your event goes live</h3>
-                                    <VueDatePicker
-                                        v-model="tempEmbargoDate"
-                                        :enable-time-picker="false"
-                                        :dark="isDark"
-                                        :timezone="selectedTimezone"
-                                        :preview-date="new Date()"
-                                        :min-date="new Date()"
-                                        inline
-                                        auto-apply
-                                        month-name-format="long"
-                                        hide-offset-dates
-                                        :month-change-on-scroll="false"
-                                        week-start="0"
-                                        @update:model-value="selectEmbargoDate"
-                                        class="embargo-calendar"
-                                        style="width: 100%"                                    />
-                                    <div class="mt-4 flex justify-end gap-4">
-                                        <button 
-                                            @click="showEmbargoModal = false"
-                                            class="px-6 py-2 border rounded-lg hover:bg-gray-100"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button 
-                                            @click="confirmEmbargoDate"
-                                            class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
-                                        >
-                                            Confirm
-                                        </button>
+                                <!-- Embargo Calendar Modal -->
+                                <div v-if="showEmbargoModal" class="c-embargo fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                                    <div class="bg-white p-8 rounded-2xl w-[600px]">
+                                        <h3 class="text-2xl mb-4">Select when your event should appear on EI</h3>
+                                        <VueDatePicker
+                                            v-model="tempEmbargoDate"
+                                            :enable-time-picker="false"
+                                            :dark="isDark"
+                                            :timezone="selectedTimezone"
+                                            :preview-date="new Date()"
+                                            :min-date="new Date()"
+                                            inline
+                                            auto-apply
+                                            month-name-format="long"
+                                            hide-offset-dates
+                                            :month-change-on-scroll="false"
+                                            week-start="0"
+                                            @update:model-value="selectEmbargoDate"
+                                            class="embargo-calendar"
+                                            style="width: 100%"                                    />
+                                        <div class="mt-4 flex justify-end gap-4">
+                                            <button 
+                                                @click="cancelEmbargoDate"
+                                                class="px-6 py-2 border rounded-lg hover:bg-gray-100"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button 
+                                                @click="confirmEmbargoDate"
+                                                class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
+                                            >
+                                                Set Embargo Date
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="w-full flex justify-between p-8">
-                        <button @click="event.showtype = null" 
-                                class="mt-8 text-xl rounded-2xl hover:text-neutral-600 transition-colors underline">
-                            Switch show type
-                        </button>
+                        <div class="w-full flex justify-between p-8">
+                            <button @click="event.showtype = null" 
+                                    class="mt-8 text-xl rounded-2xl hover:text-neutral-600 transition-colors underline">
+                                Switch show type
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -260,6 +258,7 @@ import 'vue-cal/dist/vuecal.css';
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import { maxLength, required } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
+import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
 
 // 2. Injected Dependencies & Core State
 const event = inject('event');
@@ -268,6 +267,9 @@ const isSubmitting = inject('isSubmitting');
 const date = ref([]);
 const windowWidth = ref(0);
 const displayedMonths = ref(3);
+const isDesktop = computed(() => windowWidth.value >= 768);
+const calendarLayout = computed(() => isDesktop.value ? 'horizontal' : 'vertical');
+const initialMonthsToShow = computed(() => isDesktop.value ? 4 : 3);
 
 // 3. Calendar State
 const events = ref([]);
@@ -287,6 +289,7 @@ const userGMTOffset = ref('');
 const showEmbargoModal = ref(false);
 const tempEmbargoDate = ref(null);
 const showClearConfirmation = ref(false);
+const embargoToggle = ref(false);
 
 // 6. Validation Rules
 const rules = {
@@ -324,6 +327,12 @@ const textareaRows = computed(() => {
 
 const handleResize = () => {
     windowWidth.value = window?.innerWidth ?? 0;
+    
+    // Update displayedMonths based on screen size
+    // Only update if we're not already showing all 6 months
+    if (displayedMonths.value !== 6) {
+        displayedMonths.value = windowWidth.value >= 768 ? 4 : 3;
+    }
 };
 
 const checkFutureDates = (dateStr) => {
@@ -474,12 +483,19 @@ const confirmClearAllDates = () => {
 };
 
 // 12. Embargo Date Methods
-const toggleEmbargoDate = () => {
-    if (hasEmbargoDate.value) {
-        event.embargo_date = null;
-    } else {
+const handleEmbargoToggleChange = (value) => {
+    if (value) {
+        // Toggle set to "Yes" - show calendar
         showEmbargoCalendar();
+    } else {
+        // Toggle set to "No" - clear embargo date
+        event.embargo_date = null;
     }
+};
+
+const toggleEmbargoDate = () => {
+    embargoToggle.value = !embargoToggle.value;
+    handleEmbargoToggleChange(embargoToggle.value);
 };
 
 const showEmbargoCalendar = () => {
@@ -498,14 +514,25 @@ const confirmEmbargoDate = () => {
         const date = new Date(tempEmbargoDate.value);
         date.setUTCHours(12, 0, 0, 0);
         event.embargo_date = date.toISOString().slice(0, 19).replace('T', ' ');
+        embargoToggle.value = true; // Ensure toggle is set to Yes
         console.log('Set embargo_date to:', event.embargo_date);
         showEmbargoModal.value = false;
         tempEmbargoDate.value = null;
     }
 };
 
+const cancelEmbargoDate = () => {
+    // If user was trying to set an embargo date for the first time
+    // and then cancels, set the toggle back to No
+    if (!hasEmbargoDate.value) {
+        embargoToggle.value = false;
+    }
+    showEmbargoModal.value = false;
+};
+
 const clearEmbargoToggle = () => {
     event.embargo_date = null;
+    embargoToggle.value = false; // Set toggle to No
 };
 
 // 13. API Methods
@@ -555,6 +582,9 @@ onMounted(() => {
     selectedDates.value = [];
     events.value = [];
     
+    // Initialize embargo toggle based on existing embargo date
+    embargoToggle.value = !!event.embargo_date;
+    
     // Only set dates if we have shows and we're in specific dates mode
     if (event.shows?.length > 0 && event.showtype === 's') {
         const showDates = event.shows.map(show => {
@@ -581,7 +611,13 @@ onMounted(() => {
     }
     
     windowWidth.value = window?.innerWidth ?? 0;
+    displayedMonths.value = initialMonthsToShow.value;
     window?.addEventListener('resize', handleResize);
+});
+
+// Watch for changes to hasEmbargoDate to keep toggle in sync
+watch(hasEmbargoDate, (newValue) => {
+    embargoToggle.value = newValue;
 });
 
 onUnmounted(() => {
@@ -591,12 +627,20 @@ onUnmounted(() => {
 // 16. Utility Methods
 const loadMoreMonths = () => {
     displayedMonths.value = 6;
+    
+    // After setting the new value, force a re-render by updating a reactive property
     setTimeout(() => {
-        const calendar = document.querySelector('.custom-calendar');
-        if (calendar) {
-            const lastMonth = calendar.querySelector('.vuecal__month:last-child');
-            if (lastMonth) {
-                lastMonth.scrollIntoView({ behavior: 'smooth' });
+        // For desktop, scroll to the third row (5th calendar)
+        if (windowWidth.value >= 768) {
+            const allMonths = document.querySelectorAll('.dp__month_year_wrap');
+            if (allMonths && allMonths.length > 4) {
+                allMonths[4].scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        } else {
+            // For mobile, scroll to the 4th calendar
+            const allMonths = document.querySelectorAll('.dp__month_year_wrap');
+            if (allMonths && allMonths.length > 3) {
+                allMonths[3].scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         }
     }, 100);
@@ -858,4 +902,63 @@ const tz = computed(() => selectedTimezone.value);  // use the selected timezone
     display: none;
 }
 
+/* Add horizontal layout styles */
+@media (min-width: 768px) {
+    /* Calendar container styles */
+    .dp__instance_calendar {
+        width: 100% !important;
+    }
+    
+    /* Override the default display for the calendars container to create grid */
+    .dp__menu_inner {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 20px !important;
+        width: 100% !important;
+        padding: 1rem !important;
+    }
+    
+    /* Fix the calendar width in the grid */
+    .dp__calendar {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+    
+    /* Make calendar items slightly smaller on desktop grid */
+    .dp__calendar_item {
+        font-size: 1.2rem;
+    }
+    
+    /* Ensure the "Show more dates" button is full width */
+    .dp__menu_inner + div {
+        grid-column: span 2;
+    }
+    
+    /* Adjust height for the sidebar to match calendar */
+    .md\:w-1\/3 {
+        max-height: 45rem;
+        overflow-y: auto;
+    }
+}
+
+/* Ensure this doesn't interfere with our grid layout */
+.dp__menu_inner.dp__flex_display {
+    gap: 2rem;
+}
+@media (max-width: 767px) {
+    /* For mobile, keep original column layout */
+    .dp__menu_inner {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    
+    .dp__flex_display {
+        display: flex !important;
+    }
+}
+
+/* Optional: Apply smooth transition between layouts */
+.dp__calendar, .dp__menu_inner {
+    transition: all 0.3s ease-in-out;
+}
 </style>

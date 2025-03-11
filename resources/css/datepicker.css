@@ -1,0 +1,121 @@
+/* Remove the tabs at the top */
+.dp__menu_inner .dp__menu_items {
+   display: none !important;
+}
+
+/* Calendar styling */
+.dp__calendar {
+   width: 100% !important;
+}
+
+/* Header month/year styling */
+.dp__month_year_wrap {
+   font-size: 1.7rem;
+   font-weight: 400;
+}
+
+/* Calendar header (days of week) */
+.dp__calendar_header {
+   color: #666;
+   font-weight: normal;
+   margin-bottom: 8px;
+   font-size: 1.2rem;
+}
+
+.dp__calendar_row {
+   margin: 0 !important;
+   gap: 0 !important;
+}
+
+.dp__calendar_item {
+   margin: 0 !important;
+   padding: 0 !important;
+   font-size: 1.4rem;
+}
+
+/* Calendar cells */
+.dp__cell_inner {
+   height: 45px;
+   width: 45px;
+   margin: 0 !important;
+   padding: 0 !important;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   border-radius: 9999px;
+   font-weight: normal;
+   color: #333;
+}
+
+.dp__cell_disabled {
+   opacity: 0.3;
+   cursor: auto !important;
+}
+
+/* Hover state */
+.dp__cell_inner:not(.dp--past):hover {
+   border: 2px solid black !important;
+   background: transparent !important;
+   color: black !important;
+}
+
+/* Selected state */
+.dp__active {
+   background-color: black !important;
+   color: white !important;
+}
+
+/* Range styling */
+.dp__range_start,
+.dp__range_end {
+   background-color: black !important;
+   color: white !important;
+}
+
+.dp__range_start {
+   border-top-right-radius: 0 !important;
+   border-bottom-right-radius: 0 !important;
+}
+
+.dp__range_end {
+   border-top-left-radius: 0 !important;
+   border-bottom-left-radius: 0 !important;
+}
+
+.dp__range_between {
+   border-radius: 0 !important;
+}
+
+/* Navigation arrows */
+.dp__arrow_bottom,
+.dp__arrow_top {
+   display: none;
+}
+
+/* Today's date */
+.dp__today {
+   border: none !important;
+}
+
+/* Calendar container */
+.dp__main {
+   border: none;
+   box-shadow: none;
+}
+
+/* Remove borders */
+.dp__calendar_header_separator {
+   display: none;
+}
+.dp__theme_light {
+   border: none !important;
+}
+.dp--header-wrap {
+   margin-bottom: 1rem;
+}
+.dp__menu_inner.dp__flex_display {
+   gap: 4rem;
+}
+.dp__calendar_next {
+   margin-inline-start: 0 !important;
+} 

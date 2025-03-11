@@ -6,36 +6,8 @@
                 <h2 v-else class="text-black">Add additional images</h2>
             </div>
 
-            <!-- Show cropper when editing -->
-            <div v-if="showCropper" class="w-full flex justify-center">
-                <div class="w-[30rem]">
-                    <Cropper
-                        class="h-[40rem]"
-                        :src="cropperImage"
-                        :stencil-props="{
-                            aspectRatio: 3/4
-                        }"
-                        @change="onChange"
-                    />
-                    <div class="mt-4 flex justify-end gap-2">
-                        <button 
-                            @click="cancelCrop"
-                            class="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors duration-200"
-                        >
-                            Cancel
-                        </button>
-                        <button 
-                            @click="completeCrop"
-                            class="px-4 py-2 bg-[#222222] text-white rounded-lg hover:bg-neutral-800 transition-colors duration-200"
-                        >
-                            Save
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Show normal layout when not cropping -->
-            <div v-else>
+            <!-- Normal layout when not cropping -->
+            <div>
                 <!-- Rest of your existing template content -->
                 <div v-if="!mainImage" class="mb-8 flex flex-col items-center justify-center pt-12">
                     <!-- Empty Main Image Slot -->
@@ -173,6 +145,36 @@
             </div>
         </div>
     </main>
+
+    <!-- Teleport the cropper to body for fullscreen -->
+    <teleport to="body">
+        <div v-if="showCropper" class="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
+            <div class="w-full max-w-4xl h-[80vh]">
+                <Cropper
+                    class="h-full w-full"
+                    :src="cropperImage"
+                    :stencil-props="{
+                        aspectRatio: 3/4
+                    }"
+                    @change="onChange"
+                />
+                <div class="mt-6 flex justify-center gap-4">
+                    <button 
+                        @click="cancelCrop"
+                        class="px-6 py-3 border border-white text-white rounded-lg hover:bg-white/10 transition-colors duration-200"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        @click="completeCrop"
+                        class="px-6 py-3 bg-white text-black rounded-lg hover:bg-neutral-200 transition-colors duration-200"
+                    >
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </teleport>
 </template>
 
 <script setup>
@@ -580,6 +582,6 @@ const showMainImageError = ref(false);
 
 <style>
 .vue-advanced-cropper {
-    background-color: rgb(250 250 250);
+    background-color: rgba(30, 30, 30, 0.8);
 }
 </style>

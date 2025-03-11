@@ -20,7 +20,7 @@
             </svg>
         </a>
 
-        @if(!auth()->user()->hasCreatedOrganizers)
+        @if(!auth()->user()->organizer)
             <a href="/hosting/getting-started" class="flex items-center justify-between text-2xl py-4">
                 List Your Event
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

@@ -36,6 +36,9 @@
                 @fullMap="fullMap"
             />
         </div>
+        
+        <!-- Add ref to Nav component if it's used in this component -->
+        <Nav ref="childNav" v-if="false" />
     </div>
 </template>
 
@@ -46,6 +49,7 @@ import Nav from './Components/nav.vue'
 import EventList from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 import Map from './Components/map.vue'
+import eventStore from '@/Stores/EventStore'
 
 // Constants
 const DEFAULT_LOCATION = {
@@ -89,12 +93,15 @@ const events = ref({
 })
 const searchData = ref({ location: { ...DEFAULT_LOCATION } })
 const activeFilters = ref({ ...DEFAULT_FILTERS })
+const unsubscribe = ref(null)
+const isInitialLoad = ref(true)
 
 // Computed
 const hasEvents = computed(() => events.value.data && events.value.data.length)
 
 // URL Parameter Handling
 const buildSearchParams = (type, value) => {
+    console.log('buildSearchParams called with:', { type, value });
     const currentParams = new URLSearchParams(window.location.search)
     const params = new URLSearchParams()
 
@@ -128,30 +135,118 @@ const buildSearchParams = (type, value) => {
 
 // Filter Handling
 const handleFilterUpdate = async (event) => {
-    const { type, value } = event.detail
+    console.log('handleFilterUpdate called with:', event);
     
-    if (type === 'price') {
-        activeFilters.value.price = { min: value[0], max: value[1] }
-    } else if (type === 'location') {
-        searchData.value.location = {
-            ...searchData.value.location,
-            name: value.city,
-            center: [value.lat, value.lng],
-            live: false,
-            zoom: 13
-        }
-    } else {
-        activeFilters.value[type === 'category' ? 'categories' : type] = value
+    // CRITICAL FIX: Add debounce flag to prevent rapid successive calls
+    if (window._isProcessingFilterUpdate) {
+        console.log('Already processing a filter update, skipping...');
+        return;
     }
+    
+    // Set processing flag
+    window._isProcessingFilterUpdate = true;
+    
+    const { type, value } = event.detail;
     
     try {
-        const params = buildSearchParams(type, value)
-        const response = await axios.get(`/api/index/search?${params.toString()}`)
-        events.value = response.data
+        // Track what's changing to avoid unnecessary updates
+        let hasUpdated = false;
+        
+        if (type === 'price') {
+            // Only update if different
+            if (activeFilters.value.price.min !== value[0] || 
+                activeFilters.value.price.max !== value[1]) {
+                activeFilters.value.price = { min: value[0], max: value[1] };
+                hasUpdated = true;
+            }
+        } else if (type === 'location') {
+            // Ensure we have valid coordinates
+            const lat = value.lat || 40.7127753; // Default to New York if missing
+            const lng = value.lng || -74.0059728;
+            
+            // Check if location actually changed
+            const currentCenter = searchData.value.location.center || [];
+            const locationChanged = 
+                currentCenter[0] !== lat || 
+                currentCenter[1] !== lng ||
+                searchData.value.location.name !== value.city;
+            
+            if (locationChanged) {
+                searchData.value.location = {
+                    ...searchData.value.location,
+                    name: value.city,
+                    center: [lat, lng],
+                    live: false,
+                    zoom: 13
+                };
+                hasUpdated = true;
+            }
+            
+            // Update date filters if they exist in the location update
+            if ((value.startDate || value.endDate) && 
+                (activeFilters.value.dates.start !== value.startDate || 
+                 activeFilters.value.dates.end !== value.endDate)) {
+                activeFilters.value.dates = {
+                    start: value.startDate,
+                    end: value.endDate
+                };
+                hasUpdated = true;
+            }
+        } else {
+            // For other filters (categories, tags, etc.)
+            const currentValue = activeFilters.value[type === 'category' ? 'categories' : type];
+            // Simple comparison may not work for arrays - using JSON.stringify
+            if (JSON.stringify(currentValue) !== JSON.stringify(value)) {
+                activeFilters.value[type === 'category' ? 'categories' : type] = value;
+                hasUpdated = true;
+            }
+        }
+        
+        // Only proceed if something actually changed
+        if (hasUpdated) {
+            const params = buildSearchParams(type, value);
+            
+            // Make sure lat/lng are valid in params
+            if (!params.has('lat') || !params.has('lng') || 
+                params.get('lat') === 'undefined' || params.get('lng') === 'undefined') {
+                params.set('lat', '40.7127753');
+                params.set('lng', '-74.0059728');
+            }
+            
+            // Check if 'start' and 'end' parameters should be included
+            if (activeFilters.value.dates.start && !params.has('start')) {
+                params.set('start', activeFilters.value.dates.start);
+            }
+            if (activeFilters.value.dates.end && !params.has('end')) {
+                params.set('end', activeFilters.value.dates.end);
+            }
+            
+            // Update URL without triggering another filter-update event
+            const currentUrl = window.location.pathname + '?' + params.toString();
+            if (window.location.href !== currentUrl) {
+                // Use replaceState to avoid adding to browser history
+                window.history.replaceState(
+                    { preventFilterUpdate: true }, // Add a state object with a flag
+                    '', 
+                    currentUrl
+                );
+            }
+            
+            // Fetch updated data from API
+            const response = await axios.get(`/api/index/search?${params.toString()}`);
+            events.value = response.data;
+        } else {
+            console.log('No actual changes detected, skipping update');
+        }
     } catch (error) {
-        console.error('Error applying filters:', error)
+        console.error('Error applying filters:', error);
+    } finally {
+        // Clear the processing flag after a delay
+        setTimeout(() => {
+            window._isProcessingFilterUpdate = false;
+        }, 300);
     }
-}
+};
 
 // Initialization Methods
 const initializeFiltersFromUrl = () => {
@@ -192,23 +287,30 @@ const initializeLocationFromUrl = () => {
 
 // Event Handlers
 const onSubmit = () => {
-    if (childNav.value) {
-        childNav.value.onSearch()
-    } else {
-        console.warn('Nav component reference is not available')
+    // Just update the store with current map boundaries if needed
+    if (searchData.value.location.mapboundary) {
+        eventStore.update({
+            location: {
+                NElat: searchData.value.location.mapboundary.northEast.lat,
+                NElng: searchData.value.location.mapboundary.northEast.lng,
+                SWlat: searchData.value.location.mapboundary.southWest.lat,
+                SWlng: searchData.value.location.mapboundary.southWest.lng,
+                // Include other location data to be sure
+                city: searchData.value.location.name,
+                lat: searchData.value.location.center[0],
+                lng: searchData.value.location.center[1],
+                live: searchData.value.location.live
+            }
+        });
     }
-}
+};
 
 const updateEvents = (value) => events.value = value
 const fullMap = () => mapKey.value += 1
 
 const handlePageChange = (page) => {
-    if (childNav.value) {
-        childNav.value.onNext(page)
-        window.scrollTo(0, 0)
-    } else {
-        console.warn('Nav component reference is not available')
-    }
+    eventStore.changePage(page);
+    window.scrollTo(0, 0);
 }
 
 const clear = () => {
@@ -216,31 +318,58 @@ const clear = () => {
 }
 
 const handleCategoryFilter = async (categoryId) => {
-    try {
-        const params = new URLSearchParams(window.location.search)
-        params.set('category', categoryId)
-        const response = await fetch(`/api/events?${params.toString()}`)
-        events.value = await response.json()
-    } catch (error) {
-        console.error('Error filtering by category:', error)
-    }
+    // Update the EventStore with the new category
+    eventStore.update({
+        filters: {
+            categories: [categoryId]
+        }
+    });
 }
 
 // Lifecycle
 onMounted(() => {
-    window.addEventListener('filter-update', handleFilterUpdate)
-    initializeFiltersFromUrl()
-    initializeLocationFromUrl()
-    window.dispatchEvent(new CustomEvent('max-price-update', { detail: props.maxPrice }))
+    // Initialize store with any URL parameters
+    eventStore.initializeFromUrl();
+    
+    // Subscribe to changes from the EventStore
+    unsubscribe.value = eventStore.subscribe(state => {
+        // Don't update if this is our own change
+        if (eventStore.isUpdating && !isInitialLoad.value) return;
+        
+        // Update events data from store
+        if (state.events.data && state.events.data.length) {
+            events.value = state.events;
+        }
+        
+        // Update location data
+        if (state.location) {
+            searchData.value.location = {
+                ...searchData.value.location,
+                name: state.location.city || 'Search by City',
+                center: [state.location.lat || 40.7127753, state.location.lng || -74.0059728],
+                live: state.location.live || false,
+                zoom: 13 // Default zoom level
+            };
+        }
+        
+        // No longer initial load
+        isInitialLoad.value = false;
+    });
+    
+    // Fetch events on initial mount
+    if (window.location.pathname === '/index/search') {
+        eventStore.fetchEvents();
+    }
+    
+    // Send maxPrice to any listeners
+    window.dispatchEvent(new CustomEvent('max-price-update', { detail: props.maxPrice }));
 })
 
 onUnmounted(() => {
-    window.removeEventListener('filter-update', handleFilterUpdate)
+    if (unsubscribe.value) {
+        unsubscribe.value();
+    }
 })
 
-// Watchers
-watch(() => window.location.search, async (newSearch) => {
-    const categoryId = new URLSearchParams(newSearch).get('category')
-    if (categoryId) await handleCategoryFilter(categoryId)
-})
+// No need for URL watchers - store handles all URL interactions
 </script>

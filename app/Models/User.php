@@ -306,13 +306,14 @@ class User extends Authenticatable
     }
 
     /**
-    * Determine if the current user has created events
+    * Determine if the current user has created more than one organizer
     *
     * @return bool
     */
     public function getHasCreatedOrganizersAttribute()
     {
-        return $this->organizers()->count() || $this->teams()->count() ? true : false;    
+        $totalCount = $this->teams()->count();
+        return $totalCount > 1;
     }
 
     /**

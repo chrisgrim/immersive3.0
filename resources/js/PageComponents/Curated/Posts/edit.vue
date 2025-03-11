@@ -32,10 +32,10 @@
                         <div class="flex items-center gap-4">
                             <button 
                                 @click="handleNavigation(null)"
-                                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                                class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
                             >
                                 <svg 
-                                    class="w-8 h-8" 
+                                    class="w-10 h-10" 
                                     viewBox="0 0 24 24" 
                                     fill="none" 
                                     stroke="currentColor" 

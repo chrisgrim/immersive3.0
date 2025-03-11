@@ -5,29 +5,38 @@
 			<div class="w-full flex flex-col">
 				<!-- Organizer Name and Create Button -->
 				<div class="w-full flex items-center justify-between mb-20 shadow-custom-6 md:shadow-none p-8 md:p-0 rounded-2xl">
-					<a :href="`/organizers/${organizer.slug}`" class="group flex flex-row items-center gap-8">
-						<!-- Organizer Image -->
-						<template v-if="organizer.images?.length > 0">
-							<picture class="w-20 h-20 flex-shrink-0">
-								<source 
-									:srcset="`${imageUrl}${organizer.images[0].large_image_path}`"
-									type="image/webp"
-								>
-								<img 
-									:src="`${imageUrl}${organizer.images[0].large_image_path}`"
-									class="w-20 h-20 rounded-full object-cover"
-									alt="Organizer image"
-								/>
-							</picture>
-						</template>
-						<div v-else class="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-							<span class="text-2xl font-bold text-gray-400">
-								{{ organizer.name?.charAt(0).toUpperCase() || '?' }}
-							</span>
-						</div>
+					<div class="flex flex-col">
+						<a :href="`/organizers/${organizer.slug}`" class="group flex flex-row items-center gap-8">
+							<!-- Organizer Image -->
+							<template v-if="organizer.images?.length > 0">
+								<picture class="w-20 h-20 flex-shrink-0">
+									<source 
+										:srcset="`${imageUrl}${organizer.images[0].large_image_path}`"
+										type="image/webp"
+									>
+									<img 
+										:src="`${imageUrl}${organizer.images[0].large_image_path}`"
+										class="w-20 h-20 rounded-full object-cover"
+										alt="Organizer image"
+									/>
+								</picture>
+							</template>
+							<div v-else class="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+								<span class="text-2xl font-bold text-gray-400">
+									{{ organizer.name?.charAt(0).toUpperCase() || '?' }}
+								</span>
+							</div>
+							
+							<h2 class="text-2xl md:text-5xl font-medium group-hover:underline break-words hyphens-auto leading-tight">{{organizer.name}}</h2>
+						</a>
 						
-						<h2 class="text-2xl md:text-5xl font-medium group-hover:underline break-words hyphens-auto leading-tight">{{organizer.name}}</h2>
-					</a>
+						<!-- Switch Organization Link -->
+						<a v-if="user.hasCreatedOrganizers" 
+						   href="/teams" 
+						   class="text-xl mt-4 text-gray-500 hover:text-black ml-28 md:ml-28">
+						   Switch Organization
+						</a>
+					</div>
 					
 					<div class="hidden md:flex gap-4">
 						<a :href="`/organizers/${organizer.slug}/edit`" class="cursor-pointer">

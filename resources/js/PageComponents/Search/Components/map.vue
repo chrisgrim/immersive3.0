@@ -1,6 +1,6 @@
 <template>
     <section 
-        :class="[ isFullMap ? 'w-full overflow-hidden mt-64' : 'w-[41%]' ]"
+        :class="[ isFullMap ? 'w-full overflow-hidden mt-32' : 'w-[41%]' ]"
         class="fixed h-[calc(100vh-8rem)] right-0 top-0">
         <div 
             :class="[ isFullMap ? 'relative' : 'sticky top-32' ]"

@@ -5,14 +5,14 @@
             <template v-if="user">
                 <div 
                     class="relative ml-8" 
-                    v-if="!user.hasCreatedOrganizers">
+                    v-if="!user.organizer">
                     <a href="/hosting/getting-started">
                         <span class="text-xl font-medium hover:text-black hover:font-semibold">Submit Your Experience</span>
                     </a>
                 </div>
                 <div 
                     class="relative ml-8" 
-                    v-if="user.hasCreatedOrganizers && user.organizer">
+                    v-if="user.organizer">
                     <a href="/hosting/events">
                         <span class="text-xl font-medium hover:text-black hover:font-semibold truncate block max-w-[200px]">
                             {{user.organizer.name}}
@@ -94,7 +94,7 @@
                             User Settings
                         </a>
                         <a 
-                            v-if="!user.hasCreatedOrganizers"
+                            v-if="!user.organizer"
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
                             href="/hosting/getting-started">
                             List Your Event

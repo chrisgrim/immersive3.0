@@ -26,10 +26,7 @@
         <!-- Main Content Area (with proper scrolling) -->
         <div class="flex-1 overflow-y-auto">
             <div class="max-w-screen-xl mx-auto min-h-full flex">
-                <div :class="[
-                    'w-full mx-auto pt-40 md:pb-20',
-                    currentComponent.__name === 'images' ? 'lg:w-2/3' : 'lg:w-1/2'
-                ]">
+                <div :class="['w-full mx-auto pt-40 md:pb-20', containerWidthClass]">
                     <div class="h-full flex p-8">
                         <component :is="currentComponent" ref="currentComponentRef" />
                     </div>
@@ -161,6 +158,13 @@ const isLastStep = computed(() => currentStepIndex.value === steps.value.length 
 const progress = computed(() => ((currentStepIndex.value + 1) / steps.value.length) * 100);
 const isComponentReady = ref(true); // Default to true
 
+const containerWidthClass = computed(() => {
+    const componentName = currentComponent.value.__name?.toLowerCase();
+    
+    if (componentName === 'dates') return 'lg:w-full';
+    if (componentName === 'images') return 'lg:w-2/3';
+    return 'lg:w-1/2';
+});
 
 const goToPrevious = () => {
     if (!isFirstStep.value) {
