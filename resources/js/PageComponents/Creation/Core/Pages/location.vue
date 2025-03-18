@@ -1,15 +1,15 @@
 <template>
     <div class="w-full">
         <div class="relative w-full">
-            <div class="w-full mb-16">
+            <div class="w-full mb-12">
                 <h2 v-if="locationSearch" class="text-black">Where is your event located?</h2>
                 <h2 v-else class="text-black">Does this look right?</h2>
-                <p v-if="locationSearch" class="text-neutral-500 font-normal mt-4">Enter your address and select from the dropdown.</p>
                 <p v-else class="text-gray-500 font-normal mt-4">Make sure to double check your location and address.</p>
             </div>
+            
             <div 
                 v-if="!locationSearch"
-                class="relative h-full overflow-auto flex items-center justify-center">
+                class="relative h-full overflow-auto flex items-center justify-center mb-8">
                 <div class="w-full bg-white rounded-3xl">
                     <div class="font-light">
                         <!-- Venue Input -->
@@ -41,14 +41,48 @@
                             </div>
                         </div>
                     </div>
-                    <div class="w-full flex justify-between items-center py-8">
-                        <p class="text-xl">Hide specific location from users </p>
-                        <div @click="toggleHiddenLocation" class="w-12 h-12 cursor-pointer flex justify-center items-center">
-                            <component :is="event.location.hiddenLocationToggle ? RiCheckboxLine : RiCheckboxBlankLine" />
-                        </div>
-                    </div>
                 </div>
             </div>
+
+            <!-- Secret Location Controls - Moved here and always visible -->
+            <div class="w-full mb-8">
+                <div class="w-full flex justify-between items-center">
+                    <p class="text-xl font-medium">Is your location a secret?</p>
+                    <ToggleSwitch 
+                        v-model="event.location.hiddenLocationToggle" 
+                        leftLabel="No" 
+                        rightLabel="Yes" 
+                    />
+                </div>
+                
+                <!-- Conditional textarea for location notification instructions -->
+                <div v-if="event.location.hiddenLocationToggle" class="mt-6 relative">
+                    <textarea 
+                        v-model="event.location.hiddenLocation"
+                        :class="[
+                            'text-2xl font-normal border rounded-2xl p-4 w-full transition-all duration-200',
+                            {
+                                'border-red-500 focus:border-red-500 focus:shadow-focus-error': hiddenLocationError,
+                                'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !hiddenLocationError
+                            }
+                        ]"
+                        placeholder="Please enter how participants will be notified of the location."
+                        rows="3"
+                        @input="hiddenLocationError = false"
+                    ></textarea>
+                    <p v-if="hiddenLocationError" 
+                       class="text-red-500 text-1xl mt-2 px-4">
+                        Please explain how participants will be notified of the location
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Note about secret locations -->
+            <div v-if="event.location.hiddenLocationToggle && locationSearch" class="w-full mb-8 p-4 bg-yellow-50 border border-yellow-200 rounded-2xl">
+                <p class="text-gray-700">Please enter address or zipcode. We will hide the details otherwise events will overlap on the map.</p>
+            </div>
+
+
             <div class="w-full overflow-hidden rounded-3xl relative" 
                 :class="{ 'h-[45rem]': locationSearch, 'h-[30rem]': !locationSearch }">
                 <div 
@@ -59,10 +93,16 @@
                             class="absolute z-[1002] w-8 mt-7 ml-8" 
                             src="/storage/images/vendor/leaflet/dist/marker-icon-2x.png">
                         <input 
-                            class="relative rounded-full p-10 pl-24 shadow-custom-6 w-full font-medium z-40 border-neutral-300 focus:shadow-none"
+                            :class="[
+                                'relative rounded-full p-10 pl-24 shadow-custom-6 w-full font-medium z-40 transition-all duration-200',
+                                {
+                                    'border border-red-500 focus:border-red-500 shadow-focus-error': addressInputError,
+                                    'border-neutral-300 focus:shadow-none': !addressInputError
+                                }
+                            ]"
                             v-model="userInput"
                             placeholder="Enter Address"
-                            @input="updateLocations"
+                            @input="handleAddressInput"
                             @focus="dropdown=true"
                             autocomplete="false"
                             onfocus="value = ''" 
@@ -91,11 +131,12 @@
                     :center="map.center" 
                     style="height:100%; width:100%;"
                     @ready="onMapReady"
+                    :class="{ 'initial-search': locationSearch }"
                     :options="{ scrollWheelZoom: false, zoomControl: true }">
                     <l-tile-layer :url="map.url" />
                     <l-marker 
                         :lat-lng="map.center"
-                        :icon="icon">
+                        :icon="markerIcon">
                     </l-marker>
                 </l-map> 
             </div>
@@ -105,11 +146,12 @@
 
 
 <script setup>
-import { ref, onMounted, onUnmounted, inject } from 'vue';
+import { ref, onMounted, onUnmounted, inject, computed } from 'vue';
 import { LMap, LTileLayer, LMarker, LIcon } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet";
 import 'leaflet/dist/leaflet.css'
 import { RiCheckboxBlankLine, RiCheckboxLine } from "@remixicon/vue";
+import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
 
 const event = inject('event');
 const errors = inject('errors');
@@ -124,50 +166,132 @@ const userInput = ref('');
 const places = ref([]);
 const dropdown = ref(false);
 const locationSearch = ref(!event.location.latitude);
+const hiddenLocationError = ref(false);
+const addressInputError = ref(false);
 
-const icon = L.divIcon({
-    className: 'custom-div-icon',
-    html: `
-        <div style="position: relative; width: 30px; height: 30px;">
-            <div style="
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                width: 25px;
-                height: 25px;
-                background: #ff385c;
-                border: 3.5px solid white;
-                border-radius: 50%;
-                box-shadow: 0 0 0 5px #ff385c;
-            "></div>
-            <div style="
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                width: 40px;
-                height: 40px;
-                background: rgba(255, 56, 92, 0.35);
-                border-radius: 50%;
-                animation: markerPulse 2s infinite;
-            "></div>
-        </div>
-        <style>
-            @keyframes markerPulse {
-                0% {
-                    transform: translate(-50%, -50%) scale(1);
-                    opacity: 1;
-                }
-                100% {
-                    transform: translate(-50%, -50%) scale(3);
-                    opacity: 0;
-                }
-            }
-        </style>
-    `,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15]
+const markerIcon = computed(() => {
+    if (event.location.hiddenLocationToggle) {
+        // Secret location icon - transparent with expanding red outline
+        return L.divIcon({
+            className: 'custom-div-icon secret-location',
+            html: `
+                <div style="position: relative; width: 150px; height: 150px;">
+                    <!-- Static inner circle - transparent with red outline -->
+                    <div style="
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        width: 70px;
+                        height: 70px;
+                        background: transparent;
+                        border: 8.5px solid transparent;
+                        border-radius: 50%;
+                        box-shadow: 0 0 0 5px #ff385c;
+                    "></div>
+                    
+                    <!-- First animated pulse ring -->
+                    <div style="
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        width: 70px;
+                        height: 70px;
+                        border: 5px solid #ff385c;
+                        border-radius: 50%;
+                        animation: secretPulse1 3s infinite;
+                        opacity: 0.7;
+                    "></div>
+                    
+                    <!-- Second animated pulse ring (delayed) -->
+                    <div style="
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        width: 70px;
+                        height: 70px;
+                        border: 5px solid #ff385c;
+                        border-radius: 50%;
+                        animation: secretPulse2 3s infinite;
+                        animation-delay: 1.5s;
+                        opacity: 0.5;
+                    "></div>
+                </div>
+                <style>
+                    @keyframes secretPulse1 {
+                        0% {
+                            transform: translate(-50%, -50%) scale(1);
+                            opacity: 0.7;
+                        }
+                        100% {
+                            transform: translate(-50%, -50%) scale(2);
+                            opacity: 0;
+                        }
+                    }
+                    @keyframes secretPulse2 {
+                        0% {
+                            transform: translate(-50%, -50%) scale(1);
+                            opacity: 0.5;
+                        }
+                        100% {
+                            transform: translate(-50%, -50%) scale(2);
+                            opacity: 0;
+                        }
+                    }
+                </style>
+            `,
+            iconSize: [150, 150],  // Increased size to accommodate the animation
+            iconAnchor: [75, 75]   // Adjusted anchor point
+        });
+    } else {
+        // Regular location icon
+        return L.divIcon({
+            className: 'custom-div-icon',
+            html: `
+                <div style="position: relative; width: 30px; height: 30px;">
+                    <div style="
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        width: 25px;
+                        height: 25px;
+                        background: #ff385c;
+                        border: 3.5px solid white;
+                        border-radius: 50%;
+                        box-shadow: 0 0 0 5px #ff385c;
+                    "></div>
+                    <div style="
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        width: 40px;
+                        height: 40px;
+                        background: rgba(255, 56, 92, 0.35);
+                        border-radius: 50%;
+                        animation: markerPulse 2s infinite;
+                    "></div>
+                </div>
+                <style>
+                    @keyframes markerPulse {
+                        0% {
+                            transform: translate(-50%, -50%) scale(1);
+                            opacity: 1;
+                        }
+                        100% {
+                            transform: translate(-50%, -50%) scale(3);
+                            opacity: 0;
+                        }
+                    }
+                </style>
+            `,
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+        });
+    }
 });
 
 function initializeMapObject() {
@@ -198,6 +322,11 @@ const updateLocations = () => {
     autoComplete.value.getPlacePredictions({ input: userInput.value }, data => {
         places.value = data || [];
     });
+};
+
+const handleAddressInput = () => {
+    addressInputError.value = false;
+    updateLocations();
 };
 
 const mapRef = ref(null);
@@ -259,6 +388,7 @@ const setPlace = (place) => {
         postal_code: getAddressComponent('postal_code') || '',
         country: getAddressComponent('country') || '',
         hiddenLocationToggle: event.location?.hiddenLocationToggle || false,
+        hiddenLocation: event.location?.hiddenLocation || '',
         venue: currentVenue
     };
 
@@ -268,10 +398,6 @@ const setPlace = (place) => {
             lng: place.geometry.location.lng() 
         };
     }
-};
-
-const toggleHiddenLocation = () => {
-    event.location.hiddenLocationToggle = !event.location.hiddenLocationToggle;
 };
 
 onMounted(() => {
@@ -320,9 +446,27 @@ onUnmounted(() => {
 
 defineExpose({
     isValid: async () => {
+        // Reset error states
+        hiddenLocationError.value = false;
+        addressInputError.value = false;
+        
+        // If in search mode and no address entered
+        if (locationSearch.value && !userInput.value) {
+            errors.value = { location: ['Please enter and select an address'] };
+            addressInputError.value = true;
+            return false;
+        }
+        
         // Validate venue length
         if (event.location.venue?.length > 80) {
             errors.value = { location: ['Venue name cannot exceed 80 characters'] };
+            return false;
+        }
+
+        // Validate hidden location description if location is secret
+        if (event.location.hiddenLocationToggle && !event.location.hiddenLocation) {
+            errors.value = { location: ['Please explain how participants will be notified of the location'] };
+            hiddenLocationError.value = true;
             return false;
         }
 
@@ -333,6 +477,10 @@ defineExpose({
         
         if (!isValid) {
             errors.value = { location: ['Please select a valid location'] };
+            // If in search mode, highlight the address input
+            if (locationSearch.value) {
+                addressInputError.value = true;
+            }
         }
         
         return isValid;
@@ -348,7 +496,8 @@ defineExpose({
             postal_code: event.location.postal_code,
             country: event.location.country,
             venue: event.location.venue,
-            hiddenLocationToggle: event.location.hiddenLocationToggle
+            hiddenLocationToggle: event.location.hiddenLocationToggle,
+            hiddenLocation: event.location.hiddenLocation
         }
     })
 });
@@ -375,6 +524,9 @@ defineExpose({
     line-height: 40px;
 }
 .leaflet-control-attribution {
+    display: none;
+}
+.initial-search .leaflet-control-container {
     display: none;
 }
 </style>

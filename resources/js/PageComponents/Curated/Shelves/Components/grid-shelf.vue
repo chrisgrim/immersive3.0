@@ -28,9 +28,6 @@
                             <div class="font-medium whitespace-normal">
                                 <p class="text-3xl md:text-4xl leading-tight text-black">{{ post.name }}</p>
                             </div>
-                            <div class="mt-2 text-lg md:text-xl text-gray-500">
-                                {{ formatDate(post.created_at) }}
-                            </div>
                         </div>
                     </div>
                 </div>

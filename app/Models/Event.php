@@ -560,4 +560,31 @@ class Event extends Model
         ]);
     }
 
+    /**
+     * Get tickets from just the first show as an accessor
+     *
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getFirstShowTicketsAttribute()
+    {
+        // First check if shows are already loaded to avoid additional query
+        if ($this->relationLoaded('shows')) {
+            $firstShow = $this->shows->first();
+            
+            // If the first show exists and tickets are loaded
+            if ($firstShow && $firstShow->relationLoaded('tickets')) {
+                return $firstShow->tickets;
+            }
+            
+            // If the first show exists but tickets aren't loaded
+            if ($firstShow) {
+                return $firstShow->tickets()->get();
+            }
+        }
+        
+        // Fall back to query if shows aren't loaded
+        $firstShow = $this->shows()->with('tickets')->orderBy('date', 'asc')->first();
+        return $firstShow ? $firstShow->tickets : collect();
+    }
+
 }

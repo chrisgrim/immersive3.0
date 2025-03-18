@@ -27,7 +27,7 @@ class EventController extends Controller
     public function show(Event $event)
     {
         abort_if($event->status !== 'p', 404);
-
+        
         $event->load([
             'category',
             'location',
@@ -42,10 +42,12 @@ class EventController extends Controller
             'genres',
             'priceranges',
             'organizer',
-            'shows.tickets',
+            'shows',
             'age_limits',
             'images'
         ]);
+        
+        $event->append('first_show_tickets');
 
         return view('events.show', compact('event'));
     }

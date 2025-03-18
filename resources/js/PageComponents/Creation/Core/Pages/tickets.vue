@@ -5,7 +5,9 @@
             <!-- Price Section -->
             <div class="mt-12">
                 <div class="flex items-center">
+                    <!-- Currency symbol - hide for Free and PWYC tickets -->
                     <span 
+                        v-if="!isPWYCTicket && !isFreeTicket"
                         class="text-[6rem] md:text-[9.5rem] font-bold text-heavy leading-tight cursor-pointer hover:wiggle"
                         @click="toggleCurrencyDropdown"
                     >{{ state.selectedCurrency }}</span>
@@ -13,15 +15,24 @@
                     <!-- Show PWYC text when PWYC ticket type is selected -->
                     <span 
                         v-if="isPWYCTicket"
-                        class="text-[6rem] md:text-[9.5rem] font-bold text-heavy w-full overflow-hidden leading-tight ml-4"
+                        class="text-[6rem] md:text-[9.5rem] font-bold text-heavy w-full overflow-hidden leading-tight"
+                        :class="{'ml-4': !isPWYCTicket && !isFreeTicket}"
                     >PWYC</span>
                     
-                    <!-- Regular price input for non-PWYC ticket types -->
+                    <!-- Show Free text when Free ticket type is selected -->
+                    <span 
+                        v-else-if="isFreeTicket"
+                        class="text-[6rem] md:text-[9.5rem] font-bold text-heavy w-full overflow-hidden leading-tight"
+                        :class="{'ml-4': !isPWYCTicket && !isFreeTicket}"
+                    >Free</span>
+                    
+                    <!-- Regular price input for standard ticket types -->
                     <input
                         v-else-if="state.currentMedia !== null && tickets[state.currentMedia]"
                         type="text"
                         name="price"
-                        class="text-[6rem] md:text-[9.5rem] font-bold text-heavy w-full overflow-hidden leading-tight ml-4 placeholder-neutral-300 placeholder-opacity-50"
+                        class="text-[6rem] md:text-[9.5rem] font-bold text-heavy w-full overflow-hidden leading-tight placeholder-neutral-300 placeholder-opacity-50"
+                        :class="{'ml-4': !isPWYCTicket && !isFreeTicket}"
                         v-model="state.formattedPrice"
                         @input="updateTicketPrice"
                         @focus="selectPriceInput"
@@ -95,7 +106,7 @@
                     </div>
                 </div>
 
-                <div v-if="tickets[0].ticket_price && tickets[0].name">
+                <div v-if="tickets[0].name && (tickets[0].ticket_price !== undefined && tickets[0].ticket_price !== null)">
 
                     <!-- Additional Details Input -->
                     <div class="mt-8">
@@ -124,26 +135,9 @@
                         </div>
                     </div>
 
-                    <div class="mt-8" ref="ticketUrlSection">
-                        <input 
-                            class="w-full border border-neutral-300 text-[#222222] text-3xl p-4 rounded-2xl relative transition-all duration-200"
-                            :class="{ 
-                                'border-red-500 focus:shadow-focus-error': hasUrlError,
-                                'hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !hasUrlError
-                            }"
-                            type="url" 
-                            v-model="state.ticketUrl" 
-                            placeholder="Ticket Url"
-                            @input="validateTicketUrl"
-                            maxlength="255"
-                        >
-                        <div v-if="state.ticketUrlError || (!state.ticketUrl && $v.$dirty)" 
-                            class="text-red-500 text-1xl mt-2 px-4">
-                            {{ !state.ticketUrl ? 'Ticket URL is required' : 'Please enter a valid URL (e.g., https://example.com)' }}
-                        </div>
-                    </div>
+                    
 
-                    <div class="grid grid-cols-3 gap-4 mt-24">
+                    <div class="grid grid-cols-3 gap-4 mt-12">
                         <div 
                             v-for="(ticket, index) in tickets" 
                             :key="index" 
@@ -151,17 +145,22 @@
                             @mouseleave="state.hoveredLocation = null"
                             @click="handleDivClick(index)"
                             :class="{
-                                'border-neutral-300': !ticket.ticket_price && state.currentMedia !== index,
-                                'border-[#222222] shadow-focus-black bg-neutral-50': state.currentMedia === index,
+                                'border-neutral-300': !ticket.ticket_price && state.currentMedia !== index && !hasTicketError(index),
+                                'border-[#222222] shadow-focus-black bg-neutral-50': state.currentMedia === index && !hasTicketError(index),
+                                'border-red-500 shadow-focus-error': hasTicketError(index)
                             }"
                             class="relative h-48 flex flex-col items-start justify-between p-4 border rounded-2xl transition-all duration-200 hover:border-[#222222] hover:shadow-focus-black"
                         >
                             <div 
-                                v-if="tickets.length > 1"
+                                v-if="tickets.length > 1 && state.hoveredLocation === index"
                                 @click.stop="removeTicket(index)" 
-                                class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white p-[0.1rem] rounded-full"
+                                class="absolute top-[-1rem] right-[-1rem] bg-white p-[0.1rem] rounded-full opacity-0 transition-opacity duration-200 hover:opacity-100 z-10 ticket-delete-btn"
+                                :class="{ 'opacity-100': state.hoveredLocation === index }"
                             >
-                                <component :is="state.hoveredLocation === index ? RiCloseCircleFill : RiCloseCircleLine" />
+                                <component 
+                                    :is="RiCloseCircleFill" 
+                                    class="text-red-500 hover:text-red-600 transition-colors ticket-delete-icon" 
+                                />
                             </div>
                             <div class="flex items-start justify-start w-full h-16 rounded-2xl">
                                 <span class="overflow-hidden w-full break-words hyphens-auto">
@@ -189,7 +188,25 @@
                             <span class="text-lg">Add Ticket Type</span>
                         </div>
                     </div>
-                    
+
+                    <div class="mt-12" ref="ticketUrlSection">
+                        <input 
+                            class="w-full border border-neutral-300 text-[#222222] text-3xl p-4 rounded-2xl relative transition-all duration-200"
+                            :class="{ 
+                                'border-red-500 focus:shadow-focus-error': hasUrlError,
+                                'hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !hasUrlError
+                            }"
+                            type="url" 
+                            v-model="state.ticketUrl" 
+                            placeholder="Ticket Url"
+                            @input="validateTicketUrl"
+                            maxlength="255"
+                        >
+                        <div v-if="state.ticketUrlError || (!state.ticketUrl && $v.$dirty)" 
+                            class="text-red-500 text-1xl mt-2 px-4">
+                            {{ !state.ticketUrl ? 'Ticket URL is required' : 'Please enter a valid URL (e.g., https://example.com)' }}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -707,6 +724,63 @@ const isPWYCTicket = computed(() => {
            tickets[state.value.currentMedia].name && 
            tickets[state.value.currentMedia].name.toLowerCase() === 'pwyc';
 });
+
+// Add a new computed property for Free tickets
+const isFreeTicket = computed(() => {
+    return state.value.currentMedia !== null && 
+           tickets[state.value.currentMedia] && 
+           tickets[state.value.currentMedia].name && 
+           tickets[state.value.currentMedia].name.toLowerCase() === 'free';
+});
+
+// Add this helper method to validate tickets more accurately
+const isValidTicket = (ticket) => {
+    // If the ticket has no name, it's not valid
+    if (!ticket.name) return false;
+    
+    // Special handling for Free and PWYC tickets
+    const lowerName = ticket.name.toLowerCase();
+    if (lowerName === 'free' || lowerName === 'pwyc') return true;
+    
+    // For regular tickets, check that the price is not undefined/null/empty
+    return ticket.ticket_price !== undefined && 
+           ticket.ticket_price !== null && 
+           ticket.ticket_price !== '';
+};
+
+// Add this helper method to check if a ticket has validation errors
+const hasTicketError = (index) => {
+    // Skip validation if ticket is not dirty
+    if (!$v.value.tickets.$dirty) return false;
+    
+    const ticket = tickets[index];
+    
+    // Check for price errors (exclude Free and PWYC tickets)
+    const isPWYC = ticket.name && ticket.name.toLowerCase() === 'pwyc';
+    const isFree = ticket.name && ticket.name.toLowerCase() === 'free';
+    
+    if (!isPWYC && !isFree) {
+        // Validate price is present and valid
+        if (ticket.ticket_price === undefined || 
+            ticket.ticket_price === null || 
+            ticket.ticket_price === '') {
+            return true;
+        }
+        
+        // Check numeric constraints
+        if (parseFloat(ticket.ticket_price) < 0 || 
+            parseFloat(ticket.ticket_price) > MAX_TICKET_PRICE) {
+            return true;
+        }
+    }
+    
+    // Check name errors
+    if (!ticket.name) {
+        return true;
+    }
+    
+    return false;
+};
 </script>
 <style>
 /* Your existing styles can remain unchanged */
@@ -741,6 +815,26 @@ const isPWYCTicket = computed(() => {
 
 .hover\:wiggle:hover::after {
   transform: scaleX(1);
+}
+
+/* Force cursor for delete button */
+html body .ticket-delete-btn,
+html body .ticket-delete-btn *,
+html body .ticket-delete-icon,
+html body .ticket-delete-icon *,
+html body .ticket-delete-btn svg,
+html body .ticket-delete-icon svg {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+
+/* Add hover effect for delete button */
+.ticket-delete-btn:hover .ticket-delete-icon {
+  transform: scale(1.1);
+}
+
+.ticket-delete-icon {
+  transition: transform 0.2s ease;
 }
 </style>
 

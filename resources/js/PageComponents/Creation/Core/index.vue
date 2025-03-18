@@ -55,6 +55,15 @@
                 </button>
                 <div v-else class="w-[88px]"></div> <!-- Spacer -->
 
+                <!-- Organization & Event Name (centered) -->
+                <div class="flex-1 text-center">
+                    <p class="font-medium text-gray-500">
+                        {{ event?.organizer?.name || 'My Organization' }}
+                        <span v-if="event.name" class="mr-4">:</span>
+                        <span v-if="event.name" class="font-bold text-gray-700">{{ event.name }}</span>
+                    </p>
+                </div>
+
                 <button 
                     @click="goToNext"
                     :disabled="isSubmitting || !isComponentReady"
@@ -128,8 +137,8 @@ const errors = ref({});
 const currentComponentRef = ref(null);
 
 
-const stepsWithLocation = ['EventType', 'Category', 'Genres', 'Location', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility', 'Review'];
-const stepsWithoutLocation = ['EventType', 'Category', 'Genres', 'Remote', 'Description', 'Name', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility', 'Review'];
+const stepsWithLocation = ['EventType', 'Name', 'Category', 'Genres', 'Location', 'Description', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility', 'Review'];
+const stepsWithoutLocation = ['EventType', 'Name', 'Category', 'Genres', 'Remote', 'Description', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility', 'Review'];
 
 const components = {
     EventType,
@@ -176,12 +185,12 @@ const goToPrevious = () => {
 // Step mapping with numeric values for easy comparison
 const STEP_MAP = {
     'EventType': '1',
-    'Category': '2',
-    'Genres': '3',
-    'Location': '4',
-    'Remote': '4',
-    'Description': '5',
-    'Name': '6',
+    'Name': '2',
+    'Category': '3',
+    'Genres': '4',
+    'Location': '5',
+    'Remote': '5',
+    'Description': '6',
     'Dates': '7',
     'Tickets': '8',
     'Images': '9',

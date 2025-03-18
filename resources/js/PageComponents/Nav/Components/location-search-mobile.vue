@@ -1,5 +1,5 @@
 <template>
-    <div class="w-full h-full flex flex-col gap-8 pb-8">
+    <div class="w-full h-full pb-8 flex flex-col gap-8">
         <!-- Add this hidden div for Google Places service -->
         <div id="places" style="display: none;"></div>
         
@@ -12,10 +12,12 @@
                 <p>Where</p>
             </div>
             <div>
-                <p>{{ searchInput || 'New York' }}</p>
+                <p class="font-bold">{{ searchInput || 'New York' }}</p>
             </div>
         </div>
-        <div v-else class="flex flex-col relative w-full border rounded-4xl bg-white shadow-custom-6 p-12">
+        <div 
+            v-else
+            class="flex-grow relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto">
             <div class="w-full">
                 <h2 class="text-4xl leading-8 font-bold">Where To?</h2>
             </div>
@@ -26,13 +28,12 @@
                     </svg>
                     <input 
                         ref="loc"
-                        class="relative text-1xl p-8 w-full font-bold z-40 bg-transparent focus:border-none placeholder-slate-400"
+                        class="relative text-4xl p-8 w-full font-bold z-40 bg-transparent focus:border-none focus:outline-none placeholder-slate-400 touch-manipulation"
                         v-model="searchInput"
                         placeholder="Search by City"
                         @input="updateLocations"
                         @focus="dropdown=true"
-                        autocomplete="false"
-                        onfocus="value = ''" 
+                        autocomplete="off"
                         type="text">
                 </div>
                 
@@ -42,7 +43,7 @@
                     v-if="dropdown"
                     @click.stop>
                     <li 
-                        class="py-4 px-8 flex items-center gap-8 hover:bg-neutral-100" 
+                        class="text-2xl font-medium py-4 px-8 flex items-center gap-8 hover:bg-neutral-100" 
                         v-for="place in places"
                         :key="place.place_id"
                         @click.stop="selectLocation(place)">
@@ -64,12 +65,12 @@
                 <p>When</p>
             </div>
             <div>
-                <p>{{ date ? formatDateRange : 'Add Dates' }}</p>
+                <p class="font-bold">{{ date ? formatDateRange : 'Add Dates' }}</p>
             </div>
         </div>
         <div 
             v-else
-            class="flex-grow relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto h-full">
+            class="flex-grow relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto">
             <VueDatePicker
                 v-model="date"
                 range
@@ -87,7 +88,7 @@
                 :month-change-on-scroll="false"
                 week-start="0"
             />
-            <div v-if="displayedMonths === 3" class="w-full flex justify-center mt-8 border-t pt-8">
+            <div v-if="displayedMonths === 3" class="w-full flex justify-center mt-8 border-t pt-8 mb-20">
                 <button 
                     @click="loadMoreMonths"
                     class="text-black underline font-semibold hover:text-gray-600"
@@ -104,6 +105,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
 import axios from 'axios';
+import eventStore from '@/Stores/EventStore';
 
 const props = defineProps({
     initialCity: String,
@@ -131,6 +133,15 @@ const displayedMonths = ref(3);
 
 // Add emits definition
 const emit = defineEmits(['update:location', 'clear']);
+
+// EventStore subscription
+const unsubscribe = ref(null);
+
+// Initialize dark mode and timezone variables for datepicker
+const isDark = ref(false);
+const tz = computed(() => {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+});
 
 function initializePlaces() {
     return [
@@ -167,8 +178,19 @@ const setPlace = (place) => {
    searchInput.value = place.name;
    dropdown.value = false;
    
-   // Just emit the city name as a string, not an object
+   // Update both parent component and EventStore
    emit('update:location', place.name);
+   
+   // Update EventStore with location (but don't fetch events yet)
+   eventStore.update({
+       location: {
+           city: place.name,
+           lat: place.geometry.location.lat(),
+           lng: place.geometry.location.lng(),
+           searchType: 'inPerson',
+           live: false
+       }
+   }, false);
    
    isVisible.value = 'dates';
 };
@@ -192,28 +214,43 @@ const initGoogleMaps = () => {
     }
 };
 
-// Initialize from URL parameters
-onMounted(() => {
-    const params = new URLSearchParams(window.location.search);
+// Initialize from URL parameters and EventStore
+onMounted(() => {    
+    // Subscribe to EventStore updates
+    unsubscribe.value = eventStore.subscribe(state => {
+        // Update from EventStore if values exist
+        if (state.location.city) {
+            searchInput.value = state.location.city;
+            selectedPlace.value = {
+                name: state.location.city,
+                lat: state.location.lat,
+                lng: state.location.lng
+            };
+        }
+        
+        // Update dates from EventStore
+        if (state.dates.start && state.dates.end) {
+            try {
+                const startDate = new Date(state.dates.start);
+                const endDate = new Date(state.dates.end);
+                
+                if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+                    date.value = [startDate, endDate];
+                }
+            } catch (e) {
+                console.error('Error parsing dates from EventStore:', e);
+            }
+        }
+    });
     
-    // Set initial city if provided
+    // Set initial city if provided by props
     if (props.initialCity) {
         searchInput.value = props.initialCity;
     }
 
-    // Set initial dates if provided
+    // Set initial dates if provided by props
     if (props.initialStartDate && props.initialEndDate) {
         date.value = [new Date(props.initialStartDate), new Date(props.initialEndDate)];
-    }
-    
-    // Initialize location if present
-    if (params.has('city') && params.has('lat') && params.has('lng')) {
-        selectedPlace.value = {
-            name: params.get('city'),
-            lat: parseFloat(params.get('lat')),
-            lng: parseFloat(params.get('lng'))
-        };
-        searchInput.value = params.get('city');
     }
     
     // Show initial places immediately
@@ -252,6 +289,11 @@ onUnmounted(() => {
         delete window.initMap;
     }
 
+    // Clean up EventStore subscription
+    if (unsubscribe.value) {
+        unsubscribe.value();
+    }
+
     // Remove search trigger listener with proper function reference
     window.removeEventListener('trigger-search', handleSearch);
 });
@@ -281,18 +323,36 @@ function formatDate(date) {
    });
 }
 
-// Disable past dates
-const disabledDate = (date) => {
-   return date < new Date();
-};
-
 // Handle date changes
 function handleDateChange(newDate) {
    if (newDate && Array.isArray(newDate) && newDate.length === 2) {
        dateDropdown.value = false;
+       
+       // Format dates for EventStore
+       const formatForStore = (date) => {
+           return date.toISOString().split('T')[0] + ' 00:00:00';
+       };
+       
+       // Update EventStore with dates (but don't fetch yet)
+       eventStore.update({
+           dates: {
+               start: formatForStore(newDate[0]),
+               end: formatForStore(newDate[1])
+           }
+       }, false);
+       
+       // Also update for parent component
+       if (selectedPlace.value) {
+           emit('update:location', {
+               city: selectedPlace.value.name,
+               lat: selectedPlace.value.lat,
+               lng: selectedPlace.value.lng,
+               start: formatForStore(newDate[0]),
+               end: formatForStore(newDate[1])
+           });
+       }
    }
 }
-
 
 // Add this computed property
 const minDate = computed(() => {
@@ -301,63 +361,29 @@ const minDate = computed(() => {
    return today;
 });
 
-// Add handleSearch function
+// Add handleSearch function that uses EventStore
 const handleSearch = () => {
    if (!selectedPlace.value) return;
    
-   // Now emit the complete location data
-   emit('update:location', {
-       city: selectedPlace.value.name,
-       lat: selectedPlace.value.lat,
-       lng: selectedPlace.value.lng,
-       start: date.value?.[0] ? formatForUrl(date.value[0]) : null,
-       end: date.value?.[1] ? formatForUrl(date.value[1]) : null
-   });
+   // First update the EventStore with final state
+   eventStore.update({
+       location: {
+           city: selectedPlace.value.name,
+           lat: selectedPlace.value.lat,
+           lng: selectedPlace.value.lng,
+           searchType: 'inPerson',
+           live: false
+       },
+       dates: {
+           start: date.value?.[0] ? formatForUrl(date.value[0]) : null,
+           end: date.value?.[1] ? formatForUrl(date.value[1]) : null
+       }
+   }, true); // Now fetch events
    
-   const searchParams = {
-       city: selectedPlace.value.name,
-       searchType: 'inPerson',
-       live: false,
-       lat: selectedPlace.value.lat,
-       lng: selectedPlace.value.lng
-   };
+   // Hide the search modal
+   window.dispatchEvent(new CustomEvent('hide-search'));
    
-   // Check current searchType
-   const currentParams = new URLSearchParams(window.location.search);
-   const currentSearchType = currentParams.get('searchType');
-
-   // If we're switching from allEvents to inPerson, always redirect
-   if (currentSearchType === 'allEvents') {
-       let searchUrl = `/index/search?${new URLSearchParams(searchParams).toString()}`;
-       window.location.href = searchUrl;
-       return;
-   }
-
-   // Otherwise, proceed with normal logic
-   if (window.location.pathname === '/index/search' && currentSearchType === 'inPerson') {
-       // Emit filter update instead of redirecting
-       window.dispatchEvent(new CustomEvent('filter-update', {
-           detail: {
-               type: 'location',
-               value: searchParams
-           }
-       }));
-       
-       // Update URL without reload
-       const params = new URLSearchParams(window.location.search);
-       Object.entries(searchParams).forEach(([key, value]) => {
-           params.set(key, value);
-       });
-       window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-       
-       // Hide the search modal
-       window.dispatchEvent(new CustomEvent('hide-search'));
-   } else {
-       // On other pages or different searchType, redirect
-       let searchUrl = `/index/search?${new URLSearchParams(searchParams).toString()}`;
-       window.location.href = searchUrl;
-   }
-   
+   // Save search data
    saveSearchData({ name: selectedPlace.value.name });
 };
 
@@ -366,60 +392,23 @@ const formatForUrl = (date) => {
     return date.toISOString().split('T')[0] + ' 00:00:00';
 };
 
+// Clear dates using EventStore
 const clearDates = () => {
    date.value = null;
    dateDropdown.value = false;
    
-   // Only trigger search if we have a selected place
+   // Update EventStore
+   eventStore.clearDates();
+   
+   // Only emit update if we have a selected place
    if (selectedPlace.value) {
-       const searchParams = {
+       emit('update:location', {
            city: selectedPlace.value.name,
-           searchType: 'inPerson',
-           live: false,
            lat: selectedPlace.value.lat,
-           lng: selectedPlace.value.lng
-       };
-
-       // Check if we're on the search page
-       if (window.location.pathname === '/index/search') {
-           // Emit filter update instead of redirecting
-           window.dispatchEvent(new CustomEvent('filter-update', {
-               detail: {
-                   type: 'location',
-                   value: searchParams
-               }
-           }));
-           
-           // Update URL without reload
-           const params = new URLSearchParams(window.location.search);
-           Object.entries(searchParams).forEach(([key, value]) => {
-               params.set(key, value);
-           });
-           
-           // Remove date parameters
-           params.delete('start');
-           params.delete('end');
-           
-           window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-           
-           // Hide the search modal
-           window.dispatchEvent(new CustomEvent('hide-search'));
-       } else {
-           // On other pages, redirect as normal
-           let searchUrl = `/index/search?${new URLSearchParams(searchParams).toString()}`;
-           
-           // Preserve other existing URL parameters
-           const currentParams = new URLSearchParams(window.location.search);
-           const paramsToPreserve = ['category', 'tags', 'price0', 'price1'];
-           
-           paramsToPreserve.forEach(param => {
-               if (currentParams.has(param)) {
-                   searchUrl += `&${param}=${currentParams.get(param)}`;
-               }
-           });
-           
-           window.location.href = searchUrl;
-       }
+           lng: selectedPlace.value.lng,
+           start: null,
+           end: null
+       });
    }
 };
 
@@ -439,12 +428,9 @@ watch(isVisible, (newValue) => {
 
 // Add these methods in your script setup
 const showLocationSection = () => {
-    console.log(dropdown.value);
     isVisible.value = 'location';
     dropdown.value = true;
-    console.log(dropdown.value);
     places.value = initializePlaces();
-    console.log(dropdown.value);
 };
 
 const showDatesSection = () => {
@@ -457,39 +443,33 @@ const loadMoreMonths = () => {
     displayedMonths.value = 6;
 };
 
-// Add this computed property
-const getCurrentMonthYear = computed(() => {
-    const now = new Date();
-    return {
-        month: now.getMonth(),
-        year: now.getFullYear()
-    };
-});
-
 // Add method to clear state
 const clearState = (isClearAll = false) => {
-    console.log('Child clearState called, isClearAll:', isClearAll);
-    
     if (isClearAll) {
         // Actually clear everything
-        console.log('Clearing all state');
         searchInput.value = '';
         selectedPlace.value = null;
         date.value = null;
+        
+        // Also clear in EventStore
+        eventStore.update({
+            location: {
+                city: null,
+                lat: null,
+                lng: null
+            },
+            dates: {
+                start: null,
+                end: null
+            }
+        }, false);
+        
         emit('update:location', null);
     }
     
     isVisible.value = 'location';
     dropdown.value = true;
     places.value = initializePlaces();
-    
-    console.log('Child state after operation:', {
-        searchInput: searchInput.value,
-        selectedPlace: selectedPlace.value,
-        date: date.value,
-        isVisible: isVisible.value,
-        dropdown: dropdown.value
-    });
 };
 
 // Expose the method to the parent
@@ -640,5 +620,45 @@ defineExpose({ clearState });
 /* Optional: Add smooth transition */
 .dp__calendar {
     transition: all 0.3s ease !important;
+}
+
+/* Remove these styles as we want the natural browser behavior like the share modal */
+/* 
+.pb-safe {
+    padding-bottom: max(20px, env(safe-area-inset-bottom, 20px) + 12px);
+}
+
+@media (orientation: landscape) {
+    .pb-safe {
+        padding-bottom: 20px;
+    }
+}
+
+.dp__menu_inner + div,
+.w-full.bg-white.flex.p-12.mb-20 {
+    padding-bottom: max(20px, env(safe-area-inset-bottom, 20px) + 12px) !important;
+}
+*/
+
+/* Add space at the bottom of content to prevent it getting hidden */
+@media screen and (max-width: 768px) {
+    .dp__menu_inner + div {
+        margin-bottom: 40px;
+    }
+}
+
+/* Prevent zooming on focus for mobile devices */
+input, select, textarea {
+    font-size: 16px !important; /* Minimum font size to prevent zoom on iOS */
+}
+
+/* Add this to prevent zoom */
+.touch-manipulation {
+    touch-action: manipulation;
+}
+
+/* Make sure the placeholder is large enough too */
+::placeholder {
+    font-size: 16px !important;
 }
 </style>

@@ -1,5 +1,8 @@
 <template>
-    <section class="mt-32 flex left-0 right-0 top-0 bottom-auto fixed h-screen">
+    <section :class="[
+        'flex left-0 right-0 top-0 bottom-auto fixed',
+        fullMap ? 'h-screen' : 'h-[54vh]'
+    ]">
         <div class="search__map overflow-hidden w-full h-full">
             
             <!-- Map Container -->
@@ -61,7 +64,8 @@ import { ClickOutsideDirective as vClickOutside } from '@/Directives/ClickOutsid
 // Props & Emits
 const props = defineProps({
     modelValue: { type: Object, required: true },
-    events: { type: Array, required: true }
+    events: { type: Array, required: true },
+    fullMap: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue', 'submit'])
 

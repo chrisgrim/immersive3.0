@@ -367,6 +367,18 @@ class HostEventController extends Controller
         }
     }
 
+    /**
+     * Check if the authenticated user has created events before
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function hasCreatedEvents()
+    { 
+        return response()->json([
+            'hasCreatedEvents' => auth()->user()->events()->count() > 1
+        ]);
+    }
+
     public function duplicate(Event $event)
     {
         // Check unpublished events count

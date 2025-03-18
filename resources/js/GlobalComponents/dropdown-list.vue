@@ -13,8 +13,12 @@
 	                @mouseleave="hoveredLocation = null">
 	                <div 
 	                    @click="removeItem(item)" 
-	                    class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white rounded-full">
-	                    <component :is="hoveredLocation === item.id ? RiCloseCircleFill : RiCloseCircleLine" />
+	                    class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white p-[0.1rem] rounded-full opacity-100 transition-opacity duration-200 z-10 dropdown-delete-btn"
+	                >
+	                    <component 
+	                        :is="hoveredLocation === item.id ? RiCloseCircleFill : RiCloseCircleLine" 
+	                        class="text-red-500 hover:text-red-600 transition-colors dropdown-delete-icon"
+	                    />
 	                </div>
 	                <span class="mt-auto">{{ item.name }}</span>
 	            </li>
@@ -49,3 +53,14 @@ const removeItem = (item) => {
 
 
 </script>
+
+<style>
+/* Simple hover effects matching tickets.vue */
+.dropdown-delete-btn:hover .dropdown-delete-icon {
+  transform: scale(1.1);
+}
+
+.dropdown-delete-icon {
+  transition: transform 0.2s ease;
+}
+</style>

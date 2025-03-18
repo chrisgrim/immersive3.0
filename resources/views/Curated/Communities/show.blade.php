@@ -109,5 +109,5 @@
 @endsection
 
 @section('footer')
-    
+    @include('footer.footer-padded')
 @endsection 

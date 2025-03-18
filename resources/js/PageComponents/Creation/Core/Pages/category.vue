@@ -3,7 +3,7 @@
         <div class="flex flex-col w-full">
             <!-- Header -->
             <div class="w-full">
-                <h2 class="text-black">What Category does your event fall into?</h2>
+                <h2 class="text-black">What category does your event fall into?</h2>
             </div>
 
             <!-- Main Content -->

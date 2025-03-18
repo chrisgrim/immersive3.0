@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Organizer;
 use App\Models\Category;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 
 class UpdateWebsiteData extends Command
 {
@@ -15,6 +16,7 @@ class UpdateWebsiteData extends Command
     {
         $this->updateOrganizerOwnership();
         $this->updateCategoryImages();
+        $this->updateTicketNamespaces();
     }
 
     private function updateOrganizerOwnership()
@@ -78,5 +80,47 @@ class UpdateWebsiteData extends Command
         $this->newLine();
         $this->info("Completed! Added image relationships for {$count} categories.");
         $this->info("Skipped {$skipped} categories that already had images.");
+    }
+
+    private function updateTicketNamespaces()
+    {
+        $this->info('Starting ticket namespaces update...');
+        
+        // Count how many tickets need to be updated
+        $totalTickets = DB::table('tickets')
+            ->where('ticket_type', 'App\\Models\\Show')
+            ->count();
+            
+        if ($totalTickets === 0) {
+            $this->info('No tickets found with namespace "App\\Models\\Show". Skipping update.');
+            return;
+        }
+        
+        $this->info("Found {$totalTickets} tickets to update.");
+        
+        // Create a progress bar
+        $bar = $this->output->createProgressBar($totalTickets);
+        
+        // Process tickets in chunks to avoid memory issues
+        $updatedCount = 0;
+        
+        DB::table('tickets')
+            ->where('ticket_type', 'App\\Models\\Show')
+            ->chunkById(500, function ($tickets) use (&$updatedCount, $bar) {
+                $ids = $tickets->pluck('id')->toArray();
+                
+                // Update this chunk of tickets
+                $updated = DB::table('tickets')
+                    ->whereIn('id', $ids)
+                    ->update(['ticket_type' => 'App\\Models\\Events\\Show']);
+                
+                $updatedCount += $updated;
+                $bar->advance($tickets->count());
+            });
+            
+        $bar->finish();
+        
+        $this->newLine();
+        $this->info("Completed! Updated namespace for {$updatedCount} tickets from 'App\\Models\\Show' to 'App\\Models\\Events\\Show'.");
     }
 }

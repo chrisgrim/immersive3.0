@@ -110,7 +110,6 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
-import axios from 'axios';
 import eventStore from '@/Stores/EventStore';
 
 // Add props for initial date values

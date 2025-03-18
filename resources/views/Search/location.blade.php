@@ -33,5 +33,5 @@
 @endsection
 
 @section('footer')
-
+    @include('footer.footer-full')
 @endsection 

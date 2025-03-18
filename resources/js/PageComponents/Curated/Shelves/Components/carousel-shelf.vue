@@ -53,7 +53,6 @@
                             
                             <div class="text-left bg-white p-8">
                                 <h3 class="text-3.5xl font-medium text-black">{{ post.name }}</h3>
-                                <p class="text-gray-600 text-lg my-4">{{ formatDate(post.created_at) }}</p>
                             </div>
                         </div>
                     </a>

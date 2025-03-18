@@ -156,6 +156,7 @@
                     :stencil-props="{
                         aspectRatio: 3/4
                     }"
+                    :image-restriction="'none'"
                     @change="onChange"
                 />
                 <div class="mt-6 flex justify-center gap-4">
@@ -583,5 +584,16 @@ const showMainImageError = ref(false);
 <style>
 .vue-advanced-cropper {
     background-color: rgba(30, 30, 30, 0.8);
+}
+
+/* Custom background for the cropper */
+.vue-advanced-cropper__background, 
+.vue-advanced-cropper__foreground {
+    opacity: 1;
+    background: #ff000042;
+    transform: translate(-50%, -50%);
+    position: absolute;
+    top: 50%;
+    left: 50%;
 }
 </style>

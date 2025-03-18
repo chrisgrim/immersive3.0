@@ -68,8 +68,6 @@ class Ticket extends Model
     $event->searchable();
 }
 
-    
-
     public static function getPriceRange($prices, $currency)
     {
         rsort($prices);

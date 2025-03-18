@@ -26,5 +26,6 @@
     </div>
 @endsection
 
-@section('footer')
-@endsection 
+    @section('footer')
+        @include('footer.footer-padded')
+    @endsection 

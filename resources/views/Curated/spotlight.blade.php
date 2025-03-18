@@ -63,7 +63,7 @@
     $imagePath = $element ? $getElementImage($element) : null;
 @endphp
 
-<div class="my-8 md:mt-16 md:mb-24 px-10 md:px-32 py-16 md:py-24 border-y border-slate-200">
+<div class="my-8 md:mt-16 md:mb-24 px-10 lg-air:px-16 2xl-air:px-32 py-16 lg-air:py-20 2xl-air:py-24 border-y border-slate-200">
     <div class="w-full relative block overflow-hidden mb-8 rounded-xl md:flex flex-col md:flex-row">
         @if($element && $imagePath)
             <div class="rounded-2xl overflow-hidden relative inline-block bg-slate-400 md:w-3/5 mb-8 md:mb-0 order-first md:order-last">

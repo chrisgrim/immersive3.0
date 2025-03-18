@@ -85,7 +85,7 @@
     };
 @endphp
 
-<div class="whitespace-nowrap overflow-y-hidden overflow-x-auto m-auto w-full md:px-10 md:px-32">
+<div class="whitespace-nowrap overflow-y-hidden overflow-x-auto m-auto w-full">
     <div>
         @if($name)
             <div class="mt-12 mb-0">
@@ -134,9 +134,6 @@
                         <div class="w-1/2 md:w-full md:mb-8 md:mt-4">
                             <div class="font-medium whitespace-normal">
                                 <p class="text-3xl md:text-4xl leading-tight text-black">{{ $element->name }}</p>
-                            </div>
-                            <div class="mt-2 text-lg md:text-xl text-gray-500">
-                                {{ date('F j, Y', strtotime($element->created_at)) }}
                             </div>
                         </div>
                     </div>

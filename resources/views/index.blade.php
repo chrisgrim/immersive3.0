@@ -116,14 +116,21 @@
         <section class="max-w-screen-5xl relative h-full m-auto px-10 lg-air:px-16 2xl-air:px-32">
             <div class="my-8 md:mt-16 md:mb-24">
                 <div class="flex flex-col items-center min-h-[26rem] justify-center">
-                    <h3>Read The 2020 Immersive Entertainment Industry Annual Report</h3>
-                    <p>Discover The Strength of Immersive Entertainment!</p>
+                    <h3>Evolving Immersive: The 2025 Immersive Entertainment & Culture Industry Report</h3>
                     <br>
-                    <a href="/storage/website-files/documents/2020 Immersive Entertainment Industry Annual Report.pdf">
+                    <a target="_blank" href="https://www.gensler.com/gri/immersive-industry-report-2025">
                         <button class="p-4 rounded-full bg-black border-black text-white hover:text-black hover:bg-white">
-                            Check out the report here
+                            Get your free copy here
                         </button>
                     </a>
+                    <div class="mt-16 w-full flex flex-col items-center text-center gap-2">
+                        <p>Looking for the 2020 Immersive Entertainment Industry Report? </p>
+                        <a  target="_blank" href="/storage/website-files/documents/2020%20Immersive%20Entertainment%20Industry%20Annual%20Report.pdf">
+                            <span class="underline">
+                                Download the PDF
+                            </span>
+                        </a>
+                    </div>
                 </div>
             </div>
         </section>
@@ -133,5 +140,5 @@
 @endsection
 
 @section('footer')
-    
+    @include('footer.footer-padded')
 @endsection 

@@ -15,7 +15,7 @@
                         v-model="event.description" 
                         @input="handleInput"
                         placeholder="Tell us about your event..."
-                        rows="10" 
+                        rows="14" 
                     />
                     <div class="flex justify-end mt-1" 
                          :class="{'text-red-500': isNearLimit, 'text-neutral-500': !isNearLimit}">

@@ -94,5 +94,5 @@
 @endsection
 
 @section('footer')
-    <vue-footer></vue-footer>
+    @include('footer.footer-limited')
 @endsection

@@ -1,5 +1,5 @@
 <section class="py-16">
-    <div class="flex flex-col md:flex-row md:gap-16">
+    <div class="flex flex-col md:flex-row gap-8 md:gap-16">
         <!-- Left Column - Profile Card -->
         <div class="md:w-[36rem] mb-8 md:mb-0">
             <div class="flex flex-row shadow-custom-6 w-full p-8 py-16 rounded-3xl gap-8">

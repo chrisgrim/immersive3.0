@@ -28,20 +28,20 @@
                                     <div class="flex-1 flex flex-col justify-center">
                                         <h1 class="text-4xl font-medium text-black leading-tight">{{ $event->name }}</h1>
                                         @if($event->tag_line)
-                                            <p class="text-1xl mt-4 text-neutral-700 font-medium">{{ $event->tag_line }}</p>
+                                            <p class="text-3xl mt-4 text-neutral-700 font-medium">{{ $event->tag_line }}</p>
                                         @endif
                                     </div>
                                 </div>
                             </div>
                         @else
-                            <div class="relative w-full m-auto mt-16 border-b border-neutral-200">
+                            <div class="relative w-full m-auto pb-8 md:pb-0 mt-16 border-b border-neutral-200">
                                 <div class="flex flex-col bg-white h-full justify-center">
                                     {{-- Event Title --}}
                                     <h1 class="text-5xl font-medium text-black leading-tight">{{ $event->name }}</h1>
 
                                     {{-- Tag Line --}}
                                     @if($event->tag_line)
-                                        <p class="text-1xl mt-4 text-neutral-700 font-medium">{{ $event->tag_line }}</p>
+                                        <p class="text-3xl mt-4 text-neutral-700 font-medium">{{ $event->tag_line }}</p>
                                     @endif
                                 </div>
                             </div>

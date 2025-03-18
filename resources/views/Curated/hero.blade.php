@@ -117,7 +117,7 @@
              class="overflow-x-auto flex scroll-p-10 lg:scroll-p-32 scrollbar-hide" 
              style="scroll-snap-type: x mandatory;">
             @foreach($elements as $element)
-                <div class="ml-10 first:ml-0 snap-start snap-always first:pl-10 last:pr-10 md:first:pl-32 md:last:pr-32">
+                <div class="ml-10 first:ml-0 snap-start snap-always first:pl-10 last:pr-10 lg-air:first:pl-16 lg-air:last:pr-16 2xl-air:first:pl-32 2xl-air:last:pr-32">
                     <a href="{{ $getElementUrl($element) }}" 
                        class="block w-full pb-16">
                         <div class="rounded-2xl overflow-hidden h-full border border-gray-300 w-[75vw] md:w-[25vw]">
@@ -165,7 +165,7 @@
                             
                             <div class="text-left bg-white p-8">
                                 <h3 class="text-3.5xl font-medium text-black">{{ $element->name }}</h3>
-                                <p class="text-gray-600 text-lg my-4">{{ $element->created_at ? date('F j, Y', strtotime($element->created_at)) : '' }}</p>
+                                
                             </div>
                         </div>
                     </a>

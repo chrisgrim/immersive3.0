@@ -232,7 +232,6 @@
                                 
                                 <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
                                     <vue-show-purchase
-                                        :tickets="{{ $event->shows->first()?->tickets ?? '[]' }}"
                                         :event="{{ $event }}"
                                         :single-image="true"
                                         :user="user"
@@ -313,7 +312,6 @@
                                 <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem] pt-16">
                                     @include('events.show.header')
                                     <vue-show-purchase
-                                        :tickets="{{ $event->shows->first()?->tickets ?? '[]' }}"
                                         :event="{{ $event }}"
                                         :single-image="true"
                                         :user="user"
@@ -369,7 +367,6 @@
 
                                 <div class="w-full relative shrink-0 md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
                                     <vue-show-purchase
-                                        :tickets="{{ $event->shows->first()?->tickets ?? '[]' }}"
                                         :event="{{ $event }}"
                                         :single-image="false"
                                         :user="user"
@@ -435,5 +432,6 @@
 @endsection
 
 @section('footer')
-    
-@endsection 
+    @include('footer.footer-limited')
+@endsection
+

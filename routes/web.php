@@ -22,6 +22,12 @@ Route::GET('/index/search', [ListingsController::class, 'index'])->name('search'
 Route::GET('/events/{event}', [EventController::class, 'show'])->name('events.show');
 Route::GET('/organizers/{organizer}', [OrganizerController::class, 'show'])->name('organizers.show');
 
+// Legal and Site Information Pages
+Route::view('/terms', 'terms')->name('terms');
+Route::view('/privacy', 'privacy')->name('privacy');
+Route::view('/sitemap', 'sitemap')->name('sitemap');
+Route::view('/privacy-choices', 'privacy-choices')->name('privacy-choices');
+
 /*
 |--------------------------------------------------------------------------
 | Protected Routes
@@ -68,6 +74,7 @@ Route::middleware(['auth'])->group(function () {
                 
                 Route::prefix('event')->name('event.')->group(function () {
                     Route::POST('/create', [HostEventController::class, 'create'])->name('create');
+                    Route::GET('/user/has-created-events', [HostEventController::class, 'hasCreatedEvents'])->name('user.has-created-events');
                     
                     Route::middleware('can:manage,event')->group(function () {
                         Route::GET('/{event}/edit', [HostEventController::class, 'edit'])->name('edit');

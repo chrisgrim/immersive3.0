@@ -1,14 +1,14 @@
 <template>
     <div>
-        <blockquote v-if="blockquote" class="px-4 py-2">
+        <blockquote v-if="blockquote" class="text-3.5xl md:text-2.5xl px-4 py-2">
             <span :class="[bodyClass]" :style="`white-space: ${whiteSpace};`">"{{ adjustedText }}"</span>
-            <span v-if="needsShowMore" v-show="showMore" @click.prevent="toggleShowMore" class="text-xl text-[#008489] font-semibold cursor-pointer"><br><span>Show Less</span></span>
-            <span v-if="needsShowMore" v-show="lessButton && !showMore" @click.prevent="toggleShowMore" class="text-xl text-[#008489] font-semibold cursor-pointer"><br>Show More</span>
+            <span v-if="needsShowMore" v-show="showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer"><br><span>Show Less</span></span>
+            <span v-if="needsShowMore" v-show="lessButton && !showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer"><br>Show More</span>
         </blockquote>
-        <p v-else class="text text-2.5xl leading-9">
+        <p v-else class="text-3.5xl md:text-2.5xl leading-normal md:leading-9">
             <span :class="[bodyClass]" :style="`white-space: ${whiteSpace};`">{{ adjustedText }}</span>
-            <span v-if="needsShowMore" v-show="showMore" @click.prevent="toggleShowMore" class="text-xl text-[#008489] font-semibold cursor-pointer"><br><span>Show Less</span></span>
-            <span v-if="needsShowMore" v-show="lessButton && !showMore" @click.prevent="toggleShowMore" class="text-xl text-[#008489] font-semibold cursor-pointer"><br>Show More</span>
+            <span v-if="needsShowMore" v-show="showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer"><br><span>Show Less</span></span>
+            <span v-if="needsShowMore" v-show="lessButton && !showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer"><br>Show More</span>
         </p>
     </div>
 </template>

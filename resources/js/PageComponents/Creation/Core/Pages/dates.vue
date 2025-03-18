@@ -1,5 +1,5 @@
 <template>
-    <main class="w-full pb-24">
+    <main class="w-full pb-24" :class="{'narrow-layout': isNarrowLayout}">
         <div class="w-full md:w-1/2 mx-auto" v-if="event.showtype=== null || event.showtype=== 'a'">
             <h2>Do you have specific dates?</h2>
         </div>
@@ -7,7 +7,7 @@
             <div v-if="!selectedDatesCount" class="px-8 md:px-0 pb-8">
                 <h2 class="text-black">Select Dates</h2>
             </div>
-            <div v-else class="flex justify-between items-center px-8 md:px-0 pb-8 w-full md:w-2/3 !pr-4">
+            <div v-else class="flex justify-between items-end px-8 md:px-0 pb-8 w-full !pr-4" :class="{'md:w-2/3': !isNarrowLayout}">
                 <h2 class="text-black">{{ selectedDatesCount }} {{ selectedDatesCount === 1 ? 'Night' : 'Nights' }}</h2>
                 <div 
                     @mouseover="hoveredLocation = 'clearAllDates'" 
@@ -15,7 +15,7 @@
                     @click="clearAllDates" 
                     class="cursor-pointer"
                 >
-                    <component :is="hoveredLocation === 'clearAllDates' ? RiCloseCircleFill : RiCloseCircleLine" />
+                    <span class="underline">clear selected dates</span>
                 </div>
             </div>
             <p v-if="$v.selectedDates.$error" 
@@ -72,9 +72,9 @@
         v-else 
         class="relative rounded-4xl">
             <!-- Create a flex container for desktop layout -->
-            <div class="w-full flex flex-col md:flex-row gap-6">
+            <div class="w-full flex flex-col gap-6" :class="{'md:flex-row': !isNarrowLayout}">
                 <!-- Calendar container - take most of the width on desktop -->
-                <div class="flex-grow border-[#222222] shadow-focus-black overflow-hidden rounded-2xl relative w-full md:w-2/3 bg-white overflow-y-auto overflow-x-hidden h-[45rem]">
+                <div class="flex-grow border-[#222222] shadow-focus-black overflow-hidden rounded-2xl relative w-full bg-white overflow-y-auto overflow-x-hidden h-[45rem] md:min-w-[540px]" :class="{'md:w-2/3': !isNarrowLayout}">
                     <div class="w-full h-full overflow-x-hidden">
                         <VueDatePicker
                             v-model="date"
@@ -110,10 +110,10 @@
                 </div>
 
                 <!-- Sidebar container - move to right on desktop -->
-                <div class="w-full md:w-1/3 flex flex-col justify-between bg-white mt-6 md:mt-0 md:pl-6">
+                <div class="w-full flex flex-col justify-between bg-white mt-6" :class="{'md:w-1/3': !isNarrowLayout, 'md:mt-0': !isNarrowLayout}">
                     <div class="h-full flex flex-col justify-between">
                         <div class="">
-                            <div class="p-8 relative flex flex-col gap-4">
+                            <div class="lg:px-8 relative flex flex-col gap-4">
 
                                 <div v-if="promptVisible" 
                                      class="p-4 rounded-2xl relative bg-black text-white border-black border hover:bg-neutral-800 transition-colors">
@@ -211,10 +211,10 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="w-full flex justify-between p-8">
+                        <div class="w-full flex justify-between px-8">
                             <button @click="event.showtype = null" 
                                     class="mt-8 text-xl rounded-2xl hover:text-neutral-600 transition-colors underline">
-                                Switch show type
+                                change show to always available
                             </button>
                         </div>
                     </div>
@@ -269,7 +269,7 @@ const windowWidth = ref(0);
 const displayedMonths = ref(3);
 const isDesktop = computed(() => windowWidth.value >= 768);
 const calendarLayout = computed(() => isDesktop.value ? 'horizontal' : 'vertical');
-const initialMonthsToShow = computed(() => isDesktop.value ? 4 : 3);
+const initialMonthsToShow = computed(() => isDesktop.value ? 2 : 3);
 
 // 3. Calendar State
 const events = ref([]);
@@ -325,13 +325,17 @@ const textareaRows = computed(() => {
     return windowWidth.value >= 768 ? 6 : 4;
 });
 
+const isNarrowLayout = computed(() => {
+    return event.status === 'e' || event.status === 'p' || !isDesktop.value;
+});
+
 const handleResize = () => {
     windowWidth.value = window?.innerWidth ?? 0;
     
     // Update displayedMonths based on screen size
     // Only update if we're not already showing all 6 months
     if (displayedMonths.value !== 6) {
-        displayedMonths.value = windowWidth.value >= 768 ? 4 : 3;
+        displayedMonths.value = windowWidth.value >= 768 ? 2 : 3;
     }
 };
 
@@ -941,6 +945,16 @@ const tz = computed(() => selectedTimezone.value);  // use the selected timezone
     }
 }
 
+/* Conditional styles for narrow layout (mobile or status e/p) */
+@media (min-width: 768px) {
+    /* When in narrow layout, revert to default column display */
+    .narrow-layout .dp__menu_inner {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2rem !important;
+    }
+}
+
 /* Ensure this doesn't interfere with our grid layout */
 .dp__menu_inner.dp__flex_display {
     gap: 2rem;
@@ -950,10 +964,6 @@ const tz = computed(() => selectedTimezone.value);  // use the selected timezone
     .dp__menu_inner {
         display: flex !important;
         flex-direction: column !important;
-    }
-    
-    .dp__flex_display {
-        display: flex !important;
     }
 }
 

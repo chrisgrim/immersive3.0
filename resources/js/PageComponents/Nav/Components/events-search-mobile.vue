@@ -12,7 +12,9 @@
                 <p>{{ eventInput || 'Search Events' }}</p>
             </div>
         </div>
-        <div v-else class="flex flex-col relative w-full border rounded-4xl bg-white p-12">
+        <div 
+            v-else
+            class="flex-grow relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto">
             <div class="w-full">
                 <h2 class="text-4xl leading-8 font-bold">Search Events</h2>
             </div>
@@ -23,7 +25,7 @@
                     </svg>
                     <input 
                         ref="event"
-                        class="relative text-1xl p-8 w-full font-bold z-40 bg-transparent focus:border-none placeholder-slate-400"
+                        class="relative text-4xl p-8 w-full font-bold z-40 bg-transparent focus:border-none placeholder-slate-400"
                         v-model="eventInput"
                         placeholder="Search Events"
                         @input="debounceEventSearch"
@@ -78,7 +80,9 @@
                 <p>{{ organizerInput || 'Search Organizers' }}</p>
             </div>
         </div>
-        <div v-else-if="isVisible==='organizer'" class="flex flex-col relative w-full border rounded-4xl bg-white p-12">
+        <div 
+            v-else-if="isVisible==='organizer'" 
+            class="flex-grow relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto">
             <div class="w-full">
                 <h2 class="text-4xl leading-8 font-bold">Search Organizers</h2>
             </div>
@@ -89,7 +93,7 @@
                     </svg>
                     <input 
                         ref="organizer"
-                        class="relative text-1xl p-8 w-full font-bold z-40 bg-transparent focus:border-none placeholder-slate-400"
+                        class="relative text-4xl p-8 w-full font-bold z-40 bg-transparent focus:border-none placeholder-slate-400"
                         v-model="organizerInput"
                         placeholder="Search Organizers"
                         @input="debounceOrganizerSearch"

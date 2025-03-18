@@ -8,7 +8,7 @@
                 <a 
                     rel="noreferrer" 
                     target="_blank" 
-                    class="text-[#222222] hover:text-neutral-700 transition-colors"
+                    class="text-3xl md:text-2xl text-[#222222] hover:text-neutral-700 transition-colors"
                     :href="`http://maps.google.com/maps?q=${location.city?location.city:''},+${location.region?location.region:''}`">
                     <p class="font-medium mb-2 underline" v-if="event.location.venue">{{ event.location.venue }}</p>
                     <p class="mb-2"><span v-if="event.location.city">{{ event.location.city }},</span> <span v-if="event.location.region">{{ event.location.region }}</span></p>
@@ -19,7 +19,7 @@
                 <a 
                     rel="noreferrer" 
                     target="_blank" 
-                    class="text-[#222222] hover:text-neutral-700 transition-colors"
+                    class="text-3xl md:text-2xl text-[#222222] hover:text-neutral-700 transition-colors"
                     :href="`http://maps.google.com/maps?q=${location.home?location.home:''}+${location.street?location.street:''},+${location.city?location.city:''},+${location.region?location.region:''}`">
                     <p class="font-medium mb-2 underline" v-if="event.location.venue">{{ event.location.venue }}</p>
                     <p class="mb-2">{{ location.home }} {{ location.street }} {{ location.city }}</p>
@@ -153,15 +153,26 @@ onMounted(() => {
     top: 2rem;
 }
 .leaflet-bar {
-    @apply !border-none !m-0 !rounded-2xl overflow-hidden !shadow-custom-6;
+    border: none !important;
+    margin: 0 !important;
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 2px 16px rgb(0 0 0 / 12%) !important;
 }
 .leaflet-touch .leaflet-bar a {
-    @apply !w-10 !h-10 !leading-10 !text-[#222222] hover:!bg-neutral-50 transition-colors;
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
 }
 .leaflet-control-attribution {
     @apply !hidden;
 }
 .leaflet-container {
     @apply !font-sans;
+}
+@media (max-width: 768px) {
+    .leaflet-control-container {
+        display: none !important;
+    }
 }
 </style>

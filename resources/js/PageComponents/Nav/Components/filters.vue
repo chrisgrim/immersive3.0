@@ -5,14 +5,17 @@
             @click="handleBackgroundClick"
         >
             <div 
-                class="bg-[#f4f3f3] w-full md:max-w-4xl md:mx-4 md:rounded-5xl shadow-xl flex flex-col h-screen md:h-[calc(100vh-10rem)] relative z-50 overflow-hidden"
+                class="bg-[#f4f3f3] w-full md:max-w-4xl md:mx-4 md:rounded-5xl shadow-xl flex flex-col fixed inset-0 md:relative md:h-[calc(100vh-10rem)] z-50"
                 @click.stop
             >
                 <!-- Header -->
-                <div class="flex justify-center items-center p-8 flex-shrink-0">
+                <div class="flex justify-center items-center p-4 h-32 min-h-32 flex-shrink-0">
                     <h2 class="text-2xl font-semibold">Filters</h2>
-                    <button @click="$emit('close')" class="absolute right-8 items-center justify-center rounded-full bg-white border border-slate-400 hover:bg-black hover:fill-white">
-                        <svg class="w-8 h-8">
+                    <button 
+                        @click="$emit('close')" 
+                        class="absolute top-6 z-20 left-8 items-center justify-center rounded-full p-0 w-20 h-20 flex bg-white"
+                    >
+                        <svg class="w-12 h-12 text-red-500">
                             <use xlink:href="/storage/website-files/icons.svg#ri-close-line" />
                         </svg>
                     </button>
@@ -24,7 +27,7 @@
                 </div>
 
                 <!-- Content when loaded -->
-                <div v-else class="flex flex-col flex-1 overflow-hidden px-8 pb-8 space-y-4">
+                <div v-else class="flex flex-col flex-1 overflow-y-auto px-8 pb-8 space-y-4">
                     <!-- Categories Section -->
                     <div 
                         class="transition-all duration-300 ease-in-out bg-white rounded-4xl shadow-custom-3 flex flex-col"
@@ -37,9 +40,9 @@
                             @click="toggleSection('categories')"
                             class="flex items-center justify-between px-8 py-4 cursor-pointer flex-shrink-0"
                         >
-                            <h3 class="text-1xl p-4 font-semibold">Categories</h3>
-                            <div class="flex items-center gap-4">
-                                <div v-if="activeSection === 'categories'" class="flex items-center gap-4">
+                            <h3 v-if="!isSearchingCategories" class="text-3xl p-4 font-semibold">Categories</h3>
+                            <div class="flex items-center gap-4" :class="{'w-full': isSearchingCategories}">
+                                <div v-if="activeSection === 'categories'" class="flex items-center gap-4" :class="{'w-full': isSearchingCategories}">
                                     <div v-if="!isSearchingCategories">
                                         <button 
                                             @click.stop="toggleCategorySearch"
@@ -50,16 +53,17 @@
                                             </svg>
                                         </button>
                                     </div>
-                                    <div v-else class="border border-neutral-400 rounded-full flex items-center">
-                                        <svg class="w-8 h-8 fill-black z-[1002] ml-8">
+                                    <div v-else class="w-full border border-neutral-400 rounded-full flex items-center">
+                                        <svg class="w-8 h-8 fill-black z-[1002] ml-8 flex-shrink-0">
                                             <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
                                         </svg>
                                         <input 
                                             ref="categorySearchInput"
                                             v-model="categorySearchQuery"
-                                            class="relative text-1xl p-4 w-[200px] font-bold z-40 bg-transparent focus:border-none placeholder-slate-400"
+                                            class="relative text-3xl p-4 w-full font-bold z-40 bg-transparent focus:border-none focus:outline-none placeholder-slate-400 touch-manipulation"
                                             placeholder="Search categories"
                                             @click.stop
+                                            autocomplete="off"
                                             type="text"
                                         >
                                         <button
@@ -67,7 +71,7 @@
                                                 clearCategorySearch();
                                                 isSearchingCategories.value = false;
                                             }"
-                                            class="mr-8"
+                                            class="mr-8 flex-shrink-0"
                                         >
                                             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -75,7 +79,7 @@
                                         </button>
                                     </div>
                                 </div>
-                                <span v-if="localSelected.categories.length" class="text-xl text-neutral-500">
+                                <span v-if="localSelected.categories.length && !isSearchingCategories" class="text-xl text-neutral-500">
                                     {{ localSelected.categories.length }} selected
                                 </span>
                             </div>
@@ -96,7 +100,7 @@
                                     }"
                                     @click="toggleCategory(category.id)"
                                 >
-                                    <span class="text-xl font-medium truncate block w-full">{{ category.name }}</span>
+                                    <span class="text-1xl font-medium truncate block w-full">{{ category.name }}</span>
                                 </button>
                             </div>
                         </div>
@@ -114,9 +118,9 @@
                             @click="toggleSection('tags')"
                             class="flex items-center justify-between px-8 py-4 cursor-pointer flex-shrink-0"
                         >
-                            <h3 class="text-1xl p-4 font-semibold">Tags</h3>
-                            <div class="flex items-center gap-4">
-                                <div v-if="activeSection === 'tags'" class="flex items-center gap-4">
+                            <h3 v-if="!isSearchingTags" class="text-3xl p-4 font-semibold">Tags</h3>
+                            <div class="flex items-center gap-4" :class="{'w-full': isSearchingTags}">
+                                <div v-if="activeSection === 'tags'" class="flex items-center gap-4" :class="{'w-full': isSearchingTags}">
                                     <div v-if="!isSearchingTags">
                                         <button 
                                             @click.stop="toggleTagSearch"
@@ -127,16 +131,17 @@
                                             </svg>
                                         </button>
                                     </div>
-                                    <div v-else class="border border-neutral-400 rounded-full flex items-center">
-                                        <svg class="w-8 h-8 fill-black z-[1002] ml-8">
+                                    <div v-else class="w-full border border-neutral-400 rounded-full flex items-center">
+                                        <svg class="w-8 h-8 fill-black z-[1002] ml-8 flex-shrink-0">
                                             <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
                                         </svg>
                                         <input 
                                             ref="tagSearchInput"
                                             v-model="tagSearchQuery"
-                                            class="relative text-1xl p-4 w-[200px] font-bold z-40 bg-transparent focus:border-none placeholder-slate-400"
+                                            class="relative text-3xl p-4 w-full font-bold z-40 bg-transparent focus:border-none focus:outline-none placeholder-slate-400 touch-manipulation"
                                             placeholder="Search tags"
                                             @click.stop
+                                            autocomplete="off"
                                             type="text"
                                         >
                                         <button
@@ -144,7 +149,7 @@
                                                 clearTagSearch();
                                                 isSearchingTags.value = false;
                                             }"
-                                            class="mr-8"
+                                            class="mr-8 flex-shrink-0"
                                         >
                                             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -152,7 +157,7 @@
                                         </button>
                                     </div>
                                 </div>
-                                <span v-if="localSelected.tags.length" class="text-xl text-neutral-500">
+                                <span v-if="localSelected.tags.length && !isSearchingTags" class="text-xl text-neutral-500">
                                     {{ localSelected.tags.length }} selected
                                 </span>
                             </div>
@@ -173,7 +178,7 @@
                                     }"
                                     @click="toggleTag(tag.id)"
                                 >
-                                    <span class="text-xl font-medium truncate block w-full">{{ tag.name }}</span>
+                                    <span class="text-1xl font-medium truncate block w-full">{{ tag.name }}</span>
                                 </button>
                             </div>
                         </div>
@@ -193,7 +198,7 @@
                             class="flex items-center justify-between px-8 py-4 cursor-pointer flex-shrink-0"
                         >
                             <div>
-                                <h3 class="text-1xl p-4 font-semibold">Price range</h3>
+                                <h3 class="text-3xl p-4 font-semibold">Price range</h3>
                             </div>
                             <div class="flex items-center gap-4">
                                 <span v-if="localSelected.price[0] !== 0 || localSelected.price[1] !== maxPrice" class="text-xl text-neutral-500">
@@ -239,7 +244,7 @@
                 </div>
 
                 <!-- Footer -->
-                <div class="p-8 bg-white flex-shrink-0">
+                <div class="w-full bg-white p-8 flex-shrink-0 mt-auto">
                     <div class="flex justify-between items-center">
                         <button 
                             @click="clearAll" 
@@ -593,3 +598,20 @@ const sortLists = () => {
     })
 }
 </script>
+
+<style>
+/* Prevent zooming on focus for mobile devices */
+input, select, textarea {
+    font-size: 16px !important; /* Minimum font size to prevent zoom on iOS */
+}
+
+/* Add this to prevent zoom */
+.touch-manipulation {
+    touch-action: manipulation;
+}
+
+/* Make sure the placeholder is large enough too */
+::placeholder {
+    font-size: 16px !important;
+}
+</style>
