@@ -8,14 +8,10 @@
 
         <!-- Pagination -->
         <div v-if="events.last_page > 1" class="mt-12">
-            <pagination 
-                :pagination="{
-                    current_page: events.current_page,
-                    last_page: events.last_page,
-                    from: events.from,
-                    to: events.to,
-                    total: events.total
-                }"
+            <Pagination 
+                v-if="events"
+                class="mt-6"
+                :pagination="events"
                 @paginate="handlePageChange"
             />
         </div>
@@ -27,32 +23,13 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import axios from 'axios'
 import EventGrid from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
+import eventStore from '@/Stores/EventStore.vue'
 
 const props = defineProps({
     searchedEvents: {
         type: Object,
         required: true
     },
-    categories: {
-        type: Array,
-        required: true
-    },
-    tags: {
-        type: Array,
-        required: true
-    },
-    searchedCategories: {
-        type: Array,
-        default: () => []
-    },
-    searchedTags: {
-        type: Array,
-        default: () => []
-    },
-    maxPrice: {
-        type: Number,
-        required: true
-    }
 })
 
 const events = ref({
@@ -61,115 +38,63 @@ const events = ref({
     current_page: props.searchedEvents?.current_page || 1,
     last_page: props.searchedEvents?.last_page || 1,
     from: props.searchedEvents?.from || 0,
-    to: props.searchedEvents?.to || 0
+    to: props.searchedEvents?.to || 0,
+    per_page: props.searchedEvents?.per_page || 20
 })
 
-const activeFilters = ref({
-    categories: [],
-    tags: [],
-    price: { min: 0, max: 100 },
-    dates: { start: null, end: null }
-})
+
+const unsubscribe = ref(null);
+const isInitialLoad = ref(true)
 
 const handlePageChange = (page) => {
-    const params = new URLSearchParams(window.location.search)
-    params.set('page', page)
-    window.location.href = `${window.location.pathname}?${params.toString()}`
+    eventStore.changePage(page);
+    window.scrollTo(0, 0);
 }
 
-const handleFilterUpdate = async (event) => {
-    const { type, value } = event.detail
+onMounted(() => {
+    eventStore.initializeFromUrl();
     
-    if (type === 'price') {
-        activeFilters.value.price = {
-            min: value[0],
-            max: value[1]
-        }
-    } else {
-        activeFilters.value[type] = value
+    if (eventStore.isFirstFetch) {
+        eventStore.setInitialData(props.maxPrice, {
+            data: props.searchedEvents?.data || [],
+            total: props.searchedEvents?.total || 0,
+            current_page: props.searchedEvents?.current_page || 1,
+            per_page: props.searchedEvents?.per_page || 20,
+            from: props.searchedEvents?.from,
+            to: props.searchedEvents?.to,
+            last_page: props.searchedEvents?.last_page || 1,
+            loading: false
+        });
     }
     
-    try {
-        const params = new URLSearchParams(window.location.search)
+    unsubscribe.value = eventStore.subscribe(state => {
         
-        if (activeFilters.value.category?.length) {
-            params.set('category', activeFilters.value.category)
+        if (eventStore.isUpdating && !isInitialLoad.value) return;
+        
+        if (state) {
+            events.value = {
+                data: state.events.data,
+                total: state.events.total,
+                current_page: state.events.current_page,
+                last_page: state.events.last_page,
+                from: state.events.from,
+                to: state.events.to,
+                per_page: state.events.per_page
+            };
         }
         
-        if (activeFilters.value.tag?.length) {
-            params.set('tag', activeFilters.value.tag)
-        }
-        
-        if (type === 'price') {
-            params.set('price0', value[0])
-            params.set('price1', value[1])
-        }
-        
-        if (activeFilters.value.dates?.start || activeFilters.value.dates?.end) {
-            params.set('start', activeFilters.value.dates.start)
-            params.set('end', activeFilters.value.dates.end)
-        }
-        
-        const response = await axios.get(`/api/index/search?${params.toString()}`)
-        events.value = response.data
-        
-        console.log('Got new search results with maxPrice:', response.data.maxPrice)
-        if (response.data.maxPrice) {
-            console.log('Emitting updated max price:', response.data.maxPrice)
-            window.dispatchEvent(new CustomEvent('max-price-update', {
-                detail: response.data.maxPrice
-            }))
-        }
-    } catch (error) {
-        console.error('Error applying filters:', error)
+        isInitialLoad.value = false;
+    });
+    
+    if (window.location.pathname === '/index/search') {
+        eventStore.fetchEvents();
     }
-}
-
-const initializeFiltersFromUrl = () => {
-    const params = new URLSearchParams(window.location.search)
-    
-    if (params.has('category')) {
-        activeFilters.value.categories = params.get('category').split(',')
-    }
-    
-    if (params.has('tags')) {
-        activeFilters.value.tags = params.get('tags').split(',')
-    }
-    
-    if (params.has('price0') || params.has('price1')) {
-        const min = params.get('price0') || 0
-        const max = params.get('price1') || 670
-        activeFilters.value.price = [parseInt(min), parseInt(max)]
-    }
-    
-    if (params.has('start') || params.has('end')) {
-        activeFilters.value.dates = {
-            start: params.get('start'),
-            end: params.get('end')
-        }
-    }
-}
-
-onMounted(async () => {
-    window.addEventListener('filter-update', handleFilterUpdate)
-    initializeFiltersFromUrl()
-    
-    await nextTick()
-    
-    // Wait for QuickBar to be ready
-    window.addEventListener('quickbar-ready', () => {
-        console.log('Search component received quickbar-ready')
-        if (props.maxPrice) {
-            console.log('Emitting initial max price:', props.maxPrice)
-            window.dispatchEvent(new CustomEvent('max-price-update', {
-                detail: props.maxPrice
-            }))
-        }
-    }, { once: true }) // Only listen once
 })
 
 onUnmounted(() => {
-    window.removeEventListener('filter-update', handleFilterUpdate)
+    if (unsubscribe.value) {
+        unsubscribe.value();
+    }
 })
 
 const imageUrl = computed(() => import.meta.env.VITE_IMAGE_URL)

@@ -6,28 +6,26 @@
 
 @section('nav')
 @if (Browser::isMobile())
-    @include('nav.index-mobile')
+    @include('nav.index-mobile', [
+        'searchedEvents' => $searchedEvents,
+        'maxprice' => $maxprice
+    ])
 @else
-    @include('nav.nav-full-search')
+    @include('nav.nav-full-search', [
+        'searchedEvents' => $searchedEvents,
+        'maxprice' => $maxprice
+    ])
 @endif
 @endsection
 
 @section('content')
     @if (Browser::isMobile())
-        <vue-search-location-mobile 
-        :searched-events='@json($searchedEvents)'
-        :categories='@json($categories)'
-        :tags='@json($tags)'
-        :in-person-categories='@json($inPersonCategories)'
-            :max-price="{{ $maxprice }}"
+        <vue-search-location-mobile
+            :searched-events='@json($searchedEvents)'
         ></vue-search-location-mobile>
     @else
-        <vue-search-location 
-        :searched-events='@json($searchedEvents)'
-        :categories='@json($categories)'
-        :tags='@json($tags)'
-        :in-person-categories='@json($inPersonCategories)'
-            :max-price="{{ $maxprice }}"
+        <vue-search-location
+            :searched-events='@json($searchedEvents)'
         ></vue-search-location>
     @endif
 @endsection

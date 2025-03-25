@@ -14,7 +14,10 @@
                     </svg>
                 </a>
             </div>
-            <vue-nav-search></vue-nav-search>
+            <vue-nav-search 
+                :searched-events='@json($searchedEvents ?? (object)[])'
+                :max-price="{{ $maxprice ?? 1000 }}">
+            </vue-nav-search>
             <vue-nav-profile class="col-span-1" :user="user"></vue-nav-profile>
         </div>
     </div>

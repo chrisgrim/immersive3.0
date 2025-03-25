@@ -105,7 +105,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
 import axios from 'axios';
-import eventStore from '@/Stores/EventStore';
+import eventStore from '@/Stores/EventStore.vue';
 
 const props = defineProps({
     initialCity: String,
@@ -363,28 +363,33 @@ const minDate = computed(() => {
 
 // Add handleSearch function that uses EventStore
 const handleSearch = () => {
-   if (!selectedPlace.value) return;
-   
-   // First update the EventStore with final state
-   eventStore.update({
-       location: {
-           city: selectedPlace.value.name,
-           lat: selectedPlace.value.lat,
-           lng: selectedPlace.value.lng,
-           searchType: 'inPerson',
-           live: false
-       },
-       dates: {
-           start: date.value?.[0] ? formatForUrl(date.value[0]) : null,
-           end: date.value?.[1] ? formatForUrl(date.value[1]) : null
-       }
-   }, true); // Now fetch events
-   
-   // Hide the search modal
-   window.dispatchEvent(new CustomEvent('hide-search'));
-   
-   // Save search data
-   saveSearchData({ name: selectedPlace.value.name });
+    if (!selectedPlace.value) return;
+    
+    // First update the EventStore with final state
+    eventStore.update({
+        source: 'initialSearch',
+        location: {
+            city: selectedPlace.value.name,
+            lat: selectedPlace.value.lat,
+            lng: selectedPlace.value.lng,
+            searchType: 'inPerson',
+            live: false,
+            NElat: null,
+            NElng: null,
+            SWlat: null,
+            SWlng: null
+        },
+        dates: {
+            start: date.value?.[0] ? formatForUrl(date.value[0]) : null,
+            end: date.value?.[1] ? formatForUrl(date.value[1]) : null
+        }
+    }, true);
+    
+    // Hide the search modal
+    window.dispatchEvent(new CustomEvent('hide-search'));
+    
+    // Save search data
+    saveSearchData({ name: selectedPlace.value.name });
 };
 
 // Helper function for date formatting

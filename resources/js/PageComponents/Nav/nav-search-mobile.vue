@@ -145,7 +145,7 @@
         v-if="showFilters"
         :show-price="true"
         :price-range="priceRange"
-        :max-price="maxPrice"
+        :max-price="eventStore.originalMaxPrice"
         :selected-categories="selectedCategories"
         :selected-tags="selectedTags"
         @close="showFilters = false"
@@ -158,7 +158,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import SearchLocation from './Components/location-search-mobile.vue';
 import SearchEvent from './Components/events-search-mobile.vue';
 import Filters from './Components/filters.vue';
-import eventStore from '@/Stores/EventStore';
+import eventStore from '@/Stores/EventStore.vue';
 
 // Reactive state
 const search = ref(null);
@@ -169,7 +169,6 @@ const showFilters = ref(false);
 const selectedCategories = ref([]);
 const selectedTags = ref([]);
 const priceRange = ref([0, 1000]);
-const maxPrice = ref(1000);
 const unsubscribe = ref(null);
 
 // For template refs
@@ -210,10 +209,14 @@ const formatDateDisplay = computed(() => {
 });
 
 const hasActiveFilters = computed(() => {
+    const isSearchPage = window.location.pathname.includes('/index/search');
+    
     return (selectedCategories.value?.length > 0) || 
            (selectedTags.value?.length > 0) || 
-           (priceRange.value?.[0] !== 0) || 
-           (priceRange.value?.[1] !== maxPrice.value);
+           (isSearchPage && (
+               priceRange.value?.[0] !== 0 || 
+               priceRange.value?.[1] !== eventStore.originalMaxPrice
+           ));
 });
 
 // Methods
@@ -301,14 +304,20 @@ const handleClearAll = () => {
 };
 
 const handleFilterUpdate = (filters) => {
-    // Update EventStore with the new filters
+    const [minPrice, maxPrice, isAtMax] = filters.price;
+    
+    // Update EventStore with the new filters and include source
     eventStore.update({
+        source: 'initialSearch',
         filters: {
             categories: filters.categories,
             tags: filters.tags,
-            price: filters.price
+            price: [
+                minPrice,
+                isAtMax ? null : maxPrice // Don't send maxPrice if at max
+            ]
         }
-    });
+    }, true);
     
     // Hide filters after updating
     showFilters.value = false;
@@ -332,12 +341,10 @@ onMounted(() => {
         endDate.value = state.dates.end;
         selectedCategories.value = state.filters.categories;
         selectedTags.value = state.filters.tags;
-        priceRange.value = state.filters.price;
-    });
-    
-    // Listen for max price updates
-    window.addEventListener('max-price-update', (event) => {
-        maxPrice.value = event.detail || 1000;
+        priceRange.value = [
+            state.filters.price[0] || 0,
+            state.filters.price[1] || state.state.maxPrice // Use maxPrice from state if no price1
+        ];
     });
 });
 

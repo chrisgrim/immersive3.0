@@ -94,9 +94,9 @@
            @click="handleSearch"
            class="rounded-full px-12 my-2 font-semibold transition-colors"
            :class="[
-               selectedPlace ? 
+               (selectedPlace || date) ? 
                'bg-default-red text-white cursor-pointer hover:bg-red-600' : 
-               'bg-black text-white cursor-not-allowed'
+               'bg-black text-white cursor-not-allowed opacity-50'
            ]"
        >
            Search
@@ -110,15 +110,18 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
-import eventStore from '@/Stores/EventStore';
 
-// Add props for initial date values
+// Props
 const props = defineProps({
     initialStartDate: {
         type: String,
         default: null
     },
     initialEndDate: {
+        type: String,
+        default: null
+    },
+    initialCity: {
         type: String,
         default: null
     }
@@ -158,43 +161,40 @@ let service;
 // Add these new refs to store selected location data
 const selectedPlace = ref(null);
 
-// Define emits and expose methods for parent component
-const emit = defineEmits(['location-updated']);
+// Update emits to include close-search
+const emit = defineEmits(['location-updated', 'search', 'close-search']);
 
 // Expose the toggleDateDropdown method so it can be called from parent
 defineExpose({
     openDateDropdown: () => {
-        // Force date synchronization before opening
-        const storeState = eventStore.state;
-        if (storeState.dates.start && storeState.dates.end) {
-            try {
-                const startDate = new Date(storeState.dates.start);
-                const endDate = new Date(storeState.dates.end);
-                
-                if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
-                    // Update with fresh values from store
-                    date.value = [startDate, endDate];
-                }
-            } catch (e) {
-                console.error('Error in openDateDropdown:', e);
+        // Force the date dropdown to open
+        dateDropdown.value = true;
+        dropdown.value = false;
+
+        // Check URL params first
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('start') && params.has('end')) {
+            const startDate = new Date(params.get('start'));
+            const endDate = new Date(params.get('end'));
+            if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+                date.value = [startDate, endDate];
+                return;
             }
-        } else if (props.initialStartDate && props.initialEndDate) {
+        }
+
+        // Then check props
+        if (props.initialStartDate && props.initialEndDate) {
             try {
                 const startDate = new Date(props.initialStartDate);
                 const endDate = new Date(props.initialEndDate);
                 
                 if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
-                    // Update with fresh values from props
                     date.value = [startDate, endDate];
                 }
             } catch (e) {
                 console.error('Error in openDateDropdown:', e);
             }
         }
-        
-        // Now open the dropdown
-        dateDropdown.value = true;
-        dropdown.value = false;
     }
 });
 
@@ -232,7 +232,7 @@ const setPlace = (place) => {
    searchInput.value = place.name;
    dropdown.value = false;
    
-   // Instead of opening the date dropdown, trigger search immediately
+   // Auto-submit for location selection
    handleSearch();
 };
 
@@ -247,91 +247,90 @@ const initGoogleMaps = () => {
 
 // Initialize from URL parameters
 onMounted(() => {
-   // Sync with EventStore state
-   const storeState = eventStore.state;
-   
-   // Initialize location if present in store
-   if (storeState.location.city && storeState.location.lat && storeState.location.lng) {
-       selectedPlace.value = {
-           name: storeState.location.city,
-           lat: storeState.location.lat,
-           lng: storeState.location.lng
-       };
-       searchInput.value = storeState.location.city;
-   }
-   
-   // Initialize dates if present in store
-   if (storeState.dates.start || storeState.dates.end) {
-       const startDate = storeState.dates.start ? new Date(storeState.dates.start) : null;
-       const endDate = storeState.dates.end ? new Date(storeState.dates.end) : null;
-       
-       // Set the date range
-       if (startDate && endDate) {
-           date.value = [startDate, endDate];
-       } else if (startDate) {
-           date.value = [startDate, startDate];
-       }
-   }
+    // Initialize city from URL or props
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('city')) {
+        searchInput.value = params.get('city');
+        selectedPlace.value = {
+            name: params.get('city'),
+            lat: parseFloat(params.get('lat')),
+            lng: parseFloat(params.get('lng'))
+        };
+    } else if (props.initialCity) {
+        searchInput.value = props.initialCity;
+    }
 
-   // Better Google Maps initialization to prevent duplicate loading
-   if (typeof google === 'undefined' || !google.maps) {
-       // Only create script if Google Maps is not already loaded
-       if (!document.getElementById('google-maps-script')) {
-           let script = document.createElement('script');
-           script.id = 'google-maps-script';
-           script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw&libraries=places&callback=initMap`;
-           script.async = true;
-           script.defer = true;
-           document.head.appendChild(script);
-       }
+    // Initialize dates from props if available
+    if (props.initialStartDate && props.initialEndDate) {
+        try {
+            const startDate = new Date(props.initialStartDate);
+            const endDate = new Date(props.initialEndDate);
+            
+            if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+                date.value = [startDate, endDate];
+            }
+        } catch (e) {
+            console.error('Error parsing initial dates:', e);
+        }
+    }
 
-       window.initMap = () => {
-           if (!window.googleMapsInitialized) {
-               initGoogleMaps();
-               window.googleMapsInitialized = true;
-           }
-       };
-   } else {
-       // Google Maps already loaded, initialize directly
-       initGoogleMaps();
-   }
+    // Initialize Google Maps
+    if (typeof google === 'undefined' || !google.maps) {
+        if (!document.getElementById('google-maps-script')) {
+            let script = document.createElement('script');
+            script.id = 'google-maps-script';
+            script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw&libraries=places&callback=initMap`;
+            script.async = true;
+            script.defer = true;
+            document.head.appendChild(script);
+        }
 
-   // Add a window event listener for popstate to update UI when URL changes
-   window.addEventListener('popstate', () => {
-       const params = new URLSearchParams(window.location.search);
-       if (params.has('city')) {
-           searchInput.value = params.get('city');
-       }
-   });
+        window.initMap = () => {
+            if (!window.googleMapsInitialized) {
+                initGoogleMaps();
+                window.googleMapsInitialized = true;
+            }
+        };
+    } else {
+        initGoogleMaps();
+    }
 
-   // Add a MutationObserver to detect DOM changes that might affect the URL
-   const observer = new MutationObserver(() => {
-       // Check if we have dates in storage but not in URL
-       const currentUrl = window.location.href;
-       const hasDateParams = currentUrl.includes('start=') && currentUrl.includes('end=');
-       const storedStartDate = sessionStorage.getItem('ei_search_start_date');
-       const storedEndDate = sessionStorage.getItem('ei_search_end_date');
-       
-       if (!hasDateParams && storedStartDate && storedEndDate) {
-           const restoredParams = new URLSearchParams(window.location.search);
-           restoredParams.set('start', storedStartDate);
-           restoredParams.set('end', storedEndDate);
-           const restoredUrl = `${window.location.pathname}?${restoredParams.toString()}`;
-           window.history.pushState({}, '', restoredUrl);
-       }
-   });
+    // Add a window event listener for popstate to update UI when URL changes
+    window.addEventListener('popstate', () => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('city')) {
+            searchInput.value = params.get('city');
+        }
+    });
 
-   // Start observing
-   observer.observe(document.body, { 
-       childList: true, 
-       subtree: true,
-       attributes: true 
-   });
+    // Add a MutationObserver to detect DOM changes that might affect the URL
+    const observer = new MutationObserver(() => {
+        // Check if we have dates in storage but not in URL
+        const currentUrl = window.location.href;
+        const hasDateParams = currentUrl.includes('start=') && currentUrl.includes('end=');
+        const storedStartDate = sessionStorage.getItem('ei_search_start_date');
+        const storedEndDate = sessionStorage.getItem('ei_search_end_date');
+        
+        if (!hasDateParams && storedStartDate && storedEndDate) {
+            const restoredParams = new URLSearchParams(window.location.search);
+            restoredParams.set('start', storedStartDate);
+            restoredParams.set('end', storedEndDate);
+            const restoredUrl = `${window.location.pathname}?${restoredParams.toString()}`;
+            window.history.pushState({}, '', restoredUrl);
+        }
+    });
 
-   // Cleanup on unmount
-   onUnmounted(() => {
-       observer.disconnect();
-   });
+    // Start observing
+    observer.observe(document.body, { 
+        childList: true, 
+        subtree: true,
+        attributes: true 
+    });
+
+    // Cleanup on unmount
+    onUnmounted(() => {
+        observer.disconnect();
+    });
 });
 
 onUnmounted(() => {
@@ -370,27 +369,12 @@ const disabledDate = (date) => {
    return date < new Date();
 };
 
-// Handle date changes
+// Update handleDateChange to not auto-submit
 function handleDateChange(newDate) {
-   if (newDate && Array.isArray(newDate) && newDate.length === 2) {
-       // Don't close the dropdown or trigger search automatically
-       // dateDropdown.value = false;
-       
-       // Store the selected dates but don't auto-search
-       // The search will only happen when the user clicks the Search button
-       console.log('Date selection changed:', newDate);
-       
-       const startDate = newDate[0];
-       const endDate = newDate[1];
-       
-       // Format dates for storage
-       const formatForUrl = (date) => {
-           return date.toISOString().split('T')[0] + ' 00:00:00';
-       };
-       
-       // Update local state only - don't trigger store update yet
-       // That will happen when Search is clicked
-   }
+    if (newDate && Array.isArray(newDate) && newDate.length === 2) {
+        // Just update the date value, don't trigger search
+        date.value = newDate;
+    }
 }
 
 // Toggle dropdowns
@@ -428,138 +412,53 @@ const minDate = computed(() => {
    return today;
 });
 
-// Modify handleSearch function to use EventStore
+// Update handleSearch
 const handleSearch = () => {
-   console.log('handleSearch called');
-   if (!selectedPlace.value) return;
-   
-   // Ensure searchInput is updated with the latest selected place name
-   searchInput.value = selectedPlace.value.name;
-   
-   // Make sure we have valid coordinates - fallback to New York coordinates if missing
-   const lat = selectedPlace.value.lat || 40.7127753;
-   const lng = selectedPlace.value.lng || -74.0059728;
-   
-   // Create updates for the store
-   const locationUpdate = {
-       city: selectedPlace.value.name,
-       searchType: 'inPerson',
-       live: false,
-       lat: lat,
-       lng: lng
-   };
-   
-   // Create date updates if we have dates
-   const dateUpdate = {};
-   if (date.value && Array.isArray(date.value) && date.value[0]) {
-       const [start, end] = date.value;
-       const formatForUrl = (date) => {
-           return date.toISOString().split('T')[0] + ' 00:00:00';
-       };
-       
-       dateUpdate.start = formatForUrl(start);
-       dateUpdate.end = end ? formatForUrl(end) : formatForUrl(start);
-   }
-   
-   // Close dropdowns before updating
-   dateDropdown.value = false;
-   dropdown.value = false;
+    // Allow search if we have either a location or dates
+    if (!selectedPlace.value && !date.value) return;
+    
+    // Update searchInput if we have a selected place
+    if (selectedPlace.value) {
+        searchInput.value = selectedPlace.value.name;
+    }
+    
+    const searchData = {
+        location: {
+            city: selectedPlace.value?.name || null,
+            searchType: 'inPerson',
+            live: false,
+            lat: selectedPlace.value?.lat || null,
+            lng: selectedPlace.value?.lng || null
+        },
+        dates: {}
+    };
+    
+    // Add dates if available
+    if (date.value && Array.isArray(date.value) && date.value[0]) {
+        const [start, end] = date.value;
+        const formatForUrl = (date) => {
+            return date.toISOString().split('T')[0] + ' 00:00:00';
+        };
+        
+        searchData.dates = {
+            start: formatForUrl(start),
+            end: end ? formatForUrl(end) : formatForUrl(start)
+        };
+    }
+    
+    // Close dropdowns
+    dateDropdown.value = false;
+    dropdown.value = false;
 
-   // Emit location-updated event to parent (for UI updates)
-   emit('location-updated', {
-       city: locationUpdate.city,
-       startDate: dateUpdate.start || null,
-       endDate: dateUpdate.end || null,
-       lat: lat,
-       lng: lng
-   });
-
-   // Check current path
-   const isSearchPage = window.location.pathname === '/index/search';
-   console.log('Current path:', window.location.pathname, 'Is search page:', isSearchPage);
-   
-   // Check current searchType (debug)
-   const currentSearchType = eventStore.state.location.searchType;
-   console.log('Current searchType:', currentSearchType, 'Setting to: inPerson');
-
-   // If we're switching from allEvents to inPerson, always redirect
-   if (currentSearchType === 'allEvents') {
-       // Update store with new values but don't trigger fetch
-       eventStore.update({
-           location: locationUpdate,
-           dates: dateUpdate
-       }, false);
-       
-       // Redirect to search page
-       window.location.href = `/index/search?${new URLSearchParams(window.location.search).toString()}`;
-       return;
-   }
-
-   // Otherwise, proceed with normal logic
-   if (isSearchPage) {
-       // Update the store with our new values
-       eventStore.update({
-           location: locationUpdate,
-           dates: dateUpdate,
-           // Reset to page 1 on new search
-           page: 1
-       });
-       
-       // Hide the search modal
-       window.dispatchEvent(new CustomEvent('hide-search'));
-   } else {
-       // Update store without triggering fetch
-       eventStore.update({
-           location: locationUpdate,
-           dates: dateUpdate
-       }, false);
-       
-       // Redirect to search page with explicit searchType and live parameter
-       const params = new URLSearchParams();
-       params.set('city', locationUpdate.city);
-       params.set('lat', locationUpdate.lat.toString());
-       params.set('lng', locationUpdate.lng.toString());
-       params.set('searchType', 'inPerson');
-       params.set('live', 'false');
-       
-       // Add date params if we have them
-       if (dateUpdate.start) params.set('start', dateUpdate.start);
-       if (dateUpdate.end) params.set('end', dateUpdate.end);
-       
-       console.log('Redirecting to:', `/index/search?${params.toString()}`);
-       window.location.href = `/index/search?${params.toString()}`;
-   }
-   
-   saveSearchData({ name: selectedPlace.value.name });
+    // Emit search event to parent with all data
+    emit('search', searchData);
+    emit('close-search');
 };
 
-// Modify clearDates to use EventStore
+// Update clearDates to emit to parent
 const clearDates = () => {
-   // 1. Clear the local date value
-   date.value = null;
-   
-   // 2. Close the date dropdown
-   dateDropdown.value = false;
-   
-   // Only proceed if we have a selected place
-   if (selectedPlace.value) {
-       // 3. Update the EventStore to clear dates
-       eventStore.clearDates();
-       
-       // 4. Emit to parent with null dates (for UI updates)
-       emit('location-updated', {
-           city: selectedPlace.value.name,
-           startDate: null,
-           endDate: null,
-           lat: selectedPlace.value.lat,
-           lng: selectedPlace.value.lng
-       });
-
-       // 5. Hide the search modal if we're on the search page
-       if (window.location.pathname === '/index/search') {
-           window.dispatchEvent(new CustomEvent('hide-search'));
-       }
-   }
+    date.value = null;
+    dateDropdown.value = false;
 };
 </script>
 

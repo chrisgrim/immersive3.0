@@ -32,7 +32,8 @@
                     <SearchLocation 
                         v-if="search==='l'"
                         ref="locationSearch"
-                        @location-updated="updateLocationData"
+                        @search="handleLocationSearch"
+                        @close-search="search = null"
                         :initial-start-date="startDate" 
                         :initial-end-date="endDate"
                     />
@@ -105,7 +106,7 @@
             :selected-categories="selectedCategories"
             :selected-tags="selectedTags"
             :price-range="priceRange"
-            :max-price="1000"
+            :max-price="maxPrice"
             :show-price="isSearchPage"
             @close="showFilters = false"
             @update:filters="handleFilterUpdate"
@@ -114,11 +115,25 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import SearchLocation from './Components/location-search.vue';
 import SearchEvent from './Components/events-search.vue';
 import Filters from './Components/filters.vue';
-import eventStore from '@/Stores/EventStore';
+import axios from 'axios';
+import SearchStore from '@/Stores/SearchStore.vue';
+import MapStore from '@/Stores/MapStore.vue';
+
+// Add props definition at the top of script setup
+const props = defineProps({
+  searchedEvents: {
+    type: Object,
+    default: () => ({})
+  },
+  maxPrice: {
+    type: Number,
+    default: 1000
+  }
+});
 
 // Initialize URL params
 const urlParams = new URLSearchParams(window.location.search);
@@ -134,12 +149,40 @@ const showFilters = ref(false);
 const selectedCategories = ref([]);
 const selectedTags = ref([]);
 const priceRange = ref([0, 1000]);
-const categories = ref([]);
-const tags = ref([]);
 const unsubscribe = ref(null);
+const originalMaxPrice = ref(props.maxPrice);
 
 // For template refs
 const locationSearch = ref(null);
+
+// Add this with other refs at the top
+const mapCenterSearch = ref(false);
+
+// State management
+const state = ref({
+    events: {
+        data: props.searchedEvents?.data || [],
+        total: props.searchedEvents?.total || 0,
+        current_page: props.searchedEvents?.current_page || 1,
+        last_page: props.searchedEvents?.last_page || 1,
+        from: props.searchedEvents?.from || null,
+        to: props.searchedEvents?.to || null,
+        per_page: props.searchedEvents?.per_page || 15
+    },
+    location: {
+        city: null,
+        lat: null,
+        lng: null,
+        searchType: null,
+        live: false
+    },
+    filters: {
+        categories: [],
+        tags: [],
+        price: [0, props.maxPrice]
+    },
+    maxPrice: props.maxPrice
+});
 
 // Computed properties
 const isSearchPage = computed(() => {
@@ -197,10 +240,14 @@ const formatDateDisplay = computed(() => {
 });
 
 const hasActiveFilters = computed(() => {
-    return (selectedCategories.value?.length > 0) || 
+    const result = (selectedCategories.value?.length > 0) || 
            (selectedTags.value?.length > 0) || 
-           (priceRange.value?.[0] !== 0) || 
-           (priceRange.value?.[1] !== 1000);
+           (isSearchPage.value && (
+               priceRange.value?.[0] !== 0 || 
+               priceRange.value?.[1] !== state.value.maxPrice
+           ));
+
+    return result;
 });
 
 // Methods
@@ -213,15 +260,19 @@ const openLocationSearch = () => {
 };
 
 const openDateSearch = () => {
-    // Open search in location mode first
+    // First open the search modal in location mode
     search.value = 'l';
     
-    // Use a small timeout to ensure the component is mounted
-    setTimeout(() => {
+    // Use nextTick to ensure the component is mounted
+    nextTick(async () => {
+        // Add a small delay to ensure component is fully mounted
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Then open the date dropdown using the exposed method
         if (locationSearch.value) {
             locationSearch.value.openDateDropdown();
         }
-    }, 50);
+    });
 };
 
 const handleScroll = () => {
@@ -238,61 +289,262 @@ const hideSearch = () => {
     search.value = null;
 };
 
-const handleFilterUpdate = ({ categories: cats, tags: t, price }) => {
-    // Update local UI state
-    selectedCategories.value = cats;
-    selectedTags.value = t;
-    priceRange.value = price;
+const handleFilterUpdate = (filters) => {
+    const [minPrice, maxPrice, isAtMax] = filters.price;
     
-    // Update store
-    eventStore.update({
-        filters: {
-            categories: cats,
-            tags: t,
-            price: price
+    if (isSearchPage.value) {
+        // Update URL and state
+        const params = new URLSearchParams(window.location.search);
+        
+        if (filters.categories.length) {
+            params.set('category', filters.categories.join(','));
+        } else {
+            params.delete('category');
         }
-    });
+        
+        if (filters.tags.length) {
+            params.set('tag', filters.tags.join(','));
+        } else {
+            params.delete('tag');
+        }
+
+        // Update URL without reload
+        window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+        
+        // Fetch new results
+        fetchResults(params.toString());
+    } else {
+        // Redirect to search page with filters
+        const params = new URLSearchParams();
+        
+        if (filters.categories.length) {
+            params.set('category', filters.categories.join(','));
+        }
+        if (filters.tags.length) {
+            params.set('tag', filters.tags.join(','));
+        }
+        if (minPrice > 0 || !isAtMax) {
+            params.set('price0', minPrice);
+            if (!isAtMax) {
+                params.set('price1', state.value.maxPrice);
+            }
+        }
+        params.set('searchType', 'null');
+
+        window.location.href = `/index/search?${params.toString()}`;
+    }
 };
 
 const openFilters = () => {
     showFilters.value = true;
 };
 
-const updateLocationData = (data) => {
-    // Update local UI state for the nav
-    city.value = data.city;
-    startDate.value = data.startDate;
-    endDate.value = data.endDate;
-    lat.value = data.lat;
-    lng.value = data.lng;
+const handleLocationSearch = (searchData) => {
+    mapCenterSearch.value = true;
+    
+    city.value = searchData.location.city;
+    startDate.value = searchData.dates.start;
+    endDate.value = searchData.dates.end;
+    lat.value = searchData.location.lat;
+    lng.value = searchData.location.lng;
+
+    // Update store state
+    state.value = {
+        ...state.value,
+        location: {
+            ...searchData.location,
+            live: searchData.location.live
+        },
+        dates: searchData.dates
+    };
+
+    if (isSearchPage.value) {
+        const params = new URLSearchParams(window.location.search);
+        
+        // Remove any existing boundary parameters with correct names
+        params.delete('NElat');
+        params.delete('NElng');
+        params.delete('SWlat');
+        params.delete('SWlng');
+        
+        // Set new parameters
+        params.set('city', searchData.location.city);
+        params.set('lat', searchData.location.lat);
+        params.set('lng', searchData.location.lng);
+        params.set('searchType', 'inPerson');
+        params.set('live', 'false'); // Ensure live is set to false
+        
+        if (searchData.dates.start) {
+            params.set('start', searchData.dates.start);
+            params.set('end', searchData.dates.end || searchData.dates.start);
+        } else {
+            params.delete('start');
+            params.delete('end');
+        }
+
+        window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+        fetchResults(params.toString());
+    } else {
+        // Redirect to search page
+        const params = new URLSearchParams();
+        params.set('city', searchData.location.city);
+        params.set('lat', searchData.location.lat);
+        params.set('lng', searchData.location.lng);
+        params.set('searchType', 'inPerson');
+        params.set('live', 'false'); // Ensure live is set to false
+        
+        if (searchData.dates.start) {
+            params.set('start', searchData.dates.start);
+            params.set('end', searchData.dates.end || searchData.dates.start);
+        }
+
+        window.location.href = `/index/search?${params.toString()}`;
+    }
+};
+
+// Initialize from URL
+const initializeFromUrl = () => {
+    const params = new URLSearchParams(window.location.search);
+    
+    // Update date refs from URL
+    if (params.has('start') && params.has('end')) {
+        startDate.value = params.get('start');
+        endDate.value = params.get('end');
+    }
+    
+    state.value = {
+        events: {
+            data: props.searchedEvents?.data || [],
+            total: props.searchedEvents?.total || 0,
+            current_page: props.searchedEvents?.current_page || 1,
+            last_page: props.searchedEvents?.last_page || 1,
+            from: props.searchedEvents?.from || null,
+            to: props.searchedEvents?.to || null,
+            per_page: props.searchedEvents?.per_page || 15
+        },
+        location: {
+            city: params.get('city') || null,
+            lat: params.has('lat') ? parseFloat(params.get('lat')) : null,
+            lng: params.has('lng') ? parseFloat(params.get('lng')) : null,
+            searchType: params.get('searchType') || null,
+            live: params.get('live') === 'true'
+        },
+        filters: {
+            categories: params.has('category') ? params.get('category').split(',').map(Number) : [],
+            tags: params.has('tag') ? params.get('tag').split(',').map(Number) : [],
+            price: [
+                parseInt(params.get('price0')) || 0,
+                parseInt(params.get('price1')) || props.maxPrice
+            ]
+        },
+        maxPrice: props.maxPrice
+    };
+
+    // Update local refs
+    city.value = state.value.location.city;
+    lat.value = state.value.location.lat;
+    lng.value = state.value.location.lng;
+    selectedCategories.value = state.value.filters.categories;
+    selectedTags.value = state.value.filters.tags;
+    priceRange.value = state.value.filters.price;
+};
+
+// Fetch results
+const fetchResults = async (queryString) => {
+    console.log('Fetching results with query:', queryString);
+    try {
+        SearchStore.setLoading(true);
+        const response = await axios.get(`/api/index/search?${queryString}`);
+        
+        // Get current URL params to preserve location data
+        const params = new URLSearchParams(window.location.search);
+        
+        // Construct complete state object
+        const completeState = {
+            events: {
+                current_page: response.data.current_page,
+                data: response.data.data,
+                from: response.data.from,
+                last_page: response.data.last_page,
+                per_page: response.data.per_page,
+                to: response.data.to,
+                total: response.data.total
+            },
+            location: {
+                city: params.get('city'),
+                lat: parseFloat(params.get('lat')),
+                lng: parseFloat(params.get('lng')),
+                searchType: params.get('searchType') || 'inPerson',
+                live: params.get('live') === 'true'
+            },
+            maxPrice: response.data.maxPrice
+        };
+
+        SearchStore.updateState(completeState);
+    } catch (error) {
+        console.error('Error fetching results:', error);
+    } finally {
+        SearchStore.setLoading(false);
+    }
 };
 
 // Lifecycle hooks
 onMounted(() => {
+    initializeFromUrl();
+    
+    // Initialize SearchStore with complete state if searchedEvents available
+    if (props.searchedEvents && Object.keys(props.searchedEvents).length > 0) {
+        SearchStore.updateState(state.value);
+    }
+    
+    // Update the MapStore subscription
+    const unsubscribeMap = MapStore.subscribe((mapState) => {
+        if (mapState.bounds.center[0] && mapState.bounds.center[1]) {
+            // If mapCenterSearch is true, set it to false and return early
+            if (mapCenterSearch.value) {
+                console.log('Skipping map bounds update due to location search');
+                mapCenterSearch.value = false;
+                return;
+            }
+
+            // Get current params to preserve other values
+            const params = new URLSearchParams(window.location.search);
+            
+            // Only update if we have valid boundary coordinates
+            if (mapState.bounds.northEast?.lat && mapState.bounds.northEast?.lng &&
+                mapState.bounds.southWest?.lat && mapState.bounds.southWest?.lng) {
+                
+                // Update boundary coordinates with validated values
+                params.set('NElat', parseFloat(mapState.bounds.northEast.lat).toFixed(6));
+                params.set('NElng', parseFloat(mapState.bounds.northEast.lng).toFixed(6));
+                params.set('SWlat', parseFloat(mapState.bounds.southWest.lat).toFixed(6));
+                params.set('SWlng', parseFloat(mapState.bounds.southWest.lng).toFixed(6));
+                params.set('live', 'true');
+                params.set('searchType', 'inPerson');
+
+                // Update URL without reload
+                window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+                
+                // Fetch new results
+                fetchResults(params.toString());
+            }
+        }
+    });
+    
     window.addEventListener('scroll', handleScroll);
     window.addEventListener('hide-search', hideSearch);
-    
-    // Subscribe to EventStore changes
-    unsubscribe.value = eventStore.subscribe(state => {
-        // Update local state from the store
-        city.value = state.location.city;
-        lat.value = state.location.lat;
-        lng.value = state.location.lng;
-        startDate.value = state.dates.start;
-        endDate.value = state.dates.end;
-        selectedCategories.value = state.filters.categories;
-        selectedTags.value = state.filters.tags;
-        priceRange.value = state.filters.price;
-    });
+
+    // Store unsubscribe function
+    unsubscribe.value = unsubscribeMap;
 });
 
+// Separate onUnmounted hook
 onUnmounted(() => {
-    window.removeEventListener('scroll', handleScroll);
-    window.removeEventListener('hide-search', hideSearch);
-    
     if (unsubscribe.value) {
         unsubscribe.value();
     }
+    window.removeEventListener('scroll', handleScroll);
+    window.removeEventListener('hide-search', hideSearch);
 });
 </script>
 

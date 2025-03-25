@@ -15,6 +15,19 @@ class ListingsController extends Controller
 
     protected function buildLocationFilter(Request $request)
     {
+        // If searchType is null or not set, we should still filter by hasLocation
+        if (!$request->searchType || $request->searchType === 'null') {
+            return [
+                'hasLocation' => Query::term()->field('hasLocation')->value(true),
+                'geoFilter' => $request->lat ? 
+                    Query::geoDistance()
+                        ->field('location_latlon')
+                        ->distance('40km')
+                        ->lat($request->lat)
+                        ->lon($request->lng) : null
+            ];
+        }
+
         if ($request->searchType === 'inPerson') {
             return [
                 'hasLocation' => Query::term()->field('hasLocation')->value(true),
@@ -69,16 +82,19 @@ class ListingsController extends Controller
         }
 
         // Price filters
-        if ($request->price0 !== null) {
-            $minPrice = (float) $request->price0;
-            $maxPrice = (float) $request->price1;
-            
-            $top = $maxPrice === 670 ? 9999 : $maxPrice;
+        if ($request->has('price0') || $request->has('price1')) {
+            $minPrice = $request->has('price0') ? (float) $request->price0 : 0;
             
             $filters['prices'] = Query::range()
                 ->field('priceranges.price')
-                ->gte($minPrice)
-                ->lte($top);
+                ->gte($minPrice);
+            
+            // Only add upper bound if price1 is set (meaning we're not at max)
+            if ($request->has('price1')) {
+                $maxPrice = (float) $request->price1;
+                $filters['prices']->lte($maxPrice);
+            }
+
         }
 
         // Date filters
@@ -192,10 +208,25 @@ class ListingsController extends Controller
             ->aggregations()
             ->get('max_price')['value'] ?? 0;
 
-        // Format results
-        $searchedEvents = tap($results->toArray(), function (array &$content) {
-            $content['data'] = Arr::pluck($content['data'], 'model');
-        });
+        // Always return a consistent structure, even with no results
+        $searchedEvents = [
+            'data' => [],           // Empty array for no results
+            'total' => 0,           // Zero total for no results
+            'current_page' => 1,    // Default page
+            'per_page' => 20,       // Default per page
+            'from' => null,         // No starting record
+            'to' => null,           // No ending record
+            'last_page' => 1        // Default last page
+        ];
+
+        if ($results->total() > 0) {
+            $searchedEvents = tap($results->toArray(), function (array &$content) {
+                $content['data'] = Arr::pluck($content['data'], 'model');
+            });
+        }
+
+        // Add maxPrice to response
+        $searchedEvents['maxPrice'] = ceil($maxPrice);
 
         // Prepare view data
         $viewData = [
@@ -215,14 +246,7 @@ class ListingsController extends Controller
     }
 
     public function apiIndex(Request $request)
-    {
-        // Debug the incoming request
-        \Log::info('API Request', [
-            'price0' => $request->price0,
-            'price1' => $request->price1,
-            'all_parameters' => $request->all()
-        ]);
-        
+    {   
         // Get location specific filters
         $locationFilters = $this->buildLocationFilter($request);
         
@@ -241,15 +265,9 @@ class ListingsController extends Controller
             ->when($searchFilters['dates'] ?? null, fn($q) => $q->filter($searchFilters['dates']))
             ->when($searchFilters['tags'] ?? null, fn($q) => $q->filter($searchFilters['tags']))
             ->when(
-                $request->searchType === 'inPerson' && isset($request->live),
+                ($request->searchType === 'inPerson' || !$request->searchType || $request->searchType === 'null') && isset($request->live),
                 fn($q) => $q->filter($request->live === 'true' ? $boundaryFilter : $locationFilters['geoFilter'])
             );
-
-        // Add debug logging for the filters
-        \Log::info('Search Filters', [
-            'tag_filter' => $searchFilters['tags'] ?? null,
-            'query' => $query
-        ]);
 
         // Execute search
         $results = Event::searchQuery($query)
@@ -257,7 +275,7 @@ class ListingsController extends Controller
             ->sortRaw(['published_at' => 'desc'])
             ->paginate(20);
 
-        // Get max price from current filtered results
+        // Get max price
         $maxPrice = Event::searchQuery($query)
             ->aggregate('max_price', [
                 'max' => [
@@ -268,11 +286,26 @@ class ListingsController extends Controller
             ->aggregations()
             ->get('max_price')['value'] ?? 0;
 
-        // Format results and include maxPrice
-        return tap($results->toArray(), function (array &$content) use ($maxPrice) {
-            $content['data'] = Arr::pluck($content['data'], 'model');
-            $content['maxPrice'] = ceil($maxPrice);
-        });
+        // Always return a consistent structure
+        $response = [
+            'data' => [],
+            'total' => 0,
+            'current_page' => 1,
+            'per_page' => 20,
+            'from' => null,
+            'to' => null,
+            'last_page' => 1,
+            'maxPrice' => ceil($maxPrice)
+        ];
+
+        if ($results->total() > 0) {
+            $response = tap($results->toArray(), function (array &$content) use ($maxPrice) {
+                $content['data'] = Arr::pluck($content['data'], 'model');
+                $content['maxPrice'] = ceil($maxPrice);
+            });
+        }
+
+        return $response;
     }
 
 }

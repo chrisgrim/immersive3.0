@@ -6,10 +6,15 @@
             :class="[ isFullMap ? 'relative' : 'sticky top-32' ]"
             class="search__map overflow-hidden w-full h-full">
             <!-- Loading Spinner -->
-            <div v-show="modelValue.loading" class="flex items-center justify-center absolute h-full w-full z-40">
+            <div 
+                v-show="isLoading"
+                class="flex items-center justify-center absolute h-full w-full z-[1001]">
                 <div class="bg-white shadow-custom-1 w-16 h-16 rounded-full flex items-center justify-center">
-                    <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" role="status">
-                        <span class="sr-only">Loading...</span>
+                    <div
+                        class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"
+                        role="status">
+                        <span
+                            class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
                     </div>
                 </div>
             </div>
@@ -25,153 +30,119 @@
 
             <!-- Map Container -->
             <div class="w-full h-full relative">
-                <l-map
-                    ref="map"
-                    :zoom="modelValue.location.zoom"
-                    :center="modelValue.location.center"
-                    :maxZoom="mapConfig.max" 
-                    :minZoom="mapConfig.min"
-                    :options="{ scrollWheelZoom: false, zoomControl: true }"
-                    @update:center="centerUpdate"
-                    @update:bounds="boundsUpdate"
-                    @update:zoom="zoomUpdate"
-                    class="!w-full !h-full !absolute !inset-0">
-                    <l-tile-layer :url="mapConfig.url" :attribution="mapConfig.attribution" />
-                    <marker-cluster :options="{ maxClusterRadius: 40 }">
-                        <l-marker v-for="event in events" :key="event.id" :lat-lng="event.location_latlon">
-                            <l-icon :iconSize="[getMarkerWidth(event), 30]" :iconAnchor="[getMarkerWidth(event)/2, 4]" class-name="icons">
-                                <p :class="[
-                                    'font-semibold px-4 py-1 rounded-full border-2 border-black text-center inline-block min-w-[3rem] whitespace-nowrap',
-                                    isSelected(event) ? 'bg-black text-white' : 'bg-white text-black'
-                                ]">
-                                    {{ getFixedPrice(event) }}
-                                </p>
-                            </l-icon>
-                            <l-popup>
-                                <popup-content :data="event"/>
-                            </l-popup>
-                        </l-marker>
-                    </marker-cluster>
-                </l-map>
+                <template v-if="shouldRenderMap">
+                    <l-map
+                        ref="map"
+                        :key="`map-${isFullMap}-${mapCenter.join(',')}`"
+                        :zoom="modelValue.location.zoom"
+                        :center="mapCenter"
+                        :maxZoom="mapConfig.max" 
+                        :minZoom="mapConfig.min"
+                        :options="{ scrollWheelZoom: false, zoomControl: true }"
+                        @update:bounds="boundsUpdate"
+                        @ready="onMapReady"
+                        class="!w-full !h-full !absolute !inset-0">
+                        <l-tile-layer :url="mapConfig.url" :attribution="mapConfig.attribution" />
+                        <marker-cluster :options="{ maxClusterRadius: 40 }">
+                            <l-marker v-for="event in events" :key="event.id" :lat-lng="event.location_latlon">
+                                <l-icon :iconSize="[getMarkerWidth(event), 30]" :iconAnchor="[getMarkerWidth(event)/2, 4]" class-name="icons">
+                                    <p :class="[
+                                        'font-semibold px-4 py-1 rounded-full border-2 border-black text-center inline-block min-w-[3rem] whitespace-nowrap',
+                                        isSelected(event) ? 'bg-black text-white' : 'bg-white text-black'
+                                    ]">
+                                        {{ getFixedPrice(event) }}
+                                    </p>
+                                </l-icon>
+                                <l-popup>
+                                    <popup-content :data="event"/>
+                                </l-popup>
+                            </l-marker>
+                        </marker-cluster>
+                    </l-map>
+                </template>
             </div>
         </div>
     </section>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import 'leaflet/dist/leaflet.css'
 import { LMap, LTileLayer, LMarker, LPopup, LIcon } from '@vue-leaflet/vue-leaflet'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import MarkerCluster from './LMarkerCluster.vue'
 import PopupContent from "./map-element.vue"
+import MapStore from '@/Stores/MapStore.vue'
+import M from 'vue-cal/dist/i18n/ca.es.js'
 
 // Props & Emits
 const props = defineProps({
-    modelValue: { type: Object, required: true },
-    events: { type: Array, required: true }
-})
-const emit = defineEmits(['update:modelValue', 'submit', 'fullMap'])
+    modelValue: { 
+        type: Object, 
+        required: true 
+    },
+    events: { 
+        type: Array, 
+        required: true 
+    }
+});
 
-// Refs & State
-const map = ref(null)
-const isInitialLoad = ref(true)
-const selectedMarker = ref(null)
-let timeout = null
+const emit = defineEmits(['update:modelValue', 'fullMap']);
+
+// Refs
+const map = ref(null);
+const selectedMarker = ref(null);
+const isLoading = ref(false);
+const isMapReady = ref(false);
 
 // Map Configuration
-const mapConfig = {
+const mapConfig = computed(() => ({
     max: 20,
     min: 8,
     url: "https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=5Pwt4rF8iefMU4hIcRqZJ0GXPqWi5l4NVjEn4owEBKOdGyuJVARXbYTBDO2or3cU",
-    attribution: '<a href="http://jawg.io" title="Tiles Courtesy of Jawg Maps" target="_blank">&copy; <b>Jawg</b>Maps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-}
+    attribution: '<a href="http://jawg.io" title="Tiles Courtesy of Jawg Maps" target="_blank">&copy; <b>Jawg</b>Maps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    zoom: props.modelValue.location.zoom,
+    center: props.modelValue.location.center
+}));
 
 // Computed
-const isFullMap = computed(() => props.modelValue.location.fullMap)
+const isFullMap = computed(() => props.modelValue.location.fullMap);
+const mapCenter = computed(() => {
+    return props.modelValue.location.center;
+});
+
+// Add new computed for map rendering
+const shouldRenderMap = computed(() => {
+    return props.modelValue.location.center && document.querySelector('.search__map');
+});
 
 // Methods
-const getFixedPrice = (event) => event.price_range.replace(/\d+(\.\d{1,2})?/g, dec => parseInt(dec))
+const getFixedPrice = (event) => event.price_range.replace(/\d+(\.\d{1,2})?/g, dec => parseInt(dec));
+const getMarkerWidth = (event) => getFixedPrice(event).length * 12 + 32;
+const isSelected = (event) => selectedMarker.value === event.id;
 
-const getMarkerWidth = (event) => getFixedPrice(event).length * 12 + 32
-
-const isSelected = (event) => selectedMarker.value === event.id
-
-const debounce = () => {
-    if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => emit('submit', true), 400)
-}
-
-// Map Event Handlers
 const toggleMap = () => {
-    emit('fullMap')
-    emit('update:modelValue', {
-        ...props.modelValue,
-        location: {
-            ...props.modelValue.location,
-            fullMap: !props.modelValue.location.fullMap
+    emit('fullMap');
+    // Wait for DOM update then invalidate map size
+    nextTick(() => {
+        if (map.value?.leafletObject) {
+            map.value.leafletObject.invalidateSize();
         }
-    })
-}
-
-const zoomUpdate = (newZoom) => {
-    emit('update:modelValue', {
-        ...props.modelValue,
-        location: {
-            ...props.modelValue.location,
-            zoom: newZoom
-        }
-    })
-}
-
-const centerUpdate = (center) => {
-    emit('update:modelValue', {
-        ...props.modelValue,
-        location: {
-            ...props.modelValue.location,
-            center: center
-        }
-    })
-}
+    });
+};
 
 const boundsUpdate = (bounds) => {
-    if (isInitialLoad.value) {
-        isInitialLoad.value = false
-        return
-    }
+    console.log('boundsUpdate fired:', bounds._northEast.lat);
+    // Update the MapStore with new bounds
+    MapStore.boundsUpdate(bounds);
+};
 
-    emit('update:modelValue', {
-        ...props.modelValue,
-        location: {
-            ...props.modelValue.location,
-            mapboundary: bounds,
-            live: true
-        }
-    })
-    debounce()
-}
+// Add map ready handler
+const onMapReady = () => {
+    isMapReady.value = true;
+};
 
-// Watchers
-watch(() => props.modelValue.location.center, async (newCenter) => {
-    if (newCenter) {
-        await nextTick()
-        if (map.value?.leafletObject) {
-            map.value.leafletObject.setView(newCenter, props.modelValue.location.zoom)
-        }
-    }
-}, { immediate: true })
-
-watch(() => map.value?.leafletObject, (mapInstance) => {
-    if (mapInstance && props.modelValue.location.center) {
-        mapInstance.setView(props.modelValue.location.center, props.modelValue.location.zoom)
-    }
-})
-
-// Lifecycle
-onMounted(() => {
-    isInitialLoad.value = true
-})
 </script>
 
 <style>

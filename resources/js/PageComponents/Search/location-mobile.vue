@@ -8,8 +8,9 @@
                     v-model="searchData"
                     :key="mapKey"
                     :events="events.data"
+                    :source="eventStore.state.source"
                     :full-map="searchData.location.fullMap"
-                    @submit="onSubmit"
+                    @boundsChanged="handleBoundsChanged"
                     @click="handleMapClick"
                 />
             </div>
@@ -24,7 +25,7 @@
             <div 
                 :style="{
                     transform: searchData.location.fullMap 
-                        ? `translate3d(0, ${mapHeight + 24 }px, 0)` 
+                        ? `translate3d(0, ${mapHeight}px, 0)` 
                         : 'translate3d(0, 0px, 0)'
                 }"
                 class="min-h-[64vh] relative w-full z-49 transition-transform duration-300">
@@ -57,12 +58,10 @@
 
 <script setup>
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
-import axios from 'axios'
-import Nav from './Components/nav.vue'
 import EventList from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 import Map from './Components/map-mobile.vue'
-import eventStore from '@/Stores/EventStore'
+import eventStore from '@/Stores/EventStore.vue'
 
 // Constants
 const DEFAULT_LOCATION = {
@@ -102,7 +101,12 @@ const childNav = ref(null)
 const mapKey = ref(0)
 const events = ref({
     data: props.searchedEvents?.data || [],
-    total: props.searchedEvents?.total || 0
+    total: props.searchedEvents?.total || 0,
+    current_page: props.searchedEvents?.current_page || 1,
+    per_page: props.searchedEvents?.per_page || 20,
+    from: props.searchedEvents?.from,
+    to: props.searchedEvents?.to,
+    last_page: props.searchedEvents?.last_page || 1
 })
 const searchData = ref({ location: { ...DEFAULT_LOCATION } })
 const activeFilters = ref({ ...DEFAULT_FILTERS })
@@ -113,8 +117,6 @@ const userMovedMap = ref(false)
 const listContainer = ref(null)
 const isMapFocused = ref(false)
 const listPosition = ref(0)
-const touchStart = ref(null)
-const initialPosition = ref(null)
 
 // Add new ref for expanded state
 const isExpanded = ref(false)
@@ -125,123 +127,51 @@ const mapHeight = ref(0)
 
 // Add this near the other refs
 const lastSearchCity = ref('');
+const isInitialLoad = ref(true);
+const debounceBoundaryUpdateTimer = ref(null)
+const pendingBoundaries = ref(null)
 
 // Computed
 const hasEvents = computed(() => events.value.data && events.value.data.length)
 
-// URL Parameter Handling
-const buildSearchParams = (type, value) => {
-    const currentParams = new URLSearchParams(window.location.search)
-    const params = new URLSearchParams()
 
-    // Copy location params
-    const locationParams = ['searchType', 'lat', 'lng', 'live', 'NElat', 'NElng', 'SWlat', 'SWlng', 'city']
-    locationParams.forEach(param => {
-        if (currentParams.has(param)) params.set(param, currentParams.get(param))
-    })
+const handleBoundsChanged = (bounds) => {
+    pendingBoundaries.value = bounds;
     
-    // Handle different filter types
-    if (type === 'location') {
-        Object.entries(value).forEach(([key, val]) => params.set(key, val))
+    if (debounceBoundaryUpdateTimer.value) {
+        clearTimeout(debounceBoundaryUpdateTimer.value);
     }
-    if (activeFilters.value.categories.length) {
-        params.set('category', activeFilters.value.categories.join(','))
-    }
-    if (activeFilters.value.tag) {
-        params.set('tag', activeFilters.value.tag)
-    }
-    if (type === 'price') {
-        params.set('price0', value[0])
-        params.set('price1', value[1])
-    }
-    if (activeFilters.value.dates.start || activeFilters.value.dates.end) {
-        params.set('start', activeFilters.value.dates.start)
-        params.set('end', activeFilters.value.dates.end)
-    }
-
-    return params
+    debounceBoundaryUpdateTimer.value = setTimeout(() => {
+        updateMapBoundaries();
+    }, 750);
 }
 
-// Filter Handling
-const handleFilterUpdate = (event) => {
-    const { type, value } = event.detail
+const updateMapBoundaries = () => {
+    if (!pendingBoundaries.value) return;
     
-    // Update the EventStore based on filter type
-    if (type === 'price') {
-        eventStore.update({
-            filters: {
-                price: value
-            }
-        })
-    } else if (type === 'location') {
-        eventStore.update({
-            location: {
-                city: value.city,
-                lat: value.lat,
-                lng: value.lng,
-                live: value.live !== undefined ? value.live : false
-            }
-        })
-    } else if (type === 'category') {
-        eventStore.update({
-            filters: {
-                categories: value
-            }
-        })
-    } else if (type === 'tag') {
-        eventStore.update({
-            filters: {
-                tags: value
-            }
-        })
-    }
-}
-
-// Initialization Methods
-const initializeFiltersFromUrl = () => {
-    const params = new URLSearchParams(window.location.search)
+    const bounds = pendingBoundaries.value;
     
-    if (params.has('category')) {
-        activeFilters.value.categories = params.get('category').split(',')
-    }
-    if (params.has('tags')) {
-        activeFilters.value.tags = params.get('tags').split(',')
-    }
-    if (params.has('price0') || params.has('price1')) {
-        activeFilters.value.price = [
-            parseInt(params.get('price0')) || 0,
-            parseInt(params.get('price1')) || 670
-        ]
-    }
-    if (params.has('start') || params.has('end')) {
-        activeFilters.value.dates = {
-            start: params.get('start'),
-            end: params.get('end')
+    eventStore.update({
+        source: 'eventStore',
+        location: {
+            city: searchData.value.location.name,
+            lat: searchData.value.location.center[0],
+            lng: searchData.value.location.center[1],
+            searchType: 'inPerson',
+            NElat: bounds.northEast.lat,
+            NElng: bounds.northEast.lng,
+            SWlat: bounds.southWest.lat,
+            SWlng: bounds.southWest.lng,
+            live: true
         }
-    }
+    }, true);
+    
+    pendingBoundaries.value = null;
 }
 
-const initializeLocationFromUrl = () => {
-    const params = new URLSearchParams(window.location.search)
-    
-    if (params.has('lat') && params.has('lng')) {
-        searchData.value.location = {
-            ...searchData.value.location,
-            name: params.get('city') || 'Search by City',
-            center: [parseFloat(params.get('lat')), parseFloat(params.get('lng'))],
-            live: params.get('live') === 'true'
-        }
-    }
-}
+
 
 // Event Handlers
-const onSubmit = () => {
-    // Instead of calling childNav reference, use EventStore
-    eventStore.fetchEvents()
-}
-
-const updateEvents = (value) => events.value = value
-const fullMap = () => mapKey.value += 1
 
 const handlePageChange = (page) => {
     // Update page in EventStore
@@ -249,66 +179,10 @@ const handlePageChange = (page) => {
     window.scrollTo(0, 0)
 }
 
-const clear = () => {
-    searchData.value = { location: { ...DEFAULT_LOCATION } }
-}
-
-const handleCategoryFilter = async (categoryId) => {
-    try {
-        const params = new URLSearchParams(window.location.search)
-        params.set('category', categoryId)
-        const response = await fetch(`/api/events?${params.toString()}`)
-        events.value = await response.json()
-    } catch (error) {
-        console.error('Error filtering by category:', error)
-    }
-}
-
-// Touch handling methods
-const handleTouchStart = (e) => {
-    touchStart.value = e.touches[0].clientY
-    initialPosition.value = listPosition.value
-}
-
-const handleTouchMove = (e) => {
-    if (!touchStart.value) return
-    
-    const currentTouch = e.touches[0].clientY
-    const diff = touchStart.value - currentTouch
-    
-    // Calculate new position
-    const newPosition = initialPosition.value + diff
-    
-    // Update expanded state based on scroll position
-    isExpanded.value = newPosition <= 0
-    
-    // Update position with boundaries
-    listPosition.value = Math.max(Math.min(newPosition, window.innerHeight - 50), 0)
-}
-
-const handleTouchEnd = () => {
-    touchStart.value = null
-    initialPosition.value = null
-    
-    const threshold = window.innerHeight * 0.3
-    if (listPosition.value > threshold) {
-        listPosition.value = window.innerHeight - 50
-    } else {
-        listPosition.value = 0
-        isExpanded.value = true
-    }
-}
-
 const handleMapClick = () => {
     isMapFocused.value = true
     listPosition.value = window.innerHeight - 50
     userMovedMap.value = true
-}
-
-const toggleListPosition = () => {
-    const maxHeight = window.innerHeight
-    isMapFocused.value = !isMapFocused.value
-    listPosition.value = isMapFocused.value ? maxHeight - 50 : 0
 }
 
 const showFullMap = () => {
@@ -325,77 +199,77 @@ const hideFullMap = () => {
     mapKey.value += 1;
 }
 
+
 // Lifecycle
 onMounted(() => {
-    // Listen for filter-update events
-    window.addEventListener('filter-update', handleFilterUpdate)
+    eventStore.initializeFromUrl();  // Initialize URL params first
     
-    // Subscribe to EventStore for updates
-    unsubscribe.value = eventStore.subscribe(state => {
-        // Always update the events list
-        if (state.events.data) {
-            events.value = state.events;
-        }
-        
-        // Always update the name and live status
-        searchData.value.location.name = state.location.city || searchData.value.location.name;
-        searchData.value.location.live = state.location.live || false;
-        
-        // Only update the map center if:
-        // 1. It's a completely new city search (different from last search)
-        // 2. We have valid coordinates 
-        if (state.location.city && 
-            state.location.city !== lastSearchCity.value &&
-            state.location.lat && 
-            state.location.lng) {
-            
-            console.log('New city search detected, updating map position to:', state.location.city);
-            
-            // Update center for new city search
-            searchData.value.location.center = [state.location.lat, state.location.lng];
-            
-            // Remember this city so we don't reset again until a new city
-            lastSearchCity.value = state.location.city;
-            
-            // Reset user movement tracking for the new search
-            userMovedMap.value = false;
-        }
-    })
-    
-    // Initialize lastSearchCity with current city if available
-    if (searchData.value.location.name && searchData.value.location.name !== 'Search by City') {
-        lastSearchCity.value = searchData.value.location.name;
+    // Then set initial data if this is first fetch
+    if (eventStore.isFirstFetch) {
+        eventStore.setInitialData(props.maxPrice, {
+            data: props.searchedEvents?.data || [],
+            total: props.searchedEvents?.total || 0,
+            current_page: props.searchedEvents?.current_page || 1,
+            per_page: props.searchedEvents?.per_page || 20,
+            from: props.searchedEvents?.from,
+            to: props.searchedEvents?.to,
+            last_page: props.searchedEvents?.last_page || 1,
+            loading: false
+        });
     }
     
-    // Broadcast max price to other components
+    unsubscribe.value = eventStore.subscribe(state => {
+        if (eventStore.isUpdating && !isInitialLoad.value) return;
+
+        console.log('this is the subscribe state being updated', state);
+        
+        if (state) {
+            // Update events with all pagination data
+            events.value = {
+                data: state.events.data,
+                total: state.events.total,
+                current_page: state.events.current_page,
+                per_page: state.events.per_page,
+                from: state.events.from,
+                to: state.events.to,
+                last_page: state.events.last_page
+            };
+
+            // Update location data on initial load OR when source is initialSearch (new city selected)
+            if (isInitialLoad.value || state.source === 'initialSearch') {
+                searchData.value.location = {
+                    ...searchData.value.location,
+                    name: state.location?.city || 'Search by City',
+                    center: [
+                        state.location?.lat || 40.7127753,
+                        state.location?.lng || -74.0059728
+                    ],
+                    live: state.location?.live || false,
+                    zoom: 13
+                };
+                isInitialLoad.value = false;
+            }
+        }
+    });
+    
+    if (window.location.pathname === '/index/search') {
+        eventStore.fetchEvents();
+    }
+
+    // Rest of the mobile-specific initialization
     window.dispatchEvent(new CustomEvent('max-price-update', { 
         detail: props.maxPrice 
-    }))
+    }));
     
-    // Initialize mobile view properties
-    listPosition.value = 0 // Start with list fully visible
+    listPosition.value = 0;
+    scrollHeight.value = window.innerHeight * 0.4;
+    mapHeight.value = window.innerHeight * 0.4;
     
-    // Calculate initial scroll height
-    scrollHeight.value = window.innerHeight * 0.4
-    
-    // Calculate map height
-    mapHeight.value = window.innerHeight * 0.4 // 40vh equivalent
-    
-    // Add resize listener
-    window.addEventListener('resize', handleResize)
-    
-    // Initialize EventStore with initial data if available
-    if (props.searchedEvents) {
-        eventStore.state.events = {
-            ...props.searchedEvents,
-            loading: false
-        }
-    }
-})
+    window.addEventListener('resize', handleResize);
+});
 
 onUnmounted(() => {
     // Clean up listeners
-    window.removeEventListener('filter-update', handleFilterUpdate)
     window.removeEventListener('resize', handleResize)
     
     // Clean up EventStore subscription
@@ -410,12 +284,7 @@ const handleResize = () => {
     mapHeight.value = window.innerHeight * 0.4
 }
 
-// Watch for URL changes and update as needed
-watch(() => window.location.search, () => {
-    // Let EventStore handle URL changes, it will notify us through subscription
-    eventStore.initializeFromUrl()
-    eventStore.fetchEvents()
-})
+
 </script>
 <style scoped>
 .event-search {

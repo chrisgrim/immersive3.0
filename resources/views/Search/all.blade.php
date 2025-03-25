@@ -5,20 +5,22 @@
 @endsection 
 
 @section('nav')
-    @if (Browser::isMobile())
-        @include('nav.index-mobile')
-    @else
-        @include('nav.index-desktop')
-    @endif
+@if (Browser::isMobile())
+    @include('nav.index-mobile', [
+        'searchedEvents' => $searchedEvents,
+        'maxprice' => $maxprice
+    ])
+@else
+    @include('nav.index-desktop', [
+        'searchedEvents' => $searchedEvents,
+        'maxprice' => $maxprice
+    ])
+@endif
 @endsection
 
 @section('content')
     <vue-search-all 
         :searched-events='@json($searchedEvents)'
-        :categories='@json($categories)'
-        :tags='@json($tags)'
-        :searched-categories='@json($searchedCategories)'
-        :searched-tags='@json($searchedTags)'
         :max-price="{{ $maxprice }}"
     ></vue-search-all>
 @endsection

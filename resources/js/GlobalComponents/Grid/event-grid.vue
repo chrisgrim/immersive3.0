@@ -10,7 +10,7 @@
         <div 
             v-for="card in items" 
             :key="card.id"
-            class="flex flex-col group">
+            class="flex flex-col group w-full min-w-0">
             <a 
                 :href="getUrl(card)" 
                 class="block h-full flex flex-col"
@@ -34,16 +34,18 @@
                 </div>
 
                 <!-- Content wrapper -->
-                <div class="flex flex-col flex-grow">
+                <div class="flex flex-col flex-grow min-h-0">
                     <button 
                         v-if="card.category"
                         @click.prevent="handleCategoryClick(card.category.id)"
-                        class="mt-6 uppercase text-md font-light text-left w-auto"
+                        class="mt-6 uppercase text-md font-light text-left break-words hyphens-auto w-full block overflow-hidden text-ellipsis"
                     >
                         {{ card.category.name }}
                     </button>
 
-                    <h3 class="mt-2 mb-4 text-2xl text-black font-medium leading-tight line-clamp-2 break-words hyphens-auto">{{ card.name }}</h3>
+                    <h3 class="mt-2 mb-4 text-2xl text-black font-medium">
+                        <span class="line-clamp-2 block">{{ card.name }}</span>
+                    </h3>
                     
                     <!-- <p v-if="card.tag_line" class="mb-3 text-1xl leading-normal text-gray-600 line-clamp-2">
                         {{ card.tag_line }}

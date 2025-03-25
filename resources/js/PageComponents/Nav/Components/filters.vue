@@ -5,7 +5,7 @@
             @click="handleBackgroundClick"
         >
             <div 
-                class="bg-[#f4f3f3] w-full md:max-w-4xl md:mx-4 md:rounded-5xl shadow-xl flex flex-col fixed inset-0 md:relative md:h-[calc(100vh-10rem)] z-50"
+                class="bg-[#f4f3f3] w-full overflow-hidden md:max-w-4xl md:mx-4 md:rounded-5xl shadow-xl flex flex-col fixed inset-0 md:relative md:h-[calc(100vh-10rem)] z-50"
                 @click.stop
             >
                 <!-- Header -->
@@ -79,9 +79,11 @@
                                         </button>
                                     </div>
                                 </div>
-                                <span v-if="localSelected.categories.length && !isSearchingCategories" class="text-xl text-neutral-500">
-                                    {{ localSelected.categories.length }} selected
-                                </span>
+                                <div v-if="localSelected.categories.length && !isSearchingCategories" class="bg-black rounded-full px-4 py-2">
+                                    <span class="text-xl text-white">
+                                        {{ localSelected.categories.length }} selected
+                                    </span>
+                                </div>
                             </div>
                         </div>
                         
@@ -157,9 +159,12 @@
                                         </button>
                                     </div>
                                 </div>
-                                <span v-if="localSelected.tags.length && !isSearchingTags" class="text-xl text-neutral-500">
-                                    {{ localSelected.tags.length }} selected
-                                </span>
+                                <div v-if="localSelected.tags.length && !isSearchingTags" class="bg-black rounded-full px-4 py-2">
+                                    <span class="text-xl text-white">
+                                        {{ localSelected.tags.length }} selected
+                                    </span>
+                                </div>
+                                
                             </div>
                         </div>
                         
@@ -201,9 +206,14 @@
                                 <h3 class="text-3xl p-4 font-semibold">Price range</h3>
                             </div>
                             <div class="flex items-center gap-4">
-                                <span v-if="localSelected.price[0] !== 0 || localSelected.price[1] !== maxPrice" class="text-xl text-neutral-500">
-                                    {{ `$${localSelected.price[0]} - $${localSelected.price[1]}` }}
-                                </span>
+                                <div 
+                                    v-if="(localSelected.price[0] !== 0 || localSelected.price[1] !== props.maxPrice) && activeSection !== 'price'" 
+                                    class="bg-black rounded-full px-4 py-2"
+                                >
+                                    <span class="text-xl text-white">
+                                        {{ `$${localSelected.price[0]} - $${localSelected.price[1]}` }}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                         
@@ -211,7 +221,7 @@
                             <vue-slider
                                 v-model="localSelected.price"
                                 :min="0"
-                                :max="maxPrice"
+                                :max="5000"
                                 :tooltip="'none'"
                                 :enable-cross="false"
                                 :process-style="{ backgroundColor: '#000' }"
@@ -274,7 +284,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, nextTick, onBeforeUnmount } from 'vue'
 import VueSlider from 'vue-slider-component'
 import 'vue-slider-component/theme/antd.css'
 import axios from 'axios'
@@ -283,11 +293,11 @@ import { ClickOutsideDirective } from '@/Directives/ClickOutsideDirective'
 const props = defineProps({
     priceRange: {
         type: Array,
-        default: () => [0, 1000]
+        required: true
     },
     maxPrice: {
         type: Number,
-        default: 1000
+        required: true
     },
     showPrice: {
         type: Boolean,
@@ -307,12 +317,11 @@ const emit = defineEmits(['close', 'update:filters'])
 
 // State
 const loading = ref(true)
-const activeTab = ref('categories')
 const categories = ref([])
 const tags = ref([])
 const localSelected = ref({
-    categories: [],
-    tags: [],
+    categories: [...props.selectedCategories],
+    tags: [...props.selectedTags],
     price: [...props.priceRange]
 })
 
@@ -327,28 +336,6 @@ const tagSearchInput = ref(null)
 // Add new refs for the sorted lists
 const sortedCategories = ref([])
 const sortedTags = ref([])
-
-// Computed
-const availableTabs = computed(() => {
-    const tabs = [
-        { id: 'categories', name: 'Categories' },
-        { id: 'tags', name: 'Tags' }
-    ]
-    if (props.showPrice) {
-        tabs.push({ id: 'price', name: 'Price' })
-    }
-    return tabs
-})
-
-const hasChanges = computed(() => {
-    // Compare local state against current prop values
-    const categoriesChanged = JSON.stringify(localSelected.value.categories) !== JSON.stringify(props.selectedCategories)
-    const tagsChanged = JSON.stringify(localSelected.value.tags) !== JSON.stringify(props.selectedTags)
-    const priceChanged = JSON.stringify(localSelected.value.price) !== JSON.stringify(props.priceRange)
-
-    // Check if any local values are different from the current filter state
-    return categoriesChanged || tagsChanged || priceChanged
-})
 
 // Modify the computed properties to use the sorted lists but only filter
 const filteredCategories = computed(() => {
@@ -425,10 +412,7 @@ const toggleTag = (tagId) => {
     selectTag(tagId);
 }
 
-const sliderFormat = (v) => `$${('' + v).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
-
 const clearAll = () => {
-    // Only clear the local state
     localSelected.value = {
         categories: [],
         tags: [],
@@ -437,55 +421,20 @@ const clearAll = () => {
 }
 
 const submitSelection = () => {
-    // Always use the search page for filter redirects
-    const searchPath = '/index/search'
-    const params = new URLSearchParams(window.location.search)
-    
-    // Ensure searchType is always set
-    if (!params.has('searchType')) {
-        params.set('searchType', 'allEvents')
-    }
-    
-    // Update categories
-    if (localSelected.value.categories.length > 0) {
-        params.set('category', localSelected.value.categories.join(','))
-    } else {
-        params.delete('category')
-    }
-    
-    // Update tags
-    if (localSelected.value.tags.length > 0) {
-        params.set('tag', localSelected.value.tags.join(','))
-    } else {
-        params.delete('tag')
-    }
-    
-    // Update price if it's being used
-    if (props.showPrice && localSelected.value.price) {
-        params.set('price0', localSelected.value.price[0].toString())
-        params.set('price1', localSelected.value.price[1].toString())
-    } else {
-        params.delete('price0')
-        params.delete('price1')
-    }
-    
-    // Always redirect to the search page with the updated parameters
-    window.location.href = `${searchPath}?${params.toString()}`
-    
+    // Emit filter changes to parent
+    emit('update:filters', {
+        categories: localSelected.value.categories,
+        tags: localSelected.value.tags,
+        price: [
+            localSelected.value.price[0],
+            localSelected.value.price[1],
+            localSelected.value.price[1] === props.maxPrice
+        ]
+    });
+
     // Close the modal
-    emit('close')
+    emit('close');
 }
-
-// Add the image URL constant
-const imageUrl = import.meta.env.VITE_IMAGE_URL
-
-// Add the getCategoryIcon method
-const getCategoryIcon = (category) => {
-    return category.images?.find(img => img.rank === 1)?.thumb_image_path 
-        ? `${imageUrl}${category.images.find(img => img.rank === 1).thumb_image_path}`
-        : ''
-}
-
 // Initialize localSelected with URL parameters
 const initializeFromUrl = () => {
     const params = new URLSearchParams(window.location.search)
@@ -494,8 +443,8 @@ const initializeFromUrl = () => {
         categories: params.get('category') ? params.get('category').split(',').map(Number) : props.selectedCategories,
         tags: params.get('tag') ? params.get('tag').split(',').map(Number) : props.selectedTags,
         price: [
-            parseInt(params.get('price0') || props.priceRange[0]),
-            parseInt(params.get('price1') || props.priceRange[1])
+            parseInt(params.get('price0')) || 0,
+            parseInt(params.get('price1')) || props.maxPrice
         ]
     }
 }
@@ -522,28 +471,13 @@ const handleBackgroundClick = (event) => {
 }
 
 onMounted(() => {
-    initializeFromUrl()
-    fetchFiltersData()
-    lockScroll()
+    initializeFromUrl();
+    fetchFiltersData();
+    lockScroll();
 })
 
 onBeforeUnmount(() => {
     unlockScroll()
-})
-
-// Update the watch handlers to resort when props change
-watch(() => props.selectedCategories, (newVal) => {
-    localSelected.value.categories = [...newVal]
-    sortLists() // Resort when selections change from props
-})
-
-watch(() => props.selectedTags, (newVal) => {
-    localSelected.value.tags = [...newVal]
-    sortLists() // Resort when selections change from props
-})
-
-watch(() => props.priceRange, (newVal) => {
-    localSelected.value.price = [...newVal]
 })
 
 // Search methods

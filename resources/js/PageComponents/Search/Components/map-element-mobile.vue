@@ -1,15 +1,16 @@
 <template>
     <div class="w-full">
         <a :href="`/events/${data.slug}?name=${name}&lat=${lat}&lng=${lng}`" class="flex gap-4">
-            <div class="w-36 aspect-[3/4] flex-shrink-0">
+            <div class="w-32 aspect-[3/4] flex-shrink-0">
                 <div 
                     class="w-full h-full bg-cover bg-center bg-no-repeat rounded-x-xl" 
                     :style="backgroundImage" 
                 />
             </div>
-            <div class="flex flex-col p-6">
+            <div class="flex flex-col justify-between p-6">
                 <span class="text-2xl font-bold text-black line-clamp-2">{{ data.name }}</span>
-                <span class="text-base text-black">{{ data.price_range ? data.price_range : '' }}</span>
+                <span class="text-md text-black">{{ data.tag_line }}</span>
+                <span class="text-base text-black font-bold">{{ data.price_range ? data.price_range : '' }}</span>
             </div>
         </a>
     </div>

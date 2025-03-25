@@ -4,7 +4,20 @@
         fullMap ? 'h-screen' : 'h-[54vh]'
     ]">
         <div class="search__map overflow-hidden w-full h-full">
-            
+            <!-- Loading Spinner -->
+            <div 
+                v-show="showLoading"
+                class="flex items-center justify-center absolute h-full w-full z-[1001] pointer-events-none">
+                <div class="bg-white shadow-custom-1 w-16 h-16 rounded-full flex items-center justify-center pointer-events-auto">
+                    <div
+                        class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"
+                        role="status">
+                        <span
+                            class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Map Container -->
             <div class="w-full h-full relative">
                 <l-map
@@ -13,10 +26,18 @@
                     :center="modelValue.location.center"
                     :maxZoom="mapConfig.max" 
                     :minZoom="mapConfig.min"
-                    :options="{ scrollWheelZoom: false, zoomControl: true }"
-                    @update:center="centerUpdate"
+                    :options="{
+                        scrollWheelZoom: false,
+                        zoomControl: true,
+                        dragging: true,
+                        tap: true,
+                        touchZoom: true,
+                        bounceAtZoomLimits: false,
+                        touchStart: true,
+                        touchMove: true,
+                        touchEnd: true
+                    }"
                     @update:bounds="boundsUpdate"
-                    @update:zoom="zoomUpdate"
                     class="!w-full !h-full !absolute !inset-0">
                     <l-tile-layer :url="mapConfig.url" :attribution="mapConfig.attribution" />
                     <marker-cluster :options="{ maxClusterRadius: 40 }">
@@ -52,7 +73,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, onMounted, watch, nextTick, computed, onUnmounted } from 'vue'
 import 'leaflet/dist/leaflet.css'
 import { LMap, LTileLayer, LMarker, LIcon } from '@vue-leaflet/vue-leaflet'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
@@ -60,14 +81,16 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import MarkerCluster from './LMarkerCluster.vue'
 import PopupContent from "./map-element-mobile.vue"
 import { ClickOutsideDirective as vClickOutside } from '@/Directives/ClickOutsideDirective'
+import eventStore from '@/Stores/EventStore.vue'
 
 // Props & Emits
 const props = defineProps({
     modelValue: { type: Object, required: true },
     events: { type: Array, required: true },
-    fullMap: { type: Boolean, default: false }
+    fullMap: { type: Boolean, default: false },
+    source: { type: String, default: 'initialSearch' }
 })
-const emit = defineEmits(['update:modelValue', 'submit'])
+const emit = defineEmits(['update:modelValue', 'boundsChanged'])
 
 // Refs & State
 const map = ref(null)
@@ -75,6 +98,12 @@ const isInitialLoad = ref(true)
 const selectedMarker = ref(null)
 const selectedEvent = ref(null)
 let timeout = null
+const isProcessingBounds = ref(false)
+const isUserInteraction = ref(false)
+const initialLocation = ref(true)
+const boundsUpdateTimeout = ref(null)
+const lastBoundaryData = ref(null)
+const isLoading = ref(false);
 
 // Map Configuration
 const mapConfig = {
@@ -89,47 +118,55 @@ const getFixedPrice = (event) => event.price_range.replace(/\d+(\.\d{1,2})?/g, d
 const getMarkerWidth = (event) => getFixedPrice(event).length * 12 + 32
 const isSelected = (event) => selectedMarker.value === event.id
 
-const debounce = () => {
-    if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => emit('submit', true), 400)
-}
-
-// Map Event Handlers
-const zoomUpdate = (newZoom) => {
-    emit('update:modelValue', {
-        ...props.modelValue,
-        location: {
-            ...props.modelValue.location,
-            zoom: newZoom
-        }
-    })
-}
-
-const centerUpdate = (center) => {
-    emit('update:modelValue', {
-        ...props.modelValue,
-        location: {
-            ...props.modelValue.location,
-            center: center
-        }
-    })
-}
-
 const boundsUpdate = (bounds) => {
-    if (isInitialLoad.value) {
-        isInitialLoad.value = false
-        return
+    if (isProcessingBounds.value) {
+        return;
     }
 
-    emit('update:modelValue', {
-        ...props.modelValue,
-        location: {
-            ...props.modelValue.location,
-            mapboundary: bounds,
-            live: true
-        }
-    })
-    debounce()
+    // Only check if we're in initial search, don't block permanently
+    if (props.source === 'initialSearch' && !isUserInteraction.value) {
+        console.log('Skipping initial bounds update');
+        isUserInteraction.value = true;
+        return;
+    }
+    
+    // Clear existing timeout
+    if (boundsUpdateTimeout.value) {
+        clearTimeout(boundsUpdateTimeout.value);
+    }
+    
+    boundsUpdateTimeout.value = setTimeout(() => {
+        isProcessingBounds.value = true;
+        isLoading.value = true;
+        
+        const boundaryData = {
+            northEast: {
+                lat: bounds._northEast.lat,
+                lng: bounds._northEast.lng
+            },
+            southWest: {
+                lat: bounds._southWest.lat,
+                lng: bounds._southWest.lng
+            }
+        };
+
+        emit('boundsChanged', boundaryData);
+        emit('update:modelValue', {
+            ...props.modelValue,
+            location: {
+                ...props.modelValue.location,
+                mapboundary: boundaryData,
+                live: true
+            }
+        });
+
+        setTimeout(() => {
+            isProcessingBounds.value = false;
+            setTimeout(() => {
+                isLoading.value = false;
+            }, 250);
+        }, 500);
+    }, 500);
 }
 
 const handleMarkerClick = (event) => {
@@ -150,33 +187,66 @@ const closePopup = (event) => {
     selectedMarker.value = null
 }
 
+
 // Watchers
-watch(() => props.modelValue.location.center, async (newCenter) => {
-    if (newCenter) {
-        await nextTick()
-        if (map.value?.leafletObject) {
-            map.value.leafletObject.setView(newCenter, props.modelValue.location.zoom)
-        }
+watch(() => props.source, (newSource) => {
+    if (newSource === 'initialSearch') {
+        isUserInteraction.value = false;
     }
-}, { immediate: true })
+}, { immediate: true });
 
 watch(() => map.value?.leafletObject, (mapInstance) => {
-    if (mapInstance && props.modelValue.location.center) {
-        mapInstance.setView(props.modelValue.location.center, props.modelValue.location.zoom)
+    if (initialLocation.value) {
+        initialLocation.value = false;
+        if (props.modelValue.location.center) {
+            mapInstance.setView(props.modelValue.location.center, props.modelValue.location.zoom);
+            // Set isInitialLoad to false after the view is set
+            setTimeout(() => {
+                isInitialLoad.value = false;
+            }, 100);
+        }
     }
-})
+});
+
+watch(() => props.events, (newEvents) => {
+    if (isLoading.value) {
+        // Small delay to ensure smooth transition
+        setTimeout(() => {
+            isLoading.value = false;
+        }, 250);
+    }
+}, { deep: true });
 
 // Lifecycle
 onMounted(() => {
     console.log('Component mounted, directive available:', !!vClickOutside)
     isInitialLoad.value = true
 })
+
+onUnmounted(() => {
+    if (boundsUpdateTimeout.value) {
+        clearTimeout(boundsUpdateTimeout.value);
+    }
+    lastBoundaryData.value = null;
+})
+
+// Computed
+const showLoading = computed(() => {
+    return props.modelValue.loading || isLoading.value;
+});
 </script>
 
 <style>
 .icons { @apply bg-transparent border-0 shadow-none !important; }
 .leaflet-container { @apply !w-full !h-full !absolute !inset-0; }
-.search__map { @apply relative h-full; }
+.search__map { 
+    @apply relative h-full;
+    touch-action: pan-x pan-y pinch-zoom;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
 .leaflet-pane .leaflet-div-icon { background: transparent; border: none; }
 .leaflet-popup-content-wrapper { @apply !p-0 !rounded-2xl; }
 .leaflet-popup-close-button { display: none; }
@@ -187,28 +257,31 @@ onMounted(() => {
     overflow: hidden;
 }
 
-.leaflet-left {
-    right: 3rem !important;
-    left: auto !important;
-}
-.leaflet-top {
-    top: 2rem;
-}
-.leaflet-bar {
-    border: none !important;
-    margin: 0 !important;
-    border-radius: 1rem;
-    overflow: hidden;
-    box-shadow: 0 2px 16px rgb(0 0 0 / 12%) !important;
-}
-.leaflet-touch .leaflet-bar a {
-    width: 40px;
-    height: 40px;
-    line-height: 40px;
-}
+
 
 /* Add styles for bottom popup animation */
 .transform {
     transform-origin: bottom;
+}
+
+/* Prevent text selection during map interaction */
+.leaflet-container {
+    -webkit-tap-highlight-color: transparent;
+}
+
+.leaflet-marker-icon {
+    touch-action: none !important;
+}
+
+/* Improve marker cluster touch areas */
+.marker-cluster {
+    background-clip: padding-box;
+    touch-action: none !important;
+}
+
+/* Optional: Add smooth transitions for better mobile UX */
+.leaflet-fade-anim .leaflet-tile,
+.leaflet-fade-anim .leaflet-popup {
+    transition: opacity 0.2s linear;
 }
 </style>
