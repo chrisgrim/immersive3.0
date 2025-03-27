@@ -13,13 +13,6 @@ class SearchStore {
                 to: null,
                 last_page: 1
             },
-            location: {
-                city: null,
-                lat: null,
-                lng: null,
-                searchType: null,
-                live: false
-            },
             filters: {
                 categories: [],
                 tags: [],
@@ -53,14 +46,6 @@ class SearchStore {
                 from: newData.events.from,
                 to: newData.events.to,
                 last_page: newData.events.last_page || 1
-            };
-        }
-
-        // Update location data
-        if (newData.location) {
-            this.state.location = {
-                ...this.state.location,
-                ...newData.location
             };
         }
 

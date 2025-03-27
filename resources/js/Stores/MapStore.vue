@@ -7,7 +7,9 @@ const state = ref({
         northEast: { lat: null, lng: null },
         southWest: { lat: null, lng: null },
         center: [null, null]
-    }
+    },
+    zoom: null,
+    lastUpdate: null
 });
 
 const subscribers = [];
@@ -15,7 +17,7 @@ const subscribers = [];
 const MapStore = {
     state,
     
-    boundsUpdate(bounds) {
+    boundsUpdate(bounds, center) {
         const updatedBounds = {
             northEast: {
                 lat: bounds._northEast.lat,
@@ -25,11 +27,9 @@ const MapStore = {
                 lat: bounds._southWest.lat,
                 lng: bounds._southWest.lng
             },
-            center: [
-                (bounds._northEast.lat + bounds._southWest.lat) / 2,
-                (bounds._northEast.lng + bounds._southWest.lng) / 2
-            ]
+            center: [center.lat, center.lng]
         };
+        
         state.value.bounds = updatedBounds;
         
         // Notify subscribers

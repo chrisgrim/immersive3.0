@@ -79,9 +79,9 @@
                                         </button>
                                     </div>
                                 </div>
-                                <div v-if="localSelected.categories.length && !isSearchingCategories" class="bg-black rounded-full px-4 py-2">
+                                <div v-if="selectedFilters.categories.length && !isSearchingCategories" class="bg-black rounded-full px-4 py-2">
                                     <span class="text-xl text-white">
-                                        {{ localSelected.categories.length }} selected
+                                        {{ selectedFilters.categories.length }} selected
                                     </span>
                                 </div>
                             </div>
@@ -159,9 +159,9 @@
                                         </button>
                                     </div>
                                 </div>
-                                <div v-if="localSelected.tags.length && !isSearchingTags" class="bg-black rounded-full px-4 py-2">
+                                <div v-if="selectedFilters.tags.length && !isSearchingTags" class="bg-black rounded-full px-4 py-2">
                                     <span class="text-xl text-white">
-                                        {{ localSelected.tags.length }} selected
+                                        {{ selectedFilters.tags.length }} selected
                                     </span>
                                 </div>
                                 
@@ -207,11 +207,11 @@
                             </div>
                             <div class="flex items-center gap-4">
                                 <div 
-                                    v-if="(localSelected.price[0] !== 0 || localSelected.price[1] !== props.maxPrice) && activeSection !== 'price'" 
+                                    v-if="(selectedFilters.price[0] !== 0 || selectedFilters.price[1] !== props.maxPrice) && activeSection !== 'price'" 
                                     class="bg-black rounded-full px-4 py-2"
                                 >
                                     <span class="text-xl text-white">
-                                        {{ `$${localSelected.price[0]} - $${localSelected.price[1]}` }}
+                                        {{ `$${selectedFilters.price[0]} - $${selectedFilters.price[1]}` }}
                                     </span>
                                 </div>
                             </div>
@@ -219,9 +219,9 @@
                         
                         <div v-show="activeSection === 'price'" class="px-12 pb-12">
                             <vue-slider
-                                v-model="localSelected.price"
+                                v-model="selectedFilters.price"
                                 :min="0"
-                                :max="5000"
+                                :max="selectedFilters.searchedMaxPrice"
                                 :tooltip="'none'"
                                 :enable-cross="false"
                                 :process-style="{ backgroundColor: '#000' }"
@@ -239,13 +239,13 @@
                                 <div class="space-y-2">
                                     <div class="text-lg font-medium text-neutral-600">Minimum</div>
                                     <div class="border border-neutral-300 rounded-full px-10 py-5">
-                                        <div class="text-2xl">${{ localSelected.price[0] }}</div>
+                                        <div class="text-2xl">${{ selectedFilters.price[0] }}</div>
                                     </div>
                                 </div>
                                 <div class="space-y-2">
                                     <div class="text-lg font-medium text-neutral-600">Maximum</div>
                                     <div class="border border-neutral-300 rounded-full px-10 py-5">
-                                        <div class="text-2xl">${{ localSelected.price[1] }}+</div>
+                                        <div class="text-2xl">${{ selectedFilters.price[1] }}+</div>
                                     </div>
                                 </div>
                             </div>
@@ -291,9 +291,14 @@ import axios from 'axios'
 import { ClickOutsideDirective } from '@/Directives/ClickOutsideDirective'
 
 const props = defineProps({
-    priceRange: {
-        type: Array,
-        required: true
+    modelValue: {
+        type: Object,
+        required: true,
+        default: () => ({
+            categories: [],
+            tags: [],
+            price: [0, 1000]
+        })
     },
     maxPrice: {
         type: Number,
@@ -302,28 +307,16 @@ const props = defineProps({
     showPrice: {
         type: Boolean,
         default: false
-    },
-    selectedCategories: {
-        type: Array,
-        default: () => []
-    },
-    selectedTags: {
-        type: Array,
-        default: () => []
     }
 })
 
-const emit = defineEmits(['close', 'update:filters'])
+const emit = defineEmits(['close', 'update:modelValue', 'filter-change'])
 
 // State
 const loading = ref(true)
 const categories = ref([])
 const tags = ref([])
-const localSelected = ref({
-    categories: [...props.selectedCategories],
-    tags: [...props.selectedTags],
-    price: [...props.priceRange]
-})
+const selectedFilters = ref({ ...props.modelValue })
 
 // Search state
 const isSearchingCategories = ref(false)
@@ -336,6 +329,9 @@ const tagSearchInput = ref(null)
 // Add new refs for the sorted lists
 const sortedCategories = ref([])
 const sortedTags = ref([])
+
+// Add new ref for active section
+const activeSection = ref('categories')
 
 // Modify the computed properties to use the sorted lists but only filter
 const filteredCategories = computed(() => {
@@ -381,17 +377,21 @@ const fetchFiltersData = async () => {
     }
 }
 
-const isSelectedCategory = (id) => localSelected.value.categories.includes(id)
-const isSelectedTag = (id) => localSelected.value.tags.includes(id)
+const isSelectedCategory = (id) => selectedFilters.value.categories.includes(id)
+const isSelectedTag = (id) => selectedFilters.value.tags.includes(id)
 
 const selectCategory = (categoryId) => {
-    // For quickbar toggles, toggle single category
-    const index = localSelected.value.categories.indexOf(categoryId);
-    if (index === -1) {
-        localSelected.value.categories = [...new Set([...localSelected.value.categories, categoryId])];
-    } else {
-        localSelected.value.categories = localSelected.value.categories.filter(id => id !== categoryId);
-    }
+    const index = selectedFilters.value.categories.indexOf(categoryId);
+    const newCategories = index === -1 
+        ? [...new Set([...selectedFilters.value.categories, categoryId])]
+        : selectedFilters.value.categories.filter(id => id !== categoryId);
+    
+    selectedFilters.value = {
+        ...selectedFilters.value,
+        categories: newCategories
+    };
+    
+    sortLists();
 }
 
 const toggleCategory = (categoryId) => {
@@ -399,13 +399,17 @@ const toggleCategory = (categoryId) => {
 }
 
 const selectTag = (tagId) => {
-    // Toggle tag selection
-    const index = localSelected.value.tags.indexOf(tagId);
-    if (index === -1) {
-        localSelected.value.tags = [...new Set([...localSelected.value.tags, tagId])];
-    } else {
-        localSelected.value.tags = localSelected.value.tags.filter(id => id !== tagId);
-    }
+    const index = selectedFilters.value.tags.indexOf(tagId);
+    const newTags = index === -1 
+        ? [...new Set([...selectedFilters.value.tags, tagId])]
+        : selectedFilters.value.tags.filter(id => id !== tagId);
+    
+    selectedFilters.value = {
+        ...selectedFilters.value,
+        tags: newTags
+    };
+    
+    sortLists();
 }
 
 const toggleTag = (tagId) => {
@@ -413,40 +417,30 @@ const toggleTag = (tagId) => {
 }
 
 const clearAll = () => {
-    localSelected.value = {
+    selectedFilters.value = {
         categories: [],
         tags: [],
-        price: [0, props.maxPrice]
-    }
+        price: [0, props.maxPrice],
+        searchedMaxPrice: selectedFilters.value.searchedMaxPrice
+    };
+    
+    // Clear any search queries
+    categorySearchQuery.value = ''
+    tagSearchQuery.value = ''
+    
+    // Reset search states
+    isSearchingCategories.value = false
+    isSearchingTags.value = false
+    
+    // Resort the lists to reflect cleared state
+    sortLists()
 }
 
 const submitSelection = () => {
-    // Emit filter changes to parent
-    emit('update:filters', {
-        categories: localSelected.value.categories,
-        tags: localSelected.value.tags,
-        price: [
-            localSelected.value.price[0],
-            localSelected.value.price[1],
-            localSelected.value.price[1] === props.maxPrice
-        ]
-    });
-
+    // Emit the final filter state when Apply is clicked
+    emit('filter-change', selectedFilters.value);
     // Close the modal
     emit('close');
-}
-// Initialize localSelected with URL parameters
-const initializeFromUrl = () => {
-    const params = new URLSearchParams(window.location.search)
-    
-    localSelected.value = {
-        categories: params.get('category') ? params.get('category').split(',').map(Number) : props.selectedCategories,
-        tags: params.get('tag') ? params.get('tag').split(',').map(Number) : props.selectedTags,
-        price: [
-            parseInt(params.get('price0')) || 0,
-            parseInt(params.get('price1')) || props.maxPrice
-        ]
-    }
 }
 
 // Add directive
@@ -469,16 +463,6 @@ const handleBackgroundClick = (event) => {
         emit('close')
     }
 }
-
-onMounted(() => {
-    initializeFromUrl();
-    fetchFiltersData();
-    lockScroll();
-})
-
-onBeforeUnmount(() => {
-    unlockScroll()
-})
 
 // Search methods
 const toggleCategorySearch = () => {
@@ -505,8 +489,6 @@ const clearTagSearch = () => {
     isSearchingTags.value = false;
 }
 
-// Add new ref for active section
-const activeSection = ref('categories')
 
 // Add new method for toggling sections
 const toggleSection = (section) => {
@@ -531,6 +513,15 @@ const sortLists = () => {
         return 0
     })
 }
+
+onMounted(() => {
+    fetchFiltersData();
+    lockScroll();
+})
+
+onBeforeUnmount(() => {
+    unlockScroll()
+})
 </script>
 
 <style>

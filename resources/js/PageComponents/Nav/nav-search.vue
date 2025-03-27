@@ -103,13 +103,11 @@
         </template>
         <Filters
             v-if="showFilters"
-            :selected-categories="selectedCategories"
-            :selected-tags="selectedTags"
-            :price-range="priceRange"
+            v-model="state.filters"
             :max-price="maxPrice"
             :show-price="isSearchPage"
             @close="showFilters = false"
-            @update:filters="handleFilterUpdate"
+            @filter-change="handleFilterUpdate"
         />
     </div>
 </template>
@@ -135,9 +133,6 @@ const props = defineProps({
   }
 });
 
-// Initialize URL params
-const urlParams = new URLSearchParams(window.location.search);
-
 // Refs (replaced data properties)
 const search = ref(null);
 const city = ref(null);
@@ -150,13 +145,10 @@ const selectedCategories = ref([]);
 const selectedTags = ref([]);
 const priceRange = ref([0, 1000]);
 const unsubscribe = ref(null);
-const originalMaxPrice = ref(props.maxPrice);
 
 // For template refs
 const locationSearch = ref(null);
 
-// Add this with other refs at the top
-const mapCenterSearch = ref(false);
 
 // State management
 const state = ref({
@@ -179,7 +171,8 @@ const state = ref({
     filters: {
         categories: [],
         tags: [],
-        price: [0, props.maxPrice]
+        price: [0, props.maxPrice],
+        searchedMaxPrice: props.maxPrice
     },
     maxPrice: props.maxPrice
 });
@@ -187,34 +180,6 @@ const state = ref({
 // Computed properties
 const isSearchPage = computed(() => {
     return window.location.pathname.includes('/search');
-});
-
-const searchPlaceholder = computed(() => {
-    if (!city.value) return 'Start your search';
-
-    let text = city.value;
-
-    if (startDate.value && endDate.value) {
-        const start = new Date(startDate.value);
-        const end = new Date(endDate.value);
-        
-        // Format dates
-        const formatDate = (date) => {
-            return date.toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric' 
-            });
-        };
-
-        // If dates are the same, show only one date
-        if (start.getTime() === end.getTime()) {
-            text += ` · ${formatDate(start)}`;
-        } else {
-            text += ` · ${formatDate(start)} - ${formatDate(end)}`;
-        }
-    }
-
-    return text;
 });
 
 const formatDateDisplay = computed(() => {
@@ -240,20 +205,15 @@ const formatDateDisplay = computed(() => {
 });
 
 const hasActiveFilters = computed(() => {
-    const result = (selectedCategories.value?.length > 0) || 
-           (selectedTags.value?.length > 0) || 
+    const result = (state.value.filters.categories?.length > 0) || 
+           (state.value.filters.tags?.length > 0) || 
            (isSearchPage.value && (
-               priceRange.value?.[0] !== 0 || 
-               priceRange.value?.[1] !== state.value.maxPrice
+               state.value.filters.price?.[0] !== 0 || 
+               state.value.filters.price?.[1] !== state.value.maxPrice
            ));
 
     return result;
 });
-
-// Methods
-const openSearch = () => {
-    search.value = 'l';
-};
 
 const openLocationSearch = () => {
     search.value = 'l';
@@ -289,8 +249,12 @@ const hideSearch = () => {
     search.value = null;
 };
 
+// Update handleFilterUpdate to use state.filters
 const handleFilterUpdate = (filters) => {
-    const [minPrice, maxPrice, isAtMax] = filters.price;
+    console.log('Filters updated:', filters);
+    
+    // Update state.filters
+    state.value.filters = filters;
     
     if (isSearchPage.value) {
         // Update URL and state
@@ -308,6 +272,19 @@ const handleFilterUpdate = (filters) => {
             params.delete('tag');
         }
 
+        // Handle price parameters
+        const [minPrice, maxPrice] = filters.price;
+        if (minPrice > 0) {
+            params.set('price0', minPrice);
+        } else {
+            params.delete('price0');
+        }
+        if (maxPrice < state.value.maxPrice) {
+            params.set('price1', maxPrice);
+        } else {
+            params.delete('price1');
+        }
+
         // Update URL without reload
         window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
         
@@ -323,12 +300,16 @@ const handleFilterUpdate = (filters) => {
         if (filters.tags.length) {
             params.set('tag', filters.tags.join(','));
         }
-        if (minPrice > 0 || !isAtMax) {
+        
+        // Handle price parameters for redirect
+        const [minPrice, maxPrice] = filters.price;
+        if (minPrice > 0) {
             params.set('price0', minPrice);
-            if (!isAtMax) {
-                params.set('price1', state.value.maxPrice);
-            }
         }
+        if (maxPrice < state.value.maxPrice) {
+            params.set('price1', maxPrice);
+        }
+        
         params.set('searchType', 'null');
 
         window.location.href = `/index/search?${params.toString()}`;
@@ -339,9 +320,7 @@ const openFilters = () => {
     showFilters.value = true;
 };
 
-const handleLocationSearch = (searchData) => {
-    mapCenterSearch.value = true;
-    
+const handleLocationSearch = (searchData) => {    
     city.value = searchData.location.city;
     startDate.value = searchData.dates.start;
     endDate.value = searchData.dates.end;
@@ -358,47 +337,53 @@ const handleLocationSearch = (searchData) => {
         dates: searchData.dates
     };
 
-    if (isSearchPage.value) {
-        const params = new URLSearchParams(window.location.search);
-        
+    // Get current city from URL before modifying params
+    const currentUrlParams = new URLSearchParams(window.location.search);
+    const currentCity = currentUrlParams.get('city');
+    const isNewLocation = currentCity !== searchData.location.city;
+
+    const params = new URLSearchParams(window.location.search);
+    
+    // Only reset these parameters if location changes
+    if (isNewLocation) {
         // Remove any existing boundary parameters with correct names
         params.delete('NElat');
         params.delete('NElng');
         params.delete('SWlat');
         params.delete('SWlng');
-        
-        // Set new parameters
-        params.set('city', searchData.location.city);
-        params.set('lat', searchData.location.lat);
-        params.set('lng', searchData.location.lng);
         params.set('searchType', 'inPerson');
-        params.set('live', 'false'); // Ensure live is set to false
-        
-        if (searchData.dates.start) {
-            params.set('start', searchData.dates.start);
-            params.set('end', searchData.dates.end || searchData.dates.start);
-        } else {
-            params.delete('start');
-            params.delete('end');
-        }
+        params.set('live', 'false');
+    }
+    
+    // Set new parameters
+    params.set('city', searchData.location.city);
+    params.set('lat', searchData.location.lat);
+    params.set('lng', searchData.location.lng);
+    
+    // Add price parameters from current state
+    const [minPrice, maxPrice] = state.value.filters.price;
+    if (minPrice > 0) {
+        params.set('price0', minPrice);
+    }
+    if (maxPrice < state.value.maxPrice) {
+        params.set('price1', maxPrice);
+    }
+    
+    if (searchData.dates.start) {
+        params.set('start', searchData.dates.start);
+        params.set('end', searchData.dates.end || searchData.dates.start);
+    } else {
+        params.delete('start');
+        params.delete('end');
+    }
 
+    if (isNewLocation) {
+        // If this is a new location search, redirect
+        window.location.href = `/index/search?${params.toString()}`;
+    } else {
+        // If this is just a date update on the search page, update URL and fetch
         window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
         fetchResults(params.toString());
-    } else {
-        // Redirect to search page
-        const params = new URLSearchParams();
-        params.set('city', searchData.location.city);
-        params.set('lat', searchData.location.lat);
-        params.set('lng', searchData.location.lng);
-        params.set('searchType', 'inPerson');
-        params.set('live', 'false'); // Ensure live is set to false
-        
-        if (searchData.dates.start) {
-            params.set('start', searchData.dates.start);
-            params.set('end', searchData.dates.end || searchData.dates.start);
-        }
-
-        window.location.href = `/index/search?${params.toString()}`;
     }
 };
 
@@ -435,7 +420,8 @@ const initializeFromUrl = () => {
             price: [
                 parseInt(params.get('price0')) || 0,
                 parseInt(params.get('price1')) || props.maxPrice
-            ]
+            ],
+            searchedMaxPrice: props.maxPrice
         },
         maxPrice: props.maxPrice
     };
@@ -456,9 +442,6 @@ const fetchResults = async (queryString) => {
         SearchStore.setLoading(true);
         const response = await axios.get(`/api/index/search?${queryString}`);
         
-        // Get current URL params to preserve location data
-        const params = new URLSearchParams(window.location.search);
-        
         // Construct complete state object
         const completeState = {
             events: {
@@ -471,14 +454,15 @@ const fetchResults = async (queryString) => {
                 total: response.data.total
             },
             location: {
-                city: params.get('city'),
-                lat: parseFloat(params.get('lat')),
-                lng: parseFloat(params.get('lng')),
-                searchType: params.get('searchType') || 'inPerson',
-                live: params.get('live') === 'true'
+                city: response.data.city,
+                lat: response.data.lat,
+                lng: response.data.lng,
+                searchType: response.data.searchType,
+                live: response.data.live
             },
             maxPrice: response.data.maxPrice
         };
+        console.log('Complete state:', completeState);
 
         SearchStore.updateState(completeState);
     } catch (error) {
@@ -499,36 +483,27 @@ onMounted(() => {
     
     // Update the MapStore subscription
     const unsubscribeMap = MapStore.subscribe((mapState) => {
-        if (mapState.bounds.center[0] && mapState.bounds.center[1]) {
-            // If mapCenterSearch is true, set it to false and return early
-            if (mapCenterSearch.value) {
-                console.log('Skipping map bounds update due to location search');
-                mapCenterSearch.value = false;
-                return;
-            }
+        // Get current params to preserve other values
+        const params = new URLSearchParams(window.location.search);
+        
+        // Update boundary coordinates
+        params.set('NElat', parseFloat(mapState.bounds.northEast.lat).toFixed(6));
+        params.set('NElng', parseFloat(mapState.bounds.northEast.lng).toFixed(6));
+        params.set('SWlat', parseFloat(mapState.bounds.southWest.lat).toFixed(6));
+        params.set('SWlng', parseFloat(mapState.bounds.southWest.lng).toFixed(6));
+        params.set('live', 'true');
+        params.set('searchType', 'inPerson');
 
-            // Get current params to preserve other values
-            const params = new URLSearchParams(window.location.search);
-            
-            // Only update if we have valid boundary coordinates
-            if (mapState.bounds.northEast?.lat && mapState.bounds.northEast?.lng &&
-                mapState.bounds.southWest?.lat && mapState.bounds.southWest?.lng) {
-                
-                // Update boundary coordinates with validated values
-                params.set('NElat', parseFloat(mapState.bounds.northEast.lat).toFixed(6));
-                params.set('NElng', parseFloat(mapState.bounds.northEast.lng).toFixed(6));
-                params.set('SWlat', parseFloat(mapState.bounds.southWest.lat).toFixed(6));
-                params.set('SWlng', parseFloat(mapState.bounds.southWest.lng).toFixed(6));
-                params.set('live', 'true');
-                params.set('searchType', 'inPerson');
+        // Update center coordinates
+        params.set('lat', mapState.bounds.center[0]);
+        params.set('lng', mapState.bounds.center[1]);
 
-                // Update URL without reload
-                window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-                
-                // Fetch new results
-                fetchResults(params.toString());
-            }
-        }
+        // Update URL without reload
+        window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+        
+        // Fetch new results with the updated parameters
+        fetchResults(params.toString());
+    
     });
     
     window.addEventListener('scroll', handleScroll);
