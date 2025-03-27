@@ -34,8 +34,9 @@
                         ref="locationSearch"
                         @search="handleLocationSearch"
                         @close-search="search = null"
-                        :initial-start-date="startDate" 
-                        :initial-end-date="endDate"
+                        @dates-cleared="handleDatesClear"
+                        :initial-start-date="state?.dates?.start" 
+                        :initial-end-date="state?.dates?.end"
                     />
                     <SearchEvent v-if="search==='e'"/>
                 </div>
@@ -47,21 +48,21 @@
                 <div class="relative w-[39rem]">
                     <div class="p-4 border rounded-full flex items-center shadow-custom-3 w-[39rem]">
                         <p class="ml-4 flex items-center justify-center gap-2 flex-1">
-                            <template v-if="city">
+                            <template v-if="state.location.city">
                                 <div 
                                     class="flex items-center cursor-pointer" 
                                     @click="openLocationSearch">
                                     <svg class="w-6 h-6 fill-[#ff385c] mr-2">
                                         <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
                                     </svg>
-                                    <span class="text-black text-1xl font-bold mr-10">{{ city }}</span>
+                                    <span class="text-black text-1xl font-bold mr-10">{{ state.location.city }}</span>
                                 </div>
                                 <span class="text-gray-300">|</span>
                                 <div 
                                     class="ml-10 cursor-pointer" 
                                     @click="openDateSearch">
-                                    <span class="text-black text-1xl" :class="{ 'font-bold': startDate }">
-                                        {{ startDate ? formatDateDisplay : 'Add dates' }}
+                                    <span class="text-black text-1xl" :class="{ 'font-bold': state.dates.start }">
+                                        {{ state.dates.start ? formatDateDisplay : 'Add dates' }}
                                     </span>
                                 </div>
                             </template>
@@ -121,34 +122,25 @@ import axios from 'axios';
 import SearchStore from '@/Stores/SearchStore.vue';
 import MapStore from '@/Stores/MapStore.vue';
 
-// Add props definition at the top of script setup
+// Props definition
 const props = defineProps({
   searchedEvents: {
     type: Object,
-    default: () => ({})
+    default: () => ({
+      data: [],
+      total: 0,
+      current_page: 1,
+      last_page: 1,
+      from: null,
+      to: null,
+      per_page: 15
+    })
   },
   maxPrice: {
     type: Number,
     default: 1000
   }
 });
-
-// Refs (replaced data properties)
-const search = ref(null);
-const city = ref(null);
-const startDate = ref(null);
-const endDate = ref(null);
-const lat = ref(null);
-const lng = ref(null);
-const showFilters = ref(false);
-const selectedCategories = ref([]);
-const selectedTags = ref([]);
-const priceRange = ref([0, 1000]);
-const unsubscribe = ref(null);
-
-// For template refs
-const locationSearch = ref(null);
-
 
 // State management
 const state = ref({
@@ -168,6 +160,10 @@ const state = ref({
         searchType: null,
         live: false
     },
+    dates: {
+        start: null,
+        end: null
+    },
     filters: {
         categories: [],
         tags: [],
@@ -177,67 +173,87 @@ const state = ref({
     maxPrice: props.maxPrice
 });
 
+// UI state refs
+const search = ref(null);
+const showFilters = ref(false);
+const unsubscribe = ref(null);
+
+// For template refs
+const locationSearch = ref(null);
+
+// Utility functions
+const getUrlParams = () => new URLSearchParams(window.location.search);
+
+const updateUrlParams = (params) => {
+    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+};
+
+const debounce = (fn, delay) => {
+    let timeoutId;
+    return (...args) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => fn(...args), delay);
+    };
+};
+
 // Computed properties
 const isSearchPage = computed(() => {
     return window.location.pathname.includes('/search');
 });
 
 const formatDateDisplay = computed(() => {
-    if (!startDate.value) return '';
+    if (!state.value.dates.start) return '';
 
-    const start = new Date(startDate.value);
-    const end = new Date(endDate.value);
+    const start = new Date(state.value.dates.start);
+    const end = state.value.dates.end ? new Date(state.value.dates.end) : null;
     
-    // Format dates
-    const formatDate = (date) => {
-        return date.toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric' 
-        });
+    const formatDate = (date, isEndDate = false) => {
+        const month = date.toLocaleDateString('en-US', { month: 'short' });
+        const day = date.getDate();
+        
+        if (isEndDate && end && start.getMonth() === end.getMonth()) {
+            return day;
+        }
+        
+        return `${month} ${day}`;
     };
 
-    // If dates are the same, show only one date
-    if (start.getTime() === end.getTime()) {
+    if (end && start.getTime() === end.getTime()) {
         return formatDate(start);
+    } else if (end) {
+        return `${formatDate(start)}-${formatDate(end, true)}`;
     } else {
-        return `${formatDate(start)} - ${formatDate(end)}`;
+        return formatDate(start);
     }
 });
 
 const hasActiveFilters = computed(() => {
-    const result = (state.value.filters.categories?.length > 0) || 
+    return (state.value.filters.categories?.length > 0) || 
            (state.value.filters.tags?.length > 0) || 
            (isSearchPage.value && (
                state.value.filters.price?.[0] !== 0 || 
                state.value.filters.price?.[1] !== state.value.maxPrice
            ));
-
-    return result;
 });
 
+// Methods
 const openLocationSearch = () => {
     search.value = 'l';
 };
 
 const openDateSearch = () => {
-    // First open the search modal in location mode
     search.value = 'l';
-    
-    // Use nextTick to ensure the component is mounted
     nextTick(async () => {
-        // Add a small delay to ensure component is fully mounted
         await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Then open the date dropdown using the exposed method
         if (locationSearch.value) {
             locationSearch.value.openDateDropdown();
         }
     });
 };
 
-const handleScroll = () => {
+const handleScroll = debounce(() => {
     search.value = null;
-};
+}, 150);
 
 const checkClickPosition = (event) => {
     if (event.clientY > 150) {
@@ -249,16 +265,11 @@ const hideSearch = () => {
     search.value = null;
 };
 
-// Update handleFilterUpdate to use state.filters
 const handleFilterUpdate = (filters) => {
-    console.log('Filters updated:', filters);
-    
-    // Update state.filters
     state.value.filters = filters;
     
     if (isSearchPage.value) {
-        // Update URL and state
-        const params = new URLSearchParams(window.location.search);
+        const params = getUrlParams();
         
         if (filters.categories.length) {
             params.set('category', filters.categories.join(','));
@@ -272,7 +283,6 @@ const handleFilterUpdate = (filters) => {
             params.delete('tag');
         }
 
-        // Handle price parameters
         const [minPrice, maxPrice] = filters.price;
         if (minPrice > 0) {
             params.set('price0', minPrice);
@@ -285,13 +295,9 @@ const handleFilterUpdate = (filters) => {
             params.delete('price1');
         }
 
-        // Update URL without reload
-        window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-        
-        // Fetch new results
+        updateUrlParams(params);
         fetchResults(params.toString());
     } else {
-        // Redirect to search page with filters
         const params = new URLSearchParams();
         
         if (filters.categories.length) {
@@ -301,7 +307,6 @@ const handleFilterUpdate = (filters) => {
             params.set('tag', filters.tags.join(','));
         }
         
-        // Handle price parameters for redirect
         const [minPrice, maxPrice] = filters.price;
         if (minPrice > 0) {
             params.set('price0', minPrice);
@@ -311,7 +316,6 @@ const handleFilterUpdate = (filters) => {
         }
         
         params.set('searchType', 'null');
-
         window.location.href = `/index/search?${params.toString()}`;
     }
 };
@@ -321,13 +325,6 @@ const openFilters = () => {
 };
 
 const handleLocationSearch = (searchData) => {    
-    city.value = searchData.location.city;
-    startDate.value = searchData.dates.start;
-    endDate.value = searchData.dates.end;
-    lat.value = searchData.location.lat;
-    lng.value = searchData.location.lng;
-
-    // Update store state
     state.value = {
         ...state.value,
         location: {
@@ -337,16 +334,11 @@ const handleLocationSearch = (searchData) => {
         dates: searchData.dates
     };
 
-    // Get current city from URL before modifying params
-    const currentUrlParams = new URLSearchParams(window.location.search);
-    const currentCity = currentUrlParams.get('city');
+    const params = getUrlParams();
+    const currentCity = params.get('city');
     const isNewLocation = currentCity !== searchData.location.city;
-
-    const params = new URLSearchParams(window.location.search);
     
-    // Only reset these parameters if location changes
     if (isNewLocation) {
-        // Remove any existing boundary parameters with correct names
         params.delete('NElat');
         params.delete('NElng');
         params.delete('SWlat');
@@ -355,12 +347,10 @@ const handleLocationSearch = (searchData) => {
         params.set('live', 'false');
     }
     
-    // Set new parameters
     params.set('city', searchData.location.city);
     params.set('lat', searchData.location.lat);
     params.set('lng', searchData.location.lng);
     
-    // Add price parameters from current state
     const [minPrice, maxPrice] = state.value.filters.price;
     if (minPrice > 0) {
         params.set('price0', minPrice);
@@ -378,24 +368,17 @@ const handleLocationSearch = (searchData) => {
     }
 
     if (isNewLocation) {
-        // If this is a new location search, redirect
         window.location.href = `/index/search?${params.toString()}`;
     } else {
-        // If this is just a date update on the search page, update URL and fetch
-        window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+        updateUrlParams(params);
         fetchResults(params.toString());
     }
 };
 
 // Initialize from URL
 const initializeFromUrl = () => {
-    const params = new URLSearchParams(window.location.search);
-    
-    // Update date refs from URL
-    if (params.has('start') && params.has('end')) {
-        startDate.value = params.get('start');
-        endDate.value = params.get('end');
-    }
+    const params = getUrlParams();
+    console.log('URL Params:', Object.fromEntries(params));
     
     state.value = {
         events: {
@@ -414,6 +397,10 @@ const initializeFromUrl = () => {
             searchType: params.get('searchType') || null,
             live: params.get('live') === 'true'
         },
+        dates: {
+            start: params.get('start') || null,
+            end: params.get('end') || null
+        },
         filters: {
             categories: params.has('category') ? params.get('category').split(',').map(Number) : [],
             tags: params.has('tag') ? params.get('tag').split(',').map(Number) : [],
@@ -425,14 +412,8 @@ const initializeFromUrl = () => {
         },
         maxPrice: props.maxPrice
     };
-
-    // Update local refs
-    city.value = state.value.location.city;
-    lat.value = state.value.location.lat;
-    lng.value = state.value.location.lng;
-    selectedCategories.value = state.value.filters.categories;
-    selectedTags.value = state.value.filters.tags;
-    priceRange.value = state.value.filters.price;
+    
+    console.log('Initialized state:', state.value);
 };
 
 // Fetch results
@@ -462,8 +443,6 @@ const fetchResults = async (queryString) => {
             },
             maxPrice: response.data.maxPrice
         };
-        console.log('Complete state:', completeState);
-
         SearchStore.updateState(completeState);
     } catch (error) {
         console.error('Error fetching results:', error);
@@ -472,54 +451,63 @@ const fetchResults = async (queryString) => {
     }
 };
 
+// Initialize SearchStore with current state
+const initializeSearchStore = () => {
+  if (props.searchedEvents && Object.keys(props.searchedEvents).length > 0) {
+    SearchStore.updateState(state.value);
+  }
+};
+
+// Set up subscription to MapStore for map-based searches
+const subscribeToMapStore = () => {
+  const unsubscribeMap = MapStore.subscribe((mapState) => {
+    // Get current params to preserve other values
+    const params = getUrlParams();
+    
+    // Update boundary coordinates
+    params.set('NElat', parseFloat(mapState.bounds.northEast.lat).toFixed(6));
+    params.set('NElng', parseFloat(mapState.bounds.northEast.lng).toFixed(6));
+    params.set('SWlat', parseFloat(mapState.bounds.southWest.lat).toFixed(6));
+    params.set('SWlng', parseFloat(mapState.bounds.southWest.lng).toFixed(6));
+    params.set('live', 'true');
+    params.set('searchType', 'inPerson');
+
+    // Update center coordinates
+    params.set('lat', mapState.bounds.center[0]);
+    params.set('lng', mapState.bounds.center[1]);
+
+    // Update URL without reload
+    updateUrlParams(params);
+    
+    // Fetch new results with the updated parameters
+    fetchResults(params.toString());
+  });
+  
+  // Store unsubscribe function for cleanup
+  unsubscribe.value = unsubscribeMap;
+};
+
+// Setup event listeners for UI interactions
+const setupEventListeners = () => {
+  window.addEventListener('scroll', handleScroll);
+  window.addEventListener('hide-search', hideSearch);
+};
+
 // Lifecycle hooks
 onMounted(() => {
-    initializeFromUrl();
-    
-    // Initialize SearchStore with complete state if searchedEvents available
-    if (props.searchedEvents && Object.keys(props.searchedEvents).length > 0) {
-        SearchStore.updateState(state.value);
-    }
-    
-    // Update the MapStore subscription
-    const unsubscribeMap = MapStore.subscribe((mapState) => {
-        // Get current params to preserve other values
-        const params = new URLSearchParams(window.location.search);
-        
-        // Update boundary coordinates
-        params.set('NElat', parseFloat(mapState.bounds.northEast.lat).toFixed(6));
-        params.set('NElng', parseFloat(mapState.bounds.northEast.lng).toFixed(6));
-        params.set('SWlat', parseFloat(mapState.bounds.southWest.lat).toFixed(6));
-        params.set('SWlng', parseFloat(mapState.bounds.southWest.lng).toFixed(6));
-        params.set('live', 'true');
-        params.set('searchType', 'inPerson');
-
-        // Update center coordinates
-        params.set('lat', mapState.bounds.center[0]);
-        params.set('lng', mapState.bounds.center[1]);
-
-        // Update URL without reload
-        window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-        
-        // Fetch new results with the updated parameters
-        fetchResults(params.toString());
-    
-    });
-    
-    window.addEventListener('scroll', handleScroll);
-    window.addEventListener('hide-search', hideSearch);
-
-    // Store unsubscribe function
-    unsubscribe.value = unsubscribeMap;
+  initializeFromUrl();
+  initializeSearchStore();
+  subscribeToMapStore();
+  setupEventListeners();
 });
 
-// Separate onUnmounted hook
+// Cleanup on component unmount
 onUnmounted(() => {
-    if (unsubscribe.value) {
-        unsubscribe.value();
-    }
-    window.removeEventListener('scroll', handleScroll);
-    window.removeEventListener('hide-search', hideSearch);
+  if (unsubscribe.value) {
+    unsubscribe.value();
+  }
+  window.removeEventListener('scroll', handleScroll);
+  window.removeEventListener('hide-search', hideSearch);
 });
 </script>
 

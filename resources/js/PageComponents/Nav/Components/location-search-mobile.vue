@@ -105,7 +105,6 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
 import axios from 'axios';
-import eventStore from '@/Stores/EventStore.vue';
 
 const props = defineProps({
     initialCity: String,
@@ -133,9 +132,6 @@ const displayedMonths = ref(3);
 
 // Add emits definition
 const emit = defineEmits(['update:location', 'clear']);
-
-// EventStore subscription
-const unsubscribe = ref(null);
 
 // Initialize dark mode and timezone variables for datepicker
 const isDark = ref(false);
@@ -178,19 +174,12 @@ const setPlace = (place) => {
    searchInput.value = place.name;
    dropdown.value = false;
    
-   // Update both parent component and EventStore
-   emit('update:location', place.name);
-   
-   // Update EventStore with location (but don't fetch events yet)
-   eventStore.update({
-       location: {
-           city: place.name,
-           lat: place.geometry.location.lat(),
-           lng: place.geometry.location.lng(),
-           searchType: 'inPerson',
-           live: false
-       }
-   }, false);
+   // Update parent component
+   emit('update:location', {
+       city: place.name,
+       lat: place.geometry.location.lat(),
+       lng: place.geometry.location.lng()
+   });
    
    isVisible.value = 'dates';
 };
@@ -214,43 +203,33 @@ const initGoogleMaps = () => {
     }
 };
 
-// Initialize from URL parameters and EventStore
+// Initialize from URL parameters
 onMounted(() => {    
-    // Subscribe to EventStore updates
-    unsubscribe.value = eventStore.subscribe(state => {
-        // Update from EventStore if values exist
-        if (state.location.city) {
-            searchInput.value = state.location.city;
-            selectedPlace.value = {
-                name: state.location.city,
-                lat: state.location.lat,
-                lng: state.location.lng
-            };
-        }
-        
-        // Update dates from EventStore
-        if (state.dates.start && state.dates.end) {
-            try {
-                const startDate = new Date(state.dates.start);
-                const endDate = new Date(state.dates.end);
-                
-                if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
-                    date.value = [startDate, endDate];
-                }
-            } catch (e) {
-                console.error('Error parsing dates from EventStore:', e);
-            }
-        }
-    });
-    
-    // Set initial city if provided by props
-    if (props.initialCity) {
+    // Initialize city from URL or props
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('city')) {
+        searchInput.value = params.get('city');
+        selectedPlace.value = {
+            name: params.get('city'),
+            lat: parseFloat(params.get('lat')),
+            lng: parseFloat(params.get('lng'))
+        };
+    } else if (props.initialCity) {
         searchInput.value = props.initialCity;
     }
 
-    // Set initial dates if provided by props
+    // Initialize dates from props if available
     if (props.initialStartDate && props.initialEndDate) {
-        date.value = [new Date(props.initialStartDate), new Date(props.initialEndDate)];
+        try {
+            const startDate = new Date(props.initialStartDate);
+            const endDate = new Date(props.initialEndDate);
+            
+            if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+                date.value = [startDate, endDate];
+            }
+        } catch (e) {
+            console.error('Error parsing initial dates:', e);
+        }
     }
     
     // Show initial places immediately
@@ -289,30 +268,51 @@ onUnmounted(() => {
         delete window.initMap;
     }
 
-    // Clean up EventStore subscription
-    if (unsubscribe.value) {
-        unsubscribe.value();
-    }
-
-    // Remove search trigger listener with proper function reference
+    // Remove search trigger listener
     window.removeEventListener('trigger-search', handleSearch);
 });
 
-// Computed property for formatting the date range
+// Use computed properties for date logic
+const propsDateRange = computed(() => {
+  if (props.initialStartDate && props.initialEndDate) {
+    try {
+      const startDate = new Date(props.initialStartDate);
+      const endDate = new Date(props.initialEndDate);
+      
+      if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+        return [startDate, endDate];
+      }
+    } catch (e) {
+      console.error('Error parsing dates from props:', e);
+    }
+  }
+  return null;
+});
+
+// When you need to access dates
+const effectiveDate = computed(() => {
+  if (date.value) return date.value;
+  if (propsDateRange.value) return propsDateRange.value;
+  return null;
+});
+
+// Format dates for display
 const formatDateRange = computed(() => {
-   if (!date.value || !Array.isArray(date.value)) return 'Dates';
-   
-   const [start, end] = date.value;
-   if (!start) return 'Dates';
-   
-   // If start and end are the same date, only show one date
-   if (end && start.getTime() === end.getTime()) {
-       return formatDate(start);
-   }
-   
-   if (!end) return formatDate(start);
-   
-   return `${formatDate(start)} - ${formatDate(end)}`;
+  const currentDate = effectiveDate.value;
+  
+  if (!currentDate || !Array.isArray(currentDate)) return 'Dates';
+  
+  const [start, end] = currentDate;
+  if (!start) return 'Dates';
+  
+  // If start and end are the same date, only show one date
+  if (end && start.getTime() === end.getTime()) {
+      return formatDate(start);
+  }
+  
+  if (!end) return formatDate(start);
+  
+  return `${formatDate(start)} - ${formatDate(end)}`;
 });
 
 // Format individual dates
@@ -328,27 +328,19 @@ function handleDateChange(newDate) {
    if (newDate && Array.isArray(newDate) && newDate.length === 2) {
        dateDropdown.value = false;
        
-       // Format dates for EventStore
-       const formatForStore = (date) => {
+       // Format dates for parent
+       const formatForUrl = (date) => {
            return date.toISOString().split('T')[0] + ' 00:00:00';
        };
        
-       // Update EventStore with dates (but don't fetch yet)
-       eventStore.update({
-           dates: {
-               start: formatForStore(newDate[0]),
-               end: formatForStore(newDate[1])
-           }
-       }, false);
-       
-       // Also update for parent component
+       // Update parent component
        if (selectedPlace.value) {
            emit('update:location', {
                city: selectedPlace.value.name,
                lat: selectedPlace.value.lat,
                lng: selectedPlace.value.lng,
-               start: formatForStore(newDate[0]),
-               end: formatForStore(newDate[1])
+               start: formatForUrl(newDate[0]),
+               end: formatForUrl(newDate[1])
            });
        }
    }
@@ -361,29 +353,9 @@ const minDate = computed(() => {
    return today;
 });
 
-// Add handleSearch function that uses EventStore
+// Add handleSearch function
 const handleSearch = () => {
     if (!selectedPlace.value) return;
-    
-    // First update the EventStore with final state
-    eventStore.update({
-        source: 'initialSearch',
-        location: {
-            city: selectedPlace.value.name,
-            lat: selectedPlace.value.lat,
-            lng: selectedPlace.value.lng,
-            searchType: 'inPerson',
-            live: false,
-            NElat: null,
-            NElng: null,
-            SWlat: null,
-            SWlng: null
-        },
-        dates: {
-            start: date.value?.[0] ? formatForUrl(date.value[0]) : null,
-            end: date.value?.[1] ? formatForUrl(date.value[1]) : null
-        }
-    }, true);
     
     // Hide the search modal
     window.dispatchEvent(new CustomEvent('hide-search'));
@@ -392,18 +364,10 @@ const handleSearch = () => {
     saveSearchData({ name: selectedPlace.value.name });
 };
 
-// Helper function for date formatting
-const formatForUrl = (date) => {
-    return date.toISOString().split('T')[0] + ' 00:00:00';
-};
-
-// Clear dates using EventStore
+// Clear dates
 const clearDates = () => {
    date.value = null;
    dateDropdown.value = false;
-   
-   // Update EventStore
-   eventStore.clearDates();
    
    // Only emit update if we have a selected place
    if (selectedPlace.value) {
@@ -455,19 +419,6 @@ const clearState = (isClearAll = false) => {
         searchInput.value = '';
         selectedPlace.value = null;
         date.value = null;
-        
-        // Also clear in EventStore
-        eventStore.update({
-            location: {
-                city: null,
-                lat: null,
-                lng: null
-            },
-            dates: {
-                start: null,
-                end: null
-            }
-        }, false);
         
         emit('update:location', null);
     }

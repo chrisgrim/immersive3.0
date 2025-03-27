@@ -137,22 +137,35 @@ const searchInput = ref('');
 const places = ref(initializePlaces());
 const date = ref(null);
 
-// Add a watcher to update date when props change
-watch(() => [props.initialStartDate, props.initialEndDate], ([newStartDate, newEndDate]) => {
-    if (newStartDate && newEndDate) {
-        try {
-            const startDate = new Date(newStartDate);
-            const endDate = new Date(newEndDate);
-            
-            // Make sure these are valid dates before setting
-            if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
-                date.value = [startDate, endDate];
-            }
-        } catch (e) {
-            console.error('Error parsing dates from props:', e);
-        }
+// Use a computed property to derive dates from props
+const propsDateRange = computed(() => {
+  if (props.initialStartDate && props.initialEndDate) {
+    try {
+      const startDate = new Date(props.initialStartDate);
+      const endDate = new Date(props.initialEndDate);
+      
+      // Make sure these are valid dates before returning
+      if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+        return [startDate, endDate];
+      }
+    } catch (e) {
+      console.error('Error parsing dates from props:', e);
     }
-}, { immediate: true });
+  }
+  return null;
+});
+
+// When you need to use the date, check both local state and props
+const effectiveDate = computed(() => {
+  // First priority: user selected date
+  if (date.value) return date.value;
+  
+  // Second priority: dates from props
+  if (propsDateRange.value) return propsDateRange.value;
+  
+  // Default: no date
+  return null;
+});
 
 // Location search functionality
 let autoComplete;
@@ -171,23 +184,11 @@ defineExpose({
         dateDropdown.value = true;
         dropdown.value = false;
 
-        // Check URL params first
-        const params = new URLSearchParams(window.location.search);
-        if (params.has('start') && params.has('end')) {
-            const startDate = new Date(params.get('start'));
-            const endDate = new Date(params.get('end'));
-            if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
-                date.value = [startDate, endDate];
-                return;
-            }
-        }
-
-        // Then check props
+        // Check props first
         if (props.initialStartDate && props.initialEndDate) {
             try {
                 const startDate = new Date(props.initialStartDate);
                 const endDate = new Date(props.initialEndDate);
-                
                 if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
                     date.value = [startDate, endDate];
                 }
@@ -339,21 +340,23 @@ onUnmounted(() => {
    }
 });
 
-// Computed property for formatting the date range
+// For the formatted display, use the effective date
 const formatDateRange = computed(() => {
-   if (!date.value || !Array.isArray(date.value)) return 'Dates';
-   
-   const [start, end] = date.value;
-   if (!start) return 'Dates';
-   
-   // If start and end are the same date, only show one date
-   if (end && start.getTime() === end.getTime()) {
-       return formatDate(start);
-   }
-   
-   if (!end) return formatDate(start);
-   
-   return `${formatDate(start)} - ${formatDate(end)}`;
+  const currentDate = effectiveDate.value;
+  
+  if (!currentDate || !Array.isArray(currentDate)) return 'Dates';
+  
+  const [start, end] = currentDate;
+  if (!start) return 'Dates';
+  
+  // If start and end are the same date, only show one date
+  if (end && start.getTime() === end.getTime()) {
+    return formatDate(start);
+  }
+  
+  if (!end) return formatDate(start);
+  
+  return `${formatDate(start)} - ${formatDate(end)}`;
 });
 
 // Format individual dates
@@ -414,8 +417,8 @@ const minDate = computed(() => {
 
 // Update handleSearch
 const handleSearch = () => {
-    // Allow search if we have either a location or dates
-    if (!selectedPlace.value && !date.value) return;
+    // Only require a location to be selected (don't check dates)
+    if (!selectedPlace.value) return;
     
     // Update searchInput if we have a selected place
     if (selectedPlace.value) {
@@ -430,7 +433,11 @@ const handleSearch = () => {
             lat: selectedPlace.value?.lat || null,
             lng: selectedPlace.value?.lng || null
         },
-        dates: {}
+        dates: {
+            // Always include explicit null values when no dates are selected
+            start: null,
+            end: null
+        }
     };
     
     // Add dates if available

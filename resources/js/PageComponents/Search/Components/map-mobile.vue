@@ -1,12 +1,12 @@
 <template>
     <section :class="[
         'flex left-0 right-0 top-0 bottom-auto fixed',
-        fullMap ? 'h-screen' : 'h-[54vh]'
+        isFullMap ? 'h-screen' : 'h-[54vh]'
     ]">
         <div class="search__map overflow-hidden w-full h-full">
             <!-- Loading Spinner -->
             <div 
-                v-show="showLoading"
+                v-show="isLoading"
                 class="flex items-center justify-center absolute h-full w-full z-[1001] pointer-events-none">
                 <div class="bg-white shadow-custom-1 w-16 h-16 rounded-full flex items-center justify-center pointer-events-auto">
                     <div
@@ -20,43 +20,7 @@
 
             <!-- Map Container -->
             <div class="w-full h-full relative">
-                <l-map
-                    ref="map"
-                    :zoom="modelValue.location.zoom"
-                    :center="modelValue.location.center"
-                    :maxZoom="mapConfig.max" 
-                    :minZoom="mapConfig.min"
-                    :options="{
-                        scrollWheelZoom: false,
-                        zoomControl: true,
-                        dragging: true,
-                        tap: true,
-                        touchZoom: true,
-                        bounceAtZoomLimits: false,
-                        touchStart: true,
-                        touchMove: true,
-                        touchEnd: true
-                    }"
-                    @update:bounds="boundsUpdate"
-                    class="!w-full !h-full !absolute !inset-0">
-                    <l-tile-layer :url="mapConfig.url" :attribution="mapConfig.attribution" />
-                    <marker-cluster :options="{ maxClusterRadius: 40 }">
-                        <l-marker 
-                            v-for="event in events" 
-                            :key="event.id" 
-                            :lat-lng="event.location_latlon"
-                            @click="handleMarkerClick(event)">
-                            <l-icon :iconSize="[getMarkerWidth(event), 30]" :iconAnchor="[getMarkerWidth(event)/2, 4]" class-name="icons">
-                                <p :class="[
-                                    'font-semibold px-4 py-1 rounded-full border-2 border-black text-center inline-block min-w-[3rem] whitespace-nowrap',
-                                    isSelected(event) ? 'bg-black text-white' : 'bg-white text-black'
-                                ]">
-                                    {{ getFixedPrice(event) }}
-                                </p>
-                            </l-icon>
-                        </l-marker>
-                    </marker-cluster>
-                </l-map>
+                <div id="leaflet-map-mobile" class="w-full h-full absolute inset-0"></div>
             </div>
         </div>
 
@@ -73,107 +37,294 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick, computed, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import 'leaflet/dist/leaflet.css'
-import { LMap, LTileLayer, LMarker, LIcon } from '@vue-leaflet/vue-leaflet'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
-import MarkerCluster from './LMarkerCluster.vue'
 import PopupContent from "./map-element-mobile.vue"
 import { ClickOutsideDirective as vClickOutside } from '@/Directives/ClickOutsideDirective'
-import eventStore from '@/Stores/EventStore.vue'
+import MapStore from '@/Stores/MapStore.vue'
+import L from 'leaflet'
+import 'leaflet.markercluster/dist/leaflet.markercluster.js'
 
 // Props & Emits
 const props = defineProps({
-    modelValue: { type: Object, required: true },
-    events: { type: Array, required: true },
-    fullMap: { type: Boolean, default: false },
-    source: { type: String, default: 'initialSearch' }
-})
-const emit = defineEmits(['update:modelValue', 'boundsChanged'])
+    modelValue: { 
+        type: Boolean, 
+        required: true 
+    },
+    events: { 
+        type: Array, 
+        required: true 
+    }
+});
+
+const emit = defineEmits(['update:modelValue']);
 
 // Refs & State
-const map = ref(null)
-const isInitialLoad = ref(true)
-const selectedMarker = ref(null)
-const selectedEvent = ref(null)
-let timeout = null
-const isProcessingBounds = ref(false)
-const isUserInteraction = ref(false)
-const initialLocation = ref(true)
-const boundsUpdateTimeout = ref(null)
-const lastBoundaryData = ref(null)
+const selectedMarker = ref(null);
+const selectedEvent = ref(null);
 const isLoading = ref(false);
+const isFullMap = computed(() => props.modelValue);
+
+// Leaflet objects
+let map = null;
+let markerClusterGroup = null;
+let markers = [];
 
 // Map Configuration
+const params = new URLSearchParams(window.location.search);
+const lat = parseFloat(params.get('lat'));
+const lng = parseFloat(params.get('lng'));
+
 const mapConfig = {
-    max: 20,
-    min: 8,
-    url: "https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=5Pwt4rF8iefMU4hIcRqZJ0GXPqWi5l4NVjEn4owEBKOdGyuJVARXbYTBDO2or3cU",
+    zoom: 13,
+    center: (!isNaN(lat) && !isNaN(lng)) ? [lat, lng] : [34.0549076, -118.242643],
+    maxZoom: 20,
+    minZoom: 8,
+    tileUrl: "https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=5Pwt4rF8iefMU4hIcRqZJ0GXPqWi5l4NVjEn4owEBKOdGyuJVARXbYTBDO2or3cU",
     attribution: '<a href="http://jawg.io" title="Tiles Courtesy of Jawg Maps" target="_blank">&copy; <b>Jawg</b>Maps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-}
+};
 
-// Methods
-const getFixedPrice = (event) => event.price_range.replace(/\d+(\.\d{1,2})?/g, dec => parseInt(dec))
-const getMarkerWidth = (event) => getFixedPrice(event).length * 12 + 32
-const isSelected = (event) => selectedMarker.value === event.id
+// Helper Methods
+const getFixedPrice = (event) => {
+    if (!event || !event.price_range) return '0';
+    return event.price_range.replace(/\d+(\.\d{1,2})?/g, dec => parseInt(dec));
+};
 
-const boundsUpdate = (bounds) => {
-    if (isProcessingBounds.value) {
-        return;
-    }
+// Get marker width based on price
+const getMarkerWidth = (event) => {
+    const price = getFixedPrice(event);
+    return price.toString().length * 12 + 32; // Using your mobile sizing
+};
 
-    // Only check if we're in initial search, don't block permanently
-    if (props.source === 'initialSearch' && !isUserInteraction.value) {
-        console.log('Skipping initial bounds update');
-        isUserInteraction.value = true;
-        return;
+// Check if an event is selected
+const isSelected = (event) => {
+    return selectedMarker.value === event.id;
+};
+
+// Get proper LatLng for an event
+const getLatLng = (event) => {
+    if (!event.location_latlon) return null;
+    
+    let lat, lng;
+    if (typeof event.location_latlon === 'object') {
+        lat = event.location_latlon.lat || event.location_latlon.latitude;
+        lng = event.location_latlon.lon || event.location_latlon.lng || event.location_latlon.longitude;
     }
     
-    // Clear existing timeout
-    if (boundsUpdateTimeout.value) {
-        clearTimeout(boundsUpdateTimeout.value);
-    }
-    
-    boundsUpdateTimeout.value = setTimeout(() => {
-        isProcessingBounds.value = true;
-        isLoading.value = true;
-        
-        const boundaryData = {
-            northEast: {
-                lat: bounds._northEast.lat,
-                lng: bounds._northEast.lng
-            },
-            southWest: {
-                lat: bounds._southWest.lat,
-                lng: bounds._southWest.lng
-            }
-        };
+    if (!lat || !lng) return null;
+    return L.latLng(parseFloat(lat), parseFloat(lng));
+};
 
-        emit('boundsChanged', boundaryData);
-        emit('update:modelValue', {
-            ...props.modelValue,
-            location: {
-                ...props.modelValue.location,
-                mapboundary: boundaryData,
-                live: true
+// Loading state management
+const startLoading = () => {
+    isLoading.value = true;
+};
+
+const stopLoading = () => {
+    const minimumLoadingTime = 333; // 1/3 second in milliseconds
+    setTimeout(() => {
+        isLoading.value = false;
+    }, minimumLoadingTime);
+};
+
+// Create a price marker icon
+const createMarkerIcon = (event) => {
+    const price = getFixedPrice(event);
+    const isEventSelected = isSelected(event);
+    
+    // Create icon HTML with your styling
+    const html = `
+        <p class="font-semibold px-4 py-1 rounded-full border-2 border-black text-center inline-block min-w-[3rem] whitespace-nowrap ${isEventSelected ? 'bg-black text-white' : 'bg-white text-black'}">
+            ${price}
+        </p>
+    `;
+    
+    // Determine width based on price
+    const width = getMarkerWidth(event);
+    
+    return L.divIcon({
+        html: html,
+        className: 'icons custom-price-marker',
+        iconSize: [width, 30],
+        iconAnchor: [width / 2, 4]
+    });
+};
+
+// Custom cluster icon
+const createClusterIcon = (cluster) => {
+    const count = cluster.getChildCount();
+    
+    // Make width dynamic based on count digits
+    const width = count.toString().length * 12 + 32;
+    
+    return L.divIcon({
+        html: `
+            <p class="font-semibold px-4 py-1 rounded-full border-2 border-black text-center inline-block min-w-[3rem] whitespace-nowrap bg-black text-white">
+                ${count}
+            </p>
+        `,
+        className: 'icons',
+        iconSize: [width, 30],
+        iconAnchor: [width / 2, 15]
+    });
+};
+
+// Create the map
+const initMap = () => {
+    startLoading();
+    
+    // Create the map instance with mobile-specific options
+    map = L.map('leaflet-map-mobile', {
+        center: mapConfig.center,
+        zoom: mapConfig.zoom,
+        maxZoom: mapConfig.maxZoom,
+        minZoom: mapConfig.minZoom,
+        zoomControl: true,
+        scrollWheelZoom: false,
+        zoomAnimation: true,
+        fadeAnimation: true,
+        tap: true,
+        touchZoom: true,
+        dragging: true,
+        bounceAtZoomLimits: false,
+        touchStart: true,
+        touchMove: true,
+        touchEnd: true
+    });
+    
+    // Add the tile layer
+    L.tileLayer(mapConfig.tileUrl, {
+        attribution: mapConfig.attribution
+    }).addTo(map);
+    
+    // Create marker cluster group
+    markerClusterGroup = L.markerClusterGroup({
+        maxClusterRadius: 40, // Match your original value
+        iconCreateFunction: createClusterIcon,
+        animate: true,
+        animateAddingMarkers: false,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        spiderfyDistanceMultiplier: 2,
+        disableClusteringAtZoom: 18,
+        spiderfyOnEveryZoom: false,
+        removeOutsideVisibleBounds: true,
+        zoomToBoundsOnClick: true
+    });
+    
+    // Add cluster group to map
+    map.addLayer(markerClusterGroup);
+    
+    // Set up map event listeners
+    map.on('moveend', mapMoved);
+    map.on('movestart', () => {
+        // Prevent marker transitions during movement
+        document.querySelectorAll('.leaflet-marker-icon').forEach(el => {
+            el.style.transition = 'none';
+        });
+    });
+    map.on('zoomstart', () => {
+        // Prevent the brief flickering of markers during zoom
+        document.querySelectorAll('.leaflet-marker-icon').forEach(el => {
+            if (el.classList.contains('custom-price-marker')) {
+                el.style.opacity = '0';
             }
         });
-
+    });
+    map.on('zoomend', () => {
+        // Restore marker visibility after zoom completes
         setTimeout(() => {
-            isProcessingBounds.value = false;
-            setTimeout(() => {
-                isLoading.value = false;
-            }, 250);
-        }, 500);
-    }, 500);
-}
+            document.querySelectorAll('.leaflet-marker-icon').forEach(el => {
+                if (el.classList.contains('custom-price-marker')) {
+                    el.style.opacity = '1';
+                    el.style.transition = 'opacity 0.15s ease-in-out';
+                }
+            });
+        }, 50);
+    });
+    
+    // Create markers
+    createMarkers(props.events);
+    
+    // Notify that map is ready
+    console.log('Mobile map initialized');
+};
 
-const handleMarkerClick = (event) => {
-    selectedEvent.value = event
-    selectedMarker.value = event.id
-}
+// Create markers for events
+const createMarkers = (events) => {
+    startLoading();
+    
+    // Clear existing markers
+    markerClusterGroup.clearLayers();
+    markers = [];
+    
+    // Filter to valid events with coordinates
+    const validEvents = events.filter(event => {
+        if (!event.location_latlon) return false;
+        
+        let lat, lng;
+        if (typeof event.location_latlon === 'object') {
+            lat = event.location_latlon.lat || event.location_latlon.latitude;
+            lng = event.location_latlon.lon || event.location_latlon.lng || event.location_latlon.longitude;
+        }
+        
+        return lat && lng;
+    });
+    
+    validEvents.forEach(event => {
+        const latLng = getLatLng(event);
+        if (!latLng) return;
+        
+        const marker = L.marker(latLng, {
+            icon: createMarkerIcon(event)
+        });
+        
+        // Store event data with marker
+        marker.eventData = event;
+        
+        // Add click handler for mobile experience - show bottom popup
+        marker.on('click', () => {
+            selectedMarker.value = event.id;
+            selectedEvent.value = event;
+            
+            // Update marker styles
+            updateMarkerStyles();
+        });
+        
+        // Add to cluster group
+        markerClusterGroup.addLayer(marker);
+        markers.push(marker);
+    });
+    
+    console.log(`Created ${markers.length} markers for mobile`);
+    
+    // Stop loading with the minimum display time
+    stopLoading();
+};
 
+// Update marker styles
+const updateMarkerStyles = () => {
+    markers.forEach(marker => {
+        marker.setIcon(createMarkerIcon(marker.eventData));
+    });
+};
+
+// Map moved event handler
+const mapMoved = () => {
+    if (!map) return;
+    
+    const bounds = map.getBounds();
+    const center = map.getCenter();
+    
+    if (bounds && center) {
+        MapStore.boundsUpdate(bounds, center);
+    }
+};
+
+// Close popup handler
 const closePopup = (event) => {
     const isMarkerElement = event.target.closest('.leaflet-marker-icon') || 
                            event.target.closest('.leaflet-marker-pane') ||
@@ -181,58 +332,52 @@ const closePopup = (event) => {
                            event.target.closest('.icons') ||
                            event.target.classList.contains('font-semibold');
     
-    if (isMarkerElement) return
+    if (isMarkerElement) return;
     
-    selectedEvent.value = null
-    selectedMarker.value = null
-}
+    selectedEvent.value = null;
+    selectedMarker.value = null;
+};
 
-
-// Watchers
-watch(() => props.source, (newSource) => {
-    if (newSource === 'initialSearch') {
-        isUserInteraction.value = false;
-    }
-}, { immediate: true });
-
-watch(() => map.value?.leafletObject, (mapInstance) => {
-    if (initialLocation.value) {
-        initialLocation.value = false;
-        if (props.modelValue.location.center) {
-            mapInstance.setView(props.modelValue.location.center, props.modelValue.location.zoom);
-            // Set isInitialLoad to false after the view is set
-            setTimeout(() => {
-                isInitialLoad.value = false;
-            }, 100);
-        }
-    }
+// Initialize the map on component mount
+onMounted(() => {
+    // Use a short delay to ensure the DOM is ready
+    setTimeout(() => {
+        initMap();
+    }, 0);
 });
 
-watch(() => props.events, (newEvents) => {
-    if (isLoading.value) {
-        // Small delay to ensure smooth transition
-        setTimeout(() => {
-            isLoading.value = false;
-        }, 250);
+// Watch for changes to events
+watch(() => props.events, (newEvents, oldEvents) => {
+    if (map && markerClusterGroup) {
+        // Only recreate if events actually changed
+        if (newEvents !== oldEvents) {
+            startLoading();
+            createMarkers(newEvents);
+        }
     }
 }, { deep: true });
 
-// Lifecycle
-onMounted(() => {
-    console.log('Component mounted, directive available:', !!vClickOutside)
-    isInitialLoad.value = true
-})
+// Watch for selection changes
+watch(() => selectedMarker.value, () => {
+    updateMarkerStyles();
+});
 
-onUnmounted(() => {
-    if (boundsUpdateTimeout.value) {
-        clearTimeout(boundsUpdateTimeout.value);
+// Clean up on component unmount
+onBeforeUnmount(() => {
+    if (map) {
+        map.off('moveend', mapMoved);
+        map.remove();
+        map = null;
     }
-    lastBoundaryData.value = null;
-})
+    
+    markerClusterGroup = null;
+    markers = [];
+});
 
-// Computed
-const showLoading = computed(() => {
-    return props.modelValue.loading || isLoading.value;
+// Expose loading state control to parent component
+defineExpose({
+    startLoading,
+    stopLoading
 });
 </script>
 
@@ -247,7 +392,8 @@ const showLoading = computed(() => {
     -ms-user-select: none;
     user-select: none;
 }
-.leaflet-pane .leaflet-div-icon { background: transparent; border: none; }
+
+/* Custom popup styles */
 .leaflet-popup-content-wrapper { @apply !p-0 !rounded-2xl; }
 .leaflet-popup-close-button { display: none; }
 .leaflet-popup-content {
@@ -256,8 +402,6 @@ const showLoading = computed(() => {
     border-radius: 1rem;
     overflow: hidden;
 }
-
-
 
 /* Add styles for bottom popup animation */
 .transform {
@@ -283,5 +427,10 @@ const showLoading = computed(() => {
 .leaflet-fade-anim .leaflet-tile,
 .leaflet-fade-anim .leaflet-popup {
     transition: opacity 0.2s linear;
+}
+
+/* Shadow utility */
+.shadow-custom-1 {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 </style>

@@ -23,7 +23,6 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import axios from 'axios'
 import EventGrid from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
-import eventStore from '@/Stores/EventStore.vue'
 
 const props = defineProps({
     searchedEvents: {
