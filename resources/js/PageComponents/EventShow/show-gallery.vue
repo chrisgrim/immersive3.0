@@ -60,7 +60,6 @@ const handleShare = async () => {
                 url: window.location.href
             });
         } catch (err) {
-            console.log('Error sharing:', err);
             window.dispatchEvent(new CustomEvent('showShareModalFallback'));
         }
     } else {

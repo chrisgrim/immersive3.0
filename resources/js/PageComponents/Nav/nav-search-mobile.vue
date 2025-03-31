@@ -153,7 +153,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import SearchLocation from './Components/location-search-mobile.vue';
 import SearchEvent from './Components/events-search-mobile.vue';
 import Filters from './Components/filters.vue';
@@ -165,15 +165,7 @@ import axios from 'axios';
 const props = defineProps({
     searchedEvents: {
         type: Object,
-        default: () => ({
-            data: [],
-            total: 0,
-            current_page: 1,
-            last_page: 1,
-            from: null,
-            to: null,
-            per_page: 15
-        })
+        default: () => ({})
     },
     maxPrice: {
         type: Number,
@@ -181,43 +173,13 @@ const props = defineProps({
     }
 });
 
-// State management
-const state = ref({
-    events: {
-        data: props.searchedEvents?.data || [],
-        total: props.searchedEvents?.total || 0,
-        current_page: props.searchedEvents?.current_page || 1,
-        last_page: props.searchedEvents?.last_page || 1,
-        from: props.searchedEvents?.from || null,
-        to: props.searchedEvents?.to || null,
-        per_page: props.searchedEvents?.per_page || 15
-    },
-    location: {
-        city: null,
-        lat: null,
-        lng: null,
-        searchType: null,
-        live: false
-    },
-    dates: {
-        start: null,
-        end: null
-    },
-    filters: {
-        categories: [],
-        tags: [],
-        price: [0, props.maxPrice],
-        searchedMaxPrice: props.maxPrice
-    },
-    maxPrice: props.maxPrice
-});
+// Replace the state ref with a computed property that uses SearchStore
+const state = computed(() => SearchStore.state);
 
-// UI state refs
+// UI state refs (just what the UI needs, not the search data)
 const search = ref(null);
 const showFilters = ref(false);
 const unsubscribe = ref(null);
-
-// For template refs
 const searchLocation = ref(null);
 
 // Utility functions
@@ -292,50 +254,47 @@ const hideSearch = () => {
 
 const handleLocationUpdate = (value) => {
     if (typeof value === 'string') {
-        // Just update the city name, don't touch the URL
-        state.value.location.city = value;
+        // Just update the city name in the store
+        SearchStore.updateState({
+            location: {
+                city: value
+            }
+        });
     } else if (value && typeof value === 'object') {
-        // Ensure we capture the correct coordinates
-        // Make sure we're getting valid coordinates from the search component
-        const lat = value.lat !== undefined ? value.lat : null;
-        const lng = value.lng !== undefined ? value.lng : null;
-        
-        // Update local state with location and dates
-        state.value.location = {
-            city: value.city,
-            lat: lat,
-            lng: lng,
-            searchType: 'inPerson',
-            live: false
-        };
-        
-        state.value.dates = {
-            start: value.start,
-            end: value.end
-        };
-        
-        // Debug logging to verify coordinates
-        console.log(`Location updated for ${value.city}: lat=${lat}, lng=${lng}`);
+        // Update SearchStore with location and dates
+        SearchStore.updateState({
+            location: {
+                city: value.city,
+                lat: value.lat !== undefined ? value.lat : null,
+                lng: value.lng !== undefined ? value.lng : null,
+                searchType: 'inPerson',
+                live: false
+            },
+            dates: {
+                start: value.start,
+                end: value.end
+            }
+        });
     } else {
-        // Clear everything
-        state.value.location = {
-            city: null,
-            lat: null,
-            lng: null
-        };
-        state.value.dates = {
-            start: null,
-            end: null
-        };
+        // Clear location and dates in the store
+        SearchStore.updateState({
+            location: {
+                city: null,
+                lat: null,
+                lng: null
+            },
+            dates: {
+                start: null,
+                end: null
+            }
+        });
     }
 };
 
 const handleSearch = () => {
-    // Use the current state to perform search
-    console.log('Searching with state:', state.value);
     const params = new URLSearchParams(window.location.search);
     
-    // Add location parameters only if we have both city and coordinates
+    // Add location parameters if we have a city
     if (state.value.location.city) {
         params.set('city', state.value.location.city);
         
@@ -394,24 +353,23 @@ const handleSearch = () => {
         params.delete('SWlng');
     }
     
-    // Log the search parameters
-    console.log('Searching with params:', Object.fromEntries(params.entries()));
-    
-    // UNCOMMENT this line to enable actual navigation
+    // Navigate to the search page
     window.location.href = `/index/search?${params.toString()}`;
 };
 
 const handleClearAll = () => {
-    // Clear state
-    state.value.location = {
-        city: null,
-        lat: null,
-        lng: null
-    };
-    state.value.dates = {
-        start: null,
-        end: null
-    };
+    // Clear location and dates in the store
+    SearchStore.updateState({
+        location: {
+            city: null,
+            lat: null,
+            lng: null
+        },
+        dates: {
+            start: null,
+            end: null
+        }
+    });
     
     // Tell child component to clear its state
     if (searchLocation.value) {
@@ -420,12 +378,10 @@ const handleClearAll = () => {
 };
 
 const handleFilterUpdate = (filters) => {
-    // Update local state with the new filters
-    state.value.filters = {
-        categories: filters.categories,
-        tags: filters.tags,
-        price: filters.price
-    };
+    // Update SearchStore with the new filters
+    SearchStore.updateState({
+        filters: filters
+    });
     
     // Hide filters after updating
     showFilters.value = false;
@@ -433,6 +389,9 @@ const handleFilterUpdate = (filters) => {
     // If we're on search page, update URL and fetch results
     if (window.location.pathname.includes('/index/search')) {
         const params = getUrlParams();
+        
+        // Reset to page 1 when filters change
+        params.set('page', 1);
         
         if (filters.categories.length) {
             params.set('category', filters.categories.join(','));
@@ -463,134 +422,54 @@ const handleFilterUpdate = (filters) => {
     }
 };
 
-const openFilters = () => {
-    showFilters.value = true;
-};
-
 const handleBack = () => {
     window.history.back();
 };
 
-// Fetch results
+// Fetch results (simplified to use SearchStore)
 const fetchResults = async (queryString) => {
     try {
-        SearchStore.setLoading(true);
-        const response = await axios.get(`/api/index/search?${queryString}`);
-        
-        // Construct complete state object
-        const completeState = {
-            events: {
-                current_page: response.data.current_page,
-                data: response.data.data,
-                from: response.data.from,
-                last_page: response.data.last_page,
-                per_page: response.data.per_page,
-                to: response.data.to,
-                total: response.data.total
-            },
-            location: {
-                city: response.data.city,
-                lat: response.data.lat,
-                lng: response.data.lng,
-                searchType: response.data.searchType,
-                live: response.data.live
-            },
-            maxPrice: response.data.maxPrice
-        };
-
-        SearchStore.updateState(completeState);
+        await SearchStore.fetchResults(queryString);
     } catch (error) {
-        console.error('Error fetching results:', error);
-    } finally {
-        SearchStore.setLoading(false);
-    }
-};
-
-// Initialize from URL
-const initializeFromUrl = () => {
-    const params = getUrlParams();
-    
-    state.value = {
-        events: {
-            data: props.searchedEvents?.data || [],
-            total: props.searchedEvents?.total || 0,
-            current_page: props.searchedEvents?.current_page || 1,
-            last_page: props.searchedEvents?.last_page || 1,
-            from: props.searchedEvents?.from || null,
-            to: props.searchedEvents?.to || null,
-            per_page: props.searchedEvents?.per_page || 15
-        },
-        location: {
-            city: params.get('city') || null,
-            lat: params.has('lat') ? parseFloat(params.get('lat')) : null,
-            lng: params.has('lng') ? parseFloat(params.get('lng')) : null,
-            searchType: params.get('searchType') || null,
-            live: params.get('live') === 'true'
-        },
-        dates: {
-            start: params.get('start') || null,
-            end: params.get('end') || null
-        },
-        filters: {
-            categories: params.has('category') ? params.get('category').split(',').map(Number) : [],
-            tags: params.has('tag') ? params.get('tag').split(',').map(Number) : [],
-            price: [
-                parseInt(params.get('price0')) || 0,
-                parseInt(params.get('price1')) || props.maxPrice
-            ],
-            searchedMaxPrice: props.maxPrice
-        },
-        maxPrice: props.maxPrice
-    };
-};
-
-// Initialize SearchStore with current state
-const initializeSearchStore = () => {
-    if (props.searchedEvents && Object.keys(props.searchedEvents).length > 0) {
-        SearchStore.updateState(state.value);
+        console.error('Error in fetchResults:', error);
     }
 };
 
 // Set up subscription to MapStore for map-based searches
 const subscribeToMapStore = () => {
-    const unsubscribeMap = MapStore.subscribe((mapState) => {
-        // Get current params to preserve other values
+    unsubscribe.value = MapStore.subscribe((mapState) => {
         const params = getUrlParams();
         
-        // Update boundary coordinates
-        params.set('NElat', parseFloat(mapState.bounds.northEast.lat).toFixed(6));
-        params.set('NElng', parseFloat(mapState.bounds.northEast.lng).toFixed(6));
-        params.set('SWlat', parseFloat(mapState.bounds.southWest.lat).toFixed(6));
-        params.set('SWlng', parseFloat(mapState.bounds.southWest.lng).toFixed(6));
+        // Set all map boundary and search parameters
+        ['NElat', 'NElng', 'SWlat', 'SWlng'].forEach((param, i) => {
+            const value = i < 2 
+                ? mapState.bounds.northEast[param.slice(2).toLowerCase()]
+                : mapState.bounds.southWest[param.slice(2).toLowerCase()];
+            params.set(param, parseFloat(value).toFixed(6));
+        });
+        
+        // Set search parameters
         params.set('live', 'true');
         params.set('searchType', 'inPerson');
-
-        // Update center coordinates
         params.set('lat', mapState.bounds.center[0]);
         params.set('lng', mapState.bounds.center[1]);
 
-        // Update URL without reload
+        // Update URL and fetch results
         updateUrlParams(params);
-        
-        // Fetch new results with the updated parameters
         fetchResults(params.toString());
     });
-    
-    // Store unsubscribe function for cleanup
-    unsubscribe.value = unsubscribeMap;
-};
-
-// Setup event listeners for UI interactions
-const setupEventListeners = () => {
-    window.addEventListener('hide-search', hideSearch);
 };
 
 // Lifecycle hooks
 onMounted(() => {
-    initializeFromUrl();
-    initializeSearchStore();
+    // Initialize the SearchStore from URL and props
+    SearchStore.initializeFromUrl(props.searchedEvents, props.maxPrice);
+    
+    // Subscribe to MapStore
     subscribeToMapStore();
-    setupEventListeners();
+    
+    // Add event listener
+    window.addEventListener('hide-search', hideSearch);
 });
 
 // Cleanup on component unmount

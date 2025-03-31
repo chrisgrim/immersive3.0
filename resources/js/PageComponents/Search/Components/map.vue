@@ -90,6 +90,30 @@ const mapConfig = {
     attribution: '<a href="http://jawg.io" title="Tiles Courtesy of Jawg Maps" target="_blank">&copy; <b>Jawg</b>Maps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 };
 
+// Map moved event handler
+const onMapMoved = () => {
+    if (!map) return;
+    
+    const bounds = map.getBounds();
+    const center = map.getCenter();
+    
+    if (bounds && center) {
+        MapStore.boundsUpdate(bounds, center);
+        
+    }
+};
+
+// Toggle Map Method
+const toggleMap = () => {
+    emit('update:modelValue', !props.modelValue);
+    nextTick(() => {
+        if (map) {
+            map.invalidateSize();
+            onMapMoved();
+        }
+    });
+};
+
 // Helper Methods
 const getFixedPrice = (event) => {
     if (!event || !event.price_range) return '0';
@@ -251,9 +275,6 @@ const initMap = () => {
     
     // Create markers
     createMarkers(props.events);
-    
-    // Notify that map is ready
-    console.log('Map initialized');
 };
 
 // Create markers for events
@@ -309,10 +330,6 @@ const createMarkers = (events) => {
         markerClusterGroup.addLayer(marker);
         markers.push(marker);
     });
-    
-    console.log(`Created ${markers.length} markers`);
-    
-    // Stop loading with the minimum display time
     stopLoading();
 };
 
@@ -355,33 +372,6 @@ const createPopupForMarker = (marker) => {
     });
 };
 
-// Map moved event handler
-const onMapMoved = () => {
-    if (!map) return;
-    
-    const bounds = map.getBounds();
-    const center = map.getCenter();
-    
-    if (bounds && center) {
-        // When bounds change, we might need to fetch new data
-        // but we'll let the parent component handle that
-        MapStore.boundsUpdate(bounds, center);
-        
-        // We only want to show loading if we're actually fetching new data
-        // so we're not setting loading state here
-    }
-};
-
-// Toggle Map Method
-const toggleMap = () => {
-    emit('update:modelValue', !props.modelValue);
-    nextTick(() => {
-        if (map) {
-            map.invalidateSize();
-            onMapMoved();
-        }
-    });
-};
 
 // Initialize the map on component mount
 onMounted(() => {

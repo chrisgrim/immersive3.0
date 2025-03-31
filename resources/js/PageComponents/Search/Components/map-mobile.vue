@@ -248,9 +248,6 @@ const initMap = () => {
     
     // Create markers
     createMarkers(props.events);
-    
-    // Notify that map is ready
-    console.log('Mobile map initialized');
 };
 
 // Create markers for events
@@ -298,9 +295,6 @@ const createMarkers = (events) => {
         markerClusterGroup.addLayer(marker);
         markers.push(marker);
     });
-    
-    console.log(`Created ${markers.length} markers for mobile`);
-    
     // Stop loading with the minimum display time
     stopLoading();
 };

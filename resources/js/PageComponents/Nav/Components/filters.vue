@@ -390,8 +390,6 @@ const selectCategory = (categoryId) => {
         ...selectedFilters.value,
         categories: newCategories
     };
-    
-    sortLists();
 }
 
 const toggleCategory = (categoryId) => {
@@ -408,8 +406,6 @@ const selectTag = (tagId) => {
         ...selectedFilters.value,
         tags: newTags
     };
-    
-    sortLists();
 }
 
 const toggleTag = (tagId) => {

@@ -76,10 +76,7 @@ onMounted(() => {
     localSelected.value = [...new Set(props.selectedCategories)];
 })
 
-const toggleCategory = (categoryId) => {
-    console.log('Toggling category:', categoryId); // Debug log
-    console.log('Before toggle:', localSelected.value); // Debug log
-    
+const toggleCategory = (categoryId) => {    
     if (localSelected.value.includes(categoryId)) {
         // Remove if present
         localSelected.value = localSelected.value.filter(id => id !== categoryId);
@@ -87,8 +84,6 @@ const toggleCategory = (categoryId) => {
         // Add if not present
         localSelected.value.push(categoryId);
     }
-    
-    console.log('After toggle:', localSelected.value); // Debug log
 }
 
 const isSelected = (categoryId) => {

@@ -67,18 +67,13 @@ const handleOrganizerSelect = async (organizer) => {
     if (loading.value) return
     
     try {
-        loading.value = true
-        console.log('Attempting to fetch organizer:', organizer);
-        
+        loading.value = true        
         const slug = organizer.slug || organizer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         const url = `/api/admin/organizers/${slug}`;
-        console.log('Request URL:', url);
         
         const response = await axios.get(url);
-        console.log('Response received:', response.data);
         
         emit('select-organizer', response.data);
-        console.log('Emitted select-organizer event');
     } catch (error) {
         console.error('Error details:', {
             status: error.response?.status,

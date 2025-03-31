@@ -51,7 +51,7 @@
                             <template v-if="state.location.city">
                                 <div 
                                     class="flex items-center cursor-pointer" 
-                                    @click="openLocationSearch">
+                                    @click="search = 'l'">
                                     <svg class="w-6 h-6 fill-[#ff385c] mr-2">
                                         <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
                                     </svg>
@@ -68,8 +68,8 @@
                             </template>
                             <template v-else>
                                 <div 
-                                    class="flex items-center cursor-pointer w-full" 
-                                    @click="openLocationSearch">
+                                    class="flex items-center cursor-pointer" 
+                                    @click="search = 'l'">
                                     <svg class="w-6 h-6 fill-[#ff385c] mr-2">
                                         <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
                                     </svg>
@@ -80,7 +80,7 @@
                     </div>
                 </div>
                 <button 
-                    @click="openFilters"
+                    @click="showFilters = true"
                     class="w-[4.5rem] h-[4.5rem] flex-shrink-0 flex items-center justify-center rounded-full shadow-custom-3 transition-colors"
                     :class="[
                         hasActiveFilters 
@@ -126,15 +126,7 @@ import MapStore from '@/Stores/MapStore.vue';
 const props = defineProps({
   searchedEvents: {
     type: Object,
-    default: () => ({
-      data: [],
-      total: 0,
-      current_page: 1,
-      last_page: 1,
-      from: null,
-      to: null,
-      per_page: 15
-    })
+    default: () => ({})
   },
   maxPrice: {
     type: Number,
@@ -142,43 +134,13 @@ const props = defineProps({
   }
 });
 
-// State management
-const state = ref({
-    events: {
-        data: props.searchedEvents?.data || [],
-        total: props.searchedEvents?.total || 0,
-        current_page: props.searchedEvents?.current_page || 1,
-        last_page: props.searchedEvents?.last_page || 1,
-        from: props.searchedEvents?.from || null,
-        to: props.searchedEvents?.to || null,
-        per_page: props.searchedEvents?.per_page || 15
-    },
-    location: {
-        city: null,
-        lat: null,
-        lng: null,
-        searchType: null,
-        live: false
-    },
-    dates: {
-        start: null,
-        end: null
-    },
-    filters: {
-        categories: [],
-        tags: [],
-        price: [0, props.maxPrice],
-        searchedMaxPrice: props.maxPrice
-    },
-    maxPrice: props.maxPrice
-});
+// Replace the state computed property with this simpler version
+const state = computed(() => SearchStore.state);
 
-// UI state refs
+// UI state refs (just what the UI needs, not the search data)
 const search = ref(null);
 const showFilters = ref(false);
 const unsubscribe = ref(null);
-
-// For template refs
 const locationSearch = ref(null);
 
 // Utility functions
@@ -188,13 +150,7 @@ const updateUrlParams = (params) => {
     window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
 };
 
-const debounce = (fn, delay) => {
-    let timeoutId;
-    return (...args) => {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => fn(...args), delay);
-    };
-};
+
 
 // Computed properties
 const isSearchPage = computed(() => {
@@ -236,9 +192,12 @@ const hasActiveFilters = computed(() => {
            ));
 });
 
-// Methods
-const openLocationSearch = () => {
-    search.value = 'l';
+const debounce = (fn, delay) => {
+    let timeoutId;
+    return (...args) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => fn(...args), delay);
+    };
 };
 
 const openDateSearch = () => {
@@ -266,10 +225,16 @@ const hideSearch = () => {
 };
 
 const handleFilterUpdate = (filters) => {
-    state.value.filters = filters;
+    // Update the SearchStore with the new filters
+    SearchStore.updateState({
+        filters: filters
+    });
     
     if (isSearchPage.value) {
         const params = getUrlParams();
+        
+        // Reset to page 1 when filters change
+        params.set('page', 1);
         
         if (filters.categories.length) {
             params.set('category', filters.categories.join(','));
@@ -298,6 +263,7 @@ const handleFilterUpdate = (filters) => {
         updateUrlParams(params);
         fetchResults(params.toString());
     } else {
+        // Same redirect logic as before
         const params = new URLSearchParams();
         
         if (filters.categories.length) {
@@ -320,23 +286,32 @@ const handleFilterUpdate = (filters) => {
     }
 };
 
-const openFilters = () => {
-    showFilters.value = true;
-};
 
 const handleLocationSearch = (searchData) => {    
-    state.value = {
-        ...state.value,
+    console.log('handleLocationSearch', searchData);
+    
+    // Use the updateState method
+    SearchStore.updateState({
         location: {
-            ...searchData.location,
+            city: searchData.location.city,
+            lat: searchData.location.lat,
+            lng: searchData.location.lng,
+            searchType: searchData.location.searchType,
             live: searchData.location.live
         },
-        dates: searchData.dates
-    };
-
+        dates: {
+            start: searchData.dates.start,
+            end: searchData.dates.end
+        }
+    });
+    
+    // Rest of the function remains the same
     const params = getUrlParams();
     const currentCity = params.get('city');
     const isNewLocation = currentCity !== searchData.location.city;
+    
+    // Reset to page 1 when location changes
+    params.set('page', 1);
     
     if (isNewLocation) {
         params.delete('NElat');
@@ -375,88 +350,16 @@ const handleLocationSearch = (searchData) => {
     }
 };
 
-// Initialize from URL
-const initializeFromUrl = () => {
-    const params = getUrlParams();
-    console.log('URL Params:', Object.fromEntries(params));
-    
-    state.value = {
-        events: {
-            data: props.searchedEvents?.data || [],
-            total: props.searchedEvents?.total || 0,
-            current_page: props.searchedEvents?.current_page || 1,
-            last_page: props.searchedEvents?.last_page || 1,
-            from: props.searchedEvents?.from || null,
-            to: props.searchedEvents?.to || null,
-            per_page: props.searchedEvents?.per_page || 15
-        },
-        location: {
-            city: params.get('city') || null,
-            lat: params.has('lat') ? parseFloat(params.get('lat')) : null,
-            lng: params.has('lng') ? parseFloat(params.get('lng')) : null,
-            searchType: params.get('searchType') || null,
-            live: params.get('live') === 'true'
-        },
-        dates: {
-            start: params.get('start') || null,
-            end: params.get('end') || null
-        },
-        filters: {
-            categories: params.has('category') ? params.get('category').split(',').map(Number) : [],
-            tags: params.has('tag') ? params.get('tag').split(',').map(Number) : [],
-            price: [
-                parseInt(params.get('price0')) || 0,
-                parseInt(params.get('price1')) || props.maxPrice
-            ],
-            searchedMaxPrice: props.maxPrice
-        },
-        maxPrice: props.maxPrice
-    };
-    
-    console.log('Initialized state:', state.value);
-};
-
 // Fetch results
 const fetchResults = async (queryString) => {
-    console.log('Fetching results with query:', queryString);
     try {
-        SearchStore.setLoading(true);
-        const response = await axios.get(`/api/index/search?${queryString}`);
-        
-        // Construct complete state object
-        const completeState = {
-            events: {
-                current_page: response.data.current_page,
-                data: response.data.data,
-                from: response.data.from,
-                last_page: response.data.last_page,
-                per_page: response.data.per_page,
-                to: response.data.to,
-                total: response.data.total
-            },
-            location: {
-                city: response.data.city,
-                lat: response.data.lat,
-                lng: response.data.lng,
-                searchType: response.data.searchType,
-                live: response.data.live
-            },
-            maxPrice: response.data.maxPrice
-        };
-        SearchStore.updateState(completeState);
+        await SearchStore.fetchResults(queryString);
     } catch (error) {
-        console.error('Error fetching results:', error);
-    } finally {
-        SearchStore.setLoading(false);
+        console.error('Error in fetchResults:', error);
     }
 };
 
-// Initialize SearchStore with current state
-const initializeSearchStore = () => {
-  if (props.searchedEvents && Object.keys(props.searchedEvents).length > 0) {
-    SearchStore.updateState(state.value);
-  }
-};
+
 
 // Set up subscription to MapStore for map-based searches
 const subscribeToMapStore = () => {
@@ -493,19 +396,23 @@ const setupEventListeners = () => {
   window.addEventListener('hide-search', hideSearch);
 };
 
+
+
 // Lifecycle hooks
 onMounted(() => {
-  initializeFromUrl();
-  initializeSearchStore();
+  SearchStore.initializeFromUrl(props.searchedEvents, props.maxPrice);
   subscribeToMapStore();
   setupEventListeners();
 });
 
 // Cleanup on component unmount
 onUnmounted(() => {
+  // Only need to clean up MapStore subscription
   if (unsubscribe.value) {
     unsubscribe.value();
   }
+  
+  // Remove event listeners
   window.removeEventListener('scroll', handleScroll);
   window.removeEventListener('hide-search', hideSearch);
 });

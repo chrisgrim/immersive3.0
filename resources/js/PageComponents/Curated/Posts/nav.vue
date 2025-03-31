@@ -254,7 +254,6 @@ const eventImage = () => {
 }
 
 const update = async () => {
-    console.log('Emitting update with:', inputVal.value)
     emit('update')
 }
 
@@ -270,7 +269,6 @@ const deleteImage = () => {
 
 const reOrder = async () => {
     try {
-        console.log('Reordering cards')
         isDragging.value = false
         
         // Map the new order
@@ -310,7 +308,6 @@ const updateType = () => {
 // Add methods for handling shelf selection
 const handleShelfSelect = async (shelf) => {
     try {
-        console.log('Selecting shelf:', shelf)
         const updatedPost = {
             ...inputVal.value,
             shelf_id: Number(shelf.id)
@@ -324,7 +321,6 @@ const handleShelfSelect = async (shelf) => {
 
 const removeShelf = async () => {
     try {
-        console.log('Removing shelf')
         const updatedPost = {
             ...inputVal.value,
             shelf_id: null

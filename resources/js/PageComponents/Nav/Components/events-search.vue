@@ -21,22 +21,30 @@
                 class="bg-white relative w-full m-auto overflow-hidden mt-8 p-8 list-none rounded-5xl shadow-custom-7"
                 v-if="dropdown">
                 <li 
-                    class="flex items-center gap-8 hover:bg-neutral-100" 
+                    class="flex items-center gap-8 hover:bg-neutral-100 p-2" 
                     v-for="item in searchOptions"
                     :key="item.model.id + item.index_name"
                     @click="onSelect(item)">
-                    <div class="w-20 h-20 rounded-2xl overflow-hidden flex justify-center items-center">
+                    <div class="w-20 aspect-[3/4] rounded-2xl overflow-hidden flex justify-center items-center">
                     <picture
-                        v-if="item.model.thumbImagePath">       
+                        v-if="item.model.thumbImagePath" 
+                        class="w-full h-full">       
                         <source 
                             type="image/webp" 
                             :srcset="`${imageUrl}${item.model.thumbImagePath}`"> 
-                        <img :src="`${imageUrl}${item.model.thumbImagePath.slice(0, -4)}jpg`">
+                        <img 
+                            :src="`${imageUrl}${item.model.thumbImagePath.slice(0, -4)}jpg`"
+                            class="w-full h-full object-cover">
                     </picture>
                     </div>
-                    <p class="text-xl leading-6 mt-2">
-                        {{item.model.name}}
-                    </p>
+                    <div>
+                        <p class="text-1xl leading-6 font-semibold mt-2">
+                            {{item.model.name}}
+                        </p>
+                        <p class="text-lg leading-6 font-normal mt-2">
+                            {{item.model.tag_line}}
+                        </p>
+                    </div>
                 </li>
             </ul>
         </div>

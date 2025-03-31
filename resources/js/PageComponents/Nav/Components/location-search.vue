@@ -23,14 +23,17 @@
                v-if="dropdown"
                @click.stop>
                <li 
-                   class="py-4 px-8 flex items-center gap-8 hover:bg-neutral-100" 
+                   class="py-4 px-8 flex items-center gap-8 hover:bg-neutral-100 group" 
                    v-for="place in places"
                    :key="place.place_id"
                    @click.stop="selectLocation(place)">
-                   <img 
-                       class="w-8" 
-                       src="/storage/images/vendor/leaflet/dist/marker-icon-2x.png">
-                   {{place.description}}
+                   <div class="w-20 h-20 flex items-center justify-center bg-neutral-100 rounded-xl">
+                       <svg class="w-14 h-14 transition-all duration-500 group-hover:fill-black group-hover:stroke-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                           <path d="M12 22s-8-5-8-11a8 8 0 1 1 16 0c0 6-8 11-8 11z"></path>
+                           <circle cx="12" cy="11" r="3"></circle>
+                       </svg>
+                   </div>
+                   <span class="transition-all group-hover:font-medium">{{place.description}}</span>
                </li>
            </ul>
        </div>
