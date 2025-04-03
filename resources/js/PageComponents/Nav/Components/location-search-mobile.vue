@@ -12,12 +12,12 @@
                 <p>Where</p>
             </div>
             <div>
-                <p class="font-bold">{{ searchInput || 'New York' }}</p>
+                <p class="font-bold">{{ searchInput }}</p>
             </div>
         </div>
         <div 
             v-else
-            class="flex-grow relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto">
+            class="flex flex-col relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto">
             <div class="w-full">
                 <h2 class="text-4xl leading-8 font-bold">Where To?</h2>
             </div>
@@ -403,8 +403,17 @@ const showLocationSection = () => {
 };
 
 const showDatesSection = () => {
-    isVisible.value = 'dates';
-    dropdown.value = false;
+    // Only switch to dates if a place was actually selected
+    if (selectedPlace.value) {
+        isVisible.value = 'dates';
+        dropdown.value = false;
+    } else {
+        // Clear the search input if no place was selected
+        searchInput.value = '';
+        isVisible.value = 'location';
+        dropdown.value = true;
+        places.value = initializePlaces();
+    }
 };
 
 // Add this method to handle loading more months

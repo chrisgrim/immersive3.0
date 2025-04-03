@@ -16,9 +16,13 @@ class AdminMiddleware
     public function handle(Request $request, Closure $next): Response
     {
         if (!auth()->check() || !auth()->user()->isModerator()) {
-            return response()->json([
-                'message' => 'Unauthorized. Moderator access required.'
-            ], 403);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Unauthorized. Moderator access required.'
+                ], 403);
+            }
+            
+            return response()->view('errors.403', [], 403);
         }
 
         return $next($request);

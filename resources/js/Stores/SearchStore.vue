@@ -18,8 +18,9 @@ class SearchStore {
             filters: {
                 categories: [],
                 tags: [],
-                price: [0, 1000],
-                searchedMaxPrice: 1000
+                price: [0, null],
+                maxPrice: null,
+                searchingByPrice: false
             },
             location: {
                 city: null,
@@ -32,7 +33,6 @@ class SearchStore {
                 start: null,
                 end: null
             },
-            maxPrice: 1000,
             loading: false
         });
         
@@ -40,7 +40,7 @@ class SearchStore {
     }
     
     // Initialize state from URL and props
-    initializeFromUrl(searchedEvents = {}, defaultMaxPrice = 1000) {
+    initializeFromUrl(searchedEvents = {}, maxPrice = null) {
         const params = new URLSearchParams(window.location.search);
         
         const initialState = {
@@ -69,11 +69,11 @@ class SearchStore {
                 tags: params.has('tag') ? params.get('tag').split(',').map(Number) : [],
                 price: [
                     parseInt(params.get('price0')) || 0,
-                    parseInt(params.get('price1')) || defaultMaxPrice
+                    params.has('price1') ? parseInt(params.get('price1')) : maxPrice || null
                 ],
-                searchedMaxPrice: defaultMaxPrice
+                maxPrice: maxPrice || null,
+                searchingByPrice: params.has('price0') || params.has('price1')
             },
-            maxPrice: defaultMaxPrice
         };
         
         this.updateState(initialState);
@@ -83,7 +83,7 @@ class SearchStore {
     // Simple subscription system
     subscribe(callback) {
         this.listeners.push(callback);
-        callback(this.state); // Call immediately with current state
+        callback(this.state);
         return () => {
             this.listeners = this.listeners.filter(l => l !== callback);
         };
@@ -135,14 +135,14 @@ class SearchStore {
             };
         }
 
-        // Update maxPrice when explicitly provided or based on searchType
-        if (newData.maxPrice !== undefined || 
-            (newData.location && newData.location.searchType !== 'inPerson')) {
-            this.state.maxPrice = newData.maxPrice;
-            this.state.filters.searchedMaxPrice = newData.maxPrice;
+        // Only update maxPrice if it's explicitly provided and not undefined
+        if (newData.maxPrice !== undefined && newData.maxPrice !== null) {
+            this.state.filters.maxPrice = newData.maxPrice;
+        } else if (newData.location?.searchType !== 'inPerson' && this.state.filters.maxPrice === null) {
+            // Only update for non-inPerson searches if we don't already have a maxPrice
+            this.state.filters.maxPrice = newData.maxPrice;
         }
 
-        // Notify listeners
         this.listeners.forEach(listener => listener(this.state));
     }
 
@@ -179,9 +179,15 @@ class SearchStore {
                 },
                 filters: {
                     ...this.state.filters,
-                    searchedMaxPrice: response.data.maxPrice
+                    ...(this.state.filters.searchingByPrice 
+                        ? {
+                            maxPrice: Math.max(this.state.filters.price[1], response.data.maxPrice)
+                        } 
+                        : {
+                            price: [0, response.data.maxPrice],
+                            maxPrice: response.data.maxPrice
+                        })
                 },
-                maxPrice: response.data.maxPrice
             });
             
             return response.data;

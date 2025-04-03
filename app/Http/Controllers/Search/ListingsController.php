@@ -275,7 +275,7 @@ class ListingsController extends Controller
             ->sortRaw(['published_at' => 'desc'])
             ->paginate(20);
 
-        // Get max price
+        // Get max price from CURRENT filtered results only
         $maxPrice = Event::searchQuery($query)
             ->aggregate('max_price', [
                 'max' => [
@@ -299,10 +299,11 @@ class ListingsController extends Controller
         ];
 
         if ($results->total() > 0) {
-            $response = tap($results->toArray(), function (array &$content) use ($maxPrice) {
-                $content['data'] = Arr::pluck($content['data'], 'model');
-                $content['maxPrice'] = ceil($maxPrice);
-            });
+            $response = array_merge(
+                $results->toArray(),
+                ['maxPrice' => ceil($maxPrice)]
+            );
+            $response['data'] = Arr::pluck($response['data'], 'model');
         }
 
         return $response;

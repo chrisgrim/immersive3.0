@@ -5,7 +5,7 @@
             style="margin: auto; position: relative; height: 100%; display:flex; gap: 0; align-items: center; padding: 0 2rem;">
             <vue-nav-search-mobile
                 :searched-events='@json($searchedEvents ?? (object)[])'
-                :max-price="{{ $maxprice ?? 1000 }}"
+                :max-price="{{ $maxprice ?? null }}"
             ></vue-nav-search-mobile>
         </div>
     </div>

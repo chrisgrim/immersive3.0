@@ -5,7 +5,7 @@
             @click="handleBackgroundClick"
         >
             <div 
-                class="bg-[#f4f3f3] w-full overflow-hidden md:max-w-4xl md:mx-4 md:rounded-5xl shadow-xl flex flex-col fixed inset-0 md:relative md:h-[calc(100vh-10rem)] z-50"
+                class="bg-neutral-100 w-full overflow-hidden md:max-w-4xl md:mx-4 md:rounded-5xl shadow-xl flex flex-col fixed inset-0 md:relative md:h-[calc(100vh-10rem)] z-50"
                 @click.stop
             >
                 <!-- Header -->
@@ -207,7 +207,7 @@
                             </div>
                             <div class="flex items-center gap-4">
                                 <div 
-                                    v-if="(selectedFilters.price[0] !== 0 || selectedFilters.price[1] !== props.maxPrice) && activeSection !== 'price'" 
+                                    v-if="(selectedFilters.price[0] !== 0 || selectedFilters.price[1] !== selectedFilters.maxPrice) && activeSection !== 'price'" 
                                     class="bg-black rounded-full px-4 py-2"
                                 >
                                     <span class="text-xl text-white">
@@ -219,9 +219,10 @@
                         
                         <div v-show="activeSection === 'price'" class="px-12 pb-12">
                             <vue-slider
+                                v-if="selectedFilters.maxPrice > 0"
                                 v-model="selectedFilters.price"
                                 :min="0"
-                                :max="selectedFilters.searchedMaxPrice"
+                                :max="selectedFilters.maxPrice"
                                 :tooltip="'none'"
                                 :enable-cross="false"
                                 :process-style="{ backgroundColor: '#000' }"
@@ -245,7 +246,9 @@
                                 <div class="space-y-2">
                                     <div class="text-lg font-medium text-neutral-600">Maximum</div>
                                     <div class="border border-neutral-300 rounded-full px-10 py-5">
-                                        <div class="text-2xl">${{ selectedFilters.price[1] }}+</div>
+                                        <div class="text-2xl">
+                                            ${{ selectedFilters.price[1] }}{{ selectedFilters.price[1] === selectedFilters.maxPrice ? '+' : '' }}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -284,7 +287,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, nextTick, onBeforeUnmount, watch } from 'vue'
 import VueSlider from 'vue-slider-component'
 import 'vue-slider-component/theme/antd.css'
 import axios from 'axios'
@@ -297,12 +300,8 @@ const props = defineProps({
         default: () => ({
             categories: [],
             tags: [],
-            price: [0, 1000]
+            price: [0, null]
         })
-    },
-    maxPrice: {
-        type: Number,
-        required: true
     },
     showPrice: {
         type: Boolean,
@@ -316,7 +315,9 @@ const emit = defineEmits(['close', 'update:modelValue', 'filter-change'])
 const loading = ref(true)
 const categories = ref([])
 const tags = ref([])
-const selectedFilters = ref({ ...props.modelValue })
+const selectedFilters = ref({
+    ...props.modelValue
+})
 
 // Search state
 const isSearchingCategories = ref(false)
@@ -357,6 +358,7 @@ const filteredTags = computed(() => {
 })
 
 // Methods
+
 const fetchFiltersData = async () => {
     try {
         const [categoriesResponse, genresResponse] = await Promise.all([
@@ -412,12 +414,31 @@ const toggleTag = (tagId) => {
     selectTag(tagId);
 }
 
+const submitSelection = () => {
+    // Check if price slider has been adjusted from default values
+    const isPriceAdjusted = selectedFilters.value.price[0] !== 0 || 
+                           selectedFilters.value.price[1] !== props.maxPrice;
+    
+    selectedFilters.value = {
+        ...selectedFilters.value,
+        searchingByPrice: isPriceAdjusted,
+        price: isPriceAdjusted 
+            ? selectedFilters.value.price 
+            : [0, props.maxPrice]
+    };
+    
+    // Emit the final filter state when Apply is clicked
+    emit('filter-change', selectedFilters.value);
+    // Close the modal
+    emit('close');
+}
+
 const clearAll = () => {
     selectedFilters.value = {
         categories: [],
         tags: [],
         price: [0, props.maxPrice],
-        searchedMaxPrice: selectedFilters.value.searchedMaxPrice
+        searchingByPrice: false  // Reset the searching by price flag
     };
     
     // Clear any search queries
@@ -430,13 +451,6 @@ const clearAll = () => {
     
     // Resort the lists to reflect cleared state
     sortLists()
-}
-
-const submitSelection = () => {
-    // Emit the final filter state when Apply is clicked
-    emit('filter-change', selectedFilters.value);
-    // Close the modal
-    emit('close');
 }
 
 // Add directive

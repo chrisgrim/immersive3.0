@@ -13,8 +13,8 @@
                     <!-- Name and Image Section -->
                     <div class="flex flex-col sm:flex-row items-center sm:items-start w-full gap-8">
                         <!-- Image Upload -->
-                        <div class="w-48 sm:w-60">
-                            <p class="text-black font-medium mb-4">Profile Image</p>
+                        <div class="w-48 sm:w-48">
+                            <p class="text-black font-medium mb-4">Image</p>
                             <div class="relative">
                                 <div class="aspect-square w-full rounded-full">
                                     <label
@@ -47,12 +47,12 @@
                                     placeholder="Organization Name" 
                                     ref="nameInput" 
                                     @input="handleNameInput"
-                                    v-model="team.name" 
+                                    v-model.trim="team.name" 
                                     :class="[
                                         'text-4xl p-4 border rounded-2xl mt-1 block w-full',
                                         {
-                                            'border-red-500 focus:border-red-500 focus:shadow-focus-error': showNameError,
-                                            'border-[#222222] focus:border-black focus:shadow-focus-black': !showNameError
+                                            'border-red-500 focus:border-red-500 focus:shadow-focus-error': showNameError || errors.name,
+                                            'border-[#222222] focus:border-black focus:shadow-focus-black': !showNameError && !errors.name
                                         }
                                     ]"
                                 />
@@ -61,15 +61,33 @@
                                      :class="{'text-red-500': isNameNearLimit, 'text-gray-500': !isNameNearLimit}">
                                     {{ team.name?.length || 0 }}/80
                                 </div>
-                                <!-- Name Error Messages -->
-                                <p v-if="showNameMaxLengthError" 
-                                   class="text-red-500 text-1xl mt-1 px-4">
-                                    Organization name is too long.
-                                </p>
-                                <p v-if="showNameRequiredError" 
-                                   class="text-red-500 text-1xl mt-1 px-4">
-                                    Organization name is required
-                                </p>
+                                <!-- Error Messages -->
+                                <div class="mt-1 px-4">
+                                    <p v-if="showNameMaxLengthError" 
+                                       class="text-red-500 text-1xl">
+                                        Organization name is too long.
+                                    </p>
+                                    <p v-if="showNameRequiredError" 
+                                       class="text-red-500 text-1xl">
+                                        Organization name is required
+                                    </p>
+                                    <div v-if="errors.name" class="text-red-500 text-1xl w-11/12">
+                                        {{ errors.name[0] }}
+                                        <span v-if="slugFromError">
+                                            <span class="text-neutral-500"> If this is your 
+                                                <button 
+                                                @click="openOrganizerPage"
+                                                class="underline text-red-500">
+                                                Organization
+                                            </button> please contact</span>
+                                            <a 
+                                                href="mailto:support@everythingimmersive.com?subject=Organization Name Conflict"
+                                                class="underline hover:text-red-600">
+                                                support@everythingimmersive.com
+                                            </a>
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -84,7 +102,7 @@
                                 placeholder="Add a description about your organization" 
                                 ref="descriptionInput"
                                 @input="handleDescriptionInput"
-                                v-model="team.description" 
+                                v-model.trim="team.description" 
                                 :class="[
                                     'p-4 border rounded-2xl mt-1 block w-full',
                                     {
@@ -111,8 +129,9 @@
                                 @click="handleDivClick(media.name)"
                                 class="relative h-36 sm:h-48 flex flex-col items-start justify-between p-4 border rounded-2xl transition-colors duration-200"
                                 :class="{
-                                    'border-neutral-300 text-gray-400': !team[media.model] && currentMedia !== media.name && !showValidationError(media),
-                                    'border-[#222222] text-black border-2': team[media.model] && !showValidationError(media) || currentMedia === media.name,
+                                    'border-neutral-300 hover:border-[#222222] text-gray-400': !team[media.model] && currentMedia !== media.name && !showValidationError(media),
+                                    'border-[#222222] text-black': team[media.model] && currentMedia !== media.name && !showValidationError(media),
+                                    'border-[#222222] text-black shadow-focus-black': currentMedia === media.name && !showValidationError(media),
                                     'border-red-500 focus:border-red-500 focus:shadow-focus-error': showValidationError(media)
                                 }"
                             >
@@ -126,42 +145,44 @@
                                         }"
                                     />
                                 </div>
-                                <div v-if="currentMedia === media.name" class="w-full">
-                                    <textarea 
-                                        :placeholder="media.placeholder" 
-                                        v-model="team[media.model]" 
-                                        @blur="handleInputBlur(media.name)"
-                                        @input="media.inputHandler && media.inputHandler($event)"
-                                        rows="2"
-                                        class="p-2 mt-2 border-none focus:border-black focus:ring-black rounded-md focus:shadow-lg w-full text-lg resize-none"
-                                        @click.stop
-                                        :ref="el => inputRefs[media.name] = el"
-                                    ></textarea>
-                                </div>
-                                <div v-else class="overflow-hidden w-full">
-                                    <h4 class="text-lg h-10 leading-tight overflow-hidden text-ellipsis whitespace-nowrap"
-                                        :class="{
-                                            'text-[#adadad]': !team[media.model],
-                                            'text-black': team[media.model],
-                                        }">
-                                        {{ team[media.model] || media.placeholder }}
-                                    </h4>
-                                </div>
-                                <!-- Updated validation messages -->
-                                <p v-if="media.name === 'email' && $v.team.email.$dirty && $v.team.email.email.$invalid" 
-                                   class="text-red-500 text-sm mt-1 absolute bottom-2">
-                                    The email must be a valid email
-                                </p>
-                                <p v-if="media.name === 'website' && team.website && $v.team.website.$dirty && $v.team.website.$invalid" 
-                                   class="text-red-500 text-sm mt-1 absolute bottom-2">
+                                
+                                <textarea 
+                                    :placeholder="media.placeholder" 
+                                    v-model="team[media.model]" 
+                                    @blur="handleInputBlur(media.name)"
+                                    @focus="handleDivClick(media.name)"
+                                    @input="media.inputHandler && media.inputHandler($event)"
+                                    rows="2"
+                                    class="p-2 mt-2 border-none rounded-md w-full text-lg resize-none"
+                                    @click.stop
+                                    :ref="el => inputRefs[media.name] = el"
+                                ></textarea>
+                               
+                                
+                                <!-- Updated Error Messages -->
+                                <p v-if="media.name === 'website' && team.website && $v.team?.website?.$dirty && $v.team?.website?.$invalid" 
+                                   class="text-red-500 text-sm mt-1 absolute top-16 leading-none">
                                     Website must start with https:// (e.g., https://example.com)
                                 </p>
-                                <p v-if="['instagramHandle', 'twitterHandle', 'facebookHandle', 'patreon'].includes(media.name) && 
-                                          team[media.model] && 
-                                          $v.value?.team?.[media.model]?.$dirty && 
-                                          $v.value?.team?.[media.model]?.maxLength?.$invalid" 
-                                   class="text-red-500 text-sm mt-1 absolute bottom-2">
-                                    {{ media.placeholder }} is too long (max {{ media.maxLength }} characters)
+                                <p v-if="media.name === 'email' && team.email && $v.team?.email?.$dirty && $v.team?.email?.$invalid" 
+                                   class="text-red-500 text-sm mt-1 absolute top-16 leading-none">
+                                    Please enter a valid email address
+                                </p>
+                                <p v-if="media.name === 'instagramHandle' && team.instagramHandle && $v.team?.instagramHandle?.$dirty && $v.team?.instagramHandle?.$invalid" 
+                                   class="text-red-500 text-sm mt-1 absolute top-16 leading-none">
+                                    Instagram handle must be less than {{ media.maxLength }} characters
+                                </p>
+                                <p v-if="media.name === 'twitterHandle' && team.twitterHandle && $v.team?.twitterHandle?.$dirty && $v.team?.twitterHandle?.$invalid" 
+                                   class="text-red-500 text-sm mt-1 absolute top-16 leading-none">
+                                    Twitter handle must be less than {{ media.maxLength }} characters
+                                </p>
+                                <p v-if="media.name === 'facebookHandle' && team.facebookHandle && $v.team?.facebookHandle?.$dirty && $v.team?.facebookHandle?.$invalid" 
+                                   class="text-red-500 text-sm mt-1 absolute top-16 leading-none">
+                                    Facebook handle must be less than {{ media.maxLength }} characters
+                                </p>
+                                <p v-if="media.name === 'patreon' && team.patreon && $v.team?.patreon?.$dirty && $v.team?.patreon?.$invalid" 
+                                   class="text-red-500 text-sm mt-1 absolute top-16 leading-none">
+                                    Patreon handle must be less than {{ media.maxLength }} characters
                                 </p>
                             </div>
                         </div>
@@ -236,30 +257,42 @@ const rules = {
         name: {
             required,
             maxLength: maxLength(80),
+            $autoDirty: true // Automatically set dirty on input
         },
         description: {
             required,
             maxLength: maxLength(2000),
+            $autoDirty: true
         },
         email: {
             email,
+            $autoDirty: true
         },
         website: {
-            url: (value) => {
-                if (!value) return true; // Allow empty website
-                return customURL(value);
-            }
+            url: customURL,
+            $autoDirty: true
         },
-        // Add new validations for social media handles
-        instagramHandle: { maxLength: maxLength(30) },
-        twitterHandle: { maxLength: maxLength(15) },
-        facebookHandle: { maxLength: maxLength(50) },
-        patreon: { maxLength: maxLength(30) }
-    },
+        instagramHandle: { 
+            maxLength: maxLength(30),
+            $autoDirty: true 
+        },
+        twitterHandle: { 
+            maxLength: maxLength(15),
+            $autoDirty: true 
+        },
+        facebookHandle: { 
+            maxLength: maxLength(50),
+            $autoDirty: true 
+        },
+        patreon: { 
+            maxLength: maxLength(30),
+            $autoDirty: true 
+        }
+    }
 };
 
 // Initialize Vuelidate
-const $v = useVuelidate(rules, { team });
+const $v = useVuelidate(rules, { team }, { $autoDirty: true });
 
 // Other reactive state
 const currentMedia = ref(null);
@@ -287,11 +320,18 @@ const handleWebsiteInput = (event) => {
 
 // Computed Properties
 const isFormComplete = computed(() => {
-    const hasRequiredFields = team.name?.trim() && team.description?.trim();
-    const hasValidWebsite = !team.website || (team.website && !$v.value.team.website.$invalid);
-    const hasValidEmail = !team.email || (team.email && !$v.value.team.email.$invalid);
+    // Early return if validation isn't ready
+    if (!$v.value) return false;
     
-    return hasRequiredFields && hasValidWebsite && hasValidEmail;
+    const nameValid = team.name?.trim() && 
+                     team.name.length <= 80 && 
+                     !$v.value.team.name.$error;
+                     
+    const descriptionValid = team.description?.trim() && 
+                            team.description.length <= 2000 && 
+                            !$v.value.team.description.$error;
+    
+    return nameValid && descriptionValid && !isSubmitting.value;
 });
 
 const showNameError = computed(() => {
@@ -344,6 +384,13 @@ const showValidationError = (media) => {
     return false;
 };
 
+const slugFromError = computed(() => {
+    if (!errors.value.name?.[0]) return null;
+    // Extract slug from the error message if it exists
+    const match = team.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    return match || null;
+});
+
 // Methods
 const updateImage = (event) => {
     const file = event.target.files[0];
@@ -354,24 +401,34 @@ const updateImage = (event) => {
 };
 
 const onSubmit = async () => {
+    if (!$v.value) return;
+    
     isSubmitting.value = true;
-    errors.value = {};
-    const isFormValid = await $v.value.$validate();
-    if (!isFormValid) {
-        isSubmitting.value = false;
-        return;
-    }
-
-    const formData = new FormData();
-    for (const key in team) {
-        formData.append(key, team[key]);
-    }
-    if (imageFile.value) {
-        formData.append('image', imageFile.value);
-    }
-
+    errors.value = {}; // Clear previous errors
+    
     try {
-        // Create the organizer with image upload
+        await $v.value.$validate();
+        
+        if ($v.value.$error) {
+            if ($v.value.team.name.$error) {
+                errors.value.name = ['Name must be between 1 and 80 characters'];
+            }
+            if ($v.value.team.description.$error) {
+                errors.value.description = ['Description must be between 1 and 2000 characters'];
+            }
+            return;
+        }
+
+        const formData = new FormData();
+        for (const key in team) {
+            if (team[key] && (!$v.value.team[key] || !$v.value.team[key].$error)) {
+                formData.append(key, team[key]);
+            }
+        }
+        if (imageFile.value) {
+            formData.append('image', imageFile.value);
+        }
+
         const response = await axios.post('/organizers', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data'
@@ -381,12 +438,14 @@ const onSubmit = async () => {
             window.location.href = response.data.redirect;
         }
     } catch (error) {
-        if (error.response && error.response.data && error.response.data.errors) {
-            console.log(error);
+        if (error.response?.data?.errors) {
             errors.value = error.response.data.errors;
+            // Log the error for debugging
+            console.log('Server error:', error.response.data);
         } else {
-            alert('Failed to update team information');
+            errors.value = { general: ['An unexpected error occurred'] };
         }
+        console.error('Submission error:', error);
     } finally {
         isSubmitting.value = false;
     }
@@ -413,10 +472,6 @@ const handleInputBlur = (mediaName) => {
     if (team[mediaName]) {
         $v.value.team[mediaName].$touch();
     }
-};
-
-const handleFocusDescription = () => {
-    isEditingDescription.value = true;
 };
 
 const handleDivClick = (mediaName) => {
@@ -450,28 +505,28 @@ const clearError = (field) => {
     }
 };
 
-const handleNameInput = () => {
-    $v.value.team.name.$touch();
-    if (team.name?.length > 80) {
+const handleNameInput = (event) => {
+    if (!$v.value) return;
+    
+    if (team.name && team.name.length > 80) {
         team.name = team.name.slice(0, 80);
     }
+    $v.value.team.name.$touch();
 };
 
-const handleDescriptionInput = () => {
-    $v.value.team.description.$touch();
-    if (team.description?.length > 2000) {
+const handleDescriptionInput = (event) => {
+    if (!$v.value) return;
+    
+    if (team.description && team.description.length > 2000) {
         team.description = team.description.slice(0, 2000);
     }
+    $v.value.team.description.$touch();
 };
 
-// Add input handlers for social media
+// Update handleSocialInput to use Vuelidate
 const handleSocialInput = (media) => {
-    if (!media || !media.model || !media.maxLength) return;
-    
-    if (team[media.model]?.length > media.maxLength) {
-        team[media.model] = team[media.model].slice(0, media.maxLength);
-        $v.value?.team?.[media.model]?.$touch();
-    }
+    if (!media?.model) return;
+    $v.value.team[media.model]?.$touch();
 };
 
 // Update socialMediaList with maxLength and inputHandler
@@ -522,6 +577,12 @@ const socialMediaList = [
         inputHandler: handleSocialInput 
     }
 ];
+
+const openOrganizerPage = () => {
+    if (slugFromError.value) {
+        window.open(`/organizers/${slugFromError.value}`, '_blank');
+    }
+};
 
 </script>
 

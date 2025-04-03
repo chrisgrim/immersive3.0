@@ -16,7 +16,7 @@
             </div>
             <vue-nav-search
                 :searched-events='@json($searchedEvents ?? (object)[])'
-                :max-price="{{ $maxprice ?? 1000 }}"
+                :max-price="{{ $maxprice ?? null }}"
             ></vue-nav-search>
             <vue-nav-profile class="col-span-1" :user="user"></vue-nav-profile>
         </div>

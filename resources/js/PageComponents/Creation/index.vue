@@ -52,8 +52,8 @@
 				<!-- Filter Buttons -->
 				<div class="hidden md:flex gap-6 flex-wrap">
 					<div @click="createNewEvent" class="cursor-pointer">
-						<div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
-							+
+						<div class="rounded-full bg-gray-100 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
+							<div class="px-6 py-3 text-lg font-medium flex flex-row items-center gap-2"><span class="text-5xl">+</span> Add Event</div>
 						</div>
 					</div>
 					<button 
@@ -76,8 +76,8 @@
 					<h3 class="text-5xl leading-tight">Your <br>Listings</h3>
 					<div class="flex gap-4">
 						<div @click="createNewEvent" class="cursor-pointer flex">
-							<div class="rounded-full bg-gray-100 w-16 h-16 flex items-center justify-center text-4xl font-light hover:bg-gray-200">
-								+
+							<div class="rounded-full bg-gray-100 flex items-center h-16 justify-center text-4xl font-light hover:bg-gray-200">
+								<div class="px-6 text-lg font-medium flex flex-row items-center gap-2"><span class="text-4xl">+</span> Add Event</div>
 							</div>
 						</div>
 						<div @click="isOpen = !isOpen" class="cursor-pointer flex">

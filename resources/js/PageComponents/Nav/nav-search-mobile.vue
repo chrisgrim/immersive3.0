@@ -144,10 +144,10 @@
     </div>
     <Filters
         v-if="showFilters"
-        :show-price="true"
         v-model="state.filters"
         :max-price="maxPrice"
-        @close="showFilters = false"
+        :show-price="isSearchPage"
+        @close="closeFilters"
         @filter-change="handleFilterUpdate"
     />
 </template>
@@ -159,7 +159,7 @@ import SearchEvent from './Components/events-search-mobile.vue';
 import Filters from './Components/filters.vue';
 import SearchStore from '@/Stores/SearchStore.vue';
 import MapStore from '@/Stores/MapStore.vue';
-import axios from 'axios';
+
 
 // Props definition
 const props = defineProps({
@@ -239,6 +239,11 @@ const hasActiveFilters = computed(() => {
            ));
 });
 
+// Add isSearchPage computed property
+const isSearchPage = computed(() => {
+    return window.location.pathname.includes('/index/search');
+});
+
 // Methods
 const openSearch = () => {
     search.value = 'l';
@@ -247,6 +252,24 @@ const openSearch = () => {
 };
 
 const hideSearch = () => {
+    // If they haven't searched (i.e., just closing the modal), clear everything
+    if (searchLocation.value) {
+        searchLocation.value.clearState(true);
+    }
+    
+    // Clear the store state
+    SearchStore.updateState({
+        location: {
+            city: null,
+            lat: null,
+            lng: null
+        },
+        dates: {
+            start: null,
+            end: null
+        }
+    });
+    
     search.value = null;
     // Re-enable scrolling
     document.body.classList.remove('overflow-hidden');
@@ -377,14 +400,26 @@ const handleClearAll = () => {
     }
 };
 
+const openFilters = () => {
+    showFilters.value = true;
+    // Prevent background scrolling when filters are open
+    document.body.classList.add('overflow-hidden');
+};
+
+const closeFilters = () => {
+    showFilters.value = false;
+    document.body.classList.remove('overflow-hidden');
+};
+
 const handleFilterUpdate = (filters) => {
     // Update SearchStore with the new filters
     SearchStore.updateState({
         filters: filters
     });
     
-    // Hide filters after updating
+    // Hide filters and restore scrolling
     showFilters.value = false;
+    document.body.classList.remove('overflow-hidden');
     
     // If we're on search page, update URL and fetch results
     if (window.location.pathname.includes('/index/search')) {
@@ -419,11 +454,24 @@ const handleFilterUpdate = (filters) => {
 
         updateUrlParams(params);
         fetchResults(params.toString());
+    } else {
+        // If we're on the home page, redirect to search page with filters
+        const params = new URLSearchParams();
+        
+        if (filters.categories.length) {
+            params.set('category', filters.categories.join(','));
+        }
+        if (filters.tags.length) {
+            params.set('tag', filters.tags.join(','));
+        }
+        
+        params.set('searchType', 'null');
+        window.location.href = `/index/search?${params.toString()}`;
     }
 };
 
 const handleBack = () => {
-    window.history.back();
+    window.location.href = '/';
 };
 
 // Fetch results (simplified to use SearchStore)

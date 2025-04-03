@@ -66,25 +66,35 @@
                 <div 
                     v-for="team in teams.data" 
                     :key="team.id"
-                    class="group relative grid grid-cols-2 md:grid-cols-4 gap-8 p-4 items-center hover:bg-gray-100 rounded-2xl grid-cols-[4rem_auto] md:grid-cols-[4rem_30%_auto_auto]"
-                    :class="{ 'bg-gray-50 ring-1 ring-gray-200': team.id === currentTeamId }"
+                    class="group mb-2 relative grid grid-cols-2 md:grid-cols-4 gap-8 p-4 items-center hover:bg-gray-100 rounded-2xl grid-cols-[4rem_auto] md:grid-cols-[4rem_30%_auto_auto]"
+                    :class="{ 'bg-neutral-100 ring-1 ring-neutral-300': team === currentTeam }"
                 >
                     <!-- Team Image -->
                     <div>
                         <template v-if="team.images && team.images.length > 0">
                             <picture>
-                                <source :srcset="imageUrl(team.images[0].largeImagePath)" type="image/webp">
-                                <img :src="imageUrl(team.images[0].largeImagePath?.replace('.webp', '.jpg') || '')"
-                                     :alt="`${team.name} logo`"
-                                     class="h-16 w-full object-cover rounded-full">
+                                <source 
+                                    :srcset="imageUrl(team.images[0].thumb_image_path)" 
+                                    type="image/webp"
+                                >
+                                <img 
+                                    :src="imageUrl(team.images[0].thumb_image_path)" 
+                                    :alt="`${team.name} logo`"
+                                    class="h-16 w-16 object-cover rounded-full"
+                                >
                             </picture>
                         </template>
-                        <template v-else-if="team.largeImagePath">
+                        <template v-else-if="team.thumbImagePath">
                             <picture>
-                                <source :srcset="imageUrl(team.largeImagePath)" type="image/webp">
-                                <img :src="imageUrl(team.largeImagePath?.replace('.webp', '.jpg') || '')"
-                                     :alt="`${team.name} logo`"
-                                     class="h-16 w-full object-cover rounded-full">
+                                <source 
+                                    :srcset="imageUrl(team.thumbImagePath)" 
+                                    type="image/webp"
+                                >
+                                <img 
+                                    :src="imageUrl(team.thumbImagePath)" 
+                                    :alt="`${team.name} logo`"
+                                    class="h-16 w-16 object-cover rounded-full"
+                                >
                             </picture>
                         </template>
                         <div 
@@ -106,12 +116,6 @@
                             >
                                 {{ team.name }}
                             </button>
-                            <span 
-                                v-if="team.id === currentTeamId" 
-                                class="text-sm px-2 py-1 bg-gray-100 text-gray-600 rounded-full"
-                            >
-                                Current
-                            </span>
                             <span 
                                 class="text-sm px-2 py-1 bg-gray-100 text-gray-600 rounded-full"
                             >
@@ -149,7 +153,7 @@
             <!-- Pagination -->
             <div class="mt-8 mb-20">
                 <pagination 
-                    v-if="teams.total > teams.per_page"
+                    v-if="showPagination"
                     :pagination="teams"
                     @paginate="handlePagination"
                 />
@@ -159,7 +163,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import pagination from '@/GlobalComponents/pagination.vue'
 import axios from 'axios'
 
@@ -226,7 +230,8 @@ const switchTeam = async (team) => {
 }
 
 const imageUrl = (path) => {
-    return `${import.meta.env.VITE_IMAGE_URL}${path}`
+    if (!path) return '';
+    return `${import.meta.env.VITE_IMAGE_URL}${path}`;
 }
 
 const formatDate = (date) => {
@@ -237,8 +242,15 @@ const formatDate = (date) => {
     })
 }
 
+// Add this computed property
+const currentTeam = computed(() => {
+    return teams.value.data.find(team => team.id === currentTeamId.value)
+})
+
 // Add back onMounted
 onMounted(() => {
     fetchTeams()
 })
+
+const showPagination = computed(() => teams.value.total > teams.value.per_page)
 </script>

@@ -69,12 +69,14 @@ class HostEventController extends Controller
         if (isset($validatedData['location'])) {
             $event->location->update($validatedData['location']);
             
-            // Sync location data to events.location_latlon
+            // Update the location_latlon in events table using the exact format
             if ($event->location->latitude && $event->location->longitude) {
-                $event->location_latlon = [
-                    $event->location->latitude,
-                    $event->location->longitude
-                ];
+                $event->update([
+                    'location_latlon' => [
+                        "lat" => (float)$event->location->latitude,
+                        "lon" => (float)$event->location->longitude
+                    ]
+                ]);
             }
             
             // Update the status if it's included in the request

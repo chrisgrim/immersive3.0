@@ -136,7 +136,10 @@ const getLatLng = (event) => {
     if (!event.location_latlon) return null;
     
     let lat, lng;
-    if (typeof event.location_latlon === 'object') {
+    
+    if (Array.isArray(event.location_latlon)) {
+        [lat, lng] = event.location_latlon;
+    } else if (typeof event.location_latlon === 'object') {
         lat = event.location_latlon.lat || event.location_latlon.latitude;
         lng = event.location_latlon.lon || event.location_latlon.lng || event.location_latlon.longitude;
     }
@@ -290,7 +293,13 @@ const createMarkers = (events) => {
         if (!event.location_latlon) return false;
         
         let lat, lng;
-        if (typeof event.location_latlon === 'object') {
+        
+        // Handle array format
+        if (Array.isArray(event.location_latlon)) {
+            [lat, lng] = event.location_latlon;
+        }
+        // Handle object format
+        else if (typeof event.location_latlon === 'object') {
             lat = event.location_latlon.lat || event.location_latlon.latitude;
             lng = event.location_latlon.lon || event.location_latlon.lng || event.location_latlon.longitude;
         }
@@ -300,7 +309,6 @@ const createMarkers = (events) => {
     
     markerCount.value = validEvents.length;
     
-    // Create markers immediately (no setTimeout)
     validEvents.forEach(event => {
         const latLng = getLatLng(event);
         if (!latLng) return;
@@ -315,14 +323,8 @@ const createMarkers = (events) => {
         // Add click handler
         marker.on('click', () => {
             selectedMarker.value = event.id;
-            
-            // Update marker styles
             updateMarkerStyles();
-            
-            // Create popup
             createPopupForMarker(marker);
-            
-            // Emit marker click event
             emit('markerClick', event);
         });
         
@@ -330,6 +332,7 @@ const createMarkers = (events) => {
         markerClusterGroup.addLayer(marker);
         markers.push(marker);
     });
+    
     stopLoading();
 };
 

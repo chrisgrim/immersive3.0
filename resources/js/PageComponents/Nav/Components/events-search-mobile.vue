@@ -14,7 +14,7 @@
         </div>
         <div 
             v-else
-            class="flex-grow relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto">
+            class="flex flex-col relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto">
             <div class="w-full">
                 <h2 class="text-4xl leading-8 font-bold">Search Events</h2>
             </div>
@@ -49,8 +49,8 @@
                             v-for="item in filteredEvents"
                             :key="item.model.id"
                             @click="onSelect(item, 'event')">
-                            <div class="w-12 h-12 rounded-2xl overflow-hidden flex-shrink-0">
-                                <picture class="w-full h-full block">
+                            <div class="w-20 flex-shrink-0 aspect-[3/4] rounded-2xl overflow-hidden flex justify-center items-center">
+                                <picture v-if="item.model.thumbImagePath" class="w-full h-full block">
                                     <source 
                                         type="image/webp" 
                                         :srcset="`${imageUrl}${item.model.thumbImagePath}`"> 
@@ -58,6 +58,11 @@
                                         :src="`${imageUrl}${item.model.thumbImagePath.slice(0, -4)}jpg`"
                                         class="w-full h-full object-cover">
                                 </picture>
+                                <div v-else class="w-full h-full bg-gray-200 flex items-center justify-center">
+                                    <svg class="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M8 21h8a4 4 0 004-4V7a4 4 0 00-4-4H8a4 4 0 00-4 4v10a4 4 0 004 4z" />
+                                    </svg>
+                                </div>
                             </div>
                             <p class="text-2xl leading-8 font-semibold">
                                 {{item.model.name}}
@@ -108,13 +113,20 @@
                         v-for="item in filteredOrganizers"
                         :key="item.model.id"
                         @click="onSelect(item, 'organizer')">
-                        <div class="w-12 h-12 rounded-2xl overflow-hidden flex justify-center items-center">
-                            <picture v-if="item.model.thumbImagePath">       
+                        <div class="w-20 aspect-[3/4] rounded-2xl overflow-hidden flex justify-center items-center">
+                            <picture v-if="item.model.thumbImagePath" class="w-full h-full">       
                                 <source 
                                     type="image/webp" 
                                     :srcset="`${imageUrl}${item.model.thumbImagePath}`"> 
-                                <img :src="`${imageUrl}${item.model.thumbImagePath.slice(0, -4)}jpg`">
+                                <img 
+                                    :src="`${imageUrl}${item.model.thumbImagePath.slice(0, -4)}jpg`"
+                                    class="w-full h-full object-cover">
                             </picture>
+                            <div v-else class="w-full h-full bg-gray-200 flex items-center justify-center">
+                                <svg class="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M8 21h8a4 4 0 004-4V7a4 4 0 00-4-4H8a4 4 0 00-4 4v10a4 4 0 004 4z" />
+                                </svg>
+                            </div>
                         </div>
                         <p class="text-xl leading-6">
                             {{item.model.name}}

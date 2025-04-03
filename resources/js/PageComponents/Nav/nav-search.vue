@@ -105,7 +105,6 @@
         <Filters
             v-if="showFilters"
             v-model="state.filters"
-            :max-price="maxPrice"
             :show-price="isSearchPage"
             @close="showFilters = false"
             @filter-change="handleFilterUpdate"
@@ -118,7 +117,6 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import SearchLocation from './Components/location-search.vue';
 import SearchEvent from './Components/events-search.vue';
 import Filters from './Components/filters.vue';
-import axios from 'axios';
 import SearchStore from '@/Stores/SearchStore.vue';
 import MapStore from '@/Stores/MapStore.vue';
 
@@ -130,7 +128,7 @@ const props = defineProps({
   },
   maxPrice: {
     type: Number,
-    default: 1000
+    default: null
   }
 });
 
@@ -143,14 +141,12 @@ const showFilters = ref(false);
 const unsubscribe = ref(null);
 const locationSearch = ref(null);
 
-// Utility functions
-const getUrlParams = () => new URLSearchParams(window.location.search);
+// Remove the getUrlParams utility function and replace with computed property
+const urlParams = computed(() => new URLSearchParams(window.location.search));
 
 const updateUrlParams = (params) => {
     window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
 };
-
-
 
 // Computed properties
 const isSearchPage = computed(() => {
@@ -183,13 +179,11 @@ const formatDateDisplay = computed(() => {
     }
 });
 
+// Update hasActiveFilters to use the computed property
 const hasActiveFilters = computed(() => {
     return (state.value.filters.categories?.length > 0) || 
            (state.value.filters.tags?.length > 0) || 
-           (isSearchPage.value && (
-               state.value.filters.price?.[0] !== 0 || 
-               state.value.filters.price?.[1] !== state.value.maxPrice
-           ));
+           (isSearchPage.value && (urlParams.value.has('price0') || urlParams.value.has('price1')));
 });
 
 const debounce = (fn, delay) => {
@@ -224,16 +218,13 @@ const hideSearch = () => {
     search.value = null;
 };
 
-const handleFilterUpdate = (filters) => {
-    // Update the SearchStore with the new filters
+const handleFilterUpdate = async (filters) => {
     SearchStore.updateState({
         filters: filters
     });
     
     if (isSearchPage.value) {
-        const params = getUrlParams();
-        
-        // Reset to page 1 when filters change
+        const params = urlParams.value;
         params.set('page', 1);
         
         if (filters.categories.length) {
@@ -253,17 +244,36 @@ const handleFilterUpdate = (filters) => {
             params.set('price0', minPrice);
         } else {
             params.delete('price0');
+            // Update searchingByPrice if both price params are being removed
+            if (!params.has('price1')) {
+                SearchStore.updateState({
+                    filters: {
+                        ...filters,
+                        searchingByPrice: false
+                    }
+                });
+            }
         }
-        if (maxPrice < state.value.maxPrice) {
+        
+        if (maxPrice < state.value.filters.maxPrice) {
             params.set('price1', maxPrice);
         } else {
+            console.log('removing price');
             params.delete('price1');
+            // Update searchingByPrice if both price params are being removed
+            if (!params.has('price0')) {
+                SearchStore.updateState({
+                    filters: {
+                        ...filters,
+                        searchingByPrice: false
+                    }
+                });
+            }
         }
 
         updateUrlParams(params);
-        fetchResults(params.toString());
+        await fetchResults(params.toString());
     } else {
-        // Same redirect logic as before
         const params = new URLSearchParams();
         
         if (filters.categories.length) {
@@ -277,7 +287,7 @@ const handleFilterUpdate = (filters) => {
         if (minPrice > 0) {
             params.set('price0', minPrice);
         }
-        if (maxPrice < state.value.maxPrice) {
+        if (maxPrice < state.value.filters.maxPrice) {
             params.set('price1', maxPrice);
         }
         
@@ -306,7 +316,7 @@ const handleLocationSearch = (searchData) => {
     });
     
     // Rest of the function remains the same
-    const params = getUrlParams();
+    const params = urlParams.value;
     const currentCity = params.get('city');
     const isNewLocation = currentCity !== searchData.location.city;
     
@@ -365,7 +375,7 @@ const fetchResults = async (queryString) => {
 const subscribeToMapStore = () => {
   const unsubscribeMap = MapStore.subscribe((mapState) => {
     // Get current params to preserve other values
-    const params = getUrlParams();
+    const params = urlParams.value;
     
     // Update boundary coordinates
     params.set('NElat', parseFloat(mapState.bounds.northEast.lat).toFixed(6));

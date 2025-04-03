@@ -36,6 +36,6 @@ class UniqueSlugRule implements Rule
 
     public function message(): string
     {
-        return 'The slug for this name is already taken.';
+        return 'This name is already taken.';
     }
 }

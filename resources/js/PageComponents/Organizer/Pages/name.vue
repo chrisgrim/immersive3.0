@@ -28,7 +28,7 @@
                              'text-red-500': isNameNearLimit, 
                              'text-gray-500': !isNameNearLimit
                          }">
-                        {{ organizer.name?.length || 0 }}/60
+                        {{ organizer.name?.length || 0 }}/80
                         <span v-if="hasPendingNameChange" class="ml-2 italic">
                             (Name change pending approval)
                         </span>
@@ -154,7 +154,7 @@ const rules = {
     organizer: {
         name: {
             required,
-            maxLength: maxLength(60),
+            maxLength: maxLength(80),
         },
         description: {
             required,
@@ -208,8 +208,8 @@ const originalName = ref(organizer.name);
 // Methods
 const handleNameInput = () => {
     v$.value.organizer.name.$touch();
-    if (organizer.name?.length > 60) {
-        organizer.name = organizer.name.slice(0, 60);
+    if (organizer.name?.length > 80) {
+        organizer.name = organizer.name.slice(0, 80);
     }
 };
 

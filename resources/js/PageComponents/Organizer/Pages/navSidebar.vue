@@ -2,8 +2,8 @@
     <nav class="relative flex flex-col items-center flex-shrink-0 w-full mx-auto pt-12">
         <!-- Static Header -->
         <div class="w-full flex items-center gap-4 pb-8 z-50 bg-white p-10 lg-air:max-w-[40rem]">
-            <a 
-                :href="`/organizers/${organizer.slug}`" 
+            <button 
+                @click="goBack"
                 class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"
             >
                 <svg 
@@ -18,10 +18,33 @@
                     <path d="M19 12H5"/>
                     <path d="M12 19l-7-7 7-7"/>
                 </svg>
+            </button>
+            <a 
+                href="/hosting/events" 
+                class="cursor-pointer"
+            >
+                <div class="rounded-full bg-neutral-100 w-16 h-16 flex items-center justify-center hover:bg-neutral-200">
+                    <svg 
+                        class="w-8 h-8" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        stroke-width="2"
+                    >
+                        <g stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="4" cy="6" r="1" fill="currentColor"/>
+                            <line x1="8" y1="6" x2="20" y2="6"/>
+                            <circle cx="4" cy="12" r="1" fill="currentColor"/>
+                            <line x1="8" y1="12" x2="20" y2="12"/>
+                            <circle cx="4" cy="18" r="1" fill="currentColor"/>
+                            <line x1="8" y1="18" x2="20" y2="18"/>
+                        </g>
+                    </svg>
+                </div>
             </a>
             <a 
                 :href="`/organizers/${organizer.slug}`" 
-                class="ml-4 text-3xl md:text-5xl font-semibold truncate"
+                class="ml-4 text-3xl md:text-5xl font-semibold truncate hover:underline"
             >
                 Organizer
             </a>
@@ -196,4 +219,8 @@ const hasSocialLinks = computed(() => {
 });
 
 defineEmits(['navigate']);
+
+const goBack = () => {
+    window.history.back()
+};
 </script>
