@@ -39,7 +39,7 @@
                         <!-- If user is logged in -->
                         <template v-if="user">
                             <div 
-                                class="rounded-full bg-default-red w-4 h-4 absolute top-0 right-0 border border-white"
+                                class="rounded-full bg-default-red w-6 h-6 absolute top-[-0.5rem] right-[-0.5rem] border border-white"
                                 v-if="user.unread"></div>
                             <template v-if="user.thumbImagePath">
                                 <picture>
@@ -81,7 +81,7 @@
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
                             href="/inbox">
                             Inbox
-                            <div v-if="user.unread" class="ml-2 rounded-full bg-red-300 w-4 h-4 top-0 right-0"></div>
+                            <div v-if="user.unread" class="ml-2 rounded-full bg-red-500 w-3 h-3 top-[-1rem] right-0"></div>
                         </a>
                         <a
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"

@@ -13,31 +13,51 @@
                 </button>
             </div>
             
-            <!-- Image or placeholder -->
-            <div 
-                class="w-20 overflow-hidden ml-8 md:ml-0 flex-shrink-0"
-                :class="{
-                    'aspect-[3/4] rounded-xl': isEvent,
-                    'aspect-[4/3] rounded-xl': isCommunity,
-                    'aspect-square rounded-full': isOrganizer
-                }"
-            >
-                <div class="w-full h-full">
-                    <picture v-if="conversation.conversable?.thumbImagePath" class="w-full h-full">
-                        <source :srcset="`${imageUrl}${conversation.conversable.thumbImagePath}`" type="image/webp">
-                        <img 
-                            :src="`${imageUrl}${conversation.conversable.thumbImagePath.slice(0, -4)}jpg`" 
-                            :alt="`${conversation.conversable.name}`" 
-                            class="w-full h-full object-cover"
-                        >
-                    </picture>
-                    <div 
-                        v-else 
-                        class="w-full h-full bg-neutral-200 flex items-center justify-center text-3xl text-neutral-500"
-                    >
-                        {{ conversation.subject[0].toUpperCase() }}
+            <!-- Action buttons instead of image -->
+            <div class="flex gap-4 ml-8 md:ml-0">
+                <!-- Edit button (for all types) -->
+                <a 
+                    v-if="conversation.conversable"
+                    :href="getEditLink"
+                    class="cursor-pointer"
+                >
+                    <div class="rounded-full bg-gray-100 w-16 h-16 flex items-center justify-center hover:bg-gray-200">
+                        <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path 
+                                stroke-linecap="round" 
+                                stroke-linejoin="round" 
+                                stroke-width="2" 
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+                            />
+                        </svg>
                     </div>
-                </div>
+                </a>
+                
+                <!-- Listing button (only for Organizer and Community) -->
+                <a 
+                    v-if="(isOrganizer || isCommunity) && conversation.conversable"
+                    :href="getListingLink"
+                    class="cursor-pointer"
+                >
+                    <div class="rounded-full bg-gray-100 w-16 h-16 flex items-center justify-center hover:bg-gray-200">
+                        <svg 
+                            class="w-8 h-8" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            stroke-width="2"
+                        >
+                            <g stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="4" cy="6" r="1" fill="currentColor"/>
+                                <line x1="8" y1="6" x2="20" y2="6"/>
+                                <circle cx="4" cy="12" r="1" fill="currentColor"/>
+                                <line x1="8" y1="12" x2="20" y2="12"/>
+                                <circle cx="4" cy="18" r="1" fill="currentColor"/>
+                                <line x1="8" y1="18" x2="20" y2="18"/>
+                            </g>
+                        </svg>
+                    </div>
+                </a>
             </div>
 
             <!-- Show link if conversable exists, otherwise just show text -->
@@ -183,6 +203,37 @@ const getConversableLink = computed(() => {
             return `/organizers/${conversable.slug}`;
         case 'Community':
             return `/communities/${conversable.slug}`;
+        default:
+            return '#';
+    }
+});
+
+const getEditLink = computed(() => {
+    const conversable = conversation.value?.conversable;
+    if (!conversable) return '#';
+    
+    const type = getConversableType.value;
+    
+    switch(type) {
+        case 'Event':
+            return `/hosting/event/${conversable.slug}/edit`;
+        case 'Organizer':
+            return `/organizers/${conversable.slug}/edit`;
+        case 'Community':
+            return `/communities/${conversable.slug}/edit`;
+        default:
+            return '#';
+    }
+});
+
+const getListingLink = computed(() => {
+    const type = getConversableType.value;
+    
+    switch(type) {
+        case 'Organizer':
+            return '/hosting/events';
+        case 'Community':
+            return '/communities/posts';
         default:
             return '#';
     }

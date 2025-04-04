@@ -1,4 +1,4 @@
-<header class="min-h-[200px] relative w-full mb-20">
+<header class="min-h-[200px] relative w-full mb-40">
     <div class="relative w-full m-auto p-0">
         <div class="grid gap-4">
             <div class="aspect-[3/4] w-full max-w-2xl overflow-hidden md:rounded-2xl">

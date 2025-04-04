@@ -243,10 +243,11 @@
                         {{-- Single image layout --}}
                         
                         <div class="relative w-full m-auto px-10 mt-12 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
+                            {{-- Top section with title and image --}}
                             <div class="md:flex md:gap-40">
                                 <div class="flex-grow">
-                                {{-- Title section spans full width for both layouts --}}
-                                    <div class="relative w-full m-auto mt-16 md:h-[40rem] lg:h-[50rem] border-b border-neutral-200">
+                                    {{-- Title section spans full width for both layouts --}}
+                                    <div class="relative w-full m-auto mt-16 mb-40 md:h-[40rem] lg:h-[50rem]">
                                         <div class="flex flex-col bg-white h-full justify-center">
                                             {{-- Location Row --}}
                                             <div class="mb-4">
@@ -303,14 +304,23 @@
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+                                
+                                <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem] pt-16">
+                                    @include('events.show.header')
+                                </div>
+                            </div>
+
+                            {{-- Bottom section with about/details and purchase --}}
+                            <div class="md:flex md:gap-40 pt-16 border-t border-neutral-200">
+                                <div class="flex-grow">
                                     <div class="">
                                         @include('events.show.about')
                                         @include('events.show.details')
                                     </div>
                                 </div>
                                 
-                                <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem] pt-16">
-                                    @include('events.show.header')
+                                <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
                                     <vue-show-purchase
                                         :event="{{ $event }}"
                                         :single-image="true"

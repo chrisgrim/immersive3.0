@@ -36,6 +36,12 @@ use App\Http\Controllers\CachedDataController;
 Route::GET('/index/search', [ListingsController::class, 'apiIndex']);
 Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])->name('event.update');
 
+// Event duplication route for organizer owners
+Route::POST('/events/{event}/duplicate', [HostEventController::class, 'duplicate'])
+    ->middleware(['auth:sanctum'])
+    ->middleware('can:duplicate,event')
+    ->name('event.duplicate');
+
 // Event Attributes Routes
 Route::controller(EventAttributesController::class)->group(function () {
     Route::GET('/categories', 'categories');

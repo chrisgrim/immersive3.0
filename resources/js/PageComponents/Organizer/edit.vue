@@ -71,27 +71,7 @@
                                 }"
                             >
                                 <div class="flex items-center gap-2">
-                                    <svg 
-                                        v-if="isSubmitting"
-                                        class="animate-spin h-5 w-5" 
-                                        xmlns="http://www.w3.org/2000/svg" 
-                                        fill="none" 
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <circle 
-                                            class="opacity-25" 
-                                            cx="12" 
-                                            cy="12" 
-                                            r="10" 
-                                            stroke="currentColor" 
-                                            stroke-width="4"
-                                        />
-                                        <path 
-                                            class="opacity-75" 
-                                            fill="currentColor" 
-                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                        />
-                                    </svg>
+                                    <LoadingSpinner v-if="isSubmitting" />
                                     {{ isSubmitting ? 'Updating...' : 'Update' }}
                                 </div>
                             </button>
@@ -108,27 +88,7 @@
                                 }"
                             >
                                 <div class="flex items-center gap-2">
-                                    <svg 
-                                        v-if="isSubmittingEvent"
-                                        class="animate-spin h-5 w-5" 
-                                        xmlns="http://www.w3.org/2000/svg" 
-                                        fill="none" 
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <circle 
-                                            class="opacity-25" 
-                                            cx="12" 
-                                            cy="12" 
-                                            r="10" 
-                                            stroke="currentColor" 
-                                            stroke-width="4"
-                                        />
-                                        <path 
-                                            class="opacity-75" 
-                                            fill="currentColor" 
-                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                        />
-                                    </svg>
+                                    <LoadingSpinner v-if="isSubmittingEvent" />
                                     {{ isSubmittingEvent ? 'Submitting...' : 'Resubmit' }}
                                 </div>
                             </button>
@@ -170,6 +130,38 @@
             </div>
         </Transition>
 
+        <!-- Error Toast Notification -->
+        <Transition
+            enter-active-class="transform ease-out duration-300 transition"
+            enter-from-class="translate-y-2 opacity-0"
+            enter-to-class="translate-y-0 opacity-100"
+            leave-active-class="transition ease-in duration-200"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+        >
+            <div 
+                v-if="showErrorModal"
+                class="fixed top-36 right-4 z-50 bg-white rounded-xl shadow-lg p-4 max-w-sm border"
+            >
+                <div class="flex items-center gap-3">
+                    <svg 
+                        class="w-6 h-6 text-red-500 flex-shrink-0" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                    >
+                        <path 
+                            stroke-linecap="round" 
+                            stroke-linejoin="round" 
+                            stroke-width="2" 
+                            d="M6 18L18 6M6 6l12 12"
+                        />
+                    </svg>
+                    <p class="text-gray-600">{{ errorMessage }}</p>
+                </div>
+            </div>
+        </Transition>
+
         <!-- Confirmation Modal -->
         <Teleport to="body">
             <div v-if="showConfirmModal" 
@@ -206,6 +198,7 @@ import NavSidebar from './Pages/navSidebar.vue';
 import Name from './Pages/name.vue';
 import Image from './Pages/image.vue';
 import Social from './Pages/social.vue';
+import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue';
 
 const props = defineProps({
     organizer: {
@@ -225,6 +218,8 @@ const isSubmitting = ref(false);
 const errors = ref({});
 const currentComponentRef = ref(null);
 const showSuccessModal = ref(false);
+const showErrorModal = ref(false);
+const errorMessage = ref('');
 const currentSection = ref(null);
 const showConfirmModal = ref(false);
 const isSubmittingEvent = ref(false);
@@ -267,13 +262,16 @@ const saveChanges = async () => {
         if (!submitData) return;
         
         isSubmitting.value = true;
+        errors.value = {};
+        errorMessage.value = '';
+        
         const response = await axios.post(`/organizers/${organizer.slug}`, submitData);
         
         if (response.data.organizer) {
-            // If name changed and status is 'n', redirect to new URL
-            if (response.data.organizer.slug !== organizer.slug && organizer.status === 'n') {
-                window.location.href = `/organizers/${response.data.organizer.slug}/edit`;
-                return;
+            // If name/slug changed, update the URL without redirecting
+            if (response.data.organizer.slug !== organizer.slug) {
+                const newUrl = `/organizers/${response.data.organizer.slug}/edit`;
+                window.history.pushState({}, '', newUrl);
             }
             
             Object.assign(organizer, response.data.organizer);
@@ -284,6 +282,24 @@ const saveChanges = async () => {
         }
     } catch (error) {
         console.error('Error:', error);
+        
+        // Extract and display validation errors
+        if (error.response?.status === 422 && error.response?.data?.errors) {
+            errors.value = error.response.data.errors;
+            
+            // Get the first error message for display
+            const firstErrorField = Object.keys(errors.value)[0];
+            errorMessage.value = errors.value[firstErrorField][0];
+        } else if (error.response?.data?.message) {
+            errorMessage.value = error.response.data.message;
+        } else {
+            errorMessage.value = 'Failed to update organizer. Please try again.';
+        }
+        
+        showErrorModal.value = true;
+        setTimeout(() => {
+            showErrorModal.value = false;
+        }, 5000);
     } finally {
         isSubmitting.value = false;
     }
@@ -295,6 +311,8 @@ const handleSubmitClick = () => {
 
 const handleConfirmedSubmit = async () => {
     showConfirmModal.value = false;
+    // First save any changes, then submit
+    await saveChanges();
     await submitOrganizer();
 };
 

@@ -1,6 +1,6 @@
 <section>
     <div class="border-b border-neutral-200">
-        <div class="py-8 md:py-16 flex items-center gap-4 border-b">
+        <div class="py-8 {{ count($event->images) === 1 ? 'md:pb-16 md:pt-0' : 'md:py-16' }} flex items-center gap-4 border-b">
             <a href="{{ route('organizers.show', $event->organizer->slug) }}" class="flex items-center gap-8">
                 @if($event->organizer->thumbImagePath)
                     <div class="w-16 h-16 rounded-full overflow-hidden">

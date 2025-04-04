@@ -30,91 +30,51 @@
                 <div class="w-full md:w-[61rem] mx-auto pb-24 space-y-8">
                     <!-- Images Section -->
                     <div v-if="props.event?.images?.length" class="p-8 shadow-custom-1 rounded-3xl">
-                        <div class="grid gap-4">
+                        <div class="grid gap-4 justify-center">
                             <!-- Single Image -->
                             <div v-if="props.event?.images?.length === 1" 
-                                 class="aspect-[3/4] w-[30rem] overflow-hidden rounded-xl">
+                                 class="aspect-[3/4] overflow-hidden rounded-xl" style="height: 45rem; width: fit-content;">
                                 <img :src="imageUrl + props.event?.images[0].large_image_path"
                                      :alt="`${props.event?.name} Immersive Event - Main Image`"
                                      class="w-full h-full object-cover"
+                                     style="height: 45rem;"
                                 />
                             </div>
 
                             <!-- Multiple Images -->
-                            <div v-else 
-                                 class="grid gap-2 rounded-xl overflow-hidden"
-                                 :class="{
-                                     'grid-cols-3': props.event?.images?.length === 2 || props.event?.images?.length > 3,
-                                     'grid-cols-2': props.event?.images?.length === 3
-                                 }">
-                                <!-- First Image -->
-                                <div v-if="props.event?.images?.length === 2" 
-                                     class="col-span-1 h-full">
-                                    <img :src="imageUrl + props.event?.images[0].large_image_path"
-                                         :alt="`${props.event?.name} Immersive Event - Main Image`"
-                                         class="w-full h-full object-cover rounded-lg"
-                                    />
-                                </div>
-
-                                <!-- Right Side Image (for 2 images) -->
-                                <template v-if="props.event?.images?.length === 2">
-                                    <div class="col-span-2 h-full">
+                            <div v-else class="w-full">
+                                <!-- First row: First image (vertical) and second image (same height) -->
+                                <div v-if="props.event?.images?.length >= 2" class="gap-2 md:rounded-2xl overflow-hidden" style="display: flex;">
+                                    <!-- First image (vertical 3:4 ratio) with fixed height -->
+                                    <div class="aspect-[3/4]" style="height: 25rem; flex-shrink: 0;">
+                                        <img :src="imageUrl + props.event?.images[0].large_image_path"
+                                             :alt="`${props.event?.name} Immersive Event - Image 1`"
+                                             class="w-full h-full object-cover"
+                                             style="height: 25rem;"
+                                        />
+                                    </div>
+                                    
+                                    <!-- Second image (same height) -->
+                                    <div style="flex-grow: 1;">
                                         <img :src="imageUrl + props.event?.images[1].large_image_path"
                                              :alt="`${props.event?.name} Immersive Event - Image 2`"
-                                             class="w-full h-full object-cover rounded-lg"
+                                             class="w-full object-cover"
+                                             style="height: 25rem;"
                                         />
                                     </div>
-                                </template>
-
-                                <!-- First Image (for 3 images) -->
-                                <div v-if="props.event?.images?.length === 3" 
-                                     class="h-full">
-                                    <img :src="imageUrl + props.event?.images[0].large_image_path"
-                                         :alt="`${props.event?.name} Immersive Event - Main Image`"
-                                         class="w-full h-full object-cover rounded-lg"
-                                    />
                                 </div>
-
-                                <!-- Special 3-image layout -->
-                                <template v-if="props.event?.images?.length === 3">
-                                    <div class="grid grid-rows-2 gap-2 h-full">
-                                        <div class="aspect-[3/2]">
-                                            <img :src="imageUrl + props.event?.images[1].large_image_path"
-                                                 :alt="`${props.event?.name} Immersive Event - Image 2`"
-                                                 class="w-full h-full object-cover rounded-lg"
-                                            />
-                                        </div>
-                                        <div class="aspect-[3/2]">
-                                            <img :src="imageUrl + props.event?.images[2].large_image_path"
-                                                 :alt="`${props.event?.name} Immersive Event - Image 3`"
-                                                 class="w-full h-full object-cover rounded-lg"
-                                            />
-                                        </div>
-                                    </div>
-                                </template>
-
-                                <!-- 4+ images layout -->
-                                <template v-else-if="props.event?.images?.length > 3">
-                                    <!-- First Column (1/3 width) -->
-                                    <div class="col-span-1 h-full">
-                                        <img :src="imageUrl + props.event?.images[0].large_image_path"
-                                             :alt="`${props.event?.name} Immersive Event - Main Image`"
-                                             class="w-full h-full object-cover rounded-lg"
+                                
+                                <!-- Remaining images (two per row) -->
+                                <div class="grid grid-cols-2 gap-2 mt-2">
+                                    <div v-for="(image, index) in props.event?.images.slice(2)" 
+                                         :key="index + 2"
+                                         class="aspect-[3/2] rounded-xl overflow-hidden">
+                                        <img :src="imageUrl + image.large_image_path"
+                                             :alt="`${props.event?.name} Immersive Event - Image ${index + 3}`"
+                                             class="w-full h-full object-cover"
                                         />
                                     </div>
-
-                                    <!-- Second Column (2/3 width) -->
-                                    <div class="col-span-2 grid grid-cols-2 grid-rows-2 gap-2">
-                                        <div v-for="index in Math.min(4, props.event?.images.length - 1)" 
-                                             :key="index"
-                                             class="aspect-[3/2]">
-                                            <img :src="imageUrl + props.event?.images[index].large_image_path"
-                                                 :alt="`${props.event?.name} Immersive Event - Image ${index + 1}`"
-                                                 class="w-full h-full object-cover rounded-lg"
-                                            />
-                                        </div>
-                                    </div>
-                                </template>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -133,8 +93,9 @@
                         </div>
                     </div>
 
-                    <!-- Add after Images Section and before Name & Description -->
+                    <!-- Video Section -->
                     <div v-if="props.event?.video" class="p-8 shadow-custom-1 rounded-3xl">
+                        <h3 class="text-xl font-semibold mb-4">Video</h3>
                         <div class="relative w-full aspect-video">
                             <iframe
                                 :src="`https://www.youtube.com/embed/${props.event.video}`"
@@ -150,7 +111,7 @@
                     <div class="p-8 shadow-custom-1 rounded-3xl">
                         <h3 class="text-5xl leading-tight font-semibold mb-3 break-words hyphens-auto">{{ props.event?.name }}</h3>
                         <p class="text-1xl mb-16 break-words hyphens-auto">{{ props.event?.tag_line }}</p>
-                        <p class="text-regular whitespace-pre-line break-words hyphens-auto">{{ props.event?.description }}</p>
+                        <p class="text-2.5xl font-normal whitespace-pre-line break-words hyphens-auto">{{ props.event?.description }}</p>
                     </div>
 
                     <!-- Organizer Section -->
@@ -158,7 +119,7 @@
                         <h3 class="text-xl font-semibold mb-4">Event Organizer:</h3>
                         <div class="flex flex-col gap-4">
                             <!-- Organizer Header -->
-                            <div class="flex items-center">
+                            <div class="flex items-center gap-4">
                                 <div v-if="props.event?.organizer?.largeImagePath" class="flex-shrink-0">
                                     <img 
                                         :src="`${imageUrl}${props.event.organizer.largeImagePath}`"
@@ -242,7 +203,7 @@
                         </div>
                     </div>
 
-                    <!-- Location -->
+                    <!-- Location Section -->
                     <div class="p-8 shadow-custom-1 rounded-3xl">
                         <h3 class="text-xl font-semibold mb-4">
                             {{ props.event?.hasLocation ? 'Location:' : 'Remote Event:' }}
@@ -326,8 +287,8 @@
                             <p class="text-gray-600">{{ formatDateRange(props.event?.shows) }}</p>
                             <p class="text-gray-600">{{ props.event?.shows?.length || 0 }} show{{ props.event?.shows?.length !== 1 ? 's' : '' }}</p>
                         </div>
-                        
-                        <!-- Add Embargo Date Display -->
+
+                        <!-- Embargo Date -->
                         <div v-if="props.event?.embargo_date" class="mt-4 mb-8 p-4 bg-yellow-50 rounded-xl">
                             <p class="text-yellow-800">
                                 <span class="font-semibold">⚠️ Embargoed until:</span> 
@@ -349,16 +310,6 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="mt-16">
-                            <h3 class="text-xl font-semibold mb-4">Ticket Link:</h3>
-                            <a v-if="props.event?.ticketUrl"
-                                :href="props.event?.ticketUrl"
-                                target="_blank"
-                                rel="nofollow noopener"
-                                class="text-blue-600 hover:text-blue-800 text-1xl">
-                                {{ props.event?.ticketUrl}}
-                            </a>
-                        </div>
                     </div>
 
                     <!-- Advisories -->
@@ -368,7 +319,7 @@
                             <!-- Audience -->
                             <div v-if="props.event?.advisories?.audience">
                                 <p class="font-medium mb-4">Audience</p>
-                                <p class="text-neutral-700 text-1xl whitespace-pre-line">{{ props.event?.advisories?.audience }}</p>
+                                <p class="text-neutral-700 font-normal text-2.5xl leading-9 whitespace-pre-line break-words hyphens-auto">{{ props.event?.advisories?.audience }}</p>
                             </div>
 
                             <!-- Content Advisories -->
@@ -399,10 +350,26 @@
                             <div>
                                 <p class="font-medium mb-4">Interaction Level</p>
                                 <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                    <div class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl break-words hyphens-auto">
+                                    <div class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl break-words">
                                         {{ props.event?.interactive_level?.name }}
                                     </div>
                                 </div>
+                            </div>
+                            
+                            <!-- Age Limit -->
+                            <div>
+                                <p class="font-medium mb-4">Age Requirement</p>
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    <div class="flex flex-col justify-end px-4 pb-4 pt-14 border border-neutral-300 rounded-2xl text-xl break-words">
+                                        {{ props.event?.age_limits?.name }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Sexual Content Description -->
+                            <div v-if="props.event?.advisories?.sexual">
+                                <p class="font-medium mb-4">Sexual Content Description</p>
+                                <p class="text-neutral-700 text-2.5xl font-normal whitespace-pre-line">{{ props.event?.advisories.sexualDescription }}</p>
                             </div>
                         </div>
                     </div>
@@ -438,27 +405,7 @@
                     }"
                 >
                     <div class="flex items-center gap-2">
-                        <svg 
-                            v-if="isRejecting"
-                            class="animate-spin h-5 w-5" 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            fill="none" 
-                            viewBox="0 0 24 24"
-                        >
-                            <circle 
-                                class="opacity-25" 
-                                cx="12" 
-                                cy="12" 
-                                r="10" 
-                                stroke="currentColor" 
-                                stroke-width="4"
-                            />
-                            <path 
-                                class="opacity-75" 
-                                fill="currentColor" 
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            />
-                        </svg>
+                        <LoadingSpinner v-if="isRejecting" />
                         {{ isRejecting ? 'Rejecting...' : 'Reject' }}
                     </div>
                 </button>
@@ -474,27 +421,7 @@
                     }"
                 >
                     <div class="flex items-center gap-2">
-                        <svg 
-                            v-if="isApproving"
-                            class="animate-spin h-5 w-5" 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            fill="none" 
-                            viewBox="0 0 24 24"
-                        >
-                            <circle 
-                                class="opacity-25" 
-                                cx="12" 
-                                cy="12" 
-                                r="10" 
-                                stroke="currentColor" 
-                                stroke-width="4"
-                            />
-                            <path 
-                                class="opacity-75" 
-                                fill="currentColor" 
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            />
-                        </svg>
+                        <LoadingSpinner v-if="isApproving" />
                         {{ isApproving ? 'Approving...' : 'Approve' }}
                     </div>
                 </button>
@@ -540,7 +467,10 @@
                                 :disabled="!rejectionReason.trim()"
                                 class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Reject
+                                <div class="flex items-center gap-2">
+                                    <LoadingSpinner v-if="isRejecting" />
+                                    {{ isRejecting ? 'Rejecting...' : 'Reject' }}
+                                </div>
                             </button>
                         </div>
                     </div>
@@ -564,6 +494,7 @@ import {
     RiFacebookBoxLine,
     RiPatreonLine 
 } from '@remixicon/vue';
+import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue';
 
 const props = defineProps({
     event: {

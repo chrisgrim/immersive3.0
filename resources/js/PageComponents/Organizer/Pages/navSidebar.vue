@@ -1,7 +1,7 @@
 <template>
     <nav class="relative flex flex-col items-center flex-shrink-0 w-full mx-auto pt-12">
         <!-- Static Header -->
-        <div class="w-full flex items-center gap-4 pb-8 z-50 bg-white p-10 lg-air:max-w-[40rem]">
+        <div class="w-full flex items-center gap-4 py-8 z-50 bg-white p-10 lg-air:max-w-[40rem]">
             <button 
                 @click="goBack"
                 class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"

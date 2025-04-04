@@ -34,4 +34,14 @@ class EventPolicy
     {
         return $user->isAdmin() || $user->isModerator();
     }
+
+    /**
+     * Determine if the user can duplicate the event.
+     */
+    public function duplicate(User $user, Event $event): bool
+    {
+        return $user->belongsToOrganization($event->organizer) || 
+               $user->isModerator() || 
+               $user->isAdmin();
+    }
 }

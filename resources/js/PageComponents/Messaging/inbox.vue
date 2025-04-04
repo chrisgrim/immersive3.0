@@ -83,6 +83,12 @@
                                         class="flex w-full items-center cursor-pointer hover:bg-neutral-50 relative rounded-3xl border border-neutral-200 p-8"
                                         :class="{ 'border-[#222222] shadow-focus-black bg-neutral-50': conversation && convo.id === conversation.id }"
                                     >
+                                        <!-- Unread indicator -->
+                                        <div 
+                                            v-if="hasUnreadMessages(convo)"
+                                            class="absolute top-4 right-4 w-3 h-3 bg-blue-500 rounded-full"
+                                        ></div>
+                                        
                                         <div class="mr-auto text-xl flex items-center">
                                             <picture v-if="convo.conversable?.thumbImagePath">
                                                 <source :srcset="`${imageUrl}${convo.conversable.thumbImagePath}`" type="image/webp">
@@ -220,6 +226,15 @@ const clearSearch = () => {
     searchQuery.value = '';
     isSearching.value = false;
     conversationList.value = props.conversations;
+};
+
+const hasUnreadMessages = (convo) => {
+    // Check if the conversation has any unread messages
+    if (!convo.messages || !convo.messages.length) return false;
+    
+    return convo.messages.some(message => 
+        !message.is_seen && message.user_id !== props.user.id
+    );
 };
 
 onMounted(async () => {

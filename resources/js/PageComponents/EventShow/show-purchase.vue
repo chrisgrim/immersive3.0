@@ -2,7 +2,7 @@
     <div :class="[
         'inline-block border w-full bg-white',
         singleImage 
-            ? 'md:sticky md:top-60 md:rounded-2xl md:shadow-custom-1 md:flex-col py-6 px-8' 
+            ? 'md:sticky md:top-40 md:rounded-2xl md:shadow-custom-1 md:flex-col py-6 px-8' 
             : 'fixed bottom-0 left-0 z-30 flex py-6 px-8 md:sticky md:top-36 md:pb-12 md:mt-16 md:rounded-2xl md:flex-col md:shadow-custom-1 md:mb-16'
     ]">
         <div 
@@ -172,9 +172,13 @@ const mobile = computed(() => {
     return window?.Laravel?.isMobile ?? false;
 });
 
-const canEdit = computed(() => {
-    return props.user && (props.user.isAdmin || props.user.isModerator);
-});
+const canEdit = computed(() => 
+    props.user && (
+        props.user.isAdmin || 
+        props.user.isModerator || 
+        props.user.organizer?.id === props.event.organizer_id
+    )
+);
 
 const eventUrl = computed(() => {
     if (props.event.ticketUrl) return props.event.ticketUrl;

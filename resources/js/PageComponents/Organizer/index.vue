@@ -117,9 +117,9 @@
                                 {{ team.name }}
                             </button>
                             <span 
-                                class="text-sm px-2 py-1 bg-gray-100 text-gray-600 rounded-full"
-                            >
-                                {{ team.role }}
+                                v-if="team === currentTeam"
+                                class="text-sm px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
+                                Current Team
                             </span>
                         </div>
                     </div>

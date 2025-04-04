@@ -341,6 +341,16 @@ class User extends Authenticatable
     }
 
     /**
+    * Determine if the user has any unread messages
+    *
+    * @return bool
+    */
+    public function hasUnreadMessages()
+    {
+        return $this->unread === 'm';
+    }
+
+    /**
     * Determine if the current user has messages 
     *
     * @return bool

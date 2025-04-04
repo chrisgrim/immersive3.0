@@ -1,33 +1,22 @@
 <template>
 	<div class="flex justify-center md:justify-end">
-		<div class="px-8 md:px-32 w-full md:ml-[-2rem] mt-8 md:mt-12">
+		<div class="px-10 md:px-32 w-full md:ml-[-2rem] mt-20">
 			<!-- Header Section -->
 			<div class="w-full flex flex-col">
 				<!-- Organizer Name and Create Button -->
-				<div class="w-full flex items-center justify-between mb-20 shadow-custom-6 md:shadow-none p-8 md:p-0 rounded-2xl">
+				<div class="w-full flex items-center justify-between mb-20 md:p-8 md:p-0 rounded-2xl">
 					<div class="flex flex-col">
 						<a :href="`/organizers/${organizer.slug}`" class="group flex flex-row items-center gap-8">
-							<!-- Organizer Image -->
-							<template v-if="organizer.images?.length > 0">
-								<picture class="w-20 h-20 flex-shrink-0">
-									<source 
-										:srcset="`${imageUrl}${organizer.images[0].large_image_path}`"
-										type="image/webp"
-									>
-									<img 
-										:src="`${imageUrl}${organizer.images[0].large_image_path}`"
-										class="w-20 h-20 rounded-full object-cover"
-										alt="Organizer image"
-									/>
-								</picture>
-							</template>
-							<div v-else class="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-								<span class="text-2xl font-bold text-gray-400">
-									{{ organizer.name?.charAt(0).toUpperCase() || '?' }}
-								</span>
-							</div>
-							
-							<h2 class="text-2xl md:text-5xl font-medium group-hover:underline break-words hyphens-auto leading-tight">{{organizer.name}}</h2>
+							<div class="flex gap-4">
+								<a :href="`/organizers/${organizer.slug}/edit`" class="cursor-pointer">
+									<div class="rounded-full bg-gray-100 w-16 h-16 flex items-center justify-center hover:bg-gray-200">
+										<svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+										</svg>
+									</div>
+								</a>
+							</div>			
+							<h2 class="text-3xl md:text-5xl font-medium group-hover:underline break-words hyphens-auto leading-tight">{{organizer.name}}</h2>
 						</a>
 						
 						<!-- Switch Organization Link -->
@@ -35,16 +24,6 @@
 						   href="/teams" 
 						   class="text-xl mt-4 text-gray-500 hover:text-black ml-28 md:ml-28">
 						   Switch Organization
-						</a>
-					</div>
-					
-					<div class="hidden md:flex gap-4">
-						<a :href="`/organizers/${organizer.slug}/edit`" class="cursor-pointer">
-							<div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center hover:bg-gray-200">
-								<svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-								</svg>
-							</div>
 						</a>
 					</div>
 				</div>
@@ -646,7 +625,7 @@ const duplicateEvent = async (event) => {
 	}
 	
 	try {
-		const response = await axios.post(`/api/admin/events/${event.slug}/duplicate`);
+		const response = await axios.post(`/api/events/${event.slug}/duplicate`);
 		window.location.href = `/hosting/event/${response.data.event.slug}/edit`;
 	} catch (error) {
 		if (error.response?.status === 422) {

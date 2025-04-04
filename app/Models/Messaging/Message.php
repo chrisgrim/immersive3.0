@@ -22,8 +22,8 @@ class Message extends Model
         'APPROVED' => 'Your event has been approved!',
         'APPROVED_EMBARGOED' => 'Your event has been approved and will be displayed on your chosen date.',
         'REJECTED' => 'We have reviewed your event submission and have some feedback that needs to be addressed. Please see the details below:',
-        'ORGANIZER_REJECTED' => 'We have reviewed your organizer profile and have some feedback that needs to be addressed. Please see the details below:',
-        'ORGANIZER_APPROVED' => 'Your organization profile has been approved!',
+        'ORGANIZER_REJECTED' => 'We have reviewed your organization and have some feedback that needs to be addressed. Please see the details below:',
+        'ORGANIZER_APPROVED' => 'Your organization has been approved!',
         'COMMUNITY_REJECTED' => 'We have reviewed your community and have some feedback that needs to be addressed. Please see the details below:',
         'COMMUNITY_APPROVED' => 'Your community has been approved!',
     ];
@@ -76,6 +76,11 @@ class Message extends Model
                 'subject' => $model->name
             ]
         );
+
+        // Update the receiver's unread status
+        if ($model->user_id != $adminId) {
+            User::find($model->user_id)->update(['unread' => 'm']);
+        }
 
         return self::create([
             'conversation_id' => $conversation->id,

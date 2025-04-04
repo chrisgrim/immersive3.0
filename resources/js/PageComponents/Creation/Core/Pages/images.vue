@@ -200,8 +200,9 @@ const remainingSlots = computed(() => {
 
 const handleSort = ({ moved }) => {
     if (moved) {
+        // Explicitly update all ranks after drag
         images.value.forEach((image, index) => {
-            image.rank = index + 1;
+            image.rank = index + 1; // Ranks start at 1 for additional images
         });
     }
 };
@@ -213,17 +214,18 @@ const handleFileChange = async (event) => {
         if (isValid) {
             const reader = new FileReader();
             reader.onload = (e) => {
-                // Calculate the next rank based on existing images
-                const nextRank = images.value.length > 0 
-                    ? Math.max(...images.value.map(img => img.rank)) + 1 
-                    : 1;
+                // Calculate the next rank as the current length + 1
+                const nextRank = images.value.length + 1;
                 
                 images.value.push({
                     url: e.target.result,
                     file,
                     rank: nextRank,
-                    id: Date.now() // Add a temporary unique ID for draggable
+                    id: Date.now() + Math.random() // More unique ID for draggable
                 });
+                
+                // Re-sort by rank to ensure correct order
+                images.value.sort((a, b) => a.rank - b.rank);
             };
             reader.readAsDataURL(file);
         }
@@ -237,6 +239,11 @@ const removeImage = (index) => {
         deletedImages.value.push(removedImage.url.replace(imageUrl, ''));
     }
     images.value.splice(index, 1);
+    
+    // Reassign ranks sequentially after removing an image
+    images.value.forEach((image, idx) => {
+        image.rank = idx + 1; // Ranks start at 1 for additional images
+    });
 };
 
 const handleMainFileChange = async (event) => {
@@ -280,31 +287,51 @@ const completeCrop = () => {
     const outputCtx = outputCanvas.getContext('2d');
     outputCtx.drawImage(canvas, 0, 0, outputCanvas.width, outputCanvas.height);
     
-    outputCanvas.toBlob((blob) => {
-        const file = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const oldMainImage = mainImage.value;
-            
-            mainImage.value = { 
-                url: e.target.result, 
-                file,
-                rank: 0
-            };
-            
-            if (oldMainImage?.isExisting) {
-                const oldMainImagePath = oldMainImage.url.replace(imageUrl, '');
-                if (!deletedImages.value.includes(oldMainImagePath)) {
-                    deletedImages.value.push(oldMainImagePath);
+    // Start with a quality of 0.95 and decrease if needed
+    const createImageBlob = (quality = 0.95) => {
+        outputCanvas.toBlob((blob) => {
+            // Check if the blob is too large
+            if (blob.size > MAX_FILE_SIZE) {
+                if (quality > 0.5) {
+                    // Try again with lower quality
+                    createImageBlob(quality - 0.1);
+                } else {
+                    // If we're still too large at 0.5 quality, show an error
+                    alert('The cropped image is too large. Please try a smaller image or crop a smaller portion.');
+                    showCropper.value = false;
+                    cropperImage.value = '';
+                    setComponentReady(true);
                 }
+                return;
             }
             
-            showCropper.value = false;
-            cropperImage.value = '';
-            setComponentReady(true);
-        };
-        reader.readAsDataURL(file);
-    }, 'image/jpeg', 0.95);
+            const file = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const oldMainImage = mainImage.value;
+                
+                mainImage.value = { 
+                    url: e.target.result, 
+                    file,
+                    rank: 0
+                };
+                
+                if (oldMainImage?.isExisting) {
+                    const oldMainImagePath = oldMainImage.url.replace(imageUrl, '');
+                    if (!deletedImages.value.includes(oldMainImagePath)) {
+                        deletedImages.value.push(oldMainImagePath);
+                    }
+                }
+                
+                showCropper.value = false;
+                cropperImage.value = '';
+                setComponentReady(true);
+            };
+            reader.readAsDataURL(file);
+        }, 'image/jpeg', quality);
+    };
+    
+    createImageBlob();
 };
 
 const cancelCrop = () => {
@@ -397,6 +424,7 @@ defineExpose({
         const currentImages = [];
         let newImageCount = 0;
 
+        // Always handle the main image first with rank 0
         if (mainImage.value) {
             if (mainImage.value.file) {
                 const fileExtension = mainImage.value.file.name.split('.').pop();
@@ -416,9 +444,12 @@ defineExpose({
             }
         }
 
-        // Process additional images
-        images.value.forEach((image, index) => {
-            const rank = index + 1;
+        // Process additional images, ensuring they have correct sequential ranks
+        const sortedImages = [...images.value].sort((a, b) => a.rank - b.rank);
+        
+        sortedImages.forEach((image, index) => {
+            const rank = index + 1; // Ensure sequential ranks starting at 1
+            
             if (image.file) {
                 const fileExtension = image.file.name.split('.').pop();
                 const timestamp = Date.now();
@@ -511,36 +542,22 @@ const clearYoutube = () => {
 // 7. Initialization
 onMounted(() => {
     if (event?.images?.length) {
-        const sortedImages = [...event.images].sort((a, b) => a.rank - b.rank);
+        // Make a deep copy to avoid mutations affecting the sort
+        const sortedImages = JSON.parse(JSON.stringify(event.images))
+            .sort((a, b) => a.rank - b.rank);
         
-        const rankZeroImages = sortedImages.filter(img => img.rank === 0);
-        
-        if (rankZeroImages.length > 1) {
-            const mainImg = rankZeroImages.reduce((a, b) => a.id > b.id ? a : b);
+        // Find the main image (rank 0)
+        const mainImg = sortedImages.find(img => img.rank === 0);
+        if (mainImg) {
             mainImage.value = {
                 url: `${imageUrl}${mainImg.large_image_path}`,
                 isExisting: true,
                 id: mainImg.id,
                 rank: 0
             };
-            
-            rankZeroImages
-                .filter(img => img.id !== mainImg.id)
-                .forEach(img => {
-                    deletedImages.value.push(img.large_image_path);
-                });
-        } else {
-            const mainImg = rankZeroImages[0];
-            if (mainImg) {
-                mainImage.value = {
-                    url: `${imageUrl}${mainImg.large_image_path}`,
-                    isExisting: true,
-                    id: mainImg.id,
-                    rank: 0
-                };
-            }
         }
 
+        // Assign remaining images with their correct ranks
         images.value = sortedImages
             .filter(img => img.rank > 0)
             .map(image => ({
@@ -548,7 +565,8 @@ onMounted(() => {
                 isExisting: true,
                 rank: image.rank,
                 id: image.id
-            }));
+            }))
+            .sort((a, b) => a.rank - b.rank); // Ensure they're sorted by rank
     }
     
     if (event?.video) {

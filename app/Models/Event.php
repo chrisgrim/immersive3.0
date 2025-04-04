@@ -31,7 +31,7 @@ class Event extends Model
     ];
 
     protected $fillable = [
-        'slug', 'user_id', 'timezone', 'category_id','interactive_level_id','organizer_id','description','name','largeImagePath','thumbImagePath','advisories_id', 'organizer_id', 'location_latlon', 'closingDate','websiteUrl','ticketUrl','show_times','price_range', 'status','tag_line', 'hasLocation', 'showtype', 'embargo_date', 'remote_description', 'published_at', 'call_to_action', 'age_limits_id', 'rank', 'video', 'archived'
+        'slug', 'user_id', 'timezone', 'category_id','interactive_level_id','organizer_id','description','name','largeImagePath','thumbImagePath','advisories_id', 'organizer_id', 'location_latlon', 'closingDate','websiteUrl','ticketUrl','show_times','price_range', 'status','tag_line', 'hasLocation', 'showtype', 'embargo_date', 'remote_description', 'published_at', 'call_to_action', 'age_limits_id', 'rank', 'archived'
     ];
 
     protected $appends = ['isFavorited', 'isShowing'];
@@ -179,6 +179,16 @@ class Event extends Model
     public function images()
     {
         return $this->morphMany(Image::class, 'imageable');
+    }
+
+    /**
+     * Get all videos related to this event
+     * 
+     * @return \Illuminate\Database\Eloquent\Relations\MorphMany
+     */
+    public function videos()
+    {
+        return $this->morphMany(Video::class, 'videoable');
     }
 
     /**
@@ -546,6 +556,13 @@ class Event extends Model
             $newImage->save();
         }
 
+        // Duplicate videos
+        foreach ($this->videos as $video) {
+            $newVideo = $video->replicate();
+            $newVideo->videoable_id = $newEvent->id;
+            $newVideo->save();
+        }
+
         return $newEvent->fresh([
             'location',
             'advisories',
@@ -556,7 +573,8 @@ class Event extends Model
             'remotelocations',
             'priceranges',
             'shows.tickets',
-            'images'
+            'images',
+            'videos'
         ]);
     }
 

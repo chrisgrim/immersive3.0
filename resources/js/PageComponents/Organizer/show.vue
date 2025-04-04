@@ -1,5 +1,5 @@
 <template>
-    <div class="m-auto w-full px-8 py-8 md:py-8 md:px-12 lg:py-0 lg:px-32 lg:max-w-screen-xl lg:pt-24">
+    <div class="m-auto w-full px-10 py-10 md:py-8 md:px-12 lg:py-0 lg:px-32 lg:max-w-screen-xl lg:pt-24">
         <div class="flex flex-col md:flex-row md:gap-16">
             <!-- Left Column -->
             <div class="md:w-[36rem] space-y-14 mb-16 md:mb-20">

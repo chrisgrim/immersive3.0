@@ -7,24 +7,51 @@
             <div class="w-full md:w-[61rem] mx-auto pb-24 space-y-8">
                 <!-- Images Section -->
                 <div class="p-8 shadow-custom-1 rounded-3xl">
-                    <div class="grid gap-4">
+                    <div class="grid gap-4 justify-center">
                         <!-- Single Image -->
                         <div v-if="event.images?.length === 1" 
-                             class="aspect-[3/4] w-[30rem] overflow-hidden rounded-xl">
+                             class="aspect-[3/4] overflow-hidden rounded-xl" style="height: 45rem; width: fit-content;">
                             <img :src="imageUrl + event.images[0].large_image_path"
                                  :alt="`${event.name} Immersive Event - Main Image`"
                                  class="w-full h-full object-cover"
+                                 style="height: 45rem;"
                             />
                         </div>
 
-                        <!-- Multiple Images (keeping your existing image layout) -->
-                        <div v-else 
-                             class="grid gap-2 rounded-xl overflow-hidden"
-                             :class="{
-                                 'grid-cols-3': event.images?.length === 2 || event.images?.length > 3,
-                                 'grid-cols-2': event.images?.length === 3
-                             }">
-                            <!-- Your existing image layout code -->
+                        <!-- Multiple Images -->
+                        <div v-else class="w-full">
+                            <!-- First row: First image (vertical) and second image (same height) -->
+                            <div v-if="event.images?.length >= 2" class="gap-2 md:rounded-2xl overflow-hidden" style="display: flex;">
+                                <!-- First image (vertical 3:4 ratio) with fixed height -->
+                                <div class="aspect-[3/4]" style="height: 25rem; flex-shrink: 0;">
+                                    <img :src="imageUrl + event.images[0].large_image_path"
+                                         :alt="`${event.name} Immersive Event - Image 1`"
+                                         class="w-full h-full object-cover"
+                                         style="height: 25rem;"
+                                    />
+                                </div>
+                                
+                                <!-- Second image (same height) -->
+                                <div style="flex-grow: 1;">
+                                    <img :src="imageUrl + event.images[1].large_image_path"
+                                         :alt="`${event.name} Immersive Event - Image 2`"
+                                         class="w-full object-cover"
+                                         style="height: 25rem;"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <!-- Remaining images (two per row) -->
+                            <div class="grid grid-cols-2 gap-2 mt-2">
+                                <div v-for="(image, index) in event.images.slice(2)" 
+                                     :key="index + 2"
+                                     class="aspect-[3/2] rounded-xl overflow-hidden">
+                                    <img :src="imageUrl + image.large_image_path"
+                                         :alt="`${event.name} Immersive Event - Image ${index + 3}`"
+                                         class="w-full h-full object-cover"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -47,7 +74,7 @@
                 <div class="p-8 shadow-custom-1 rounded-3xl">
                     <h3 class="text-5xl leading-tight font-semibold mb-3 break-words hyphens-auto">{{ event.name }}</h3>
                     <p class="text-1xl mb-16 break-words hyphens-auto">{{ event.tag_line }}</p>
-                    <p class="text-regular whitespace-pre-line break-words hyphens-auto">{{ event.description }}</p>
+                    <p class="text-2.5xl font-normal whitespace-pre-line break-words hyphens-auto">{{ event.description }}</p>
                 </div>
 
                 <!-- Location Section -->
@@ -137,7 +164,7 @@
                         <!-- Audience -->
                         <div v-if="event.advisories?.audience">
                             <p class="font-medium mb-4">Audience</p>
-                            <p class="text-neutral-700 text-1xl whitespace-pre-line break-words hyphens-auto">{{ event.advisories.audience }}</p>
+                            <p class="text-neutral-700 font-normal text-2.5xl leading-9 whitespace-pre-line break-words hyphens-auto">{{ event.advisories.audience }}</p>
                         </div>
 
                         <!-- Content Advisories -->
@@ -187,7 +214,7 @@
                         <!-- Sexual Content Description -->
                         <div v-if="event.advisories?.sexual">
                             <p class="font-medium mb-4">Sexual Content Description</p>
-                            <p class="text-neutral-700 text-1xl whitespace-pre-line">{{ event.advisories.sexualDescription }}</p>
+                            <p class="text-neutral-700 text-2.5xl font-normal whitespace-pre-line">{{ event.advisories.sexualDescription }}</p>
                         </div>
                     </div>
                 </div>

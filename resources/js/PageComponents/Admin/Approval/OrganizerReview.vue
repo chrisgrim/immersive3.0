@@ -93,27 +93,7 @@
                     }"
                 >
                     <div class="flex items-center gap-2">
-                        <svg 
-                            v-if="processing && isRejecting"
-                            class="animate-spin h-5 w-5" 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            fill="none" 
-                            viewBox="0 0 24 24"
-                        >
-                            <circle 
-                                class="opacity-25" 
-                                cx="12" 
-                                cy="12" 
-                                r="10" 
-                                stroke="currentColor" 
-                                stroke-width="4"
-                            />
-                            <path 
-                                class="opacity-75" 
-                                fill="currentColor" 
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            />
-                        </svg>
+                        <LoadingSpinner v-if="processing && isRejecting" />
                         {{ processing && isRejecting ? 'Rejecting...' : 'Reject' }}
                     </div>
                 </button>
@@ -129,27 +109,7 @@
                     }"
                 >
                     <div class="flex items-center gap-2">
-                        <svg 
-                            v-if="processing && isApproving"
-                            class="animate-spin h-5 w-5" 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            fill="none" 
-                            viewBox="0 0 24 24"
-                        >
-                            <circle 
-                                class="opacity-25" 
-                                cx="12" 
-                                cy="12" 
-                                r="10" 
-                                stroke="currentColor" 
-                                stroke-width="4"
-                            />
-                            <path 
-                                class="opacity-75" 
-                                fill="currentColor" 
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            />
-                        </svg>
+                        <LoadingSpinner v-if="processing && isApproving" />
                         {{ processing && isApproving ? 'Approving...' : 'Approve' }}
                     </div>
                 </button>
@@ -195,7 +155,10 @@
                                 :disabled="!rejectionReason.trim()"
                                 class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Reject
+                                <div class="flex items-center gap-2">
+                                    <LoadingSpinner v-if="processing && isRejecting" />
+                                    {{ processing && isRejecting ? 'Rejecting...' : 'Reject' }}
+                                </div>
                             </button>
                         </div>
                     </div>
@@ -216,6 +179,7 @@ import {
     RiPatreonLine,
     RiGlobalLine
 } from '@remixicon/vue';
+import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue';
 
 const props = defineProps({
     organizer: {

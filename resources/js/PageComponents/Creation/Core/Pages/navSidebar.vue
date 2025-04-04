@@ -3,53 +3,46 @@
     <nav class="relative flex flex-col items-center flex-shrink-0 w-full mx-auto pt-12">
         <!-- Fixed Header -->
         <div class="w-full flex items-center px-8 gap-4 pb-8 z-50 bg-white p-10 lg-air:max-w-[40rem]">
-            <div class="flex items-center justify-between w-full">
-                <a 
-                    :href="`/communities/${community?.slug}/listings?shelf=${post?.shelf?.id}`" 
-                    class="flex items-center gap-4"
+            <button 
+                @click="goBack"
+                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"
+            >
+                <svg 
+                    class="w-8 h-8" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    stroke-width="2" 
+                    stroke-linecap="round" 
+                    stroke-linejoin="round"
                 >
-                    <a 
-                        href="/hosting/events" 
-                        class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0"
-                    >
-                        <svg 
-                            class="w-8 h-8" 
-                            viewBox="0 0 24 24" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            stroke-width="2" 
-                            stroke-linecap="round" 
-                            stroke-linejoin="round"
-                        >
-                            <path d="M19 12H5"/>
-                            <path d="M12 19l-7-7 7-7"/>
-                        </svg>
-                    </a>
-                    <a href="/hosting/events" class="ml-4 text-3xl md:text-5xl font-semibold truncate">Listings</a>
-                </a>
-                
-                <!-- Go to event link -->
-                <a 
-                    v-if="isPublished"
-                    :href="`/events/${event.slug}`"
-                    class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0"
-                    title="View published event"
-                >
+                    <path d="M19 12H5"/>
+                    <path d="M12 19l-7-7 7-7"/>
+                </svg>
+            </button>
+            <a 
+            href="/hosting/events" 
+            class="cursor-pointer">
+                <div class="rounded-full bg-neutral-100 w-16 h-16 flex items-center justify-center hover:bg-neutral-200">
                     <svg 
-                        style="width: 1.8rem; height: 1.8rem;"
+                        class="w-8 h-8" 
                         viewBox="0 0 24 24" 
                         fill="none" 
                         stroke="currentColor" 
-                        stroke-width="2" 
-                        stroke-linecap="round" 
-                        stroke-linejoin="round"
+                        stroke-width="2"
                     >
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                        <polyline points="15 3 21 3 21 9"/>
-                        <line x1="10" y1="14" x2="21" y2="3"/>
+                        <g stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="4" cy="6" r="1" fill="currentColor"/>
+                            <line x1="8" y1="6" x2="20" y2="6"/>
+                            <circle cx="4" cy="12" r="1" fill="currentColor"/>
+                            <line x1="8" y1="12" x2="20" y2="12"/>
+                            <circle cx="4" cy="18" r="1" fill="currentColor"/>
+                            <line x1="8" y1="18" x2="20" y2="18"/>
+                        </g>
                     </svg>
-                </a>
-            </div>
+                </div>
+            </a>
+            <a :href="`/events/${event.slug}`" class="ml-4 text-3xl md:text-5xl font-semibold truncate hover:underline">{{ event.name || 'No name set' }}</a>
         </div>
 
         <!-- Scrollable Content -->
@@ -508,9 +501,10 @@ const remainingShows = computed(() => {
     return futureShows.length;
 });
 
-const isPublished = computed(() => {
-    return props.event.status === 'p' || props.event.status === 'e';
-});
+const goBack = () => {
+    window.history.back()
+};
+
 
 defineEmits(['navigate']);
 </script>

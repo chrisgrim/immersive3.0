@@ -57,6 +57,25 @@ class ConversationsController extends Controller
         ]);
     }
 
+    /**
+     * Get conversation ID that likely has unread messages for current user
+     */
+    protected function getUnreadConversationId()
+    {
+        $latestConversation = Conversation::whereHas('messages', function($query) {
+            $query->where('is_seen', false)
+                  ->where('user_id', '!=', auth()->id());
+        })
+        ->where(function($query) {
+            $query->where('user_one', auth()->id())
+                  ->orWhere('user_two', auth()->id());
+        })
+        ->latest('updated_at')
+        ->first();
+
+        return $latestConversation ? $latestConversation->id : null;
+    }
+
     public function update(Request $request, Conversation $conversation)
     {   
         $this->authorize('update', $conversation);
@@ -158,7 +177,10 @@ class ConversationsController extends Controller
             return;
         }
         
-        // Only send email if their unread status is null (meaning they've read previous messages)
+        // Always update unread status when a new message is sent
+        $receiver->update(['unread' => 'm']);
+        
+        // Only send email notification if their unread status was null (meaning they've read previous messages)
         if ($receiver->unread === null) {
             $attributes = [
                 'email' => $receiver->email,
@@ -177,7 +199,5 @@ class ConversationsController extends Controller
                 \Log::error('Failed to send email: ' . $e->getMessage());
             }
         }
-
-        $receiver->update(['unread' => 'e']);
     }
 }

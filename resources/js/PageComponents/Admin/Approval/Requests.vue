@@ -4,10 +4,7 @@
 
         <!-- Loading State -->
         <div v-if="loading" class="flex justify-center items-center py-12">
-            <svg class="animate-spin h-8 w-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+            <LoadingSpinner class="h-8 w-8 text-gray-400" />
         </div>
 
         <!-- No Requests Message -->
@@ -46,15 +43,17 @@
                         <button 
                             @click="handleApprove(request)"
                             :disabled="processing === request.id"
-                            class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50"
+                            class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50 flex items-center gap-2"
                         >
+                            <LoadingSpinner v-if="processing === request.id && processingAction === 'approve'" />
                             Approve
                         </button>
                         <button 
                             @click="handleReject(request)"
                             :disabled="processing === request.id"
-                            class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
+                            class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50 flex items-center gap-2"
                         >
+                            <LoadingSpinner v-if="processing === request.id && processingAction === 'reject'" />
                             Reject
                         </button>
                     </div>
@@ -104,9 +103,10 @@
                             </button>
                             <button 
                                 @click="confirmReject"
-                                :disabled="!rejectionReason.trim()"
-                                class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                                :disabled="!rejectionReason.trim() || processing === pendingRejectRequest?.id"
+                                class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
+                                <LoadingSpinner v-if="processing === pendingRejectRequest?.id" />
                                 Reject
                             </button>
                         </div>
@@ -120,10 +120,12 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue'
 
 const requests = ref([])
 const loading = ref(true)
 const processing = ref(null)
+const processingAction = ref(null)
 const showToast = ref(false)
 const toastMessage = ref('')
 const showRejectModal = ref(false)
@@ -164,6 +166,7 @@ const fetchRequests = async () => {
 const handleApprove = async (request) => {
     try {
         processing.value = request.id
+        processingAction.value = 'approve'
         const response = await axios.post(`/api/admin/approve/requests/${request.id}/approve`)
         showToastMessage('Request approved successfully')
         
@@ -181,6 +184,7 @@ const handleApprove = async (request) => {
         showToastMessage('Failed to approve request')
     } finally {
         processing.value = null
+        processingAction.value = null
     }
 }
 
@@ -200,6 +204,7 @@ const confirmReject = async () => {
 
     try {
         processing.value = pendingRejectRequest.value.id
+        processingAction.value = 'reject'
         await axios.post(`/api/admin/approve/requests/${pendingRejectRequest.value.id}/reject`, {
             reason: rejectionReason.value
         })
@@ -217,6 +222,7 @@ const confirmReject = async () => {
         showToastMessage('Failed to reject request')
     } finally {
         processing.value = null
+        processingAction.value = null
     }
 }
 

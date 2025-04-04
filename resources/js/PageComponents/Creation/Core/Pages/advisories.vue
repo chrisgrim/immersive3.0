@@ -134,7 +134,7 @@
                             <h4 class="mb-4 text-1xl">Audience Role</h4>
                             <textarea 
                                 v-model="event.advisories.audience"
-                                @input="$v.event.advisories.audience.$touch"
+                                @input="handleAudienceInput"
                                 class="w-full p-4 text-1xl border border-neutral-300 rounded-2xl relative outline-none transition-all duration-200"
                                 :class="{ 
                                     'border-red-500': 
@@ -151,10 +151,14 @@
                                 rows="4"
                                 maxlength="1000"
                             ></textarea>
-                            <p v-if="$v.event.advisories.audience.$error" 
-                               class="text-red-500 text-1xl px-4 mt-1">
-                                {{ $v.event.advisories.audience.required.$invalid ? 'Audience role is required' : 'Audience role is too long' }}
-                            </p>
+                            <div class="flex justify-end mt-1 relative text-neutral-500"
+                                 :class="{ 'text-red-500': isAudienceNearLimit }">
+                                {{ event.advisories.audience?.length || 0 }}/1000
+                                <p v-if="$v.event.advisories.audience.$error" 
+                                   class="text-red-500 text-1xl px-4 absolute left-0 top-0">
+                                    {{ $v.event.advisories.audience.required.$invalid ? 'Audience role is required' : 'Audience role is too long' }}
+                                </p>
+                            </div>
                         </div>
                     </div>
                     <p v-if="$v.selectedInteractive.$error" 
@@ -192,6 +196,11 @@ const currentContactLevel = computed(() =>
 const currentAgeLimit = computed(() => 
     event.age_limits || null
 );
+
+const isAudienceNearLimit = computed(() => {
+    const count = event.advisories.audience?.length || 0;
+    return count > 900;
+});
 
 // 4. Validation Rules
 const rules = {
@@ -254,6 +263,13 @@ const selectInteractiveLevel = (interactive) => {
 
 const deselectInteractiveLevel = () => {
     selectedInteractive.value = null;
+};
+
+const handleAudienceInput = () => {
+    $v.value.event.advisories.audience.$touch();
+    if (event.advisories.audience?.length > 1000) {
+        event.advisories.audience = event.advisories.audience.slice(0, 1000);
+    }
 };
 
 // 7. Component API

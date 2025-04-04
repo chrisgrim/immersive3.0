@@ -111,6 +111,11 @@
                                     {{ organizer.name }}
                                 </p>
                             </div>
+                            
+                            <!-- Error message -->
+                            <div v-if="nameChangeError" class="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                <p class="text-red-600">{{ nameChangeError }}</p>
+                            </div>
                         </div>
                     </div>
 
@@ -223,10 +228,13 @@ const handleDescriptionInput = () => {
 // Name change modal state
 const showNameChangeModal = ref(false);
 const pendingNameChange = ref('');
+const nameChangeError = ref('');
 
 const confirmNameChange = async () => {
     try {
         isSubmitting.value = true;
+        nameChangeError.value = '';
+        
         const response = await axios.post(`/organizers/${organizer.slug}/name-change`, {
             requested_name: organizer.name,
             current_name: originalName.value
@@ -242,7 +250,19 @@ const confirmNameChange = async () => {
         
     } catch (error) {
         console.error('Error submitting name change:', error);
-        alert('Failed to submit name change request');
+        
+        // Extract and display validation errors
+        if (error.response?.status === 422 && error.response?.data?.errors) {
+            const validationErrors = error.response.data.errors;
+            
+            if (validationErrors.requested_name) {
+                nameChangeError.value = validationErrors.requested_name[0];
+            } else {
+                nameChangeError.value = 'Failed to submit name change request. Please try a different name.';
+            }
+        } else {
+            nameChangeError.value = 'Failed to submit name change request. Please try again.';
+        }
     } finally {
         isSubmitting.value = false;
     }
@@ -250,6 +270,7 @@ const confirmNameChange = async () => {
 
 const cancelNameChange = () => {
     showNameChangeModal.value = false;
+    nameChangeError.value = '';
     organizer.name = originalName.value;
     v$.value.organizer.name.$reset();
 };

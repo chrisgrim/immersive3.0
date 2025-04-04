@@ -14,8 +14,6 @@ class OrganizerPolicy
      */
     public function viewAny(User $user, ?string $type = null): bool
     {
-        Log::info('viewAny called');
-        // Allow users to view teams if they have any organizations (even pending ones)
         return $user->organizers()->exists();
     }
 

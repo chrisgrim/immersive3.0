@@ -10,9 +10,12 @@
 
                 <!-- Right: Questions & Exit -->
                 <div class="flex items-center gap-6">
-                    <button class="px-6 py-3 text-black hover:bg-gray-100 rounded-lg">
+                    <a 
+                        href="mailto:support@everythingimmersive.com?subject=Event Creation Question"
+                        class="px-6 py-3 text-black hover:bg-gray-100 rounded-lg"
+                    >
                         Questions
-                    </button>
+                    </a>
                     <a 
                         href="/hosting/events" 
                         class="px-6 py-3 border border-black hover:bg-gray-100 rounded-lg"

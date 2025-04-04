@@ -13,7 +13,7 @@
 	                @mouseleave="hoveredLocation = null">
 	                <div 
 	                    @click="removeItem(item)" 
-	                    class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white p-[0.1rem] rounded-full opacity-100 transition-opacity duration-200 z-10 dropdown-delete-btn"
+	                    class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white p-[0.1rem] rounded-full opacity-100 transition-opacity duration-200 dropdown-delete-btn"
 	                >
 	                    <component 
 	                        :is="hoveredLocation === item.id ? RiCloseCircleFill : RiCloseCircleLine" 

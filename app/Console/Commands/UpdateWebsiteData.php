@@ -17,6 +17,7 @@ class UpdateWebsiteData extends Command
         $this->updateOrganizerOwnership();
         $this->updateCategoryImages();
         $this->updateTicketNamespaces();
+        $this->migrateEventVideos();
     }
 
     private function updateOrganizerOwnership()
@@ -122,5 +123,75 @@ class UpdateWebsiteData extends Command
         
         $this->newLine();
         $this->info("Completed! Updated namespace for {$updatedCount} tickets from 'App\\Models\\Show' to 'App\\Models\\Events\\Show'.");
+    }
+
+    private function migrateEventVideos()
+    {
+        $this->info('Starting event videos migration...');
+        
+        // Count events with video data
+        $totalEvents = DB::table('events')
+            ->whereNotNull('video')
+            ->where('video', '!=', '')
+            ->count();
+            
+        if ($totalEvents === 0) {
+            $this->info('No events found with video data. Skipping migration.');
+            return;
+        }
+        
+        $this->info("Found {$totalEvents} events with video data to migrate.");
+        
+        // Create a progress bar
+        $bar = $this->output->createProgressBar($totalEvents);
+        
+        $migrated = 0;
+        $skipped = 0;
+        
+        // Use the events query builder to get all events with video data
+        DB::table('events')
+            ->whereNotNull('video')
+            ->where('video', '!=', '')
+            ->chunkById(100, function ($events) use (&$migrated, &$skipped, $bar) {
+                foreach ($events as $event) {
+                    // Check if this event already has videos
+                    $existingVideos = DB::table('videos')
+                        ->where('videoable_id', $event->id)
+                        ->where('videoable_type', 'App\\Models\\Event')
+                        ->exists();
+                        
+                    if ($existingVideos) {
+                        $skipped++;
+                        $bar->advance();
+                        continue;
+                    }
+                    
+                    // Extract video URL from the video field
+                    $videoUrl = trim($event->video);
+                    
+                    // Set platform to youtube for all videos
+                    $platform = 'youtube';
+                    
+                    // Create a new video record
+                    DB::table('videos')->insert([
+                        'videoable_id' => $event->id,
+                        'videoable_type' => 'App\\Models\\Event',
+                        'url' => $videoUrl,
+                        'platform' => $platform,
+                        'rank' => 0,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    
+                    $migrated++;
+                    $bar->advance();
+                }
+            });
+            
+        $bar->finish();
+        
+        $this->newLine();
+        $this->info("Completed! Migrated {$migrated} event videos to the videos table.");
+        $this->info("Skipped {$skipped} events that already had videos.");
     }
 }

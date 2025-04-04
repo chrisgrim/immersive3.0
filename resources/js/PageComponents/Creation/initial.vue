@@ -512,6 +512,11 @@ const handleNameInput = (event) => {
         team.name = team.name.slice(0, 80);
     }
     $v.value.team.name.$touch();
+    
+    // Clear the name error when the input changes
+    if (errors.value.name) {
+        delete errors.value.name;
+    }
 };
 
 const handleDescriptionInput = (event) => {

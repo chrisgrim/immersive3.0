@@ -104,10 +104,22 @@ class OrganizerController extends Controller
     public function requestNameChange(Request $request, Organizer $organizer)
     {
         try {
-            $request->validate([
-                'requested_name' => 'required|string|max:60',
+            $validator = \Validator::make($request->all(), [
+                'requested_name' => [
+                    'required',
+                    'string',
+                    'max:80',
+                    new \App\Rules\UniqueSlugRule($request->requested_name, Organizer::class, 'slug', $organizer->id)
+                ],
                 'current_name' => 'required|string'
             ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
 
             $nameChangeService = new NameChangeRequestService();
             $result = $nameChangeService->handleNameChange(

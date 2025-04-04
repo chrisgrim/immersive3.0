@@ -19,7 +19,19 @@
                 <!-- Event Image Container with 3:4 aspect ratio -->
                 <div class="relative overflow-hidden rounded-2xl bg-gray-100 transition-transform duration-200 ease-in-out group-hover:scale-[1.02]">
                     <div class="pb-[133.33%]"></div>
-                    <picture v-if="card.largeImagePath" class="absolute inset-0">
+                    <picture v-if="card.images?.length" class="absolute inset-0">
+                        <source 
+                            type="image/webp" 
+                            :srcset="`${imageUrl}${card.images[0].large_image_path}`"
+                        > 
+                        <img 
+                            loading="lazy" 
+                            class="h-full w-full object-cover"
+                            :src="`${imageUrl}${card.images[0].large_image_path.slice(0, -4)}jpg`" 
+                            :alt="`${card.name} Event`"
+                        >
+                    </picture>
+                    <picture v-else-if="card.largeImagePath" class="absolute inset-0">
                         <source 
                             type="image/webp" 
                             :srcset="`${imageUrl}${card.largeImagePath}`"

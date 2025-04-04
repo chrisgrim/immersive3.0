@@ -136,50 +136,60 @@ class AdminEventController extends Controller
     {
         $event->load(['user', 'organizer']);
 
-        // Approve organizer if not already approved
-        if ($event->organizer->status !== 'p') {
-            $event->organizer->update(['status' => 'p']);
-        }
+        try {
+            // Approve organizer if not already approved
+            if ($event->organizer->status !== 'p') {
+                $event->organizer->update(['status' => 'p']);
+            }
 
-        // Create curated check record
-        $event->curatedCheck()->create();
+            // Create curated check record
+            $event->curatedCheck()->create();
 
-        // Generate final slug
-        $slug = Event::finalSlug($event);
-
-        // Finalize images
-        ImageHandler::finalize($event, $slug, 'event');
-
-        // Determine status based on embargo date
-        $status = $event->embargo_date && $event->embargo_date > Carbon::now() 
-            ? 'e' 
-            : 'p';
-
-        // Format the date explicitly to match Elasticsearch mapping
-        $event->update([
-            'status' => $status,
-            'slug' => $slug,
-            'published_at' => now()->format('Y-m-d H:i:s'),
-        ]);
-
-        // Clear caches since we're publishing a new event
-        Cache::forget('active-categories');
-        Cache::forget('active-genres');
-
-        // Send notifications if not self-approving
-        if (auth()->id() !== $event->user->id) {
-            $message = $event->status === 'e' 
-                ? Message::MESSAGES['APPROVED_EMBARGOED']
-                : Message::MESSAGES['APPROVED'];
+            // Generate final slug
+            $slug = Event::finalSlug($event);
             
-            Message::notification($event, $message, $event->slug);
-            Mail::to($event->user)->send(new Comments($event, $message, 'approved'));
-        }
+            // Update event with slug first before finalizing images
+            $event->slug = $slug;
+            $event->save();
 
-        return response()->json([
-            'message' => 'Event approved successfully',
-            'event' => $event->fresh()
-        ]);
+            // Finalize images with the new slug
+            ImageHandler::finalize($event, $slug, 'event');
+
+            // Determine status based on embargo date
+            $status = $event->embargo_date && $event->embargo_date > Carbon::now() 
+                ? 'e' 
+                : 'p';
+
+            // Format the date explicitly to match Elasticsearch mapping
+            $event->update([
+                'status' => $status,
+                'published_at' => now()->format('Y-m-d H:i:s'),
+            ]);
+
+            // Clear caches since we're publishing a new event
+            Cache::forget('active-categories');
+            Cache::forget('active-genres');
+
+            // Send notifications if not self-approving
+            if (auth()->id() !== $event->user->id) {
+                $message = $event->status === 'e' 
+                    ? Message::MESSAGES['APPROVED_EMBARGOED']
+                    : Message::MESSAGES['APPROVED'];
+                
+                Message::notification($event, $message, $event->slug);
+                Mail::to($event->user)->send(new Comments($event, $message, 'approved'));
+            }
+
+            return response()->json([
+                'message' => 'Event approved successfully',
+                'event' => $event->fresh(['images', 'organizer'])
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error approving event: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error approving event: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function reject(Event $event, Request $request)
