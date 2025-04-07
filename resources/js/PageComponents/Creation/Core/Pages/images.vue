@@ -104,44 +104,13 @@
                 </div>
             </div>
             
-            <!-- YouTube Section -->
+            <!-- Video Section - Updated for multiple platforms -->
             <div class="mt-16 max-w-[64rem] mx-auto">
                 <p v-if="showMainImageError" 
                    class="text-red-500 text-1xl text-center mb-4">
                     Please add a poster image for your event
                 </p>
-                <h3 class="text-2xl mb-4">Add a YouTube Video (Optional)</h3>
-                <div class="relative">
-                    <input 
-                        type="text"
-                        v-model="youtubeUrl"
-                        placeholder="Paste YouTube URL here"
-                        class="w-full p-4 pr-12 border border-neutral-300 rounded-xl transition-all duration-200 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black"
-                        @input="handleYoutubeInput"
-                    />
-                    <div v-if="youtubeId" 
-                        @click="clearYoutube"
-                        class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer"
-                    >
-                        <component :is="RiCloseCircleLine" />
-                    </div>
-                </div>
-                
-                <div v-if="youtubeId" class="mt-4">
-                    <div class="relative aspect-video w-full">
-                        <iframe
-                            :src="`https://www.youtube.com/embed/${youtubeId}`"
-                            class="absolute top-0 left-0 w-full h-full rounded-xl"
-                            frameborder="0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowfullscreen
-                        ></iframe>
-                    </div>
-                </div>
-
-                <p v-if="youtubeError" class="text-red-500 mt-2">
-                    {{ youtubeError }}
-                </p>
+                <Videos v-model="videos" :maxVideos="4" />
             </div>
         </div>
     </main>
@@ -184,20 +153,45 @@ import { RiImageCircleLine, RiCloseCircleLine, RiCloseCircleFill } from "@remixi
 import { Cropper } from 'vue-advanced-cropper';
 import 'vue-advanced-cropper/dist/style.css';
 import draggable from 'vuedraggable';
+import Videos from './videos.vue';
 
+// Utility functions
+const debounce = (fn, delay) => {
+    let timeoutId;
+    return (...args) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => fn(...args), delay);
+    };
+};
+
+// Constants
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MIN_DIMENSION = 400; // Minimum pixels for shortest side (lowered from 800)
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+
+// State refs
 const mainImage = ref(null);
 const hoveredMain = ref(false);
 const showCropper = ref(false);
 const cropperImage = ref('');
-
 const images = ref([]);
 const hoveredImage = ref(null);
 const deletedImages = ref([]);
+const videos = ref([]);
+const showMainImageError = ref(false);
+const mainFileInput = ref(null);
 
+// Injected values
+const imageUrl = import.meta.env.VITE_IMAGE_URL;
+const event = inject('event');
+const setComponentReady = inject('setComponentReady');
+
+// Computed properties
 const remainingSlots = computed(() => {
     return Math.max(0, 4 - images.value.length);
 });
 
+// Image handling methods
 const handleSort = ({ moved }) => {
     if (moved) {
         // Explicitly update all ranks after drag
@@ -205,6 +199,44 @@ const handleSort = ({ moved }) => {
             image.rank = index + 1; // Ranks start at 1 for additional images
         });
     }
+};
+
+const validateFile = (file) => {
+    return new Promise((resolve, reject) => {
+        // Check file type
+        if (!ALLOWED_TYPES.includes(file.type)) {
+            alert(`"${file.name}" is not a supported image type. Please use JPEG, PNG, or WebP.`);
+            return resolve(false);
+        }
+        
+        // Check file size
+        if (file.size > MAX_FILE_SIZE) {
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            alert(`"${file.name}" (${sizeMB}MB) exceeds the 5MB size limit.`);
+            return resolve(false);
+        }
+
+        // Check image dimensions
+        const img = new Image();
+        img.src = URL.createObjectURL(file);
+        
+        img.onload = () => {
+            URL.revokeObjectURL(img.src);
+            const smallestSide = Math.min(img.width, img.height);
+            if (smallestSide < MIN_DIMENSION) {
+                alert(`Image's smallest side must be at least ${MIN_DIMENSION}px. This image's smallest side is ${smallestSide}px.`);
+                resolve(false);
+            } else {
+                resolve(true);
+            }
+        };
+
+        img.onerror = () => {
+            URL.revokeObjectURL(img.src);
+            alert('Error loading image. Please try another file.');
+            resolve(false);
+        };
+    });
 };
 
 const handleFileChange = async (event) => {
@@ -358,58 +390,45 @@ const triggerFileInput = (event) => {
     event.currentTarget.querySelector('.fileInput').click();
 };
 
-const validateFile = (file) => {
-    return new Promise((resolve, reject) => {
-        // Check file type
-        if (!ALLOWED_TYPES.includes(file.type)) {
-            alert(`"${file.name}" is not a supported image type. Please use JPEG, PNG, or WebP.`);
-            return resolve(false);
+// Load TikTok script on mount if needed
+onMounted(() => {
+    if (event?.images?.length) {
+        // Make a deep copy to avoid mutations affecting the sort
+        const sortedImages = [...event.images].sort((a, b) => a.rank - b.rank);
+        
+        // Set main image (with rank 0)
+        const mainImg = sortedImages.find(img => img.rank === 0);
+        if (mainImg) {
+            mainImage.value = {
+                url: `${imageUrl}${mainImg.url}`,
+                id: mainImg.id,
+                isExisting: true
+            };
         }
         
-        // Check file size
-        if (file.size > MAX_FILE_SIZE) {
-            const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-            alert(`"${file.name}" (${sizeMB}MB) exceeds the 5MB size limit.`);
-            return resolve(false);
-        }
-
-        // Check image dimensions
-        const img = new Image();
-        img.src = URL.createObjectURL(file);
-        
-        img.onload = () => {
-            URL.revokeObjectURL(img.src);
-            const smallestSide = Math.min(img.width, img.height);
-            if (smallestSide < MIN_DIMENSION) {
-                alert(`Image's smallest side must be at least ${MIN_DIMENSION}px. This image's smallest side is ${smallestSide}px.`);
-                resolve(false);
-            } else {
-                resolve(true);
-            }
-        };
-
-        img.onerror = () => {
-            URL.revokeObjectURL(img.src);
-            alert('Error loading image. Please try another file.');
-            resolve(false);
-        };
-    });
-};
-
-// Constants
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const MIN_DIMENSION = 400; // Minimum pixels for shortest side (lowered from 800)
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
-
-// Add the props and loadImages method here
-const props = defineProps({
-    initialImages: {
-        type: Array,
-        default: () => []
+        // Set other images (rank > 0)
+        images.value = sortedImages
+            .filter(img => img.rank > 0)
+            .map(img => ({
+                url: `${imageUrl}${img.url}`,
+                id: img.id,
+                rank: img.rank,
+                isExisting: true
+            }));
     }
+    
+    if (event?.videos?.length) {
+        videos.value = event.videos.map(video => ({
+            id: video.id,
+            platform: video.platform,
+            url: video.url
+        }));
+    }
+
+    setComponentReady(true);
 });
 
-// Update submitData to handle both new and existing images
+// Expose methods and data
 defineExpose({
     isValid: async () => {
         if (!mainImage.value) {
@@ -470,133 +489,17 @@ defineExpose({
 
         formData.append('currentImages', JSON.stringify(currentImages));
         formData.append('deletedImages', JSON.stringify(deletedImages.value));
-        formData.append('video', youtubeId.value || '');
+        
+        // Add videos as a JSON array
+        if (videos.value.length > 0) {
+            formData.append('videos', JSON.stringify(videos.value));
+        } else {
+            formData.append('videos', JSON.stringify([]));
+        }
 
         return formData;
     }
 });
-
-// Add these with your other refs
-const youtubeUrl = ref('');
-const youtubeId = ref('');
-const youtubeError = ref('');
-
-// Add these YouTube handling methods
-const extractYoutubeId = (url) => {
-    if (!url) return null;
-    
-    const patterns = [
-        /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|shorts\/)([^"&?\/\s]{11})/i,
-        /^[a-zA-Z0-9_-]{11}$/
-    ];
-
-    for (const pattern of patterns) {
-        const match = url.match(pattern);
-        if (match && match[1]) return match[1];
-    }
-
-    return null;
-};
-
-const debounce = (fn, delay) => {
-    let timeoutId;
-    return (...args) => {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => fn(...args), delay);
-    };
-};
-
-const handleYoutubeInput = debounce(async () => {
-    youtubeError.value = '';
-    const extractedId = extractYoutubeId(youtubeUrl.value);
-
-    if (!youtubeUrl.value) {
-        youtubeId.value = '';
-        return;
-    }
-
-    if (!extractedId) {
-        youtubeError.value = 'Please enter a valid YouTube URL';
-        youtubeId.value = '';
-        return;
-    }
-
-    if (extractedId !== youtubeId.value) {
-        try {
-            const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${extractedId}&format=json`);
-            youtubeId.value = response.ok ? extractedId : '';
-            if (!response.ok) youtubeError.value = 'This video cannot be embedded or does not exist';
-        } catch (error) {
-            youtubeError.value = 'Error validating YouTube URL';
-            youtubeId.value = '';
-        }
-    }
-}, 500);
-
-const clearYoutube = () => {
-    youtubeUrl.value = '';
-    youtubeId.value = '';
-    youtubeError.value = '';
-};
-
-// 7. Initialization
-onMounted(() => {
-    if (event?.images?.length) {
-        // Make a deep copy to avoid mutations affecting the sort
-        const sortedImages = JSON.parse(JSON.stringify(event.images))
-            .sort((a, b) => a.rank - b.rank);
-        
-        // Find the main image (rank 0)
-        const mainImg = sortedImages.find(img => img.rank === 0);
-        if (mainImg) {
-            mainImage.value = {
-                url: `${imageUrl}${mainImg.large_image_path}`,
-                isExisting: true,
-                id: mainImg.id,
-                rank: 0
-            };
-        }
-
-        // Assign remaining images with their correct ranks
-        images.value = sortedImages
-            .filter(img => img.rank > 0)
-            .map(image => ({
-                url: `${imageUrl}${image.large_image_path}`,
-                isExisting: true,
-                rank: image.rank,
-                id: image.id
-            }))
-            .sort((a, b) => a.rank - b.rank); // Ensure they're sorted by rank
-    }
-    
-    if (event?.video) {
-        youtubeId.value = event.video;
-        youtubeUrl.value = `https://youtube.com/watch?v=${event.video}`;
-    }
-
-    setComponentReady(true);
-});
-
-// Add imageUrl injection
-const imageUrl = import.meta.env.VITE_IMAGE_URL;
-const event = inject('event');
-
-// Add this with your other refs
-const mainFileInput = ref(null);
-
-const setComponentReady = inject('setComponentReady');
-
-// When starting an upload or crop operation
-const startOperation = () => {
-    setComponentReady(false);
-};
-
-// When operation completes
-const finishOperation = () => {
-    setComponentReady(true);
-};
-
-const showMainImageError = ref(false);
 </script>
 
 <style>
