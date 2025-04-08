@@ -16,7 +16,8 @@ return new class extends Migration
             $table->unsignedBigInteger('videoable_id');
             $table->string('videoable_type');
             $table->string('url');
-            $table->string('platform')->nullable();  // e.g., 'youtube', 'vimeo', etc.
+            $table->string('platform')->nullable();  // e.g., 'youtube', 'tiktok', etc.
+            $table->string('platform_video_id')->nullable();  // The ID specific to the platform (YouTube ID, TikTok ID)
             $table->string('thumbnail_url')->nullable();
             $table->string('title')->nullable();
             $table->text('description')->nullable();

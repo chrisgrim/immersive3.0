@@ -1,126 +1,114 @@
 <template>
   <div class="videos-component">
-    <h3 class="text-2xl mb-4">{{ title }}</h3>
-    
-    <!-- Video List -->
-    <div v-if="modelValue.length > 0" class="mb-8 space-y-6">
-      <div 
-        v-for="(video, index) in modelValue" 
-        :key="index" 
-        class="bg-white rounded-xl shadow-sm p-4 border border-neutral-200"
-      >
-        <div class="flex justify-between items-center mb-3">
-          <div class="flex items-center space-x-2">
-            <span class="font-medium">{{ getPlatformLabel(video.platform) }} Video</span>
-            <span class="text-neutral-500 text-sm">#{{ index + 1 }}</span>
-          </div>
-          <button 
-            @click="removeVideo(index)" 
-            class="text-red-500 hover:text-red-700 transition-colors duration-200"
-          >
-            Remove
-          </button>
-        </div>
-        
-        <!-- Video Preview based on platform -->
-        <div class="mb-2">
-          <!-- YouTube Embed -->
-          <div v-if="video.platform === 'youtube'" class="relative aspect-video w-full">
-            <iframe
-              :src="`https://www.youtube.com/embed/${video.id}`"
-              class="absolute top-0 left-0 w-full h-full rounded-xl"
-              frameborder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowfullscreen
-            ></iframe>
-          </div>
-          
-          <!-- TikTok Embed -->
-          <div v-else-if="video.platform === 'tiktok'" class="relative w-full flex justify-center">
-            <div class="tiktok-embed-container w-full max-w-md mx-auto">
-              <blockquote 
-                class="tiktok-embed" 
-                :cite="`https://www.tiktok.com/@tiktok/video/${video.id}`" 
-                :data-video-id="video.id" 
-                style="max-width: 605px; min-width: 325px;"
-              >
-                <section>
-                  <a target="_blank" href="https://www.tiktok.com">TikTok Video</a>
-                </section>
-              </blockquote>
-            </div>
-          </div>
-          
-          <!-- Instagram Embed -->
-          <div v-else-if="video.platform === 'instagram'" class="relative w-full flex justify-center">
-            <div class="instagram-embed-container w-full max-w-md mx-auto">
-              <blockquote
-                class="instagram-media"
-                :data-instgrm-permalink="`https://www.instagram.com/p/${video.id}/`"
-                data-instgrm-version="14"
-                style="background:#FFF; border:0; border-radius:3px; box-shadow:0 0 1px 0 rgba(0,0,0,0.5),0 1px 10px 0 rgba(0,0,0,0.15); margin: 1px; max-width:540px; min-width:326px; padding:0; width:99.375%; width:-webkit-calc(100% - 2px); width:calc(100% - 2px);"
-              >
-                <div style="padding:16px;">
-                  <a :href="`https://www.instagram.com/p/${video.id}/`" style="background:#FFFFFF; line-height:0; padding:0 0; text-align:center; text-decoration:none; width:100%;" target="_blank">
-                    <div style="display: flex; flex-direction: row; align-items: center;">
-                      <div style="background-color: #F4F4F4; border-radius: 50%; flex-grow: 0; height: 40px; margin-right: 14px; width: 40px;"></div>
-                      <div style="display: flex; flex-direction: column; flex-grow: 1; justify-content: center;">
-                        <div style="background-color: #F4F4F4; border-radius: 4px; flex-grow: 0; height: 14px; margin-bottom: 6px; width: 100px;"></div>
-                        <div style="background-color: #F4F4F4; border-radius: 4px; flex-grow: 0; height: 14px; width: 60px;"></div>
-                      </div>
-                    </div>
-                    <div style="padding: 19% 0;"></div>
-                    <div style="display:block; height:50px; margin:0 auto 12px; width:50px;">
-                      <svg width="50px" height="50px" viewBox="0 0 60 60" version="1.1" xmlns="https://www.w3.org/2000/svg" xmlns:xlink="https://www.w3.org/1999/xlink">
-                        <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-                          <g transform="translate(-511.000000, -20.000000)" fill="#000000">
-                            <g>
-                              <path d="M556.869,30.41 C554.814,30.41 553.148,32.076 553.148,34.131 C553.148,36.186 554.814,37.852 556.869,37.852 C558.924,37.852 560.59,36.186 560.59,34.131 C560.59,32.076 558.924,30.41 556.869,30.41 M541,60.657 C535.114,60.657 530.342,55.887 530.342,50 C530.342,44.114 535.114,39.342 541,39.342 C546.887,39.342 551.658,44.114 551.658,50 C551.658,55.887 546.887,60.657 541,60.657 M541,33.886 C532.1,33.886 524.886,41.1 524.886,50 C524.886,58.899 532.1,66.113 541,66.113 C549.9,66.113 557.115,58.899 557.115,50 C557.115,41.1 549.9,33.886 541,33.886 M565.378,62.101 C565.244,65.022 564.756,66.606 564.346,67.663 C563.803,69.06 563.154,70.057 562.106,71.106 C561.058,72.155 560.06,72.803 558.662,73.347 C557.607,73.757 556.021,74.244 553.102,74.378 C549.944,74.521 548.997,74.552 541,74.552 C533.003,74.552 532.056,74.521 528.898,74.378 C525.979,74.244 524.393,73.757 523.338,73.347 C521.94,72.803 520.942,72.155 519.894,71.106 C518.846,70.057 518.197,69.06 517.654,67.663 C517.244,66.606 516.755,65.022 516.623,62.101 C516.479,58.943 516.448,57.996 516.448,50 C516.448,42.003 516.479,41.056 516.623,37.899 C516.755,34.978 517.244,33.391 517.654,32.338 C518.197,30.938 518.846,29.942 519.894,28.894 C520.942,27.846 521.94,27.196 523.338,26.654 C524.393,26.244 525.979,25.756 528.898,25.623 C532.057,25.479 533.004,25.448 541,25.448 C548.997,25.448 549.943,25.479 553.102,25.623 C556.021,25.756 557.607,26.244 558.662,26.654 C560.06,27.196 561.058,27.846 562.106,28.894 C563.154,29.942 563.803,30.938 564.346,32.338 C564.756,33.391 565.244,34.978 565.378,37.899 C565.522,41.056 565.552,42.003 565.552,50 C565.552,57.996 565.522,58.943 565.378,62.101 M570.82,37.631 C570.674,34.438 570.167,32.258 569.425,30.349 C568.659,28.377 567.633,26.702 565.965,25.035 C564.297,23.368 562.623,22.342 560.652,21.575 C558.743,20.834 556.562,20.326 553.369,20.18 C550.169,20.033 549.148,20 541,20 C532.853,20 531.831,20.033 528.631,20.18 C525.438,20.326 523.257,20.834 521.349,21.575 C519.376,22.342 517.703,23.368 516.035,25.035 C514.368,26.702 513.342,28.377 512.574,30.349 C511.834,32.258 511.326,34.438 511.181,37.631 C511.035,40.831 511,41.851 511,50 C511,58.147 511.035,59.17 511.181,62.369 C511.326,65.562 511.834,67.743 512.574,69.651 C513.342,71.625 514.368,73.296 516.035,74.965 C517.703,76.634 519.376,77.658 521.349,78.425 C523.257,79.167 525.438,79.673 528.631,79.82 C531.831,79.965 532.853,80.001 541,80.001 C549.148,80.001 550.169,79.965 553.369,79.82 C556.562,79.673 558.743,79.167 560.652,78.425 C562.623,77.658 564.297,76.634 565.965,74.965 C567.633,73.296 568.659,71.625 569.425,69.651 C570.167,67.743 570.674,65.562 570.82,62.369 C570.966,59.17 571,58.147 571,50 C571,41.851 570.966,40.831 570.82,37.631"></path>
-                            </g>
-                          </g>
-                        </g>
-                      </svg>
-                    </div>
-                    <div style="padding-top: 8px;">
-                      <div style="color:#3897f0; font-family:Arial,sans-serif; font-size:14px; font-style:normal; font-weight:550; line-height:18px;">View this post on Instagram</div>
-                    </div>
-                    <div style="padding: 12.5% 0;"></div>
-                    <div style="display: flex; flex-direction: row; margin-bottom: 14px; align-items: center;">
-                      <div>
-                        <div style="background-color: #F4F4F4; border-radius: 50%; height: 12.5px; width: 12.5px; transform: translateX(0px) translateY(7px);"></div>
-                        <div style="background-color: #F4F4F4; height: 12.5px; transform: rotate(-45deg) translateX(3px) translateY(1px); width: 12.5px; flex-grow: 0; margin-right: 14px; margin-left: 2px;"></div>
-                        <div style="background-color: #F4F4F4; border-radius: 50%; height: 12.5px; width: 12.5px; transform: translateX(9px) translateY(-18px);"></div>
-                      </div>
-                      <div style="margin-left: 8px;">
-                        <div style="background-color: #F4F4F4; border-radius: 50%; flex-grow: 0; height: 20px; width: 20px;"></div>
-                        <div style="width: 0; height: 0; border-top: 2px solid transparent; border-left: 6px solid #f4f4f4; border-bottom: 2px solid transparent; transform: translateX(16px) translateY(-4px) rotate(30deg)"></div>
-                      </div>
-                      <div style="margin-left: auto;">
-                        <div style="width: 0px; border-top: 8px solid #F4F4F4; border-right: 8px solid transparent; transform: translateY(16px);"></div>
-                        <div style="background-color: #F4F4F4; flex-grow: 0; height: 12px; width: 16px; transform: translateY(-4px);"></div>
-                        <div style="width: 0; height: 0; border-top: 8px solid #F4F4F4; border-left: 8px solid transparent; transform: translateY(-4px) translateX(8px);"></div>
-                      </div>
-                    </div>
-                    <div style="display: flex; flex-direction: column; flex-grow: 1; justify-content: center; margin-bottom: 24px;">
-                      <div style="background-color: #F4F4F4; border-radius: 4px; flex-grow: 0; height: 14px; margin-bottom: 6px; width: 224px;"></div>
-                      <div style="background-color: #F4F4F4; border-radius: 4px; flex-grow: 0; height: 14px; width: 144px;"></div>
-                    </div>
-                  </a>
-                </div>
-              </blockquote>
-            </div>
-          </div>
-        </div>
-        
-        <div class="text-sm text-neutral-500 truncate">
-          ID: {{ video.id }}
-        </div>
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-2xl">Add youtube or tiktok videos (optional)</h3>
+      
+      <div v-if="modelValue.length > 0" class="flex items-center gap-3">
+        <span class="text-gray-600">Show on:</span>
+        <ToggleSwitch
+          v-model="localShowInSlideshow"
+          leftLabel="Page"
+          rightLabel="Gallery"
+          @update:modelValue="updateShowInSlideshow"
+        />
       </div>
     </div>
     
+    <!-- Video List -->
+    <div v-if="modelValue.length > 0" class="mb-8 space-y-6">
+        <draggable 
+          v-model="localVideos" 
+          class="space-y-6"
+          handle=".video-handle"
+          item-key="id"
+          @change="handleSort"
+        >
+            <template #item="{element, index}">
+                <div 
+                :key="index" 
+                class="bg-black rounded-xl relative group overflow-visible">
+                    <div class="absolute z-10 left-[-4rem] flex flex-col items-center justify-center gap-0 p-2 bg-black text-white rounded-xl border video-handle cursor-move">
+                        <div @click.stop="moveVideo(index, -1)" class="cursor-pointer p-1 rounded transition-colors hover:bg-white hover:text-black">
+                            <component :is="RiArrowUpSLine" class="w-8 h-8" />
+                        </div>
+                        <div @click.stop="moveVideo(index, 1)" class="cursor-pointer p-1 rounded transition-colors hover:bg-white hover:text-black">
+                            <component :is="RiArrowDownSLine" class="w-8 h-8" />
+                        </div>
+                    </div>
+              <div 
+                @click="removeVideo(index)" 
+                class="absolute z-10 top-4 right-4 opacity-0 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer bg-white hover:bg-red-500 border border-neutral-200 hover:border-red-200 hover:text-white rounded-2xl p-4 shadow-sm transition-colors"
+                @mouseenter="hoveredVideo = index"
+                @mouseleave="hoveredVideo = null">
+                Remove Video
+              </div>
+          
+              <!-- Video Preview based on platform -->
+              <div class="mb-2">
+                <!-- YouTube Embed -->
+                <div v-if="element.platform === 'youtube'" class="relative aspect-video w-full">
+                  <iframe
+                    :src="`https://www.youtube.com/embed/${element.id}`"
+                    class="absolute top-0 left-0 w-full h-full rounded-b-xl"
+                    frameborder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen
+                  ></iframe>
+                </div>
+                
+                <!-- TikTok Embed -->
+                <div v-else-if="element.platform === 'tiktok'" class="relative w-full">
+                  <div class="tiktok-embed-container w-full">
+                    <iframe
+                      class="tiktok-iframe w-full"
+                      :src="`https://www.tiktok.com/player/v1/${element.id}?music_info=1&description=1&autoplay=0&controls=1`"
+                      allow="fullscreen"
+                      frameborder="0"
+                      style="aspect-ratio: 16/9; border-radius: 0.75rem;"
+                    ></iframe>
+                  </div>
+                </div>
+                
+                <!-- Instagram Embed -->
+                <div v-else-if="element.platform === 'instagram'" class="relative w-full flex justify-center">
+                  <div class="instagram-embed-container w-full max-w-md mx-auto">
+                    <blockquote
+                      class="instagram-media"
+                      :data-instgrm-permalink="`https://www.instagram.com/p/${element.id}/`"
+                      data-instgrm-version="14"
+                      data-instgrm-captioned="false"
+                      data-instgrm-permalink-show-header="false"
+                      data-instgrm-permalink-show-footer="false"
+                      style="background:#FFF; border:0; border-radius:3px; box-shadow:0 0 1px 0 rgba(0,0,0,0.5),0 1px 10px 0 rgba(0,0,0,0.15); margin: 1px; max-width:540px; min-width:326px; padding:0; width:99.375%; width:-webkit-calc(100% - 2px); width:calc(100% - 2px);"
+                    >
+                      <div style="padding:0;">
+                        <a :href="`https://www.instagram.com/p/${element.id}/`" target="_blank">
+                          <!-- Just a placeholder until Instagram script loads -->
+                          <div style="padding:100% 0 0 0; position:relative;">
+                            <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
+                              <svg width="50" height="50" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                                <g fill="none" fill-rule="evenodd">
+                                  <path d="M0 30C0 13.432 13.432 0 30 0s30 13.432 30 30-13.432 30-30 30S0 46.568 0 30z" fill="#000" fill-opacity=".1"/>
+                                  <path d="M30 50.5c11.322 0 20.5-9.178 20.5-20.5S41.322 9.5 30 9.5 9.5 18.678 9.5 30 18.678 50.5 30 50.5z" stroke="#FFF"/>
+                                  <path d="M25.5 20.5l12 10-12 10v-20z" fill="#FFF"/>
+                                </g>
+                              </svg>
+                            </div>
+                          </div>
+                        </a>
+                      </div>
+                    </blockquote>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </draggable>
+    </div>
+    
     <!-- Add Video Form (Only show if less than maxVideos) -->
-    <div v-if="modelValue.length < maxVideos" class="border border-neutral-200 rounded-xl p-6 bg-white">
-      <h4 class="font-medium mb-4">{{ modelValue.length > 0 ? 'Add Another Video' : 'Add Video' }}</h4>
+    <div v-if="modelValue.length < maxVideos" class="rounded-xl bg-white">
+      <h4 class="font-medium mb-4">{{ modelValue.length > 0 ? 'Add Another Video' : '' }}</h4>
       
       <div class="relative">
         <input 
@@ -132,33 +120,16 @@
         />
         <div v-if="videoId" 
           @click="clearVideoInput"
-          class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="15" y1="9" x2="9" y2="15"></line>
-            <line x1="9" y1="9" x2="15" y2="15"></line>
-          </svg>
+          class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer">
+        </div>
+        <div v-if="isLoading" class="absolute right-3 top-1/2 -translate-y-1/2">
+          <LoadingSpinner />
         </div>
       </div>
-      
-      <p v-if="detectedPlatform && !videoError" class="text-green-600 mt-2">
-        {{ getPlatformLabel(detectedPlatform) }} video detected
-      </p>
       
       <p v-if="videoError" class="text-red-500 mt-2">
         {{ videoError }}
       </p>
-      
-      <div class="mt-4 flex justify-end">
-        <button 
-          @click="addVideo"
-          :disabled="!videoId"
-          class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Add Video
-        </button>
-      </div>
       
       <!-- Video Preview -->
       <div v-if="videoId" class="mt-4">
@@ -174,78 +145,15 @@
         </div>
         
         <!-- TikTok Preview -->
-        <div v-else-if="detectedPlatform === 'tiktok'" class="w-full flex justify-center">
-          <div class="tiktok-embed-container w-full max-w-md mx-auto">
-            <blockquote 
-              class="tiktok-embed" 
-              :cite="`https://www.tiktok.com/@tiktok/video/${videoId}`" 
-              :data-video-id="videoId" 
-              style="max-width: 605px; min-width: 325px;"
-            >
-              <section>
-                <a target="_blank" href="https://www.tiktok.com">TikTok Video</a>
-              </section>
-            </blockquote>
-          </div>
-        </div>
-        
-        <!-- Instagram Preview -->
-        <div v-else-if="detectedPlatform === 'instagram'" class="w-full flex justify-center">
-          <div class="instagram-embed-container w-full max-w-md mx-auto">
-            <blockquote
-              class="instagram-media"
-              :data-instgrm-permalink="`https://www.instagram.com/p/${videoId}/`"
-              data-instgrm-version="14"
-              style="background:#FFF; border:0; border-radius:3px; box-shadow:0 0 1px 0 rgba(0,0,0,0.5),0 1px 10px 0 rgba(0,0,0,0.15); margin: 1px; max-width:540px; min-width:326px; padding:0; width:99.375%; width:-webkit-calc(100% - 2px); width:calc(100% - 2px);"
-            >
-              <div style="padding:16px;">
-                <a :href="`https://www.instagram.com/p/${videoId}/`" style="background:#FFFFFF; line-height:0; padding:0 0; text-align:center; text-decoration:none; width:100%;" target="_blank">
-                  <div style="display: flex; flex-direction: row; align-items: center;">
-                    <div style="background-color: #F4F4F4; border-radius: 50%; flex-grow: 0; height: 40px; margin-right: 14px; width: 40px;"></div>
-                    <div style="display: flex; flex-direction: column; flex-grow: 1; justify-content: center;">
-                      <div style="background-color: #F4F4F4; border-radius: 4px; flex-grow: 0; height: 14px; margin-bottom: 6px; width: 100px;"></div>
-                      <div style="background-color: #F4F4F4; border-radius: 4px; flex-grow: 0; height: 14px; width: 60px;"></div>
-                    </div>
-                  </div>
-                  <div style="padding: 19% 0;"></div>
-                  <div style="display:block; height:50px; margin:0 auto 12px; width:50px;">
-                    <svg width="50px" height="50px" viewBox="0 0 60 60" version="1.1" xmlns="https://www.w3.org/2000/svg" xmlns:xlink="https://www.w3.org/1999/xlink">
-                      <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-                        <g transform="translate(-511.000000, -20.000000)" fill="#000000">
-                          <g>
-                            <path d="M556.869,30.41 C554.814,30.41 553.148,32.076 553.148,34.131 C553.148,36.186 554.814,37.852 556.869,37.852 C558.924,37.852 560.59,36.186 560.59,34.131 C560.59,32.076 558.924,30.41 556.869,30.41 M541,60.657 C535.114,60.657 530.342,55.887 530.342,50 C530.342,44.114 535.114,39.342 541,39.342 C546.887,39.342 551.658,44.114 551.658,50 C551.658,55.887 546.887,60.657 541,60.657 M541,33.886 C532.1,33.886 524.886,41.1 524.886,50 C524.886,58.899 532.1,66.113 541,66.113 C549.9,66.113 557.115,58.899 557.115,50 C557.115,41.1 549.9,33.886 541,33.886 M565.378,62.101 C565.244,65.022 564.756,66.606 564.346,67.663 C563.803,69.06 563.154,70.057 562.106,71.106 C561.058,72.155 560.06,72.803 558.662,73.347 C557.607,73.757 556.021,74.244 553.102,74.378 C549.944,74.521 548.997,74.552 541,74.552 C533.003,74.552 532.056,74.521 528.898,74.378 C525.979,74.244 524.393,73.757 523.338,73.347 C521.94,72.803 520.942,72.155 519.894,71.106 C518.846,70.057 518.197,69.06 517.654,67.663 C517.244,66.606 516.755,65.022 516.623,62.101 C516.479,58.943 516.448,57.996 516.448,50 C516.448,42.003 516.479,41.056 516.623,37.899 C516.755,34.978 517.244,33.391 517.654,32.338 C518.197,30.938 518.846,29.942 519.894,28.894 C520.942,27.846 521.94,27.196 523.338,26.654 C524.393,26.244 525.979,25.756 528.898,25.623 C532.057,25.479 533.004,25.448 541,25.448 C548.997,25.448 549.943,25.479 553.102,25.623 C556.021,25.756 557.607,26.244 558.662,26.654 C560.06,27.196 561.058,27.846 562.106,28.894 C563.154,29.942 563.803,30.938 564.346,32.338 C564.756,33.391 565.244,34.978 565.378,37.899 C565.522,41.056 565.552,42.003 565.552,50 C565.552,57.996 565.522,58.943 565.378,62.101 M570.82,37.631 C570.674,34.438 570.167,32.258 569.425,30.349 C568.659,28.377 567.633,26.702 565.965,25.035 C564.297,23.368 562.623,22.342 560.652,21.575 C558.743,20.834 556.562,20.326 553.369,20.18 C550.169,20.033 549.148,20 541,20 C532.853,20 531.831,20.033 528.631,20.18 C525.438,20.326 523.257,20.834 521.349,21.575 C519.376,22.342 517.703,23.368 516.035,25.035 C514.368,26.702 513.342,28.377 512.574,30.349 C511.834,32.258 511.326,34.438 511.181,37.631 C511.035,40.831 511,41.851 511,50 C511,58.147 511.035,59.17 511.181,62.369 C511.326,65.562 511.834,67.743 512.574,69.651 C513.342,71.625 514.368,73.296 516.035,74.965 C517.703,76.634 519.376,77.658 521.349,78.425 C523.257,79.167 525.438,79.673 528.631,79.82 C531.831,79.965 532.853,80.001 541,80.001 C549.148,80.001 550.169,79.965 553.369,79.82 C556.562,79.673 558.743,79.167 560.652,78.425 C562.623,77.658 564.297,76.634 565.965,74.965 C567.633,73.296 568.659,71.625 569.425,69.651 C570.167,67.743 570.674,65.562 570.82,62.369 C570.966,59.17 571,58.147 571,50 C571,41.851 570.966,40.831 570.82,37.631"></path>
-                          </g>
-                        </g>
-                      </g>
-                    </svg>
-                  </div>
-                  <div style="padding-top: 8px;">
-                    <div style="color:#3897f0; font-family:Arial,sans-serif; font-size:14px; font-style:normal; font-weight:550; line-height:18px;">View this post on Instagram</div>
-                  </div>
-                  <div style="padding: 12.5% 0;"></div>
-                  <div style="display: flex; flex-direction: row; margin-bottom: 14px; align-items: center;">
-                    <div>
-                      <div style="background-color: #F4F4F4; border-radius: 50%; height: 12.5px; width: 12.5px; transform: translateX(0px) translateY(7px);"></div>
-                      <div style="background-color: #F4F4F4; height: 12.5px; transform: rotate(-45deg) translateX(3px) translateY(1px); width: 12.5px; flex-grow: 0; margin-right: 14px; margin-left: 2px;"></div>
-                      <div style="background-color: #F4F4F4; border-radius: 50%; height: 12.5px; width: 12.5px; transform: translateX(9px) translateY(-18px);"></div>
-                    </div>
-                    <div style="margin-left: 8px;">
-                      <div style="background-color: #F4F4F4; border-radius: 50%; flex-grow: 0; height: 20px; width: 20px;"></div>
-                      <div style="width: 0; height: 0; border-top: 2px solid transparent; border-left: 6px solid #f4f4f4; border-bottom: 2px solid transparent; transform: translateX(16px) translateY(-4px) rotate(30deg)"></div>
-                    </div>
-                    <div style="margin-left: auto;">
-                      <div style="width: 0px; border-top: 8px solid #F4F4F4; border-right: 8px solid transparent; transform: translateY(16px);"></div>
-                      <div style="background-color: #F4F4F4; flex-grow: 0; height: 12px; width: 16px; transform: translateY(-4px);"></div>
-                      <div style="width: 0; height: 0; border-top: 8px solid #F4F4F4; border-left: 8px solid transparent; transform: translateY(-4px) translateX(8px);"></div>
-                    </div>
-                  </div>
-                  <div style="display: flex; flex-direction: column; flex-grow: 1; justify-content: center; margin-bottom: 24px;">
-                    <div style="background-color: #F4F4F4; border-radius: 4px; flex-grow: 0; height: 14px; margin-bottom: 6px; width: 224px;"></div>
-                    <div style="background-color: #F4F4F4; border-radius: 4px; flex-grow: 0; height: 14px; width: 144px;"></div>
-                  </div>
-                </a>
-              </div>
-            </blockquote>
+        <div v-else-if="detectedPlatform === 'tiktok'" class="w-full">
+          <div class="tiktok-embed-container w-full">
+            <iframe
+              class="tiktok-iframe w-full"
+              :src="`https://www.tiktok.com/player/v1/${videoId}?music_info=1&description=1&autoplay=0&controls=1`"
+              allow="fullscreen"
+              frameborder="0"
+              style="aspect-ratio: 16/9; border-radius: 0.75rem;"
+            ></iframe>
           </div>
         </div>
       </div>
@@ -258,7 +166,11 @@
 </template>
 
 <script setup>
+import { RiCloseCircleLine, RiCloseCircleFill, RiArrowUpSLine, RiArrowDownSLine } from "@remixicon/vue";
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue';
+import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
+import draggable from 'vuedraggable';
 
 // Props and emits
 const props = defineProps({
@@ -270,13 +182,13 @@ const props = defineProps({
     type: Number,
     default: 4
   },
-  title: {
-    type: String,
-    default: 'Add Videos (Optional)'
+  showInSlideshow: {
+    type: Boolean,
+    default: true
   }
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'update:showInSlideshow']);
 
 // Utility functions
 const debounce = (fn, delay) => {
@@ -292,6 +204,58 @@ const videoUrl = ref('');
 const videoId = ref('');
 const detectedPlatform = ref('');
 const videoError = ref('');
+const hoveredVideo = ref(null);
+const isLoading = ref(false);
+const localShowInSlideshow = ref(props.showInSlideshow);
+const localVideos = ref([]);
+
+// Initialize local videos from props
+watch(() => props.modelValue, (newValue) => {
+  // Ensure each video has a unique ID for draggable
+  localVideos.value = newValue.map((video, index) => ({
+    ...video,
+    id: video.id || `video-${index}-${Date.now()}`
+  }));
+}, { immediate: true, deep: true });
+
+// Move video up or down in the list
+const moveVideo = (index, direction) => {
+  // Calculate new index
+  const newIndex = index + direction;
+  
+  // Check if new index is valid
+  if (newIndex < 0 || newIndex >= localVideos.value.length) {
+    return; // Can't move outside bounds
+  }
+  
+  // Create a copy of the array
+  const newVideos = [...localVideos.value];
+  
+  // Swap the videos
+  [newVideos[index], newVideos[newIndex]] = [newVideos[newIndex], newVideos[index]];
+  
+  // Update the array
+  localVideos.value = newVideos;
+  updateVideos(newVideos);
+  
+  // Refresh TikTok embeds
+  nextTick(() => {
+    refreshTikTokEmbeds();
+  });
+};
+
+// Handle sorting of videos
+const handleSort = ({ moved }) => {
+  if (moved) {
+    // Update the parent with the new order
+    updateVideos(localVideos.value);
+    
+    // Refresh TikTok embeds after sorting
+    nextTick(() => {
+      refreshTikTokEmbeds();
+    });
+  }
+};
 
 // Helper functions
 const getPlatformLabel = (platform) => {
@@ -328,28 +292,6 @@ const extractVideoInfo = (url) => {
     }
   }
   
-  // Instagram patterns
-  const instaPatterns = [
-    /instagram\.com\/p\/([a-zA-Z0-9_-]+)/i,                    // Standard post format
-    /instagram\.com\/reel\/([a-zA-Z0-9_-]+)/i,                 // Standard reel format
-    /instagram\.com\/[^\/]+\/reel\/([a-zA-Z0-9_-]+)/i,         // Username/reel format
-    /instagram\.com\/[^\/]+\/p\/([a-zA-Z0-9_-]+)/i,            // Username/post format
-  ];
-  
-  for (const pattern of instaPatterns) {
-    const match = url.match(pattern);
-    if (match && match[1]) {
-      return { platform: 'instagram', id: match[1] };
-    }
-  }
-  
-  // Check if it's a direct Instagram shortcode (if not detected as TikTok ID)
-  // Only if it has proper Instagram shortcode format
-  const instaShortcodePattern = /^[a-zA-Z0-9_-]{10,12}$/;
-  if (instaShortcodePattern.test(url)) {
-    return { platform: 'instagram', id: url };
-  }
-  
   return { platform: null, id: null };
 };
 
@@ -359,6 +301,15 @@ const clearVideoInput = () => {
   videoId.value = '';
   detectedPlatform.value = '';
   videoError.value = '';
+  isLoading.value = false;
+};
+
+// Check if video already exists in the collection
+const isDuplicateVideo = (platform, id) => {
+  return localVideos.value.some(video => 
+    video.platform === platform && 
+    (video.id === id || video.url === videoUrl.value)
+  );
 };
 
 const handleVideoInput = debounce(async () => {
@@ -368,11 +319,30 @@ const handleVideoInput = debounce(async () => {
   
   if (!videoUrl.value) return;
   
+  // Show loading spinner
+  isLoading.value = true;
+  
+  // Block Instagram URLs
+  if (videoUrl.value.includes('instagram.com')) {
+    videoError.value = 'Instagram videos are not supported. Please use YouTube or TikTok videos.';
+    isLoading.value = false;
+    return;
+  }
+  
   // Extract platform and ID from URL
   const { platform, id } = extractVideoInfo(videoUrl.value);
   
   if (!platform || !id) {
-    videoError.value = 'Could not detect a valid YouTube, TikTok, or Instagram video URL';
+    videoError.value = 'Could not detect a valid YouTube or TikTok video URL';
+    isLoading.value = false;
+    return;
+  }
+  
+  // Check if this video is already in the collection
+  if (isDuplicateVideo(platform, id)) {
+    videoError.value = 'This video has already been added';
+    isLoading.value = false;
+    clearVideoInput();
     return;
   }
   
@@ -384,8 +354,14 @@ const handleVideoInput = debounce(async () => {
         if (ytResponse.ok) {
           videoId.value = id;
           detectedPlatform.value = platform;
+          // Auto-add the video after a short delay for preview
+          setTimeout(() => {
+            addVideo();
+            isLoading.value = false;
+          }, 1000);
         } else {
           videoError.value = 'This YouTube video cannot be embedded or does not exist';
+          isLoading.value = false;
         }
         break;
         
@@ -393,17 +369,17 @@ const handleVideoInput = debounce(async () => {
         // TikTok doesn't have a simple API for checking, so we'll just set the ID
         videoId.value = id;
         detectedPlatform.value = platform;
-        break;
-        
-      case 'instagram':
-        // Instagram also doesn't have a simple public API to verify, so we'll just set the ID
-        videoId.value = id;
-        detectedPlatform.value = platform;
+        // Auto-add the video after a short delay for preview
+        setTimeout(() => {
+          addVideo();
+          isLoading.value = false;
+        }, 1000);
         break;
     }
   } catch (error) {
     videoError.value = 'Error validating video URL';
     console.error('Video validation error:', error);
+    isLoading.value = false;
   }
 }, 500);
 
@@ -416,12 +392,22 @@ const updateVideos = (newVideos) => {
 const addVideo = () => {
   if (!videoId.value || !detectedPlatform.value) return;
   
-  const newVideos = [...props.modelValue, {
+  // Double-check for duplicates before adding
+  if (isDuplicateVideo(detectedPlatform.value, videoId.value)) {
+    videoError.value = 'This video has already been added';
+    return;
+  }
+  
+  const newVideo = {
     id: videoId.value,
     platform: detectedPlatform.value,
-    url: videoUrl.value
-  }];
+    url: videoUrl.value,
+    // Add a unique ID for draggable
+    uniqueId: `video-${localVideos.value.length}-${Date.now()}`
+  };
   
+  const newVideos = [...localVideos.value, newVideo];
+  localVideos.value = newVideos;
   updateVideos(newVideos);
   
   // Clear the input
@@ -435,107 +421,80 @@ const addVideo = () => {
 
 // Remove video from the list
 const removeVideo = (index) => {
-  const newVideos = [...props.modelValue];
+  const newVideos = [...localVideos.value];
   newVideos.splice(index, 1);
+  localVideos.value = newVideos;
   updateVideos(newVideos);
 };
 
 // TikTok embed handling
 const loadTikTokScript = () => {
-  // Check if script is already loaded
-  if (document.querySelector('script[src="https://www.tiktok.com/embed.js"]')) {
-    // If script exists, try to re-run it by removing and re-adding it
-    try {
-      const oldScript = document.querySelector('script[src="https://www.tiktok.com/embed.js"]');
-      const parent = oldScript.parentNode;
-      parent.removeChild(oldScript);
-        
-      setTimeout(() => {
-        const newScript = document.createElement('script');
-        newScript.setAttribute('src', 'https://www.tiktok.com/embed.js');
-        newScript.setAttribute('async', true);
-        document.head.appendChild(newScript);
-      }, 100);
-    } catch (e) {
-      console.error('Error reloading TikTok script:', e);
-    }
-  } else {
-    // If script doesn't exist, load it
-    const script = document.createElement('script');
-    script.setAttribute('src', 'https://www.tiktok.com/embed.js');
-    script.setAttribute('async', true);
-    document.head.appendChild(script);
-  }
+  // No need to load the TikTok embed.js script when using the player/v1 endpoint
+  // We might still want this method for compatibility with any existing embeds
+  setupTikTokPlayerControls();
 };
 
-// Add function to load Instagram embed SDK
-const loadInstagramScript = () => {
-  // Check if script is already loaded
-  if (document.querySelector('script[src="https://www.instagram.com/embed.js"]')) {
-    // If script exists, try to re-run it
-    try {
-      if (window.instgrm) {
-        window.instgrm.Embeds.process();
+// Add TikTok player control functionality
+const setupTikTokPlayerControls = () => {
+  // Listen for messages from TikTok iframe players
+  if (!window._tiktokPlayerListenerSet) {
+    window.addEventListener('message', (event) => {
+      try {
+        const data = event.data;
+        // Check if this is a TikTok player message
+        if (data && data['x-tiktok-player']) {
+          console.log('TikTok player message:', data);
+          // Here you can handle player events if needed
+          // For example, if you want to track when videos start playing
+        }
+      } catch (e) {
+        console.error('Error processing TikTok player message:', e);
       }
-    } catch (e) {
-      console.error('Error processing Instagram embeds:', e);
-      
-      // If processing fails, reload the script
-      const oldScript = document.querySelector('script[src="https://www.instagram.com/embed.js"]');
-      const parent = oldScript.parentNode;
-      parent.removeChild(oldScript);
-      
-      setTimeout(() => {
-        const newScript = document.createElement('script');
-        newScript.setAttribute('src', 'https://www.instagram.com/embed.js');
-        newScript.setAttribute('async', true);
-        document.head.appendChild(newScript);
-      }, 100);
-    }
-  } else {
-    // If script doesn't exist, load it
-    const script = document.createElement('script');
-    script.setAttribute('src', 'https://www.instagram.com/embed.js');
-    script.setAttribute('async', true);
-    document.head.appendChild(script);
+    });
+    window._tiktokPlayerListenerSet = true;
   }
+  
+  // Helper method to control TikTok players (can be exposed if needed)
+  window.controlTikTokPlayer = (iframe, action, value = null) => {
+    if (!iframe) return;
+    
+    const message = {
+      type: action,
+      value: value,
+      'x-tiktok-player': true
+    };
+    
+    try {
+      iframe.contentWindow.postMessage(message, '*');
+    } catch (e) {
+      console.error('Error sending message to TikTok player:', e);
+    }
+  };
 };
 
-// When videos change, reinitialize embeds
+// Simplified TikTok embed refresh that doesn't rely on the embed.js script
 const refreshTikTokEmbeds = () => {
   nextTick(() => {
-    loadTikTokScript();
+    setupTikTokPlayerControls();
   });
 };
 
-// Instagram embeds refresh
-const refreshInstagramEmbeds = () => {
-  nextTick(() => {
-    loadInstagramScript();
-  });
+// Update the slideshow preference
+const updateShowInSlideshow = (value) => {
+  emit('update:showInSlideshow', value);
 };
 
-// Watch for changes in the videos array to refresh embeds
-watch(() => props.modelValue, () => {
-  refreshTikTokEmbeds();
-  refreshInstagramEmbeds();
-}, { deep: true });
-
-// Watch for changes in the videoId and platform values to refresh embeds for preview
-watch([videoId, detectedPlatform], ([newId, newPlatform]) => {
-  if (newId) {
-    if (newPlatform === 'tiktok') {
-      refreshTikTokEmbeds();
-    } else if (newPlatform === 'instagram') {
-      refreshInstagramEmbeds();
-    }
-  }
-});
+// Keep the local toggle in sync with props
+watch(() => props.showInSlideshow, (newValue) => {
+  localShowInSlideshow.value = newValue;
+}, { immediate: true });
 
 // Lifecycle
 onMounted(() => {
   // Initialize embed scripts
   loadTikTokScript();
-  loadInstagramScript();
+  
+  // Initialize toggle state from props
+  localShowInSlideshow.value = props.showInSlideshow;
 });
 </script>

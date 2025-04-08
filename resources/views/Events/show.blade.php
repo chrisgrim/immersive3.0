@@ -1,5 +1,11 @@
 @extends('layouts.master-container')
 
+@php
+    // Calculate total media count - include videos if gallery mode is enabled
+    $videoCount = ($event->video === 'gallery' && $event->videos && count($event->videos) > 0) ? count($event->videos) : 0;
+    $totalMediaCount = count($event->images) + $videoCount;
+@endphp
+
 @section('meta')
     
     <title>{{$event->name}} {{$event->tag_line ? '- ' . \Illuminate\Support\Str::limit($event->tag_line, 80) : '- ' . \Illuminate\Support\Str::limit($event->description, 80)}} </title>
@@ -107,7 +113,7 @@
                 };
 
                 // Photo Gallery Functions for Multiple Images
-                @if(count($event->images) > 1)
+                @if($totalMediaCount > 1)
                     window.addEventListener('showAllPhotos', function(e) {
                         const headerContent = document.getElementById('headerContent');
                         headerContent.innerHTML = `@include('events.show.photo-gallery')`;
@@ -180,7 +186,7 @@
         <div id="mainContent">
             <div id="bodyArea" class="show">
                 <div class="show-content">
-                    @if(count($event->images) === 0)
+                    @if($totalMediaCount === 0)
                         {{-- Title section spans full width for both layouts --}}
                         <div class="relative w-full m-auto px-10 mt-12 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
                             <div class="flex flex-col justify-center bg-white">
@@ -239,7 +245,7 @@
                                 </div>
                             </div>
                         </div>
-                    @elseif(count($event->images) === 1)
+                    @elseif($totalMediaCount === 1)
                         {{-- Single image layout --}}
                         
                         <div class="relative w-full m-auto px-10 mt-12 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">

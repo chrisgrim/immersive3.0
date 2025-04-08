@@ -110,7 +110,12 @@
                    class="text-red-500 text-1xl text-center mb-4">
                     Please add a poster image for your event
                 </p>
-                <Videos v-model="videos" :maxVideos="4" />
+                <Videos 
+                    v-model="videos" 
+                    :maxVideos="4" 
+                    :showInSlideshow="showVideosInSlideshow"
+                    @update:showInSlideshow="showVideosInSlideshow = $event"
+                />
             </div>
         </div>
     </main>
@@ -148,7 +153,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, inject } from 'vue';
+import { ref, computed, onMounted, inject, watch } from 'vue';
 import { RiImageCircleLine, RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import { Cropper } from 'vue-advanced-cropper';
 import 'vue-advanced-cropper/dist/style.css';
@@ -178,6 +183,7 @@ const images = ref([]);
 const hoveredImage = ref(null);
 const deletedImages = ref([]);
 const videos = ref([]);
+const showVideosInSlideshow = ref(true);
 const showMainImageError = ref(false);
 const mainFileInput = ref(null);
 
@@ -400,7 +406,7 @@ onMounted(() => {
         const mainImg = sortedImages.find(img => img.rank === 0);
         if (mainImg) {
             mainImage.value = {
-                url: `${imageUrl}${mainImg.url}`,
+                url: `${imageUrl}${mainImg.large_image_path}`,
                 id: mainImg.id,
                 isExisting: true
             };
@@ -410,19 +416,23 @@ onMounted(() => {
         images.value = sortedImages
             .filter(img => img.rank > 0)
             .map(img => ({
-                url: `${imageUrl}${img.url}`,
+                url: `${imageUrl}${img.large_image_path}`,
                 id: img.id,
                 rank: img.rank,
                 isExisting: true
             }));
     }
     
+    // Load existing videos from the event
     if (event?.videos?.length) {
         videos.value = event.videos.map(video => ({
-            id: video.id,
+            id: video.platform_video_id || video.id,
             platform: video.platform,
             url: video.url
         }));
+        
+        // Set slideshow value based on event.video field
+        showVideosInSlideshow.value = event.video === 'gallery';
     }
 
     setComponentReady(true);
@@ -490,11 +500,22 @@ defineExpose({
         formData.append('currentImages', JSON.stringify(currentImages));
         formData.append('deletedImages', JSON.stringify(deletedImages.value));
         
-        // Add videos as a JSON array
+        // Add videos as a JSON array with platform and id properties
         if (videos.value.length > 0) {
-            formData.append('videos', JSON.stringify(videos.value));
+            // Format the videos to match the database structure
+            const formattedVideos = videos.value.map((video, index) => ({
+                platform: video.platform,
+                id: video.id,
+                url: video.url,
+                rank: index // Set sequential rank based on order
+            }));
+            formData.append('videos', JSON.stringify(formattedVideos));
+            
+            // Add the slideshow preference (gallery = on, page = off)
+            formData.append('videoSlideshow', showVideosInSlideshow.value ? 'gallery' : 'page');
         } else {
             formData.append('videos', JSON.stringify([]));
+            formData.append('videoSlideshow', '');
         }
 
         return formData;

@@ -89,6 +89,7 @@ class AdminEventController extends Controller
             'category',
             'organizer',
             'eventreviews',
+            'videos',
             'staffpick'
         ]);
 

@@ -104,6 +104,9 @@ class StoreEventRequest extends FormRequest
 
             // Add this to your rules array
             'ageLimit.id' => 'sometimes|exists:age_limits,id',
+
+            // Add validation for videos
+            'videos' => 'nullable|json',
         ];
     }
 

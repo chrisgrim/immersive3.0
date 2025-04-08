@@ -9,7 +9,7 @@ class Video extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['videoable_id', 'videoable_type', 'url', 'platform', 'thumbnail_url', 'title', 'description', 'rank'];
+    protected $fillable = ['videoable_id', 'videoable_type', 'url', 'platform', 'platform_video_id', 'thumbnail_url', 'title', 'description', 'rank'];
 
     public function videoable()
     {

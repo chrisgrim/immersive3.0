@@ -5,7 +5,7 @@
                 type="checkbox" 
                 class="sr-only" 
                 :checked="modelValue" 
-                @change="$emit('update:modelValue', !modelValue)">
+                @change="toggleValue">
             <div :class="[
                     'relative rounded-full p-1 transition duration-300 ease-in-out',
                     modelValue ? 'bg-[#ff385c]' : 'bg-black',
@@ -55,7 +55,12 @@ const props = defineProps({
     }
 })
 
-defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue'])
+
+// Simple toggle function
+const toggleValue = () => {
+    emit('update:modelValue', !props.modelValue);
+}
 
 const textSizeClass = computed(() => ({
     'text-xs': props.textSize === 'xs',

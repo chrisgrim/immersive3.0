@@ -44,6 +44,7 @@ class HostEventController extends Controller
             'images',
             'category',
             'genres',
+            'videos',
             'nameChangeRequests' => function($query) {  // Add this relationship
                 $query->where('status', 'pending')->latest();
             }
@@ -185,16 +186,21 @@ class HostEventController extends Controller
                     
                     // Save new image with appropriate dimensions
                     if ((int)$rank === 0) {
-                        ImageHandler::saveImage($image, $event, 900, 1200, 'event-images');
+                        // For primary image (rank 0)
+                        ImageHandler::saveImage($image, $event, 900, 1200, 'event-images', 0);
                     } else {
-                        ImageHandler::saveImage($image, $event, 1200, 800, 'event-images');
-                    }
-                    
-                    // Update the rank after saving
-                    $newImage = $event->images()->latest()->first();
-                    if ($newImage) {
-                        $newImage->rank = $rank;
-                        $newImage->save();
+                        // For secondary images, don't update the model's largeImagePath
+                        // Pass the image to a temporary clone of the model to avoid updating main model's fields
+                        $tempModel = clone $event;
+                        $tempModel->_isClone = true; // Mark as clone to prevent updating main image paths
+                        ImageHandler::saveImage($image, $tempModel, 1200, 800, 'event-images', $rank);
+                        
+                        // Update the rank after saving
+                        $newImage = $event->images()->latest()->first();
+                        if ($newImage) {
+                            $newImage->rank = $rank;
+                            $newImage->save();
+                        }
                     }
                 }
             }
@@ -217,10 +223,30 @@ class HostEventController extends Controller
             $event->save();
         }
 
-        // Store just the YouTube ID
-        if ($request->has('video')) {
-            $event->video = $request->video ?: null;
-            $event->save();
+        // Handle videos
+        if ($request->has('videos')) {
+            $videosData = json_decode($request->input('videos'), true);
+            
+            // Delete existing videos
+            $event->videos()->delete();
+            
+            // Create new videos with the provided data
+            foreach ($videosData as $videoData) {
+                $event->videos()->create([
+                    'platform' => $videoData['platform'],
+                    'url' => $videoData['url'],
+                    'rank' => $videoData['rank'] ?? 0,
+                    // If 'id' in videoData is the platform's video ID (e.g., YouTube ID)
+                    // it should not be confused with the database ID
+                    'platform_video_id' => $videoData['id'] ?? null
+                ]);
+            }
+            
+            // Handle video slideshow preference
+            if ($request->has('videoSlideshow')) {
+                $event->video = $request->videoSlideshow ?: null;
+                $event->save();
+            }
         }
 
         // Handle genres
@@ -258,6 +284,7 @@ class HostEventController extends Controller
                 'interactive_level',
                 'category',
                 'genres',
+                'videos',
                 'age_limits',
                 'nameChangeRequests' => function($query) {
                     $query->where('status', 'pending')->latest();

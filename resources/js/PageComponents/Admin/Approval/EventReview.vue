@@ -79,24 +79,44 @@
                         </div>
                     </div>
 
-                    <!-- After Images Section -->
-                    <div v-if="props.event?.youtube_url" class="p-8 shadow-custom-1 rounded-3xl">
-                        <h3 class="text-xl font-semibold mb-4">Video</h3>
-                        <div class="relative w-full" style="padding-top: 56.25%"> <!-- 16:9 Aspect Ratio -->
-                            <iframe
-                                :src="getYoutubeEmbedUrl(props.event.youtube_url)"
-                                class="absolute top-0 left-0 w-full h-full rounded-xl"
-                                frameborder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowfullscreen
-                            ></iframe>
-                        </div>
-                    </div>
-
                     <!-- Video Section -->
-                    <div v-if="props.event?.video" class="p-8 shadow-custom-1 rounded-3xl">
-                        <h3 class="text-xl font-semibold mb-4">Video</h3>
-                        <div class="relative w-full aspect-video">
+                    <div v-if="props.event?.videos?.length > 0 || (props.event?.video && props.event?.video !== 'gallery' && props.event?.video !== 'page')" class="p-8 shadow-custom-1 rounded-3xl">
+                        <h3 class="text-xl font-semibold mb-4">Videos</h3>
+                        
+                        <!-- New multiple videos implementation -->
+                        <div v-if="props.event?.videos?.length > 0" class="space-y-6">
+                            <div 
+                                v-for="(video, index) in props.event.videos" 
+                                :key="index" 
+                                class="relative w-full"
+                            >
+                                <!-- YouTube Embed -->
+                                <div v-if="video.platform === 'youtube'" class="relative w-full aspect-video">
+                                    <iframe
+                                        :src="`https://www.youtube.com/embed/${video.platform_video_id}`"
+                                        class="absolute top-0 left-0 w-full h-full rounded-xl"
+                                        frameborder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowfullscreen
+                                    ></iframe>
+                                </div>
+                                
+                                <!-- TikTok Embed -->
+                                <div v-else-if="video.platform === 'tiktok'" class="relative w-full">
+                                    <div class="w-full" style="aspect-ratio: 16/9;">
+                                        <iframe
+                                            class="w-full h-full rounded-xl"
+                                            :src="`https://www.tiktok.com/player/v1/${video.platform_video_id}?music_info=1&description=1&autoplay=0&controls=1`"
+                                            allow="fullscreen"
+                                            frameborder="0"
+                                        ></iframe>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Legacy single YouTube video support -->
+                        <div v-else-if="props.event?.video && props.event?.video !== 'gallery' && props.event?.video !== 'page'" class="relative w-full aspect-video">
                             <iframe
                                 :src="`https://www.youtube.com/embed/${props.event.video}`"
                                 class="absolute top-0 left-0 w-full h-full rounded-xl"

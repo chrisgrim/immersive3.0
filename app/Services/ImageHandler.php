@@ -7,6 +7,7 @@ use Illuminate\Support\Str;
 use Intervention\Image\Laravel\Facades\Image;
 use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\Encoders\JpegEncoder;
+use Illuminate\Support\Facades\Log;
 
 
 
@@ -52,19 +53,37 @@ class ImageHandler
         $encodedThumbWebp = $thumbWebp->encode(new WebpEncoder(quality: 75));
         Storage::disk('digitalocean')->put("/public/$directory/$fileName-thumb.webp", (string) $encodedThumbWebp);
 
+        // Always create the image record in the images table
         $model->images()->create([
             'large_image_path' => "$directory/$fileName.webp",
             'thumb_image_path' => "$directory/{$fileName}-thumb.webp",
             'rank' => $rank
         ]);
 
+        // Check if model has image columns and is a primary image (rank 0)
         $table = $model->getTable();
         $hasImageColumns = \Schema::hasColumns($table, ['largeImagePath', 'thumbImagePath']);
 
-        if ($hasImageColumns) {
+        // Only update the main event image fields if this is the primary image (rank 0)
+        // AND the model passed in is not a temporary clone (check using object hash to be sure)
+        if ($hasImageColumns && $rank === 0 && !isset($model->_isClone)) {
+            Log::info("Updating primary image for model: " . get_class($model) . " ID: " . ($model->id ?? 'new') . " with rank: $rank", [
+                'directory' => $directory,
+                'fileName' => $fileName,
+                'modelTable' => $table,
+                'hasImageColumns' => $hasImageColumns
+            ]);
             $model->largeImagePath = "$directory/$fileName.webp";
             $model->thumbImagePath = "$directory/{$fileName}-thumb.webp";
             $model->save();
+        } else {
+            Log::info("Skipping primary image update - Conditions not met", [
+                'modelType' => get_class($model),
+                'modelId' => $model->id ?? 'new',
+                'rank' => $rank,
+                'hasImageColumns' => $hasImageColumns,
+                'isClone' => isset($model->_isClone) ? 'yes' : 'no'
+            ]);
         }
     }
 

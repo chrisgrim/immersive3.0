@@ -33,12 +33,32 @@
         </div>
     </div>
     
-    @if($event->video)
+    @if($event->video === 'page' && $event->videos && count($event->videos) > 0)
         <div class="w-full p-8 md:py-16 md:px-0">
-            <vue-video-player
-                alt="{{$event->name . ' Immersive Event'}}"
-                src="{{$event->video}}"
-            />
+            @foreach($event->videos as $video)
+                <div class="mb-8">
+                    @if($video->platform === 'youtube')
+                        <div class="relative pt-[56.25%] w-full overflow-hidden rounded-xl">
+                            <iframe
+                                class="absolute top-0 left-0 w-full h-full"
+                                src="https://www.youtube.com/embed/{{ $video->platform_video_id }}"
+                                frameborder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowfullscreen
+                            ></iframe>
+                        </div>
+                    @elseif($video->platform === 'tiktok')
+                        <div class="relative pt-[56.25%] w-full overflow-hidden rounded-xl">
+                            <iframe 
+                                class="absolute top-0 left-0 w-full h-full"
+                                src="https://www.tiktok.com/player/v1/{{ $video->platform_video_id }}?music_info=1&description=1&autoplay=0&controls=1"
+                                allow="fullscreen" 
+                                frameborder="0"
+                            ></iframe>
+                        </div>
+                    @endif
+                </div>
+            @endforeach
         </div>
     @endif
 </section>

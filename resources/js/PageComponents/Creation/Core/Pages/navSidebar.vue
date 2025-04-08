@@ -254,6 +254,7 @@
                         </picture>
                         <div class="flex-1 min-w-0 justify-center flex flex-col">
                             <p class="text-neutral-600">{{ imageCount }} images</p>
+                            <p class="text-neutral-600">{{ videoCount }} videos</p>
                         </div>
                     </div>
                 </button>
@@ -447,6 +448,10 @@ const ticketPriceRange = computed(() => {
 
 const imageCount = computed(() => {
     return props.event.images?.length || 0;
+});
+
+const videoCount = computed(() => {
+    return props.event.videos?.length || 0;
 });
 
 const categoryName = computed(() => {
