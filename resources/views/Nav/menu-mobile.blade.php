@@ -54,7 +54,7 @@
             </a>
         @endif
 
-        <form method="POST" action="{{ route('logout') }}" class="mt-8">
+        <form method="POST" action="{{ route('logout') }}" class="mt-8" onsubmit="window.location.reload(true); return true;">
             @csrf
             <button type="submit" class="w-full text-left text-2xl text-red-500 py-4">
                 Sign Out

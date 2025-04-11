@@ -86,7 +86,14 @@
                             {{ event.name }}
                         </td>
                         <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto">
-                            {{ event.organizer?.name }}
+                            <a 
+                                v-if="event.organizer?.slug" 
+                                :href="`/organizers/${event.organizer.slug}`"
+                                class="hover:underline"
+                            >
+                                {{ event.organizer?.name }}
+                            </a>
+                            <span v-else>{{ event.organizer?.name }}</span>
                         </td>
                         <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-ne">
                             {{ formatLocation(event) }}
@@ -190,7 +197,7 @@
                     </a>
                     <a 
                         :href="`/events/${selectedEvent?.slug}`"
-                        class="block w-full text-center px-4 py-2 bg-ne0 text-white rounded-lg hover:bg-gray-600"
+                        class="block w-full text-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-600"
                     >
                         View Event
                     </a>

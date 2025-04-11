@@ -62,6 +62,21 @@
 
 @endif
 
+<div class="w-full bg-black mb-16">
+    <div class="max-w-screen-5xl relative h-full m-auto px-10 lg-air:px-16 2xl-air:px-32 flex">
+        <div style="width: 50%; display: flex; flex-direction: column; justify-content: center;">
+            <h2 style="font-size: 3rem; color: white; margin-bottom: 2rem; text-align: left;">Discover Immersive Experiences</h2>
+            <p style="font-size: 1.6rem; color: #f0f0f0; margin-bottom: 3rem; text-align: left; line-height: 1.6;">Explore curated immersive events that challenge boundaries and create unforgettable moments. From interactive theatre to cutting-edge mixed reality.</p>
+            <div style="text-align: left;">
+                <a href="/index/search?searchType=null&page=1">
+                    <button style="background-color: transparent; color: white; border: 2px solid #f7653b; padding: 1rem 2rem; font-size: 1.2rem; border-radius: 50px; cursor: pointer; font-weight: 600; transition: all 0.3s ease;">EXPLORE NOW</button>
+                </a>
+            </div>
+        </div>
+        <div style="width: 50%; background-image: url('{{ asset('storage/website-files/header-image.jpg') }}'); background-size: cover; background-position: center; min-height: 600px;"></div>
+    </div>
+</div>
+
 <div>
     @if($docks && count($docks))
         @foreach($docks as $dock)

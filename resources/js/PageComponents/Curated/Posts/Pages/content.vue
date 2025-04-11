@@ -32,7 +32,7 @@
                                     <!-- Add Button (Top) -->
                                     <button 
                                         @click="showAddButtonOptionsForCard(card, 'top')"
-                                        class="absolute left-1/2 transform -translate-x-1/2 -top-6 bg-white rounded-full border shadow-sm p-2 hover:shadow-md z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                        class="absolute left-1/2 transform -translate-x-1/2 -translate-y-1/2 top-0 bg-white rounded-full border shadow-sm p-2 hover:shadow-md z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                                     >
                                         <component :is="RiAddLine" class="w-6 h-6" />
                                     </button>
@@ -40,7 +40,7 @@
                                     <!-- Add Options Menu (Top) -->
                                     <div 
                                         v-if="activeAddButton === `${card.id}-top`"
-                                        class="absolute left-1/2 transform -translate-x-1/2 mt-2 bg-white w-96 rounded-2xl p-4 border shadow-lg z-20"
+                                        class="absolute left-1/2 transform -translate-x-1/2 -translate-y-full top-0 bg-white w-96 rounded-2xl p-4 border shadow-lg z-20"
                                     >
                                         <button 
                                             v-for="(label, type) in blockTypes"
@@ -62,7 +62,7 @@
                                     <!-- Add Button (Bottom) -->
                                     <button 
                                         @click="showAddButtonOptionsForCard(card, 'bottom')"
-                                        class="absolute left-1/2 transform -translate-x-1/2 -bottom-6 bg-white rounded-full border shadow-sm p-2 hover:shadow-md z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                        class="absolute left-1/2 transform -translate-x-1/2 translate-y-1/2 bottom-0 bg-white rounded-full border shadow-sm p-2 hover:shadow-md z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                                     >
                                         <component :is="RiAddLine" class="w-6 h-6" />
                                     </button>
@@ -70,7 +70,7 @@
                                     <!-- Add Options Menu (Bottom) -->
                                     <div 
                                         v-if="activeAddButton === `${card.id}-bottom`"
-                                        class="absolute left-1/2 transform -translate-x-1/2 bottom-full mb-2 bg-white w-96 rounded-2xl p-4 border shadow-lg z-20"
+                                        class="absolute left-1/2 transform -translate-x-1/2 translate-y-full bottom-0 bg-white w-96 rounded-2xl p-4 border shadow-lg z-20"
                                     >
                                         <button 
                                             v-for="(label, type) in blockTypes"
@@ -276,11 +276,6 @@ defineExpose({
 .card-wrapper {
     position: relative;
     padding: 1rem 0;
-    transition: padding 0.2s ease;
-}
-
-.card-wrapper:hover {
-    padding: 2rem 0;
 }
 
 /* Add smooth transitions for all interactive elements */

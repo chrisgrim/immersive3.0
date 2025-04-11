@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import Optima font from local file */
+@font-face {
+  font-family: 'Optima';
+  src: url('/storage/fonts/optima.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   
   p {
@@ -16,7 +25,7 @@
   h1 {
     font-size: 4.6rem; /* 46px */
     line-height: 4.6rem; /* 46px */
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Optima', sans-serif;
     margin: 0;
     color: #484848; /* Replace with your $font-color value */
     transform: scale(1, 1.05);
@@ -25,7 +34,7 @@
   h2 {
     font-size: 3.1rem; /* 31px */
     line-height: 3.1rem; /* 31px */
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Optima', sans-serif;
     margin: 0;
     color: #484848; /* Replace with your $font-color value */
     transform: scale(1, 1.05);
@@ -34,7 +43,7 @@
   h3 {
     font-size: 2.4rem; /* 24px */
     line-height: 2.4rem; /* 24px */
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Optima', sans-serif;
     margin: 0;
     color: #484848; /* Replace with your $font-color value */
     font-weight: 500;
@@ -43,7 +52,7 @@
   h4 {
     font-size: 2.0rem; /* 20px */
     line-height: 2.0rem; /* 20px */
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Optima', sans-serif;
     margin: 0;
     color: #484848; /* Replace with your $font-color value */
     font-weight: 500;

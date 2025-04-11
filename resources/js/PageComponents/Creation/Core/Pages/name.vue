@@ -11,8 +11,8 @@
                         :class="[
                             'text-4xl font-normal border rounded-2xl p-4 w-full mt-8 transition-all duration-200',
                             {
-                                'border-red-500 focus:border-red-500 focus:shadow-focus-error': showNameError,
-                                'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !showNameError,
+                                'border-red-500 focus:border-red-500 focus:shadow-focus-error': showNameError || errors?.name,
+                                'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !showNameError && !errors?.name,
                                 'bg-neutral-100 text-neutral-500 cursor-not-allowed': hasPendingNameChange
                             }
                         ]"
@@ -43,6 +43,12 @@
                     <p v-if="showNameRequiredError" 
                        class="text-red-500 text-1xl mt-[-2.5rem] mb-8 px-4">
                         Event name is required
+                    </p>
+                    
+                    <!-- Server Validation Errors -->
+                    <p v-if="errors?.name && !showNameMaxLengthError && !showNameRequiredError" 
+                       class="text-red-500 text-1xl mb-4">
+                        {{ errors.name[0] }}
                     </p>
 
                     <!-- Tag Line Section -->
@@ -214,6 +220,11 @@ const handleNameInput = () => {
     if (event.name?.length > 100) {
         event.name = event.name.slice(0, 100);
     }
+    
+    // Clear server validation errors when user edits
+    if (errors.value?.name) {
+        errors.value = {};
+    }
 };
 
 const handleTagLineInput = () => {
@@ -279,8 +290,21 @@ const confirmNameChange = async () => {
         event.name = originalName.value;
         
     } catch (error) {
-        console.error('Error submitting name change:', error);
-        alert('Failed to submit name change request');
+        showNameChangeModal.value = false;
+        
+        // Handle validation errors (422 status)
+        if (error.response?.status === 422) {
+            // Extract error message from response
+            const errorData = error.response.data;
+            errors.value = {
+                name: errorData.errors?.requested_name || 
+                      (errorData.message ? [errorData.message] : ['Unable to submit name change request'])
+            };
+        } else {
+            // For other errors, alert and reset name
+            alert('Failed to submit name change request');
+            event.name = originalName.value;
+        }
     } finally {
         isSubmitting.value = false;
     }

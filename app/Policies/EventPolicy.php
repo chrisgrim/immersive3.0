@@ -15,7 +15,19 @@ class EventPolicy
      */
     public function host(User $user): bool
     {
-        return $user->teams()->exists() || $user->isModerator();
+        // If user is a moderator, they can always access hosting features
+        if ($user->isModerator()) {
+            return true;
+        }
+
+        // If user doesn't belong to any teams, redirect to getting-started
+        if (!$user->teams()->exists()) {
+            // We can't redirect directly from a policy, so we'll throw a custom exception
+            // that will be caught by the exception handler
+            throw new \App\Exceptions\NoTeamsException();
+        }
+
+        return true;
     }
 
     /**

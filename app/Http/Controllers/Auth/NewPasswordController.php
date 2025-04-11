@@ -22,7 +22,7 @@ class NewPasswordController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        $request->validate([
+        ['token' => $token, 'email' => $email, 'password' => $password] = $request->validate([
             'token' => ['required'],
             'email' => ['required', 'email'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
@@ -33,9 +33,9 @@ class NewPasswordController extends Controller
         // database. Otherwise we will parse the error and return the response.
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
-            function ($user) use ($request) {
+            function ($user) use ($password) {
                 $user->forceFill([
-                    'password' => Hash::make($request->password),
+                    'password' => Hash::make($password),
                     'remember_token' => Str::random(60),
                 ])->save();
 

@@ -42,7 +42,12 @@
                     </svg>
                 </div>
             </a>
-            <a :href="`/events/${event.slug}`" class="ml-4 text-3xl md:text-5xl font-semibold truncate hover:underline">{{ event.name || 'No name set' }}</a>
+            <template v-if="['p', 'e'].includes(event.status)">
+                <a :href="`/events/${event.slug}`" class="ml-4 text-3xl md:text-5xl font-semibold truncate hover:underline">{{ event.name || 'No name set' }}</a>
+            </template>
+            <template v-else>
+                <span class="ml-4 text-3xl md:text-5xl font-semibold truncate">{{ event.name || 'No name set' }}</span>
+            </template>
         </div>
 
         <!-- Scrollable Content -->

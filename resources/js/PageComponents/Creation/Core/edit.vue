@@ -298,10 +298,21 @@ const saveChanges = async () => {
         if (!submitData) return;
         
         isSubmitting.value = true;
+        
         const response = await axios.post(`/api/hosting/event/${event.slug}`, submitData);
         
         if (response.data.event) {
             Object.assign(event, response.data.event);
+            
+            // For Images component, refresh state after submission
+            if (currentStep.value === 'Images' && currentComponentRef.value) {
+                if (typeof currentComponentRef.value.updateFromServer === 'function') {
+                    currentComponentRef.value.updateFromServer(response.data.event);
+                } else if (typeof currentComponentRef.value.resetDeletedImages === 'function') {
+                    currentComponentRef.value.resetDeletedImages();
+                }
+            }
+            
             showSuccessModal.value = true;
             setTimeout(() => {
                 showSuccessModal.value = false;

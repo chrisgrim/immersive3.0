@@ -11,6 +11,7 @@ use App\Http\Controllers\Creation\HostController;
 use App\Http\Controllers\Creation\HostEventController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Curated\CommunityController;
+use App\Http\Middleware\CheckHostAccess;
 
 /*
 |--------------------------------------------------------------------------

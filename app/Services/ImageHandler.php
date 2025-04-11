@@ -15,6 +15,10 @@ class ImageHandler
 {
     public static function saveImage($image, $model, $width, $height, $type, $rank = 0)
     {
+        // Always ensure rank is an integer
+        $rank = (int)$rank;
+        
+        // Validate image
         $mimeType = $image->getMimeType();
         if (strpos($mimeType, 'image/') !== 0) {
             throw new \Exception('The file is not an image.');
@@ -33,6 +37,7 @@ class ImageHandler
         $imagePath = $image->getPathName();
         $image = Image::read($imagePath);
 
+        // Process and save image in both jpg and webp formats
         $jpg = clone $image;
         $jpg->cover($width, $height);
         $encodedJpg = $jpg->encode(new JpegEncoder(quality: 75));
@@ -53,38 +58,24 @@ class ImageHandler
         $encodedThumbWebp = $thumbWebp->encode(new WebpEncoder(quality: 75));
         Storage::disk('digitalocean')->put("/public/$directory/$fileName-thumb.webp", (string) $encodedThumbWebp);
 
-        // Always create the image record in the images table
-        $model->images()->create([
+        // Create the image with specified rank
+        $createdImage = $model->images()->create([
             'large_image_path' => "$directory/$fileName.webp",
             'thumb_image_path' => "$directory/{$fileName}-thumb.webp",
             'rank' => $rank
         ]);
-
-        // Check if model has image columns and is a primary image (rank 0)
+        
+        // Only update the main event image fields if this is the primary image (rank 0)
         $table = $model->getTable();
         $hasImageColumns = \Schema::hasColumns($table, ['largeImagePath', 'thumbImagePath']);
-
-        // Only update the main event image fields if this is the primary image (rank 0)
-        // AND the model passed in is not a temporary clone (check using object hash to be sure)
-        if ($hasImageColumns && $rank === 0 && !isset($model->_isClone)) {
-            Log::info("Updating primary image for model: " . get_class($model) . " ID: " . ($model->id ?? 'new') . " with rank: $rank", [
-                'directory' => $directory,
-                'fileName' => $fileName,
-                'modelTable' => $table,
-                'hasImageColumns' => $hasImageColumns
-            ]);
+        
+        if ($hasImageColumns && $rank === 0) {
             $model->largeImagePath = "$directory/$fileName.webp";
             $model->thumbImagePath = "$directory/{$fileName}-thumb.webp";
             $model->save();
-        } else {
-            Log::info("Skipping primary image update - Conditions not met", [
-                'modelType' => get_class($model),
-                'modelId' => $model->id ?? 'new',
-                'rank' => $rank,
-                'hasImageColumns' => $hasImageColumns,
-                'isClone' => isset($model->_isClone) ? 'yes' : 'no'
-            ]);
         }
+        
+        return $createdImage;
     }
 
     public static function deleteImage($image)
@@ -255,45 +246,109 @@ class ImageHandler
 
     public static function moveImagesForNewSlug($model, $oldSlug, $newSlug, $type)
     {
+
         if ($model->images()->exists()) {
-            foreach ($model->images as $image) {
+            foreach ($model->images as $index => $image) {
+
                 $currentDirectory = dirname($image->large_image_path);
                 $newDirectory = str_replace($oldSlug, $newSlug, $currentDirectory);
                 
                 $modelId = uniqid();
                 $newFileName = "$newSlug-$modelId";
                 
-                Storage::disk('digitalocean')->copy(
-                    "/public/$image->large_image_path",
-                    "/public/$newDirectory/$newFileName.webp"
-                );
-                Storage::disk('digitalocean')->copy(
-                    "/public/" . preg_replace('/\.webp$/', '.jpg', $image->large_image_path),
-                    "/public/$newDirectory/$newFileName.jpg"
-                );
-                Storage::disk('digitalocean')->copy(
-                    "/public/$image->thumb_image_path",
-                    "/public/$newDirectory/$newFileName-thumb.webp"
-                );
-                Storage::disk('digitalocean')->copy(
-                    "/public/" . preg_replace('/\.webp$/', '.jpg', $image->thumb_image_path),
-                    "/public/$newDirectory/$newFileName-thumb.jpg"
-                );
+                try {
+                    // Check if source files exist
+                    $largeWebpExists = Storage::disk('digitalocean')->exists("/public/$image->large_image_path");
+                    $largeJpgPath = preg_replace('/\.webp$/', '.jpg', $image->large_image_path);
+                    $largeJpgExists = Storage::disk('digitalocean')->exists("/public/$largeJpgPath");
+                    $thumbWebpExists = Storage::disk('digitalocean')->exists("/public/$image->thumb_image_path");
+                    $thumbJpgPath = preg_replace('/\.webp$/', '.jpg', $image->thumb_image_path);
+                    $thumbJpgExists = Storage::disk('digitalocean')->exists("/public/$thumbJpgPath");
 
-                $image->update([
-                    'large_image_path' => "$newDirectory/$newFileName.webp",
-                    'thumb_image_path' => "$newDirectory/$newFileName-thumb.webp",
-                ]);
+                    // Log a warning if any source files are missing
+                    if (!$largeWebpExists || !$largeJpgExists || !$thumbWebpExists || !$thumbJpgExists) {
+                        Log::warning("Some source files missing for image {$image->id}", [
+                            'largeWebp' => $largeWebpExists,
+                            'largeJpg' => $largeJpgExists, 
+                            'thumbWebp' => $thumbWebpExists,
+                            'thumbJpg' => $thumbJpgExists
+                        ]);
+                    }
 
-                $table = $model->getTable();
-                $hasImageColumns = \Schema::hasColumns($table, ['largeImagePath', 'thumbImagePath']);
-                if ($hasImageColumns) {
-                    $model->largeImagePath = "$newDirectory/$newFileName.webp";
-                    $model->thumbImagePath = "$newDirectory/$newFileName-thumb.webp";
-                    $model->save();
+                    // Ensure destination directory exists
+                    if (!Storage::disk('digitalocean')->exists("/public/$newDirectory")) {
+                        Storage::disk('digitalocean')->makeDirectory("/public/$newDirectory");
+                    }
+                    
+                    // Copy files
+                    if ($largeWebpExists) {
+                        Storage::disk('digitalocean')->copy(
+                            "/public/$image->large_image_path",
+                            "/public/$newDirectory/$newFileName.webp"
+                        );
+                    }
+                    
+                    if ($largeJpgExists) {
+                        Storage::disk('digitalocean')->copy(
+                            "/public/$largeJpgPath",
+                            "/public/$newDirectory/$newFileName.jpg"
+                        );
+                    }
+                    
+                    if ($thumbWebpExists) {
+                        Storage::disk('digitalocean')->copy(
+                            "/public/$image->thumb_image_path",
+                            "/public/$newDirectory/$newFileName-thumb.webp"
+                        );
+                    }
+                    
+                    if ($thumbJpgExists) {
+                        Storage::disk('digitalocean')->copy(
+                            "/public/$thumbJpgPath",
+                            "/public/$newDirectory/$newFileName-thumb.jpg"
+                        );
+                    }
+
+                    // Update image record
+                    $oldLargePath = $image->large_image_path;
+                    
+                    $image->update([
+                        'large_image_path' => "$newDirectory/$newFileName.webp",
+                        'thumb_image_path' => "$newDirectory/$newFileName-thumb.webp",
+                    ]);
+                    
+                    Log::info("Image {$image->id} updated: {$oldLargePath} -> {$newDirectory}/{$newFileName}.webp");
+
+                    // Update model image columns if needed
+                    $table = $model->getTable();
+                    $hasImageColumns = \Schema::hasColumns($table, ['largeImagePath', 'thumbImagePath']);
+                    if ($hasImageColumns && $image->rank === 0) {
+                        $model->largeImagePath = "$newDirectory/$newFileName.webp";
+                        $model->thumbImagePath = "$newDirectory/$newFileName-thumb.webp";
+                        $model->save();
+                    }
+                } catch (\Exception $e) {
+                    Log::error("Error processing image {$image->id}: {$e->getMessage()}");
                 }
-
-                Storage::disk('digitalocean')->deleteDirectory("/public/$currentDirectory");
+            }
+            
+            // Only delete original directories after all images are processed
+            $processedDirectories = [];
+            
+            foreach ($model->images as $image) {
+                $originalDirectory = str_replace($newSlug, $oldSlug, dirname($image->large_image_path));
+                if (!in_array($originalDirectory, $processedDirectories)) {
+                    $processedDirectories[] = $originalDirectory;
+                    
+                    try {
+                        if (Storage::disk('digitalocean')->exists("/public/$originalDirectory")) {
+                            Storage::disk('digitalocean')->deleteDirectory("/public/$originalDirectory");
+                            Log::info("Deleted original directory: /public/$originalDirectory");
+                        }
+                    } catch (\Exception $e) {
+                        Log::error("Error deleting directory /public/$originalDirectory: {$e->getMessage()}");
+                    }
+                }
             }
         }
     }

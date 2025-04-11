@@ -1,10 +1,10 @@
 <template>
 	<div class="flex justify-center md:justify-end">
-		<div class="px-10 md:px-32 w-full md:ml-[-2rem] mt-20">
+		<div class="px-8 lg-air:px-16 2xl-air:px-32 w-full max-w-screen-5xl mt-20">
 			<!-- Header Section -->
 			<div class="w-full flex flex-col">
 				<!-- Organizer Name and Create Button -->
-				<div class="w-full flex items-center justify-between mb-20 md:p-8 md:p-0 rounded-2xl">
+				<div class="w-full flex items-center justify-between mb-20 md:py-8 md:p-0 rounded-2xl">
 					<div class="flex flex-col">
 						<a :href="`/organizers/${organizer.slug}`" class="group flex flex-row items-center gap-8">
 							<div class="flex gap-4">
@@ -624,15 +624,18 @@ const duplicateEvent = async (event) => {
 		return;
 	}
 	
-	try {
-		const response = await axios.post(`/api/events/${event.slug}/duplicate`);
-		window.location.href = `/hosting/event/${response.data.event.slug}/edit`;
-	} catch (error) {
-		if (error.response?.status === 422) {
-			alert(error.response.data.message);
-		} else {
-			console.error('Error duplicating event:', error);
-			alert('Failed to duplicate event. Please try again.');
+	if (confirm('Are you sure you want to duplicate this event?')) {
+		try {
+			const response = await axios.post(`/api/events/${event.slug}/duplicate`);
+			closeModal(); // Close the modal first
+			window.location.href = `/hosting/event/${response.data.event.slug}/edit`;
+		} catch (error) {
+			if (error.response?.status === 422) {
+				alert(error.response.data.message);
+			} else {
+				console.error('Error duplicating event:', error);
+				alert('Failed to duplicate event. Please try again.');
+			}
 		}
 	}
 };

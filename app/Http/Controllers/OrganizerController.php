@@ -104,7 +104,7 @@ class OrganizerController extends Controller
     public function requestNameChange(Request $request, Organizer $organizer)
     {
         try {
-            $validator = \Validator::make($request->all(), [
+            ['requested_name' => $requestedName, 'current_name' => $currentName] = $request->validate([
                 'requested_name' => [
                     'required',
                     'string',
@@ -114,17 +114,10 @@ class OrganizerController extends Controller
                 'current_name' => 'required|string'
             ]);
 
-            if ($validator->fails()) {
-                return response()->json([
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
             $nameChangeService = new NameChangeRequestService();
             $result = $nameChangeService->handleNameChange(
                 $organizer,
-                $request->requested_name,
+                $requestedName,
                 'User requested name change'
             );
 

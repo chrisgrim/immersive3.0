@@ -443,7 +443,6 @@ const setupTikTokPlayerControls = () => {
         const data = event.data;
         // Check if this is a TikTok player message
         if (data && data['x-tiktok-player']) {
-          console.log('TikTok player message:', data);
           // Here you can handle player events if needed
           // For example, if you want to track when videos start playing
         }

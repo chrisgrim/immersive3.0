@@ -1,6 +1,6 @@
 <template>
-    <div class=" bg-white flex items-center justify-center">
-        <div class="w-full md:w-[40rem] border border-neutral-200 rounded-3xl p-14 space-y-6">
+    <div class="w-full bg-white flex md:items-center justify-center mt-28 md:mt-0">
+        <div class="w-full md:w-[40rem] md:border border-neutral-200 rounded-3xl p-14 space-y-6">
             <!-- Initial Form -->
             <div v-if="!isVerification">
                 <!-- Logo/Header -->

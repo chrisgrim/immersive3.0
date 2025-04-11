@@ -7,11 +7,11 @@
         }">
         <div class="h-full flex justify-between items-center px-16">
             <a href="/" class="flex flex-col items-center gap-1" :class="isHome ? 'text-primary font-medium' : 'text-neutral-600'">
-                <div class="text-3xl font-bold">EI</div>
+                <img src="/storage/website-files/Everything_Immersive_logo_Short.png" alt="EI" class="w-10 h-10" />
                 <span class="text-base">Discover</span>
             </a>
 
-            <a :href="eventsLink" 
+            <a href="/hosting/events" 
                class="flex flex-col items-center gap-1" 
                :class="isEvents ? 'text-primary font-medium' : 'text-neutral-600'">
                 <svg class="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

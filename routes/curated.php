@@ -26,9 +26,8 @@ Route::prefix('communities')->name('communities.')->group(function () {
 
     // Community-specific routes
     Route::prefix('{community}')->group(function () {
-        // Public routes
+        // Public community show route
         Route::GET('', [CommunityController::class, 'show'])->name('show');
-        Route::GET('/posts/{post}', [PostController::class, 'show'])->name('posts.show');
         
         // Protected routes
         Route::middleware(['auth', 'verified'])->group(function () {
@@ -48,15 +47,15 @@ Route::prefix('communities')->name('communities.')->group(function () {
             Route::POST('/submit', [CommunityController::class, 'submit'])->name('submit')->middleware('can:update,community');
             Route::POST('/name-change', [CommunityController::class, 'requestNameChange'])->name('name.change')->middleware('can:update,community');
 
-            // Posts
-            Route::controller(PostController::class)->group(function () {
-                Route::GET('/posts/create', 'create')->name('posts.create')->middleware('can:update,community');
-                Route::POST('/posts', 'store')->name('posts.store')->middleware('can:update,community');
-                Route::GET('/posts/{post}/edit', 'edit')->name('posts.edit')->middleware('can:update,community');
-                Route::POST('/posts/{post}', 'update')->name('posts.update')->middleware('can:update,community');
-                Route::DELETE('/posts/{post}', 'destroy')->name('posts.destroy')->middleware('can:update,community');
-                Route::PUT('/posts/order', 'order')->name('posts.order')->middleware('can:update,community');
-            });
+            // Posts - ensure create route is defined before any route with {post} parameter
+            Route::GET('/posts/create', [PostController::class, 'create'])->name('posts.create')->middleware('can:update,community');
+            Route::POST('/posts', [PostController::class, 'store'])->name('posts.store')->middleware('can:update,community');
+            Route::PUT('/posts/order', [PostController::class, 'order'])->name('posts.order')->middleware('can:update,community');
+            
+            // Post-specific routes
+            Route::GET('/posts/{post}/edit', [PostController::class, 'edit'])->name('posts.edit')->middleware('can:update,community');
+            Route::POST('/posts/{post}', [PostController::class, 'update'])->name('posts.update')->middleware('can:update,community');
+            Route::DELETE('/posts/{post}', [PostController::class, 'destroy'])->name('posts.destroy')->middleware('can:update,community');
 
             // Shelves
             Route::controller(ShelfController::class)->middleware('can:update,community')->group(function () {
@@ -75,5 +74,8 @@ Route::prefix('communities')->name('communities.')->group(function () {
                 Route::DELETE('/posts/{post}/cards/{card}', 'destroy');
             });
         });
+        
+        // Public routes - place after the protected routes to avoid conflicts
+        Route::GET('/posts/{post}', [PostController::class, 'show'])->name('posts.show');
     });
 });

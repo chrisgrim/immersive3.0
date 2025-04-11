@@ -200,10 +200,37 @@ const remainingSlots = computed(() => {
 // Image handling methods
 const handleSort = ({ moved }) => {
     if (moved) {
+        // Get image IDs before reordering to detect any potential duplicates
+        const imageIdsBeforeReordering = new Set(images.value.map(img => img.id));
+        
         // Explicitly update all ranks after drag
         images.value.forEach((image, index) => {
             image.rank = index + 1; // Ranks start at 1 for additional images
         });
+        
+        // Re-sort by rank to ensure correct order
+        images.value.sort((a, b) => a.rank - b.rank);
+        
+        // Verify no duplicate images were created during reordering
+        const imageIdsAfterReordering = new Set(images.value.map(img => img.id));
+        
+        // If we have more ids after reordering, we have duplicates
+        if (imageIdsAfterReordering.size > imageIdsBeforeReordering.size) {
+            // De-duplicate by id
+            const seenIds = new Set();
+            images.value = images.value.filter(img => {
+                if (seenIds.has(img.id)) {
+                    return false; // Skip duplicate
+                }
+                seenIds.add(img.id);
+                return true;
+            });
+            
+            // Reassign ranks after de-duplication
+            images.value.forEach((image, index) => {
+                image.rank = index + 1;
+            });
+        }
     }
 };
 
@@ -271,10 +298,16 @@ const handleFileChange = async (event) => {
     event.target.value = '';
 };
 
+// Create a wrapper function for adding to deletedImages
+const addToDeletedImages = (imagePath) => {
+    deletedImages.value.push(imagePath);
+};
+
 const removeImage = (index) => {
     const removedImage = images.value[index];
     if (removedImage.isExisting) {
-        deletedImages.value.push(removedImage.url.replace(imageUrl, ''));
+        const imagePath = removedImage.url.replace(imageUrl, '');
+        addToDeletedImages(imagePath);
     }
     images.value.splice(index, 1);
     
@@ -357,7 +390,7 @@ const completeCrop = () => {
                 if (oldMainImage?.isExisting) {
                     const oldMainImagePath = oldMainImage.url.replace(imageUrl, '');
                     if (!deletedImages.value.includes(oldMainImagePath)) {
-                        deletedImages.value.push(oldMainImagePath);
+                        addToDeletedImages(oldMainImagePath);
                     }
                 }
                 
@@ -380,7 +413,8 @@ const cancelCrop = () => {
 
 const removeMainImage = () => {
     if (mainImage.value?.isExisting) {
-        deletedImages.value.push(mainImage.value.url.replace(imageUrl, ''));
+        const imagePath = mainImage.value.url.replace(imageUrl, '');
+        addToDeletedImages(imagePath);
     }
     mainImage.value = null;
 };
@@ -396,8 +430,11 @@ const triggerFileInput = (event) => {
     event.currentTarget.querySelector('.fileInput').click();
 };
 
-// Load TikTok script on mount if needed
+// Load initial data on component mount
 onMounted(() => {
+    // Clear deleted images array when component mounts
+    deletedImages.value = [];
+    
     if (event?.images?.length) {
         // Make a deep copy to avoid mutations affecting the sort
         const sortedImages = [...event.images].sort((a, b) => a.rank - b.rank);
@@ -452,7 +489,11 @@ defineExpose({
         const formData = new FormData();
         const currentImages = [];
         let newImageCount = 0;
-
+        
+        // Create a map to track which images have already been uploaded
+        // This prevents duplicating the same image with different ranks
+        const uploadedFileIds = new Set();
+        
         // Always handle the main image first with rank 0
         if (mainImage.value) {
             if (mainImage.value.file) {
@@ -464,6 +505,11 @@ defineExpose({
                 formData.append('images[]', newFile);
                 formData.append(`ranks[${newImageCount}]`, 0);
                 newImageCount++;
+                
+                // Track that we've uploaded this file
+                if (mainImage.value.id) {
+                    uploadedFileIds.add(mainImage.value.id);
+                }
             } else if (mainImage.value.isExisting) {
                 currentImages.push({
                     url: mainImage.value.url.replace(imageUrl, ''),
@@ -473,11 +519,16 @@ defineExpose({
             }
         }
 
-        // Process additional images, ensuring they have correct sequential ranks
+        // Ensure images are sorted by rank before processing
         const sortedImages = [...images.value].sort((a, b) => a.rank - b.rank);
         
         sortedImages.forEach((image, index) => {
             const rank = index + 1; // Ensure sequential ranks starting at 1
+            
+            // Skip if we've already processed this file
+            if (image.id && uploadedFileIds.has(image.id)) {
+                return;
+            }
             
             if (image.file) {
                 const fileExtension = image.file.name.split('.').pop();
@@ -488,7 +539,13 @@ defineExpose({
                 formData.append('images[]', newFile);
                 formData.append(`ranks[${newImageCount}]`, rank);
                 newImageCount++;
+                
+                // Track that we've uploaded this file
+                if (image.id) {
+                    uploadedFileIds.add(image.id);
+                }
             } else if (image.isExisting) {
+                // Ensure the rank is updated in case it changed during reordering
                 currentImages.push({
                     url: image.url.replace(imageUrl, ''),
                     rank: rank,
@@ -496,7 +553,7 @@ defineExpose({
                 });
             }
         });
-
+        
         formData.append('currentImages', JSON.stringify(currentImages));
         formData.append('deletedImages', JSON.stringify(deletedImages.value));
         
@@ -519,6 +576,53 @@ defineExpose({
         }
 
         return formData;
+    },
+    resetDeletedImages: () => {
+        deletedImages.value = [];
+    },
+    // Refresh component state after successful submission
+    updateFromServer: (updatedEvent) => {
+        // Clear existing data
+        mainImage.value = null;
+        images.value = [];
+        deletedImages.value = [];
+        
+        if (updatedEvent?.images?.length) {
+            // Make a deep copy to avoid mutations affecting the sort
+            const sortedImages = [...updatedEvent.images].sort((a, b) => a.rank - b.rank);
+            
+            // Set main image (with rank 0)
+            const mainImg = sortedImages.find(img => img.rank === 0);
+            if (mainImg) {
+                mainImage.value = {
+                    url: `${imageUrl}${mainImg.large_image_path}`,
+                    id: mainImg.id,
+                    isExisting: true
+                };
+            }
+            
+            // Set other images (rank > 0)
+            images.value = sortedImages
+                .filter(img => img.rank > 0)
+                .map(img => ({
+                    url: `${imageUrl}${img.large_image_path}`,
+                    id: img.id,
+                    rank: img.rank,
+                    isExisting: true
+                }));
+        }
+        
+        // Load existing videos from the event
+        if (updatedEvent?.videos?.length) {
+            videos.value = updatedEvent.videos.map(video => ({
+                id: video.platform_video_id || video.id,
+                platform: video.platform,
+                url: video.url
+            }));
+            
+            // Set slideshow value based on event.video field
+            showVideosInSlideshow.value = updatedEvent.video === 'gallery';
+        }
     }
 });
 </script>

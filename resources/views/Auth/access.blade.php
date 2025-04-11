@@ -19,7 +19,7 @@
 @endsection
 
 @section('content')
-    <div class="bg-white flex flex-row justify-center items-center min-h-[calc(100vh-16rem)] m-auto">
+    <div class="bg-white flex flex-row justify-center md:items-center min-h-[calc(100vh-16rem)] m-auto">
         <vue-user-login 
             :flash-data="{{ json_encode(session()->all()) }}"
         />

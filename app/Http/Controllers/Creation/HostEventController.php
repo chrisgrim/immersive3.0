@@ -156,17 +156,21 @@ class HostEventController extends Controller
                 }
             }
 
-            // 3. Update ranks of existing images
+            // 3. Handle reordering of existing images
             if ($request->has('currentImages')) {
-                $currentImages = json_decode($request->input('currentImages', '[]'), true);
-                foreach ($currentImages as $imageData) {
-                    $image = $existingImages->first(function($img) use ($imageData) {
-                        return $img->large_image_path === $imageData['url'];
-                    });
-                    
-                    if ($image && $image->rank !== $imageData['rank']) {
-                        $image->rank = $imageData['rank'];
-                        $image->save();
+                $currentImages = json_decode($request->input('currentImages'), true);
+                
+                if ($currentImages && count($currentImages) > 0) {
+                    // Update ranks of existing images
+                    foreach ($currentImages as $image) {
+                        // Skip if no ID - new uploads are handled separately
+                        if (!isset($image['id'])) continue;
+                        
+                        $eventImage = $event->images()->find($image['id']);
+                        if ($eventImage && isset($image['rank'])) {
+                            $eventImage->rank = (int)$image['rank'];
+                            $eventImage->save();
+                        }
                     }
                 }
             }
@@ -174,35 +178,32 @@ class HostEventController extends Controller
             // 4. Handle new image uploads
             if ($request->hasFile('images')) {
                 $ranks = $request->input('ranks', []);
+                $currentRanks = collect(json_decode($request->input('currentImages', '[]'), true))
+                    ->pluck('rank')
+                    ->toArray();
                 
                 foreach ($request->file('images') as $index => $image) {
-                    $rank = $ranks[$index] ?? 0;
+                    $rank = (int)($ranks[$index] ?? 0);
                     
-                    // Find and delete any existing image with this rank
+                    // First delete any existing image with this rank
                     $existingImage = $event->images()->where('rank', $rank)->first();
                     if ($existingImage) {
                         ImageHandler::deleteImage($existingImage);
                     }
                     
-                    // Save new image with appropriate dimensions
-                    if ((int)$rank === 0) {
-                        // For primary image (rank 0)
-                        ImageHandler::saveImage($image, $event, 900, 1200, 'event-images', 0);
-                    } else {
-                        // For secondary images, don't update the model's largeImagePath
-                        // Pass the image to a temporary clone of the model to avoid updating main model's fields
-                        $tempModel = clone $event;
-                        $tempModel->_isClone = true; // Mark as clone to prevent updating main image paths
-                        ImageHandler::saveImage($image, $tempModel, 1200, 800, 'event-images', $rank);
-                        
-                        // Update the rank after saving
-                        $newImage = $event->images()->latest()->first();
-                        if ($newImage) {
-                            $newImage->rank = $rank;
-                            $newImage->save();
-                        }
-                    }
+                    // Save the new image with the correct rank
+                    ImageHandler::saveImage(
+                        $image, 
+                        $event, 
+                        ($rank === 0) ? 900 : 1200,  // Width
+                        ($rank === 0) ? 1200 : 800,  // Height
+                        'event-images',
+                        $rank
+                    );
                 }
+                
+                // Refresh to get the latest state
+                $event->refresh();
             }
         }
 
@@ -371,11 +372,42 @@ class HostEventController extends Controller
     public function nameChange(Request $request, Event $event)
     {
         try {
-            $request->validate([
-                'requested_name' => 'required|string|max:100',
+            $wouldBeSlug = \Illuminate\Support\Str::slug($request->requested_name);
+            
+            // Quick check for any slug conflicts (including soft-deleted)
+            $hasConflict = Event::withTrashed()
+                ->where('slug', $wouldBeSlug)
+                ->where('id', '!=', $event->id)
+                ->exists();
+                
+            if ($hasConflict) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => [
+                        'requested_name' => ['An event with this name was created before. Please choose a different name or change it slightly. If you feel this is an error, please contact us at support@everythingimmersive.com']
+                    ]
+                ], 422);
+            }
+            
+            // Validate the request
+            $validator = \Validator::make($request->all(), [
+                'requested_name' => [
+                    'required',
+                    'string',
+                    'max:100',
+                    new \App\Rules\UniqueSlugRule($request->requested_name, Event::class, 'slug', $event->id)
+                ],
                 'current_name' => 'required|string'
             ]);
 
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Process the name change request
             $result = $this->nameChangeService->handleNameChange(
                 $event,
                 $request->requested_name,

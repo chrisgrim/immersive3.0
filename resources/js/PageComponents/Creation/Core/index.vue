@@ -4,8 +4,8 @@
         <div class="flex-none h-24">
             <div class="mx-auto p-8 md:p-16 h-full flex justify-between items-center">
                 <!-- Left: EI Logo/Link -->
-                <a href="/hosting/events" class="text-5xl font-bold hover:opacity-70">
-                    EI
+                <a href="/hosting/events" class="flex flex-col items-center gap-1" :class="isHome ? 'text-primary font-medium' : 'text-neutral-600'">
+                    <img src="/storage/website-files/Everything_Immersive_logo_Short.png" alt="EI" class="w-12 h-12" />
                 </a>
 
                 <!-- Right: Questions & Exit -->
