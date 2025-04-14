@@ -333,8 +333,17 @@ const handleLocationSearch = (searchData) => {
     }
     
     params.set('city', searchData.location.city);
-    params.set('lat', searchData.location.lat);
-    params.set('lng', searchData.location.lng);
+    
+    // Explicitly convert to float before setting params
+    const parsedLat = searchData.location.lat ? parseFloat(searchData.location.lat) : null;
+    const parsedLng = searchData.location.lng ? parseFloat(searchData.location.lng) : null;
+    
+    if (parsedLat !== null) {
+        params.set('lat', parsedLat.toString());
+    }
+    if (parsedLng !== null) {
+        params.set('lng', parsedLng.toString());
+    }
     
     const [minPrice, maxPrice] = state.value.filters.price;
     if (minPrice > 0) {

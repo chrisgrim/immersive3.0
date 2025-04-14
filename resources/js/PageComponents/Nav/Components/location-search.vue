@@ -104,8 +104,6 @@
        >
            Search
        </button>
-
-       <div id="places" />
    </div>
 </template>
 
@@ -139,6 +137,7 @@ const dropdown = ref(false);
 const searchInput = ref('');
 const places = ref(initializePlaces());
 const date = ref(null);
+const isDark = ref(false); // For date picker theme
 
 // Use a computed property to derive dates from props
 const propsDateRange = computed(() => {
@@ -172,7 +171,6 @@ const effectiveDate = computed(() => {
 
 // Location search functionality
 let autoComplete;
-let service;
 
 // Add these new refs to store selected location data
 const selectedPlace = ref(null);
@@ -206,34 +204,81 @@ function initializePlaces() {
    return [
        { place_id: 'ChIJOwg_06VPwokRYv534QaPC8g', description: 'New York, NY, USA' },
        { place_id: 'ChIJE9on3F3HwoAR9AhGJW_fL-I', description: 'Los Angeles, CA, USA' },
-       { place_id: 'ChIJIQBpAG2ahYAR_6128GcTUEo', description: 'San Francisco, CA, USA' }
+       { place_id: 'ChIJdd4hrwug2EcRmSrV3Vo6llI', description: 'London, UK' },
+       { place_id: 'ChIJIQBpAG2ahYAR_6128GcTUEo', description: 'San Francisco, CA, USA' },
+       { place_id: 'ChIJzxcfI6PYa4cR1jaKJ_j0jhE', description: 'Denver, CO, USA' }
    ];
 }
 
-const updateLocations = () => {
+const updateLocations = async () => {
    dropdown.value = searchInput.value.length ? true : false;
-   autoComplete.getPlacePredictions({ input: searchInput.value, types: ['(cities)'] }, data => {
-       places.value = data;
-   });
+   
+   if (!searchInput.value) {
+       places.value = initializePlaces();
+       return;
+   }
+   
+   try {
+       if (autoComplete) {
+           const { predictions } = await autoComplete.getPlacePredictions({
+               input: searchInput.value,
+               types: ['(cities)']
+           });
+           places.value = predictions || initializePlaces();
+       }
+   } catch (error) {
+       console.error('Error fetching place predictions:', error);
+       places.value = initializePlaces();
+   }
 };
 
-const selectLocation = (location) => {
-   service.getDetails({ placeId: location.place_id }, data => {
-       setPlace(data);
-   });
+const selectLocation = async (location) => {
+   try {
+       const { Place } = await google.maps.importLibrary("places");
+       const placeResult = new Place({ id: location.place_id });
+       
+       // Fetch the necessary fields
+       await placeResult.fetchFields({
+           fields: ["displayName", "formattedAddress", "location"]
+       });
+       
+       setPlace(placeResult);
+   } catch (error) {
+       console.error('Error fetching place details:', error);
+   }
 };
 
 const setPlace = (place) => {
-   const lat = place.geometry.location.lat();
-   const lng = place.geometry.location.lng();
+   // The new Place API uses camelCase and different property structure
+   // location might be accessed as an object with lat/lng properties or methods
+   
+   let lat = null;
+   let lng = null;
+   
+   // Check if location exists and determine if it's an object or has accessor methods
+   if (place.location) {
+       if (typeof place.location.lat === 'function') {
+           // Old API approach with methods
+           lat = place.location.lat();
+           lng = place.location.lng();
+       } else if (typeof place.location.lat === 'number') {
+           // New API approach with properties
+           lat = place.location.lat;
+           lng = place.location.lng;
+       }
+   } else if (place.geometry && place.geometry.location) {
+       // Fallback to old structure
+       lat = place.geometry.location.lat();
+       lng = place.geometry.location.lng();
+   }
    
    selectedPlace.value = {
-       name: place.name,
+       name: place.displayName?.text || place.formattedAddress || place.name || "Unknown location",
        lat: lat,
        lng: lng
    };
    
-   searchInput.value = place.name;
+   searchInput.value = selectedPlace.value.name;
    dropdown.value = false;
    
    // Auto-submit for location selection
@@ -244,9 +289,14 @@ const saveSearchData = (place) => {
 //    axios.post('/search/storedata', { type: 'location', name: place.name });
 };
 
-const initGoogleMaps = () => {
-   autoComplete = new google.maps.places.AutocompleteService();
-   service = new google.maps.places.PlacesService(document.getElementById("places"));
+const initGoogleMaps = async () => {
+   try {
+       // Import the places library
+       const { AutocompleteService } = await google.maps.importLibrary("places");
+       autoComplete = new AutocompleteService();
+   } catch (error) {
+       console.error('Error initializing Google Maps Places API:', error);
+   }
 };
 
 // Initialize from URL parameters
@@ -283,15 +333,15 @@ onMounted(() => {
         if (!document.getElementById('google-maps-script')) {
             let script = document.createElement('script');
             script.id = 'google-maps-script';
-            script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw&libraries=places&callback=initMap`;
+            script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw&libraries=places&callback=initMap&loading=async`;
             script.async = true;
             script.defer = true;
             document.head.appendChild(script);
         }
 
-        window.initMap = () => {
+        window.initMap = async () => {
             if (!window.googleMapsInitialized) {
-                initGoogleMaps();
+                await initGoogleMaps();
                 window.googleMapsInitialized = true;
             }
         };
@@ -375,6 +425,11 @@ const disabledDate = (date) => {
    return date < new Date();
 };
 
+// Add timezone computed property for date picker
+const tz = computed(() => {
+   return Intl.DateTimeFormat().resolvedOptions().timeZone;
+});
+
 // Update handleDateChange to not auto-submit
 function handleDateChange(newDate) {
     if (newDate && Array.isArray(newDate) && newDate.length === 2) {
@@ -418,6 +473,13 @@ const minDate = computed(() => {
    return today;
 });
 
+// Add maxDate computed property for datepicker (1 year from now)
+const maxDate = computed(() => {
+   const oneYearFromNow = new Date();
+   oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+   return oneYearFromNow;
+});
+
 // Update handleSearch
 const handleSearch = () => {
     // Only require a location to be selected (don't check dates)
@@ -428,13 +490,17 @@ const handleSearch = () => {
         searchInput.value = selectedPlace.value.name;
     }
     
+    // Ensure lat/lng are properly typed as numbers
+    const lat = selectedPlace.value?.lat ? parseFloat(selectedPlace.value.lat) : null;
+    const lng = selectedPlace.value?.lng ? parseFloat(selectedPlace.value.lng) : null;
+    
     const searchData = {
         location: {
             city: selectedPlace.value?.name || null,
             searchType: 'inPerson',
             live: false,
-            lat: selectedPlace.value?.lat || null,
-            lng: selectedPlace.value?.lng || null
+            lat: lat,
+            lng: lng
         },
         dates: {
             // Always include explicit null values when no dates are selected

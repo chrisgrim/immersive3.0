@@ -23,8 +23,8 @@ class ListingsController extends Controller
                     Query::geoDistance()
                         ->field('location_latlon')
                         ->distance('40km')
-                        ->lat($request->lat)
-                        ->lon($request->lng) : null
+                        ->lat((float)$request->lat)
+                        ->lon((float)$request->lng) : null
             ];
         }
 
@@ -36,8 +36,8 @@ class ListingsController extends Controller
                     Query::geoDistance()
                         ->field('location_latlon')
                         ->distance('40km')
-                        ->lat($request->lat)
-                        ->lon($request->lng) : null
+                        ->lat((float)$request->lat)
+                        ->lon((float)$request->lng) : null
             ];
         }
 

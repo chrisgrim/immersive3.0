@@ -161,7 +161,6 @@ const DEFAULT_COORDINATES = { lat: 40.7127753, lng: -74.0059728 };
 
 const map = ref(initializeMapObject());
 const autoComplete = ref(null);
-const service = ref(null);
 const userInput = ref('');
 const places = ref([]);
 const dropdown = ref(false);
@@ -305,23 +304,38 @@ function initializeMapObject() {
     };
 }
 
-const initGoogleMaps = () => {
-    if (!window.google?.maps?.places) {
+const initGoogleMaps = async () => {
+    if (!window.google?.maps) {
         errors.value = { location: ['Google Maps failed to load'] };
         return;
     }
-    autoComplete.value = new window.google.maps.places.AutocompleteService();
-    service.value = new window.google.maps.places.PlacesService(document.createElement('div'));
+    
+    try {
+        // Use importLibrary for Places API
+        const { AutocompleteService } = await google.maps.importLibrary("places");
+        autoComplete.value = new AutocompleteService();
+    } catch (error) {
+        console.error('Error initializing Google Maps Places API:', error);
+        errors.value = { location: ['Error initializing location services'] };
+    }
 };
 
-const updateLocations = () => {
+const updateLocations = async () => {
     if (!autoComplete.value) {
         errors.value = { location: ['Location service not available'] };
         return;
     }
-    autoComplete.value.getPlacePredictions({ input: userInput.value }, data => {
-        places.value = data || [];
-    });
+    
+    try {
+        // Use the promise-based approach
+        const result = await autoComplete.value.getPlacePredictions({ 
+            input: userInput.value 
+        });
+        places.value = result?.predictions || [];
+    } catch (error) {
+        console.error('Error fetching place predictions:', error);
+        places.value = [];
+    }
 };
 
 const handleAddressInput = () => {
@@ -341,91 +355,150 @@ const onMapReady = () => {
 };
 
 const selectLocation = async (location) => {
-    if (!service.value) {
-        errors.value = { location: ['Location service not available'] };
-        return;
-    }
-    service.value.getDetails({ placeId: location.place_id }, data => {
-        if (data) {
-            setPlace(data);
-            userInput.value = location.description;
-            dropdown.value = false;
-            locationSearch.value = false;
-            
-            setTimeout(() => {
-                if (mapRef.value) {
+    try {
+        // Use the new Place class with importLibrary
+        const { Place } = await google.maps.importLibrary("places");
+        const placeResult = new Place({ id: location.place_id });
+        
+        // Fetch the necessary fields with correct field names
+        await placeResult.fetchFields({
+            fields: ["formattedAddress", "addressComponents", "displayName", "location"]
+        });
+        
+        setPlace(placeResult);
+        userInput.value = location.description;
+        dropdown.value = false;
+        locationSearch.value = false;
+        
+        // Wait to ensure the map is available
+        setTimeout(() => {
+            try {
+                if (mapRef.value && mapRef.value.leafletObject) {
                     mapRef.value.leafletObject.invalidateSize();
-                    mapRef.value.leafletObject.setView(
-                        [data.geometry.location.lat(), data.geometry.location.lng()],
-                        map.value.zoom
-                    );
+                    
+                    // Extract lat/lng correctly based on whether they're functions or properties
+                    let lat = 0, lng = 0;
+                    
+                    if (placeResult.location) {
+                        if (typeof placeResult.location.lat === 'function') {
+                            lat = placeResult.location.lat();
+                            lng = placeResult.location.lng();
+                        } else {
+                            lat = placeResult.location.lat;
+                            lng = placeResult.location.lng;
+                        }
+                    }
+                    
+                    mapRef.value.leafletObject.setView([lat, lng], map.value.zoom);
                 }
-            }, 100);
-        }
-    });
+            } catch (error) {
+                console.error('Error updating map view:', error);
+            }
+        }, 300); // Increased timeout for map to be ready
+    } catch (error) {
+        console.error('Error fetching place details:', error);
+        errors.value = { location: ['Error retrieving location details'] };
+    }
 };
 
 const setPlace = (place) => {
+    // Helper function to extract address components
     const getAddressComponent = (type) => {
-        const component = place.address_components?.find(component => 
-            component.types.includes(type)
-        );
-        return component?.long_name || component?.short_name || '';
+        if (place.addressComponents) {
+            const component = place.addressComponents.find(component => 
+                component.types && component.types.includes(type)
+            );
+            
+            if (component) {
+                // The text value is in the Fg property
+                const componentValue = component.Fg;
+                return componentValue || '';
+            }
+        }
+        return '';
     };
 
-    const street = place.formatted_address?.split(', ')[0] || '';
+    // Get address details
+    const street = place.formattedAddress?.split(', ')[0] || '';
+    // Only use displayName.text since 'name' is not available
+    const displayName = place.displayName?.text || street || '';
+    
+    // Extract lat/lng correctly - handle both function and property cases
+    let lat = 0, lng = 0;
+    
+    if (place.location) {
+        if (typeof place.location.lat === 'function') {
+            // Handle function case (old API style)
+            lat = place.location.lat();
+            lng = place.location.lng();
+        } else {
+            // Handle property case (new API style)
+            lat = place.location.lat;
+            lng = place.location.lng;
+        }
+    }
+    
+    // Extract city, region, postal code, country properly
+    const city = getAddressComponent('locality') || 
+                getAddressComponent('sublocality') || 
+                getAddressComponent('postal_town');
+                
+    const region = getAddressComponent('administrative_area_level_1');
+    const postal_code = getAddressComponent('postal_code');
+    const country = getAddressComponent('country');
+    
     const currentVenue = event.location?.venue || '';
-
+    
+    // Update the event location
     event.location = {
-        latitude: place.geometry?.location.lat() || 0,
-        longitude: place.geometry?.location.lng() || 0,
-        home: place.name || street || '',
+        latitude: lat,
+        longitude: lng,
+        home: displayName,
         street: street,
-        city: getAddressComponent('locality') || 
-              getAddressComponent('sublocality') || 
-              getAddressComponent('postal_town') || '',
-        region: getAddressComponent('administrative_area_level_1') || '',
-        postal_code: getAddressComponent('postal_code') || '',
-        country: getAddressComponent('country') || '',
+        city: city || '',
+        region: region || '',
+        postal_code: postal_code || '',
+        country: country || '',
         hiddenLocationToggle: event.location?.hiddenLocationToggle || false,
         hiddenLocation: event.location?.hiddenLocation || '',
         venue: currentVenue
     };
 
-    if (place.geometry?.location) {
-        map.value.center = { 
-            lat: place.geometry.location.lat(), 
-            lng: place.geometry.location.lng() 
-        };
+    // Update map center
+    if (lat && lng) {
+        map.value.center = { lat, lng };
     }
 };
 
 onMounted(() => {
     const loadGoogleMapsApi = () => {
         return new Promise((resolve, reject) => {
-            if (window.google?.maps?.places) {
+            if (window.google?.maps) {
                 initGoogleMaps();
                 resolve();
                 return;
             }
 
             const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
+            const scriptUrl = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&v=weekly&callback=initMap`;
+            
+            script.src = scriptUrl;
             script.async = true;
             script.defer = true;
             
-            script.onload = () => {
-                setTimeout(() => {
-                    if (window.google?.maps?.places) {
-                        initGoogleMaps();
-                        resolve();
-                    } else {
-                        errors.value = { location: ['Google Maps Places service failed to load'] };
-                        reject(new Error('Places service not available'));
-                    }
-                }, 500);
+            script.onload = async () => {
+                try {
+                    await initGoogleMaps();
+                    resolve();
+                } catch (error) {
+                    console.error('Error during initialization:', error);
+                    errors.value = { location: ['Google Maps Places service failed to load'] };
+                    reject(error);
+                }
             };
+            
             script.onerror = (error) => {
+                console.error('Script loading error:', error);
                 errors.value = { location: ['Failed to load map service'] };
                 reject(error);
             };
@@ -434,14 +507,19 @@ onMounted(() => {
         });
     };
 
-    loadGoogleMapsApi().catch(() => {
+    loadGoogleMapsApi().catch((error) => {
+        console.error('Failed to initialize location services:', error);
         errors.value = { location: ['Failed to initialize location services'] };
     });
+
+    // Add a global initMap function to ensure callback works
+    window.initMap = function() {
+        // Callback function for Google Maps initialization
+    };
 });
 
 onUnmounted(() => {
     autoComplete.value = null;
-    service.value = null;
 });
 
 defineExpose({

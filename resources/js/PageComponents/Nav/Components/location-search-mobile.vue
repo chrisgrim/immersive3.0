@@ -20,6 +20,14 @@
             class="flex flex-col relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto">
             <div class="w-full">
                 <h2 class="text-4xl leading-8 font-bold">Where To?</h2>
+                <button 
+                    @click="cancelSearch"
+                    class="absolute top-8 right-8 p-2 text-black"
+                >
+                    <svg class="w-8 h-8 fill-black">
+                        <use xlink:href="/storage/website-files/icons.svg#ri-close-line"></use>
+                    </svg>
+                </button>
             </div>
             <div class="w-full flex-grow flex flex-col mt-10">
                 <div class="w-full border border-slate-400 rounded-2xl flex items-center">
@@ -33,6 +41,8 @@
                         placeholder="Search by City"
                         @input="updateLocations"
                         @focus="dropdown=true"
+                        @click="clearSearchInput"
+                        @keydown.backspace="handleBackspace"
                         autocomplete="off"
                         type="text">
                 </div>
@@ -130,8 +140,8 @@ const selectedPlace = ref(null);
 // Add this ref for controlling displayed months
 const displayedMonths = ref(3);
 
-// Add emits definition
-const emit = defineEmits(['update:location', 'clear']);
+// Update emits definition
+const emit = defineEmits(['update:location', 'update:modelValue', 'clear']);
 
 // Initialize dark mode and timezone variables for datepicker
 const isDark = ref(false);
@@ -149,36 +159,103 @@ function initializePlaces() {
     ];
 }
 
-const updateLocations = () => {
+const updateLocations = async () => {
+    if (!autoComplete) {
+        console.error('Autocomplete service not available');
+        return;
+    }
+    
     if (searchInput.value) {
-        autoComplete.getPlacePredictions({ input: searchInput.value, types: ['(cities)'] }, data => {
-            places.value = data || initializePlaces();
-        });
+        try {
+            const response = await autoComplete.getPlacePredictions({ 
+                input: searchInput.value, 
+                types: ['(cities)'] 
+            });
+            places.value = response?.predictions || initializePlaces();
+        } catch (error) {
+            console.error('Error fetching place predictions:', error);
+            places.value = initializePlaces();
+        }
     } else {
         places.value = initializePlaces();
     }
 };
 
-const selectLocation = (location) => {
-   service.getDetails({ placeId: location.place_id }, data => {
-       setPlace(data);
-   });
+const selectLocation = async (location) => {
+   try {
+       const { Place } = await google.maps.importLibrary("places");
+       const placeResult = new Place({ id: location.place_id });
+       
+       // Fetch the necessary fields
+       await placeResult.fetchFields({
+           fields: ["displayName", "formattedAddress", "location"]
+       });
+       
+       setPlace(placeResult);
+   } catch (error) {
+       console.error('Error fetching place details:', error);
+       // Fallback to old method if the new one fails
+       service.getDetails({ placeId: location.place_id }, data => {
+           setPlace(data);
+       });
+   }
 };
 
 const setPlace = (place) => {
+   // The new Place API uses camelCase and different property structure
+   // Extract lat/lng correctly based on whether they're functions or properties
+   let lat = null;
+   let lng = null;
+   let name = null;
+   
+   // Check if location exists and determine if it's an object or has accessor methods
+   if (place.location) {
+       if (typeof place.location.lat === 'function') {
+           // Old API approach with methods
+           lat = place.location.lat();
+           lng = place.location.lng();
+       } else if (typeof place.location.lat === 'number') {
+           // New API approach with properties
+           lat = place.location.lat;
+           lng = place.location.lng;
+       }
+   } else if (place.geometry && place.geometry.location) {
+       // Fallback to old structure
+       lat = place.geometry.location.lat();
+       lng = place.geometry.location.lng();
+   }
+   
+   // Get name from appropriate property
+   if (place.displayName && place.displayName.text) {
+       name = place.displayName.text;
+   } else if (place.formattedAddress) {
+       name = place.formattedAddress;
+   } else if (place.name) {
+       name = place.name;
+   } else {
+       name = "Unknown location";
+   }
+   
    selectedPlace.value = {
-       name: place.name,
-       lat: place.geometry.location.lat(),
-       lng: place.geometry.location.lng()
+       name: name,
+       lat: lat,
+       lng: lng
    };
-   searchInput.value = place.name;
+   
+   searchInput.value = selectedPlace.value.name;
    dropdown.value = false;
+   
+   // Use the consistent formatting function
+   const formattedStartDate = date.value && date.value[0] ? formatDateForUrl(date.value[0]) : null;
+   const formattedEndDate = date.value && date.value[1] ? formatDateForUrl(date.value[1]) : formattedStartDate;
    
    // Update parent component
    emit('update:location', {
-       city: place.name,
-       lat: place.geometry.location.lat(),
-       lng: place.geometry.location.lng()
+       city: selectedPlace.value.name, 
+       lat: lat,
+       lng: lng,
+       start: formattedStartDate,
+       end: formattedEndDate
    });
    
    isVisible.value = 'dates';
@@ -188,10 +265,20 @@ const saveSearchData = (place) => {
    axios.post('/search/storedata', { type: 'location', name: place.name });
 };
 
-const initGoogleMaps = () => {
+const initGoogleMaps = async () => {
     try {
-        autoComplete = new google.maps.places.AutocompleteService();
-        service = new google.maps.places.PlacesService(document.getElementById("places"));
+        if (!window.google || !window.google.maps) {
+            console.error('Google Maps API not loaded');
+            return;
+        }
+
+        // Use the new async importLibrary approach
+        const { AutocompleteService, PlacesService } = await google.maps.importLibrary("places");
+        autoComplete = new AutocompleteService();
+        
+        // Still need PlacesService for fallback compatibility
+        service = new PlacesService(document.getElementById("places"));
+        
         // Show initial places immediately after initialization
         places.value = initializePlaces();
         dropdown.value = true;
@@ -236,14 +323,20 @@ onMounted(() => {
     places.value = initializePlaces();
     dropdown.value = true;
 
-    // Initialize Google Maps with async loading
-    if (!window.google) {
+    // Initialize Google Maps with async loading and new approach
+    if (!window.google || !window.google.maps) {
         let script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw&libraries=places`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw&libraries=places&callback=initMap&loading=async`;
         script.async = true;
-        script.onload = () => {
-            initGoogleMaps();
+        script.defer = true;
+        
+        window.initMap = async () => {
+            if (!window.googleMapsInitialized) {
+                await initGoogleMaps();
+                window.googleMapsInitialized = true;
+            }
         };
+        
         document.head.appendChild(script);
     } else {
         initGoogleMaps();
@@ -323,24 +416,52 @@ function formatDate(date) {
    });
 }
 
-// Handle date changes
+// Add a reusable function for formatting dates for consistency
+const formatDateForUrl = (dateObj) => {
+    if (!dateObj) return null;
+    return dateObj.toISOString().split('T')[0] + ' 00:00:00';
+};
+
+// Update handleSearch function
+const handleSearch = () => {
+    if (!selectedPlace.value) return;
+    
+    // Hide the search modal
+    window.dispatchEvent(new CustomEvent('hide-search'));
+    
+    // Format dates if available
+    const formattedStartDate = date.value && date.value[0] ? formatDateForUrl(date.value[0]) : null;
+    const formattedEndDate = date.value && date.value[1] ? formatDateForUrl(date.value[1]) : formattedStartDate;
+    
+    // Update parent component with complete location and date data
+    emit('update:location', {
+        city: selectedPlace.value.name,
+        lat: selectedPlace.value.lat,
+        lng: selectedPlace.value.lng,
+        start: formattedStartDate,
+        end: formattedEndDate
+    });
+    
+    // Save search data
+    saveSearchData({ name: selectedPlace.value.name });
+};
+
+// Update handleDateChange to use the new formatDateForUrl function
 function handleDateChange(newDate) {
    if (newDate && Array.isArray(newDate) && newDate.length === 2) {
        dateDropdown.value = false;
        
-       // Format dates for parent
-       const formatForUrl = (date) => {
-           return date.toISOString().split('T')[0] + ' 00:00:00';
-       };
+       const formattedStartDate = formatDateForUrl(newDate[0]);
+       const formattedEndDate = formatDateForUrl(newDate[1]) || formattedStartDate;
        
-       // Update parent component
+       // Update parent component if we have location data
        if (selectedPlace.value) {
            emit('update:location', {
                city: selectedPlace.value.name,
                lat: selectedPlace.value.lat,
                lng: selectedPlace.value.lng,
-               start: formatForUrl(newDate[0]),
-               end: formatForUrl(newDate[1])
+               start: formattedStartDate,
+               end: formattedEndDate
            });
        }
    }
@@ -353,23 +474,12 @@ const minDate = computed(() => {
    return today;
 });
 
-// Add handleSearch function
-const handleSearch = () => {
-    if (!selectedPlace.value) return;
-    
-    // Hide the search modal
-    window.dispatchEvent(new CustomEvent('hide-search'));
-    
-    // Save search data
-    saveSearchData({ name: selectedPlace.value.name });
-};
-
-// Clear dates
+// Update clearDates to properly emit location updates
 const clearDates = () => {
    date.value = null;
    dateDropdown.value = false;
    
-   // Only emit update if we have a selected place
+   // Emit update with cleared dates but preserve location
    if (selectedPlace.value) {
        emit('update:location', {
            city: selectedPlace.value.name,
@@ -398,6 +508,10 @@ watch(isVisible, (newValue) => {
 // Add these methods in your script setup
 const showLocationSection = () => {
     isVisible.value = 'location';
+    
+    // Clear the input field but preserve the selectedPlace
+    // This allows for new searches while keeping the previous selection
+    searchInput.value = '';
     dropdown.value = true;
     places.value = initializePlaces();
 };
@@ -407,12 +521,20 @@ const showDatesSection = () => {
     if (selectedPlace.value) {
         isVisible.value = 'dates';
         dropdown.value = false;
+        
+        // Make sure the search input shows the selected place name
+        searchInput.value = selectedPlace.value.name;
     } else {
-        // Clear the search input if no place was selected
+        // If no place is selected:
+        // 1. Keep in location section
+        // 2. Clear search input and show dropdown to encourage selection
         searchInput.value = '';
         isVisible.value = 'location';
         dropdown.value = true;
         places.value = initializePlaces();
+        
+        // Optionally show a message that location selection is required
+        // You could add a simple toast notification here
     }
 };
 
@@ -429,7 +551,14 @@ const clearState = (isClearAll = false) => {
         selectedPlace.value = null;
         date.value = null;
         
-        emit('update:location', null);
+        // Emit update with all values cleared
+        emit('update:location', {
+            city: null,
+            lat: null,
+            lng: null,
+            start: null,
+            end: null
+        });
     }
     
     isVisible.value = 'location';
@@ -439,6 +568,42 @@ const clearState = (isClearAll = false) => {
 
 // Expose the method to the parent
 defineExpose({ clearState });
+
+// Add this new method after the searchInput declaration
+const clearSearchInput = () => {
+    // Clear the input but preserve the selectedPlace data
+    // This is for when the user clicks the input to start a new search
+    searchInput.value = '';
+    dropdown.value = true;
+    places.value = initializePlaces();
+};
+
+// Add cancel search method
+const cancelSearch = () => {
+    // Cancel search without changing the selected place
+    // Restore original input if there was a selected place
+    if (selectedPlace.value) {
+        searchInput.value = selectedPlace.value.name;
+    }
+    
+    // Hide the search
+    window.dispatchEvent(new CustomEvent('hide-search'));
+};
+
+// Add a method to handle backspace key
+const handleBackspace = (event) => {
+    // If this is the first backspace press when the input is focused,
+    // clear the entire field to allow for a fresh search
+    if (event.target.selectionStart === event.target.value.length && 
+        searchInput.value === selectedPlace.value?.name) {
+        searchInput.value = '';
+        dropdown.value = true;
+        places.value = initializePlaces();
+        
+        // Prevent the default backspace behavior since we've cleared the field
+        event.preventDefault();
+    }
+};
 </script>
 
 <style>
