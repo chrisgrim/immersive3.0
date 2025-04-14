@@ -48,7 +48,7 @@
                             <div class="relative w-full m-auto pb-8 md:pb-0 mt-16 border-b border-neutral-200">
                                 <div class="flex flex-col bg-white h-full justify-center">
                                     {{-- Event Title --}}
-                                    <h1 class="text-5xl font-medium text-black leading-tight">{{ $event->name }}</h1>
+                                    <h1 class="text-6xl font-medium text-black leading-none">{{ $event->name }}</h1>
 
                                     {{-- Tag Line --}}
                                     @if($event->tag_line)
@@ -72,6 +72,14 @@
                 @endif
                 <vue-show-map :event="{{ $event }}"></vue-show-map>
                 @include('events.show.organizer')
+            </div>
+
+            <div class="w-full relative shrink-0 md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
+                <vue-show-purchase-mobile
+                    :event="{{ $event }}"
+                    :single-image="false"
+                    :user="user"
+                ></vue-show-purchase-mobile>
             </div>
         </div>
     </div>

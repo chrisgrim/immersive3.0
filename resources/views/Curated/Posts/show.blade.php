@@ -277,7 +277,9 @@
                                                 </div>
                                                 {{-- Mobile-only title --}}
                                                 <div class="w-4/5 flex items-center md:hidden">
-                                                    <h3 class="text-4xl font-bold mt-0">{{ $card->name ?? $card->event->name }}</h3>
+                                                    <a href="{{ $card->url ?? '/events/' . $card->event->slug }}">
+                                                        <h3 class="text-4xl font-bold mt-0">{{ $card->name ?? $card->event->name }}</h3>
+                                                    </a>
                                                 </div>
                                             </div>
                                         @endif

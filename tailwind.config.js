@@ -39,12 +39,17 @@ export default {
             '3xl': '1.75rem',
             '3.5xl': '2rem',
             '4xl': '2.25rem',
+            '4.5xl': '2.5rem',
             '5xl': '3rem',
             '6xl': '4rem',
             '6.5xl': '4.5rem',
             '7xl': '5rem',
         },
         extend: {
+            fontFamily: {
+                'montserrat': ['Montserrat', 'sans-serif'],
+                'optima': ['Optima', 'sans-serif'],
+            },
             zIndex: {
                 '40': '40',
                 '41': '41',

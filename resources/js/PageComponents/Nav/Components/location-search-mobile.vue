@@ -17,9 +17,9 @@
         </div>
         <div 
             v-else
-            class="flex flex-col relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto">
-            <div class="w-full">
-                <h2 class="text-4xl leading-8 font-bold">Where To?</h2>
+            class="flex flex-col relative w-full border shadow-custom-6 rounded-4xl bg-white p-10 overflow-auto">
+            <div class="w-full mt-2">
+                <h2 style="font-family: 'Montserrat', sans-serif;" class="text-4.5xl text-black leading-8 font-bold">Where To?</h2>
                 <button 
                     @click="cancelSearch"
                     class="absolute top-8 right-8 p-2 text-black"
@@ -53,13 +53,16 @@
                     v-if="dropdown"
                     @click.stop>
                     <li 
-                        class="text-2xl font-medium py-4 px-8 flex items-center gap-8 hover:bg-neutral-100" 
+                        class="text-2xl font-mediumm pb-2 flex items-center gap-8 hover:bg-neutral-100" 
                         v-for="place in places"
                         :key="place.place_id"
                         @click.stop="selectLocation(place)">
-                        <svg class="w-8 h-8 fill-black">
-                            <use xlink:href="/storage/website-files/icons.svg#ri-map-pin-line"></use>
-                        </svg>
+                        <div class="w-20 h-20 flex items-center justify-center bg-neutral-100 rounded-xl">
+                            <svg class="w-14 h-14 transition-all duration-500 group-hover:fill-black group-hover:stroke-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 22s-8-5-8-11a8 8 0 1 1 16 0c0 6-8 11-8 11z"></path>
+                                <circle cx="12" cy="11" r="3"></circle>
+                            </svg>
+                        </div>
                         {{place.description}}
                     </li>
                 </ul>
@@ -80,7 +83,10 @@
         </div>
         <div 
             v-else
-            class="flex-grow relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto">
+            class="flex-grow relative w-full border shadow-custom-6 rounded-4xl bg-white p-10 overflow-auto">
+            <div class="w-full mt-2">
+                <h2 style="font-family: 'Montserrat', sans-serif;" class="text-4.5xl text-black leading-8 font-bold">When?</h2>
+            </div>
             <VueDatePicker
                 v-model="date"
                 range
@@ -236,6 +242,18 @@ const setPlace = (place) => {
        name = "Unknown location";
    }
    
+   // Clean up the name to remove zip codes
+   // This regex matches a comma followed by a space and then 5 digits (US zip code)
+   // or matches comma, space, letter(s), space, and then postal code format (international)
+   name = name.replace(/,\s+\d{5}(-\d{4})?($|,)/g, '');
+   
+   // Also remove state/province and country to just keep city
+   const nameParts = name.split(',');
+   if (nameParts.length > 1) {
+       // Just keep the first part (city name)
+       name = nameParts[0].trim();
+   }
+   
    selectedPlace.value = {
        name: name,
        lat: lat,
@@ -245,7 +263,7 @@ const setPlace = (place) => {
    searchInput.value = selectedPlace.value.name;
    dropdown.value = false;
    
-   // Use the consistent formatting function
+   // Get formatted dates using the global formatDateForUrl function
    const formattedStartDate = date.value && date.value[0] ? formatDateForUrl(date.value[0]) : null;
    const formattedEndDate = date.value && date.value[1] ? formatDateForUrl(date.value[1]) : formattedStartDate;
    
@@ -578,15 +596,14 @@ const clearSearchInput = () => {
     places.value = initializePlaces();
 };
 
-// Add cancel search method
+// Update cancel search method
 const cancelSearch = () => {
-    // Cancel search without changing the selected place
-    // Restore original input if there was a selected place
+    // If we have a selected place, make sure the input shows it
     if (selectedPlace.value) {
         searchInput.value = selectedPlace.value.name;
     }
     
-    // Hide the search
+    // Just hide the search without clearing anything
     window.dispatchEvent(new CustomEvent('hide-search'));
 };
 

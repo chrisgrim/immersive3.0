@@ -42,6 +42,7 @@ const ShowComponents = {
     ShowMore: defineAsyncComponent(() => import('./GlobalComponents/show-more.vue')),
     VideoPlayer: defineAsyncComponent(() => import('./GlobalComponents/video-player.vue')),
     ShowPurchase: defineAsyncComponent(() => import('./PageComponents/EventShow/show-purchase.vue')),
+    ShowPurchaseMobile: defineAsyncComponent(() => import('./PageComponents/EventShow/show-purchase-mobile.vue')),
     ShowMap: defineAsyncComponent(() => import('./PageComponents/EventShow/show-map.vue')),
     ShowGallery: defineAsyncComponent(() => import('./PageComponents/EventShow/show-gallery.vue'))
 };
@@ -133,6 +134,7 @@ app.component('vue-search-all', SearchComponents.SearchAll);
 app.component('vue-show-more', ShowComponents.ShowMore);
 app.component('vue-video-player', ShowComponents.VideoPlayer);
 app.component('vue-show-purchase', ShowComponents.ShowPurchase);
+app.component('vue-show-purchase-mobile', ShowComponents.ShowPurchaseMobile);
 app.component('vue-show-map', ShowComponents.ShowMap);
 app.component('vue-show-gallery', ShowComponents.ShowGallery);
 

@@ -110,6 +110,7 @@ const handlePageChange = async (page) => {
 }
 
 const showFullMap = () => {
+    window.scrollTo(0, 0);
     isFullMap.value = true;
     document.body.classList.add('noscroll');
     mapKey.value += 1;

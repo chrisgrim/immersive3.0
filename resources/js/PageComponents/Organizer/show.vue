@@ -68,15 +68,15 @@
 
                 <!-- Social Links -->
                 <div v-if="hasSocialLinks" class="w-full border border-neutral-200 rounded-3xl p-8">
-                    <div class="flex md:block md:space-y-8 justify-between">
+                    <div class="flex md:block md:space-y-8 justify-start space-x-4">
                         <!-- Website -->
                         <a v-if="organizer.website" 
                            :href="organizer.website" 
                            target="_blank"
                            rel="nofollow noopener noreferrer"
                            class="flex items-center md:gap-4 group md:w-full">
-                            <div class="w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
-                                <component :is="RiSearchLine" class="w-6 h-6 text-neutral-700" />
+                            <div class="w-16 h-16 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                <component :is="RiSearchLine" class="w-8 h-8 text-neutral-700" />
                             </div>
                             <span class="text-lg text-gray-600 group-hover:text-gray-900 transition-colors hidden md:inline">
                                 Website
@@ -87,8 +87,8 @@
                         <a v-if="organizer.email" 
                            :href="`mailto:${organizer.email}`"
                            class="flex items-center md:gap-4 group md:w-full">
-                            <div class="w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
-                                <component :is="RiMailLine" class="w-6 h-6 text-neutral-700" />
+                            <div class="w-16 h-16 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                <component :is="RiMailLine" class="w-8 h-8 text-neutral-700" />
                             </div>
                             <span class="text-lg text-gray-600 group-hover:text-gray-900 transition-colors hidden md:inline">
                                 {{ organizer.email }}
@@ -101,8 +101,8 @@
                            target="_blank"
                            rel="nofollow noopener noreferrer"
                            class="flex items-center md:gap-4 group md:w-full">
-                            <div class="w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
-                                <component :is="RiTwitterLine" class="w-6 h-6 text-neutral-700" />
+                            <div class="w-16 h-16 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                <component :is="RiTwitterLine" class="w-8 h-8 text-neutral-700" />
                             </div>
                             <span class="text-lg text-gray-600 group-hover:text-gray-900 transition-colors hidden md:inline">
                                 @{{ organizer.twitterHandle }}
@@ -115,8 +115,8 @@
                            target="_blank"
                            rel="nofollow noopener noreferrer"
                            class="flex items-center md:gap-4 group md:w-full">
-                            <div class="w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
-                                <component :is="RiInstagramLine" class="w-6 h-6 text-neutral-700" />
+                            <div class="w-16 h-16 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                <component :is="RiInstagramLine" class="w-8 h-8 text-neutral-700" />
                             </div>
                             <span class="text-lg text-gray-600 group-hover:text-gray-900 transition-colors hidden md:inline">
                                 @{{ organizer.instagramHandle }}
@@ -129,8 +129,8 @@
                            target="_blank"
                            rel="nofollow noopener noreferrer"
                            class="flex items-center md:gap-4 group md:w-full">
-                            <div class="w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
-                                <component :is="RiFacebookBoxLine" class="w-6 h-6 text-neutral-700" />
+                            <div class="w-16 h-16 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                <component :is="RiFacebookBoxLine" class="w-8 h-8 text-neutral-700" />
                             </div>
                             <span class="text-lg text-gray-600 group-hover:text-gray-900 transition-colors hidden md:inline">
                                 {{ organizer.facebookHandle }}
@@ -143,8 +143,8 @@
                            target="_blank"
                            rel="nofollow noopener noreferrer"
                            class="flex items-center md:gap-4 group md:w-full">
-                            <div class="w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
-                                <component :is="RiPatreonLine" class="w-6 h-6 text-neutral-700" />
+                            <div class="w-16 h-16 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                <component :is="RiPatreonLine" class="w-8 h-8 text-neutral-700" />
                             </div>
                             <span class="text-lg text-gray-600 group-hover:text-gray-900 transition-colors hidden md:inline">
                                 {{ organizer.patreon }}

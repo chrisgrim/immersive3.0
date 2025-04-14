@@ -1,7 +1,7 @@
 <div id="shareModal" class="fixed inset-0 bg-black/50 z-50 hidden">
-    <div class="fixed inset-x-0 bottom-0 bg-white rounded-t-3xl p-8">
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-semibold">Share</h2>
+    <div class="fixed inset-x-0 bottom-0 bg-white rounded-t-3xl p-10 pb-12">
+        <div class="flex justify-between items-center mb-12">
+            <h2 style="font-family: 'Montserrat', sans-serif;" class="text-4xl font-semibold">Share</h2>
             <button onclick="closeShareModal()" class="p-2">
                 <svg style="width: 24px; height: 24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -17,7 +17,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                     </svg>
                 </div>
-                <span class="text-1xl">Copy Link</span>
+                <span class="text-1xl">Link</span>
             </button>
 
             <!-- WhatsApp -->

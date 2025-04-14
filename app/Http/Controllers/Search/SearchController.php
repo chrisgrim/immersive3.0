@@ -19,39 +19,69 @@ class SearchController extends Controller
     {
         $limit = $request->input('limit', 6);
         
-        $results = Event::searchQuery($searchActions->nameSearch($request))
-            ->sort('published_at', 'desc')
-            ->size($limit)
-            ->execute();
+        $query = Event::searchQuery($searchActions->nameSearch($request))
+            ->size($limit);
+            
+        // Only sort by published_at when not performing a keyword search
+        if (!$request->keywords) {
+            $query->sort('published_at', 'desc');
+        } else {
+            // When searching, rely on relevance scoring
+            $query->trackScores(true);
+        }
+        
+        $results = $query->execute();
         
         return $results->hits();
     }
 
     public function navOrganizers(Request $request, SearchActions $searchActions)
     {
-        $results = Organizer::searchQuery($searchActions->nameSearch($request))
-            ->sort('published_at', 'desc')
-            ->size(6)
-            ->execute();
+        $query = Organizer::searchQuery($searchActions->nameSearch($request))
+            ->size(6);
+            
+        // Only sort by published_at when not performing a keyword search
+        if (!$request->keywords) {
+            $query->sort('published_at', 'desc');
+        } else {
+            // When searching, rely on relevance scoring
+            $query->trackScores(true);
+        }
+        
+        $results = $query->execute();
         return $results->hits();
     }
 
     public function navNames(Request $request, SearchActions $searchActions)
     {
-        $results = Event::searchQuery($searchActions->eventSearch($request))
+        $query = Event::searchQuery($searchActions->eventSearch($request))
             ->join(Organizer::class)
-            ->sort('published_at', 'desc')
-            ->size(6)
-            ->execute();
+            ->size(6);
+            
+        // Only sort by published_at when not performing a keyword search
+        if (!$request->keywords) {
+            $query->sort('published_at', 'desc');
+        } else {
+            // When searching, rely on relevance scoring
+            $query->trackScores(true);
+        }
+        
+        $results = $query->execute();
         return $results->hits();
     }
 
     public function navGenres(Request $request, SearchActions $searchActions)
     {
-        $results = Genre::searchQuery($searchActions->nameSearch($request))
+        $query = Genre::searchQuery($searchActions->nameSearch($request))
             ->join(Category::class)
-            ->size(6)
-            ->execute();
+            ->size(6);
+            
+        // Only sort by relevance when performing a keyword search
+        if ($request->keywords) {
+            $query->trackScores(true);
+        }
+        
+        $results = $query->execute();
         return $results->hits();
     }
 

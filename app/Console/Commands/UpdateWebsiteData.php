@@ -6,18 +6,84 @@ use App\Models\Organizer;
 use App\Models\Category;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Artisan;
 
 class UpdateWebsiteData extends Command
 {
-    protected $signature = 'website:update-data';
+    protected $signature = 'website:update-data {--reset-elastic-migrations : Reset Elasticsearch migrations}';
     protected $description = 'Run all necessary data updates across the website models';
 
     public function handle()
     {
+        if ($this->option('reset-elastic-migrations')) {
+            $this->resetElasticMigrations();
+            return;
+        }
+
         $this->updateOrganizerOwnership();
         $this->updateCategoryImages();
         $this->updateTicketNamespaces();
         $this->migrateEventVideos();
+    }
+
+    private function resetElasticMigrations()
+    {
+        $this->info('Resetting Elasticsearch migrations...');
+
+        // Get the migration table name from config
+        $table = config('elastic.migrations.database.table', 'elastic_migrations');
+
+        // Check if table exists
+        if (!Schema::hasTable($table)) {
+            $this->error("Migrations table '{$table}' does not exist!");
+            return;
+        }
+
+        // Clear all migrations from the database
+        $count = DB::table($table)->count();
+        DB::table($table)->truncate();
+        $this->info("Cleared {$count} migrations from the database.");
+
+        // Delete existing indices
+        $this->info('Deleting existing Elasticsearch indices...');
+        $indices = ['events', 'organizers', 'genres', 'categories'];
+        
+        foreach ($indices as $index) {
+            $this->info("Deleting index: {$index}");
+            try {
+                $ch = curl_init("localhost:9200/{$index}");
+                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                $result = curl_exec($ch);
+                curl_close($ch);
+                $this->info("Result: {$result}");
+            } catch (\Exception $e) {
+                $this->error("Error deleting index {$index}: " . $e->getMessage());
+            }
+        }
+
+        // Run the migrations
+        $this->info('Running Elasticsearch migrations...');
+        Artisan::call('elastic:migrate');
+        $this->info(Artisan::output());
+
+        // Reimport models
+        $this->info('Reimporting models to Elasticsearch...');
+        $models = [
+            'App\\Models\\Event',
+            'App\\Models\\Organizer',
+            'App\\Models\\Genre',
+            'App\\Models\\Category'
+        ];
+
+        foreach ($models as $model) {
+            $this->info("Importing {$model}...");
+            Artisan::call('scout:import', ['model' => $model]);
+            $this->info(Artisan::output());
+        }
+
+        $this->info('Elasticsearch migrations reset complete!');
     }
 
     private function updateOrganizerOwnership()

@@ -8,9 +8,9 @@
                 />
             </div>
             <div class="flex flex-col justify-between p-6">
-                <span class="text-2xl font-bold text-black line-clamp-2">{{ data.name }}</span>
-                <span class="text-md text-black">{{ data.tag_line }}</span>
-                <span class="text-base text-black font-bold">{{ data.price_range ? data.price_range : '' }}</span>
+                <span class="text-3xl font-bold text-black line-clamp-2">{{ data.name }}</span>
+                <span class="text-xl text-black">{{ data.tag_line }}</span>
+                <span class="text-xl text-black font-bold">{{ data.price_range ? data.price_range : '' }}</span>
             </div>
         </a>
     </div>

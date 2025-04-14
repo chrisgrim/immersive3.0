@@ -3,7 +3,7 @@
         <div class="py-8 {{ count($event->images) === 1 ? 'md:pb-16 md:pt-0' : 'md:py-16' }} flex items-center gap-4 border-b">
             <a href="{{ route('organizers.show', $event->organizer->slug) }}" class="flex items-center gap-8">
                 @if($event->organizer->thumbImagePath)
-                    <div class="w-16 h-16 rounded-full overflow-hidden">
+                    <div class="w-16 h-16 rounded-full overflow-hidden flex-shrink-0">
                         <picture>
                             <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $event->organizer->thumbImagePath }}">
                             <img 
@@ -14,7 +14,7 @@
                         </picture>
                     </div>
                 @else
-                    <div class="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+                    <div class="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
                         <span class="text-2xl font-bold text-gray-400">
                             {{ Str::upper(Str::substr($event->organizer->name, 0, 1)) }}
                         </span>

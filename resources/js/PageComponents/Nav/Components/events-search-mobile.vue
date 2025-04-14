@@ -14,9 +14,9 @@
         </div>
         <div 
             v-else
-            class="flex flex-col relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto">
-            <div class="w-full">
-                <h2 class="text-4xl leading-8 font-bold">Search Events</h2>
+            class="flex flex-col relative w-full border shadow-custom-6 rounded-4xl bg-white p-10 overflow-auto">
+            <div class="w-full mt-2">
+                <h2 style="font-family: 'Montserrat', sans-serif;" class="text-4.5xl text-black leading-8 font-bold">Search Events</h2>
             </div>
             <div class="w-full flex-grow flex flex-col mt-10">
                 <div class="w-full border border-slate-400 rounded-2xl flex items-center">
@@ -45,7 +45,7 @@
                     </template>
                     <template v-else>
                         <li 
-                            class="py-4 px-8 flex items-center gap-8 hover:bg-neutral-100" 
+                            class="flex pb-2 items-center gap-8 hover:bg-neutral-100" 
                             v-for="item in filteredEvents"
                             :key="item.model.id"
                             @click="onSelect(item, 'event')">
@@ -87,9 +87,9 @@
         </div>
         <div 
             v-else-if="isVisible==='organizer'" 
-            class="flex-grow relative w-full border shadow-custom-6 rounded-4xl bg-white p-8 overflow-auto">
-            <div class="w-full">
-                <h2 class="text-4xl leading-8 font-bold">Search Organizers</h2>
+            class="flex-grow relative w-full border shadow-custom-6 rounded-4xl bg-white p-10 overflow-auto">
+            <div class="w-full mt-2">
+                <h2 style="font-family: 'Montserrat', sans-serif;" class="text-4.5xl text-black leading-8 font-bold">Search Organizers</h2>
             </div>
             <div class="w-full flex-grow flex flex-col mt-10 overflow-auto">
                 <div class="w-full border border-slate-400 rounded-2xl flex items-center">
@@ -109,7 +109,7 @@
                 <!-- Organizer List -->
                 <ul class="bg-white w-full mx-0 overflow-y-auto py-8 list-none flex-grow">
                     <li 
-                        class="py-4 px-8 flex items-center gap-8 hover:bg-neutral-100" 
+                        class="flex pb-2 items-center gap-8 hover:bg-neutral-100" 
                         v-for="item in filteredOrganizers"
                         :key="item.model.id"
                         @click="onSelect(item, 'organizer')">

@@ -248,7 +248,7 @@
     @endif
 
     {{-- Navigation Icons --}}
-    <div class="absolute top-10 left-10 right-10 flex justify-between">
+    <div class="absolute top-4 left-4 right-4 flex justify-between">
         <button 
             onclick="window.history.back()"
             class="w-20 h-20 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg"

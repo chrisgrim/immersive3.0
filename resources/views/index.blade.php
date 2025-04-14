@@ -63,17 +63,21 @@
 @endif
 
 <div class="w-full bg-black">
-    <div class="max-w-screen-5xl relative h-full m-auto px-10 lg-air:px-16 2xl-air:px-32 flex">
-        <div style="width: 50%; display: flex; flex-direction: column; justify-content: center;">
-            <h2 style="font-size: 3rem; color: white; margin-bottom: 2rem; text-align: left;">Discover Immersive Experiences</h2>
-            <p style="font-size: 1.6rem; color: #f0f0f0; margin-bottom: 3rem; text-align: left; line-height: 1.6;">Explore curated immersive events that challenge boundaries and create unforgettable moments. From interactive theatre to cutting-edge mixed reality.</p>
-            <div style="text-align: left;">
-                <a href="/index/search?searchType=null&page=1">
-                    <button style="background-color: transparent; color: white; border: 2px solid #f7653b; padding: 1rem 2rem; font-size: 1.2rem; border-radius: 50px; cursor: pointer; font-weight: 600; transition: all 0.3s ease;" onmouseover="this.style.backgroundColor='#f7653b'; this.style.color='white';" onmouseout="this.style.backgroundColor='transparent'; this.style.color='white';">EXPLORE NOW</button>
-                </a>
+    <div class="max-w-screen-5xl relative m-auto px-10 lg-air:px-16 2xl-air:px-32">
+        <div class="flex flex-col md:flex-row">
+            <div class="w-full md:w-1/2 flex flex-col justify-center py-16 md:py-0">
+                <h2 class="text-5xl text-white mb-8 text-left font-optima">Discover Immersive Experiences</h2>
+                <p class="text-xl text-gray-100 mb-12 text-left leading-relaxed">Explore our database of curated events, containing everything from immersive theatre to installation art to escape rooms and beyond.</p>
+                <div class="text-left">
+                    <a href="/index/search?searchType=null&page=1">
+                        <button class="bg-transparent text-white border-2 border-[#f7653b] px-8 py-4 text-lg rounded-full font-semibold transition-colors duration-300 hover:bg-[#f7653b]">
+                            EXPLORE NOW
+                        </button>
+                    </a>
+                </div>
             </div>
+            <div class="w-full md:w-1/2 bg-cover bg-center min-h-[250px] md:min-h-[600px]" style="background-image: url('{{ asset('storage/website-files/ei_background_01.jpg') }}');"></div>
         </div>
-        <div style="width: 50%; background-image: url('{{ asset('storage/website-files/ei_background_01.jpg') }}'); background-size: cover; background-position: center; min-height: 600px;"></div>
     </div>
 </div>
 

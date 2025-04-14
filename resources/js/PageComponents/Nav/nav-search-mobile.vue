@@ -15,7 +15,7 @@
                     <button 
                         @click="search='l'"
                         :class="[
-                            'text-gray-500 relative border-none p-4 text-2xl rounded-full transition-all duration-200',
+                            'text-gray-500 relative border-none p-4 text-4xl rounded-full transition-all duration-200',
                             search === 'l' ? 'font-bold' : 'font-normal',
                             'hover:bg-gray-100'
                         ]">
@@ -25,7 +25,7 @@
                     <button 
                         @click="search='e'"
                         :class="[
-                            'text-gray-500 relative border-none p-4 text-2xl rounded-full transition-all duration-200',
+                            'text-gray-500 relative border-none p-4 text-4xl rounded-full transition-all duration-200',
                             search === 'e' ? 'font-bold' : 'font-normal',
                             'hover:bg-gray-100'
                         ]">
@@ -53,19 +53,16 @@
                 </div>
                 <div v-if="search === 'l'" class="w-full bg-white p-8 flex justify-between items-center mt-auto">
                     <div>
-                        <button @click="handleClearAll" class="underline">Clear All</button>
+                        <button @click="handleClearAll" class="underline text-4xl font-medium">Clear All</button>
                     </div>
                     <div>
                         <button 
                             @click="handleSearch"
                             :disabled="!state.location.city"
                             :class="[
-                                'py-4 px-8 rounded-2xl flex gap-4',
+                                'py-4 px-8 rounded-2xl flex gap-4 text-4xl font-medium flex items-center',
                                 state.location.city ? 'bg-[#ff385c] text-white cursor-pointer' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                             ]">
-                            <svg class="w-8 h-8" :class="state.location.city ? 'fill-white' : 'fill-gray-500'">
-                                <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
-                            </svg>
                             Search
                         </button>
                     </div>
@@ -113,7 +110,7 @@
                                 <svg class="w-6 h-6 fill-[#ff385c] mr-2">
                                     <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
                                 </svg>
-                                <span class="text-black font-bold text-2xl">Search</span>
+                                <span class="text-black font-bold text-3xl">Search</span>
                             </template>
                         </p>
                     </div>
@@ -252,23 +249,8 @@ const openSearch = () => {
 };
 
 const hideSearch = () => {
-    // If they haven't searched (i.e., just closing the modal), clear everything
-    if (searchLocation.value) {
-        searchLocation.value.clearState(true);
-    }
-    
-    // Clear the store state
-    SearchStore.updateState({
-        location: {
-            city: null,
-            lat: null,
-            lng: null
-        },
-        dates: {
-            start: null,
-            end: null
-        }
-    });
+    // We don't want to clear the location data that's already in the store when simply closing the modal
+    // Only reset the component state and close the modal
     
     search.value = null;
     // Re-enable scrolling
@@ -396,8 +378,12 @@ const handleClearAll = () => {
     
     // Tell child component to clear its state
     if (searchLocation.value) {
+        // Pass true to indicate this is a full clear
         searchLocation.value.clearState(true);
     }
+    
+    // Dispatch the clear-search-state event to ensure all components reset
+    window.dispatchEvent(new CustomEvent('clear-search-state'));
 };
 
 const openFilters = () => {

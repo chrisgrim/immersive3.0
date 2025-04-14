@@ -25,7 +25,11 @@
                     v-for="item in searchOptions"
                     :key="item.model.id + item.index_name"
                     @click="onSelect(item)">
-                    <div class="w-20 flex-shrink-0 aspect-[3/4] rounded-2xl overflow-hidden flex justify-center items-center">
+                    <div 
+                        :class="[
+                            'w-20 flex-shrink-0 overflow-hidden flex justify-center items-center',
+                            item.index_name === 'organizers' ? 'aspect-square rounded-full' : 'aspect-[3/4] rounded-2xl '
+                        ]">
                         <picture v-if="item.model.thumbImagePath" class="w-full h-full">       
                             <source 
                                 type="image/webp" 
@@ -35,9 +39,7 @@
                                 class="w-full h-full object-cover">
                         </picture>
                         <div v-else class="w-full h-full bg-gray-200 flex items-center justify-center">
-                            <svg class="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                                
-                            </svg>
+                            <p>{{item.model.name.slice(0, 1)}}</p>
                         </div>
                     </div>
                     <div>
