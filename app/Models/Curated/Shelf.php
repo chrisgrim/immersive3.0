@@ -5,27 +5,14 @@ namespace App\Models\Curated;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Featured\Feature;
-use Elastic\ScoutDriverPlus\Searchable;
-
 
 class Shelf extends Model
 {
     use HasFactory;
-    use Searchable;
 
     protected $fillable = [ 'name', 'order', 'user_id', 'community_id', 'parent_id', 'status'];
 
     protected $with = ['community'];
-
-    /**
-    * What events should be searchable for scout elastic search
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\belongsTo
-    */
-    public function shouldBeSearchable()
-    {
-        return $this->status === 'p';
-    }
 
     /**
     * Helpful command to see published listings
@@ -34,19 +21,6 @@ class Shelf extends Model
     */
     public function isPublished() {
         return $this->status === 'p';
-    }
-
-    /**
-     * Get the indexable data array for the model.
-     *
-     * @return array
-     */
-    public function toSearchableArray()
-    {
-        return [
-            'name' => $this->name,
-            'order' => $this->order,
-        ];
     }
 
     /**

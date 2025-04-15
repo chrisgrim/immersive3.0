@@ -130,7 +130,7 @@
                                 </button>
                             </template>
                             <template v-else>
-                                {{ event.clicks?.length || 0 }} clicks
+                                {{ event.total_clicks || 0 }}
                             </template>
                         </td>
                     </tr>

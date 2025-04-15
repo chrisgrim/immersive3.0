@@ -29,6 +29,9 @@ Route::view('/privacy', 'privacy')->name('privacy');
 Route::view('/sitemap', 'sitemap')->name('sitemap');
 Route::view('/privacy-choices', 'privacy-choices')->name('privacy-choices');
 
+// XML Sitemap for SEO
+Route::get('/sitemap.xml', [App\Http\Controllers\SitemapController::class, 'index'])->name('sitemap.xml');
+
 /*
 |--------------------------------------------------------------------------
 | Protected Routes

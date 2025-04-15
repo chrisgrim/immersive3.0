@@ -174,26 +174,3 @@
         </div>
     </div>
 </div>
-
-<script>
-window.scrollDockLeft = function() {
-    const container = document.getElementById('dock-scroll-container');
-    if (container) {
-        container.scrollBy({
-            left: -container.offsetWidth,
-            behavior: 'smooth'
-        });
-    }
-}
-
-window.scrollDockRight = function() {
-    const container = document.getElementById('dock-scroll-container');
-    if (container) {
-        container.scrollBy({
-            left: container.offsetWidth,
-            behavior: 'smooth'
-        });
-    }
-}
-
-</script>

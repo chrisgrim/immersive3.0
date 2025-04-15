@@ -58,13 +58,12 @@ class SearchController extends Controller
             ->join(Organizer::class)
             ->size(6);
             
-        // Only sort by published_at when not performing a keyword search
-        if (!$request->keywords) {
-            $query->sort('published_at', 'desc');
-        } else {
+        // Only track scores for keyword searches
+        if ($request->keywords) {
             // When searching, rely on relevance scoring
             $query->trackScores(true);
         }
+        // Remove sorting by published_at which is causing fielddata errors
         
         $results = $query->execute();
         return $results->hits();

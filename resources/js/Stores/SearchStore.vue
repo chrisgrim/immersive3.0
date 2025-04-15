@@ -43,6 +43,12 @@ class SearchStore {
     initializeFromUrl(searchedEvents = {}, maxPrice = null) {
         const params = new URLSearchParams(window.location.search);
         
+        // Format city name to remove country for US cities
+        let cityName = params.get('city');
+        if (cityName && cityName.endsWith(", USA")) {
+            cityName = cityName.replace(", USA", "");
+        }
+        
         const initialState = {
             events: {
                 data: searchedEvents?.data || [],
@@ -54,7 +60,7 @@ class SearchStore {
                 per_page: searchedEvents?.per_page || 15
             },
             location: {
-                city: params.get('city') || null,
+                city: cityName || null,
                 lat: params.has('lat') ? parseFloat(params.get('lat')) : null,
                 lng: params.has('lng') ? parseFloat(params.get('lng')) : null,
                 searchType: params.get('searchType') || null,
@@ -159,6 +165,12 @@ class SearchStore {
             // Get searchType from URL
             const params = new URLSearchParams(window.location.search);
             
+            // Format city name to remove country for US cities
+            let cityName = response.data.city;
+            if (cityName && cityName.endsWith(", USA")) {
+                cityName = cityName.replace(", USA", "");
+            }
+            
             // Update the store with ALL necessary data
             this.updateState({
                 events: {
@@ -171,7 +183,7 @@ class SearchStore {
                     total: response.data.total
                 },
                 location: {
-                    city: response.data.city,
+                    city: cityName,
                     lat: response.data.lat,
                     lng: response.data.lng,
                     searchType: params.get('searchType'),

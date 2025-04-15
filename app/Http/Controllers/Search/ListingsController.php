@@ -15,10 +15,11 @@ class ListingsController extends Controller
 
     protected function buildLocationFilter(Request $request)
     {
-        // If searchType is null or not set, we should still filter by hasLocation
+        // If searchType is null or not set, we should NOT filter by hasLocation
+        // This allows the default search to include both in-person and remote events
         if (!$request->searchType || $request->searchType === 'null') {
             return [
-                'hasLocation' => Query::term()->field('hasLocation')->value(true),
+                // No hasLocation filter means we'll return both types
                 'geoFilter' => $request->lat ? 
                     Query::geoDistance()
                         ->field('location_latlon')

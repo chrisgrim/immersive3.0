@@ -38,7 +38,14 @@ final class CreateOrganizersIndex implements MigrationInterface
             
             $mapping->keyword('email');
             $mapping->integer('rank');
-            $mapping->date('published_at');
+            
+            // Correct the published_at field mapping - date fields don't use fielddata
+            $mapping->date('published_at', [
+                'format' => 'yyyy-MM-dd HH:mm:ss'
+            ]);
+            
+            // Add sortable keyword field for published_at
+            $mapping->keyword('published_at_sort');
             
             // Enhanced analysis settings
             $settings->analysis([

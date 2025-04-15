@@ -3,14 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Elastic\ScoutDriverPlus\Searchable;
 use App\Scopes\AdminScope;
 use Illuminate\Support\Str;
 
 class Genre extends Model
 {
-    use Searchable;
-
     /**
     * What protected variables are allowed to be passed to the database
     *
@@ -21,16 +18,6 @@ class Genre extends Model
     ];
 
     /**
-    * What events should be searchable for scout elastic search
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\belongsTo
-    */
-    public function shouldBeSearchable()
-    {
-        return $this->admin === 1;
-    }
-
-    /**
      * The "booted" method of the model.
      *
      * @return void
@@ -38,21 +25,6 @@ class Genre extends Model
     protected static function booted()
     {
         static::addGlobalScope(new AdminScope);
-    }
-
-    /**
-     * Get the indexable data array for the model.
-     *
-     * @return array
-     */
-    public function toSearchableArray()
-    {
-        return [
-            "name" => $this->name,
-            "admin" => $this->admin,
-            "rank" => $this->rank,
-            'priority' => 3,
-        ];
     }
     
     /**
@@ -65,7 +37,6 @@ class Genre extends Model
     	return $this->belongsToMany(Event::class);
     }
     
-
     /**
      * This saves a new Genre type
      */

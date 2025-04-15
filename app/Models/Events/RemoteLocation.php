@@ -3,13 +3,10 @@
 namespace App\Models\Events;
 
 use App\Scopes\RankScope;
-use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Model;
 
 class RemoteLocation extends Model
 {
-    use Searchable;
-
     /**
     * What protected variables are allowed to be passed to the database
     *
@@ -27,18 +24,6 @@ class RemoteLocation extends Model
     protected static function booted()
     {
         static::addGlobalScope(new RankScope);
-    }
-
-    /**
-     * Get the indexable data array for the model.
-     *
-     * @return array
-     */
-    public function toSearchableArray()
-    {
-        return [
-            "name" => $this->name ,
-        ];
     }
 
     /**

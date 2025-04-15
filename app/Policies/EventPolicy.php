@@ -56,4 +56,14 @@ class EventPolicy
                $user->isModerator() || 
                $user->isAdmin();
     }
+
+    /**
+     * Determine if the user can view click statistics for the event.
+     */
+    public function viewClickStats(User $user, Event $event): bool
+    {
+        return $user->belongsToOrganization($event->organizer) || 
+               $user->isModerator() || 
+               $user->isAdmin();
+    }
 }

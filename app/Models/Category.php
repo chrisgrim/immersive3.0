@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use App\Scopes\RankScope;
@@ -10,8 +9,6 @@ use Illuminate\Support\Str;
 
 class Category extends Model
 {
-    use Searchable;
-    
     /**
     * What protected variables are allowed to be passed to the database
     *
@@ -36,21 +33,6 @@ class Category extends Model
     protected static function booted()
     {
         static::addGlobalScope(new RankScope);
-    }
-
-    /**
-     * Get the indexable data array for the model.
-     *
-     * @return array
-     */
-    public function toSearchableArray()
-    {
-        return [
-            "name" => $this->name,
-            "rank" => $this->rank,
-            "remote" => $this->remote,
-            'priority' => 3,
-        ];
     }
 
     protected $casts = [
@@ -126,6 +108,5 @@ class Category extends Model
     {
         return $this->morphMany(Image::class, 'imageable');
     }
-
 
 }

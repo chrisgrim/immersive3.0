@@ -119,10 +119,11 @@
 
 			<!-- Event List Headers -->
 			<div class="w-full hidden md:block">
-				<div class="grid gap-8 py-4 h-36 items-center grid-cols-[8rem_auto] md:grid-cols-[16rem_30%_auto_auto]">
+				<div class="grid gap-8 py-4 h-36 items-center grid-cols-[8rem_auto] md:grid-cols-[16rem_30%_auto_auto_auto]">
 					<h5 class="font-medium">Events</h5>
 					<div class="hidden md:block"></div>
 					<h5 class="font-medium">Status</h5>
+					<h5 class="font-medium text-center">Ticket Clicks</h5>
 				</div>
 			</div>
 
@@ -132,7 +133,7 @@
 					 :key="event.id"
 					 @click="openModal(event)"
 					 class="block cursor-pointer">
-					<div class="group relative grid grid-cols-2 md:grid-cols-4 gap-8 px-0 md:px-4 p-4 items-center hover:bg-gray-100 rounded-2xl grid-cols-[4rem_auto] md:grid-cols-[16rem_30%_auto_auto]">
+					<div class="group relative grid grid-cols-2 md:grid-cols-4 gap-8 px-0 md:px-4 p-4 items-center hover:bg-gray-100 rounded-2xl grid-cols-[4rem_auto] md:grid-cols-[16rem_30%_auto_auto_auto]">
 						<div class="aspect-[3/4] h-24 overflow-hidden">
 							<template v-if="event.images?.length > 0">
 								<picture>
@@ -173,6 +174,14 @@
 						<div class="hidden md:flex flex-row items-center">
 							<div :class="getStatusInfo(event, cleanDate).color" class="w-4 h-4 rounded-full"></div>
 							<p class="text-lg font-medium text-gray-500 ml-4">{{ getStatusInfo(event, cleanDate).progress }}</p>
+						</div>
+						<div class="hidden md:flex justify-center items-center">
+							<div v-if="event.total_clicks" class="flex items-center justify-center">
+								<div class="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-full">
+									<span class="font-medium">{{ event.total_clicks }}</span>
+								</div>
+							</div>
+							<div v-else class="text-gray-400">-</div>
 						</div>
 						<!-- SVG Icon, visible only on hover -->
 						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
@@ -239,6 +248,16 @@
 
 				<!-- Event Name -->
 				<h2 class="text-3xl md:text-4xl font-bold mb-8 md:mb-12 text-center break-words hyphens-auto">{{ selectedEvent.name }}</h2>
+
+				<!-- Event Statistics (if published) -->
+				<div v-if="isEventPublished(selectedEvent) && selectedEvent.total_clicks" class="mb-8 text-center">
+					<div class="inline-flex items-center bg-gray-100 px-6 py-3 rounded-lg">
+						<div class="flex flex-col items-center">
+							<span class="text-2xl font-bold">{{ selectedEvent.total_clicks }}</span>
+							<span class="text-gray-500 text-sm">Ticket Link Clicks</span>
+						</div>
+					</div>
+				</div>
 
 				<!-- Action Buttons -->
 				<div class="flex flex-col md:flex-row gap-2 md:gap-6 mb-12 md:mb-0">

@@ -55,7 +55,7 @@
                                     <svg class="w-6 h-6 fill-[#ff385c] mr-2">
                                         <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
                                     </svg>
-                                    <span class="text-black text-1xl font-bold mr-10">{{ state.location.city }}</span>
+                                    <span class="text-black text-1xl font-bold mr-10">{{ formattedCityDisplay }}</span>
                                 </div>
                                 <span class="text-gray-300">|</span>
                                 <div 
@@ -128,7 +128,7 @@ const props = defineProps({
   },
   maxPrice: {
     type: Number,
-    default: null
+    default: undefined
   }
 });
 
@@ -151,6 +151,15 @@ const updateUrlParams = (params) => {
 // Computed properties
 const isSearchPage = computed(() => {
     return window.location.pathname.includes('/search');
+});
+
+// Add a computed property for formatting city display
+const formattedCityDisplay = computed(() => {
+    if (!state.value.location.city) return '';
+    
+    // Get the city part only - split by commas and take the first part
+    const cityParts = state.value.location.city.split(',');
+    return cityParts[0].trim();
 });
 
 const formatDateDisplay = computed(() => {
@@ -300,10 +309,16 @@ const handleFilterUpdate = async (filters) => {
 const handleLocationSearch = (searchData) => {    
     console.log('handleLocationSearch', searchData);
     
+    // Format city name to remove country for US cities
+    let cityName = searchData.location.city;
+    if (cityName.endsWith(", USA")) {
+        cityName = cityName.replace(", USA", "");
+    }
+    
     // Use the updateState method
     SearchStore.updateState({
         location: {
-            city: searchData.location.city,
+            city: cityName,
             lat: searchData.location.lat,
             lng: searchData.location.lng,
             searchType: searchData.location.searchType,
@@ -318,7 +333,7 @@ const handleLocationSearch = (searchData) => {
     // Rest of the function remains the same
     const params = urlParams.value;
     const currentCity = params.get('city');
-    const isNewLocation = currentCity !== searchData.location.city;
+    const isNewLocation = currentCity !== cityName;
     
     // Reset to page 1 when location changes
     params.set('page', 1);
@@ -332,7 +347,7 @@ const handleLocationSearch = (searchData) => {
         params.set('live', 'false');
     }
     
-    params.set('city', searchData.location.city);
+    params.set('city', cityName);
     
     // Explicitly convert to float before setting params
     const parsedLat = searchData.location.lat ? parseFloat(searchData.location.lat) : null;
@@ -419,7 +434,7 @@ const setupEventListeners = () => {
 
 // Lifecycle hooks
 onMounted(() => {
-  SearchStore.initializeFromUrl(props.searchedEvents, props.maxPrice);
+  SearchStore.initializeFromUrl(props.searchedEvents, props.maxPrice === undefined ? null : props.maxPrice);
   subscribeToMapStore();
   setupEventListeners();
 });

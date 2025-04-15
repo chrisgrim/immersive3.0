@@ -8,16 +8,23 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
+use App\Http\Controllers\CachedDataController;
 
 class UpdateWebsiteData extends Command
 {
-    protected $signature = 'website:update-data {--reset-elastic-migrations : Reset Elasticsearch migrations}';
+    protected $signature = 'website:update-data {--reset-elastic-migrations : Reset Elasticsearch migrations} {--rebuild-cache : Rebuild Redis cache for categories and genres}';
     protected $description = 'Run all necessary data updates across the website models';
 
     public function handle()
     {
         if ($this->option('reset-elastic-migrations')) {
             $this->resetElasticMigrations();
+            return;
+        }
+
+        if ($this->option('rebuild-cache')) {
+            $this->rebuildRedisCache();
             return;
         }
 
@@ -45,36 +52,109 @@ class UpdateWebsiteData extends Command
         DB::table($table)->truncate();
         $this->info("Cleared {$count} migrations from the database.");
 
-        // Delete existing indices
-        $this->info('Deleting existing Elasticsearch indices...');
-        $indices = ['events', 'organizers', 'genres', 'categories'];
+        // Delete existing indices directly with curl
+        $this->info('Deleting Elasticsearch indices directly with curl...');
+        
+        // List of indices to make sure are deleted
+        $indices = ['events', 'organizers', 'genres', 'categories', 'users', 'shelves'];
         
         foreach ($indices as $index) {
             $this->info("Deleting index: {$index}");
-            try {
-                $ch = curl_init("localhost:9200/{$index}");
-                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                $result = curl_exec($ch);
-                curl_close($ch);
-                $this->info("Result: {$result}");
-            } catch (\Exception $e) {
-                $this->error("Error deleting index {$index}: " . $e->getMessage());
+            $command = "curl -X DELETE 'localhost:9200/{$index}?ignore_unavailable=true'";
+            passthru($command);
+            echo "\n";
+            sleep(1); // 1 second delay
+        }
+        
+        // Double-check the genres index specifically
+        $this->info("Extra check for genres index:");
+        passthru("curl -X GET 'localhost:9200/genres?pretty'");
+        echo "\n";
+        
+        $this->info("Force delete genres index:");
+        passthru("curl -X DELETE 'localhost:9200/genres?ignore_unavailable=true'");
+        echo "\n";
+        sleep(2); // 2 second delay
+        
+        // Insert migration records manually
+        $this->info('Manually inserting Elasticsearch migration records...');
+        $table = config('elastic.migrations.database.table', 'elastic_migrations');
+        
+        // First, let's double check what the table structure is
+        $this->info("Checking elastic_migrations table structure");
+        $columns = DB::getSchemaBuilder()->getColumnListing($table);
+        $this->info("Table columns: " . implode(', ', $columns));
+        
+        // Define the Event and Organizer migration names
+        $migrationNames = [
+            '2024_03_19_171746_create_organizers_index',
+            '2024_03_19_172447_create_events_index'
+        ];
+        
+        // Insert the migrations into the table with the correct structure
+        foreach ($migrationNames as $migration) {
+            $this->info("Inserting migration record: {$migration}");
+            
+            // Check if the table has a batch column
+            if (in_array('batch', $columns)) {
+                // Get next batch number
+                $batch = DB::table($table)->max('batch') + 1;
+                
+                // Insert with batch number
+                DB::table($table)->insert([
+                    'migration' => $migration,
+                    'batch' => $batch
+                ]);
+            } else {
+                // Basic insert without batch
+                DB::table($table)->insert([
+                    'migration' => $migration
+                ]);
             }
         }
+        
+        // Now manually create the indices using the migration files
+        $this->info('Creating Elasticsearch indices directly...');
+        
+        // Define the migrations to run
+        $filesToRun = [
+            base_path('elastic/migrations/2024_03_19_171746_create_organizers_index.php'),
+            base_path('elastic/migrations/2024_03_19_172447_create_events_index.php')
+        ];
+        
+        // Check each file exists
+        foreach ($filesToRun as $file) {
+            if (!file_exists($file)) {
+                $this->error("Migration file does not exist: {$file}");
+                continue;
+            }
+            
+            $this->info("Running migration file: " . basename($file));
+            
+            // Require the file and execute it
+            try {
+                require_once $file;
+                $className = $this->getClassNameFromFile($file);
+                
+                if (class_exists($className)) {
+                    $migration = new $className();
+                    $migration->up();
+                    $this->info("Successfully created index via {$className}");
+                } else {
+                    $this->error("Class {$className} not found in {$file}");
+                }
+            } catch (\Exception $e) {
+                $this->error("Error executing migration {$file}: " . $e->getMessage());
+            }
+            
+            sleep(1);
+        }
 
-        // Run the migrations
-        $this->info('Running Elasticsearch migrations...');
-        Artisan::call('elastic:migrate');
-        $this->info(Artisan::output());
-
-        // Reimport models
-        $this->info('Reimporting models to Elasticsearch...');
+        // Reimport only the needed models
+        $this->info('Reimporting only necessary models to Elasticsearch...');
         $models = [
             'App\\Models\\Event',
-            'App\\Models\\Organizer',
-            'App\\Models\\Genre',
-            'App\\Models\\Category'
+            'App\\Models\\Organizer'
         ];
 
         foreach ($models as $model) {
@@ -84,6 +164,26 @@ class UpdateWebsiteData extends Command
         }
 
         $this->info('Elasticsearch migrations reset complete!');
+    }
+    
+    /**
+     * Extract class name from migration file
+     */
+    private function getClassNameFromFile($filePath)
+    {
+        $content = file_get_contents($filePath);
+        $pattern = '/class\s+([a-zA-Z0-9_]+)\s+/';
+        
+        if (preg_match($pattern, $content, $matches)) {
+            return $matches[1];
+        }
+        
+        // Fallback: get class name from filename
+        $baseName = basename($filePath, '.php');
+        $parts = explode('_', $baseName);
+        array_shift($parts); // Remove timestamp
+        
+        return str_replace(' ', '', ucwords(implode(' ', $parts)));
     }
 
     private function updateOrganizerOwnership()
@@ -259,5 +359,67 @@ class UpdateWebsiteData extends Command
         $this->newLine();
         $this->info("Completed! Migrated {$migrated} event videos to the videos table.");
         $this->info("Skipped {$skipped} events that already had videos.");
+    }
+
+    private function rebuildRedisCache()
+    {
+        $this->info('Rebuilding Redis cache for categories and genres...');
+        
+        // Output Redis configuration
+        $this->info('Redis Configuration:');
+        $this->info('- Cache Driver: ' . config('cache.default'));
+        $this->info('- Redis Client: ' . config('database.redis.client'));
+        $this->info('- Redis Host: ' . config('database.redis.default.host'));
+        $this->info('- Redis Port: ' . config('database.redis.default.port'));
+        $this->info('- Redis DB (default): ' . config('database.redis.default.database'));
+        $this->info('- Redis DB (cache): ' . config('database.redis.cache.database'));
+        $this->info('- Cache Prefix: "' . config('cache.prefix') . '"');
+        
+        // First clear existing cache entries if they exist
+        Cache::forget('active-categories');
+        Cache::forget('active-genres');
+        
+        $this->info('Existing cache entries cleared.');
+        
+        // Rebuild the caches by calling the appropriate methods
+        $cachedDataController = new CachedDataController();
+        
+        // Rebuild categories cache
+        $categories = $cachedDataController->getActiveCategories();
+        $categoryCount = $categories->count();
+        $this->info("Categories cache rebuilt with {$categoryCount} active categories.");
+        
+        // Output the actual cache key used
+        $fullCategoriesCacheKey = config('cache.prefix') . 'active-categories';
+        $this->info("Full categories cache key: {$fullCategoriesCacheKey}");
+        
+        // Rebuild genres cache
+        $genres = $cachedDataController->getActiveGenres();
+        $genreCount = $genres->count();
+        $this->info("Genres cache rebuilt with {$genreCount} active genres.");
+        
+        // Output the actual cache key used
+        $fullGenresCacheKey = config('cache.prefix') . 'active-genres';
+        $this->info("Full genres cache key: {$fullGenresCacheKey}");
+        
+        // Verify that the cache now exists
+        $categoriesCached = Cache::has('active-categories');
+        $genresCached = Cache::has('active-genres');
+        
+        if ($categoriesCached && $genresCached) {
+            $this->info("Cache verification successful. Both category and genre caches exist.");
+        } else {
+            $this->error("Cache verification failed. Category cache exists: " . ($categoriesCached ? 'Yes' : 'No') . 
+                        ", Genre cache exists: " . ($genresCached ? 'Yes' : 'No'));
+        }
+        
+        // Show commands to check in Redis CLI
+        $this->info("\nTo verify in Redis CLI, run these commands:");
+        $this->info("redis-cli -n " . config('database.redis.cache.database'));
+        $this->info("AUTH your_redis_password");
+        $this->info("KEYS *{$fullCategoriesCacheKey}*");
+        $this->info("KEYS *{$fullGenresCacheKey}*");
+        
+        $this->info('Redis cache rebuild complete!');
     }
 }

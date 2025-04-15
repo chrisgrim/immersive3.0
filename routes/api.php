@@ -26,6 +26,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Creation\HostEventController;
 use App\Http\Controllers\OrganizerController;
 use App\Http\Controllers\CachedDataController;
+use App\Http\Controllers\Creation\EventClickController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,6 +42,15 @@ Route::POST('/events/{event}/duplicate', [HostEventController::class, 'duplicate
     ->middleware(['auth:sanctum'])
     ->middleware('can:duplicate,event')
     ->name('event.duplicate');
+
+// Event click tracking routes
+Route::POST('/events/{eventId}/track-click', [EventClickController::class, 'trackClick'])
+    ->name('event.track.click');
+
+// Event click statistics (protected route)
+Route::GET('/events/{eventId}/click-stats', [EventClickController::class, 'getStats'])
+    ->middleware(['auth:sanctum'])
+    ->name('event.click.stats');
 
 // Event Attributes Routes
 Route::controller(EventAttributesController::class)->group(function () {

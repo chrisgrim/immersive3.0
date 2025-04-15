@@ -166,7 +166,7 @@ const props = defineProps({
     },
     maxPrice: {
         type: Number,
-        default: 1000
+        default: undefined
     }
 });
 
@@ -497,7 +497,7 @@ const subscribeToMapStore = () => {
 // Lifecycle hooks
 onMounted(() => {
     // Initialize the SearchStore from URL and props
-    SearchStore.initializeFromUrl(props.searchedEvents, props.maxPrice);
+    SearchStore.initializeFromUrl(props.searchedEvents, props.maxPrice === undefined ? null : props.maxPrice);
     
     // Subscribe to MapStore
     subscribeToMapStore();

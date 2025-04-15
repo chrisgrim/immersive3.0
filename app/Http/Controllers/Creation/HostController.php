@@ -14,9 +14,16 @@ class HostController extends Controller
         $organizer = auth()->user()->organizer()
             ->withUserRole()
             ->with(['images', 'events' => function ($query) {
-                $query->with('images');
+                $query->with(['images', 'clicks']);
             }])
             ->first();
+
+        // Add total clicks calculation for each event
+        if ($organizer && $organizer->events) {
+            foreach ($organizer->events as $event) {
+                $event->total_clicks = $event->clicks->count();
+            }
+        }
             
         return view('creation.index', compact('organizer'));
     }

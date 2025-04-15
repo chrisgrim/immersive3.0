@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\ImageFile;
 use App\Models\User;
 use App\Models\Featured\Feature;
-use Elastic\ScoutDriverPlus\Searchable;
 use App\Models\Image;
 use App\Models\Featured\Section;
 use Illuminate\Database\Eloquent\Model;
@@ -16,32 +15,8 @@ use Illuminate\Support\Str;
 class Community extends Model
 {
     use HasFactory;
-    use Searchable;
 
     protected $fillable = [ 'name', 'user_id', 'slug', 'blurb', 'description', 'thumbImagePath', 'largeImagePath', 'instagramHandle', 'twitterHandle', 'facebookHandle', 'patreon', 'status' ];
-
-    /**
-    * What events should be searchable for scout elastic search
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\belongsTo
-    */
-    public function shouldBeSearchable()
-    {
-        return $this->status === 'p';
-    }
-
-    /**
-     * Get the indexable data array for the model.
-     *
-     * @return array
-     */
-    public function toSearchableArray()
-    {
-        return [
-            'name' => $this->name,
-            'status' => $this->status,
-        ];
-    }
 
     /**
      * Delete any posts with the community

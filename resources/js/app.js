@@ -108,7 +108,8 @@ const PostComponents = {
 const app = createApp({
     data() {
         return {
-            user: window.Laravel.user
+            user: window.Laravel.user,
+            maxPrice: null
         };
     }
 });

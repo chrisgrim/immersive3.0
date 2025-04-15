@@ -127,7 +127,12 @@ const handleClickOutside = () => {
 };
 
 const storeClick = () => {
-    axios.post('/track/event/click', { event: props.event.id });
+    axios.post(`/api/events/${props.event.id}/track-click`, {
+        destination_url: eventUrl.value,
+        click_type: 'ticket_button'
+    }).catch(error => {
+        console.error('Error tracking click:', error);
+    });
 };
 
 const getDates = () => {

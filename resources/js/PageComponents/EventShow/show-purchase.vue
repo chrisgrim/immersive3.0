@@ -76,6 +76,7 @@
                             :show-month-year-separator="false"
                             :text-input="false"
                             :max-date="maxDate"
+                            :open-date="openDateValue"
                             multi-dates
                             :six-weeks="true"
                             multi-calendars="2"
@@ -189,14 +190,25 @@ const datesVisible = ref(false);
 const datePickerRef = ref(null);
 const isDark = ref(false);
 const maxDate = ref(new Date(new Date().setFullYear(new Date().getFullYear() + 1)));
+const openDateValue = ref(new Date());
 
 const showDates = () => {
     ticketsVisible.value = false;
     datesVisible.value = !datesVisible.value;
+    
+    // Update the open date when showing the calendar
+    if (datesVisible.value) {
+        openDateValue.value = new Date();
+    }
 };
 
 const storeClick = () => {
-    axios.post('/track/event/click', { event: props.event.id });
+    axios.post(`/api/events/${props.event.id}/track-click`, {
+        destination_url: eventUrl.value,
+        click_type: 'ticket_button'
+    }).catch(error => {
+        console.error('Error tracking click:', error);
+    });
 };
 
 const hide = () => {
@@ -233,19 +245,6 @@ const preventDefault = (val) => {
     selectedDates.value = null;
     return false;
 };
-
-watch(datesVisible, (newVal) => {
-    if (newVal) {
-        nextTick(() => {
-            // Focus on current date when opened
-            if (datePickerRef.value) {
-                const now = new Date();
-                datePickerRef.value.selectYear(now.getFullYear());
-                datePickerRef.value.selectMonth(now.getMonth());
-            }
-        });
-    }
-});
 
 onMounted(getDates);
 </script>

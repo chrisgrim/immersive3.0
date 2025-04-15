@@ -34,7 +34,73 @@
     <meta name="twitter:title" content="{{$event->name}}" />
     <meta name="twitter:site" content="@everythingimmersive" />
     <meta name="twitter:creator" content="@everythingimmersive" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Event","name":"{{$event->name}}{{$event->tag_line ? '- ' . \Illuminate\Support\Str::limit($event->tag_line, 80) : '- ' . \Illuminate\Support\Str::limit($event->description, 80)}}","startDate":"{{ $event->shows->isEmpty() ? \Carbon\Carbon::parse($event->created_at)->toIso8601String() : \Carbon\Carbon::parse($event->shows[0]->date)->toIso8601String() }}","endDate":"{{ \Carbon\Carbon::parse($event->closingDate)->toIso8601String() }}","eventStatus":"https://schema.org/EventScheduled","image":[@foreach($event->images as $image) "{{ env('VITE_IMAGE_URL') }}{{ $image->large_image_path }}"@if(!$loop->last),@endif @endforeach],"description":"{{$event->tag_line ? $event->tag_line : $event->description}}","offers":{"@type":"Offer","url":"{{$event->ticketUrl ? $event->ticketUrl : ($event->websiteUrl ? $event->websiteUrl : Request::url())}}","price":"{{$event->priceranges[0]->price}}","priceCurrency":"USD","availability":"https://schema.org/InStock","validFrom":"{{$event->priceranges[0]->created_at}}"},"organizer":{"@type":"Organization","name":"{{$event->organizer->name}}","url":"{{$event->organizer->website ? $event->organizer->website : Request::root() .'/organizer/' . $event->organizer->slug}}"}@if($event->hasLocation),"eventAttendanceMode":"https://schema.org/OfflineEventAttendanceMode","location":{"@type":"Place","name":"{{$event->location->venue ? $event->location->venue : $event->name}}","address":{"@type":"PostalAddress","streetAddress":"{{$event->location->home . ' ' . $event->location->street}}","addressLocality":"{{$event->location->city}}","postalCode":"{{$event->location->postal_code}}","addressRegion":"{{$event->location->region}}","addressCountry":"{{$event->location->country}}"}}@else,"eventAttendanceMode":"https://schema.org/OnlineEventAttendanceMode","location":{"@type":"VirtualLocation","url":"{{$event->websiteUrl ? $event->websiteUrl : ($event->ticketUrl ? $event->ticketUrl : Request::url())}}"}}@endif}</script>
+    
+    {{-- Enhanced Structured Data for Better AI and Search Engine Discovery --}}
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Event",
+        "name": "{{$event->name}}",
+        "description": "{{$event->tag_line ? $event->tag_line : $event->description}}",
+        "startDate": "{{ $event->shows->isEmpty() ? \Carbon\Carbon::parse($event->created_at)->toIso8601String() : \Carbon\Carbon::parse($event->shows[0]->date)->toIso8601String() }}",
+        "endDate": "{{ \Carbon\Carbon::parse($event->closingDate)->toIso8601String() }}",
+        "eventStatus": "https://schema.org/EventScheduled",
+        "eventAttendanceMode": "{{ $event->hasLocation ? 'https://schema.org/OfflineEventAttendanceMode' : 'https://schema.org/OnlineEventAttendanceMode' }}",
+        "image": [
+            @foreach($event->images as $image)
+                "{{ env('VITE_IMAGE_URL') }}{{ $image->large_image_path }}"@if(!$loop->last),@endif
+            @endforeach
+        ],
+        "offers": {
+            "@type": "Offer",
+            "url": "{{$event->ticketUrl ? $event->ticketUrl : ($event->websiteUrl ? $event->websiteUrl : Request::url())}}",
+            "price": "{{$event->priceranges[0]->price}}",
+            "priceCurrency": "USD",
+            "availability": "https://schema.org/InStock",
+            "validFrom": "{{$event->priceranges[0]->created_at}}"
+        },
+        "organizer": {
+            "@type": "Organization",
+            "name": "{{$event->organizer->name}}",
+            "url": "{{$event->organizer->website ? $event->organizer->website : Request::root() .'/organizer/' . $event->organizer->slug}}"
+        },
+        @if($event->hasLocation)
+        "location": {
+            "@type": "Place",
+            "name": "{{$event->location->venue ? $event->location->venue : $event->name}}",
+            "address": {
+                "@type": "PostalAddress",
+                "streetAddress": "{{$event->location->home . ' ' . $event->location->street}}",
+                "addressLocality": "{{$event->location->city}}",
+                "postalCode": "{{$event->location->postal_code}}",
+                "addressRegion": "{{$event->location->region}}",
+                "addressCountry": "{{$event->location->country}}"
+            }
+        },
+        @else
+        "location": {
+            "@type": "VirtualLocation",
+            "url": "{{$event->websiteUrl ? $event->websiteUrl : ($event->ticketUrl ? $event->ticketUrl : Request::url())}}"
+        },
+        @endif
+        "performer": {
+            "@type": "PerformingGroup",
+            "name": "{{$event->organizer->name}}"
+        },
+        "keywords": [
+            @if(count($event->genres) > 0)
+                @foreach($event->genres as $index => $genre)
+                    "{{$genre['name']}}"@if($index < count($event->genres) - 1),@endif
+                @endforeach
+            @endif
+        ],
+        "isAccessibleForFree": {{ isset($event->priceranges[0]) && $event->priceranges[0]->price == 0 ? 'true' : 'false' }},
+        @if(!$event->advisories['wheelchairReady'])
+        "accessibilityHazard": ["NoAccessibleEntrance"],
+        @endif
+        "typicalAgeRange": "{{ $event->age_limits ? $event->age_limits['name'] : $event->advisories['ageRestriction'] }}"
+    }
+    </script>
 
     @if (Browser::isMobile())
         @foreach($event->images as $image)

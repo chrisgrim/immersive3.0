@@ -202,11 +202,11 @@ defineExpose({
 
 function initializePlaces() {
    return [
-       { place_id: 'ChIJOwg_06VPwokRYv534QaPC8g', description: 'New York, NY, USA' },
-       { place_id: 'ChIJE9on3F3HwoAR9AhGJW_fL-I', description: 'Los Angeles, CA, USA' },
+       { place_id: 'ChIJOwg_06VPwokRYv534QaPC8g', description: 'New York, NY' },
+       { place_id: 'ChIJE9on3F3HwoAR9AhGJW_fL-I', description: 'Los Angeles, CA' },
        { place_id: 'ChIJdd4hrwug2EcRmSrV3Vo6llI', description: 'London, UK' },
-       { place_id: 'ChIJIQBpAG2ahYAR_6128GcTUEo', description: 'San Francisco, CA, USA' },
-       { place_id: 'ChIJzxcfI6PYa4cR1jaKJ_j0jhE', description: 'Denver, CO, USA' }
+       { place_id: 'ChIJIQBpAG2ahYAR_6128GcTUEo', description: 'San Francisco, CA' },
+       { place_id: 'ChIJzxcfI6PYa4cR1jaKJ_j0jhE', description: 'Denver, CO' }
    ];
 }
 
@@ -272,8 +272,18 @@ const setPlace = (place) => {
        lng = place.geometry.location.lng();
    }
    
+   // Format the place name
+   let placeName = place.displayName?.text || place.formattedAddress || place.name || "Unknown location";
+   
+   // For US locations, remove ", USA" if present
+   if (placeName.endsWith(", USA")) {
+       placeName = placeName.replace(", USA", "");
+   }
+   
+   // For other locations, ensure we keep the country
+   // Store the formatted place name
    selectedPlace.value = {
-       name: place.displayName?.text || place.formattedAddress || place.name || "Unknown location",
+       name: placeName,
        lat: lat,
        lng: lng
    };

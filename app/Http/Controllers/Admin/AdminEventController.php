@@ -68,7 +68,15 @@ class AdminEventController extends Controller
                 $query->latest(); // Default sort
             });
 
-        return $query->paginate(20);
+        $events = $query->paginate(20);
+        
+        // Calculate total clicks for each event
+        foreach ($events as $event) {
+            $event->total_clicks = $event->clicks->count();
+            $event->unique_visitors = $event->clicks->unique('ip_address')->count();
+        }
+
+        return $events;
     }
 
     public function show(Event $event)
@@ -90,8 +98,13 @@ class AdminEventController extends Controller
             'organizer',
             'eventreviews',
             'videos',
-            'staffpick'
+            'staffpick',
+            'clicks'
         ]);
+
+        // Calculate total clicks and unique visitors
+        $event->total_clicks = $event->clicks->count();
+        $event->unique_visitors = $event->clicks->unique('ip_address')->count();
 
         // Find any events with the same name (case-insensitive)
         $duplicateEvents = Event::whereRaw('LOWER(name) = ?', [strtolower($event->name)])

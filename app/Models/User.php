@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\Storage;
@@ -22,7 +21,6 @@ class User extends Authenticatable
     use HasFactory;
     use Notifiable;
     use Billable;
-    use Searchable;
 
     /**
      * The attributes that are mass assignable.
@@ -69,19 +67,6 @@ class User extends Authenticatable
      * @var array
      */
     protected $with = ['organizer'];
-
-    /**
-     * Get the indexable data array for the model.
-     *
-     * @return array
-     */
-    public function toSearchableArray()
-    {
-        return [
-            "name" => $this->name,
-            "email" => $this->email,
-        ];
-    }
 
     public function forClientSide()
     {

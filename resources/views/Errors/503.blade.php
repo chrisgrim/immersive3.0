@@ -1,19 +1,19 @@
 @extends('layouts.master-container')
 
 @section('meta')
-    <title>Access Denied - {{ config('app.name') }}</title>
-    <meta name="description" content="You don't have permission to access this area. Moderator access is required.">
+    <title>Maintenance Mode - {{ config('app.name') }}</title>
+    <meta name="description" content="Our site is currently in maintenance mode. Creation features are temporarily disabled.">
     <meta name="robots" content="noindex, nofollow">
 @endsection
 
 @section('content')
     <div class="h-[calc(100vh-8rem)] min-h-[60vh] flex items-center justify-center px-6 py-12">
         <div class="text-center">
-            <h1 class="text-9xl font-bold text-[#ff385c] mb-4">403</h1>
-            <h2 class="text-3xl font-semibold text-gray-800 mb-6">Access Denied</h2>
+            <h1 class="text-9xl font-bold text-[#ff385c] mb-4">503</h1>
+            <h2 class="text-3xl font-semibold text-gray-800 mb-6">Limited Functionality</h2>
             <p class="text-xl text-gray-600 mb-8 max-w-lg mx-auto">
-                Oops! You don't have permission to access this area.
-                Moderator access is required.
+                We're currently performing maintenance on our creation features.
+                You can still browse events and content, but creating or editing is temporarily disabled.
             </p>
             <div class="space-x-4">
                 <a href="{{ url('/') }}" 

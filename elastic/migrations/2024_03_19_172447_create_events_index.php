@@ -79,9 +79,13 @@ final class CreateEventsIndex implements MigrationInterface
                 'format' => 'yyyy-MM-dd HH:mm:ss'
             ]);
             
+            // Standard date field
             $mapping->date('published_at', [
                 'format' => 'yyyy-MM-dd HH:mm:ss'
             ]);
+            
+            // Add sortable keyword field for published_at
+            $mapping->keyword('published_at_sort');
 
             // Enhanced analysis settings
             $settings->analysis([

@@ -8,6 +8,9 @@
                         class="w-full h-full object-cover" 
                         src="{{ config('app.image_url') }}{{ substr(count($event->images) === 0 ? $event->largeImagePath : $event->images[0]->large_image_path, 0, -4) }}jpg" 
                         alt="{{ $event['name'] }} Immersive Event - Main Image"
+                        loading="eager"
+                        fetchpriority="high"
+                        decoding="async"
                     >
                 </picture>
             </div>

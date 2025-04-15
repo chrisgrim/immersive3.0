@@ -22,20 +22,25 @@
     <meta name="twitter:image" content="{{ url('/') }}/storage/website-files/ei-logo.png" />
     <meta name="twitter:creator" content="@everythingimmersive" />
     <script>
-        // Define functions in global scope
-        window.scrollDockRight = function() {
-            const scrollContainer = document.getElementById('dock-scroll-container');
-            if (scrollContainer) {
-                scrollContainer.scrollBy({ left: 500, behavior: 'smooth' });
-            }
-        };
-        
         window.scrollDockLeft = function() {
-            const scrollContainer = document.getElementById('dock-scroll-container');
-            if (scrollContainer) {
-                scrollContainer.scrollBy({ left: -500, behavior: 'smooth' });
+            const container = document.getElementById('dock-scroll-container');
+            if (container) {
+                container.scrollBy({
+                    left: -container.offsetWidth,
+                    behavior: 'smooth'
+                });
             }
-        };
+        }
+
+        window.scrollDockRight = function() {
+            const container = document.getElementById('dock-scroll-container');
+            if (container) {
+                container.scrollBy({
+                    left: container.offsetWidth,
+                    behavior: 'smooth'
+                });
+            }
+        }
     </script>
 
     <script type="application/ld+json">{"@context":"http://schema.org", "@type":"Organization", "address":{"@type":"PostalAddress", "addressLocality":"Petaluma", "addressRegion":"SF", "postalCode":"94952", "streetAddress":"600 East D St"}, "description": "Your resource for immersive and interactive theatre, art, virtual reality, escape rooms, dance and more.", "logo":"https://everythingimmersive.com/storage/website-files/ei-logo.png", "name":"Everything Immersive", "sameAs":[ "https://www.facebook.com/EverythingImmersive/", "https://www.linkedin.com/company/everythingimmersive", "https://www.instagram.com/everythingimmersive/", "https://twitter.com/everythingimmersive", "https://plus.google.com/+everythingimmersive", "https://en.wikipedia.org/wiki/everythingimmersive"], "url":"https://everythingimmersive.com"}</script>
@@ -128,7 +133,71 @@
 
         <section id="partners" class="max-w-screen-5xl relative h-full m-auto px-10 lg-air:px-16 2xl-air:px-32">
             <div class="my-8 md:mt-16 md:mb-24">
-                <vue-partners></vue-partners>
+                <div>
+                    <h2>Check out our partners</h2>
+                    <div class="whitespace-nowrap overflow-y-hidden overflow-x-auto mt-8 md:w-full md:m-auto md:whitespace-normal md:overflow-visible">
+                        <div 
+                            style="scroll-snap-type: x mandatory;" 
+                            class="flex scroll-p-4 scroll-smooth overflow-auto w-full mt-8">
+                            <div class="flex w-full relative snap-start snap-always px-4 flex-[1_0_calc(100%-6rem)] md:flex-[0_1_33.3333333333%] md:w-4/12 lg:flex-[0_1_25%] lg:w-3/12">
+                                <div class="flex w-full flex-col overflow-hidden relative">
+                                    <a 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        href="http://immersiveexperience.org/">
+                                        <button
+                                            aria-label="Contributer Button"
+                                            style="background: url('/storage/website-files/next-stage.jpg') center center / cover no-repeat;" 
+                                            class="w-full border border-white rounded-5xl text-white min-h-[20rem] hover:border-black">
+                                        </button>
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="flex w-full relative snap-start snap-always px-4 flex-[1_0_calc(100%-6rem)] md:flex-[0_1_33.3333333333%] md:w-4/12 lg:flex-[0_1_25%] lg:w-3/12">
+                                <div class="flex w-full flex-col overflow-hidden relative">
+                                    <a 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        href="https://noproscenium.com/">
+                                        <button
+                                            aria-label="Contributer Button" 
+                                            style="background: url('/storage/website-files/nopro-logo.jpg') center center / cover no-repeat;" 
+                                            class="w-full border border-white rounded-5xl text-white min-h-[20rem] hover:border-black">
+                                        </button>
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="flex w-full relative snap-start snap-always px-4 flex-[1_0_calc(100%-6rem)] md:flex-[0_1_33.3333333333%] md:w-4/12 lg:flex-[0_1_25%] lg:w-3/12">
+                                <div class="flex w-full flex-col overflow-hidden relative">
+                                    <a 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        href="https://www.argn.com/">
+                                        <button
+                                            aria-label="Contributer Button" 
+                                            style="background: url('/storage/website-files/argn-logo.jpg') center center / contain no-repeat;" 
+                                            class="w-full border border-white rounded-5xl text-white min-h-[20rem] hover:border-black">
+                                        </button>
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="flex w-full relative snap-start snap-always px-4 flex-[1_0_calc(100%-6rem)] md:flex-[0_1_33.3333333333%] md:w-4/12 lg:flex-[0_1_25%] lg:w-3/12">
+                                <div class="flex w-full flex-col overflow-hidden relative">
+                                    <a 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        href="https://roomescapeartist.com/">
+                                        <button
+                                            aria-label="Contributer Button" 
+                                            style="background: url('/storage/website-files/rea-logo.png') center center / contain no-repeat;" 
+                                            class="w-full border border-white rounded-5xl text-white min-h-[20rem] hover:border-black">
+                                        </button>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
 
