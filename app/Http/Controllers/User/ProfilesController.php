@@ -77,8 +77,6 @@ class ProfilesController extends Controller
                 'silence' => $request->input('silence', 'y')
             ];
 
-            \Log::info('Updating user with data', $userData);
-
             if ($request->filled('email') && $request->email !== $user->email) {
                 $userData['email_verified_at'] = null;
                 $user->update($userData);
@@ -88,7 +86,6 @@ class ProfilesController extends Controller
             }
 
             $result = $user->fresh(['images'])->makeVisible(['newsletter_type', 'silence']);
-            \Log::info('Update complete, returning', $result->toArray());
             return $result;
 
         } catch (\Exception $e) {

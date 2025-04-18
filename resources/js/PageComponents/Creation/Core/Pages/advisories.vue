@@ -16,21 +16,21 @@
                                 class="relative cursor-pointer items-end flex justify-between p-8 h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
                             >
                                 <div class="w-full">
-                                    <h4 class="text-2xl leading-tight">{{ contact.name }}</h4>
+                                    <p class="text-2xl leading-tight">{{ contact.name }}</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div v-else class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 transition-all duration-200">
                         <div>
-                            <h4 class="text-1xl leading-tight"
+                            <p class="text-1xl leading-tight"
                                 :class="{
                                     'text-neutral-400': selectedContact.model,
                                     'text-black': selectedContact.model 
                                 }"
                             >
                                 {{ selectedContact.name }}
-                            </h4>
+                            </p>
                         </div>
                         <div 
                             @mouseenter="hoveredLocation = 'close'"
@@ -59,21 +59,21 @@
                                 class="relative cursor-pointer items-end flex justify-between p-8 h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
                             >
                                 <div class="w-full">
-                                    <h4 class="text-2xl leading-tight">{{ age.name }}</h4>
+                                    <p class="text-2xl leading-tight">{{ age.name }}</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div v-else class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 transition-all duration-200">
                         <div>
-                            <h4 class="text-1xl leading-tight"
+                            <p class="text-1xl leading-tight"
                                 :class="{
                                     'text-neutral-400': selectedAge.model,
                                     'text-black': selectedAge.model 
                                 }"
                             >
                                 {{ selectedAge.name }}
-                            </h4>
+                            </p>
                         </div>
                         <div 
                             @mouseenter="hoveredLocation = 'closeAge'"
@@ -101,7 +101,7 @@
                             class="relative cursor-pointer flex flex-col p-8 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
                         >
                             <div class="w-full">
-                                <h4 class="text-2xl leading-tight mb-2">{{ interactive.name }}</h4>
+                                <p class="text-2.5xl leading-tight mb-2">{{ interactive.name }}</p>
                                 <p class="text-lg leading-snug text-neutral-600">{{ interactive.description }}</p>
                             </div>
                         </div>
@@ -109,14 +109,14 @@
                     <div v-else>
                         <div class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 w-full transition-all duration-200">
                             <div class="max-w-2xl">
-                                <h4 class="text-1xl leading-tight mb-2"
+                                <p class="text-2.5xl leading-tight mb-2"
                                     :class="{
                                         'text-neutral-400': selectedInteractive.model,
                                         'text-black': selectedInteractive.model 
                                     }"
                                 >
                                     {{ selectedInteractive.name }}
-                                </h4>
+                                </p>
                                 <p class="text-lg leading-snug text-neutral-600">{{ selectedInteractive.description }}</p>
                             </div>
                             <div 

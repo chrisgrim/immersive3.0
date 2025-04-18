@@ -9,8 +9,7 @@
             
             <div class="col-span-1 inline-block relative leading-none z-30 flex">
                 <a aria-label="Home Button" href="/">
-                    <img src="{{ asset('storage/website-files/Everything_Immersive_logo.png') }}" alt="Everything Immersive" style="width: 100%; max-width: 260px; margin-top: 0.75rem;" class="hidden lg:block">
-                    <img src="{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}" alt="EI" style="width: 3.5rem; height: 3.5rem;" class="block lg:hidden">
+                    <img src="{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}" alt="Everything Immersive" style="width: 3.5rem; height:3.5rem">
                 </a>
             </div>
             <vue-nav-search

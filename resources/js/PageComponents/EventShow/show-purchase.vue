@@ -61,7 +61,7 @@
                     </svg>
                 </button>
                 <template v-if="datesVisible">
-                    <div class="absolute border shadow-custom-1 bg-white px-8 pt-36 pb-8 max-h-[calc(100vh-20rem)] overflow-y-scroll overflow-x-hidden rounded-2xl top-[-2rem] right-[-2rem] graydates shadow-hidden lockedcalendar z-20">
+                    <div class="absolute border shadow-custom-1 bg-white px-8 pt-36 pb-8 max-h-[calc(100vh-20rem)] overflow-y-scroll overflow-x-hidden rounded-2xl top-[-2rem] right-[-2rem] graydates shadow-hidden lockedcalendar show-purchase-calendar z-20">
                         <VueDatePicker
                             v-model="selectedDates"
                             :model-value="highlightedDates"
@@ -250,13 +250,15 @@ onMounted(getDates);
 </script>
 
 <style>
-/* Calendar styling from dates.vue */
-.dp__calendar {
+/* Calendar styling for show-purchase component only */
+.show-purchase-calendar .dp__calendar,
+.lockedcalendar .dp__calendar {
    width: 100% !important;
 }
 
 /* Header month/year styling */
-.dp__month_year_wrap {
+.show-purchase-calendar .dp__month_year_wrap,
+.lockedcalendar .dp__month_year_wrap {
    font-size: 1.7rem;
    font-weight: 400;
    display: flex;
@@ -265,29 +267,35 @@ onMounted(getDates);
    padding:1rem;
 }
 
-.dp--past {
+.show-purchase-calendar .dp--past,
+.lockedcalendar .dp--past {
     pointer-events: none !important;
     opacity: 0.3 !important;
 }
 
-.dp--past .dp__cell_inner {
+.show-purchase-calendar .dp--past .dp__cell_inner,
+.lockedcalendar .dp--past .dp__cell_inner {
     color: #999 !important;
     background: transparent !important;
 }
 
-.dp--past.dp__active_date,
-.dp--past .dp__active {
+.show-purchase-calendar .dp--past.dp__active_date,
+.show-purchase-calendar .dp--past .dp__active,
+.lockedcalendar .dp--past.dp__active_date,
+.lockedcalendar .dp--past .dp__active {
     background-color: #999 !important;
     color: #fff !important;
 }
 
 /* Ensure past dates can't be interacted with */
-.dp--past * {
+.show-purchase-calendar .dp--past *,
+.lockedcalendar .dp--past * {
     pointer-events: none !important;
     cursor: default !important;
 }
 
-.dp__month_year_select {
+.show-purchase-calendar .dp__month_year_select,
+.lockedcalendar .dp__month_year_select {
     pointer-events: none !important;
     display: flex;
     justify-content: flex-start;
@@ -295,20 +303,23 @@ onMounted(getDates);
 }
 
 /* Calendar header (days of week) */
-.dp__calendar_header {
+.show-purchase-calendar .dp__calendar_header,
+.lockedcalendar .dp__calendar_header {
    color: #666;
    font-weight: normal;
    font-size: 1.2rem;
    border-bottom: 1px solid #e5e5e5
 }
 
-.dp__calendar_row {
+.show-purchase-calendar .dp__calendar_row,
+.lockedcalendar .dp__calendar_row {
    margin: 0 !important;
    gap: 0 !important;
 }
 
 /* Calendar item with border solution and square aspect ratio */
-.dp__calendar_item {
+.show-purchase-calendar .dp__calendar_item,
+.lockedcalendar .dp__calendar_item {
    margin: 0 !important;
    padding: 0 !important;
    font-size: 1.4rem;
@@ -321,23 +332,27 @@ onMounted(getDates);
 }
 
 /* Remove redundant borders */
-.dp__calendar_item:first-child {
+.show-purchase-calendar .dp__calendar_item:first-child,
+.lockedcalendar .dp__calendar_item:first-child {
    border-left: none;
 }
 
-.dp__calendar_row:first-child .dp__calendar_item {
+.show-purchase-calendar .dp__calendar_row:first-child .dp__calendar_item,
+.lockedcalendar .dp__calendar_row:first-child .dp__calendar_item {
    border-top: none;
 }
 
 /* Create square aspect ratio */
-.dp__calendar_item::before {
+.show-purchase-calendar .dp__calendar_item::before,
+.lockedcalendar .dp__calendar_item::before {
    content: '';
    display: block;
    padding-top: 100%; /* Creates 1:1 aspect ratio */
 }
 
 /* Position the content absolutely within the square */
-.dp__calendar_item > * {
+.show-purchase-calendar .dp__calendar_item > *,
+.lockedcalendar .dp__calendar_item > * {
    position: absolute;
    top: 0;
    left: 0;
@@ -349,7 +364,8 @@ onMounted(getDates);
 }
 
 /* Adjust cell inner to fit square */
-.dp__cell_inner {
+.show-purchase-calendar .dp__cell_inner,
+.lockedcalendar .dp__cell_inner {
    position: absolute;
    height: 100%;
    width: 100%;
@@ -362,128 +378,145 @@ onMounted(getDates);
    color: #333;
 }
 
-.dp__cell_disabled {
+.show-purchase-calendar .dp__cell_disabled,
+.lockedcalendar .dp__cell_disabled {
    opacity: 0.3;
    cursor: auto !important;
 }
 
 /* Selected state */
-.dp__active {
+.show-purchase-calendar .dp__active,
+.lockedcalendar .dp__active {
    background-color: black !important;
    color: white !important;
 }
 
-.dp__active_date {
+.show-purchase-calendar .dp__active_date,
+.lockedcalendar .dp__active_date {
    background-color: black !important;
    color: white !important;
 }
 
 /* Range styling */
-.dp__range_start,
-.dp__range_end {
+.show-purchase-calendar .dp__range_start,
+.show-purchase-calendar .dp__range_end,
+.lockedcalendar .dp__range_start,
+.lockedcalendar .dp__range_end {
    background-color: black !important;
    color: white !important;
 }
 
-.dp__range_start {
+.show-purchase-calendar .dp__range_start,
+.lockedcalendar .dp__range_start {
    border-top-right-radius: 0 !important;
    border-bottom-right-radius: 0 !important;
 }
 
-.dp__range_end {
+.show-purchase-calendar .dp__range_end,
+.lockedcalendar .dp__range_end {
    border-top-left-radius: 0 !important;
    border-bottom-left-radius: 0 !important;
 }
 
-.dp__range_between {
+.show-purchase-calendar .dp__range_between,
+.lockedcalendar .dp__range_between {
    border-radius: 0 !important;
 }
 
 /* Navigation arrows */
-.dp__arrow_bottom,
-.dp__arrow_top {
+.show-purchase-calendar .dp__arrow_bottom,
+.show-purchase-calendar .dp__arrow_top,
+.lockedcalendar .dp__arrow_bottom,
+.lockedcalendar .dp__arrow_top {
    display: none;
 }
 
 /* Today's date */
-.dp__today {
+.show-purchase-calendar .dp__today,
+.lockedcalendar .dp__today {
    border: none !important;
 }
 
 /* Calendar container */
-.dp__main {
+.show-purchase-calendar .dp__main,
+.lockedcalendar .dp__main {
    border: none;
    box-shadow: none;
 }
 
 /* Remove borders */
-.dp__calendar_header_separator {
+.show-purchase-calendar .dp__calendar_header_separator,
+.lockedcalendar .dp__calendar_header_separator {
    display: none;
 }
 
-.dp__theme_light {
+.show-purchase-calendar .dp__theme_light,
+.lockedcalendar .dp__theme_light {
    border: none !important;
 }
 
-.dp--header-wrap {
+.show-purchase-calendar .dp--header-wrap,
+.lockedcalendar .dp--header-wrap {
    margin-bottom: 1rem;
 }
 
-.dp__flex_display {
+.show-purchase-calendar .dp__flex_display,
+.lockedcalendar .dp__flex_display {
    display: block !important;
 }
 
-.dp__menu_inner.dp__flex_display {
+.show-purchase-calendar .dp__menu_inner.dp__flex_display,
+.lockedcalendar .dp__menu_inner.dp__flex_display {
    gap: 4rem;
 }
-.dp__menu_inner {
+
+.show-purchase-calendar .dp__menu_inner,
+.lockedcalendar .dp__menu_inner {
     padding: 0 !important;
 }
 
 /* Calendar layout */
-.dp__menu_inner.dp__flex_display {
+.show-purchase-calendar .dp__menu_inner.dp__flex_display,
+.lockedcalendar .dp__menu_inner.dp__flex_display {
     flex-direction: column !important;
     gap: 2rem !important;
 }
 
-.dp__calendar_next {
+.show-purchase-calendar .dp__calendar_next,
+.lockedcalendar .dp__calendar_next {
     margin:0 !important;
 }
 
-/* Override calendar width and height for show-purchase */
+/* Remove tabs from top */
+.show-purchase-calendar .dp__menu_inner .dp__menu_items,
+.lockedcalendar .dp__menu_inner .dp__menu_items {
+   display: none !important;
+}
+
+/* Keep lockedcalendar specific styles as they were before */
 .lockedcalendar .dp__instance_calendar {
     width: 100% !important;
 }
 
-/* Ensure the date picker in show-purchase is read-only */
 .lockedcalendar .dp__pointer {
     pointer-events: none !important;
     cursor: default !important;
 }
 
-/* Remove tabs from top */
-.dp__menu_inner .dp__menu_items {
-   display: none !important;
-}
-
-/* Remove arrow buttons for navigation - CHANGED TO DISPLAY THEM */
 .lockedcalendar .dp--arrow-btn-nav {
     display: flex !important;
 }
 
-/* Style navigation arrows */
 .lockedcalendar .dp__arrow_btn {
     cursor: pointer !important;
     pointer-events: auto !important;
 }
 
-/* Force dates to be non-clickable - update to target both elements */
 .lockedcalendar .dp__calendar_item,
 .lockedcalendar .dp__cell_inner {
     pointer-events: none !important;
 }
 
-/* But allow navigation buttons to be clickable - more specific selector to override */
 .lockedcalendar .dp__month_arrow_btn,
 .lockedcalendar .dp__arrow_btn,
 .lockedcalendar .dp__arrow_btn_container,
@@ -491,7 +524,6 @@ onMounted(getDates);
     pointer-events: auto !important;
 }
 
-/* Make sure highlighted dates stay highlighted */
 .lockedcalendar .dp__active_date,
 .lockedcalendar .dp__date_cell_highlight div,
 .lockedcalendar .dp__range_start,
@@ -500,13 +532,11 @@ onMounted(getDates);
     color: white !important;
 }
 
-/* Prevent any date selection */
 .lockedcalendar .dp__cell_offset,
 .lockedcalendar .dp__cell_disabled {
     pointer-events: none !important;
 }
 
-/* Desktop grid layout for calendars */
 .lockedcalendar .dp__menu_inner {
     display: grid !important;
     grid-template-columns: repeat(2, 1fr) !important;
@@ -520,18 +550,15 @@ onMounted(getDates);
     min-width: 0 !important;
 }
 
-/* Highlight dates selected for the show */
 .lockedcalendar .dp__date_cell.dp__date_cell_highlight div {
     background-color: black !important;
     color: white !important;
 }
 
-/* Disable button appearance for all dates */
 .lockedcalendar .dp__cell_inner {
     cursor: default !important;
 }
 
-/* Style navigation arrows - make them more visible */
 .lockedcalendar .dp__month_year_row {
     position: relative;
     padding: 0.5rem;
@@ -570,7 +597,6 @@ onMounted(getDates);
     margin: 0 3rem !important; /* Make room for arrows */
 }
 
-/* Override any rules that might hide arrows */
 .lockedcalendar .dp__inner_nav {
     display: flex !important;
     visibility: visible !important;
@@ -584,7 +610,6 @@ onMounted(getDates);
     opacity: 1 !important;
 }
 
-/* Fix greyed out navigation arrows in readonly mode */
 .lockedcalendar .dp__menu_readonly .dp__inner_nav,
 .lockedcalendar .dp__menu_readonly .dp__arrow_btn {
     opacity: 1 !important;

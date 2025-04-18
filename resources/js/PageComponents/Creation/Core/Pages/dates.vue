@@ -37,9 +37,9 @@
                         ]"
                     >
                         <div class="w-full text-left">
-                            <h4 class="font-bold text-3xl">
+                            <p class="font-bold text-3xl">
                                 Show has specific dates
-                            </h4>
+                            </p>
                             <p class="text-1xl mt-4 text-neutral-700 font-light">
                                 Select all show dates.
                             </p>
@@ -56,9 +56,9 @@
                         ]"
                     >
                         <div class="w-full text-left">
-                            <h4 class="font-bold text-3xl">
+                            <p class="font-bold text-3xl">
                                 Always
-                            </h4>
+                            </p>
                             <p class="text-1xl mt-4 text-neutral-700 font-light">
                                 Show is available at any time.
                             </p>
@@ -681,7 +681,7 @@ const tz = computed(() => selectedTimezone.value);  // use the selected timezone
    font-size: 1.7rem;
    font-weight: 400;
    display: flex;
-   justify-content: flex-start;
+   justify-content: flex-start !important;
    align-items: center;
    padding:1rem;
 }
@@ -711,7 +711,7 @@ const tz = computed(() => selectedTimezone.value);  // use the selected timezone
 .dp__month_year_select {
     pointer-events: none !important;
     display: flex;
-    justify-content: flex-start;
+    justify-content: flex-start !important;
     margin-left: 1rem;
 }
 
@@ -771,16 +771,16 @@ const tz = computed(() => selectedTimezone.value);  // use the selected timezone
 
 /* Adjust cell inner to fit square */
 .dp__cell_inner {
-   position: absolute;
-   height: 100%;
-   width: 100%;
+   position: absolute !important;
+   height: 100% !important;
+   width: 100% !important;
    margin: auto !important;
    padding: 0 !important;
-   display: flex;
-   align-items: center;
-   justify-content: center;
-   font-weight: normal;
-   color: #333;
+   display: flex !important;
+   align-items: center !important;
+   justify-content: center !important;
+   font-weight: normal !important;
+   color: #333 !important;
 }
 
 .dp__cell_disabled {

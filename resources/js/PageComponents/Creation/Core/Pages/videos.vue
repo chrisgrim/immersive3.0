@@ -1,7 +1,7 @@
 <template>
   <div class="videos-component">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-2xl">Add youtube or tiktok videos (optional)</h3>
+      <p class="text-2xl">Add youtube or tiktok videos (optional)</p>
       
       <div v-if="modelValue.length > 0" class="flex items-center gap-3">
         <span class="text-gray-600">Show on:</span>

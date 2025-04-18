@@ -57,7 +57,7 @@
                 </div>
 
                 <!-- Video Section -->
-                <div class="p-8 shadow-custom-1 rounded-3xl">
+                <div v-if="event.videos?.length > 0 || (event.video && event.video !== 'gallery' && event.video !== 'page')" class="p-8 shadow-custom-1 rounded-3xl">
                     <h3 class="text-xl font-semibold mb-4">Videos</h3>
                     
                     <!-- New multiple videos implementation -->

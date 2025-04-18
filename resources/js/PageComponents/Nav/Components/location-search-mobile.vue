@@ -72,7 +72,7 @@
         <!-- Dates Section -->
         <div 
             @click="showDatesSection"
-            v-if="isVisible==='location'" 
+            v-if="isVisible==='location' && showDatesTab" 
             class="relative flex w-full border shadow-custom-3 rounded-4xl bg-white p-8 justify-between">
             <div>
                 <p>When</p>
@@ -82,7 +82,7 @@
             </div>
         </div>
         <div 
-            v-else
+            v-if="isVisible==='dates' && showDatesTab"
             class="flex-grow relative w-full border shadow-custom-6 rounded-4xl bg-white p-10 overflow-auto">
             <div class="w-full mt-2">
                 <h2 style="font-family: 'Montserrat', sans-serif;" class="text-4.5xl text-black leading-8 font-bold">When?</h2>
@@ -113,6 +113,23 @@
                 </button>
             </div>
         </div>
+
+        <div class="w-full bg-white p-8 flex justify-between items-center mt-auto">
+            <div>
+                <button @click="handleClearAll" class="underline text-4xl font-medium">Clear All</button>
+            </div>
+            <div>
+                <button 
+                    @click="handleSearch"
+                    :disabled="props.showDatesTab ? (!selectedPlace && (!date || !date.length)) : !selectedPlace"
+                    :class="[
+                        'py-4 px-8 rounded-2xl flex gap-4 text-4xl font-medium flex items-center',
+                        (selectedPlace || (props.showDatesTab && date && date.length)) ? 'bg-[#ff385c] text-white cursor-pointer' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    ]">
+                    Search
+                </button>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -125,7 +142,15 @@ import axios from 'axios';
 const props = defineProps({
     initialCity: String,
     initialStartDate: String,
-    initialEndDate: String
+    initialEndDate: String,
+    search: {
+        type: String,
+        default: null
+    },
+    showDatesTab: {
+        type: Boolean,
+        default: true
+    }
 });
 
 // Existing date-related refs
@@ -157,11 +182,11 @@ const tz = computed(() => {
 
 function initializePlaces() {
     return [
-        { place_id: 'ChIJOwg_06VPwokRYv534QaPC8g', description: 'New York, NY, USA' },
-        { place_id: 'ChIJE9on3F3HwoAR9AhGJW_fL-I', description: 'Los Angeles, CA, USA' },
-        { place_id: 'ChIJIQBpAG2ahYAR_6128GcTUEo', description: 'San Francisco, CA, USA' },
-        { place_id: 'ChIJ7cv00DwsDogRAMDACa2m4K8', description: 'Chicago, IL, USA' },
-        { place_id: 'ChIJW-T2Wt7Gt4kRKl2I1CJFUsI', description: 'Washington, DC, USA' }
+        { place_id: 'ChIJOwg_06VPwokRYv534QaPC8g', description: 'New York, NY' },
+        { place_id: 'ChIJE9on3F3HwoAR9AhGJW_fL-I', description: 'Los Angeles, CA' },
+        { place_id: 'ChIJdd4hrwug2EcRmSrV3Vo6llI', description: 'London, UK' },
+        { place_id: 'ChIJIQBpAG2ahYAR_6128GcTUEo', description: 'San Francisco, CA' },
+        { place_id: 'ChIJzxcfI6PYa4cR1jaKJ_j0jhE', description: 'Denver, CO' }
     ];
 }
 
@@ -276,11 +301,13 @@ const setPlace = (place) => {
        end: formattedEndDate
    });
    
-   isVisible.value = 'dates';
+   // Immediately trigger search like desktop version instead of switching to dates
+   handleSearch();
 };
 
 const saveSearchData = (place) => {
-   axios.post('/search/storedata', { type: 'location', name: place.name });
+   // Commenting out to prevent 405 error
+   // axios.post('/search/storedata', { type: 'location', name: place.name });
 };
 
 const initGoogleMaps = async () => {
@@ -442,7 +469,7 @@ const formatDateForUrl = (dateObj) => {
 
 // Update handleSearch function
 const handleSearch = () => {
-    if (!selectedPlace.value) return;
+    if (!selectedPlace.value && !date.value) return;
     
     // Hide the search modal
     window.dispatchEvent(new CustomEvent('hide-search'));
@@ -451,17 +478,42 @@ const handleSearch = () => {
     const formattedStartDate = date.value && date.value[0] ? formatDateForUrl(date.value[0]) : null;
     const formattedEndDate = date.value && date.value[1] ? formatDateForUrl(date.value[1]) : formattedStartDate;
     
+    // Build search URL parameters
+    const params = new URLSearchParams();
+    
+    // Add location parameters if we have a city
+    if (selectedPlace.value) {
+        params.set('city', selectedPlace.value.name);
+        
+        if (selectedPlace.value.lat !== null && selectedPlace.value.lng !== null) {
+            params.set('lat', selectedPlace.value.lat);
+            params.set('lng', selectedPlace.value.lng);
+        }
+        
+        params.set('searchType', 'inPerson');
+        params.set('live', 'false');
+    } else {
+        // For date-only search, use 'null' searchType
+        params.set('searchType', 'null');
+    }
+    
+    // Add date parameters if they exist
+    if (formattedStartDate) {
+        params.set('start', formattedStartDate);
+        params.set('end', formattedEndDate || formattedStartDate);
+    }
+    
     // Update parent component with complete location and date data
     emit('update:location', {
-        city: selectedPlace.value.name,
-        lat: selectedPlace.value.lat,
-        lng: selectedPlace.value.lng,
+        city: selectedPlace.value?.name || null, 
+        lat: selectedPlace.value?.lat || null,
+        lng: selectedPlace.value?.lng || null,
         start: formattedStartDate,
         end: formattedEndDate
     });
     
-    // Save search data
-    saveSearchData({ name: selectedPlace.value.name });
+    // Navigate directly to the search page
+    window.location.href = `/index/search?${params.toString()}`;
 };
 
 // Update handleDateChange to use the new formatDateForUrl function
@@ -472,6 +524,8 @@ function handleDateChange(newDate) {
        const formattedStartDate = formatDateForUrl(newDate[0]);
        const formattedEndDate = formatDateForUrl(newDate[1]) || formattedStartDate;
        
+       date.value = newDate;
+       
        // Update parent component if we have location data
        if (selectedPlace.value) {
            emit('update:location', {
@@ -481,6 +535,22 @@ function handleDateChange(newDate) {
                start: formattedStartDate,
                end: formattedEndDate
            });
+       } else {
+           // Also emit update for date-only search
+           emit('update:location', {
+               city: null,
+               lat: null,
+               lng: null,
+               start: formattedStartDate,
+               end: formattedEndDate
+           });
+           
+           // Encourage the user to search after selecting dates
+           // This shows a clear CTA to proceed with a date-only search
+           setTimeout(() => {
+               // Keep the dates section visible so user can see their selection
+               isVisible.value = 'dates';
+           }, 100);
        }
    }
 }
@@ -535,24 +605,20 @@ const showLocationSection = () => {
 };
 
 const showDatesSection = () => {
-    // Only switch to dates if a place was actually selected
+    // Only switch to dates section if showDatesTab is true
+    if (!props.showDatesTab) {
+        // If dates tab is disabled, just trigger the search function directly
+        handleSearch();
+        return;
+    }
+    
+    // Switch to dates section regardless of whether a place was selected
+    isVisible.value = 'dates';
+    dropdown.value = false;
+    
+    // If a place is selected, make sure the search input shows the selected place name
     if (selectedPlace.value) {
-        isVisible.value = 'dates';
-        dropdown.value = false;
-        
-        // Make sure the search input shows the selected place name
         searchInput.value = selectedPlace.value.name;
-    } else {
-        // If no place is selected:
-        // 1. Keep in location section
-        // 2. Clear search input and show dropdown to encourage selection
-        searchInput.value = '';
-        isVisible.value = 'location';
-        dropdown.value = true;
-        places.value = initializePlaces();
-        
-        // Optionally show a message that location selection is required
-        // You could add a simple toast notification here
     }
 };
 
@@ -584,8 +650,33 @@ const clearState = (isClearAll = false) => {
     places.value = initializePlaces();
 };
 
-// Expose the method to the parent
-defineExpose({ clearState });
+// Add the handleClearAll method
+const handleClearAll = () => {
+    // Clear everything
+    searchInput.value = '';
+    selectedPlace.value = null;
+    date.value = null;
+    
+    // Emit update with all values cleared
+    emit('update:location', {
+        city: null,
+        lat: null,
+        lng: null,
+        start: null,
+        end: null
+    });
+    
+    // Reset the UI state
+    isVisible.value = 'location';
+    dropdown.value = true;
+    places.value = initializePlaces();
+    
+    // Also emit clear event for parent components
+    emit('clear');
+};
+
+// Expose the methods to the parent
+defineExpose({ clearState, handleClearAll, showDatesSection });
 
 // Add this new method after the searchInput declaration
 const clearSearchInput = () => {
@@ -666,7 +757,7 @@ const handleBackspace = (event) => {
 /* Calendar cells */
 .dp__cell_inner {
    height: 45px !important;
-   width: 45px !important;
+   width: 100% !important;
    margin: 0 !important;
    padding: 0 !important;
    display: flex !important;

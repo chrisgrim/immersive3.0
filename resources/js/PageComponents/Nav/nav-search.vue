@@ -55,7 +55,7 @@
                                     <svg class="w-6 h-6 fill-[#ff385c] mr-2">
                                         <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
                                     </svg>
-                                    <span class="text-black text-1xl font-bold mr-10">{{ formattedCityDisplay }}</span>
+                                    <span class="text-black text-1xl font-bold mr-10">{{ formattedCity }}</span>
                                 </div>
                                 <span class="text-gray-300">|</span>
                                 <div 
@@ -63,6 +63,24 @@
                                     @click="openDateSearch">
                                     <span class="text-black text-1xl" :class="{ 'font-bold': state.dates.start }">
                                         {{ state.dates.start ? formatDateDisplay : 'Add dates' }}
+                                    </span>
+                                </div>
+                            </template>
+                            <template v-else-if="state.dates.start">
+                                <div 
+                                    class="flex items-center cursor-pointer" 
+                                    @click="search = 'l'">
+                                    <svg class="w-6 h-6 fill-[#ff385c] mr-2">
+                                        <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
+                                    </svg>
+                                    <span class="text-black text-1xl font-bold mr-10">All Events</span>
+                                </div>
+                                <span class="text-gray-300">|</span>
+                                <div 
+                                    class="ml-10 cursor-pointer" 
+                                    @click="openDateSearch">
+                                    <span class="text-black text-1xl font-bold">
+                                        {{ formatDateDisplay }}
                                     </span>
                                 </div>
                             </template>
@@ -151,15 +169,6 @@ const updateUrlParams = (params) => {
 // Computed properties
 const isSearchPage = computed(() => {
     return window.location.pathname.includes('/search');
-});
-
-// Add a computed property for formatting city display
-const formattedCityDisplay = computed(() => {
-    if (!state.value.location.city) return '';
-    
-    // Get the city part only - split by commas and take the first part
-    const cityParts = state.value.location.city.split(',');
-    return cityParts[0].trim();
 });
 
 const formatDateDisplay = computed(() => {
@@ -305,20 +314,13 @@ const handleFilterUpdate = async (filters) => {
     }
 };
 
-
 const handleLocationSearch = (searchData) => {    
     console.log('handleLocationSearch', searchData);
     
-    // Format city name to remove country for US cities
-    let cityName = searchData.location.city;
-    if (cityName.endsWith(", USA")) {
-        cityName = cityName.replace(", USA", "");
-    }
-    
-    // Use the updateState method
+    // Use the updateState method to update the store with search data
     SearchStore.updateState({
         location: {
-            city: cityName,
+            city: searchData.location.city,
             lat: searchData.location.lat,
             lng: searchData.location.lng,
             searchType: searchData.location.searchType,
@@ -330,44 +332,14 @@ const handleLocationSearch = (searchData) => {
         }
     });
     
-    // Rest of the function remains the same
+    // Set up URL parameters
     const params = urlParams.value;
-    const currentCity = params.get('city');
-    const isNewLocation = currentCity !== cityName;
+    const currentCity = params.get('city'); // Get current city here so it's in scope
     
-    // Reset to page 1 when location changes
+    // Reset to page 1 for any new search
     params.set('page', 1);
     
-    if (isNewLocation) {
-        params.delete('NElat');
-        params.delete('NElng');
-        params.delete('SWlat');
-        params.delete('SWlng');
-        params.set('searchType', 'inPerson');
-        params.set('live', 'false');
-    }
-    
-    params.set('city', cityName);
-    
-    // Explicitly convert to float before setting params
-    const parsedLat = searchData.location.lat ? parseFloat(searchData.location.lat) : null;
-    const parsedLng = searchData.location.lng ? parseFloat(searchData.location.lng) : null;
-    
-    if (parsedLat !== null) {
-        params.set('lat', parsedLat.toString());
-    }
-    if (parsedLng !== null) {
-        params.set('lng', parsedLng.toString());
-    }
-    
-    const [minPrice, maxPrice] = state.value.filters.price;
-    if (minPrice > 0) {
-        params.set('price0', minPrice);
-    }
-    if (maxPrice < state.value.maxPrice) {
-        params.set('price1', maxPrice);
-    }
-    
+    // Handle date parameters
     if (searchData.dates.start) {
         params.set('start', searchData.dates.start);
         params.set('end', searchData.dates.end || searchData.dates.start);
@@ -375,8 +347,63 @@ const handleLocationSearch = (searchData) => {
         params.delete('start');
         params.delete('end');
     }
+    
+    // Check if we have location data
+    const hasLocationData = searchData.location.city !== null;
+    let isNewLocation = false;
+    
+    if (hasLocationData) {
+        isNewLocation = currentCity !== searchData.location.city;
+        
+        // Clear map bounds if location has changed
+        if (isNewLocation) {
+            params.delete('NElat');
+            params.delete('NElng');
+            params.delete('SWlat');
+            params.delete('SWlng');
+            params.set('searchType', 'inPerson');
+            params.set('live', 'false');
+        }
+        
+        // Set location parameters
+        params.set('city', searchData.location.city);
+        
+        // Explicitly convert to float before setting params
+        const parsedLat = searchData.location.lat ? parseFloat(searchData.location.lat) : null;
+        const parsedLng = searchData.location.lng ? parseFloat(searchData.location.lng) : null;
+        
+        if (parsedLat !== null) {
+            params.set('lat', parsedLat.toString());
+        }
+        if (parsedLng !== null) {
+            params.set('lng', parsedLng.toString());
+        }
+    } else {
+        // For date-only search, use 'null' searchType
+        params.set('searchType', 'null');
+        
+        // Remove any previous location data if it exists
+        params.delete('city');
+        params.delete('lat');
+        params.delete('lng');
+        params.delete('NElat');
+        params.delete('NElng');
+        params.delete('SWlat');
+        params.delete('SWlng');
+        params.delete('live');
+    }
+    
+    // Add price filter params if needed
+    const [minPrice, maxPrice] = state.value.filters.price;
+    if (minPrice > 0) {
+        params.set('price0', minPrice);
+    }
+    if (maxPrice < state.value.maxPrice) {
+        params.set('price1', maxPrice);
+    }
 
-    if (isNewLocation) {
+    // Determine whether to redirect or update URL based on conditions
+    if (hasLocationData && isNewLocation) {
         window.location.href = `/index/search?${params.toString()}`;
     } else {
         updateUrlParams(params);
@@ -392,8 +419,6 @@ const fetchResults = async (queryString) => {
         console.error('Error in fetchResults:', error);
     }
 };
-
-
 
 // Set up subscription to MapStore for map-based searches
 const subscribeToMapStore = () => {
@@ -430,8 +455,6 @@ const setupEventListeners = () => {
   window.addEventListener('hide-search', hideSearch);
 };
 
-
-
 // Lifecycle hooks
 onMounted(() => {
   SearchStore.initializeFromUrl(props.searchedEvents, props.maxPrice === undefined ? null : props.maxPrice);
@@ -449,6 +472,40 @@ onUnmounted(() => {
   // Remove event listeners
   window.removeEventListener('scroll', handleScroll);
   window.removeEventListener('hide-search', hideSearch);
+});
+
+// Add after handleLocationSearch
+const handleDatesClear = () => {
+    // Update the store with null dates
+    SearchStore.updateState({
+        dates: {
+            start: null,
+            end: null
+        }
+    });
+    
+    // Update URL parameters
+    const params = urlParams.value;
+    params.delete('start');
+    params.delete('end');
+    
+    // If we're on a search page, update the search results
+    if (isSearchPage.value) {
+        updateUrlParams(params);
+        fetchResults(params.toString());
+    }
+    
+    // Close the search popup after clearing dates
+    search.value = null;
+};
+
+// Add this computed property after other computed properties
+const formattedCity = computed(() => {
+    if (!state.value.location.city) return '';
+    
+    // Extract just the city name from "City, State Zipcode" format
+    const cityParts = state.value.location.city.split(',');
+    return cityParts[0].trim();
 });
 </script>
 

@@ -12,9 +12,8 @@
                v-model="searchInput"
                placeholder="Search by City"
                @input="updateLocations"
-               @focus="dropdown=true"
+               @focus="onInputFocus"
                autocomplete="false"
-               onfocus="value = ''" 
                type="text">
            
            <!-- Location Dropdown -->
@@ -52,7 +51,7 @@
            <!-- Date Picker Dropdown -->
            <div 
                v-if="dateDropdown" 
-               class="absolute -left-0 w-full mt-8 bg-white rounded-5xl shadow-custom-7 p-8 z-40"
+               class="absolute -left-0 w-full mt-8 bg-white rounded-5xl shadow-custom-7 p-8 z-40 location-search-calendar"
                @click.stop
            >
                <VueDatePicker
@@ -95,9 +94,9 @@
        <!-- Search Button -->
        <button 
            @click="handleSearch"
-           class="rounded-full px-12 my-2 font-semibold transition-colors"
+           class="rounded-full px-12 my-2 mr-2 font-semibold transition-colors"
            :class="[
-               (selectedPlace || date) ? 
+               isOnSearchPage || (selectedPlace && selectedPlace.value) || date ? 
                'bg-default-red text-white cursor-pointer hover:bg-red-600' : 
                'bg-black text-white cursor-not-allowed opacity-50'
            ]"
@@ -176,7 +175,7 @@ let autoComplete;
 const selectedPlace = ref(null);
 
 // Update emits to include close-search
-const emit = defineEmits(['location-updated', 'search', 'close-search']);
+const emit = defineEmits(['location-updated', 'search', 'close-search', 'dates-cleared']);
 
 // Expose the toggleDateDropdown method so it can be called from parent
 defineExpose({
@@ -184,6 +183,7 @@ defineExpose({
         // Force the date dropdown to open
         dateDropdown.value = true;
         dropdown.value = false;
+        console.log('Opening date dropdown with initial dates:', props.initialStartDate, props.initialEndDate);
 
         // Check props first
         if (props.initialStartDate && props.initialEndDate) {
@@ -192,6 +192,7 @@ defineExpose({
                 const endDate = new Date(props.initialEndDate);
                 if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
                     date.value = [startDate, endDate];
+                    console.log('Set date.value from props:', date.value);
                 }
             } catch (e) {
                 console.error('Error in openDateDropdown:', e);
@@ -280,7 +281,6 @@ const setPlace = (place) => {
        placeName = placeName.replace(", USA", "");
    }
    
-   // For other locations, ensure we keep the country
    // Store the formatted place name
    selectedPlace.value = {
        name: placeName,
@@ -288,7 +288,11 @@ const setPlace = (place) => {
        lng: lng
    };
    
-   searchInput.value = selectedPlace.value.name;
+   // Show only the city name in the search input for better UX
+   // But keep the full city, state, zipcode format for API calls
+   const cityParts = placeName.split(',');
+   searchInput.value = cityParts[0].trim();
+   
    dropdown.value = false;
    
    // Auto-submit for location selection
@@ -314,14 +318,20 @@ onMounted(() => {
     // Initialize city from URL or props
     const params = new URLSearchParams(window.location.search);
     if (params.get('city')) {
-        searchInput.value = params.get('city');
+        // Store the full city name for search data
+        const fullCityName = params.get('city');
         selectedPlace.value = {
-            name: params.get('city'),
+            name: fullCityName,
             lat: parseFloat(params.get('lat')),
             lng: parseFloat(params.get('lng'))
         };
+        
+        // Display only the city part in the search input
+        const cityParts = fullCityName.split(',');
+        searchInput.value = cityParts[0].trim();
     } else if (props.initialCity) {
-        searchInput.value = props.initialCity;
+        const cityParts = props.initialCity.split(',');
+        searchInput.value = cityParts[0].trim();
     }
 
     // Initialize dates from props if available
@@ -363,7 +373,9 @@ onMounted(() => {
     window.addEventListener('popstate', () => {
         const params = new URLSearchParams(window.location.search);
         if (params.has('city')) {
-            searchInput.value = params.get('city');
+            const fullCityName = params.get('city');
+            const cityParts = fullCityName.split(',');
+            searchInput.value = cityParts[0].trim();
         }
     });
 
@@ -445,6 +457,7 @@ function handleDateChange(newDate) {
     if (newDate && Array.isArray(newDate) && newDate.length === 2) {
         // Just update the date value, don't trigger search
         date.value = newDate;
+        console.log('Date changed:', date.value, typeof date.value, Array.isArray(date.value));
     }
 }
 
@@ -490,27 +503,24 @@ const maxDate = computed(() => {
    return oneYearFromNow;
 });
 
+// Add this computed property to check if we're on a search page
+const isOnSearchPage = computed(() => {
+    return window.location.pathname.includes('/search');
+});
+
 // Update handleSearch
 const handleSearch = () => {
-    // Only require a location to be selected (don't check dates)
-    if (!selectedPlace.value) return;
+    // Check if we're on a search page
+    const isSearchPage = window.location.pathname.includes('/search');
     
-    // Update searchInput if we have a selected place
-    if (selectedPlace.value) {
-        searchInput.value = selectedPlace.value.name;
-    }
-    
-    // Ensure lat/lng are properly typed as numbers
-    const lat = selectedPlace.value?.lat ? parseFloat(selectedPlace.value.lat) : null;
-    const lng = selectedPlace.value?.lng ? parseFloat(selectedPlace.value.lng) : null;
-    
+    // Build search data object
     const searchData = {
         location: {
             city: selectedPlace.value?.name || null,
             searchType: 'inPerson',
             live: false,
-            lat: lat,
-            lng: lng
+            lat: selectedPlace.value?.lat ? parseFloat(selectedPlace.value.lat) : null,
+            lng: selectedPlace.value?.lng ? parseFloat(selectedPlace.value.lng) : null
         },
         dates: {
             // Always include explicit null values when no dates are selected
@@ -520,7 +530,7 @@ const handleSearch = () => {
     };
     
     // Add dates if available
-    if (date.value && Array.isArray(date.value) && date.value[0]) {
+    if (date.value && Array.isArray(date.value) && date.value.length === 2) {
         const [start, end] = date.value;
         const formatForUrl = (date) => {
             return date.toISOString().split('T')[0] + ' 00:00:00';
@@ -530,62 +540,130 @@ const handleSearch = () => {
             start: formatForUrl(start),
             end: end ? formatForUrl(end) : formatForUrl(start)
         };
+        console.log('Date criteria:', searchData.dates);
     }
     
     // Close dropdowns
     dateDropdown.value = false;
     dropdown.value = false;
 
-    // Emit search event to parent with all data
-    emit('search', searchData);
-    emit('close-search');
+    // Determine if we should emit or redirect based on conditions
+    const hasDates = searchData.dates.start !== null;
+    const hasLocation = selectedPlace.value !== null;
+    
+    console.log('Search criteria:', { 
+        hasDates, 
+        hasLocation, 
+        isOnSearchPage: isOnSearchPage 
+    });
+    
+    // Enable search only if we have dates OR location OR we're already on a search page
+    if (!hasDates && !hasLocation && !isSearchPage) {
+        console.log('Cannot search: no dates and no location');
+        return;
+    }
+    
+    // If on a search page, emit the search event
+    if (isSearchPage) {
+        emit('search', searchData);
+        emit('close-search');
+        return;
+    }
+    
+    // If not on a search page, redirect to search page with params
+    const params = new URLSearchParams();
+    
+    // Add location params if we have a location
+    if (hasLocation) {
+        params.set('city', searchData.location.city);
+        
+        if (searchData.location.lat !== null) {
+            params.set('lat', searchData.location.lat.toString());
+        }
+        
+        if (searchData.location.lng !== null) {
+            params.set('lng', searchData.location.lng.toString());
+        }
+        
+        params.set('searchType', 'inPerson');
+        params.set('live', 'false');
+    } else if (hasDates) {
+        // For date-only search
+        params.set('searchType', 'null');
+    }
+    
+    // Add date params if we have dates
+    if (hasDates) {
+        params.set('start', searchData.dates.start);
+        params.set('end', searchData.dates.end || searchData.dates.start);
+    }
+    
+    console.log('Redirecting to search with params:', params.toString());
+    // Redirect to search page
+    window.location.href = `/index/search?${params.toString()}`;
 };
 
-// Update clearDates to emit to parent
+// Update clearDates to not immediately search
 const clearDates = () => {
+    // Clear the local state
     date.value = null;
+    
+    // Only close the calendar dropdown, not the entire search popup
     dateDropdown.value = false;
+    
+    // We don't emit dates-cleared here anymore - user needs to click Search button
+    // to confirm the change
 };
+
+function onInputFocus() {
+    dropdown.value = true;
+    
+    // Clear input when focusing, making it easier to enter a new search
+    searchInput.value = '';
+    
+    // When focusing the input, show default locations
+    places.value = initializePlaces();
+}
 </script>
 
 <style>
 /* Add a scoping class to all styles and make them !important */
-.search-container .dp__menu_inner .dp__menu_items {
+.location-search-calendar .dp__menu_inner .dp__menu_items {
    display: none !important;
 }
 
 /* Calendar styling */
-.search-container .dp__calendar {
+.location-search-calendar .dp__calendar {
    width: 100% !important;
 }
 
 /* Header month/year styling */
-.search-container .dp__month_year_wrap {
+.location-search-calendar .dp__month_year_wrap {
    font-size: 1.7rem !important;
    font-weight: 400 !important;
 }
 
 /* Calendar header (days of week) */
-.search-container .dp__calendar_header {
+.location-search-calendar .dp__calendar_header {
    color: #666 !important;
    font-weight: normal !important;
    margin-bottom: 8px !important;
    font-size: 1.2rem !important;
 }
 
-.search-container .dp__calendar_row {
+.location-search-calendar .dp__calendar_row {
    margin: 0 !important;
    gap: 0 !important;
 }
 
-.search-container .dp__calendar_item {
+.location-search-calendar .dp__calendar_item {
    margin: 0 !important;
    padding: 0 !important;
    font-size: 1.4rem !important;
 }
 
 /* Calendar cells */
-.search-container .dp__cell_inner {
+.location-search-calendar .dp__cell_inner {
    height: 45px !important;
    width: 45px !important;
    margin: 0 !important;
@@ -598,80 +676,80 @@ const clearDates = () => {
    color: #333 !important;
 }
 
-.search-container .dp__cell_disabled {
+.location-search-calendar .dp__cell_disabled {
    opacity: 0.3 !important;
    cursor: auto !important;
 }
 
 /* Hover state */
-.search-container .dp__cell_inner:not(.dp--past):hover {
+.location-search-calendar .dp__cell_inner:not(.dp--past):hover {
    border: 2px solid black !important;
    background: transparent !important;
    color: black !important;
 }
 
 /* Selected state */
-.search-container .dp__active {
+.location-search-calendar .dp__active {
    background-color: black !important;
    color: white !important;
 }
 
 /* Range styling */
-.search-container .dp__range_start,
-.search-container .dp__range_end {
+.location-search-calendar .dp__range_start,
+.location-search-calendar .dp__range_end {
    background-color: black !important;
    color: white !important;
 }
 
-.search-container .dp__range_start {
+.location-search-calendar .dp__range_start {
    border-top-right-radius: 0 !important;
    border-bottom-right-radius: 0 !important;
 }
 
-.search-container .dp__range_end {
+.location-search-calendar .dp__range_end {
    border-top-left-radius: 0 !important;
    border-bottom-left-radius: 0 !important;
 }
 
-.search-container .dp__range_between {
+.location-search-calendar .dp__range_between {
    border-radius: 0 !important;
 }
 
 /* Navigation arrows */
-.search-container .dp__arrow_bottom,
-.search-container .dp__arrow_top {
+.location-search-calendar .dp__arrow_bottom,
+.location-search-calendar .dp__arrow_top {
    display: none !important;
 }
 
 /* Today's date */
-.search-container .dp__today {
+.location-search-calendar .dp__today {
    border: none !important;
 }
 
 /* Calendar container */
-.search-container .dp__main {
+.location-search-calendar .dp__main {
    border: none !important;
    box-shadow: none !important;
 }
 
 /* Remove borders */
-.search-container .dp__calendar_header_separator {
+.location-search-calendar .dp__calendar_header_separator {
    display: none !important;
 }
 
-.search-container .dp__theme_light {
+.location-search-calendar .dp__theme_light {
    border: none !important;
 }
 
-.search-container .dp__header-wrap {
+.location-search-calendar .dp__header-wrap {
    margin-bottom: 1rem !important;
 }
 
-.search-container .dp__menu_inner.dp__flex_display {
+.location-search-calendar .dp__menu_inner.dp__flex_display {
    gap: 4rem !important;
 }
 
-.search-container .dp__calendar_next {
+.location-search-calendar .dp__calendar_next {
    margin-inline-start: 0 !important;
 }
 </style>

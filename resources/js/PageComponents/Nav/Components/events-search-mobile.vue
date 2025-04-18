@@ -245,7 +245,8 @@ const fetchOrganizers = async () => {
 };
 
 const onSelect = (item, type) => {
-    saveSearchData(item, type);
+    // Commenting out to prevent 405 error
+    // saveSearchData(item, type);
     if (type === 'organizer') {
         window.location.href = `/organizers/${item.model.slug}`;
     }

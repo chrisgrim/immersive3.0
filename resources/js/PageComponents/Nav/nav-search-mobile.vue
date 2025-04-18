@@ -43,28 +43,14 @@
                                     :initial-city="state.location.city"
                                     :initial-start-date="state.dates.start"
                                     :initial-end-date="state.dates.end"
+                                    :search="search"
+                                    :show-dates-tab="showDatesTab"
                                     @update:location="handleLocationUpdate"
                                     @search="handleSearch"
                                 />
                                 <SearchEvent v-if="search==='e'" class="h-full"/>
                             </div>
                         </Transition>
-                    </div>
-                </div>
-                <div v-if="search === 'l'" class="w-full bg-white p-8 flex justify-between items-center mt-auto">
-                    <div>
-                        <button @click="handleClearAll" class="underline text-4xl font-medium">Clear All</button>
-                    </div>
-                    <div>
-                        <button 
-                            @click="handleSearch"
-                            :disabled="!state.location.city"
-                            :class="[
-                                'py-4 px-8 rounded-2xl flex gap-4 text-4xl font-medium flex items-center',
-                                state.location.city ? 'bg-[#ff385c] text-white cursor-pointer' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            ]">
-                            Search
-                        </button>
                     </div>
                 </div>
             </div>
@@ -93,24 +79,29 @@
                     </svg>
                 </button>
                 <div class="relative flex-1">
-                    <div
-                        class="w-full absolute top-0 bottom-0 z-[500] cursor-pointer" 
-                        @click="openSearch" 
-                    />
                     <div class="w-full p-5 border rounded-full flex items-center shadow-custom-3">
                         <p class="w-full flex items-center justify-center text-center truncate">
                             <template v-if="state.location.city">
-                                <span class="text-black text-1xl font-bold truncate max-w-[40%]">{{ state.location.city }}</span>
+                                <span class="text-black text-1xl font-bold truncate max-w-[40%]" @click.stop="openLocationSearch">{{ state.location.city }}</span>
                                 <span class="text-gray-300 mx-4">|</span>
-                                <span class="text-black text-1xl truncate max-w-[40%]" :class="{ 'font-bold': state.dates.start }">
+                                <span class="text-black text-1xl truncate max-w-[40%]" :class="{ 'font-bold': state.dates.start }" @click.stop="openDateSearch">
                                     {{ state.dates.start ? formatDateDisplay : 'Add dates' }}
                                 </span>
                             </template>
+                            <template v-else-if="state.dates.start">
+                                <span class="text-black text-1xl font-bold truncate" @click.stop="openLocationSearch">All Events</span>
+                                <span class="text-gray-300 mx-4">|</span>
+                                <span class="text-black text-1xl font-bold truncate" @click.stop="openDateSearch">
+                                    {{ formatDateDisplay }}
+                                </span>
+                            </template>
                             <template v-else>
-                                <svg class="w-6 h-6 fill-[#ff385c] mr-2">
-                                    <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
-                                </svg>
-                                <span class="text-black font-bold text-3xl">Search</span>
+                                <div class="flex items-center justify-center w-full cursor-pointer" @click="openSearch">
+                                    <svg class="w-6 h-6 fill-[#ff385c] mr-2">
+                                        <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
+                                    </svg>
+                                    <span class="text-black font-bold text-3xl">Search</span>
+                                </div>
                             </template>
                         </p>
                     </div>
@@ -167,6 +158,10 @@ const props = defineProps({
     maxPrice: {
         type: Number,
         default: undefined
+    },
+    showDatesTab: {
+        type: Boolean,
+        default: true
     }
 });
 
@@ -248,6 +243,32 @@ const openSearch = () => {
     document.body.classList.add('overflow-hidden');
 };
 
+const openLocationSearch = () => {
+    search.value = 'l';
+    document.body.classList.add('overflow-hidden');
+};
+
+const openDateSearch = () => {
+    // First set the search value to open the search modal
+    search.value = 'l';
+    document.body.classList.add('overflow-hidden');
+    
+    // Use nextTick to ensure component is mounted before accessing its methods
+    nextTick(() => {
+        // Try an immediate call first
+        if (searchLocation.value && searchLocation.value.showDatesSection) {
+            searchLocation.value.showDatesSection();
+        }
+        
+        // Also set a backup timeout to ensure it gets called even if the component takes time to initialize
+        setTimeout(() => {
+            if (searchLocation.value && searchLocation.value.showDatesSection) {
+                searchLocation.value.showDatesSection();
+            }
+        }, 100);
+    });
+};
+
 const hideSearch = () => {
     // We don't want to clear the location data that's already in the store when simply closing the modal
     // Only reset the component state and close the modal
@@ -318,12 +339,29 @@ const handleSearch = () => {
         
         params.set('searchType', 'inPerson');
         params.set('live', 'false');
+    } else {
+        // For date-only search, use 'null' searchType
+        params.set('searchType', 'null');
+        
+        // Remove any previous location data if it exists
+        params.delete('city');
+        params.delete('lat');
+        params.delete('lng');
+        params.delete('NElat');
+        params.delete('NElng');
+        params.delete('SWlat');
+        params.delete('SWlng');
+        params.delete('live');
     }
     
     // Add date parameters if they exist
     if (state.value.dates.start) {
         params.set('start', state.value.dates.start);
         params.set('end', state.value.dates.end || state.value.dates.start);
+    } else if (!state.value.location.city) {
+        // If we have neither location nor dates, don't search
+        hideSearch();
+        return;
     }
     
     // Add existing filter parameters
@@ -345,18 +383,6 @@ const handleSearch = () => {
     
     // Hide search modal after search
     hideSearch();
-    
-    // Check if we're changing city or location
-    const currentCity = new URLSearchParams(window.location.search).get('city');
-    const isNewLocation = currentCity !== state.value.location.city;
-    
-    if (isNewLocation) {
-        // If it's a new location, remove any existing map boundary parameters
-        params.delete('NElat');
-        params.delete('NElng');
-        params.delete('SWlat');
-        params.delete('SWlng');
-    }
     
     // Navigate to the search page
     window.location.href = `/index/search?${params.toString()}`;
@@ -498,6 +524,21 @@ const subscribeToMapStore = () => {
 onMounted(() => {
     // Initialize the SearchStore from URL and props
     SearchStore.initializeFromUrl(props.searchedEvents, props.maxPrice === undefined ? null : props.maxPrice);
+    
+    // Additional check to ensure date parameters are read correctly
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('start') && !state.value.dates.start) {
+        const start = params.get('start');
+        const end = params.get('end') || start;
+        
+        // Update the store with dates, even if no location is present
+        SearchStore.updateState({
+            dates: {
+                start: start,
+                end: end
+            }
+        });
+    }
     
     // Subscribe to MapStore
     subscribeToMapStore();

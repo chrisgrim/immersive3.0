@@ -79,7 +79,7 @@
             
             <!-- Note about secret locations -->
             <div v-if="event.location.hiddenLocationToggle && locationSearch" class="w-full mb-8 p-4 bg-yellow-50 border border-yellow-200 rounded-2xl">
-                <p class="text-gray-700">Please enter address or zipcode. We will hide the details otherwise events will overlap on the map.</p>
+                <p class="text-gray-700">Please enter address or zipcode and we will hide the details. Multiple events with same zip code will overlap on map.</p>
             </div>
 
 
@@ -89,12 +89,17 @@
                     v-if="locationSearch"
                     class="absolute w-full top-12 z-[10000]">
                     <div class="max-w-3xl w-full m-auto">
-                        <img 
-                            class="absolute z-[1002] w-8 mt-7 ml-8" 
-                            src="/storage/images/vendor/leaflet/dist/marker-icon-2x.png">
+                        <div class="absolute z-[1002] ml-8 mt-4">
+                            <div class="w-20 h-20 flex items-center justify-center rounded-xl">
+                                <svg class="w-14 h-14 transition-all duration-500 group-hover:fill-black group-hover:stroke-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 22s-8-5-8-11a8 8 0 1 1 16 0c0 6-8 11-8 11z"></path>
+                                    <circle cx="12" cy="11" r="3"></circle>
+                                </svg>
+                            </div>
+                        </div>
                         <input 
                             :class="[
-                                'relative rounded-full p-10 pl-24 shadow-custom-6 w-full font-medium z-40 transition-all duration-200',
+                                'relative rounded-full p-10 pl-32 shadow-custom-6 w-full font-medium z-40 transition-all duration-200',
                                 {
                                     'border border-red-500 focus:border-red-500 shadow-focus-error': addressInputError,
                                     'border-neutral-300 focus:shadow-none': !addressInputError
@@ -109,16 +114,19 @@
                             type="text">
                     </div>
                     <ul 
-                        class="bg-white relative max-w-3xl w-full m-auto mt-[-3rem] pt-[3rem] list-none rounded-b-3xl shadow-custom-6" 
+                        class="bg-white relative max-w-3xl w-full m-auto mt-[-3rem] pt-[3rem] pb-4 list-none rounded-b-3xl shadow-custom-6" 
                         v-if="dropdown">
                         <li 
-                            class="py-5 px-8 flex items-center gap-8 hover:bg-gray-300 first:border-t first:border-neutral-300" 
+                            class="pt-5 px-8 flex items-center gap-8 hover:bg-gray-300 first:border-t first:border-neutral-300" 
                             v-for="place in places"
                             :key="place.place_id"
                             @click="selectLocation(place)">
-                            <img 
-                                class="w-8" 
-                                src="/storage/images/vendor/leaflet/dist/marker-icon-2x.png">
+                            <div class="w-20 h-20 flex items-center justify-center bg-neutral-100 rounded-xl">
+                                <svg class="w-14 h-14 transition-all duration-500 group-hover:fill-black group-hover:stroke-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 22s-8-5-8-11a8 8 0 1 1 16 0c0 6-8 11-8 11z"></path>
+                                    <circle cx="12" cy="11" r="3"></circle>
+                                </svg>
+                            </div>
                             {{place.description}}
                         </li>
                     </ul>

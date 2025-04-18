@@ -9,6 +9,8 @@
 .env.old
 .env.backup
 .env.production
+.env.stage
+.env.prod
 .DS_Store
 .phpunit.result.cache
 Homestead.json

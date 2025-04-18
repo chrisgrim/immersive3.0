@@ -38,11 +38,6 @@ class LoginCodeController extends Controller
             // Send code email
             Mail::to($user)->send(new LoginCode($code));
             
-            // Log successful send
-            \Log::info('Login code email sent', [
-                'email' => $validated['email']
-            ]);
-            
         } catch (\Exception $e) {
             // Log the error
             \Log::error('Failed to send login code email', [
@@ -111,12 +106,6 @@ class LoginCodeController extends Controller
         // Store both code and email in the session
         session()->flash('auto_code', $code);
         session()->flash('auto_email', $email);
-        
-        // Log for debugging
-        \Log::info('Auto Login Data', [
-            'code' => $code,
-            'email' => $email
-        ]);
         
         // Redirect to login page
         return redirect()->route('login');

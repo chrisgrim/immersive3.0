@@ -317,8 +317,6 @@ class ImageHandler
                         'thumb_image_path' => "$newDirectory/$newFileName-thumb.webp",
                     ]);
                     
-                    Log::info("Image {$image->id} updated: {$oldLargePath} -> {$newDirectory}/{$newFileName}.webp");
-
                     // Update model image columns if needed
                     $table = $model->getTable();
                     $hasImageColumns = \Schema::hasColumns($table, ['largeImagePath', 'thumbImagePath']);
@@ -343,7 +341,6 @@ class ImageHandler
                     try {
                         if (Storage::disk('digitalocean')->exists("/public/$originalDirectory")) {
                             Storage::disk('digitalocean')->deleteDirectory("/public/$originalDirectory");
-                            Log::info("Deleted original directory: /public/$originalDirectory");
                         }
                     } catch (\Exception $e) {
                         Log::error("Error deleting directory /public/$originalDirectory: {$e->getMessage()}");

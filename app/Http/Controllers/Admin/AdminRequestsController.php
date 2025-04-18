@@ -66,11 +66,7 @@ class AdminRequestsController extends Controller
     }
 
     public function reject(Request $httpRequest, NameChangeRequest $request)
-    {
-        \Log::info('Form Request Data:', [
-            'reason' => $httpRequest->reason
-        ]);
-        
+    {        
         $request->update([
             'status' => 'rejected',
             'reason' => $httpRequest->reason

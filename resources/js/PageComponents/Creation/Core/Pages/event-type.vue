@@ -58,9 +58,9 @@
                         ]"
                     >
                         <div class="w-full text-left">
-                            <h4 class="font-bold text-3xl">
+                            <p class="font-bold text-3xl">
                                 {{ option.label }}
-                            </h4>
+                            </p>
                             <p class="text-1xl mt-4 text-neutral-700 font-light">
                                 {{ option.description }}
                             </p>

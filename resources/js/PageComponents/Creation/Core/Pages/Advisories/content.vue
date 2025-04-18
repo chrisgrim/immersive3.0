@@ -13,7 +13,7 @@
                         class="border-neutral-300 border rounded-2xl flex justify-between items-center hover:border-[#222222] hover:shadow-focus-black transition-all duration-200 px-12 py-8"
                     >
                         <div class="text-left">
-                            <h4 class="font-bold text-3xl">{{ option.label }}</h4>
+                            <p class="font-bold text-3xl">{{ option.label }}</p>
                         </div>
                     </button>
                 </div>

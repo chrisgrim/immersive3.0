@@ -5,9 +5,9 @@
     <div style="width: 100%;">
         <div style="max-width: 640px;margin: auto;padding: 3rem;border: 1px solid #e5e7eb;border-radius: 1rem;">
             <div style="margin: auto;">
-                <div style="text-align: center;">
-                    <h2 style="font-family: 'Secular One', sans-serif;font-size: 2.2rem;margin-bottom: 1rem;">EI</h2>
-                </div>
+                <a href="{{ config('app.url') }}" style="display: block; text-decoration: none;margin-bottom: 2rem;">
+                    <img src="{{ config('app.url') }}/storage/website-files/Everything_Immersive_logo_Short.png" alt="EI" style="width: 40px; height: 40px;" />
+                </a>
             </div>
             <div style="text-align: center;margin: auto;">
                 <h2 style="font-family: 'Sen', sans-serif;color: #ff385c;font-size: 1.5rem;margin-bottom: 2rem;">

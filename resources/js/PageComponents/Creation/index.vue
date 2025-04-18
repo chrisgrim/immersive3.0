@@ -300,7 +300,7 @@
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 						</svg>
 					</div>
-					<h3 class="text-2xl md:text-3xl font-bold mb-4 break-words hyphens-auto">Thanks for submitting {{ submittedEventName }}!</h3>
+					<h3 class="text-2xl md:text-4xl mb-4 break-words hyphens-auto">Thanks for submitting <span class="font-bold">{{ submittedEventName }}</span>!</h3>
 					<p class="text-gray-600 mb-8">Your event will be reviewed in the next few days.</p>
 					<button 
 						@click="closeSubmissionModal" 
