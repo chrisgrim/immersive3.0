@@ -38,7 +38,6 @@
             <ul class="space-y-3">
                 <li><a href="{{ route('terms') }}" class="text-blue-600 hover:underline">Terms of Service</a></li>
                 <li><a href="{{ route('privacy') }}" class="text-blue-600 hover:underline">Privacy Policy</a></li>
-                <li><a href="{{ route('privacy-choices') }}" class="text-blue-600 hover:underline">Your Privacy Choices</a></li>
                 <li><a href="{{ route('sitemap') }}" class="text-blue-600 hover:underline">Sitemap</a></li>
             </ul>
         </div>

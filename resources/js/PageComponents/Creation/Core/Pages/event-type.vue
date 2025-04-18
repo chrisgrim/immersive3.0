@@ -12,18 +12,31 @@
         <div v-else-if="!state.userAccepts && event.hasLocation === null && !state.hasCreatedEventBefore" class="w-full">
             <div class="flex justify-center w-full">
                 <div class="w-full">
-                    <h3 class="mt-10 text-6xl mb-8">The right fit:</h3>
-                    <p class="font-light">Immersive experiences are experiences that have some type of immersive aspect. They must meet these standards:</p>
-                    <div class="rounded-2xl overflow-hidden my-12 w-1/2">
-                        <img 
-                            src="https://a0.muscache.com/pictures/aca23391-4bab-4ddb-91e3-3934147bbcac.jpg" 
-                            alt="Immersive Experience Example"
-                        >
+                    <h3 class="mt-10 text-6xl mb-8">Before We Start:</h3>
+                    <p class="text-2xl">Does the project you are submitting belong on Everything Immersive?</p>
+                    
+                    <div class="mt-8">
+                        <p class="text-2xl">We define "immersive" as:</p>
+                        <p class="font-light text-2xl mt-2 italic">That which meaningfully puts the audience on the same level as the primary action in a story/environment, usually physically and/or narratively.</p>
+                        <p class="font-light text-2xl mt-4">For example: the audience is part of the world in an immersive piece, even if it is mainly as a physical obstacle.</p>
                     </div>
-                    <ul class="text-2xl ml-0 mt-8 font-light">
-                        <li><span class="font-semibold">Immersive: </span>Must include some way for the user to interact</li>
-                        <li><span class="font-semibold">Safe: </span>If the event is in person it needs to be safe for the users.</li>
-                    </ul>
+                    
+                    <div class="mt-8">
+                        <p class="text-blacktext-3xl">Projects should be able to answer YES to AT LEAST ONE of the following questions:</p>
+                        <ul class="mt-4 space-y-2 text-2xl">
+                            <li>• Can the audience freely explore a physical or virtual space under their own power?</li>
+                            <li>• Can the audience directly influence the work from inside the work? (As opposed to, say, giving suggestions in an improv show.)</li>
+                            <li>• Is the audience sensorily surrounded by the work?</li>
+                            <li>• Is the work a site-specific performance or a work of installation art?</li>
+                            <li>• Is this an escape game, theatrical game, puzzle hunt, or murder mystery style experience?</li>
+                            <li>• Is this a LARP?</li>
+                            <li>• Is this a piece of themed entertainment, a roadside attraction, a museum, or a themed bar/restaurant?</li>
+                            <li>• Is this a work of virtual or augmented reality?</li>
+                            <li>• Is the work a magic performance, experiential marketing pop-up, or make extensive use of projection mapping?</li>
+                            <li>• Is this a gathering or class for immersive, themed entertainment, XR and/or experiential professionals?</li>
+                        </ul>
+                        <p class="font-medium text-xl mt-4">If you answered "yes" to ANY of the questions above, you're good to submit!</p>
+                    </div>
                 </div>
             </div>
             <div class="w-full flex justify-start mt-8">

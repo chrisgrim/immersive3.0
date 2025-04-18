@@ -41,11 +41,17 @@ class EventController extends Controller
             'remotelocations',
             'genres',
             'priceranges',
-            'organizer',
             'shows',
             'age_limits',
             'images'
         ]);
+        
+        $event->load(['organizer' => function($query) {
+            $query->with(['events' => function($eventsQuery) {
+                $eventsQuery->where('status', 'p')
+                    ->orderByDesc('updated_at');
+            }]);
+        }]);
         
         $event->append('first_show_tickets');
 

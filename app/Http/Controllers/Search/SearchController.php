@@ -62,8 +62,10 @@ class SearchController extends Controller
         if ($request->keywords) {
             // When searching, rely on relevance scoring
             $query->trackScores(true);
+        } else {
+            // When no keywords, show newest events first
+            $query->sort('published_at', 'desc');
         }
-        // Remove sorting by published_at which is causing fielddata errors
         
         $results = $query->execute();
         return $results->hits();

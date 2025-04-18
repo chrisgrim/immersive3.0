@@ -78,6 +78,15 @@
                             </div>
                         </div>
                     </div>
+                    <div v-else>
+                        <div style="flex-grow: 1;">
+                            <img :src="imageUrl + props.event.largeImagePath"
+                                    :alt="`${props.event?.name} Immersive Event - Image 2`"
+                                    class="w-full object-cover"
+                                    style="height: 25rem;"
+                            />
+                        </div>
+                    </div>
 
                     <!-- Video Section -->
                     <div v-if="props.event?.videos?.length > 0 || (props.event?.video && props.event?.video !== 'gallery' && props.event?.video !== 'page')" class="p-8 shadow-custom-1 rounded-3xl">

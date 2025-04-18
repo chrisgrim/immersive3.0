@@ -32,11 +32,6 @@
         <changefreq>weekly</changefreq>
         <priority>0.5</priority>
     </url>
-    <url>
-        <loc>{{ route('privacy-choices') }}</loc>
-        <changefreq>monthly</changefreq>
-        <priority>0.3</priority>
-    </url>
     
     <!-- Categories -->
     @foreach ($categories as $category)

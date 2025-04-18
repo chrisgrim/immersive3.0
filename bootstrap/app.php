@@ -40,7 +40,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'terms',
             'privacy',
             'sitemap',
-            'privacy-choices',
             'sitemap.xml',
             // Add any API routes needed for frontend functionality
             'api/index/search',
