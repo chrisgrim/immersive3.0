@@ -27,6 +27,7 @@ class HostEventController extends Controller
         $this->nameChangeService = $nameChangeService;
     }
 
+
     public function edit(Event $event)
     {
         $event->load([
@@ -58,6 +59,18 @@ class HostEventController extends Controller
         $oldStatus = $event->status;  // Store original status
         $oldCategoryId = $event->category_id;
         $validatedData = $request->validated();
+
+        // Check for duplicate event names if name is being updated
+        if (isset($validatedData['name']) && $validatedData['name'] !== $event->name) {
+            $duplicates = $this->checkDuplicateNames($validatedData['name'], $event->id);
+            if ($duplicates) {
+                return response()->json([
+                    'message' => 'Duplicate event name detected',
+                    'duplicateEvents' => $duplicates,
+                    'warning' => 'An event with a similar name already exists.'
+                ], 409); // 409 Conflict
+            }
+        }
 
         // First handle location type change
         if (isset($validatedData['hasLocation']) && $event->category && 
@@ -250,6 +263,12 @@ class HostEventController extends Controller
             }
         }
 
+        // Handle call to action text
+        if ($request->has('call_to_action')) {
+            $event->call_to_action = $request->call_to_action;
+            $event->save();
+        }
+
         // Handle genres
         if (isset($validatedData['genres'])) {
             Genre::saveGenres($event, $validatedData['genres']);
@@ -361,12 +380,56 @@ class HostEventController extends Controller
             ], 422);
         }
 
+        // If name is provided, check for duplicates
+        if ($request->has('name') && !empty($request->name)) {
+            $duplicates = $this->checkDuplicateNames($request->name);
+            if ($duplicates) {
+                return response()->json([
+                    'message' => 'Duplicate event name detected',
+                    'duplicateEvents' => $duplicates,
+                    'warning' => 'An event with a similar name already exists. This may cause confusion for attendees or be rejected during review.'
+                ], 409); // 409 Conflict
+            }
+        }
+
         $event = Event::newEvent($organizerId);
 
         return response()->json([
             'message' => 'Event created successfully.',
             'event' => $event
         ], 201);
+    }
+
+    /**
+     * Check if an event name already exists
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function checkNameAvailability(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:100',
+            'event_id' => 'nullable|integer|exists:events,id'
+        ]);
+
+        $duplicates = $this->checkDuplicateNames(
+            $request->name, 
+            $request->event_id
+        );
+
+        if ($duplicates) {
+            return response()->json([
+                'available' => false,
+                'duplicateEvents' => $duplicates,
+                'message' => 'An event with a similar name already exists. This may cause confusion for attendees or be rejected during review.'
+            ]);
+        }
+
+        return response()->json([
+            'available' => true,
+            'message' => 'This event name is available.'
+        ]);
     }
 
     public function nameChange(Request $request, Event $event)
@@ -476,5 +539,28 @@ class HostEventController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Check for duplicate event names
+     * 
+     * @param string $name
+     * @param int|null $excludeId
+     * @return array|null
+     */
+    protected function checkDuplicateNames($name, $excludeId = null)
+    {
+        if (empty($name)) {
+            return null;
+        }
+
+        $duplicateEvents = Event::whereRaw('LOWER(name) = ?', [strtolower($name)])
+            ->when($excludeId, function($query) use ($excludeId) {
+                return $query->where('id', '!=', $excludeId);
+            })
+            ->select('id', 'name', 'slug', 'status')
+            ->get();
+
+        return $duplicateEvents->isNotEmpty() ? $duplicateEvents : null;
     }
 }

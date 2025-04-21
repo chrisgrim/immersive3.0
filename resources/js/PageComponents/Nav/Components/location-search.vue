@@ -299,10 +299,6 @@ const setPlace = (place) => {
    handleSearch();
 };
 
-const saveSearchData = (place) => {
-//    axios.post('/search/storedata', { type: 'location', name: place.name });
-};
-
 const initGoogleMaps = async () => {
    try {
        // Import the places library

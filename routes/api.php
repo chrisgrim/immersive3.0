@@ -27,6 +27,7 @@ use App\Http\Controllers\Creation\HostEventController;
 use App\Http\Controllers\OrganizerController;
 use App\Http\Controllers\CachedDataController;
 use App\Http\Controllers\Creation\EventClickController;
+use App\Http\Controllers\Api\SimilarEventsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -36,6 +37,10 @@ use App\Http\Controllers\Creation\EventClickController;
 
 Route::GET('/index/search', [ListingsController::class, 'apiIndex']);
 Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])->name('event.update');
+
+// Get similar events
+Route::GET('/events/{event}/similar', [SimilarEventsController::class, 'getSimilar'])
+    ->name('events.similar');
 
 // Event duplication route for organizer owners
 Route::POST('/events/{event}/duplicate', [HostEventController::class, 'duplicate'])
@@ -162,6 +167,7 @@ Route::middleware(['auth:sanctum', 'moderator'])->group(function () {
             Route::controller(AdminEventController::class)->group(function () {
                 Route::GET('/events', 'index');
                 Route::PATCH('/events/{event}', 'update');
+                Route::PATCH('/events/{event}/toggle-check', 'toggleCheck');
                 Route::DELETE('/events/{event}', 'destroy');
             });
             

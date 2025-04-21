@@ -76,7 +76,18 @@
                 <!-- Calendar container - take most of the width on desktop -->
                 <div class="flex-grow border-[#222222] shadow-focus-black overflow-hidden rounded-2xl relative w-full bg-white overflow-y-auto overflow-x-hidden h-[45rem] md:min-w-[540px]" :class="{'md:w-2/3': !isNarrowLayout}">
                     <div class="w-full h-full overflow-x-hidden">
+                        <!-- Admin controls -->
+                        <div v-if="isAdmin" class="flex items-center justify-center gap-4 pt-4">
+                            <button 
+                                @click="showPreviousMonths"
+                                class="text-black underline font-semibold hover:text-gray-600"
+                            >
+                                Show previous months
+                            </button>
+                        </div>
+                        
                         <VueDatePicker
+                            ref="calendarRef"
                             v-model="date"
                             multi-dates
                             disable-year-select
@@ -86,8 +97,8 @@
                             :enable-time-picker="false"
                             :dark="isDark"
                             :timezone="tz"
-                            :preview-date="new Date()"
-                            :min-date="new Date()"
+                            :preview-date="previewDate"
+                            :min-date="minDate"
                             inline
                             auto-apply
                             @update:model-value="onDateSelect"
@@ -97,8 +108,8 @@
                             week-start="0"
                         />
                         
-                        <!-- Load More Button -->
-                        <div v-if="displayedMonths < 6" class="w-full flex justify-center my-8">
+                        <!-- Load More Button - modified to always show for admins or show when displayedMonths < 6 -->
+                        <div v-if="displayedMonths < 6 || isAdmin" class="w-full flex justify-center my-8">
                             <button 
                                 @click="loadMoreMonths"
                                 class="text-black underline font-semibold hover:text-gray-600"
@@ -264,12 +275,18 @@ import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
 const event = inject('event');
 const errors = inject('errors');
 const isSubmitting = inject('isSubmitting');
+const user = inject('user');
 const date = ref([]);
 const windowWidth = ref(0);
 const displayedMonths = ref(3);
 const isDesktop = computed(() => windowWidth.value >= 768);
 const calendarLayout = computed(() => isDesktop.value ? 'horizontal' : 'vertical');
 const initialMonthsToShow = computed(() => isDesktop.value ? 2 : 3);
+const isAdmin = computed(() => user && (user.isAdmin || false));
+const previewDate = ref(new Date());
+
+// Reference for calendar navigation
+const calendarRef = ref(null);
 
 // 3. Calendar State
 const events = ref([]);
@@ -290,6 +307,18 @@ const showEmbargoModal = ref(false);
 const tempEmbargoDate = ref(null);
 const showClearConfirmation = ref(false);
 const embargoToggle = ref(false);
+
+// Additional refs for previous months functionality
+const minDate = computed(() => {
+    // Admins can select past dates (up to 1 year ago)
+    if (isAdmin.value) {
+        const pastDate = new Date();
+        pastDate.setFullYear(pastDate.getFullYear() - 1);
+        return pastDate;
+    }
+    // Regular users can only select current dates and future
+    return new Date();
+});
 
 // 6. Validation Rules
 const rules = {
@@ -410,17 +439,25 @@ const createWeeklyEvents = async (startDateStr) => {
     const timezone = selectedTimezone.value;
     const startDate = moment.tz(startDateStr + 'T12:00:00', timezone);
     const targetDay = startDate.day();
+    const currentDate = moment().tz(timezone);
+    const sixMonthsFromNow = moment().tz(timezone).add(180, 'days');
     
     const newDates = [...date.value];
     
-    for (let i = 1; i < 26; i++) {
-        const nextDate = startDate.clone().add(i, 'weeks');
-        if (nextDate.isAfter(moment().add(180, 'days'))) break;
+    // Start from the selected date
+    let nextDate = startDate.clone();
+    
+    // Keep adding weekly occurrences until we reach 6 months from today
+    while (nextDate.isBefore(sixMonthsFromNow)) {
+        const dateObj = nextDate.clone().hours(12).minutes(0).seconds(0).toDate();
         
-        const dateObj = nextDate.hours(12).minutes(0).seconds(0).toDate();
-        if (!date.value.some(d => d.getTime() === dateObj.getTime())) {
+        // Only add the date if it's not already selected
+        if (!date.value.some(d => moment(d).isSame(dateObj, 'day'))) {
             newDates.push(dateObj);
         }
+        
+        // Move to next week
+        nextDate = nextDate.clone().add(1, 'weeks');
     }
     
     date.value = newDates;
@@ -436,10 +473,17 @@ const removeWeeklyEvents = async (startDateStr) => {
     const timezone = selectedTimezone.value;
     const startDate = moment.tz(startDateStr + 'T12:00:00', timezone);
     const startDay = startDate.day();
+    const sixMonthsFromNow = moment().tz(timezone).add(180, 'days');
 
+    // Keep dates that are either:
+    // 1. Not on the same day of week as the selected date, or
+    // 2. Not after the selected date, or
+    // 3. Beyond 6 months from today
     const newDates = date.value.filter(d => {
-        const date = moment(d).tz(timezone).hours(12);
-        return !(date.isAfter(startDate) && date.day() === startDay);
+        const dateObj = moment(d).tz(timezone).hours(12);
+        return dateObj.day() !== startDay || 
+               !dateObj.isAfter(startDate) || 
+               dateObj.isAfter(sixMonthsFromNow);
     });
 
     date.value = newDates;
@@ -562,8 +606,11 @@ defineExpose({
             new Date(date).toISOString().slice(0, 19).replace('T', ' ')
         );
         
+        // Always use 's' or 'a' for showtype, never 'l' or 'o'
+        // If it was originally 'l' or 'o', we've already converted it to 's' for editing
+        
         const data = {
-            showtype: event.showtype,
+            showtype: event.showtype === 'a' ? 'a' : 's',
             dateArray: event.showtype === 'a' ? [] : formattedDates,
             timezone: selectedTimezone.value,
             show_times: event.show_times,
@@ -576,9 +623,6 @@ defineExpose({
 
 // 15. Lifecycle Hooks
 onMounted(() => {
-    console.log('Component mounted');
-    console.log('Initial event.shows:', event.shows);
-    
     initializeTimezones();
     
     // Clear any existing dates first
@@ -589,15 +633,19 @@ onMounted(() => {
     // Initialize embargo toggle based on existing embargo date
     embargoToggle.value = !!event.embargo_date;
     
-    // Only set dates if we have shows and we're in specific dates mode
-    if (event.shows?.length > 0 && event.showtype === 's') {
+    // Only set dates if we have shows and we're in specific dates mode (s), live mode (l), or ongoing mode (o)
+    if (event.shows?.length > 0 && (event.showtype === 's' || event.showtype === 'l' || event.showtype === 'o')) {
+        // If showtype is "l" or "o", set it to "s" for editing purposes
+        if (event.showtype === 'l' || event.showtype === 'o') {
+            // Convert legacy 'l' or 'o' type to 's'
+            event.showtype = 's';
+        }
+        
         const showDates = event.shows.map(show => {
             const date = new Date(show.date);
             date.setHours(12, 0, 0, 0);
             return date;
         });
-        
-        console.log('Initial show dates:', showDates);
         
         date.value = showDates;
         selectedDates.value = showDates.map(d => d.toISOString().split('T')[0]);
@@ -606,17 +654,33 @@ onMounted(() => {
             end: date,
             title: 'Selected'
         }));
-        
-        console.log('Initial state set:', {
-            date: date.value,
-            selectedDates: selectedDates.value,
-            events: events.value
-        });
     }
     
     windowWidth.value = window?.innerWidth ?? 0;
     displayedMonths.value = initialMonthsToShow.value;
     window?.addEventListener('resize', handleResize);
+    
+    // Apply admin-enabled class to past dates for admins
+    if (isAdmin.value) {
+        setTimeout(() => {
+            // Add admin-enabled class to past dates
+            const pastDateElements = document.querySelectorAll('.dp--past');
+            if (pastDateElements) {
+                pastDateElements.forEach(element => {
+                    element.classList.add('admin-enabled');
+                });
+            }
+            
+            // Add admin-enabled-calendar class to the calendar container
+            const calendarContainer = document.querySelector('.dp__instance_calendar');
+            if (calendarContainer) {
+                calendarContainer.classList.add('admin-enabled-calendar');
+            }
+            
+            // Add data-year attributes to the month/year elements
+            updateMonthYearElements();
+        }, 300);
+    }
 });
 
 // Watch for changes to hasEmbargoDate to keep toggle in sync
@@ -630,22 +694,35 @@ onUnmounted(() => {
 
 // 16. Utility Methods
 const loadMoreMonths = () => {
-    displayedMonths.value = 6;
+    // First, capture the current active month before we change anything
+    const calendar = document.querySelector('.dp__instance_calendar');
+    const currentScrollPosition = calendar ? calendar.scrollTop : 0;
     
-    // After setting the new value, force a re-render by updating a reactive property
+    // Remember which months we already have displayed before adding more
+    const oldMonthCount = displayedMonths.value;
+    
+    // For non-admins, cap at 6 months
+    // For admins, if already at 6, add 3 more months
+    if (!isAdmin.value) {
+        displayedMonths.value = 6;
+    } else {
+        displayedMonths.value = displayedMonths.value >= 6 ? displayedMonths.value + 3 : 6;
+    }
+    
+    // After adding more months, try to maintain the same scroll position
+    // This is a much simpler approach that should work reliably
     setTimeout(() => {
-        // For desktop, scroll to the third row (5th calendar)
-        if (windowWidth.value >= 768) {
-            const allMonths = document.querySelectorAll('.dp__month_year_wrap');
-            if (allMonths && allMonths.length > 4) {
-                allMonths[4].scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-        } else {
-            // For mobile, scroll to the 4th calendar
-            const allMonths = document.querySelectorAll('.dp__month_year_wrap');
-            if (allMonths && allMonths.length > 3) {
-                allMonths[3].scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
+        // First update the year labels
+        updateMonthYearElements();
+        
+        // Then restore the scroll position
+        const updatedCalendar = document.querySelector('.dp__instance_calendar');
+        if (updatedCalendar) {
+            // Simply restore the previous scroll position
+            updatedCalendar.scrollTop = currentScrollPosition;
+            
+            // Add a console log to debug
+            console.log('Restoring scroll position:', currentScrollPosition);
         }
     }, 100);
 };
@@ -659,6 +736,81 @@ const getMonthDate = (offset) => {
 // Add these with your other refs (in section "2. Injected Dependencies & Core State")
 const isDark = ref(false);  // for dark mode state
 const tz = computed(() => selectedTimezone.value);  // use the selected timezone
+
+const showPreviousMonths = () => {
+    // Get a reference to the calendar component
+    console.log('Calendar ref:', calendarRef.value);
+    
+    // Get current date
+    const currentDate = new Date(previewDate.value);
+    console.log('Current date:', currentDate);
+    
+    // Calculate the new date (2 months back instead of 3)
+    const newMonth = currentDate.getMonth() - 2;
+    const newYear = currentDate.getFullYear() + Math.floor(newMonth / 12);
+    const adjustedMonth = ((newMonth % 12) + 12) % 12; // Handle negative months
+    
+    console.log('New month/year:', adjustedMonth, newYear);
+    
+    // Update previewDate (this alone doesn't seem to work)
+    currentDate.setMonth(currentDate.getMonth() - 2);
+    previewDate.value = currentDate;
+    
+    // Use the DatePicker's API method to change month programmatically
+    if (calendarRef.value) {
+        // Set month and year using component's method
+        calendarRef.value.setMonthYear({ 
+            month: adjustedMonth, 
+            year: newYear 
+        });
+        console.log('Updated calendar using setMonthYear');
+        
+        // Update the month/year elements with year data
+        updateMonthYearElements();
+    }
+};
+
+// Add this new function to update month/year elements with the year data attribute
+const updateMonthYearElements = () => {
+    if (isAdmin.value) {
+        setTimeout(() => {
+            const monthYearElements = document.querySelectorAll('.dp__month_year_select');
+            monthYearElements.forEach(element => {
+                const monthText = element.textContent || '';
+                // Extract month and find the corresponding year
+                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                   'July', 'August', 'September', 'October', 'November', 'December'];
+                const monthIndex = monthNames.findIndex(m => monthText.includes(m));
+                
+                if (monthIndex !== -1) {
+                    // Calculate the year based on the month index and current date
+                    const baseDate = new Date(previewDate.value);
+                    const currentMonthIndex = baseDate.getMonth();
+                    const currentYear = baseDate.getFullYear();
+                    
+                    // Calculate how many months ahead/behind this month is from the current month
+                    let monthOffset = 0;
+                    let yearToShow = currentYear;
+                    
+                    // Adjust for multiple calendars displayed
+                    const elementIndex = Array.from(monthYearElements).indexOf(element);
+                    if (elementIndex >= 0) {
+                        monthOffset = elementIndex;
+                    }
+                    
+                    // If this is a past month in the calendar display
+                    const targetMonth = (currentMonthIndex + monthOffset) % 12;
+                    const yearOffset = Math.floor((currentMonthIndex + monthOffset) / 12);
+                    yearToShow = currentYear + yearOffset;
+                    
+                    // Set the year as data attribute (last two digits)
+                    const yearSuffix = String(yearToShow).slice(-2);
+                    element.setAttribute('data-year', `'${yearSuffix}`);
+                }
+            });
+        }, 350);
+    }
+};
 </script>
 
 <style>
@@ -686,14 +838,40 @@ const tz = computed(() => selectedTimezone.value);  // use the selected timezone
    padding:1rem;
 }
 
+/* Admin styling for month/year display - add year digits */
+.admin-enabled-calendar .dp__month_year_wrap .dp__month_year_select {
+   position: relative;
+}
+
+/* Add the last two digits of the year after month */
+.admin-enabled-calendar .dp__month_year_wrap .dp__month_year_select::after {
+   content: attr(data-year);
+   font-size: 1.7rem;
+   font-weight: 400;
+   margin-left: 0.5rem;
+   opacity: 1;
+}
+
 .dp--past {
     pointer-events: none !important;
     opacity: 0.3 !important;
 }
 
+/* Admin override for past dates */
+.dp--past.admin-enabled {
+    pointer-events: auto !important;
+    opacity: 0.6 !important;
+    cursor: pointer !important;
+}
+
 .dp--past .dp__cell_inner {
     color: #999 !important;
     background: transparent !important;
+}
+
+/* Admin override for selected past dates */
+.dp--past.admin-enabled .dp__cell_inner {
+    color: #555 !important;
 }
 
 .dp--past.dp__active_date,
@@ -702,10 +880,23 @@ const tz = computed(() => selectedTimezone.value);  // use the selected timezone
     color: #fff !important;
 }
 
+/* Admin override for selected past dates */
+.dp--past.admin-enabled.dp__active_date,
+.dp--past.admin-enabled .dp__active {
+    background-color: #666 !important;
+    color: #fff !important;
+}
+
 /* Ensure past dates can't be interacted with */
 .dp--past * {
     pointer-events: none !important;
     cursor: default !important;
+}
+
+/* Admin override for past dates */
+.dp--past.admin-enabled * {
+    pointer-events: auto !important;
+    cursor: pointer !important;
 }
 
 .dp__month_year_select {

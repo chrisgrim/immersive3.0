@@ -5,6 +5,8 @@ namespace App\Policies;
 use App\Models\Event;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Support\Facades\Request;
+use Illuminate\Support\Facades\Route;
 
 class EventPolicy
 {
@@ -20,11 +22,17 @@ class EventPolicy
             return true;
         }
 
-        // If user doesn't belong to any teams, redirect to getting-started
+        // If user doesn't belong to any teams, simply return false
+        // to deny access without throwing an exception
         if (!$user->teams()->exists()) {
-            // We can't redirect directly from a policy, so we'll throw a custom exception
-            // that will be caught by the exception handler
-            throw new \App\Exceptions\NoTeamsException();
+            // Log the occurrence with more detailed information
+            \Log::info('User without teams attempted to access hosting features', [
+                'user_id' => $user->id,
+                'url' => Request::fullUrl(),
+                'route' => Route::currentRouteName(),
+                'method' => Request::method()
+            ]);
+            return false;
         }
 
         return true;

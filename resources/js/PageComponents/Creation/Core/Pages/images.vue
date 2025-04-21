@@ -632,11 +632,18 @@ defineExpose({
     background-color: rgba(30, 30, 30, 0.8);
 }
 
-/* Custom background for the cropper */
+/* Checkerboard pattern for the cropper with blue tint */
 .vue-advanced-cropper__background, 
 .vue-advanced-cropper__foreground {
     opacity: 1;
-    background: #ff000042;
+    background: 
+        linear-gradient(45deg, rgba(0, 40, 83, 0.5) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(0, 40, 83, 0.5) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(0, 40, 83, 0.5) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(0, 40, 83, 0.5) 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    background-color: rgba(173, 216, 230, 0.09); /* Light blue base */
     transform: translate(-50%, -50%);
     position: absolute;
     top: 50%;

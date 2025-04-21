@@ -68,7 +68,7 @@
 
                 <!-- Social Links -->
                 <div v-if="hasSocialLinks" class="w-full border border-neutral-200 rounded-3xl p-8">
-                    <div class="flex md:block md:space-y-8 justify-start space-x-4">
+                    <div class="flex md:block md:space-y-8 justify-evenly space-x-4 md:space-x-0">
                         <!-- Website -->
                         <a v-if="organizer.website" 
                            :href="organizer.website" 
@@ -76,10 +76,10 @@
                            rel="nofollow noopener noreferrer"
                            class="flex items-center md:gap-4 group md:w-full">
                             <div class="w-16 h-16 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
-                                <component :is="RiSearchLine" class="w-8 h-8 text-neutral-700" />
+                                <component :is="RiGlobalLine" class="w-8 h-8 text-neutral-700" />
                             </div>
                             <span class="text-lg text-gray-600 group-hover:text-gray-900 transition-colors hidden md:inline">
-                                Website
+                                {{ formatWebsiteUrl(organizer.website) }}
                             </span>
                         </a>
 
@@ -223,7 +223,7 @@
 <script setup>
 import { computed } from 'vue';
 import { 
-    RiSearchLine,
+    RiGlobalLine,
     RiTwitterLine,
     RiInstagramLine,
     RiFacebookBoxLine,
@@ -292,4 +292,14 @@ const organizerImage = computed(() => {
 const canEdit = computed(() => {
     return ['owner', 'moderator', 'admin'].includes(props.organizer.user_role);
 });
+
+const formatWebsiteUrl = (url) => {
+    if (!url) return 'Website';
+    try {
+        const parsedUrl = new URL(url);
+        return parsedUrl.hostname;
+    } catch (e) {
+        return url;
+    }
+};
 </script>

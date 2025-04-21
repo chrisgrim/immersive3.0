@@ -4,6 +4,7 @@
         <event-grid 
             :items="events.data"
             :columns="6"
+            :show-location="true"
         />
 
         <!-- Pagination -->

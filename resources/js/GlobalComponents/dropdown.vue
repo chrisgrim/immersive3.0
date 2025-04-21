@@ -4,13 +4,14 @@
             <div class="w-full relative">
                 <svg 
                     :class="{'rotate-90': dropdown}"
-                    class="w-10 h-10 fill-black absolute z-10 right-4 top-8 transition-transform duration-200">
+                    class="w-10 h-10 fill-black absolute z-10 right-4 top-1/2 transform -translate-y-1/2 transition-transform duration-200">
                     <use :xlink:href="`/storage/website-files/icons.svg#ri-arrow-right-s-line`" />
                 </svg>
                 <input 
                     ref="searchInput"
                     :class="[
                         'text-2xl relative p-8 w-full border rounded-3xl transition-all duration-200',
+                        itemHeight || '',
                         {
                             'border-red-500 hover:border-red-500 focus:border-red-500 focus:shadow-focus-error': error,
                             'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !error,
@@ -71,8 +72,12 @@ const props = defineProps({
         default: 255
     },
     error: {
-        type: Boolean,
+        type: [Boolean, String],
         default: false
+    },
+    itemHeight: {
+        type: String,
+        default: null
     }
 });
 

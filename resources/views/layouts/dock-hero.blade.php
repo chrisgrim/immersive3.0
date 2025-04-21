@@ -1,7 +1,7 @@
 @php
     $elements = collect();
     $name = null;
-    $imageUrl = "https://ei-test.sfo3.digitaloceanspaces.com/public/";
+    $imageUrl = "https://ei-prod.sfo3.digitaloceanspaces.com/public/";
 
     if (count($dock->shelves)) {
         $elements = $dock->shelves[0]->publishedPosts;

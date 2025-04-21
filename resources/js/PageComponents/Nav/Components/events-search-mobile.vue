@@ -246,17 +246,12 @@ const fetchOrganizers = async () => {
 
 const onSelect = (item, type) => {
     // Commenting out to prevent 405 error
-    // saveSearchData(item, type);
     if (type === 'organizer') {
         window.location.href = `/organizers/${item.model.slug}`;
     }
     if (type === 'event') {
         window.location.href = `/events/${item.model.slug}`;
     }
-};
-
-const saveSearchData = (item, type) => {
-    axios.post('/search/storedata', {type, name: item.model.name});
 };
 
 const getInitialData = async () => {

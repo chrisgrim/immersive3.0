@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use App\Http\Controllers\CachedDataController;
 
 class UpdateWebsiteData extends Command
@@ -32,6 +33,7 @@ class UpdateWebsiteData extends Command
         $this->updateCategoryImages();
         $this->updateTicketNamespaces();
         $this->migrateEventVideos();
+        $this->updateInvalidCardTypes();
     }
 
     private function resetElasticMigrations()
@@ -421,5 +423,45 @@ class UpdateWebsiteData extends Command
         $this->info("KEYS *{$fullGenresCacheKey}*");
         
         $this->info('Redis cache rebuild complete!');
+    }
+
+    private function updateInvalidCardTypes()
+    {
+        $this->info('Starting invalid card types update...');
+        
+        // Find all cards with type 'e' but no event_id
+        $invalidCards = DB::table('cards')
+            ->where('type', 'e')
+            ->whereNull('event_id')
+            ->get();
+            
+        $count = $invalidCards->count();
+        
+        if ($count === 0) {
+            $this->info('No invalid card types found. Skipping update.');
+            return;
+        }
+        
+        $this->info("Found {$count} cards with type 'e' but no event_id. Converting to type 't'...");
+        
+        // Create a progress bar
+        $bar = $this->output->createProgressBar($count);
+        
+        // Get IDs to update
+        $invalidCardIds = $invalidCards->pluck('id')->toArray();
+        
+        // Update all invalid cards
+        DB::table('cards')
+            ->whereIn('id', $invalidCardIds)
+            ->update(['type' => 't']);
+        
+        // Advance progress bar to completion
+        $bar->finish();
+        
+        $this->newLine();
+        $this->info("Completed! Updated {$count} cards from type 'e' to type 't'.");
+        
+        // List the IDs that were changed
+        $this->info("Changed card IDs: " . implode(', ', $invalidCardIds));
     }
 }

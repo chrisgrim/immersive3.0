@@ -4,7 +4,7 @@ namespace App\Models;
 
 use App\Models\{Conversation, Genre, Organizer, User, Category};
 use App\Models\Events\{ Show, PriceRange, Advisory, Location, AgeLimit, InteractiveLevel, RemoteLocation, ContactLevel, ContentAdvisory, MobilityAdvisory};
-use App\Models\Admin\{ ReviewEvent, StaffPick, TrackClick };
+use App\Models\Admin\{ ReviewEvent, StaffPick, TrackClick, CuratedEventCheck };
 use App\Scopes\PublishedScope;
 use App\Traits\{Favoritable};
 use Elastic\ScoutDriverPlus\Searchable;
@@ -12,7 +12,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
-use App\Models\Events\CuratedEventCheck;
 use App\Models\NameChangeRequest;
 
 /**

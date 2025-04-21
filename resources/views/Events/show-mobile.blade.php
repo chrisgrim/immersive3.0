@@ -59,6 +59,7 @@
                         @endif
                         <div class="">
                             @include('events.show.about')
+                            <vue-show-calendar-mobile :event="{{ $event }}"></vue-show-calendar-mobile>
                             @include('events.show.details')
                         </div>
                     </div>

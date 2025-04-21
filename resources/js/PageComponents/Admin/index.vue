@@ -7,6 +7,9 @@
                 <div 
                     class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full lg:w-[31rem] lg:block" 
                     :class="{ 'hidden': currentView }">
+                    <a href="/" class="flex md:hidden items-center h-28 flex items-center p-10 border-b border-gray-200">
+                        <img src="/storage/website-files/Everything_Immersive_logo_Short.png" alt="EI" class="w-12 h-12" />
+                    </a>
 
                     <div class="p-8 space-y-6">
                         <!-- Approval Section -->

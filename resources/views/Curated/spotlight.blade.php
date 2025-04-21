@@ -6,7 +6,7 @@
     $element = null;
     $name = null;
     $url = '#';
-    $imageUrl = env('VITE_IMAGE_URL', 'https://ei-test.sfo3.digitaloceanspaces.com/public/');
+    $imageUrl = env('VITE_IMAGE_URL', 'https://ei-prod.sfo3.digitaloceanspaces.com/public/');
 
     // Determine element and name based on dock type
     if (count($dock->shelves)) {

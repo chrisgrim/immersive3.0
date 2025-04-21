@@ -409,6 +409,16 @@
         <!-- Fixed Footer Section -->
         <div class="flex border-t border-gray-200 bg-white h-32 justify-end items-center">
             <div class="px-8 py-6 flex gap-4">
+                <div v-if="props.event?.ticketUrl" class="flex items-center">
+                    <a 
+                        :href="props.event.ticketUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="flex text-xl items-center gap-2 px-6 py-3 text-blue-600 hover:text-blue-800 underline transition-colors"
+                    >
+                        <span>{{ props.event.ticketUrl }}</span>
+                    </a>
+                </div>
                 <!-- Edit Button -->
                 <a 
                     :href="`/hosting/event/${props.event?.slug}/edit`"
@@ -510,7 +520,7 @@
 </template>
 
 <script setup>
-import { inject, computed, ref, watch, onMounted } from 'vue';
+import { computed, ref } from 'vue';
 import moment from 'moment-timezone';
 import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet";
@@ -683,10 +693,6 @@ defineExpose({
     isValid: async () => true, // Review page is always valid
     submitData: () => ({}) // No data to submit from review page
 });
-
-watch(() => props.event, (newValue) => {
-    console.log('Event props in EventReview:', newValue); // Log whenever the event prop changes
-}, { immediate: true, deep: true });
 </script>
 
 <style>

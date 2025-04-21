@@ -13,7 +13,7 @@
                     placeholder="Event and Organizer Search"
                     @input="debounce"
                     @focus="dropdown=true"
-                    autocomplete="false"
+                    autocomplete="off"
                     onfocus="value = ''" 
                     type="text">
             </div>
@@ -56,48 +56,39 @@
     </div>
 </template>
 
-<script>
+<script setup>
+import { ref, onMounted } from 'vue';
 
-export default {
+const searchInput = ref('');
+const searchOptions = ref([]);
+const dropdown = ref(false);
+const imageUrl = import.meta.env.VITE_IMAGE_URL;
+let timeout = null;
 
-    data() {
-        return {
-            searchInput: '',
-            searchOptions: [ ],
-            dropdown: false,
-            imageUrl: import.meta.env.VITE_IMAGE_URL
-        }
-    },
-
-    methods: {
-        async generateSearchList () {
-            await axios.get('/api/search/nav/names', { params: { keywords:  this.searchInput } })
-            .then( res => { 
-                this.searchOptions = res.data })
-        },
-        onSelect(item) {
-            this.saveSearchData(item);
-            if (item.index_name == 'organizers') window.location.href = `/organizers/${item.model.slug}`
-            if (item.index_name == 'events') window.location.href = `/events/${item.model.slug}`
-        },
-        saveSearchData(item) {
-            if (item.index_name == 'organizers') { var data = 'organizer'}
-            if (item.index_name == 'events') { var data = 'event'}
-            axios.post('/search/storedata', {type: data, name: item.model.name});
-        },
-        debounce() {
-            if (this.timeout) 
-                clearTimeout(this.timeout); 
-            this.timeout = setTimeout(() => {
-                this.generateSearchList();
-            }, 200); // delay
-        },
-    },
-
-    mounted() {
-        this.generateSearchList()
-    },
-
-
+const generateSearchList = async () => {
+    try {
+        const response = await axios.get('/api/search/nav/names', { 
+            params: { keywords: searchInput.value } 
+        });
+        searchOptions.value = response.data;
+    } catch (error) {
+        console.error('Error fetching search results:', error);
+    }
 };
+
+const onSelect = (item) => {
+    if (item.index_name === 'organizers') window.location.href = `/organizers/${item.model.slug}`;
+    if (item.index_name === 'events') window.location.href = `/events/${item.model.slug}`;
+};
+
+const debounce = () => {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => {
+        generateSearchList();
+    }, 200); // delay
+};
+
+onMounted(() => {
+    generateSearchList();
+});
 </script>

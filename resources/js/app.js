@@ -44,7 +44,9 @@ const ShowComponents = {
     ShowPurchase: defineAsyncComponent(() => import('./PageComponents/EventShow/show-purchase.vue')),
     ShowPurchaseMobile: defineAsyncComponent(() => import('./PageComponents/EventShow/show-purchase-mobile.vue')),
     ShowMap: defineAsyncComponent(() => import('./PageComponents/EventShow/show-map.vue')),
-    ShowGallery: defineAsyncComponent(() => import('./PageComponents/EventShow/show-gallery.vue'))
+    ShowGallery: defineAsyncComponent(() => import('./PageComponents/EventShow/show-gallery.vue')),
+    ShowCalendarMobile: defineAsyncComponent(() => import('./PageComponents/EventShow/show-calendar-mobile.vue')),
+    SimilarEvents: defineAsyncComponent(() => import('./PageComponents/EventShow/similar-events.vue'))
 };
 
 // Auth Components
@@ -138,6 +140,8 @@ app.component('vue-show-purchase', ShowComponents.ShowPurchase);
 app.component('vue-show-purchase-mobile', ShowComponents.ShowPurchaseMobile);
 app.component('vue-show-map', ShowComponents.ShowMap);
 app.component('vue-show-gallery', ShowComponents.ShowGallery);
+app.component('vue-show-calendar-mobile', ShowComponents.ShowCalendarMobile);
+app.component('vue-similar-events', ShowComponents.SimilarEvents);
 
 app.component('vue-reset-password', AuthComponents.ResetPassword);
 app.component('vue-user-profile', AuthComponents.UserEdit);

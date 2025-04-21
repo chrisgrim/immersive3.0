@@ -1,5 +1,9 @@
 <template>
-    <div class="flex gap-8 border w-full bg-white fixed bottom-0 left-0 z-30 flex py-6 px-10 min-h-48 shadow-custom-1">
+    <div 
+        class="flex gap-8 border w-full bg-white fixed bottom-0 left-0 z-30 flex py-6 px-10 min-h-48 shadow-custom-1"
+        :class="{ 'translate-y-full': !showBar }"
+        style="transition: transform 0.3s ease-in-out;"
+    >
         <div 
             v-if="!ticketsVisible"
             class="inline-block w-1/2 flex flex-col justify-center">
@@ -79,7 +83,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import axios from 'axios';
 import ShowMore from '@/GlobalComponents/show-more.vue';
 import dayjs from 'dayjs';
@@ -87,6 +91,32 @@ import dayjs from 'dayjs';
 const props = defineProps({
     event: Object,
     user: Object
+});
+
+const showBar = ref(false);
+const ticketsVisible = ref(false);
+const remaining = ref([]);
+const isModalReady = ref(false);
+
+// Handle scroll to show/hide the purchase bar
+const handleScroll = () => {
+    if (window.scrollY > 75) {
+        showBar.value = true;
+    } else {
+        showBar.value = false;
+    }
+};
+
+// Add and remove scroll event listener
+onMounted(() => {
+    getDates();
+    window.addEventListener('scroll', handleScroll);
+    // Initial check in case page loads with scroll position
+    handleScroll();
+});
+
+onUnmounted(() => {
+    window.removeEventListener('scroll', handleScroll);
 });
 
 const canEdit = computed(() => 
@@ -102,10 +132,6 @@ const eventUrl = computed(() => {
     if (props.event.websiteUrl) return props.event.websiteUrl;
     return props.event.organizer.website;
 });
-
-const ticketsVisible = ref(false);
-const remaining = ref([]);
-const isModalReady = ref(false);
 
 const toggleTickets = () => {
     ticketsVisible.value = !ticketsVisible.value;
@@ -157,6 +183,4 @@ const formatTicketPrice = (ticket) => {
     if (ticket.type === 'p') return 'Pay what you can';
     return ticket.ticket_price == 0.00 ? 'Free' : `${ticket.currency} ${ticket.ticket_price}`;
 };
-
-onMounted(getDates);
 </script>

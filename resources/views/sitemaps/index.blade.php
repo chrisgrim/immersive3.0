@@ -36,7 +36,7 @@
     <!-- Categories -->
     @foreach ($categories as $category)
     <url>
-        <loc>{{ url('/index/search?category=' . urlencode($category->slug)) }}</loc>
+        <loc>{{ url('/index/search?category=' . $category->id) }}</loc>
         <lastmod>{{ $lastmod }}</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.8</priority>

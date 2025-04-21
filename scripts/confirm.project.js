@@ -11,6 +11,7 @@ const projectName = basename(projectPath);
 // Determine which build environment was called
 const isProductionBuild = process.argv.includes('--production') || 
                           process.env.NODE_ENV === 'production';
+const isStagingBuild = process.argv.includes('--staging');
 
 // Parse .env file to get APP_ENV
 function parseEnvFile() {
@@ -70,8 +71,10 @@ try {
     if (isProductionBuild && appEnv !== 'production' && appEnv !== 'staging') {
       console.log('\x1b[31m%s\x1b[0m', `⚠️ WARNING: You're running a production build but your APP_ENV is set to "${appEnv}"`);
       console.log('\x1b[31m%s\x1b[0m', `This might indicate you're building for the wrong environment!`);
-    } else if (!isProductionBuild && (appEnv === 'production' || appEnv === 'staging')) {
+    } else if (!isProductionBuild && !process.argv.includes('--staging') && (appEnv === 'production' || appEnv === 'staging')) {
       console.log('\x1b[31m%s\x1b[0m', `⚠️ WARNING: Your APP_ENV is set to "${appEnv}" but you're not running a production build`);
+    } else if (process.argv.includes('--staging') && appEnv !== 'staging') {
+      console.log('\x1b[31m%s\x1b[0m', `⚠️ WARNING: You're running a staging build but your APP_ENV is set to "${appEnv}"`);
     } else {
       console.log('\x1b[32m%s\x1b[0m', `✓ Build type and environment appear to match`);
     }

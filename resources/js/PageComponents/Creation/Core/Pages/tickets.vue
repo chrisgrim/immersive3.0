@@ -3,7 +3,7 @@
         <div class="w-full">
             <h2 class="text-black">Tickets</h2>
             <!-- Price Section -->
-            <div class="mt-12">
+            <div>
                 <div class="flex items-center">
                     <!-- Currency symbol - hide for Free and PWYC tickets -->
                     <span 
@@ -189,22 +189,67 @@
                         </div>
                     </div>
 
+                    <div>
+                        <div class="w-1/2 mx-auto my-24 border-t border-neutral-300"></div>
+                    </div>
+
                     <div class="mt-12" ref="ticketUrlSection">
-                        <input 
-                            class="w-full border border-neutral-300 text-[#222222] text-3xl p-4 rounded-2xl relative transition-all duration-200"
-                            :class="{ 
-                                'border-red-500 focus:shadow-focus-error': hasUrlError,
-                                'hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !hasUrlError
-                            }"
-                            type="url" 
-                            v-model="state.ticketUrl" 
-                            placeholder="Ticket Url"
-                            @input="validateTicketUrl"
-                            maxlength="255"
-                        >
-                        <div v-if="state.ticketUrlError || (!state.ticketUrl && $v.$dirty)" 
-                            class="text-red-500 text-1xl mt-2 px-4">
-                            {{ !state.ticketUrl ? 'Ticket URL is required' : 'Please enter a valid URL (e.g., https://example.com)' }}
+                        <div class="flex gap-4">
+                            <div class="w-9/12 flex-grow">
+                                <p class="text-xl font-medium mb-4">Button Link</p>
+                                <input 
+                                    class="w-full border border-neutral-300 text-[#222222] text-3xl p-4 rounded-2xl relative transition-all duration-200 h-20"
+                                    :class="{ 
+                                        'border-red-500 focus:shadow-focus-error': hasUrlError,
+                                        'hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !hasUrlError
+                                    }"
+                                    type="url" 
+                                    v-model="state.ticketUrl" 
+                                    placeholder="Ticket Url"
+                                    @input="validateTicketUrl"
+                                    maxlength="255"
+                                >
+                                <div v-if="state.ticketUrlError || (!state.ticketUrl && $v.$dirty)" 
+                                    class="text-red-500 text-1xl mt-2 px-4">
+                                    {{ !state.ticketUrl ? 'Ticket URL is required' : 'Please enter a valid URL (e.g., https://example.com)' }}
+                                </div>
+                            </div>
+                            
+                            <div class="w-3/12 shrink-0">
+                                <p class="text-xl font-medium mb-4">Button Text</p>
+                                
+                                <!-- Display selected call to action as a list -->
+                                <List 
+                                    v-if="currentCallToActionItem.length > 0"
+                                    class="mt-2"
+                                    :item-height="'h-20'"
+                                    :selections="currentCallToActionItem" 
+                                    @onSelect="replaceCallToAction"
+                                />
+
+                                <!-- Dropdown for call to action selection -->
+                                <Dropdown 
+                                    v-else
+                                    id="callToAction"
+                                    :item-height="'h-20'"
+                                    class="w-full"
+                                    :list="callToActionOptions"
+                                    :creatable="true"
+                                    :loading="false"
+                                    placeholder="Select call to action"
+                                    custom-input-placeholder="Type custom call to action..."
+                                    @onSelect="updateCallToAction"
+                                    :error="$v.callToAction.$error ? ($v.callToAction.required.$invalid ? 'Call to action text is required' : 'Call to action is too long') : null"
+                                    :max-selections="1"
+                                    :max-input-length="MAX_CALL_TO_ACTION_LENGTH"
+                                    :reset-on-select="true"
+                                />
+                                
+                                <div v-if="$v.callToAction.$error" class="text-red-500 text-1xl mt-2 px-4">
+                                    <span v-if="!$v.callToAction.required">Call to action text is required</span>
+                                    <span v-else-if="!$v.callToAction.maxLength">Call to action is too long (max {{ MAX_CALL_TO_ACTION_LENGTH }} characters)</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -225,6 +270,7 @@ import List from '@/GlobalComponents/dropdown-list.vue';
 // 2. Constants
 const MAX_TICKET_PRICE = 9999.99;
 const MAX_DESCRIPTION_LENGTH = 60;
+const MAX_CALL_TO_ACTION_LENGTH = 20;
 const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$'];
 const MAX_URL_LENGTH = 255;
 const TICKET_NAME_OPTIONS = [
@@ -234,6 +280,16 @@ const TICKET_NAME_OPTIONS = [
   { id: 'vip', name: 'VIP' },
   { id: 'free', name: 'Free' },
   { id: 'pwyc', name: 'PWYC' }
+];
+
+const CALL_TO_ACTION_OPTIONS = [
+  { id: 'get-tickets', name: 'Get Tickets' },
+  { id: 'buy-tickets', name: 'Buy Tickets' },
+  { id: 'book-now', name: 'Book Now' },
+  { id: 'register', name: 'Register' },
+  { id: 'rsvp', name: 'RSVP' },
+  { id: 'learn-more', name: 'Learn More' },
+  { id: 'see-details', name: 'See Details' }
 ];
 
 // 3. Props & Injections
@@ -253,6 +309,7 @@ const state = ref({
     ticketUrlError: false,
     availableTicketOptions: [],
     isLoadingOptions: false,
+    callToAction: event?.call_to_action || 'Get Tickets',
 });
 
 // Get tickets from the first show
@@ -332,12 +389,17 @@ const rules = {
                 }
             }
         )
+    },
+    callToAction: { 
+        required,
+        maxLength: maxLength(MAX_CALL_TO_ACTION_LENGTH) 
     }
 };
 
 const $v = useVuelidate(rules, { 
     tickets,
-    ticketUrl: computed(() => state.value.ticketUrl)
+    ticketUrl: computed(() => state.value.ticketUrl),
+    callToAction: computed(() => state.value.callToAction)
 });
 
 // 6. Methods - Ticket Management
@@ -551,7 +613,8 @@ defineExpose({
 
         const isValid = !$v.value.tickets.$invalid && 
                        state.value.ticketUrl && 
-                       !state.value.ticketUrlError;
+                       !state.value.ticketUrlError &&
+                       state.value.callToAction;
         
         // If not valid and there's a ticket URL error, scroll to the section
         if (!isValid && (state.value.ticketUrlError || !state.value.ticketUrl)) {
@@ -562,6 +625,7 @@ defineExpose({
             ticketsCount: tickets.length,
             validationErrors: $v.value.tickets.$errors,
             ticketUrlValid: Boolean(state.value.ticketUrl) && !state.value.ticketUrlError,
+            callToActionValid: Boolean(state.value.callToAction),
             isValid
         });
         return isValid;
@@ -576,7 +640,8 @@ defineExpose({
 
         return {
             tickets: formattedTickets,
-            ticketUrl: state.value.ticketUrl || null
+            ticketUrl: state.value.ticketUrl || null,
+            call_to_action: state.value.callToAction || null
         };
     }
 });
@@ -780,6 +845,58 @@ const hasTicketError = (index) => {
     }
     
     return false;
+};
+
+// Make callToActionOptions available in template
+const callToActionOptions = CALL_TO_ACTION_OPTIONS;
+
+// Add this computed property for current call to action item
+const currentCallToActionItem = computed(() => {
+    const currentCallToAction = state.value.callToAction;
+    if (!currentCallToAction) return [];
+    
+    // Try to find the matching option from our predefined options
+    const matchingOption = callToActionOptions.find(
+        option => option.name === currentCallToAction
+    );
+    
+    if (matchingOption) {
+        return [matchingOption];
+    } else {
+        // If it's a custom value, create a custom option
+        return [{
+            id: currentCallToAction.toLowerCase().replace(/\s+/g, '-'),
+            name: currentCallToAction
+        }];
+    }
+});
+
+// Add this method to handle replacing the call to action when selecting from the dropdown
+const replaceCallToAction = (item) => {
+    // Clear the call to action to make the dropdown visible again
+    state.value.callToAction = '';
+    
+    // Touch validation to trigger error state if needed
+    $v.value.callToAction.$touch();
+};
+
+// Add this method to handle updating the call to action when selecting from the dropdown
+const updateCallToAction = (item) => {
+    // Sanitize the name (trim whitespace, capitalize first letter of each word)
+    let callToActionText = item.name.trim();
+    
+    // Capitalize first letter of each word for consistency
+    callToActionText = callToActionText
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+    
+    // Limit length if needed
+    if (callToActionText.length > MAX_CALL_TO_ACTION_LENGTH) {
+        callToActionText = callToActionText.substring(0, MAX_CALL_TO_ACTION_LENGTH);
+    }
+    
+    state.value.callToAction = callToActionText;
 };
 </script>
 <style>

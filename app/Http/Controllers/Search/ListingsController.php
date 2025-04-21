@@ -58,28 +58,72 @@ class ListingsController extends Controller
 
         // Category filters
         if ($request->category) {
-            $categoryIds = is_array($request->category) 
+            $categoryIds = [];
+            $inputCategories = is_array($request->category) 
                 ? $request->category 
                 : explode(",", $request->category);
             
-            $request->request->add(['category' => $categoryIds]);
-            $filters['searchedCategories'] = Category::find($categoryIds);
-            $filters['categories'] = Query::terms()->field('category_id')->values($categoryIds);
+            // Convert any string-based slugs to numeric IDs
+            foreach ($inputCategories as $categoryInput) {
+                // Check if it's a valid number first
+                if (is_numeric($categoryInput)) {
+                    // Already a numeric ID
+                    $categoryIds[] = (int)$categoryInput;
+                } else if ($categoryInput === "NaN") {
+                    // Handle explicit NaN from JavaScript conversion
+                    continue;
+                } else {
+                    // It's a slug or non-numeric value, find the corresponding category ID
+                    $category = Category::where('slug', $categoryInput)->first();
+                    if ($category) {
+                        $categoryIds[] = $category->id;
+                    }
+                }
+            }
+            
+            // Only proceed if we have valid IDs
+            if (!empty($categoryIds)) {
+                $request->request->add(['category' => $categoryIds]);
+                $filters['searchedCategories'] = Category::find($categoryIds);
+                $filters['categories'] = Query::terms()->field('category_id')->values($categoryIds);
+            }
         }
 
         // Add tag filter
         if ($request->tag) {
-            $tagIds = is_array($request->tag) 
+            $tagIds = [];
+            $inputTags = is_array($request->tag) 
                 ? $request->tag 
                 : explode(",", $request->tag);
             
-            $filters['searchedTags'] = Genre::find($tagIds);
-            $filters['tags'] = Query::bool()
-                ->must(
-                    Query::terms()
-                        ->field('genres.genre_id')
-                        ->values($tagIds)
-                );
+            // Convert any string-based slugs to numeric IDs
+            foreach ($inputTags as $tagInput) {
+                // Check if it's a valid number first
+                if (is_numeric($tagInput)) {
+                    // Already a numeric ID
+                    $tagIds[] = (int)$tagInput;
+                } else if ($tagInput === "NaN") {
+                    // Handle explicit NaN from JavaScript conversion
+                    continue;
+                } else {
+                    // It's a slug or non-numeric value, find the corresponding genre ID
+                    $genre = Genre::where('slug', $tagInput)->first();
+                    if ($genre) {
+                        $tagIds[] = $genre->id;
+                    }
+                }
+            }
+            
+            // Only proceed if we have valid IDs
+            if (!empty($tagIds)) {
+                $filters['searchedTags'] = Genre::find($tagIds);
+                $filters['tags'] = Query::bool()
+                    ->must(
+                        Query::terms()
+                            ->field('genres.genre_id')
+                            ->values($tagIds)
+                    );
+            }
         }
 
         // Price filters
@@ -194,7 +238,7 @@ class ListingsController extends Controller
 
         // Execute search and paginate
         $results = Event::searchQuery($query)
-            ->load(['genres', 'category'])
+            ->load(['genres', 'category', 'location'])
             ->sortRaw(['published_at' => 'desc'])
             ->paginate(20);
 
@@ -272,7 +316,7 @@ class ListingsController extends Controller
 
         // Execute search
         $results = Event::searchQuery($query)
-            ->load(['genres', 'category'])
+            ->load(['genres', 'category', 'location'])
             ->sortRaw(['published_at' => 'desc'])
             ->paginate(20);
 

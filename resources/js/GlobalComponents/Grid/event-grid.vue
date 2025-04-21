@@ -47,15 +47,31 @@
 
                 <!-- Content wrapper -->
                 <div class="flex flex-col flex-grow min-h-0">
+                    <!-- Location information -->
+                    <p v-if="showLocation" 
+                    class="mt-6 uppercase text-md font-medium text-left break-words hyphens-auto w-full block overflow-hidden text-ellipsis">
+                        <span v-if="!card.hasLocation">
+                            {{ card.remoteLocations?.length ? card.remoteLocations[0].name.charAt(0).toUpperCase() + card.remoteLocations[0].name.slice(1) : 'Remote' }}
+                        </span>
+                        <span v-else-if="card.location">
+                            <template v-if="card.location.country === 'United States'">
+                                {{ card.location.city?.charAt(0).toUpperCase() + card.location.city?.slice(1) }}, {{ card.location.region }}
+                            </template>
+                            <template v-else>
+                                {{ card.location.city?.charAt(0).toUpperCase() + card.location.city?.slice(1) }}, {{ card.location.country }}
+                            </template>
+                        </span>
+                    </p>
+
                     <button 
-                        v-if="card.category"
+                        v-if="card.category && !showLocation"
                         @click.prevent="handleCategoryClick(card.category.id)"
                         class="mt-6 uppercase text-md font-light text-left break-words hyphens-auto w-full block overflow-hidden text-ellipsis"
                     >
                         {{ card.category.name }}
                     </button>
 
-                    <h3 class="mt-2 mb-4 text-2xl text-black font-medium">
+                    <h3 class="mt-2 mb-4 text-3.5xl text-black font-medium">
                         <span class="line-clamp-2 block">{{ card.name }}</span>
                     </h3>
                     
@@ -63,7 +79,7 @@
                         {{ card.tag_line }}
                     </p> -->
                     <!-- Price pushed to bottom -->
-                    <p v-if="card.price_range" class="text-1xl mt-auto">{{ getFixedPrice(card) }}</p>
+                    <p v-if="card.price_range" class="text-2xl text-black font-medium mt-auto">{{ getFixedPrice(card) }}</p>
                 </div>
             </a>
         </div>
@@ -88,6 +104,10 @@ const props = defineProps({
         validator: (value) => [2, 3, 4, 5, 6].includes(value)
     },
     hasClickListener: {
+        type: Boolean,
+        default: false
+    },
+    showLocation: {
         type: Boolean,
         default: false
     }

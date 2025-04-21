@@ -80,14 +80,6 @@ class EventAttributesController extends Controller
             ->limit($limit)
             ->get();
 
-        \Log::info('Remote Locations Query', [
-            'selected_ids' => $selectedIds,
-            'search_term' => $searchTerm,
-            'limit' => $limit,
-            'results_count' => $results->count(),
-            'results' => $results->toArray()
-        ]);
-
         return response()->json($results);
     }
 

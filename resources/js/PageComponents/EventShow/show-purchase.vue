@@ -1,139 +1,142 @@
 <template>
-    <div class="inline-block border w-full bg-white md:sticky md:top-40 md:rounded-2xl md:shadow-custom-1 md:flex-col py-6 px-8">
-        <div 
-            v-if="!ticketsVisible"
-            class="inline-block w-full">
-            <button 
-                @click="ticketsVisible =! ticketsVisible"
-                class="text-3.5xl font-medium underline">{{ event.price_range }}</button>
-        </div>
+    <div class="md:sticky md:top-40">
+        <div class="inline-block border w-full bg-white md:rounded-2xl md:shadow-custom-1 md:flex-col py-6 px-8">
+            <div 
+                v-if="!ticketsVisible"
+                class="inline-block w-full">
+                <button 
+                    @click="ticketsVisible =! ticketsVisible"
+                    class="text-3.5xl font-medium underline">{{ event.price_range }}</button>
+            </div>
 
-        <div 
-            v-if="ticketsVisible"
-            class="w-full relative inline-block bg-white rounded-2xl border">
-            <div class="p-4 border-b flex items-center justify-between">
-                <button 
-                    class="border-none"
-                    @click="ticketsVisible =! ticketsVisible">
-                    <svg class="w-10 h-10">
-                        <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
-                    </svg>
-                </button>
-                <h4 style="font-family: 'Montserrat', sans-serif;" class="font-semibold flex items-center">Ticket Details</h4>
-            </div>
-            <div
-                class="py-8 px-4 border-b last:border-none"
-                v-for="ticket in event.first_show_tickets" 
-                :key="ticket.name">
-                <div class="flex justify-between">
-                    <p class="text-2xl"> {{ ticket.name }} </p>
-                    <p class="text-2xl">{{ formatTicketPrice(ticket) }}</p>
+            <div 
+                v-if="ticketsVisible"
+                class="w-full relative inline-block bg-white rounded-2xl border">
+                <div class="p-4 border-b flex items-center justify-between">
+                    <button 
+                        class="border-none"
+                        @click="ticketsVisible =! ticketsVisible">
+                        <svg class="w-10 h-10">
+                            <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
+                        </svg>
+                    </button>
+                    <h4 style="font-family: 'Montserrat', sans-serif;" class="font-semibold flex items-center">Ticket Details</h4>
                 </div>
-                <div>
-                    <p class="text-xl text-gray-500"> {{ ticket.description }} </p>
+                <div
+                    class="py-8 px-4 border-b last:border-none"
+                    v-for="ticket in event.first_show_tickets" 
+                    :key="ticket.name">
+                    <div class="flex justify-between">
+                        <p class="text-2xl"> {{ ticket.name }} </p>
+                        <p class="text-2xl">{{ formatTicketPrice(ticket) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xl text-gray-500"> {{ ticket.description }} </p>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div 
-            :class="{visible: datesVisible}"
-            class="es__tickets--background" />
-        
-        <div 
-            v-click-outside="hide"
-            class="w-full mt-12 relative">
-            <template v-if="event.showtype == 's' || event.showtype == 'l' || event.showtype == 'o'">
-                <button 
-                    @click="showDates"
-                    class="mb-4 z-50 flex flex-col relative w-full rounded-2xl p-4 border text-left bg-white hover:bg-black hover:text-white">
-                    <span class="text-2xl font-medium">{{ showDateRange }}</span>
-                    <span 
-                        v-if="remaining && remaining.length > 1 ? remaining.length : ''" 
-                        class="text-xl">{{ remaining.length }} show dates remaining</span>
-                    <span 
-                        v-else-if="remaining && remaining.length == 1 ? remaining.length : ''" 
-                        class="text-xl">{{ remaining.length }} date remaining</span>
-                    <span 
-                        v-else 
-                        class="text-xl">no dates remaining</span>
-                    <svg class="w-12 h-12 right-8 top-8 absolute">
-                        <use v-if="!datesVisible" :xlink:href="`/storage/website-files/icons.svg#ri-arrow-down-s-line`" />
-                        <use v-else :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
-                    </svg>
-                </button>
-                <template v-if="datesVisible">
-                    <div class="absolute border shadow-custom-1 bg-white px-8 pt-36 pb-8 max-h-[calc(100vh-20rem)] overflow-y-scroll overflow-x-hidden rounded-2xl top-[-2rem] right-[-2rem] graydates shadow-hidden lockedcalendar show-purchase-calendar z-20">
-                        <VueDatePicker
-                            v-model="selectedDates"
-                            :model-value="highlightedDates"
-                            :enable-time-picker="false"
-                            :disable-month-year-select="false"
-                            :prevent-min-max-navigation="false"
-                            :enable-button-validator="() => false"
-                            :highlight-disabled-days="true"
-                            :hide-navigation-buttons="false"
-                            :persistent-mobile="true"
-                            :updateOnInput="false"
-                            :show-month-year-separator="false"
-                            :text-input="false"
-                            :max-date="maxDate"
-                            :open-date="openDateValue"
-                            multi-dates
-                            :six-weeks="true"
-                            multi-calendars="2"
-                            multi-calendars-solo
-                            inline
-                            auto-apply
-                            month-name-format="long"
-                            hide-offset-dates
-                            :month-change-on-scroll="false"
-                            week-start="0"
-                            :dark="isDark"
-                            ref="datePickerRef"
-                            @update:model-value="preventDefault"
-                        />
-                        <div class="overflow-hidden mt-8">
-                            <ShowMore
+            <div 
+                :class="{visible: datesVisible}"
+                class="es__tickets--background" />
+            
+            <div 
+                v-click-outside="hide"
+                class="w-full mt-12 relative">
+                <template v-if="event.showtype == 's' || event.showtype == 'l' || event.showtype == 'o'">
+                    <button 
+                        @click="showDates"
+                        class="mb-4 z-50 flex flex-col relative w-full rounded-2xl p-4 border text-left bg-white hover:bg-black hover:text-white">
+                        <span class="text-2xl font-medium">{{ showDateRange }}</span>
+                        <span 
+                            v-if="remaining && remaining.length > 1 ? remaining.length : ''" 
+                            class="text-xl">{{ remaining.length }} show dates remaining</span>
+                        <span 
+                            v-else-if="remaining && remaining.length == 1 ? remaining.length : ''" 
+                            class="text-xl">{{ remaining.length }} date remaining</span>
+                        <span 
+                            v-else 
+                            class="text-xl">no dates remaining</span>
+                        <svg class="w-12 h-12 right-8 top-8 absolute">
+                            <use v-if="!datesVisible" :xlink:href="`/storage/website-files/icons.svg#ri-arrow-down-s-line`" />
+                            <use v-else :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
+                        </svg>
+                    </button>
+                    <template v-if="datesVisible">
+                        <div class="absolute border shadow-custom-1 bg-white px-8 pt-36 pb-8 max-h-[calc(100vh-20rem)] overflow-y-scroll overflow-x-hidden rounded-2xl top-[-2rem] right-[-2rem] graydates shadow-hidden lockedcalendar show-purchase-calendar z-20">
+                            <VueDatePicker
+                                v-model="selectedDates"
+                                :model-value="highlightedDates"
+                                :enable-time-picker="false"
+                                :disable-month-year-select="false"
+                                :prevent-min-max-navigation="false"
+                                :enable-button-validator="() => false"
+                                :highlight-disabled-days="true"
+                                :hide-navigation-buttons="false"
+                                :persistent-mobile="true"
+                                :updateOnInput="false"
+                                :show-month-year-separator="false"
+                                :text-input="false"
+                                :max-date="maxDate"
+                                :open-date="openDateValue"
+                                multi-dates
+                                :six-weeks="true"
+                                multi-calendars="2"
+                                multi-calendars-solo
+                                inline
+                                auto-apply
+                                month-name-format="long"
+                                hide-offset-dates
+                                :month-change-on-scroll="false"
+                                week-start="0"
+                                :dark="isDark"
+                                ref="datePickerRef"
+                                @update:model-value="preventDefault"
+                            />
+                            <div class="overflow-hidden mt-8">
+                                <ShowMore
+                                    :text="event.show_times"
+                                    :limit="20" />
+                            </div>
+                        </div>
+                    </template>
+                </template>
+
+                <template v-if="event.showtype == 'a'">
+                    <div class="flex flex-col relative w-full rounded-2xl p-4 border text-left">
+                        <h3 class="text-2xl">Available Anytime</h3>
+                        <div class="overflow-hidden">
+                            <ShowMore 
+                                :body-class="`text-xl text-gray-500`"
                                 :text="event.show_times"
                                 :limit="20" />
                         </div>
                     </div>
                 </template>
-            </template>
+            </div>
+            
 
-            <template v-if="event.showtype == 'a'">
-                <div class="flex flex-col relative w-full rounded-2xl p-4 border text-left">
-                    <h3 class="text-2xl">Available Anytime</h3>
-                    <div class="overflow-hidden">
-                        <ShowMore 
-                            :body-class="`text-xl text-gray-500`"
-                            :text="event.show_times"
-                            :limit="20" />
-                    </div>
-                </div>
-            </template>
-        </div>
-        
+            <div class="w-full mt-12">
+                <a 
+                    :href="eventUrl"
+                    @click="storeClick"
+                    rel="noreferrer noopener" 
+                    target="_blank">
+                    <button class="font-medium py-6 px-20 rounded-2xl w-full border-none text-white bg-gradient-to-r from-button-red-1 via-button-red-2 to-button-red-3 hover:from-button-red-2 hover:via-button-red-3 hover:to-button-red-1">
+                        <span v-if="remaining && remaining.length">{{ event.call_to_action ? event.call_to_action : 'Get Tickets' }}</span>
+                        <span v-else>View Event</span>
+                    </button>
+                </a>
+            </div>
 
-        <div class="w-full mt-12">
-            <a 
-                :href="eventUrl"
-                @click="storeClick"
-                rel="noreferrer noopener" 
-                target="_blank">
-                <button class="font-medium py-6 px-20 rounded-2xl w-full border-none text-white bg-gradient-to-r from-button-red-1 via-button-red-2 to-button-red-3 hover:from-button-red-2 hover:via-button-red-3 hover:to-button-red-1">
-                    <span v-if="remaining && remaining.length">{{ event.call_to_action ? event.call_to_action : 'Get Tickets' }}</span>
-                    <span v-else>View Event</span>
-                </button>
-            </a>
+            <div v-if="canEdit" class="mt-8 z-10">
+                <a :href="`/hosting/event/${event.slug}/edit`">
+                    <button class="font-medium py-4 px-4 rounded-2xl w-full bg-white border border-neutral-300 hover:border-[#222222] hover:shadow-focus-black transition-all duration-200">
+                        Edit Event
+                    </button>
+                </a>
+            </div>
         </div>
-
-        <div v-if="canEdit" class="mt-8 z-10">
-            <a :href="`/hosting/event/${event.slug}/edit`">
-                <button class="font-medium py-4 px-4 rounded-2xl w-full bg-white border border-neutral-300 hover:border-[#222222] hover:shadow-focus-black transition-all duration-200">
-                    Edit Event
-                </button>
-            </a>
-        </div>
+        <!-- <vue-similar-events :event="event"></vue-similar-events> -->
     </div>
 </template>
 

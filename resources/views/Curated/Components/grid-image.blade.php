@@ -2,7 +2,7 @@
     $hasFeatured = null;
     $cardImages = [];
     $imageTotal = null;
-    $imageUrl = env('VITE_IMAGE_URL', 'https://ei-test.sfo3.digitaloceanspaces.com/public/');
+    $imageUrl = env('VITE_IMAGE_URL', 'https://ei-prod.sfo3.digitaloceanspaces.com/public/');
 
     // Handle featured image with null checks
     if ($element->event_id && isset($element->featured_event_image) && $element->featured_event_image) {

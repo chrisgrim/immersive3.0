@@ -19,7 +19,7 @@ class AdminEventController extends Controller
     public function index(Request $request)
     {
         $query = Event::query()
-            ->with(['organizer', 'images', 'location', 'category', 'clicks'])
+            ->with(['organizer', 'images', 'location', 'category', 'clicks', 'curatedCheck'])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
@@ -242,5 +242,36 @@ class AdminEventController extends Controller
     {
         $event->delete();
         return response()->json(['message' => 'Event deleted successfully']);
+    }
+
+    public function toggleCheck(Request $request, Event $event)
+    {
+        $validated = $request->validate([
+            'type' => 'required|string|in:curated,social,newsletter'
+        ]);
+
+        // Load the event with its curated check
+        $event->load('curatedCheck');
+
+        // If no curated check exists yet, create one
+        if (!$event->curatedCheck) {
+            $event->curatedCheck()->create([
+                'curated' => false,
+                'social' => false,
+                'newsletter' => false
+            ]);
+            $event->refresh();
+        }
+
+        // Toggle the specified type
+        $type = $validated['type'];
+        $event->curatedCheck->update([
+            $type => !$event->curatedCheck->$type
+        ]);
+
+        return response()->json([
+            'message' => $type . ' status toggled successfully',
+            'event' => $event->fresh(['curatedCheck', 'organizer', 'images', 'category', 'location'])
+        ]);
     }
 }

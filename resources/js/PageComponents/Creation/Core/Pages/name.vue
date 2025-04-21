@@ -12,7 +12,8 @@
                             'text-4xl font-normal border rounded-2xl p-4 w-full mt-8 transition-all duration-200',
                             {
                                 'border-red-500 focus:border-red-500 focus:shadow-focus-error': showNameError || errors?.name,
-                                'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !showNameError && !errors?.name,
+                                'border-orange-400 focus:border-orange-400 focus:shadow-focus-warning': duplicateWarning,
+                                'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !showNameError && !errors?.name && !duplicateWarning,
                                 'bg-neutral-100 text-neutral-500 cursor-not-allowed': hasPendingNameChange
                             }
                         ]"
@@ -33,6 +34,25 @@
                         <span v-if="hasPendingNameChange" class="ml-2 italic">
                             (Name change pending approval)
                         </span>
+                    </div>
+
+                    <!-- Duplicate Name Warning -->
+                    <div v-if="duplicateWarning" class="text-orange-600 text-1xl mt-2 mb-4 px-4 bg-orange-50 p-3 rounded-lg border border-orange-300">
+                        <p class="font-medium">⚠️ Possible duplicate event name found:</p>
+                        <p class="mt-1 mb-2">{{ duplicateWarning }}</p>
+                        <div v-if="duplicateEvents.length > 0" class="mt-2">
+                            <div v-for="duplicate in duplicateEvents" :key="duplicate.id" class="flex items-center justify-between py-1">
+                                <span>{{ duplicate.name }}</span>
+                                <a :href="`/events/${duplicate.slug}`" 
+                                   target="_blank"
+                                   class="text-blue-600 hover:text-blue-800 underline">
+                                    View Event
+                                </a>
+                            </div>
+                        </div>
+                        <p class="mt-4 text-gray-600 italic text-lg">
+                            If you feel this is a mistake, please contact us at <a href="mailto:support@everythingimmersive.com" class="text-blue-600 hover:underline">support@everythingimmersive.com</a>
+                        </p>
                     </div>
 
                     <!-- Name Error Messages -->
@@ -151,6 +171,10 @@ const event = inject('event');
 const errors = inject('errors');
 const isSubmitting = inject('isSubmitting');
 
+// Add state for duplicate names
+const duplicateWarning = ref('');
+const duplicateEvents = ref([]);
+
 // 2. Validation Rules
 const rules = {
     event: {
@@ -225,6 +249,10 @@ const handleNameInput = () => {
     if (errors.value?.name) {
         errors.value = {};
     }
+
+    // Clear duplicate warning when user edits the name
+    duplicateWarning.value = '';
+    duplicateEvents.value = [];
 };
 
 const handleTagLineInput = () => {
@@ -261,7 +289,16 @@ defineExpose({
             tag_line: event.tag_line
         };
     },
-    resetName
+    resetName,
+    // Add method to handle duplicate name errors
+    handleDuplicateError: (error) => {
+        if (error.response?.status === 409) {
+            duplicateWarning.value = error.response.data.warning || 'A similar event name already exists.';
+            duplicateEvents.value = error.response.data.duplicateEvents || [];
+            return true; // Error was handled
+        }
+        return false; // Error was not handled
+    }
 });
 
 const showNameChangeModal = ref(false);

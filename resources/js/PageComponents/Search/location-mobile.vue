@@ -92,20 +92,54 @@ const hasEvents = computed(() => events.value.data && events.value.data.length)
 
 // Event handlers
 const handlePageChange = async (page) => {
-    const params = new URLSearchParams(window.location.search);
-    params.set('page', page);
+    const params = new URLSearchParams(window.location.search)
+    params.set('page', page)
     
-    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-    window.scrollTo(0, 0);
+    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`)
+    window.scrollTo(0, 0)
 
     try {
-        SearchStore.setLoading(true);
-        const response = await axios.get(`/api/index/search?${params.toString()}`);
-        SearchStore.updateState(response.data);
+        SearchStore.setLoading(true)
+        
+        // Make API call
+        const response = await axios.get(`/api/index/search?${params.toString()}`)
+        
+        // First, directly update our local component state for immediate feedback
+        if (response.data && response.data.data) {
+            events.value = {
+                data: response.data.data || [],
+                total: response.data.total || 0,
+                current_page: response.data.current_page || 1,
+                last_page: response.data.last_page || 1,
+                from: response.data.from || 0,
+                to: response.data.to || 0,
+                per_page: response.data.per_page || 20
+            }
+            
+            // Force map to re-render with new events
+            mapKey.value++
+        }
+
+        // Create a properly structured data object for SearchStore
+        // This ensures that SearchStore receives the complete expected structure
+        const completeState = {
+            events: {
+                data: response.data.data || [],
+                total: response.data.total || 0,
+                current_page: response.data.current_page || 1,
+                last_page: response.data.last_page || 1,
+                from: response.data.from || 0,
+                to: response.data.to || 0,
+                per_page: response.data.per_page || 20
+            }
+        }
+        
+        // Then update the store (which will update any other components)
+        SearchStore.updateState(completeState)
     } catch (error) {
-        console.error('Error changing page:', error);
+        console.error('Error changing page:', error)
     } finally {
-        SearchStore.setLoading(false);
+        SearchStore.setLoading(false)
     }
 }
 

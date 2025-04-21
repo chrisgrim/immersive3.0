@@ -54,7 +54,10 @@
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Location</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Category</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Days Left</th>
-                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Clicks</th>
+                        <th class="px-2 py-3 text-center text-sm font-medium text-gray-500 uppercase tracking-wider">Clicks</th>
+                        <th class="px-2 py-3 text-center text-sm font-medium text-gray-500 uppercase tracking-wider">Curated</th>
+                        <th class="px-2 py-3 text-center text-sm font-medium text-gray-500 uppercase tracking-wider">Social</th>
+                        <th class="px-2 py-3 text-center text-sm font-medium text-gray-500 uppercase tracking-wider">Newsltr</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 text-xl">
@@ -82,8 +85,13 @@
                                 >
                             </picture>
                         </td>
-                        <td @click="showActionModal(event)" class="px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto cursor-pointer hover:bg-ne">
-                            {{ event.name }}
+                        <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto">
+                            <a 
+                                :href="`/events/${event.slug}`"
+                                class="text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                                {{ event.name }}
+                            </a>
                         </td>
                         <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto">
                             <a 
@@ -112,7 +120,7 @@
                                 {{ remainingDays(event.closingDate) }}
                             </div>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
+                        <td class="px-2 py-4 whitespace-nowrap flex justify-center items-center">
                             <template v-if="filters.status === 'in_progress'">
                                 <a 
                                     :href="`/hosting/event/${event.slug}/edit`"
@@ -132,6 +140,72 @@
                             <template v-else>
                                 {{ event.total_clicks || 0 }}
                             </template>
+                        </td>
+                        <td class="px-2 py-4 whitespace-nowrap text-center">
+                            <button 
+                                @click="toggleEventCheck(event, 'curated')"
+                                :class="[
+                                    'w-8 h-8 rounded-full',
+                                    event.curated_check?.curated 
+                                        ? 'bg-green-500 hover:bg-green-600' 
+                                        : 'bg-gray-200 hover:bg-gray-300'
+                                ]"
+                                :title="event.curated_check?.curated ? 'Remove from curated' : 'Add to curated'"
+                            >
+                                <svg 
+                                    v-if="event.curated_check?.curated"
+                                    class="w-5 h-5 text-white mx-auto" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </button>
+                        </td>
+                        <td class="px-2 py-4 whitespace-nowrap text-center">
+                            <button 
+                                @click="toggleEventCheck(event, 'social')"
+                                :class="[
+                                    'w-8 h-8 rounded-full',
+                                    event.curated_check?.social 
+                                        ? 'bg-green-500 hover:bg-green-600' 
+                                        : 'bg-gray-200 hover:bg-gray-300'
+                                ]"
+                                :title="event.curated_check?.social ? 'Remove from social' : 'Add to social'"
+                            >
+                                <svg 
+                                    v-if="event.curated_check?.social"
+                                    class="w-5 h-5 text-white mx-auto" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </button>
+                        </td>
+                        <td class="px-2 py-4 whitespace-nowrap text-center">
+                            <button 
+                                @click="toggleEventCheck(event, 'newsletter')"
+                                :class="[
+                                    'w-8 h-8 rounded-full',
+                                    event.curated_check?.newsletter 
+                                        ? 'bg-green-500 hover:bg-green-600' 
+                                        : 'bg-gray-200 hover:bg-gray-300'
+                                ]"
+                                :title="event.curated_check?.newsletter ? 'Remove from newsletter' : 'Add to newsletter'"
+                            >
+                                <svg 
+                                    v-if="event.curated_check?.newsletter"
+                                    class="w-5 h-5 text-white mx-auto" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </button>
                         </td>
                     </tr>
                 </tbody>
@@ -394,6 +468,29 @@ const fetchEvents = async (page = 1) => {
 
 const handlePageChange = (page) => {
     fetchEvents(page)
+}
+
+const toggleEventCheck = async (event, type) => {
+    try {
+        const response = await axios.patch(`/api/admin/manage/events/${event.slug}/toggle-check`, {
+            type: type
+        });
+        
+        // If the event doesn't have a curated_check object yet, create one
+        if (!event.curated_check) {
+            event.curated_check = {
+                curated: false,
+                social: false,
+                newsletter: false
+            };
+        }
+        
+        // Update the specific check type that was toggled
+        event.curated_check[type] = !event.curated_check[type];
+    } catch (error) {
+        console.error(`Error toggling ${type}:`, error);
+        alert(error.response?.data?.message || `Error updating ${type} status`);
+    }
 }
 
 onMounted(() => {

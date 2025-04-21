@@ -47,9 +47,13 @@
         "eventStatus": "https://schema.org/EventScheduled",
         "eventAttendanceMode": "{{ $event->hasLocation ? 'https://schema.org/OfflineEventAttendanceMode' : 'https://schema.org/OnlineEventAttendanceMode' }}",
         "image": [
-            @foreach($event->images as $image)
-                "{{ env('VITE_IMAGE_URL') }}{{ $image->large_image_path }}"@if(!$loop->last),@endif
-            @endforeach
+            @if(count($event->images) > 0)
+                @foreach($event->images as $image)
+                    "{{ env('VITE_IMAGE_URL') }}{{ $image->large_image_path }}"@if(!$loop->last),@endif
+                @endforeach
+            @elseif($event->largeImagePath)
+                "{{ env('VITE_IMAGE_URL') }}{{ $event->largeImagePath }}"
+            @endif
         ],
         "offers": {
             "@type": "Offer",
@@ -254,17 +258,47 @@
                 <div class="show-content">
                     @if($totalMediaCount === 0)
                         {{-- Title section spans full width for both layouts --}}
-                        <div class="relative w-full m-auto px-10 mt-12 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
+                        <div class="relative w-full m-auto px-10 mt-24 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
                             <div class="flex flex-col justify-center bg-white">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-grow">
+                                        
+                                        {{-- Location Row --}}
+                                        <div class="mb-4">
+                                            <p class="text-lg text-neutral-600 flex items-center gap-2">
+                                                <svg 
+                                                    xmlns="http://www.w3.org/2000/svg" 
+                                                    viewBox="0 0 24 24" 
+                                                    fill="none" 
+                                                    stroke="currentColor" 
+                                                    stroke-width="2" 
+                                                    stroke-linecap="round" 
+                                                    stroke-linejoin="round"
+                                                    style="width: 14px; height: 14px;"
+                                                >
+                                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                                    <circle cx="12" cy="10" r="3"/>
+                                                </svg>
+                                                @if(!$event->hasLocation)
+                                                    {{ ucfirst($event->remoteLocations->first()?->name ?? 'Remote Event') }}
+                                                @else
+                                                    @if($event->location->country === 'United States')
+                                                        {{ ucfirst($event->location->city) }}, {{ $event->location->region }}
+                                                    @else
+                                                        {{ ucfirst($event->location->city) }}, {{ $event->location->country }}
+                                                    @endif
+                                                @endif
+                                            </p>
+                                        </div>
+
                                         {{-- Event Title --}}
-                                        <h1 class="text-5xl font-medium text-black leading-tight">{{ $event->name }}</h1>
+                                        <h1 class="text-5.5xl font-medium text-black leading-tight">{{ $event->name }}</h1>
 
                                         {{-- Tag Line --}}
                                         @if($event->tag_line)
-                                            <p class="text-1xl mt-4 text-neutral-700 font-medium">{{ $event->tag_line }}</p>
+                                            <p class="text-2xl text-neutral-700 font-medium">{{ $event->tag_line }}</p>
                                         @endif
+
                                     </div>
                                     
                                     <div class="flex items-center gap-8 mt-4">
@@ -319,7 +353,7 @@
                             <div class="md:flex md:gap-40">
                                 <div class="flex-grow">
                                     {{-- Title section spans full width for both layouts --}}
-                                    <div class="relative w-full m-auto mt-16 mb-40 md:h-[40rem] lg:h-[50rem]">
+                                    <div class="relative w-full m-auto mt-16 md:h-[40rem] lg:h-[50rem]">
                                         <div class="flex flex-col bg-white h-full justify-center">
                                             {{-- Location Row --}}
                                             <div class="mb-4">
@@ -367,9 +401,23 @@
                                                 >
                                                     <button class="font-medium py-6 px-20 rounded-2xl border-none text-white bg-gradient-to-r from-button-red-1 via-button-red-2 to-button-red-3 hover:from-button-red-2 hover:via-button-red-3 hover:to-button-red-1 whitespace-nowrap inline-block">
                                                         @if(count($event->shows) > 0)
-                                                            Get Tickets from ${{ number_format($event->priceranges->min('price'), 2) }}
+                                                            @if(isset($event->priceranges[0]) && $event->priceranges[0]->price == 0)
+                                                                {{ isset($event->call_to_action) && !empty($event->call_to_action) ? $event->call_to_action : 'Free Event' }}
+                                                            @elseif(isset($event->priceranges[0]) && strtolower($event->priceranges[0]->name) == 'pwyc')
+                                                                {{ isset($event->call_to_action) && !empty($event->call_to_action) ? $event->call_to_action : 'PWYC Event' }}
+                                                            @elseif(isset($event->call_to_action) && !empty($event->call_to_action))
+                                                                @php
+                                                                    $priceIncludingActions = ['Book Now', 'Get Tickets', 'Buy Tickets', 'Register', 'RSVP'];
+                                                                    $showPrice = in_array($event->call_to_action, $priceIncludingActions) && 
+                                                                               isset($event->priceranges[0]) && 
+                                                                               $event->priceranges[0]->price > 0;
+                                                                @endphp
+                                                                {{ $event->call_to_action }} {{ $showPrice ? 'from $' . number_format($event->priceranges->min('price'), 2) : '' }}
+                                                            @else
+                                                                Get Tickets from ${{ number_format($event->priceranges->min('price'), 2) }}
+                                                            @endif
                                                         @else
-                                                            View Event
+                                                            {{ isset($event->call_to_action) && !empty($event->call_to_action) ? $event->call_to_action : 'View Event' }}
                                                         @endif
                                                     </button>
                                                 </a>
@@ -405,8 +453,47 @@
                         {{-- Multiple images layout --}}
                         <div class="relative w-full m-auto px-10 mt-12 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
                             <div class="relative w-full m-auto mt-16">
-                                <div class="flex flex-row justify-between items-center bg-white">
-                                    <h1 class="text-4xl font-medium text-black leading-tight">{{ $event->name }}</h1>
+                            <div class="flex justify-between items-start">
+                                    <div class="flex-grow">
+                                        
+                                        {{-- Location Row --}}
+                                        <div class="mb-4">
+                                            <p class="text-lg text-neutral-600 flex items-center gap-2">
+                                                <svg 
+                                                    xmlns="http://www.w3.org/2000/svg" 
+                                                    viewBox="0 0 24 24" 
+                                                    fill="none" 
+                                                    stroke="currentColor" 
+                                                    stroke-width="2" 
+                                                    stroke-linecap="round" 
+                                                    stroke-linejoin="round"
+                                                    style="width: 14px; height: 14px;"
+                                                >
+                                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                                    <circle cx="12" cy="10" r="3"/>
+                                                </svg>
+                                                @if(!$event->hasLocation)
+                                                    {{ ucfirst($event->remoteLocations->first()?->name ?? 'Remote Event') }}
+                                                @else
+                                                    @if($event->location->country === 'United States')
+                                                        {{ ucfirst($event->location->city) }}, {{ $event->location->region }}
+                                                    @else
+                                                        {{ ucfirst($event->location->city) }}, {{ $event->location->country }}
+                                                    @endif
+                                                @endif
+                                            </p>
+                                        </div>
+
+                                        {{-- Event Title --}}
+                                        <h1 class="text-5.5xl font-medium text-black leading-tight">{{ $event->name }}</h1>
+
+                                        {{-- Tag Line --}}
+                                        @if($event->tag_line)
+                                            <p class="text-2xl text-neutral-700 font-medium">{{ $event->tag_line }}</p>
+                                        @endif
+
+                                    </div>
+                                    
                                     <div class="flex items-center gap-8 mt-4">
                                         <button 
                                             onclick="toggleShareModal()" 
@@ -437,12 +524,8 @@
                             </div>
                         </div>
                         <div class="relative w-full m-auto p-8 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
-                            <div class="md:flex md:gap-20 lg:gap-36 border-b">
+                            <div class="md:flex md:mt-8 md:gap-20 lg:gap-36 border-b">
                                 <div class="flex-1 min-w-0">
-                                {{-- Tag Line --}}
-                                    @if($event->tag_line)
-                                        <p class="text-1xl mt-4 text-neutral-700 font-medium border-b border-neutral-200 pb-12">{{ $event->tag_line }}</p>
-                                    @endif
                                     @include('events.show.about')
                                     @include('events.show.details')
                                 </div>

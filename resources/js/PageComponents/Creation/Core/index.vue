@@ -256,6 +256,28 @@ const goToNext = async () => {
         setStep(nextStep);
     } catch (error) {
         console.error('Error:', error);
+        
+        // Check if it's a 409 Conflict due to duplicate name
+        if (currentStep.value === 'Name' && 
+            error.response?.status === 409 && 
+            currentComponentRef.value.handleDuplicateError) {
+            
+            // Let the Name component handle the duplicate error
+            const handled = currentComponentRef.value.handleDuplicateError(error);
+            if (handled) {
+                // Error was handled by the component, no need to set errors here
+                return;
+            }
+        }
+        
+        // Handle other errors
+        if (error.response?.data?.errors) {
+            errors.value = error.response.data.errors;
+        } else if (error.response?.data?.message) {
+            errors.value = {
+                general: [error.response.data.message]
+            };
+        }
     } finally {
         isSubmitting.value = false;
     }

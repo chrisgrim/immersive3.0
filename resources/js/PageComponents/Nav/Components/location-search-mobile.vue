@@ -305,11 +305,6 @@ const setPlace = (place) => {
    handleSearch();
 };
 
-const saveSearchData = (place) => {
-   // Commenting out to prevent 405 error
-   // axios.post('/search/storedata', { type: 'location', name: place.name });
-};
-
 const initGoogleMaps = async () => {
     try {
         if (!window.google || !window.google.maps) {
