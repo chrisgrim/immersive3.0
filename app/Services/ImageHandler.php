@@ -110,11 +110,14 @@ class ImageHandler
         // Get the parent model before deleting the image
         $parent = $image->imageable;
         
+        // Store the rank before deleting
+        $imageRank = $image->rank;
+        
         // Delete the image record from database
         $image->delete();
 
-        // If parent model has image path columns, clear them
-        if ($parent && \Schema::hasColumns($parent->getTable(), ['largeImagePath', 'thumbImagePath'])) {
+        // If parent model has image path columns, only clear them if this was the main image (rank 0)
+        if ($parent && \Schema::hasColumns($parent->getTable(), ['largeImagePath', 'thumbImagePath']) && $imageRank === 0) {
             $parent->update([
                 'largeImagePath' => null,
                 'thumbImagePath' => null

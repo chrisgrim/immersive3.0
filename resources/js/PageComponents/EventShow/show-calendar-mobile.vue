@@ -1,6 +1,11 @@
 <template>
   <div class="event-calendar-mobile py-8 border-t border-b border-neutral-200">
-    <h3 class="text-3xl md:text-2xl font-medium text-black mb-8">Show Dates</h3>
+    <h3 class="text-3xl font-medium text-black mb-8">
+      Show Dates
+      <span v-if="remaining.length > 0" class="text-xl font-normal text-neutral-600 ml-2">
+        ({{ remaining.length }} {{ remaining.length === 1 ? 'date' : 'dates' }} remaining)
+      </span>
+    </h3>
     
     <!-- Show "Available Anytime" when showtype is "a" -->
     <div v-if="event.showtype === 'a'" class="text-2xl text-neutral-700 pb-4">
@@ -10,15 +15,27 @@
     <!-- Show calendar for other showtypes -->
     <div v-else class="calendar-container">
       <VueDatePicker
-        v-model="selectedDate"
+        v-model="selectedDates"
+        :model-value="highlightedDates"
         :enable-time-picker="false"
-        :highlighted="highlightedDates"
-        :min-date="minDate"
+        :disable-month-year-select="false"
+        :prevent-min-max-navigation="false"
+        :enable-button-validator="() => false"
+        :highlight-disabled-days="true"
+        :hide-navigation-buttons="false"
+        :month-change-on-scroll="false"
+        :month-change-on-arrows="true"
+        :show-month-year-separator="false"
         :max-date="maxDate"
+        multi-dates
+        :six-weeks="true"
         inline
         auto-apply
-        multi-calendars-solo>     
-      </VueDatePicker>
+        month-name-format="long"
+        hide-offset-dates
+        week-start="0"
+        @update:model-value="preventDefault"
+      />
     </div>
   </div>
 </template>
@@ -35,261 +52,325 @@ const props = defineProps({
   }
 });
 
-// Get all event dates from shows
-const eventDates = computed(() => {
-  if (!props.event.shows || !props.event.shows.length) {
-    return [];
+const selectedDates = ref(null); // This is just for the v-model of VueDatePicker
+const highlightedDates = ref([]);
+const dates = ref([]);
+const remaining = ref([]);
+const maxDate = ref(new Date(new Date().setFullYear(new Date().getFullYear() + 1)));
+
+const getDates = () => {
+  if (props.event.shows) {
+    props.event.shows.forEach(event => {
+      const eventDate = new Date(event.date);
+      // Normalize date to midnight for comparison
+      const normalizedEventDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+      const normalizedToday = new Date();
+      normalizedToday.setHours(0, 0, 0, 0);
+      normalizedToday.setDate(normalizedToday.getDate() - 1); // yesterday
+      
+      if (normalizedEventDate >= normalizedToday) {
+        remaining.value.push(event.date);
+        
+        // Format date for highlighting in calendar
+        highlightedDates.value.push(normalizedEventDate);
+      }
+      
+      // Keep all dates for reference
+      dates.value.push(event.date);
+    });
   }
-  
-  return props.event.shows.map(show => {
-    const showDate = new Date(show.date);
-    // Reset time to compare only dates
-    return new Date(showDate.getFullYear(), showDate.getMonth(), showDate.getDate()).getTime();
-  }).sort((a, b) => a - b); // Sort dates chronologically
-});
-
-// Calculate range for display
-const minDate = computed(() => {
-  if (eventDates.value.length) {
-    // Get first date of the month of the first show
-    const firstDate = new Date(eventDates.value[0]);
-    return new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
-  }
-  return new Date(); // Fallback to today
-});
-
-const maxDate = computed(() => {
-  if (eventDates.value.length) {
-    // Get last date of the month of the last show
-    const lastDate = new Date(eventDates.value[eventDates.value.length - 1]);
-    return new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 0);
-  }
-  return new Date(); // Fallback to today
-});
-
-// Use the current month if no event dates are available
-const currentDate = new Date();
-const selectedDate = ref(eventDates.value.length > 0 ? eventDates.value[0] : currentDate.getTime());
-
-// Helper function to check if a day is an event day
-const isEventDay = (timestamp) => {
-  if (!timestamp || !eventDates.value.length) return false;
-  
-  const date = new Date(timestamp);
-  const dateWithoutTime = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  
-  return eventDates.value.includes(dateWithoutTime);
 };
 
-// Set highlighted dates for template
-const highlightedDates = computed(() => {
-  return eventDates.value.map(timestamp => {
-    return {
-      timestamp: timestamp,
-      type: 'event'
-    };
-  });
-});
+const preventDefault = (val) => {
+  // Reset to original highlighted dates to prevent selection
+  selectedDates.value = null;
+  return false;
+};
+
+onMounted(getDates);
 </script>
 
 <style>
-
-.dp--arrow-btn-nav {
-    display: none !important;
-}
-
-/* Remove the tabs at the top */
-.dp__menu_inner .dp__menu_items {
-   display: none !important;
-}
-
-/* Calendar styling */
-.dp__calendar {
+.event-calendar-mobile .dp__calendar {
    width: 100% !important;
+   cursor: default !important;
+   pointer-events: none !important;
 }
 
-/* Grid layout for calendar to ensure square cells */
-.dp__month {
-   width: 100% !important;
+/* Header month/year styling */
+.event-calendar-mobile .dp__month_year_wrap {
+   font-size: 1.7rem !important;
+   font-weight: 400 !important;
+   display: flex !important;
+   justify-content: flex-start !important;
+   align-items: center !important;
+   padding: 1rem !important;
 }
 
-.dp__calendar_row {
-   display: grid !important;
-   grid-template-columns: repeat(7, 1fr) !important;
-   width: 100% !important;
+.event-calendar-mobile .dp--past {
+    pointer-events: none !important;
+    opacity: 0.3 !important;
+}
+
+.event-calendar-mobile .dp--past .dp__cell_inner {
+    color: #999 !important;
+    background: transparent !important;
+}
+
+.event-calendar-mobile .dp--past.dp__active_date,
+.event-calendar-mobile .dp--past .dp__active {
+    background-color: #999 !important;
+    color: #fff !important;
+}
+
+/* Ensure past dates can't be interacted with */
+.event-calendar-mobile .dp--past * {
+    pointer-events: none !important;
+    cursor: default !important;
+}
+
+.event-calendar-mobile .dp__month_year_select {
+    pointer-events: none !important;
+    display: flex !important;
+    justify-content: flex-start !important;
+    margin-left: 1rem !important;
+}
+
+/* Calendar header (days of week) */
+.event-calendar-mobile .dp__calendar_header {
+   color: #666 !important;
+   font-weight: normal !important;
+   font-size: 1.2rem !important;
+}
+
+.event-calendar-mobile .dp__calendar_row {
    margin: 0 !important;
    gap: 0 !important;
 }
 
-.dp__calendar_header {
-   display: none !important;
-}
-
-/* Header month/year styling */
-.dp__month_year_wrap {
-   font-size: 1.7rem !important;
-   font-weight: 400 !important;
-}
-
-.dp__calendar_item {
+/* Calendar item with border solution and square aspect ratio */
+.event-calendar-mobile .dp__calendar_item {
    margin: 0 !important;
    padding: 0 !important;
    font-size: 1.4rem !important;
-   aspect-ratio: 1/1 !important;
+   display: flex !important;
+   justify-content: center !important;
+   position: relative !important;
+   width: calc(100% / 7) !important;
+}
+
+/* Remove redundant borders */
+.event-calendar-mobile .dp__calendar_item:first-child {
+   border-left: none !important;
+}
+
+.event-calendar-mobile .dp__calendar_row:first-child .dp__calendar_item {
+   border-top: none !important;
+}
+
+/* Create square aspect ratio */
+.event-calendar-mobile .dp__calendar_item::before {
+   content: '' !important;
+   display: block !important;
+   padding-top: 100% !important; /* Creates 1:1 aspect ratio */
+}
+
+/* Position the content absolutely within the square */
+.event-calendar-mobile .dp__calendar_item > * {
+   position: absolute !important;
+   top: 0 !important;
+   left: 0 !important;
+   right: 0 !important;
+   bottom: 0 !important;
    display: flex !important;
    align-items: center !important;
    justify-content: center !important;
 }
 
-/* Calendar cells */
-.dp__cell_inner {
+/* Adjust cell inner to fit square */
+.event-calendar-mobile .dp__cell_inner {
+   position: absolute !important;
    height: 100% !important;
    width: 100% !important;
-   margin: 0 !important;
+   margin: auto !important;
    padding: 0 !important;
    display: flex !important;
    align-items: center !important;
    justify-content: center !important;
    font-weight: normal !important;
    color: #333 !important;
-   aspect-ratio: 1/1 !important;
-}
-.dp__active_date {
-    background: black !important;
-    color: white !important;
-}
-.dp__calendar_item {
-    pointer-events: none !important;
-    cursor: default !important;
 }
 
-.dp__cell_disabled {
+.event-calendar-mobile .dp__cell_disabled {
    opacity: 0.3 !important;
    cursor: auto !important;
 }
 
-/* Hover state */
-.dp__cell_inner:not(.dp--past):hover {
-   border: 2px solid black !important;
-   background: transparent !important;
-   color: black !important;
+/* Selected state */
+.event-calendar-mobile .dp__active {
+   background-color: black !important;
+   color: white !important;
 }
 
-/* Selected state */
-.dp__active {
+.event-calendar-mobile .dp__active_date {
    background-color: black !important;
    color: white !important;
 }
 
 /* Range styling */
-.dp__range_start,
-.dp__range_end {
+.event-calendar-mobile .dp__range_start,
+.event-calendar-mobile .dp__range_end {
    background-color: black !important;
    color: white !important;
 }
 
-.dp__range_start {
+.event-calendar-mobile .dp__range_start {
    border-top-right-radius: 0 !important;
    border-bottom-right-radius: 0 !important;
 }
 
-.dp__range_end {
+.event-calendar-mobile .dp__range_end {
    border-top-left-radius: 0 !important;
    border-bottom-left-radius: 0 !important;
 }
 
-.dp__range_between {
+.event-calendar-mobile .dp__range_between {
    border-radius: 0 !important;
 }
 
 /* Navigation arrows */
-.dp__arrow_bottom,
-.dp__arrow_top {
+.event-calendar-mobile .dp__arrow_bottom,
+.event-calendar-mobile .dp__arrow_top {
    display: none !important;
 }
 
 /* Today's date */
-.dp__today {
+.event-calendar-mobile .dp__today {
    border: none !important;
 }
 
 /* Calendar container */
-.dp__main {
+.event-calendar-mobile .dp__main {
    border: none !important;
    box-shadow: none !important;
 }
 
 /* Remove borders */
-.dp__calendar_header_separator {
-    display: none !important;
+.event-calendar-mobile .dp__calendar_header_separator {
+   display: none !important;
 }
 
-.dp__theme_light {
+.event-calendar-mobile .dp__theme_light {
    border: none !important;
 }
 
-.dp--header-wrap {
+.event-calendar-mobile .dp--header-wrap {
    margin-bottom: 1rem !important;
-   pointer-events: none !important;
-    cursor: default !important;
 }
 
-/* Fix dual calendar layout */
-.dp__menu_inner.dp__flex_display {
+.event-calendar-mobile .dp__flex_display {
+   display: block !important;
+}
+
+.event-calendar-mobile .dp__menu_inner.dp__flex_display {
+   gap: 4rem !important;
+}
+
+.event-calendar-mobile .dp__menu_inner {
+    padding: 0 !important;
+}
+
+/* Calendar layout */
+.event-calendar-mobile .dp__menu_inner.dp__flex_display {
     flex-direction: column !important;
-    gap: 1rem !important;
-    max-width: 100% !important;
-    margin-bottom: 0 !important;
-    padding-bottom: 0 !important;
+    gap: 2rem !important;
 }
 
-.dp__calendar_next {
-    margin-top: 1rem !important;
-    margin-inline-start: 0 !important;
-    margin-bottom: 0 !important;
+.event-calendar-mobile .dp__calendar_next {
+    margin:0 !important;
 }
 
-/* Custom container class to enforce the square aspect */
+/* Remove tabs from top */
+.event-calendar-mobile .dp__menu_inner .dp__menu_items {
+   display: none !important;
+}
+
+/* Custom container class */
 .calendar-container {
     width: 100% !important;
     max-width: 100% !important;
     padding: 0 1rem !important;
 }
 
-/* Event calendar container */
+/* Events container */
 .event-calendar-mobile {
     width: 100% !important;
 }
 
-/* Optional: Add smooth transition */
-.dp__calendar {
-    transition: all 0.3s ease !important;
-}
-
-/* Fix the bottom padding */
-.dp__instance_calendar {
-    padding-bottom: 0 !important;
-    margin-bottom: 0 !important;
-}
-
-.dp__menu {
-    padding-bottom: 0 !important;
-    margin-bottom: 0 !important;
-}
-
-/* Remove extra padding in menu content */
-.dp__menu_content {
-    padding-bottom: 0 !important;
-    margin-bottom: 0 !important;
-}
-
-/* Fix header item alignment */
-.dp__calendar_header_item {
+/* Make sure calendar is visible */
+.event-calendar-mobile .dp__instance_calendar {
     width: 100% !important;
-    text-align: center !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
 }
 
+/* Arrow styling */
+.dp--arrow-btn-nav .dp__inner_nav {
+    display: flex !important;
+    width: 5rem !important;
+    height: 5rem !important;
+}
+.dp__inner_nav svg {
+    height: 2rem !important;
+    width: 2rem !important;
+    stroke: #000 !important;
+}
+
+.event-calendar-mobile .dp__arrow_btn {
+    display: flex !important;
+    cursor: pointer !important;
+    pointer-events: auto !important;
+    position: absolute !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    background-color: #f5f5f5 !important;
+    border-radius: 50% !important;
+    width: 2rem !important;
+    height: 2rem !important;
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 10 !important;
+}
+
+.event-calendar-mobile .dp__arrow_btn:hover {
+    background-color: #e5e5e5 !important;
+}
+
+.event-calendar-mobile .dp__arrow_btn:first-child {
+    left: 0.5rem !important;
+}
+
+.event-calendar-mobile .dp__arrow_btn:last-child {
+    right: 0.5rem !important;
+}
+
+.event-calendar-mobile .dp__month_year_select {
+    margin: 0 3rem !important; /* Make room for arrows */
+}
+
+.event-calendar-mobile .dp__inner_nav {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.event-calendar-mobile .dp--arrow-btn-nav,
+.event-calendar-mobile .dp__arrow_btn_container {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.event-calendar-mobile .dp__arrow_btn svg {
+    width: 1rem !important;
+    height: 1rem !important;
+}
 </style>

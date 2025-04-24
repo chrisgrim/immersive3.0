@@ -135,6 +135,19 @@ class AdminEventController extends Controller
             $event->restore();
             return response()->json(['message' => 'Event restored successfully']);
         }
+        
+        // Handle organizer update action
+        if ($request->action === 'update_organizer') {
+            $validated = $request->validate([
+                'organizer_id' => ['required', 'exists:organizers,id'],
+            ]);
+            
+            $event->update([
+                'organizer_id' => $validated['organizer_id']
+            ]);
+            
+            return $event->fresh(['organizer', 'images', 'category', 'location']);
+        }
 
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
@@ -256,21 +269,35 @@ class AdminEventController extends Controller
         // If no curated check exists yet, create one
         if (!$event->curatedCheck) {
             $event->curatedCheck()->create([
-                'curated' => false,
-                'social' => false,
-                'newsletter' => false
+                'curated' => null,
+                'social' => null,
+                'newsletter' => null
             ]);
             $event->refresh();
         }
 
-        // Toggle the specified type
+        // Cycle through the three states: null -> false -> true -> null
         $type = $validated['type'];
+        $currentValue = $event->curatedCheck->$type;
+        
+        // Determine the next state
+        $nextValue = null;
+        if ($currentValue === null) {
+            $nextValue = false;
+        } elseif ($currentValue === false) {
+            $nextValue = true;
+        } else {
+            $nextValue = null;
+        }
+        
+        // Update the check
         $event->curatedCheck->update([
-            $type => !$event->curatedCheck->$type
+            $type => $nextValue
         ]);
 
         return response()->json([
-            'message' => $type . ' status toggled successfully',
+            'message' => $type . ' status updated successfully',
+            'check' => $event->curatedCheck->fresh(),
             'event' => $event->fresh(['curatedCheck', 'organizer', 'images', 'category', 'location'])
         ]);
     }

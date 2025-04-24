@@ -56,12 +56,88 @@
             @endif
         ],
         "offers": {
-            "@type": "Offer",
+            "@type": "AggregateOffer",
             "url": "{{$event->ticketUrl ? $event->ticketUrl : ($event->websiteUrl ? $event->websiteUrl : Request::url())}}",
-            "price": "{{$event->priceranges[0]->price}}",
-            "priceCurrency": "USD",
+            @php
+                $hasPWYC = false;
+                $hasFreeTicket = false;
+                $lowestPrice = null;
+                $highestPrice = null;
+                $currencyCode = "USD";
+                
+                // Check if we have any tickets or price ranges
+                if (isset($event->first_show_tickets) && count($event->first_show_tickets) > 0) {
+                    foreach ($event->first_show_tickets as $ticket) {
+                        // Set currency if available
+                        if (isset($ticket->currency)) {
+                            $currencyCode = $ticket->currency;
+                        }
+                        
+                        // Check for PWYC tickets
+                        if (isset($ticket->name) && strtoupper(trim($ticket->name)) === 'PWYC') {
+                            $hasPWYC = true;
+                        }
+                        
+                        // Check for free tickets
+                        if (isset($ticket->ticket_price) && (float)$ticket->ticket_price === 0.00) {
+                            $hasFreeTicket = true;
+                        }
+                        
+                        // Track price range
+                        $price = isset($ticket->ticket_price) ? (float)$ticket->ticket_price : null;
+                        if ($price !== null) {
+                            if ($lowestPrice === null || $price < $lowestPrice) {
+                                $lowestPrice = $price;
+                            }
+                            if ($highestPrice === null || $price > $highestPrice) {
+                                $highestPrice = $price;
+                            }
+                        }
+                    }
+                } elseif (isset($event->priceranges) && count($event->priceranges) > 0) {
+                    $lowestPrice = $event->priceranges->min('price');
+                    $highestPrice = $event->priceranges->max('price');
+                }
+                
+                // Default if we couldn't find any prices
+                if ($lowestPrice === null) {
+                    $lowestPrice = 0;
+                }
+                if ($highestPrice === null) {
+                    $highestPrice = $lowestPrice;
+                }
+            @endphp
+            "lowPrice": "{{$lowestPrice}}",
+            "highPrice": "{{$highestPrice}}",
+            "priceCurrency": "{{$currencyCode}}",
             "availability": "https://schema.org/InStock",
-            "validFrom": "{{$event->priceranges[0]->created_at}}"
+            "validFrom": "{{$event->priceranges[0]->created_at}}",
+            "priceSpecification": [
+                @if($hasPWYC)
+                {
+                    "@type": "PriceSpecification",
+                    "price": "0.01",
+                    "priceCurrency": "{{$currencyCode}}",
+                    "description": "Pay What You Can"
+                }@if($hasFreeTicket || $highestPrice > $lowestPrice),@endif
+                @endif
+                @if($hasFreeTicket)
+                {
+                    "@type": "PriceSpecification",
+                    "price": "0",
+                    "priceCurrency": "{{$currencyCode}}",
+                    "description": "Free Admission"
+                }@if($highestPrice > $lowestPrice),@endif
+                @endif
+                @if($highestPrice > $lowestPrice)
+                {
+                    "@type": "PriceSpecification",
+                    "price": "{{$highestPrice}}",
+                    "priceCurrency": "{{$currencyCode}}",
+                    "description": "Standard Admission"
+                }
+                @endif
+            ]
         },
         "organizer": {
             "@type": "Organization",
@@ -98,7 +174,7 @@
                 @endforeach
             @endif
         ],
-        "isAccessibleForFree": {{ isset($event->priceranges[0]) && $event->priceranges[0]->price == 0 ? 'true' : 'false' }},
+        "isAccessibleForFree": {{ ($hasFreeTicket || (isset($event->priceranges[0]) && $event->priceranges[0]->price == 0)) ? 'true' : 'false' }},
         @if(!$event->advisories['wheelchairReady'])
         "accessibilityHazard": ["NoAccessibleEntrance"],
         @endif
@@ -405,16 +481,64 @@
                                                                 {{ isset($event->call_to_action) && !empty($event->call_to_action) ? $event->call_to_action : 'Free Event' }}
                                                             @elseif(isset($event->priceranges[0]) && strtolower($event->priceranges[0]->name) == 'pwyc')
                                                                 {{ isset($event->call_to_action) && !empty($event->call_to_action) ? $event->call_to_action : 'PWYC Event' }}
-                                                            @elseif(isset($event->call_to_action) && !empty($event->call_to_action))
+                                                            @elseif(isset($event->first_show_tickets) && count($event->first_show_tickets) > 0)
                                                                 @php
-                                                                    $priceIncludingActions = ['Book Now', 'Get Tickets', 'Buy Tickets', 'Register', 'RSVP'];
-                                                                    $showPrice = in_array($event->call_to_action, $priceIncludingActions) && 
-                                                                               isset($event->priceranges[0]) && 
-                                                                               $event->priceranges[0]->price > 0;
+                                                                    $hasPWYCTicket = false;
+                                                                    $hasFreeTicket = false;
+                                                                    foreach ($event->first_show_tickets as $ticket) {
+                                                                        if (isset($ticket->name) && strtoupper(trim($ticket->name)) === 'PWYC') {
+                                                                            $hasPWYCTicket = true;
+                                                                        }
+                                                                        if (isset($ticket->ticket_price) && (float)$ticket->ticket_price === 0.00) {
+                                                                            $hasFreeTicket = true;
+                                                                        }
+                                                                    }
                                                                 @endphp
-                                                                {{ $event->call_to_action }} {{ $showPrice ? 'from $' . number_format($event->priceranges->min('price'), 2) : '' }}
+                                                                
+                                                                @if($hasPWYCTicket)
+                                                                    @if(isset($event->call_to_action) && !empty($event->call_to_action))
+                                                                        @if(in_array($event->call_to_action, ['Get Tickets', 'Book Now', 'Buy Tickets', 'Register']))
+                                                                            PWYC Tickets Available
+                                                                        @else
+                                                                            {{ $event->call_to_action }}
+                                                                        @endif
+                                                                    @else
+                                                                        PWYC Tickets Available
+                                                                    @endif
+                                                                @elseif($hasFreeTicket)
+                                                                    @if(isset($event->call_to_action) && !empty($event->call_to_action))
+                                                                        @if(in_array($event->call_to_action, ['Get Tickets', 'Book Now', 'Buy Tickets', 'Register']))
+                                                                            Free Tickets Available
+                                                                        @else
+                                                                            {{ $event->call_to_action }}
+                                                                        @endif
+                                                                    @else
+                                                                        Free Tickets Available
+                                                                    @endif
+                                                                @elseif(isset($event->call_to_action) && !empty($event->call_to_action))
+                                                                    @php
+                                                                        $priceIncludingActions = ['Book Now', 'Get Tickets', 'Buy Tickets', 'Register', 'RSVP'];
+                                                                        $showPrice = in_array($event->call_to_action, $priceIncludingActions) && 
+                                                                                isset($event->priceranges[0]) && 
+                                                                                $event->priceranges[0]->price > 0;
+                                                                        $currency = isset($event->first_show_tickets[0]->currency) ? $event->first_show_tickets[0]->currency : '$';
+                                                                    @endphp
+                                                                    {{ $event->call_to_action }} {{ $showPrice ? 'from ' . $currency . number_format($event->priceranges->min('price'), 2) : '' }}
+                                                                @else
+                                                                    @php
+                                                                        $currency = isset($event->first_show_tickets[0]->currency) ? $event->first_show_tickets[0]->currency : '$';
+                                                                        $minPrice = $event->priceranges->min('price');
+                                                                    @endphp
+                                                                    @if($minPrice == 0)
+                                                                        Free Tickets Available
+                                                                    @else
+                                                                        Get Tickets from {{ $currency }}{{ number_format($minPrice, 2) }}
+                                                                    @endif
+                                                                @endif
+                                                            @elseif(isset($event->call_to_action) && !empty($event->call_to_action))
+                                                                {{ $event->call_to_action }}
                                                             @else
-                                                                Get Tickets from ${{ number_format($event->priceranges->min('price'), 2) }}
+                                                                Get Tickets
                                                             @endif
                                                         @else
                                                             {{ isset($event->call_to_action) && !empty($event->call_to_action) ? $event->call_to_action : 'View Event' }}

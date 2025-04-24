@@ -58,7 +58,7 @@ class Ticket extends Model
         $currency = $ticketData['currency'];
     }
 
-    $priceRange = self::getPriceRange($prices, $currency);
+    $priceRange = self::getPriceRange($prices, $currency, $names);
 
     $event->update([
         'price_range' => $priceRange,
@@ -68,19 +68,40 @@ class Ticket extends Model
     $event->searchable();
 }
 
-    public static function getPriceRange($prices, $currency)
+    public static function getPriceRange($prices, $currency, $names = [])
     {
         rsort($prices);
         $lowestPrice = last($prices);
+        
+        // Check if any ticket name is "PWYC" (case insensitive)
+        $hasPWYC = false;
+        foreach ($names as $name) {
+            if (strtoupper(trim($name)) === 'PWYC') {
+                $hasPWYC = true;
+                break;
+            }
+        }
 
-        if ($lowestPrice == 0) {
+        if ($hasPWYC) {
+            $first = 'PWYC';
+        } else if ($lowestPrice == 0) {
             $first = 'Free';
         } else {
-            $first = $currency . $lowestPrice;
+            $formattedLowestPrice = number_format($lowestPrice, 2);
+            $formattedLowestPrice = preg_replace('/\.00$/', '', $formattedLowestPrice);
+            $first = $currency . $formattedLowestPrice;
         }
 
         if (sizeof($prices) > 1) {
-            return $pricerange = $first . ' - ' . $currency . $prices[0];
+            $formattedHighestPrice = number_format($prices[0], 2);
+            $formattedHighestPrice = preg_replace('/\.00$/', '', $formattedHighestPrice);
+            
+            // If lowest price is PWYC but there are higher prices, show the range
+            if ($hasPWYC) {
+                return $pricerange = 'PWYC - ' . $currency . $formattedHighestPrice;
+            } else {
+                return $pricerange = $first . ' - ' . $currency . $formattedHighestPrice;
+            }
         } else {
             return $pricerange = $first;
         }

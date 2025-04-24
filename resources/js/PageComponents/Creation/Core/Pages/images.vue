@@ -248,13 +248,34 @@ const validateFile = (file) => {
             alert(`"${file.name}" (${sizeMB}MB) exceeds the 5MB size limit.`);
             return resolve(false);
         }
+        
+        // Check if file is empty or corrupted
+        if (file.size === 0) {
+            alert(`"${file.name}" appears to be empty or corrupted.`);
+            return resolve(false);
+        }
 
         // Check image dimensions
         const img = new Image();
-        img.src = URL.createObjectURL(file);
+        
+        // Set a timeout to catch loading issues
+        const timeoutId = setTimeout(() => {
+            URL.revokeObjectURL(img.src);
+            alert(`"${file.name}" could not be loaded within a reasonable time. The file might be corrupted.`);
+            resolve(false);
+        }, 5000); // 5 second timeout
         
         img.onload = () => {
+            clearTimeout(timeoutId);
             URL.revokeObjectURL(img.src);
+            
+            // Verify the image has valid dimensions
+            if (!img.width || !img.height || isNaN(img.width) || isNaN(img.height)) {
+                alert(`"${file.name}" has invalid dimensions. Please try another image.`);
+                resolve(false);
+                return;
+            }
+            
             const smallestSide = Math.min(img.width, img.height);
             if (smallestSide < MIN_DIMENSION) {
                 alert(`Image's smallest side must be at least ${MIN_DIMENSION}px. This image's smallest side is ${smallestSide}px.`);
@@ -265,10 +286,20 @@ const validateFile = (file) => {
         };
 
         img.onerror = () => {
+            clearTimeout(timeoutId);
             URL.revokeObjectURL(img.src);
-            alert('Error loading image. Please try another file.');
+            alert(`Error loading "${file.name}". The file might be corrupted or not a valid image.`);
             resolve(false);
         };
+        
+        // Set the src after defining event handlers
+        try {
+            img.src = URL.createObjectURL(file);
+        } catch (error) {
+            clearTimeout(timeoutId);
+            alert(`"${file.name}" could not be processed. Error: ${error.message}`);
+            resolve(false);
+        }
     });
 };
 
@@ -343,66 +374,121 @@ const completeCrop = () => {
     showMainImageError.value = false;
     
     const canvas = document.querySelector('.vue-advanced-cropper canvas');
+    if (!canvas) {
+        alert('Could not find the cropped image canvas. Please try again.');
+        showCropper.value = false;
+        cropperImage.value = '';
+        setComponentReady(true);
+        return;
+    }
+    
     const currentWidth = canvas.width;
     const currentHeight = canvas.height;
+    
+    // Verify the dimensions are valid
+    if (!currentWidth || !currentHeight || isNaN(currentWidth) || isNaN(currentHeight)) {
+        alert('Invalid image dimensions after cropping. Please try again with a different image.');
+        showCropper.value = false;
+        cropperImage.value = '';
+        setComponentReady(true);
+        return;
+    }
     
     // Calculate scale needed to ensure minimum 400px on smallest side
     const smallestSide = Math.min(currentWidth, currentHeight);
     const scale = smallestSide < 400 ? (400 / smallestSide) : 1;
     
     // Create new canvas with scaled dimensions if needed
-    const outputCanvas = document.createElement('canvas');
-    outputCanvas.width = Math.round(currentWidth * scale);
-    outputCanvas.height = Math.round(currentHeight * scale);
-    
-    const outputCtx = outputCanvas.getContext('2d');
-    outputCtx.drawImage(canvas, 0, 0, outputCanvas.width, outputCanvas.height);
-    
-    // Start with a quality of 0.95 and decrease if needed
-    const createImageBlob = (quality = 0.95) => {
-        outputCanvas.toBlob((blob) => {
-            // Check if the blob is too large
-            if (blob.size > MAX_FILE_SIZE) {
-                if (quality > 0.5) {
-                    // Try again with lower quality
-                    createImageBlob(quality - 0.1);
-                } else {
-                    // If we're still too large at 0.5 quality, show an error
-                    alert('The cropped image is too large. Please try a smaller image or crop a smaller portion.');
+    try {
+        const outputCanvas = document.createElement('canvas');
+        outputCanvas.width = Math.round(currentWidth * scale);
+        outputCanvas.height = Math.round(currentHeight * scale);
+        
+        const outputCtx = outputCanvas.getContext('2d');
+        if (!outputCtx) {
+            throw new Error('Could not get canvas context');
+        }
+        
+        outputCtx.drawImage(canvas, 0, 0, outputCanvas.width, outputCanvas.height);
+        
+        // Start with a quality of 0.95 and decrease if needed
+        const createImageBlob = (quality = 0.95) => {
+            outputCanvas.toBlob((blob) => {
+                // Make sure we got a valid blob
+                if (!blob) {
+                    alert('Failed to create image from canvas. Please try again.');
                     showCropper.value = false;
                     cropperImage.value = '';
                     setComponentReady(true);
+                    return;
                 }
-                return;
-            }
-            
-            const file = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const oldMainImage = mainImage.value;
                 
-                mainImage.value = { 
-                    url: e.target.result, 
-                    file,
-                    rank: 0
+                // Check if the blob is too large
+                if (blob.size > MAX_FILE_SIZE) {
+                    if (quality > 0.5) {
+                        // Try again with lower quality
+                        createImageBlob(quality - 0.1);
+                    } else {
+                        // If we're still too large at 0.5 quality, show an error
+                        alert('The cropped image is too large. Please try a smaller image or crop a smaller portion.');
+                        showCropper.value = false;
+                        cropperImage.value = '';
+                        setComponentReady(true);
+                    }
+                    return;
+                }
+                
+                const file = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const oldMainImage = mainImage.value;
+                    
+                    // Verify that we got valid file data
+                    if (!e.target.result) {
+                        alert('Failed to read the cropped image. Please try again.');
+                        showCropper.value = false;
+                        cropperImage.value = '';
+                        setComponentReady(true);
+                        return;
+                    }
+                    
+                    mainImage.value = { 
+                        url: e.target.result, 
+                        file,
+                        rank: 0
+                    };
+                    
+                    if (oldMainImage?.isExisting) {
+                        const oldMainImagePath = oldMainImage.url.replace(imageUrl, '');
+                        if (!deletedImages.value.includes(oldMainImagePath)) {
+                            addToDeletedImages(oldMainImagePath);
+                        }
+                    }
+                    
+                    showCropper.value = false;
+                    cropperImage.value = '';
+                    setComponentReady(true);
                 };
                 
-                if (oldMainImage?.isExisting) {
-                    const oldMainImagePath = oldMainImage.url.replace(imageUrl, '');
-                    if (!deletedImages.value.includes(oldMainImagePath)) {
-                        addToDeletedImages(oldMainImagePath);
-                    }
-                }
+                reader.onerror = () => {
+                    alert('Error reading the cropped image. Please try again.');
+                    showCropper.value = false;
+                    cropperImage.value = '';
+                    setComponentReady(true);
+                };
                 
-                showCropper.value = false;
-                cropperImage.value = '';
-                setComponentReady(true);
-            };
-            reader.readAsDataURL(file);
-        }, 'image/jpeg', quality);
-    };
-    
-    createImageBlob();
+                reader.readAsDataURL(file);
+            }, 'image/jpeg', quality);
+        };
+        
+        createImageBlob();
+    } catch (error) {
+        console.error('Error during image processing:', error);
+        alert(`Error processing image: ${error.message}. Please try again.`);
+        showCropper.value = false;
+        cropperImage.value = '';
+        setComponentReady(true);
+    }
 };
 
 const cancelCrop = () => {
@@ -497,18 +583,23 @@ defineExpose({
         // Always handle the main image first with rank 0
         if (mainImage.value) {
             if (mainImage.value.file) {
-                const fileExtension = mainImage.value.file.name.split('.').pop();
-                const timestamp = Date.now();
-                const newFileName = `image-rank-0-${timestamp}.${fileExtension}`;
-                const newFile = new File([mainImage.value.file], newFileName, { type: mainImage.value.file.type });
-                
-                formData.append('images[]', newFile);
-                formData.append(`ranks[${newImageCount}]`, 0);
-                newImageCount++;
-                
-                // Track that we've uploaded this file
-                if (mainImage.value.id) {
-                    uploadedFileIds.add(mainImage.value.id);
+                // Extra validation before adding to FormData
+                if (!mainImage.value.file.size || mainImage.value.file.size === 0) {
+                    console.error('Main image file appears to be empty/corrupted, skipping');
+                } else {
+                    const fileExtension = mainImage.value.file.name.split('.').pop();
+                    const timestamp = Date.now();
+                    const newFileName = `image-rank-0-${timestamp}.${fileExtension}`;
+                    const newFile = new File([mainImage.value.file], newFileName, { type: mainImage.value.file.type });
+                    
+                    formData.append('images[]', newFile);
+                    formData.append(`ranks[${newImageCount}]`, 0);
+                    newImageCount++;
+                    
+                    // Track that we've uploaded this file
+                    if (mainImage.value.id) {
+                        uploadedFileIds.add(mainImage.value.id);
+                    }
                 }
             } else if (mainImage.value.isExisting) {
                 currentImages.push({
@@ -531,18 +622,23 @@ defineExpose({
             }
             
             if (image.file) {
-                const fileExtension = image.file.name.split('.').pop();
-                const timestamp = Date.now();
-                const newFileName = `image-rank-${rank}-${timestamp}.${fileExtension}`;
-                const newFile = new File([image.file], newFileName, { type: image.file.type });
-                
-                formData.append('images[]', newFile);
-                formData.append(`ranks[${newImageCount}]`, rank);
-                newImageCount++;
-                
-                // Track that we've uploaded this file
-                if (image.id) {
-                    uploadedFileIds.add(image.id);
+                // Extra validation before adding to FormData
+                if (!image.file.size || image.file.size === 0) {
+                    console.error(`Image at rank ${rank} appears to be empty/corrupted, skipping`);
+                } else {
+                    const fileExtension = image.file.name.split('.').pop();
+                    const timestamp = Date.now();
+                    const newFileName = `image-rank-${rank}-${timestamp}.${fileExtension}`;
+                    const newFile = new File([image.file], newFileName, { type: image.file.type });
+                    
+                    formData.append('images[]', newFile);
+                    formData.append(`ranks[${newImageCount}]`, rank);
+                    newImageCount++;
+                    
+                    // Track that we've uploaded this file
+                    if (image.id) {
+                        uploadedFileIds.add(image.id);
+                    }
                 }
             } else if (image.isExisting) {
                 // Ensure the rank is updated in case it changed during reordering

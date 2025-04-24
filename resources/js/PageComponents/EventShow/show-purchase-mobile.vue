@@ -117,6 +117,8 @@ onMounted(() => {
 
 onUnmounted(() => {
     window.removeEventListener('scroll', handleScroll);
+    // Ensure body scrolling is restored when component is destroyed
+    document.body.style.overflow = '';
 });
 
 const canEdit = computed(() => 
@@ -136,12 +138,19 @@ const eventUrl = computed(() => {
 const toggleTickets = () => {
     ticketsVisible.value = !ticketsVisible.value;
     
-    // If opening the modal, set modal ready flag after a short delay
+    // Toggle body scroll lock based on modal visibility
     if (ticketsVisible.value) {
+        // Lock scrolling on body when modal is open
+        document.body.style.overflow = 'hidden';
+        
+        // If opening the modal, set modal ready flag after a short delay
         isModalReady.value = false;
         setTimeout(() => {
             isModalReady.value = true;
         }, 100);
+    } else {
+        // Restore scrolling when modal is closed
+        document.body.style.overflow = '';
     }
 };
 
@@ -149,6 +158,8 @@ const handleClickOutside = () => {
     // Only close if the modal is ready to handle outside clicks
     if (isModalReady.value) {
         ticketsVisible.value = false;
+        // Restore scrolling when clicking outside
+        document.body.style.overflow = '';
     }
 };
 
@@ -179,6 +190,10 @@ const getDates = () => {
 };
 
 const formatTicketPrice = (ticket) => {
+    // Check if ticket name is PWYC (case insensitive)
+    if (ticket.name && ticket.name.toUpperCase().trim() === 'PWYC') {
+        return 'Pay what you can';
+    }
     if (ticket.type === 'f') return 'Free';
     if (ticket.type === 'p') return 'Pay what you can';
     return ticket.ticket_price == 0.00 ? 'Free' : `${ticket.currency} ${ticket.ticket_price}`;

@@ -1,5 +1,11 @@
 <template>
     <main class="w-full min-h-fit">
+        <!-- Toggle Sidebar Button -->
+        <div class="absolute z-[500] left-12 top-12">
+            <button @click="toggleSidebar" class="bg-white flex border-none p-6 rounded-2xl items-center justify-center shadow-lg">
+                <span class="text-2xl font-medium">{{ isSidebarHidden ? 'Collapse' : 'Expand' }}</span>
+            </button>
+        </div>
         <div class="flex flex-col w-full">
             <!-- Cards List -->
             <div class="relative">
@@ -148,9 +154,14 @@ import EditCard from '../Cards/card-edit.vue';
 import EventBlock from '../Cards/block-event.vue';
 import ImageBlock from '../Cards/block-image.vue';
 import TextBlock from '../Cards/block-text.vue';
+import axios from 'axios';
 
 const post = inject('post');
 const community = inject('community');
+const emit = defineEmits(['toggle-sidebar']);
+
+// Track sidebar state
+const isSidebarHidden = ref(false);
 
 // Refs
 const blockType = ref(null);
@@ -239,13 +250,36 @@ const debouncePostOrder = () => {
             id: card.id,
             order: index
         }));
-        submitData({ cards: orderedCards });
+        saveCardOrder(orderedCards);
     }, 500);
+};
+
+const saveCardOrder = async (orderedCards) => {
+    try {
+        // Use the proper cards/order endpoint
+        const response = await axios.put(
+            `/communities/${community.slug}/posts/${post.slug}/cards/order`,
+            orderedCards
+        );
+        
+        // If we get a response with updated data, update the post
+        if (response.data) {
+            Object.assign(post, response.data);
+        }
+    } catch (error) {
+        console.error('Error saving card order:', error);
+    }
 };
 
 const handleDragStart = () => {
     isDragging.value = true;
     clear();
+};
+
+// Method to toggle the sidebar
+const toggleSidebar = () => {
+    isSidebarHidden.value = !isSidebarHidden.value;
+    emit('toggle-sidebar');
 };
 
 // Lifecycle hooks with proper cleanup

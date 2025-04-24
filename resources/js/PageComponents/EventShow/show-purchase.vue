@@ -155,6 +155,10 @@ const props = defineProps({
 });
 
 const formatTicketPrice = (ticket) => {
+    // Check if ticket name is PWYC (case insensitive)
+    if (ticket.name && ticket.name.toUpperCase().trim() === 'PWYC') {
+        return 'Pay what you can';
+    }
     if (ticket.type === 'f') return 'Free';
     if (ticket.type === 'p') return 'Pay what you can';
     return ticket.ticket_price == 0.00 ? 'Free' : `${ticket.currency} ${ticket.ticket_price}`;

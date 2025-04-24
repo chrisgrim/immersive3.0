@@ -1,5 +1,11 @@
 <template>
     <main class="w-full pb-24" :class="{'narrow-layout': isNarrowLayout}">
+        <!-- Toggle Sidebar Button -->
+        <div v-if="isDesktop && isPublished" class="absolute z-[500] left-12 top-12">
+                <button @click="toggleSidebar" class="bg-white flex border-none p-6 rounded-2xl items-center justify-center shadow-custom-1">
+                    <span class="text-2xl font-medium">{{ isSidebarHidden ? 'Collapse' : 'Expand' }}</span>
+                </button>
+            </div>
         <div class="w-full md:w-1/2 mx-auto" v-if="event.showtype=== null || event.showtype=== 'a'">
             <h2>Do you have specific dates?</h2>
         </div>
@@ -72,9 +78,9 @@
         v-else 
         class="relative rounded-4xl">
             <!-- Create a flex container for desktop layout -->
-            <div class="w-full flex flex-col gap-6" :class="{'md:flex-row': !isNarrowLayout}">
+            <div class="w-full flex flex-col gap-6" :class="{'md:flex-row': shouldUseRowLayout}">
                 <!-- Calendar container - take most of the width on desktop -->
-                <div class="flex-grow border-[#222222] shadow-focus-black overflow-hidden rounded-2xl relative w-full bg-white overflow-y-auto overflow-x-hidden h-[45rem] md:min-w-[540px]" :class="{'md:w-2/3': !isNarrowLayout}">
+                <div class="flex-grow border-[#222222] shadow-focus-black overflow-hidden rounded-2xl relative w-full bg-white overflow-y-auto overflow-x-hidden h-[45rem] md:min-w-[540px]" :class="{'md:w-2/3': shouldUseRowLayout}">
                     <div class="w-full h-full overflow-x-hidden">
                         <!-- Admin controls -->
                         <div v-if="isAdmin" class="flex items-center justify-center gap-4 pt-4">
@@ -106,6 +112,7 @@
                             hide-offset-dates
                             :month-change-on-scroll="false"
                             week-start="0"
+                            :class="{ 'row-layout': shouldUseRowLayout }"
                         />
                         
                         <!-- Load More Button - modified to always show for admins or show when displayedMonths < 6 -->
@@ -121,7 +128,7 @@
                 </div>
 
                 <!-- Sidebar container - move to right on desktop -->
-                <div class="w-full flex flex-col justify-between bg-white mt-6" :class="{'md:w-1/3': !isNarrowLayout, 'md:mt-0': !isNarrowLayout}">
+                <div class="w-full flex flex-col justify-between bg-white mt-6" :class="{'md:w-1/3': shouldUseRowLayout, 'md:mt-0': shouldUseRowLayout}">
                     <div class="h-full flex flex-col justify-between">
                         <div class="">
                             <div class="lg:px-8 relative flex flex-col gap-4">
@@ -271,11 +278,14 @@ import { maxLength, required } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
 
+const emit = defineEmits(['toggle-sidebar']);
+
 // 2. Injected Dependencies & Core State
 const event = inject('event');
 const errors = inject('errors');
 const isSubmitting = inject('isSubmitting');
 const user = inject('user');
+const parentContainerWidth = inject('parentContainerWidth');
 const date = ref([]);
 const windowWidth = ref(0);
 const displayedMonths = ref(3);
@@ -284,6 +294,7 @@ const calendarLayout = computed(() => isDesktop.value ? 'horizontal' : 'vertical
 const initialMonthsToShow = computed(() => isDesktop.value ? 2 : 3);
 const isAdmin = computed(() => user && (user.isAdmin || false));
 const previewDate = ref(new Date());
+const isPublished = computed(() => event.status === 'p' || event.status === 'e');
 
 // Reference for calendar navigation
 const calendarRef = ref(null);
@@ -307,6 +318,7 @@ const showEmbargoModal = ref(false);
 const tempEmbargoDate = ref(null);
 const showClearConfirmation = ref(false);
 const embargoToggle = ref(false);
+const isSidebarHidden = ref(false);
 
 // Additional refs for previous months functionality
 const minDate = computed(() => {
@@ -358,6 +370,21 @@ const isNarrowLayout = computed(() => {
     return event.status === 'e' || event.status === 'p' || !isDesktop.value;
 });
 
+const shouldUseRowLayout = computed(() => {
+    // For events that are not in status 'e' or 'p', just use isNarrowLayout
+    if (event.status !== 'e' && event.status !== 'p') {
+        return !isNarrowLayout.value;
+    }
+    
+    // If the sidebar is hidden, use row layout
+    if (isSidebarHidden.value) {
+        return true;
+    }
+    
+    // For events with status 'e' or 'p', consider parent container width
+    return !isNarrowLayout.value || (parentContainerWidth.value && parentContainerWidth.value > 1230);
+});
+
 const handleResize = () => {
     windowWidth.value = window?.innerWidth ?? 0;
     
@@ -366,6 +393,11 @@ const handleResize = () => {
     if (displayedMonths.value !== 6) {
         displayedMonths.value = windowWidth.value >= 768 ? 2 : 3;
     }
+};
+
+const toggleSidebar = () => {
+    isSidebarHidden.value = !isSidebarHidden.value;
+    emit('toggle-sidebar');
 };
 
 const checkFutureDates = (dateStr) => {
@@ -911,7 +943,6 @@ const updateMonthYearElements = () => {
    color: #666;
    font-weight: normal;
    font-size: 1.2rem;
-   border-bottom: 1px solid #e5e5e5
 }
 
 .dp__calendar_row {
@@ -924,8 +955,7 @@ const updateMonthYearElements = () => {
    margin: 0 !important;
    padding: 0 !important;
    font-size: 1.4rem;
-   border-right: 1px solid #e5e5e5;
-   border-bottom: 1px solid #e5e5e5;
+
    display: flex;
    justify-content: center;
    position: relative;
@@ -1107,10 +1137,15 @@ const updateMonthYearElements = () => {
     /* Override the default display for the calendars container to create grid */
     .dp__menu_inner {
         display: grid !important;
-        grid-template-columns: repeat(2, 1fr) !important;
+        grid-template-columns: repeat(1, 1fr) !important;
         gap: 20px !important;
         width: 100% !important;
         padding: 1rem !important;
+    }
+    
+    /* When using row layout, display 2 columns */
+    .row-layout .dp__menu_inner {
+        grid-template-columns: repeat(2, 1fr) !important;
     }
     
     /* Fix the calendar width in the grid */
@@ -1140,8 +1175,8 @@ const updateMonthYearElements = () => {
 @media (min-width: 768px) {
     /* When in narrow layout, revert to default column display */
     .narrow-layout .dp__menu_inner {
-        display: flex !important;
-        flex-direction: column !important;
+        /* display: flex !important;
+        flex-direction: column !important; */
         gap: 2rem !important;
     }
 }

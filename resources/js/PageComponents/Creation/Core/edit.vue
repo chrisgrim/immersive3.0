@@ -6,8 +6,11 @@
             <div class="mx-auto flex flex-1 flex-col md:flex-row">
                 <!-- Navigation Sidebar with own scroll -->
                 <div 
-                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full lg-air:w-[40rem] xl-air:w-[56rem] lg-air:block"
-                    :class="{ 'hidden': currentSection }">
+                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full lg-air:w-[40rem] xl-air:w-[56rem] lg-air:block transition-all duration-300"
+                    :class="{ 
+                        'hidden': currentSection,
+                        'md:!hidden': isSidebarHidden && currentStep === 'Dates'
+                    }">
                     <div class="flex items-center justify-center">
                         <NavSidebar 
                             :event="event"
@@ -19,8 +22,11 @@
 
                 <!-- Main Content Column -->
                 <div 
-                    class="flex-1 flex-col h-full w-full md:w-auto"
-                    :class="currentSection ? 'flex' : 'hidden md:flex'">
+                    class="flex-1 flex-col h-full w-full md:w-auto transition-all duration-300"
+                    :class="[
+                        currentSection ? 'flex' : 'hidden md:flex',
+                        { 'md:!w-full': isSidebarHidden && currentStep === 'Dates' }
+                    ]">
                     <!-- Mobile back button - changed to relative positioning -->
                     <div 
                         v-if="isMobile && currentSection" 
@@ -48,12 +54,16 @@
                     </div>
                     
                     <!-- Scrollable Component Area -->
-                    <div class="flex-1 overflow-y-auto">
+                    <div class="flex-1 overflow-y-auto relative" ref="containerRef">
                         <div 
                             class="w-full xl:w-2/3 mx-auto"
                             :class="currentSection ? 'pt-4 md:pt-40 md:pb-40' : 'pt-20 md:pt-40 md:pb-40'">
                             <div class="p-8">
-                                <component :is="currentComponent" ref="currentComponentRef" />
+                                <component 
+                                    :is="currentComponent" 
+                                    ref="currentComponentRef"
+                                    @toggle-sidebar="toggleSidebar"
+                                />
                             </div>
                         </div>
                     </div>
@@ -203,7 +213,7 @@
 </template>
 
 <script setup>
-import { ref, provide, reactive, computed } from 'vue';
+import { ref, provide, reactive, computed, onMounted, nextTick } from 'vue';
 import NavSidebar from './Pages/navSidebar.vue';
 import EventType from './Pages/event-type.vue';
 import Category from './Pages/category.vue';
@@ -238,6 +248,9 @@ const isSubmitting = ref(false);
 const isSubmittingEvent = ref(false);
 const errors = ref({});
 const currentComponentRef = ref(null);
+const isSidebarHidden = ref(false);
+const containerWidth = ref(0);
+const containerRef = ref(null);
 
 // Get isMobile from window.Laravel
 const isMobile = computed(() => window?.Laravel?.isMobile ?? false);
@@ -365,6 +378,37 @@ const handleConfirmedSubmit = async () => {
     showConfirmModal.value = false;
     await submitEvent();
 };
+
+// Measure container width on mount and window resize
+const updateContainerWidth = () => {
+    nextTick(() => {
+        if (containerRef.value) {
+            containerWidth.value = containerRef.value.clientWidth;
+        }
+    });
+};
+
+// Toggle sidebar method
+const toggleSidebar = () => {
+    isSidebarHidden.value = !isSidebarHidden.value;
+    
+    // Dispatch an event that dates.vue can listen for
+    window.dispatchEvent(new CustomEvent('toggle-sidebar', {
+        detail: { hidden: isSidebarHidden.value }
+    }));
+    
+    // Update container width after the sidebar transition completes
+    setTimeout(updateContainerWidth, 300);
+};
+
+// Provide container width to child components
+provide('parentContainerWidth', containerWidth);
+
+// Event listener for sidebar toggle
+onMounted(() => {
+    updateContainerWidth();
+    window.addEventListener('resize', updateContainerWidth);
+});
 </script>
 
 <style scoped>
@@ -381,5 +425,10 @@ a, button {
 .modal-enter-from,
 .modal-leave-to {
     opacity: 0;
+}
+
+/* Add transition for sidebar toggling */
+.md\:flex-row > div {
+    transition: all 0.3s ease-in-out;
 }
 </style>

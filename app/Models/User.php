@@ -298,7 +298,7 @@ class User extends Authenticatable
     public function getHasCreatedOrganizersAttribute()
     {
         $totalCount = $this->teams()->count();
-        return $totalCount > 1;
+        return $totalCount > 0;
     }
 
     /**

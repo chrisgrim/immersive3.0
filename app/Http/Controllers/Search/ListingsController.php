@@ -44,8 +44,7 @@ class ListingsController extends Controller
 
         if ($request->searchType === 'atHome') {
             return [
-                'hasLocation' => Query::term()->field('hasLocation')->value(false),
-                'atHomeCategories' => Category::where('remote', true)->get()
+                'hasLocation' => Query::term()->field('hasLocation')->value(false)
             ];
         }
 

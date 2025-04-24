@@ -11,6 +11,9 @@ class HostController extends Controller
 {
     public function show()
     {
+        // Ensure user has a current team set
+        $this->ensureCurrentTeam();
+        
         $organizer = auth()->user()->organizer()
             ->withUserRole()
             ->with(['images', 'events' => function ($query) {
@@ -26,6 +29,30 @@ class HostController extends Controller
         }
             
         return view('creation.index', compact('organizer'));
+    }
+
+    /**
+     * Ensures the authenticated user has a current_team_id set
+     * If not, sets it to their first team
+     * 
+     * @return void
+     */
+    private function ensureCurrentTeam()
+    {
+        $user = auth()->user();
+        
+        // Skip if user already has a current_team_id
+        if ($user->current_team_id) {
+            return;
+        }
+        
+        // Check if user has any teams
+        if ($user->teams()->count() > 0) {
+            $firstTeam = $user->teams()->first();
+            
+            // Update the user's current_team_id
+            $user->update(['current_team_id' => $firstTeam->id]);
+        }
     }
 
     public function intro()

@@ -37,8 +37,10 @@ class SearchController extends Controller
 
     public function navOrganizers(Request $request, SearchActions $searchActions)
     {
+        $limit = $request->input('limit', 6);
+        
         $query = Organizer::searchQuery($searchActions->nameSearch($request))
-            ->size(6);
+            ->size($limit);
             
         // Only sort by published_at when not performing a keyword search
         if (!$request->keywords) {

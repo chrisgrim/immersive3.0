@@ -13,14 +13,16 @@ use App\Http\Controllers\Curated\CardController;
 
 // Community Features
 Route::prefix('communities')->name('communities.')->group(function () {
-    // Public routes
-    Route::GET('/', [CommunityController::class, 'index'])->name('index');
+    // Public routes that don't require authentication
+    Route::GET('/submitted', [CommunityController::class, 'submitted'])->name('submitted');
     
-    // Protected routes that need to come BEFORE the {community} wildcard
+    // Routes that require authentication
     Route::middleware(['auth', 'verified'])->group(function () {
+        // Index route - requires authentication
+        Route::GET('/', [CommunityController::class, 'index'])->name('index');
+        
         Route::GET('/create', [CommunityController::class, 'create'])->name('create');
         Route::POST('/', [CommunityController::class, 'store'])->name('store');
-        Route::GET('/submitted', [CommunityController::class, 'submitted'])->name('submitted');
         Route::GET('/curator-invitations/{token}', [CommunityController::class, 'acceptInvitation'])->name('curators.accept');
     });
 

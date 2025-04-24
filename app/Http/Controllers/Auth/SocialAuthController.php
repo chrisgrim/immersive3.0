@@ -57,9 +57,15 @@ class SocialAuthController extends Controller
             Auth::login($user);
             
             return redirect()->intended('/');
-            
         } catch (\Exception $e) {
-            Log::error('Google login error: ' . $e->getMessage());
+            Log::error('Google login error: ', [
+                'message' => $e->getMessage(),
+                'code' => $e->getCode(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return redirect()->route('login')
                 ->withErrors(['error' => 'Failed to login with Google. Please try again.']);
         }

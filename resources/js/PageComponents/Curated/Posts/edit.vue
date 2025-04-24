@@ -5,8 +5,11 @@
             <div class="mx-auto flex flex-1 flex-col md:flex-row">
                 <!-- Navigation Sidebar with own scroll -->
                 <div 
-                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full lg-air:w-[40rem] xl-air:w-[56rem] lg-air:block" 
-                    :class="{ 'hidden': currentSection }">
+                    class="flex-shrink-0 overflow-y-auto border-r border-gray-200 w-full lg-air:w-[40rem] xl-air:w-[56rem] lg-air:block transition-all duration-300"
+                    :class="{ 
+                        'hidden': currentSection,
+                        'md:!hidden': isSidebarHidden && currentStep === 'Content'
+                    }">
                     <div class="flex items-center justify-center">
                         <NavSidebar 
                             :post="post"
@@ -22,8 +25,11 @@
 
                 <!-- Main Content Column -->
                 <div 
-                    class="flex-1 flex-col h-full w-full md:w-auto"
-                    :class="currentSection ? 'flex' : 'hidden md:flex'">
+                    class="flex-1 flex-col h-full w-full md:w-auto transition-all duration-300"
+                    :class="[
+                        currentSection ? 'flex' : 'hidden md:flex',
+                        { 'md:!w-full': isSidebarHidden && currentStep === 'Content' }
+                    ]">
                     <!-- Mobile back button -->
                     <div 
                         v-if="isMobile && currentSection" 
@@ -51,17 +57,23 @@
                     </div>
                     
                     <!-- Scrollable Component Area -->
-                    <div class="flex-1 overflow-y-auto">
+                    <div class="flex-1 overflow-y-auto relative">
                         <div 
-                            class="w-full xl:w-2/3 mx-auto"
-                            :class="currentSection ? 'pt-4 md:pt-40 md:pb-40' : 'pt-20 md:pt-40 md:pb-40'">
+                            class="w-full mx-auto"
+                            :class="[
+                                currentSection ? 'pt-4 md:pt-40 md:pb-40' : 'pt-20 md:pt-40 md:pb-40',
+                                isSidebarHidden && currentStep === 'Content' 
+                                    ? '2xl-air:w-[calc(50%-12px)] md:w-[calc(66.666667%-12px)]' 
+                                    : 'xl:w-2/3'
+                            ]">
                             <div class="p-8">
                                 <component 
                                     :is="currentComponent" 
                                     ref="currentComponentRef"
                                     :post="post"
                                     :community="community"
-                                    :shelves="shelves" 
+                                    :shelves="shelves"
+                                    @toggle-sidebar="toggleSidebar"
                                 />
                             </div>
                         </div>
@@ -183,6 +195,7 @@ const errors = ref({});
 const currentComponentRef = ref(null);
 const showSuccessModal = ref(false);
 const currentSection = ref(null);
+const isSidebarHidden = ref(false);
 
 // Define available steps
 const steps = ['Name', 'Image', 'Content'];
@@ -194,6 +207,7 @@ const components = {
 };
 
 const isMobile = computed(() => window?.Laravel?.isMobile ?? false);
+const isDesktop = computed(() => window?.Laravel?.isDesktop ?? false);
 const currentComponent = computed(() => components[currentStep.value]);
 
 const handleNavigation = (section) => {
@@ -289,6 +303,10 @@ const saveChanges = async () => {
     } finally {
         isSubmitting.value = false;
     }
+};
+
+const toggleSidebar = () => {
+    isSidebarHidden.value = !isSidebarHidden.value;
 };
 
 // Provide shared state

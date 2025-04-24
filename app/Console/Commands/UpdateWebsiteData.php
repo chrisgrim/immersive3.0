@@ -34,6 +34,7 @@ class UpdateWebsiteData extends Command
         $this->updateTicketNamespaces();
         $this->migrateEventVideos();
         $this->updateInvalidCardTypes();
+        $this->updateUserCurrentTeamIds();
     }
 
     private function resetElasticMigrations()
@@ -463,5 +464,60 @@ class UpdateWebsiteData extends Command
         
         // List the IDs that were changed
         $this->info("Changed card IDs: " . implode(', ', $invalidCardIds));
+    }
+
+    private function updateUserCurrentTeamIds()
+    {
+        $this->info('Starting current_team_id update for users...');
+        
+        // Get all users who have teams but null current_team_id
+        $usersToUpdate = DB::table('users')
+            ->whereNull('current_team_id')
+            ->whereExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('organizer_user')
+                    ->whereRaw('users.id = organizer_user.user_id');
+            })
+            ->get();
+            
+        $count = $usersToUpdate->count();
+        
+        if ($count === 0) {
+            $this->info('No users found with teams but missing current_team_id. Skipping update.');
+            return;
+        }
+        
+        $this->info("Found {$count} users with teams but null current_team_id.");
+        
+        // Create a progress bar
+        $bar = $this->output->createProgressBar($count);
+        $updated = 0;
+        
+        // Process each user
+        foreach ($usersToUpdate as $user) {
+            // Find the first team for this user
+            $firstTeam = DB::table('organizer_user')
+                ->where('organizer_user.user_id', $user->id)
+                ->join('organizers', 'organizer_user.organizer_id', '=', 'organizers.id')
+                ->orderBy('organizers.created_at', 'desc')
+                ->select('organizers.id')
+                ->first();
+                
+            if ($firstTeam) {
+                // Update the user's current_team_id
+                DB::table('users')
+                    ->where('id', $user->id)
+                    ->update(['current_team_id' => $firstTeam->id]);
+                    
+                $updated++;
+            }
+            
+            $bar->advance();
+        }
+            
+        $bar->finish();
+        
+        $this->newLine();
+        $this->info("Completed! Updated current_team_id for {$updated} users.");
     }
 }
