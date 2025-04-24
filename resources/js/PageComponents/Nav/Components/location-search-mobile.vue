@@ -101,6 +101,7 @@
                 @update:model-value="handleDateChange"
                 month-name-format="long"
                 hide-offset-dates
+                :config="{ noSwipe: true }"
                 :month-change-on-scroll="false"
                 week-start="0"
             />
@@ -743,15 +744,40 @@ const handleBackspace = (event) => {
    gap: 0 !important;
 }
 
+/* Calendar cells - make them square with aspect ratio like in dates.vue */
 .dp__calendar_item {
    margin: 0 !important;
    padding: 0 !important;
    font-size: 1.4rem !important;
+   display: flex !important;
+   justify-content: center !important;
+   position: relative !important;
+   width: calc(100% / 7) !important; /* Ensure 7 equal columns */
 }
 
-/* Calendar cells */
+/* Create square aspect ratio */
+.dp__calendar_item::before {
+   content: '';
+   display: block;
+   padding-top: 100%; /* Creates 1:1 aspect ratio */
+}
+
+/* Position the content absolutely within the square */
+.dp__calendar_item > * {
+   position: absolute !important;
+   top: 0 !important;
+   left: 0 !important;
+   right: 0 !important;
+   bottom: 0 !important;
+   display: flex !important;
+   align-items: center !important;
+   justify-content: center !important;
+}
+
+/* Update cell_inner to work with new approach */
 .dp__cell_inner {
-   height: 45px !important;
+   position: absolute !important;
+   height: 100% !important;
    width: 100% !important;
    margin: 0 !important;
    padding: 0 !important;

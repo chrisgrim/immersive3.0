@@ -111,6 +111,7 @@
                             month-name-format="long"
                             hide-offset-dates
                             :month-change-on-scroll="false"
+                            :config="{ noSwipe: true }"
                             week-start="0"
                             :class="{ 'row-layout': shouldUseRowLayout }"
                         />
