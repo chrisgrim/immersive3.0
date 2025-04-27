@@ -70,7 +70,21 @@
                     foreach ($event->first_show_tickets as $ticket) {
                         // Set currency if available
                         if (isset($ticket->currency)) {
-                            $currencyCode = $ticket->currency;
+                            // Make sure we use ISO 4217 currency code
+                            if ($ticket->currency === '$') {
+                                $currencyCode = 'USD';
+                            } elseif ($ticket->currency === '€') {
+                                $currencyCode = 'EUR';
+                            } elseif ($ticket->currency === '£') {
+                                $currencyCode = 'GBP';
+                            } elseif ($ticket->currency === '¥') {
+                                $currencyCode = 'JPY';
+                            } elseif ($ticket->currency === 'C$') {
+                                $currencyCode = 'CAD';
+                            } elseif (strlen($ticket->currency) === 3) {
+                                // If it's already a 3-letter code, use it
+                                $currencyCode = $ticket->currency;
+                            }
                         }
                         
                         // Check for PWYC tickets

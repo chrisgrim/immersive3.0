@@ -205,7 +205,7 @@
                         <vue-show-more :text="organizer.description" :limit="70" />
                     </p>
                     <!-- Events Section -->
-                    <div class="mt-20">
+                    <div id="events" class="mt-20">
                         <h3 class="text-black text-4xl font-bold leading-tight mb-12">
                             Events by {{ organizer.name }}
                         </h3>

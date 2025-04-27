@@ -133,7 +133,6 @@
     <Filters
         v-if="showFilters"
         v-model="state.filters"
-        :max-price="maxPrice"
         :show-price="isSearchPage"
         @close="closeFilters"
         @filter-change="handleFilterUpdate"
@@ -144,7 +143,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import SearchLocation from './Components/location-search-mobile.vue';
 import SearchEvent from './Components/events-search-mobile.vue';
-import Filters from './Components/filters.vue';
+import Filters from './Components/filters-mobile.vue';
 import SearchStore from '@/Stores/SearchStore.vue';
 import MapStore from '@/Stores/MapStore.vue';
 
@@ -320,8 +319,11 @@ const handleLocationUpdate = (value) => {
 const handleSearch = () => {
     const params = new URLSearchParams(window.location.search);
     
-    // Add location parameters if we have a city
-    if (state.value.location.city) {
+    // Check if remote toggle is enabled
+    const isRemoteMode = state.value.filters.atHome === true;
+    
+    // Add location parameters if we have a city and NOT in remote mode
+    if (state.value.location.city && !isRemoteMode) {
         params.set('city', state.value.location.city);
         
         // Only set coordinates if they're actually present and valid
@@ -340,8 +342,8 @@ const handleSearch = () => {
         params.set('searchType', 'inPerson');
         params.set('live', 'false');
     } else {
-        // For date-only search, use 'null' searchType
-        params.set('searchType', 'null');
+        // For remote mode or date-only search
+        params.set('searchType', isRemoteMode ? 'atHome' : 'null');
         
         // Remove any previous location data if it exists
         params.delete('city');
@@ -358,8 +360,8 @@ const handleSearch = () => {
     if (state.value.dates.start) {
         params.set('start', state.value.dates.start);
         params.set('end', state.value.dates.end || state.value.dates.start);
-    } else if (!state.value.location.city) {
-        // If we have neither location nor dates, don't search
+    } else if (!state.value.location.city && !isRemoteMode) {
+        // If we have neither location nor dates, and not in remote mode, don't search
         hideSearch();
         return;
     }
@@ -377,7 +379,7 @@ const handleSearch = () => {
     if (minPrice > 0) {
         params.set('price0', minPrice);
     }
-    if (maxPrice < state.value.maxPrice) {
+    if (maxPrice < state.value.filters.maxPrice) {
         params.set('price1', maxPrice);
     }
     
@@ -457,15 +459,64 @@ const handleFilterUpdate = (filters) => {
             params.set('price0', minPrice);
         } else {
             params.delete('price0');
+            // Update searchingByPrice if both price params are being removed
+            if (!params.has('price1')) {
+                SearchStore.updateState({
+                    filters: {
+                        ...filters,
+                        searchingByPrice: false
+                    }
+                });
+            }
         }
-        if (maxPrice < state.value.maxPrice) {
+        if (maxPrice < state.value.filters.maxPrice) {
             params.set('price1', maxPrice);
         } else {
             params.delete('price1');
+            // Update searchingByPrice if both price params are being removed
+            if (!params.has('price0')) {
+                SearchStore.updateState({
+                    filters: {
+                        ...filters,
+                        searchingByPrice: false
+                    }
+                });
+            }
         }
 
-        updateUrlParams(params);
-        fetchResults(params.toString());
+        // Check if we're switching between location-based and remote searches
+        const currentSearchType = params.get('searchType');
+        const newSearchType = filters.searchType === 'atHome' ? 'atHome' : 
+                            (state.value.location.city ? 'inPerson' : 'null');
+        
+        // Redirect if switching between inPerson and atHome or vice versa
+        const isChangingSearchMode = (
+            (currentSearchType === 'inPerson' && newSearchType === 'atHome') || 
+            (currentSearchType === 'atHome' && newSearchType === 'inPerson')
+        );
+        
+        // Set the searchType parameter
+        params.set('searchType', newSearchType);
+        
+        // Redirect or update in place based on search mode change
+        if (isChangingSearchMode) {
+            // Remove location data when switching to atHome mode
+            if (newSearchType === 'atHome') {
+                params.delete('city');
+                params.delete('lat');
+                params.delete('lng');
+                params.delete('NElat');
+                params.delete('NElng');
+                params.delete('SWlat');
+                params.delete('SWlng');
+                params.delete('live');
+            }
+            
+            window.location.href = `/index/search?${params.toString()}`;
+        } else {
+            updateUrlParams(params);
+            fetchResults(params.toString());
+        }
     } else {
         // If we're on the home page, redirect to search page with filters
         const params = new URLSearchParams();
@@ -477,7 +528,22 @@ const handleFilterUpdate = (filters) => {
             params.set('tag', filters.tags.join(','));
         }
         
-        params.set('searchType', 'null');
+        // Handle price if needed
+        const [minPrice, maxPrice] = filters.price;
+        if (minPrice > 0) {
+            params.set('price0', minPrice);
+        }
+        if (maxPrice < state.value.filters.maxPrice) {
+            params.set('price1', maxPrice);
+        }
+        
+        // Handle searchType for remote events
+        if (filters.searchType === 'atHome') {
+            params.set('searchType', 'atHome');
+        } else {
+            params.set('searchType', 'null');
+        }
+        
         window.location.href = `/index/search?${params.toString()}`;
     }
 };

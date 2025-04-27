@@ -47,14 +47,14 @@
                 <!-- Right Column - Info -->
                 <div class="flex-1 flex flex-col space-y-8 m-auto">
                     <!-- Stats -->
-                    <div class="flex flex-col items-start">
+                    <a href="/organizers/{{ $event->organizer->slug }}" class="flex flex-col items-start group cursor-pointer">
                         <p class="text-5xl font-semibold text-gray-900">
                             {{ count($event->organizer->events) }}
                         </p>
                         <p class="text-md font-bold text-gray-600">
                             Events
                         </p>
-                    </div>
+                    </a>
                     
                     <div class="w-24 h-px bg-gray-200"></div>
                     

@@ -22,8 +22,8 @@
                 @endif
                 
                 <div class="flex flex-col">
-                    <p class="text-3xl md:text-1xl font-semibold font-medium">Hosted by {{ $event->organizer->name }}</p>
-                    <p class="text-2xl md:text-xl font-medium text-neutral-500">{{ count($event->organizer->events) }} events</p>
+                    <p class="text-5xl md:text-1xl leading-tight font-semibold font-medium">Hosted by {{ $event->organizer->name }}</p>
+                    <p class="text-3xl md:text-xl font-medium text-neutral-500">{{ count($event->organizer->events) }} events</p>
                 </div>
             </a>
         </div>

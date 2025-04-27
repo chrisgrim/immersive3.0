@@ -7,10 +7,10 @@
                 <div class="">
                     <div class="flex-grow">
                         @if($totalMediaCount >= 2)
-                            <div class="relative w-full m-auto py-8 border-b border-neutral-200">
+                            <div class="relative w-full m-auto py-10 border-b border-neutral-200">
                                 <div class="flex gap-8 items-center">
                                     {{-- First Media Item --}}
-                                    <div class="w-1/5 flex-shrink-0">
+                                    <div class="w-3/12 flex-shrink-0">
                                         <div class="relative pb-[133.33%]"> {{-- 4/3 = 133.33% --}}
                                             @if(isset($event->images[0]))
                                                 <picture class="absolute inset-0">
@@ -37,12 +37,15 @@
                                     
                                     {{-- Title and Tag Line --}}
                                     <div class="flex-1 flex flex-col justify-center">
-                                        <h1 class="text-4xl font-medium text-black leading-tight">{{ $event->name }}</h1>
-                                        @if($event->tag_line)
-                                            <p class="text-3xl mt-4 text-neutral-700 font-medium">{{ $event->tag_line }}</p>
-                                        @endif
+                                        <h1 class="text-5xl font-medium text-black leading-tight">{{ $event->name }}</h1>
+                                        
                                     </div>
                                 </div>
+                                <div>
+                                        @if($event->tag_line)
+                                            <p class="text-3xl mt-8 text-neutral-700 font-medium">{{ $event->tag_line }}</p>
+                                        @endif
+                                    </div>
                             </div>
                         @else
                             <div class="relative w-full m-auto pb-8 md:pb-0 mt-16 border-b border-neutral-200">

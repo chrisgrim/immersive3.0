@@ -170,6 +170,9 @@ onMounted(() => {
 .leaflet-container {
     @apply !font-sans;
 }
+.leaflet-pane {
+    z-index: 20 !important;
+}
 @media (max-width: 768px) {
     .leaflet-control-container {
         display: none !important;

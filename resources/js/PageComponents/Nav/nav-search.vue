@@ -245,18 +245,21 @@ const handleFilterUpdate = async (filters) => {
         const params = urlParams.value;
         params.set('page', 1);
         
+        // Handle categories
         if (filters.categories.length) {
             params.set('category', filters.categories.join(','));
         } else {
             params.delete('category');
         }
         
+        // Handle tags
         if (filters.tags.length) {
             params.set('tag', filters.tags.join(','));
         } else {
             params.delete('tag');
         }
 
+        // Handle price range
         const [minPrice, maxPrice] = filters.price;
         if (minPrice > 0) {
             params.set('price0', minPrice);
@@ -289,8 +292,39 @@ const handleFilterUpdate = async (filters) => {
             }
         }
 
-        updateUrlParams(params);
-        await fetchResults(params.toString());
+        // Check if we're switching between location-based and remote searches
+        const currentSearchType = params.get('searchType');
+        const newSearchType = filters.searchType === 'atHome' ? 'atHome' : 
+                              (state.value.location.city ? 'inPerson' : 'null');
+        
+        // Redirect if switching between inPerson and atHome or vice versa
+        const isChangingSearchMode = (
+            (currentSearchType === 'inPerson' && newSearchType === 'atHome') || 
+            (currentSearchType === 'atHome' && newSearchType === 'inPerson')
+        );
+        
+        // Set the searchType parameter
+        params.set('searchType', newSearchType);
+        
+        // Redirect or update in place based on search mode change
+        if (isChangingSearchMode) {
+            // Remove location data when switching to atHome mode
+            if (newSearchType === 'atHome') {
+                params.delete('city');
+                params.delete('lat');
+                params.delete('lng');
+                params.delete('NElat');
+                params.delete('NElng');
+                params.delete('SWlat');
+                params.delete('SWlng');
+                params.delete('live');
+            }
+            
+            window.location.href = `/index/search?${params.toString()}`;
+        } else {
+            updateUrlParams(params);
+            await fetchResults(params.toString());
+        }
     } else {
         const params = new URLSearchParams();
         
@@ -308,8 +342,14 @@ const handleFilterUpdate = async (filters) => {
         if (maxPrice < state.value.filters.maxPrice) {
             params.set('price1', maxPrice);
         }
+
+        // Handle searchType for remote events
+        if (filters.searchType === 'atHome') {
+            params.set('searchType', 'atHome');
+        } else {
+            params.set('searchType', 'null');
+        }
         
-        params.set('searchType', 'null');
         window.location.href = `/index/search?${params.toString()}`;
     }
 };

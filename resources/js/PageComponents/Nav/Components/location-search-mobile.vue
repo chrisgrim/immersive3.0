@@ -84,34 +84,51 @@
         <div 
             v-if="isVisible==='dates' && showDatesTab"
             class="flex-grow relative w-full border shadow-custom-6 rounded-4xl bg-white p-10 overflow-auto">
-            <div class="w-full mt-2">
-                <h2 style="font-family: 'Montserrat', sans-serif;" class="text-4.5xl text-black leading-8 font-bold">When?</h2>
+            <!-- Fixed header -->
+            <div class="sticky top-0 bg-white z-10">
+                <div class="w-full pb-4">
+                    <h2 style="font-family: 'Montserrat', sans-serif;" class="text-4.5xl text-black leading-8 font-bold">When?</h2>
+                </div>
+                <!-- Add day abbreviations row -->
+                <div class="grid grid-cols-7 mt-6 text-neutral-500 font-medium text-center px-3 mb-4">
+                    <p class="flex justify-center items-center text-black">S</p>
+                    <p class="flex justify-center items-center text-black">M</p>
+                    <p class="flex justify-center items-center text-black">T</p>
+                    <p class="flex justify-center items-center text-black">W</p>
+                    <p class="flex justify-center items-center text-black">T</p>
+                    <p class="flex justify-center items-center text-black">F</p>
+                    <p class="flex justify-center items-center text-black">S</p>
+                </div>
             </div>
-            <VueDatePicker
-                v-model="date"
-                range
-                disable-year-select
-                :multi-calendars="displayedMonths"
-                :enable-time-picker="false"
-                :dark="isDark"
-                :timezone="tz"
-                :preview-date="new Date()"
-                inline
-                auto-apply
-                @update:model-value="handleDateChange"
-                month-name-format="long"
-                hide-offset-dates
-                :config="{ noSwipe: true }"
-                :month-change-on-scroll="false"
-                week-start="0"
-            />
-            <div v-if="displayedMonths === 3" class="w-full flex justify-center mt-8 border-t pt-8 mb-20">
-                <button 
-                    @click="loadMoreMonths"
-                    class="text-black underline font-semibold hover:text-gray-600"
-                >
-                    Show more dates
-                </button>
+            <!-- Scrollable calendar content -->
+            <div class="calendar-container overflow-auto">
+                <VueDatePicker
+                    v-model="date"
+                    range
+                    disable-year-select
+                    :multi-calendars="displayedMonths"
+                    :enable-time-picker="false"
+                    :dark="isDark"
+                    :timezone="tz"
+                    :preview-date="new Date()"
+                    :min-date="minDate"
+                    inline
+                    auto-apply
+                    @update:model-value="handleDateChange"
+                    month-name-format="long"
+                    hide-offset-dates
+                    :config="{ noSwipe: true }"
+                    :month-change-on-scroll="false"
+                    week-start="0"
+                />
+                <div v-if="displayedMonths === 3" class="w-full flex justify-center mt-8 border-t pt-8 mb-20">
+                    <button 
+                        @click="loadMoreMonths"
+                        class="text-black underline font-semibold hover:text-gray-600"
+                    >
+                        Show more dates
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -551,7 +568,7 @@ function handleDateChange(newDate) {
    }
 }
 
-// Add this computed property
+// Add this computed property for minimum date (today)
 const minDate = computed(() => {
    const today = new Date();
    today.setHours(0, 0, 0, 0); // Set to start of day
@@ -723,6 +740,7 @@ const handleBackspace = (event) => {
 /* Calendar styling */
 .dp__calendar {
    width: 100% !important;
+   margin-top: 1rem !important;
 }
 
 /* Header month/year styling */
@@ -785,8 +803,21 @@ const handleBackspace = (event) => {
    align-items: center !important;
    justify-content: center !important;
    border-radius: 9999px !important;
-   font-weight: normal !important;
-   color: #333 !important;
+   font-weight: 500 !important;
+   color: black !important;
+   font-size: 1.6rem !important;
+}
+.dp__year_disable_select {
+    justify-content: start !important;
+}
+.dp__month_year_select {
+    justify-content: start !important;
+    font-size: 2.5rem !important    ;
+    color: black !important;
+    margin-left: 1.1rem !important;
+}
+.dp__calendar_header {
+    display: none !important;
 }
 
 .dp__cell_disabled {
@@ -872,9 +903,6 @@ const handleBackspace = (event) => {
     gap: 2rem !important;
 }
 
-.dp__calendar_next {
-    margin-top: 2rem !important;
-}
 
 /* Optional: Add smooth transition */
 .dp__calendar {
@@ -919,5 +947,25 @@ input, select, textarea {
 /* Make sure the placeholder is large enough too */
 ::placeholder {
     font-size: 16px !important;
+}
+
+/* Fixed header styles */
+.sticky {
+    position: sticky;
+    background-color: white;
+}
+
+/* Ensure datepicker scrolls properly within container */
+.calendar-container {
+    height: calc(100% - 60px); /* Adjust based on header height */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Style the custom day header to match calendar cells */
+.grid-cols-7 > span {
+    width: 100%;
+    height: 30px;
+    font-size: 1.4rem;
 }
 </style>

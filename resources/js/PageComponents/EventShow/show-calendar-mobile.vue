@@ -1,11 +1,11 @@
 <template>
   <div class="event-calendar-mobile py-8 border-t border-b border-neutral-200">
-    <h3 class="text-3xl font-medium text-black mb-8">
+    <p class="text-5xl font-medium text-black mb-8">
       Show Dates
-      <span v-if="remaining.length > 0" class="text-xl font-normal text-neutral-600 ml-2">
+      <span v-if="remaining.length > 0" class="text-3xl font-normal text-neutral-600 ml-2">
         ({{ remaining.length }} {{ remaining.length === 1 ? 'date' : 'dates' }} remaining)
       </span>
-    </h3>
+    </p>
     
     <!-- Show "Available Anytime" when showtype is "a" -->
     <div v-if="event.showtype === 'a'" class="text-2xl text-neutral-700 pb-4">

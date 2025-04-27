@@ -20,7 +20,8 @@ class SearchStore {
                 tags: [],
                 price: [0, null],
                 maxPrice: null,
-                searchingByPrice: false
+                searchingByPrice: false,
+                atHome: false
             },
             location: {
                 city: null,
@@ -78,7 +79,8 @@ class SearchStore {
                     params.has('price1') ? parseInt(params.get('price1')) : maxPrice || null
                 ],
                 maxPrice: maxPrice || null,
-                searchingByPrice: params.has('price0') || params.has('price1')
+                searchingByPrice: params.has('price0') || params.has('price1'),
+                atHome: params.get('searchType') === 'atHome'
             },
         };
         
