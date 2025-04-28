@@ -15,11 +15,11 @@ class ListingsController extends Controller
 
     protected function buildLocationFilter(Request $request)
     {
-        // If searchType is null or not set, we should NOT filter by hasLocation
+        // If searchType is null or not set, we should NOT filter by attendance_type_id
         // This allows the default search to include both in-person and remote events
         if (!$request->searchType || $request->searchType === 'null') {
             return [
-                // No hasLocation filter means we'll return both types
+                // No attendance_type filter means we'll return both types
                 'geoFilter' => $request->lat ? 
                     Query::geoDistance()
                         ->field('location_latlon')
@@ -30,9 +30,15 @@ class ListingsController extends Controller
         }
 
         if ($request->searchType === 'inPerson') {
+            // Get in-person attendance type ID (should be 1 based on migration)
+            $inPersonId = 1;
+            
             return [
-                'hasLocation' => Query::term()->field('hasLocation')->value(true),
-                'inPersonCategories' => Category::where('remote', false)->get(),
+                'attendanceType' => Query::term()->field('attendance_type_id')->value($inPersonId),
+                'inPersonCategories' => Category::where(function($query) use ($inPersonId) {
+                    $query->whereJsonContains('applicable_attendance_types', $inPersonId)
+                          ->orWhereNull('applicable_attendance_types'); // Include categories without restrictions
+                })->get(),
                 'geoFilter' => $request->lat ? 
                     Query::geoDistance()
                         ->field('location_latlon')
@@ -43,8 +49,15 @@ class ListingsController extends Controller
         }
 
         if ($request->searchType === 'atHome') {
+            // Get remote attendance type ID (should be 2 based on migration)
+            $remoteId = 2;
+            
             return [
-                'hasLocation' => Query::term()->field('hasLocation')->value(false)
+                'attendanceType' => Query::term()->field('attendance_type_id')->value($remoteId),
+                'remoteCategories' => Category::where(function($query) use ($remoteId) {
+                    $query->whereJsonContains('applicable_attendance_types', $remoteId)
+                          ->orWhereNull('applicable_attendance_types'); // Include categories without restrictions
+                })->get()
             ];
         }
 
@@ -206,8 +219,8 @@ class ListingsController extends Controller
             ->filter(Query::range()->field('closingDate')->gte('now/d'));
 
         // Add location filter
-        if ($locationFilters['hasLocation'] ?? null) {
-            $query->filter($locationFilters['hasLocation']);
+        if ($locationFilters['attendanceType'] ?? null) {
+            $query->filter($locationFilters['attendanceType']);
         }
 
         // Add price filter
@@ -237,7 +250,7 @@ class ListingsController extends Controller
 
         // Execute search and paginate
         $results = Event::searchQuery($query)
-            ->load(['genres', 'category', 'location'])
+            ->load(['genres', 'category', 'location', 'attendanceType'])
             ->sortRaw(['published_at' => 'desc'])
             ->paginate(20);
 
@@ -274,7 +287,11 @@ class ListingsController extends Controller
 
         // Prepare view data
         $viewData = [
-            'categories' => Category::all(),
+            'categories' => $request->searchType === 'inPerson' 
+                ? ($locationFilters['inPersonCategories'] ?? Category::whereJsonContains('applicable_attendance_types', 1)->orWhereNull('applicable_attendance_types')->get())
+                : ($request->searchType === 'atHome' 
+                    ? ($locationFilters['remoteCategories'] ?? Category::whereJsonContains('applicable_attendance_types', 2)->orWhereNull('applicable_attendance_types')->get())
+                    : Category::all()),
             'tags' => Genre::where('admin', 1)->orderBy('rank', 'desc')->get(),
             'maxprice' => ceil($maxPrice),
             'searchedEvents' => $searchedEvents,
@@ -303,7 +320,7 @@ class ListingsController extends Controller
         // Build the main query
         $query = Query::bool()
             ->filter(Query::range()->field('closingDate')->gte('now/d'))
-            ->when($locationFilters['hasLocation'] ?? null, fn($q) => $q->filter($locationFilters['hasLocation']))
+            ->when($locationFilters['attendanceType'] ?? null, fn($q) => $q->filter($locationFilters['attendanceType']))
             ->when($searchFilters['prices'] ?? null, fn($q) => $q->filter($searchFilters['prices']))
             ->when($searchFilters['categories'] ?? null, fn($q) => $q->filter($searchFilters['categories']))
             ->when($searchFilters['dates'] ?? null, fn($q) => $q->filter($searchFilters['dates']))
@@ -315,7 +332,7 @@ class ListingsController extends Controller
 
         // Execute search
         $results = Event::searchQuery($query)
-            ->load(['genres', 'category', 'location'])
+            ->load(['genres', 'category', 'location', 'attendanceType'])
             ->sortRaw(['published_at' => 'desc'])
             ->paginate(20);
 

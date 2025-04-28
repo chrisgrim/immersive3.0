@@ -114,9 +114,9 @@
                 <!-- Location Section -->
                 <div class="p-8 shadow-custom-1 rounded-3xl">
                     <h3 class="text-xl font-semibold mb-4">
-                        {{ event.hasLocation ? 'Location:' : 'Remote Event:' }}
+                        {{ (event.attendance_type_id === 1 || event.hasLocation) ? 'Location:' : 'Remote Event:' }}
                     </h3>
-                    <div v-if="event.hasLocation">
+                    <div v-if="event.attendance_type_id === 1 || event.hasLocation">
                         <div class="mb-4">
                             <p class="text-black font-medium mb-4">{{ event.location.venue }}</p>
                             <p class="text-neutral-500 font-normal text-1xl leading-tight">{{ event.location.street }}</p>

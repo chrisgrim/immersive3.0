@@ -257,7 +257,7 @@ const isMobile = computed(() => window?.Laravel?.isMobile ?? false);
 const currentSection = ref(null);
 
 // Simplified steps for edit mode
-const steps = computed(() => event.hasLocation ? 
+const steps = computed(() => event.attendance_type_id === 1 ? 
     ['Name', 'Category', 'Genres', 'Location', 'Description', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility'] :
     ['Name', 'Category', 'Genres', 'Remote', 'Description', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility']
 );

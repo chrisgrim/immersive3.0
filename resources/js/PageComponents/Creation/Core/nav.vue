@@ -12,7 +12,7 @@
                             <li class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Category')" @click="handleStepChange('Category')">
                                 Category
                             </li>
-                            <li v-if="event.hasLocation" class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Location')" @click="handleStepChange('Location')">
+                            <li v-if="event.attendance_type_id === 1 || event.hasLocation" class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Location')" @click="handleStepChange('Location')">
                                 Location
                             </li>
                             <li v-else class="cursor-pointer hover:bg-gray-300" :class="getStepClass('Remote')" @click="handleStepChange('Remote')">

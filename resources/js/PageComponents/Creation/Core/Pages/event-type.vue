@@ -161,6 +161,7 @@ window.clearEIGuidelines = () => {
 
 const onSelect = (hasLocation) => {
     event.hasLocation = hasLocation;
+    event.attendance_type_id = hasLocation === true ? 1 : 2;
     state.value.hasEventTypeError = false;
 };
 
@@ -231,8 +232,13 @@ defineExpose({
         return true;
     },
     submitData: () => {
+        // Map hasLocation to attendance_type_id
+        // true (In Person) = 1, false (Remote) = 2
+        const attendanceTypeId = event.hasLocation === true ? 1 : 2;
+        
         return {
-            hasLocation: event.hasLocation
+            hasLocation: event.hasLocation,
+            attendance_type_id: attendanceTypeId
         };
     }
 });

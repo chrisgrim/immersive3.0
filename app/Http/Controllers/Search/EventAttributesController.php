@@ -16,7 +16,7 @@ use App\Models\Events\AgeLimit;
 class EventAttributesController extends Controller
 {
     /**
-     * Get categories, optionally filtered by remote status
+     * Get categories, optionally filtered by attendance type
      *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
@@ -24,13 +24,24 @@ class EventAttributesController extends Controller
     public function categories(Request $request)
     {
         $categories = Category::with('images')
-            ->orderBy('name')
-            ->when($request->has('remote'), function ($query) {
-                $query->where('remote', request()->query('remote'));
-            })
-            ->get();
+            ->orderBy('name');
             
-        return response()->json($categories);
+        // Support both old 'remote' parameter and new 'attendance_type_id' parameter
+        if ($request->has('attendance_type_id')) {
+            // New way: filter by attendance_type_id using the applicable_attendance_types array
+            $attendanceTypeId = (int)$request->query('attendance_type_id');
+            $categories->where(function($query) use ($attendanceTypeId) {
+                $query->whereJsonContains('applicable_attendance_types', $attendanceTypeId)
+                    ->orWhereNull('applicable_attendance_types')  // Categories with null applicable_attendance_types support all types
+                    ->orWhere('applicable_attendance_types', '[]'); // Categories with empty applicable_attendance_types support all types
+            });
+        } elseif ($request->has('remote')) {
+            // Legacy way: filter by remote flag (0 = in-person, 1 = remote)
+            $remote = $request->query('remote');
+            $categories->where('remote', $remote);
+        }
+        
+        return response()->json($categories->get());
     }
 
     /**

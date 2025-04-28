@@ -129,7 +129,7 @@
 
                 <!-- Location -->
                 <button
-                    @click="$emit('navigate', props.event?.hasLocation ? 'Location' : 'Remote')"
+                    @click="$emit('navigate', (props.event?.attendance_type_id === 1 || props.event?.hasLocation) ? 'Location' : 'Remote')"
                     :class="[
                         'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
                         {
@@ -139,7 +139,7 @@
                     ]"
                 >
                     <h3 class="text-xl font-semibold mb-4 text-black">Location</h3>
-                    <template v-if="props.event?.hasLocation">
+                    <template v-if="props.event?.attendance_type_id === 1 || props.event?.hasLocation">
                         <div class="flex gap-4">
                             <div class="w-full h-60 rounded-lg overflow-hidden flex-shrink-0">
                                 <l-map 

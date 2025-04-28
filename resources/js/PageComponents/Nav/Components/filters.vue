@@ -362,6 +362,23 @@ const activeSection = ref('')
 // Modify the computed properties to use the sorted lists but only filter
 const filteredCategories = computed(() => {
     let filtered = sortedCategories.value
+    
+    // Filter categories based on attendance type
+    if (selectedFilters.value.atHome) {
+        // For remote events (atHome), only show categories applicable to attendance_type_id 2
+        filtered = filtered.filter(cat => 
+            !cat.applicable_attendance_types || 
+            cat.applicable_attendance_types.includes(2)
+        )
+    } else {
+        // For in-person events, only show categories applicable to attendance_type_id 1
+        filtered = filtered.filter(cat => 
+            !cat.applicable_attendance_types || 
+            cat.applicable_attendance_types.includes(1)
+        )
+    }
+    
+    // Then apply search query filter
     if (categorySearchQuery.value) {
         const query = categorySearchQuery.value.toLowerCase()
         filtered = filtered.filter(cat => 
@@ -553,6 +570,29 @@ const sortLists = () => {
         return 0
     })
 }
+
+// Add a watch for atHome changes
+watch(() => selectedFilters.value.atHome, (newValue) => {
+    // When attendance type changes, filter out categories that aren't applicable
+    if (selectedFilters.value.categories.length) {
+        // Get all applicable categories for the current mode
+        const applicableCategories = categories.value.filter(cat => {
+            if (!cat.applicable_attendance_types) return true; // No restrictions
+            return newValue 
+                ? cat.applicable_attendance_types.includes(2) // Remote
+                : cat.applicable_attendance_types.includes(1); // In-person
+        });
+        
+        // Filter selected categories to only include applicable ones
+        const applicableCategoryIds = applicableCategories.map(cat => cat.id);
+        selectedFilters.value.categories = selectedFilters.value.categories.filter(
+            id => applicableCategoryIds.includes(id)
+        );
+    }
+    
+    // Resort the lists to reflect the new state
+    sortLists();
+})
 
 onMounted(() => {
     fetchFiltersData();

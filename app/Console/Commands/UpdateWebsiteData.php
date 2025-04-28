@@ -14,7 +14,7 @@ use App\Http\Controllers\CachedDataController;
 
 class UpdateWebsiteData extends Command
 {
-    protected $signature = 'website:update-data {--reset-elastic-migrations : Reset Elasticsearch migrations} {--rebuild-cache : Rebuild Redis cache for categories and genres}';
+    protected $signature = 'website:update-data {--reset-elastic-migrations : Reset Elasticsearch migrations} {--rebuild-cache : Rebuild Redis cache for categories and genres} {--refactor-categories : Refactor categories to remove redundancy, correctly assign attendance types, and migrate events}';
     protected $description = 'Run all necessary data updates across the website models';
 
     public function handle()
@@ -29,12 +29,18 @@ class UpdateWebsiteData extends Command
             return;
         }
 
+        if ($this->option('refactor-categories')) {
+            $this->refactorCategories();
+            return;
+        }
+
         $this->updateOrganizerOwnership();
         $this->updateCategoryImages();
         $this->updateTicketNamespaces();
         $this->migrateEventVideos();
         $this->updateInvalidCardTypes();
         $this->updateUserCurrentTeamIds();
+        $this->syncEventAttendanceTypes();
     }
 
     private function resetElasticMigrations()
@@ -519,5 +525,244 @@ class UpdateWebsiteData extends Command
         
         $this->newLine();
         $this->info("Completed! Updated current_team_id for {$updated} users.");
+    }
+
+    /**
+     * Sync hasLocation with attendance_type_id for all events
+     * Ensures legacy events have the correct attendance_type_id based on hasLocation
+     */
+    private function syncEventAttendanceTypes()
+    {
+        $this->info('Starting event attendance type synchronization...');
+        
+        // Find events where hasLocation is set but attendance_type_id is null
+        $eventsToUpdateWithNull = DB::table('events')
+            ->whereNotNull('hasLocation')
+            ->whereNull('attendance_type_id')
+            ->count();
+            
+        // Find events where hasLocation is null and attendance_type_id is null
+        $eventsWithNullLocation = DB::table('events')
+            ->whereNull('hasLocation')
+            ->whereNull('attendance_type_id')
+            ->count();
+            
+        // Find events where hasLocation and attendance_type_id mismatch
+        $eventsToUpdateWithMismatch = DB::table('events')
+            ->whereNotNull('hasLocation')
+            ->whereNotNull('attendance_type_id')
+            ->whereRaw('(hasLocation = true AND attendance_type_id != 1) OR (hasLocation = false AND attendance_type_id != 2)')
+            ->count();
+            
+        $totalToUpdate = $eventsToUpdateWithNull + $eventsToUpdateWithMismatch + $eventsWithNullLocation;
+        
+        if ($totalToUpdate === 0) {
+            $this->info('All events have synchronized hasLocation and attendance_type_id values. No updates needed.');
+            return;
+        }
+        
+        $this->info("Found {$eventsToUpdateWithNull} events with hasLocation set but missing attendance_type_id.");
+        $this->info("Found {$eventsWithNullLocation} events with null hasLocation and missing attendance_type_id.");
+        $this->info("Found {$eventsToUpdateWithMismatch} events with inconsistent hasLocation and attendance_type_id values.");
+        $this->info("Total: {$totalToUpdate} events to update.");
+        
+        // Create a progress bar
+        $bar = $this->output->createProgressBar($totalToUpdate);
+        
+        // First update events with null attendance_type_id
+        $updatedWithLocation = DB::table('events')
+            ->whereNotNull('hasLocation')
+            ->whereNull('attendance_type_id')
+            ->where('hasLocation', true)
+            ->update(['attendance_type_id' => 1]);
+            
+        $bar->advance($updatedWithLocation);
+        
+        $updatedWithoutLocation = DB::table('events')
+            ->whereNotNull('hasLocation')
+            ->whereNull('attendance_type_id')
+            ->where('hasLocation', false)
+            ->update(['attendance_type_id' => 2]);
+            
+        $bar->advance($updatedWithoutLocation);
+        
+        // Update events where hasLocation is null
+        $updatedNullLocation = DB::table('events')
+            ->whereNull('hasLocation')
+            ->whereNull('attendance_type_id')
+            ->update([
+                'hasLocation' => false,
+                'attendance_type_id' => 2
+            ]);
+            
+        $bar->advance($updatedNullLocation);
+        
+        // Now update events where values are inconsistent
+        $updatedInPersonMismatch = DB::table('events')
+            ->where('hasLocation', true)
+            ->where('attendance_type_id', '!=', 1)
+            ->update(['attendance_type_id' => 1]);
+            
+        $bar->advance($updatedInPersonMismatch);
+        
+        $updatedRemoteMismatch = DB::table('events')
+            ->where('hasLocation', false)
+            ->where('attendance_type_id', '!=', 2)
+            ->update(['attendance_type_id' => 2]);
+            
+        $bar->advance($updatedRemoteMismatch);
+        
+        $bar->finish();
+        
+        $this->newLine();
+        $totalUpdated = $updatedWithLocation + $updatedWithoutLocation + $updatedNullLocation + $updatedInPersonMismatch + $updatedRemoteMismatch;
+        $this->info("Completed! Synchronized attendance types for {$totalUpdated} events:");
+        $this->info("- {$updatedWithLocation} in-person events with missing attendance_type_id");
+        $this->info("- {$updatedWithoutLocation} remote events with missing attendance_type_id");
+        $this->info("- {$updatedNullLocation} events with null hasLocation (updated to remote)");
+        $this->info("- {$updatedInPersonMismatch} in-person events with incorrect attendance_type_id");
+        $this->info("- {$updatedRemoteMismatch} remote events with incorrect attendance_type_id");
+    }
+
+    /**
+     * Refactor categories to remove redundancy, correctly assign attendance types, and migrate events
+     */
+    private function refactorCategories()
+    {
+        $this->info('Starting category refactoring...');
+        
+        // Define category mappings: [old_id => new_id]
+        // This maps redundant categories to their primary category
+        $categoryMappings = [
+            // Festival consolidation: merge "Festival (Online)" into "Festival (In-Person)"
+            // and later rename to just "Festival"
+            '18' => '28', // Festival (Online) → Festival (In-Person)
+            
+            // Consider removing redundant theater categories by mapping
+            // "Immersive Theatre (In-Person)" is specific enough to remain
+            '24' => '1', // Theatrical Games → Immersive Theatre (In-Person)
+            
+            // Consolidate similar VR/AR tech experiences
+            '23' => '9', // Virtual Worlds → Virtual Reality
+            
+            // Consolidate audio experiences
+            '12' => '10', // Telephone → Immersive Audio & Podplays
+        ];
+        
+        // Define attendance type assignments for each category
+        // 1 = In-Person, 2 = Remote, [1,2] = Both
+        $attendanceTypeAssignments = [
+            // Categories for In-Person only (attendance_type_id = 1)
+            '1' => [1],   // Immersive Theatre (In-Person)
+            '7' => [1],   // Experiential Museum
+            '8' => [1],   // Dining & Nightlife
+            '27' => [1],  // Industry Gatherings (In-Person)
+            '28' => [1],  // Festival (In-Person)
+            '29' => [1],  // Themed Entertainment
+            
+            // Categories for Remote only (attendance_type_id = 2)
+            '18' => [2],  // Festival (Online)
+            
+            // Categories that apply to both (attendance_type_id = 1 or 2)
+            '3' => [1, 2],   // Interactive Livestream
+            '5' => [1, 2],   // Escape Rooms & Games
+            '6' => [1, 2],   // Alternate Reality Game/Experience
+            '9' => [1, 2],   // Virtual Reality
+            '10' => [1, 2],  // Immersive Audio & Podplays
+            '12' => [1, 2],  // Telephone
+            '13' => [1, 2],  // Classes & Workshops
+            '16' => [1, 2],  // Live Action Role-Playing (LARP)
+            '19' => [1, 2],  // Physical (In-a-Box) Experiences
+            '20' => [1, 2],  // Magic
+            '21' => [1, 2],  // Interactive Stories & Games
+            '22' => [1, 2],  // Installation Art & Performances
+            '23' => [1, 2],  // Virtual Worlds
+            '24' => [1, 2],  // Theatrical Games
+            '26' => [1, 2],  // Augmented Reality
+        ];
+        
+        // Step 1: Update attendance types for all categories
+        $this->info('Updating attendance types for categories...');
+        $updatedAttendanceTypes = 0;
+        
+        foreach ($attendanceTypeAssignments as $categoryId => $types) {
+            try {
+                $updated = DB::table('categories')
+                    ->where('id', $categoryId)
+                    ->update(['applicable_attendance_types' => json_encode($types)]);
+                
+                if ($updated) {
+                    $updatedAttendanceTypes++;
+                    $this->info("Updated attendance types for category ID {$categoryId} to " . implode(',', $types));
+                }
+            } catch (\Exception $e) {
+                $this->error("Error updating category {$categoryId}: " . $e->getMessage());
+            }
+        }
+        
+        // Step 2: Migrate events from redundant categories
+        if (!empty($categoryMappings)) {
+            $this->info('Migrating events from redundant categories...');
+            $migratedEventsCount = 0;
+            
+            foreach ($categoryMappings as $oldCategoryId => $newCategoryId) {
+                try {
+                    // Count events in the old category
+                    $eventCount = DB::table('events')
+                        ->where('category_id', $oldCategoryId)
+                        ->count();
+                    
+                    // Update all events from old category to new category
+                    $updated = DB::table('events')
+                        ->where('category_id', $oldCategoryId)
+                        ->update(['category_id' => $newCategoryId]);
+                    
+                    $migratedEventsCount += $updated;
+                    $this->info("Migrated {$updated} events from category {$oldCategoryId} to {$newCategoryId}");
+                } catch (\Exception $e) {
+                    $this->error("Error migrating events from category {$oldCategoryId}: " . $e->getMessage());
+                }
+            }
+            
+            // Step 3: Delete redundant categories (only after events are migrated)
+            $this->info('Removing redundant categories...');
+            $removedCategories = 0;
+            
+            foreach (array_keys($categoryMappings) as $oldCategoryId) {
+                try {
+                    // Check if any events still use this category
+                    $eventCount = DB::table('events')
+                        ->where('category_id', $oldCategoryId)
+                        ->count();
+                    
+                    if ($eventCount > 0) {
+                        $this->warn("Cannot delete category {$oldCategoryId} - still has {$eventCount} events associated");
+                        continue;
+                    }
+                    
+                    // Delete the category
+                    $deleted = DB::table('categories')
+                        ->where('id', $oldCategoryId)
+                        ->delete();
+                    
+                    if ($deleted) {
+                        $removedCategories++;
+                        $this->info("Deleted redundant category ID {$oldCategoryId}");
+                    }
+                } catch (\Exception $e) {
+                    $this->error("Error deleting category {$oldCategoryId}: " . $e->getMessage());
+                }
+            }
+            
+            $this->info("Completed! Migrated {$migratedEventsCount} events and removed {$removedCategories} redundant categories.");
+        } else {
+            $this->info("No redundant categories defined for removal.");
+        }
+        
+        $this->info("Completed! Updated attendance types for {$updatedAttendanceTypes} categories.");
+        
+        // Rebuild the cache after making changes
+        $this->info("Rebuilding cache to reflect category changes...");
+        $this->rebuildRedisCache();
     }
 }

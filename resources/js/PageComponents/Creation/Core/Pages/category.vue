@@ -118,8 +118,8 @@ const showError = computed(() => {
 // 7. Methods
 const fetchCategories = async () => {
     try {
-        const remote = event.hasLocation ? 0 : 1;
-        const response = await axios.get(`/api/categories?remote=${remote}`);
+        const attendanceTypeId = event.attendance_type_id || (event.hasLocation ? 1 : 2);
+        const response = await axios.get(`/api/categories?attendance_type_id=${attendanceTypeId}`);
         state.value.categoryList = response.data;
         state.value.filteredCategories = state.value.categoryList;
 

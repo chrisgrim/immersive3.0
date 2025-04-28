@@ -24,15 +24,23 @@ class AdminCategoryController extends Controller
                 'description' => 'required|string',
                 'credit' => 'nullable|string',
                 'rank' => 'nullable|integer',
-                'remote' => 'required|boolean',
+                'remote' => 'nullable|boolean',
                 'type' => 'required|string|in:c,g',
                 'slug' => 'nullable|string',
                 'image.*' => 'nullable|image|max:2048',
-                'image_index.*' => 'required_with:image.*|integer|in:0,1'
+                'image_index.*' => 'required_with:image.*|integer|in:0,1',
+                'applicable_attendance_types' => 'nullable|array',
+                'applicable_attendance_types.*' => 'integer'
             ]);
 
             if (!isset($validated['slug'])) {
                 $validated['slug'] = Str::slug($validated['name']);
+            }
+            
+            // Ensure attendance types are not double-encoded
+            if (isset($validated['applicable_attendance_types'])) {
+                // Convert string values to integers
+                $validated['applicable_attendance_types'] = array_map('intval', $validated['applicable_attendance_types']);
             }
 
             $category = Category::create($validated);
@@ -70,18 +78,55 @@ class AdminCategoryController extends Controller
 
     public function update(Request $request, Category $category)
     {
-        $validated = $request->validate([
+        // Handle attendance types update if present
+        if ($request->has('applicable_attendance_types')) {
+            // Check if it's a string (JSON) or already an array
+            if (is_string($request->applicable_attendance_types)) {
+                $validated = $request->validate([
+                    'applicable_attendance_types' => 'nullable|string'
+                ]);
+
+                $attendanceTypes = json_decode($validated['applicable_attendance_types'] ?? '[]', true);
+                
+                // Convert string values to integers if they exist
+                if (is_array($attendanceTypes)) {
+                    $attendanceTypes = array_map('intval', $attendanceTypes);
+                }
+                
+                $category->update([
+                    'applicable_attendance_types' => $attendanceTypes
+                ]);
+            } else {
+                // It's already an array
+                $validated = $request->validate([
+                    'applicable_attendance_types' => 'nullable|array',
+                    'applicable_attendance_types.*' => 'integer'
+                ]);
+                
+                if (isset($validated['applicable_attendance_types'])) {
+                    $category->update([
+                        'applicable_attendance_types' => array_map('intval', $validated['applicable_attendance_types'])
+                    ]);
+                }
+            }
+        }
+
+        // Handle general field updates
+        $validatedFields = $request->validate([
             'name' => 'sometimes|required|string|unique:categories,name,' . $category->id,
             'description' => 'sometimes|required|string',
             'credit' => 'nullable|string',
             'rank' => 'nullable|integer',
-            'remote' => 'sometimes|required|boolean',
+            'remote' => 'nullable|boolean',
             'type' => 'sometimes|required|string|in:c,g',
             'slug' => 'nullable|string',
-            'image' => 'nullable|image|max:2048'
         ]);
-
-        $category->update($validated);
+        
+        // Only apply the validated fields that are actually present in the request
+        $updateData = array_intersect_key($validatedFields, $request->all());
+        if (!empty($updateData)) {
+            $category->update($updateData);
+        }
 
         // Handle current images
         if ($request->has('currentImages')) {

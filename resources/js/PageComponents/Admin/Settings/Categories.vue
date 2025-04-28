@@ -1,28 +1,12 @@
 <template>
+  <div class="categories-component">
     <div class="h-[calc(100vh-12rem)] flex flex-col md:h-[calc(100vh-12rem)] max-h-[calc(100vh-10rem)]">
         <!-- Fixed Header Section -->
         <div class="flex-none">
             <h1 class="text-2xl font-bold mb-6">Categories Management</h1>
             
-            <!-- Filter and Add Button Section -->
-            <div class="flex justify-between items-center mb-6">
-                <!-- Category Type Tabs -->
-                <div class="flex gap-4">
-                    <button 
-                        v-for="tab in ['location', 'remote']"
-                        :key="tab"
-                        @click="activeTab = tab"
-                        :class="[
-                            'px-4 py-2 rounded-lg transition-colors',
-                            activeTab === tab 
-                                ? 'bg-blue-500 text-white' 
-                                : 'bg-gray-100 hover:bg-gray-200'
-                        ]"
-                    >
-                        {{ tab === 'location' ? 'Location Based' : 'Remote' }}
-                    </button>
-                </div>
-
+            <!-- Add Button Section -->
+            <div class="flex justify-end mb-6">
                 <button 
                     @click="showCreateModal = true"
                     class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
@@ -44,11 +28,12 @@
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">Description</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Credit</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Attendance Types</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    <tr v-for="category in filteredCategories" :key="category.id">
+                    <tr v-for="category in categories" :key="category.id">
                         <td class="px-6 py-4 whitespace-nowrap text-xl">{{ category.id }}</td>
                         <td class="px-6 py-4 min-w-[100px]">
                             <input 
@@ -144,6 +129,15 @@
                             >
                         </td>
                         <td class="px-6 py-4">
+                            <div class="flex items-center space-x-2">
+                                <button 
+                                    @click="openAttendanceTypeModal(category)"
+                                    class="text-blue-600 hover:text-blue-900 text-xl">
+                                    {{ formatApplicableTypes(category) }}
+                                </button>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
                             <button 
                                 @click="deleteCategory(category)"
                                 class="text-red-600 hover:text-red-900 text-xl"
@@ -171,14 +165,24 @@
                 <div class="p-8 overflow-y-auto flex-1">
                     <div class="space-y-6">
                         <div class="relative">
-                            <p class="text-gray-500 font-normal mb-4">Type</p>
-                            <select 
-                                v-model="newCategory.remote"
-                                class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4 bg-white"
-                            >
-                                <option :value="false">Location Based</option>
-                                <option :value="true">Remote</option>
-                            </select>
+                            <p class="text-gray-500 font-normal mb-4">Applicable Attendance Types</p>
+                            <div class="flex flex-wrap gap-2">
+                                <div 
+                                    v-for="type in attendanceTypes" 
+                                    :key="type.id"
+                                    class="flex items-center space-x-2"
+                                >
+                                    <input 
+                                        type="checkbox" 
+                                        :id="`type-${type.id}`" 
+                                        v-model="newCategory.applicable_attendance_types"
+                                        :value="type.id"
+                                        class="rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
+                                    >
+                                    <label :for="`type-${type.id}`" class="text-lg">{{ type.name }}</label>
+                                </div>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-2">If none selected, applies to all attendance types</p>
                         </div>
 
                         <div>
@@ -311,38 +315,110 @@
             </div>
         </div>
     </teleport>
+
+    <teleport to="body">
+        <!-- Attendance Types Modal -->
+        <div v-if="showAttendanceTypeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white w-full max-w-2xl md:mx-4 md:rounded-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
+                <!-- Header -->
+                <div class="p-8 pb-6">
+                    <h2 class="text-2xl font-bold mb-2">Edit Attendance Types</h2>
+                    <p class="text-gray-500 font-normal">Manage applicable attendance types for this category</p>
+                </div>
+
+                <!-- Scrollable Content -->
+                <div class="p-8 overflow-y-auto flex-1">
+                    <div class="space-y-6">
+                        <div class="relative">
+                            <p class="text-gray-500 font-normal mb-4">Applicable Attendance Types</p>
+                            <div class="flex flex-wrap gap-2">
+                                <div 
+                                    v-for="type in attendanceTypes" 
+                                    :key="type.id"
+                                    class="flex items-center space-x-2"
+                                >
+                                    <input 
+                                        type="checkbox" 
+                                        :id="`edit-type-${type.id}`" 
+                                        v-model="editingCategory.applicable_attendance_types"
+                                        :value="type.id"
+                                        class="rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
+                                    >
+                                    <label :for="`edit-type-${type.id}`" class="text-lg">{{ type.name }}</label>
+                                </div>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-2">If none selected, applies to all attendance types</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="p-8 border-t border-neutral-400 bg-white md:rounded-b-2xl">
+                    <div class="flex justify-end space-x-4">
+                        <button 
+                            @click="showAttendanceTypeModal = false"
+                            class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-ne text-xl"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            @click="saveAttendanceTypes"
+                            class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl"
+                        >
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </teleport>
+  </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 
-// Define props
+// Define props with all expected props, even if not used
 const props = defineProps({
   event: {
+    type: Object,
+    default: null
+  },
+  organizer: {
+    type: Object,
+    default: null
+  },
+  community: {
     type: Object,
     default: null
   }
 })
 
-// Define emits
-defineEmits([
+// Define all emits, including those passed by parent components
+const emit = defineEmits([
   'selectEvent',
+  'selectOrganizer',
+  'selectCommunity',
   'approved',
-  'rejected'
+  'rejected',
+  'organizerApproved',
+  'organizerRejected',
+  'communityApproved',
+  'communityRejected',
+  'updateCounts'
 ])
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL
 const categories = ref([])
-const activeTab = ref('location')
 const showCreateModal = ref(false)
 const newCategory = ref({
     name: '',
     description: '',
     credit: '',
     rank: 0,
-    remote: false,
     type: 'c',
-    slug: ''
+    slug: '',
+    applicable_attendance_types: []
 })
 
 const fileInput = ref(null)
@@ -362,12 +438,6 @@ const storeOriginalValue = (event) => {
     event.target.setAttribute('data-original', event.target.value)
 }
 
-const filteredCategories = computed(() => {
-    return categories.value.filter(cat => 
-        activeTab.value === 'remote' ? cat.remote === true : cat.remote === false
-    )
-})
-
 const fetchCategories = async () => {
     try {
         const response = await axios.get('/api/admin/settings/categories')
@@ -384,27 +454,19 @@ const checkAndUpdateField = async (category, field, event) => {
     if (originalValue !== newValue) {
         try {
             if (confirm(`Are you sure you want to update this category's ${field}?`)) {
-                const formData = new FormData()
-                formData.append(field, newValue)
-                formData.append('name', category.name)
-                formData.append('description', category.description)
-                formData.append('credit', category.credit || '')
-                formData.append('rank', category.rank || 0)
-                formData.append('remote', category.remote ? 1 : 0)
-                formData.append('type', category.type || 'c')
-
-                const response = await axios.post(
+                // Only send the changed field rather than all fields
+                const data = { [field]: newValue }
+                
+                const response = await axios.patch(
                     `/api/admin/settings/categories/${category.slug}`,
-                    formData,
-                    {
-                        headers: {
-                            'Content-Type': 'multipart/form-data'
-                        }
-                    }
+                    data
                 )
+                
+                // Update the local category with the response data
                 Object.assign(category, response.data)
                 event.target.setAttribute('data-original', newValue)
             } else {
+                // User canceled, revert the field
                 category[field] = originalValue
                 event.target.value = originalValue
             }
@@ -451,9 +513,16 @@ const createCategory = async () => {
         formData.append('description', newCategory.value.description || '')
         formData.append('credit', newCategory.value.credit || '')
         formData.append('rank', newCategory.value.rank || 0)
-        formData.append('remote', newCategory.value.remote ? 1 : 0)
         formData.append('type', newCategory.value.type || 'c')
         formData.append('slug', newCategory.value.name.toLowerCase().replace(/\s+/g, '-'))
+        
+        // Add applicable attendance types if any are selected - as proper array for store method
+        if (newCategory.value.applicable_attendance_types && newCategory.value.applicable_attendance_types.length > 0) {
+            // For FormData, we need to append each array item with the same key
+            newCategory.value.applicable_attendance_types.forEach(typeId => {
+                formData.append('applicable_attendance_types[]', typeId);
+            });
+        }
         
         // Append both images if they exist
         if (selectedFiles.value[0]) {
@@ -483,8 +552,8 @@ const createCategory = async () => {
         // Handle validation errors
         if (error.response?.status === 422) {
             const errorMessage = error.response.data.message || 
-                               Object.values(error.response.data.errors || {})[0]?.[0] ||
-                               'Validation error occurred'
+                              Object.values(error.response.data.errors || {})[0]?.[0] ||
+                              'Validation error occurred'
             alert(errorMessage)
         } else if (error.message) {
             // Handle client-side validation errors
@@ -507,9 +576,9 @@ const resetForm = () => {
         description: '',
         credit: '',
         rank: 0,
-        remote: false,
         type: 'c',
-        slug: ''
+        slug: '',
+        applicable_attendance_types: []
     }
     clearImage()
 }
@@ -546,22 +615,10 @@ const updateCategoryImage = async (category, event, imageIndex) => {
     try {
         const formData = new FormData();
         formData.append('image', file);
-        formData.append('image_index', imageIndex); // Verify this is being sent correctly
-        console.log('Uploading image with rank:', imageIndex); // Add debug log
-        formData.append('name', category.name);
-        formData.append('description', category.description);
-        formData.append('credit', category.credit || '');
-        formData.append('rank', category.rank || 0);
-        formData.append('remote', category.remote ? 1 : 0);
-        formData.append('type', category.type || 'c');
-
-        // Log the FormData contents
-        for (let pair of formData.entries()) {
-            console.log(pair[0] + ': ' + pair[1]);
-        }
-
+        formData.append('image_index', imageIndex);
+        
         const response = await axios.post(
-            `/api/admin/settings/categories/${category.slug}`, 
+            `/api/admin/settings/categories/${category.slug}`,
             formData,
             {
                 headers: {
@@ -569,8 +626,6 @@ const updateCategoryImage = async (category, event, imageIndex) => {
                 }
             }
         );
-
-        console.log('Server response:', response.data); // Add debug log
 
         // Initialize images array if it doesn't exist
         if (!category.images) {
@@ -605,8 +660,84 @@ const handleImageError = (event) => {
     event.target.src = 'https://placehold.co/32x24?text=Error';
 };
 
+// Add attendance types data
+const attendanceTypes = ref([])
+
+// Get all attendance types after onMounted
+const fetchAttendanceTypes = async () => {
+    try {
+        const response = await axios.get('/api/admin/settings/attendance-types')
+        attendanceTypes.value = response.data
+    } catch (error) {
+        console.error('Error fetching attendance types:', error)
+    }
+}
+
+// Add methods and reactive variables needed for the attendance types modal
+const editingCategory = ref(null)
+const showAttendanceTypeModal = ref(false)
+
+const openAttendanceTypeModal = (category) => {
+    editingCategory.value = JSON.parse(JSON.stringify(category)) // Deep clone to prevent direct reference
+    
+    // Ensure attendance types is an array
+    if (!editingCategory.value.applicable_attendance_types) {
+        editingCategory.value.applicable_attendance_types = []
+    }
+    
+    showAttendanceTypeModal.value = true
+}
+
+const saveAttendanceTypes = async () => {
+    try {
+        // Find the original category
+        const categoryIndex = categories.value.findIndex(cat => cat.id === editingCategory.value.id)
+        if (categoryIndex === -1) return
+        
+        const originalCategory = categories.value[categoryIndex]
+        
+        // Make sure we have an array, even if empty
+        const attendanceTypes = editingCategory.value.applicable_attendance_types || []
+        
+        // Check if there are changes
+        const originalTypes = originalCategory.applicable_attendance_types || []
+        const hasChanges = JSON.stringify(originalTypes) !== JSON.stringify(attendanceTypes)
+        
+        if (hasChanges) {
+            const response = await axios.patch(
+                `/api/admin/settings/categories/${editingCategory.value.slug}`,
+                {
+                    applicable_attendance_types: JSON.stringify(attendanceTypes)
+                }
+            )
+            
+            // Update local data
+            Object.assign(originalCategory, response.data)
+        }
+        
+        // Close modal in all cases
+        showAttendanceTypeModal.value = false
+        editingCategory.value = null
+    } catch (error) {
+        console.error('Error updating attendance types:', error)
+        alert(error.response?.data?.message || 'Error updating attendance types')
+    }
+}
+
+const formatApplicableTypes = (category) => {
+    if (!category.applicable_attendance_types || !category.applicable_attendance_types.length) {
+        return 'All types'
+    }
+    
+    return attendanceTypes.value
+        .filter(type => category.applicable_attendance_types.includes(type.id))
+        .map(type => type.name)
+        .join(', ')
+}
+
 onMounted(() => {
     fetchCategories()
+    fetchAttendanceTypes()
 })
 </script>
 

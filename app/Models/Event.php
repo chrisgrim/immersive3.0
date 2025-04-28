@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Models\{Conversation, Genre, Organizer, User, Category};
+use App\Models\{Conversation, Genre, Organizer, User, Category, AttendanceType};
 use App\Models\Events\{ Show, PriceRange, Advisory, Location, AgeLimit, InteractiveLevel, RemoteLocation, ContactLevel, ContentAdvisory, MobilityAdvisory};
 use App\Models\Admin\{ ReviewEvent, StaffPick, TrackClick, CuratedEventCheck };
 use App\Scopes\PublishedScope;
@@ -30,7 +30,7 @@ class Event extends Model
     ];
 
     protected $fillable = [
-        'slug', 'user_id', 'timezone', 'category_id','interactive_level_id','organizer_id','description','name','largeImagePath','thumbImagePath','advisories_id', 'organizer_id', 'location_latlon', 'closingDate','websiteUrl','ticketUrl','show_times','price_range', 'status','tag_line', 'hasLocation', 'showtype', 'embargo_date', 'remote_description', 'published_at', 'call_to_action', 'age_limits_id', 'rank', 'archived'
+        'slug', 'user_id', 'timezone', 'category_id', 'attendance_type_id', 'interactive_level_id','organizer_id','description','name','largeImagePath','thumbImagePath','advisories_id', 'organizer_id', 'location_latlon', 'closingDate','websiteUrl','ticketUrl','show_times','price_range', 'status','tag_line', 'hasLocation', 'showtype', 'embargo_date', 'remote_description', 'published_at', 'call_to_action', 'age_limits_id', 'rank', 'archived'
     ];
 
     protected $appends = ['isFavorited', 'isShowing'];
@@ -71,6 +71,7 @@ class Event extends Model
             'showtype' => $this->showtype,
             'rank' => $this->rank,
             'category_id' => $this->category_id,
+            'attendance_type_id' => $this->attendance_type_id,
             'location_latlon' => $location,  // Will be null if no valid coordinates
             'hasLocation' => $hasValidLocation,  // Only true if we have non-zero coordinates
             'shows' => $this->showsSelect,
@@ -173,6 +174,16 @@ class Event extends Model
     public function category() 
     {
         return $this->belongsTo(Category::class);
+    }
+
+    /**
+     * Get the attendance type for this event
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     */
+    public function attendanceType()
+    {
+        return $this->belongsTo(AttendanceType::class);
     }
 
     public function images()
@@ -503,6 +514,7 @@ class Event extends Model
         $newEvent->name = $this->name . ' (Copy)';
         $newEvent->published_at = null;
         $newEvent->hasLocation = $this->hasLocation; // Copy the hasLocation flag
+        $newEvent->attendance_type_id = $this->attendance_type_id; // Copy the attendance type
         $newEvent->save();
 
         // Always duplicate location since it's always created

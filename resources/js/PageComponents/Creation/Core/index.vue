@@ -160,7 +160,7 @@ const components = {
     Review  // Add this line
 };
 
-const steps = computed(() => event.hasLocation ? stepsWithLocation : stepsWithoutLocation);
+const steps = computed(() => (event.attendance_type_id === 1 || event.hasLocation) ? stepsWithLocation : stepsWithoutLocation);
 
 const currentComponent = computed(() => components[currentStep.value]);
 
@@ -321,11 +321,11 @@ onMounted(() => {
         updateUrl(currentStep.value);
     }
 
-    // Force correct component based on hasLocation
-    if (currentStep.value === 'Remote' && event.hasLocation) {
+    // Force correct component based on attendance_type_id or hasLocation
+    if (currentStep.value === 'Remote' && (event.attendance_type_id === 1 || event.hasLocation)) {
         currentStep.value = 'Location';
         updateUrl('Location');
-    } else if (currentStep.value === 'Location' && !event.hasLocation) {
+    } else if (currentStep.value === 'Location' && event.attendance_type_id === 2 && !event.hasLocation) {
         currentStep.value = 'Remote';
         updateUrl('Remote');
     }

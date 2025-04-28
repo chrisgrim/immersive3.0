@@ -477,7 +477,7 @@ const getStatusInfo = (event, cleanDateFn) => {
 		'0': { color: 'bg-orange-400', progress: 'add event type', view: 'EventType' },
 		'1': { color: 'bg-orange-400', progress: 'add category', view: 'Category' },
 		'2': { color: 'bg-orange-400', progress: 'add genres', view: 'Genres' },
-		'3': { color: 'bg-orange-400', progress: 'add physical/remote location', view: event.hasLocation ? 'Location' : 'Remote' },
+		'3': { color: 'bg-orange-400', progress: 'add physical/remote location', view: event.attendance_type_id === 1 || event.hasLocation ? 'Location' : 'Remote' },
 		'4': { color: 'bg-orange-400', progress: 'add description', view: 'Description' },
 		'5': { color: 'bg-orange-400', progress: 'add event name', view: 'Name' },
 		'6': { color: 'bg-orange-400', progress: 'add show dates', view: 'Dates' },

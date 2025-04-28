@@ -72,11 +72,23 @@ class HostEventController extends Controller
             }
         }
 
-        // First handle location type change
-        if (isset($validatedData['hasLocation']) && $event->category && 
+        // Handle attendance type changes (using either hasLocation or attendance_type_id)
+        if (isset($validatedData['attendance_type_id']) && $event->category) {
+            // Check if category is compatible with the attendance type
+            if (!$event->category->supportsAttendanceType($validatedData['attendance_type_id'])) {
+                $event->category()->dissociate();
+                $validatedData['status'] = '1';
+            }
+            // Keep hasLocation in sync for backward compatibility
+            $validatedData['hasLocation'] = $validatedData['attendance_type_id'] == 1;
+        } 
+        // Legacy handling for hasLocation
+        else if (isset($validatedData['hasLocation']) && $event->category && 
             $event->category->remote === $validatedData['hasLocation']) {
             $event->category()->dissociate();
             $validatedData['status'] = '1';
+            // Set the corresponding attendance_type_id
+            $validatedData['attendance_type_id'] = $validatedData['hasLocation'] ? 1 : 2;
         }
 
         // Handle location updates

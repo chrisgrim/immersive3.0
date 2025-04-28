@@ -235,9 +235,9 @@
                     <!-- Location Section -->
                     <div class="p-8 shadow-custom-1 rounded-3xl">
                         <h3 class="text-xl font-semibold mb-4">
-                            {{ props.event?.hasLocation ? 'Location:' : 'Remote Event:' }}
+                            {{ props.event?.attendance_type_id === 1 ? 'Location:' : 'Remote Event:' }}
                         </h3>
-                        <div v-if="props.event?.hasLocation">
+                        <div v-if="props.event?.attendance_type_id === 1">
                             <div class="mb-4">
                                 <p class="text-black font-medium mb-4">{{ props.event?.location.venue }}</p>
                                 <p class="text-neutral-500 font-normal text-1xl leading-tight">{{ props.event?.location.street }}</p>

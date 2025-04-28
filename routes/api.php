@@ -187,7 +187,13 @@ Route::middleware(['auth:sanctum', 'moderator'])->group(function () {
                 Route::GET('categories', 'index');
                 Route::POST('categories', 'store');
                 Route::POST('categories/{category}', 'update');
+                Route::PATCH('categories/{category}', 'update');
                 Route::DELETE('categories/{category}', 'destroy');
+            });
+            
+            // Attendance Types
+            Route::GET('attendance-types', function() {
+                return \App\Models\AttendanceType::orderBy('rank')->get();
             });
             
             // Genres

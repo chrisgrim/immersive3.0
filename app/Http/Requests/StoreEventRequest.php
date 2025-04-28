@@ -17,6 +17,7 @@ class StoreEventRequest extends FormRequest
     {
         return [
             'category_id' => 'nullable|exists:categories,id',
+            'attendance_type_id' => 'nullable|exists:attendance_types,id',
             'interactive_level_id' => 'nullable|exists:interactive_levels,id',
             'description' => 'sometimes|string|min:1|max:2000',
             'name' => 'sometimes|string|max:100',

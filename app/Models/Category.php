@@ -15,7 +15,7 @@ class Category extends Model
     * @var array
     */
     protected $fillable = [
-    	'name', 'slug','description','largeImagePath', 'thumbImagePath', 'rank', 'remote','credit', 'type'
+    	'name', 'slug','description','largeImagePath', 'thumbImagePath', 'rank', 'remote','credit', 'type', 'applicable_attendance_types'
     ];
 
     /**
@@ -23,7 +23,7 @@ class Category extends Model
      *
      * @var array
      */
-    // protected $appends = ['hasEvent'];
+    protected $appends = ['hasEvent', 'supportsAttendanceType'];
 
     /**
      * The "booted" method of the model.
@@ -36,7 +36,8 @@ class Category extends Model
     }
 
     protected $casts = [
-        'remote' => 'boolean'
+        'remote' => 'boolean',
+        'applicable_attendance_types' => 'array'
     ];
     
     /**
@@ -49,7 +50,7 @@ class Category extends Model
         return $this->hasMany(Event::class);
     }
 
-        /**
+    /**
     * Determine if the current user has created events
     *
     * @return bool
@@ -67,6 +68,36 @@ class Category extends Model
     public function getRouteKeyName()
     {
         return 'slug';
+    }
+
+    /**
+     * Check if this category supports a specific attendance type
+     *
+     * @param int $attendanceTypeId
+     * @return bool
+     */
+    public function supportsAttendanceType($attendanceTypeId)
+    {
+        // If no applicable types are set, category supports all attendance types
+        if (empty($this->applicable_attendance_types)) {
+            return true;
+        }
+        
+        // Otherwise, check if the specified type is in the array
+        return in_array($attendanceTypeId, $this->applicable_attendance_types);
+    }
+
+    /**
+     * Get whether this category supports a given attendance type
+     * 
+     * @param int $attendanceTypeId
+     * @return bool
+     */
+    public function getSupportsAttendanceTypeAttribute()
+    {
+        return function($attendanceTypeId) {
+            return $this->supportsAttendanceType($attendanceTypeId);
+        };
     }
 
     /**
@@ -109,4 +140,15 @@ class Category extends Model
         return $this->morphMany(Image::class, 'imageable');
     }
 
+    /**
+     * Get all attendance types that can be used with this category
+     */
+    public function attendanceTypes()
+    {
+        if (empty($this->applicable_attendance_types)) {
+            return AttendanceType::all();
+        }
+        
+        return AttendanceType::whereIn('id', $this->applicable_attendance_types)->get();
+    }
 }
