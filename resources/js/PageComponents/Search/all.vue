@@ -1,5 +1,8 @@
 <template>
     <div class="max-w-screen-5xl mx-auto px-10 md:px-32 py-16">
+        <!-- Active Filters -->
+        <active-filters class="mb-8" />
+        
         <!-- Main Content -->
         <event-grid 
             :items="events.data"
@@ -25,6 +28,7 @@ import axios from 'axios'
 import EventGrid from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 import SearchStore from '@/Stores/SearchStore.vue'
+import ActiveFilters from './Components/active-filters.vue'
 
 // Props
 const props = defineProps({

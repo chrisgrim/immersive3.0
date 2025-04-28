@@ -637,16 +637,6 @@ class UpdateWebsiteData extends Command
             // Festival consolidation: merge "Festival (Online)" into "Festival (In-Person)"
             // and later rename to just "Festival"
             '18' => '28', // Festival (Online) → Festival (In-Person)
-            
-            // Consider removing redundant theater categories by mapping
-            // "Immersive Theatre (In-Person)" is specific enough to remain
-            '24' => '1', // Theatrical Games → Immersive Theatre (In-Person)
-            
-            // Consolidate similar VR/AR tech experiences
-            '23' => '9', // Virtual Worlds → Virtual Reality
-            
-            // Consolidate audio experiences
-            '12' => '10', // Telephone → Immersive Audio & Podplays
         ];
         
         // Define attendance type assignments for each category

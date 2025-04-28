@@ -161,6 +161,24 @@
                                             {{ selectedFilters.categories.length }} selected
                                         </span>
                                     </div>
+                                    <svg 
+                                        v-if="activeSection !== 'categories' && !isSearchingCategories" 
+                                        class="w-8 h-8 text-gray-600 ml-2" 
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                    <svg 
+                                        v-else-if="!isSearchingCategories" 
+                                        class="w-8 h-8 text-gray-600 ml-2" 
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                                    </svg>
                                 </div>
                             </div>
                             
@@ -247,6 +265,25 @@
                                         </span>
                                     </div>
                                     
+                                    <!-- Add chevron icon that indicates section state -->
+                                    <svg 
+                                        v-if="activeSection !== 'tags' && !isSearchingTags" 
+                                        class="w-8 h-8 text-gray-600 ml-2" 
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                    <svg 
+                                        v-else-if="!isSearchingTags" 
+                                        class="w-8 h-8 text-gray-600 ml-2" 
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                                    </svg>
                                 </div>
                             </div>
                             
@@ -461,16 +498,12 @@ const submitSelection = () => {
     const isPriceAdjusted = selectedFilters.value.price[0] !== 0 || 
                            selectedFilters.value.price[1] !== props.maxPrice;
     
-    // Set the searchType based on the atHome toggle
-    const searchType = selectedFilters.value.atHome ? 'atHome' : undefined;
-    
     selectedFilters.value = {
         ...selectedFilters.value,
         searchingByPrice: isPriceAdjusted,
         price: isPriceAdjusted 
             ? selectedFilters.value.price 
-            : [0, props.maxPrice],
-        searchType
+            : [0, props.maxPrice]
     };
     
     // Emit the final filter state when Apply is clicked
@@ -602,6 +635,24 @@ onMounted(() => {
 onBeforeUnmount(() => {
     unlockScroll()
 })
+
+// Add a computed property for hasActiveFilters
+const hasActiveFilters = computed(() => {
+    // Check for categories, tags and atHome
+    const hasActiveFilter = 
+        selectedFilters.value.categories?.length > 0 || 
+        selectedFilters.value.tags?.length > 0 || 
+        selectedFilters.value.atHome === true;
+    
+    // Check price filters
+    const hasPriceFilter = selectedFilters.value.price[0] !== 0 || 
+                          selectedFilters.value.price[1] !== selectedFilters.value.maxPrice;
+    
+    return hasActiveFilter || hasPriceFilter;
+});
+
+// Expose hasActiveFilters for parent components
+defineExpose({ hasActiveFilters });
 </script>
 
 <style>

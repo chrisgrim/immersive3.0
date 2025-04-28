@@ -5,19 +5,19 @@
             @click="handleBackgroundClick"
         >
             <div 
-                class="bg-white w-full overflow-hidden flex flex-col fixed inset-x-0 bottom-0 rounded-t-3xl z-50 max-h-[90vh]"
+                class="bg-white w-full h-[85vh] overflow-hidden flex flex-col fixed inset-x-0 bottom-0 rounded-t-5xl z-50 safe-bottom"
                 @click.stop
             >
 
 
                 <!-- Header -->
-                <div class="flex justify-center items-center p-6 flex-shrink-0 border-b border-neutral-200">
-                    <h2 class="text-2xl font-semibold">Filters</h2>
+                <div class="flex justify-center items-center px-6 h-20 flex-shrink-0 border-b border-neutral-200">
+                    <h2 class="text-3xl font-semibold">Filters</h2>
                     <button 
                         @click="$emit('close')" 
-                        class="absolute top-6 right-6 p-2"
+                        class="absolute top-3 right-6 p-2"
                     >
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
@@ -33,7 +33,7 @@
                     <!-- Remote Toggle Section -->
                     <div class="transition-all duration-300 ease-in-out bg-white border-b flex flex-col py-8">
                         <div class="flex items-center justify-between">
-                            <p class="text-3xl font-semibold">Remote Events</p>
+                            <p class="text-4xl font-semibold">Remote Events</p>
                             <div class="pr-4">
                                 <toggle-switch
                                     v-model="selectedFilters.atHome"
@@ -48,44 +48,46 @@
                     <!-- Price Range Section - Always visible -->
                     <div v-if="showPrice" class="border-b border-neutral-200 py-8">
                         <div class="flex items-center justify-between mb-4">
-                            <p class="text-3xl font-semibold">Price Range</p>
+                            <p class="text-4xl font-semibold">Price Range</p>
                             <span 
                                 v-if="selectedFilters.price[0] !== 0 || selectedFilters.price[1] !== selectedFilters.maxPrice" 
-                                class="bg-black text-white text-sm rounded-full px-2 py-0.5"
+                                class="bg-black text-white text-2xl rounded-full px-4 py-2"
                             >
                                 ${{ selectedFilters.price[0] }} - ${{ selectedFilters.price[1] }}{{ selectedFilters.price[1] === selectedFilters.maxPrice ? '+' : '' }}
                             </span>
                         </div>
-                        
-                        <vue-slider
-                            v-if="selectedFilters.maxPrice > 0"
-                            v-model="selectedFilters.price"
-                            :min="0"
-                            :max="selectedFilters.maxPrice"
-                            :tooltip="'none'"
-                            :enable-cross="false"
-                            :process-style="{ backgroundColor: '#000' }"
-                            :rail-style="{ backgroundColor: '#e5e5e5' }"
-                            :dot-style="{ 
-                                border: '2px solid black',
-                                backgroundColor: 'white',
-                                width: '20px',
-                                height: '20px',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                            }"
-                            class="w-full mb-8 mt-4"
-                        />
-                        <div class="flex justify-between">
+                        <div class="px-10 pt-10 pb-2">
+                            <vue-slider
+                                v-if="selectedFilters.maxPrice > 0"
+                                v-model="selectedFilters.price"
+                                :min="0"
+                                :max="selectedFilters.maxPrice"
+                                :tooltip="'none'"
+                                :enable-cross="false"
+                                :process-style="{ backgroundColor: '#f7653b' }"
+                                :rail-style="{ backgroundColor: '#e5e5e5' }"
+                                :dot-style="{ 
+                                    border: '2px solid black',
+                                    backgroundColor: 'white',
+                                    width: '30px',
+                                    height: '30px',
+                                    margin: '-8px 0 0 0',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                                }"
+                                class="w-full mb-8 mt-4"
+                            />
+                        </div>
+                        <div class="flex justify-between px-8">
                             <div class="space-y-1">
                                 <div class="text-sm text-neutral-600">Min</div>
                                 <div class="border border-neutral-300 rounded-full px-4 py-2">
-                                    <div class="text-base">${{ selectedFilters.price[0] }}</div>
+                                    <div class="text-2xl">${{ selectedFilters.price[0] }}</div>
                                 </div>
                             </div>
                             <div class="space-y-1">
                                 <div class="text-sm text-neutral-600">Max</div>
                                 <div class="border border-neutral-300 rounded-full px-4 py-2">
-                                    <div class="text-base">
+                                    <div class="text-2xl">
                                         ${{ selectedFilters.price[1] }}{{ selectedFilters.price[1] === selectedFilters.maxPrice ? '+' : '' }}
                                     </div>
                                 </div>
@@ -99,7 +101,7 @@
                             @click="toggleSection('categories')"
                             class="flex items-center justify-between cursor-pointer flex-shrink-0 py-8"
                         >
-                            <p v-if="!isSearchingCategories" class="text-3xl font-semibold">Categories</p>
+                            <p v-if="!isSearchingCategories" class="text-4xl font-semibold">Categories</p>
                             <div class="flex items-center gap-4" :class="{'w-full': isSearchingCategories}">
                                 <div v-if="activeSection === 'categories'" class="flex items-center gap-4" :class="{'w-full': isSearchingCategories}">
                                     <div v-if="!isSearchingCategories">
@@ -107,19 +109,19 @@
                                             @click.stop="toggleCategorySearch"
                                             class="p-2 rounded-full hover:bg-neutral-100 transition-colors"
                                         >
-                                            <svg class="w-5 h-5 fill-black">
+                                            <svg class="w-10 h-10 fill-black">
                                                 <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
                                             </svg>
                                         </button>
                                     </div>
                                     <div v-else class="w-full border border-neutral-300 rounded-full flex items-center">
-                                        <svg class="w-5 h-5 fill-black z-[1002] ml-4 flex-shrink-0">
+                                        <svg class="w-10 h-10 fill-black z-[1002] ml-4 flex-shrink-0">
                                             <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
                                         </svg>
                                         <input 
                                             ref="categorySearchInput"
                                             v-model="categorySearchQuery"
-                                            class="relative text-base p-2 w-full z-40 bg-transparent focus:border-none focus:outline-none placeholder-slate-400 touch-manipulation"
+                                            class="relative text-4xl! p-2 w-full z-40 bg-transparent focus:border-none focus:outline-none placeholder-slate-400 touch-manipulation"
                                             placeholder="Search categories"
                                             @click.stop
                                             autocomplete="off"
@@ -132,23 +134,42 @@
                                             }"
                                             class="mr-4 flex-shrink-0"
                                         >
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                             </svg>
                                         </button>
                                     </div>
                                 </div>
-                                <div v-if="selectedFilters.categories.length && !isSearchingCategories" class="bg-black rounded-full px-2 py-0.5">
-                                    <span class="text-1xl text-white">
+                                <div v-if="selectedFilters.categories.length && !isSearchingCategories" class="bg-black rounded-full px-4 py-2">
+                                    <span class="text-2xl text-white">
                                         {{ selectedFilters.categories.length }} selected
                                     </span>
                                 </div>
+                                <!-- Add chevron icon that indicates section state -->
+                                <svg 
+                                    v-if="activeSection !== 'categories' && !isSearchingCategories" 
+                                    class="w-10 h-10 text-gray-600 ml-2" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                </svg>
+                                <svg 
+                                    v-else-if="!isSearchingCategories" 
+                                    class="w-10 h-10 text-gray-600 ml-2" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                                </svg>
                             </div>
                         </div>
                         
                         <div 
                             v-show="activeSection === 'categories'" 
-                            class="px-6 pb-6"
+                            class="pb-6"
                         >
                             <!-- Categories list -->
                             <div class="grid grid-cols-2 gap-3">
@@ -168,7 +189,7 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                                         </svg>
                                     </div>
-                                    <span class="text-sm truncate">{{ category.name }}</span>
+                                    <span class="text-2xl">{{ category.name }}</span>
                                 </button>
                             </div>
                         </div>
@@ -180,7 +201,7 @@
                             @click="toggleSection('tags')"
                             class="flex items-center justify-between cursor-pointer flex-shrink-0 py-8"
                         >
-                            <p v-if="!isSearchingTags" class="text-3xl font-semibold">Tags</p>
+                            <p v-if="!isSearchingTags" class="text-4xl font-semibold">Tags</p>
                             <div class="flex items-center gap-4" :class="{'w-full': isSearchingTags}">
                                 <div v-if="activeSection === 'tags'" class="flex items-center gap-4" :class="{'w-full': isSearchingTags}">
                                     <div v-if="!isSearchingTags">
@@ -188,19 +209,19 @@
                                             @click.stop="toggleTagSearch"
                                             class="p-2 rounded-full hover:bg-neutral-100 transition-colors"
                                         >
-                                            <svg class="w-5 h-5 fill-black">
+                                            <svg class="w-10 h-10 fill-black">
                                                 <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
                                             </svg>
                                         </button>
                                     </div>
                                     <div v-else class="w-full border border-neutral-300 rounded-full flex items-center">
-                                        <svg class="w-5 h-5 fill-black z-[1002] ml-4 flex-shrink-0">
+                                        <svg class="w-10 h-10 fill-black z-[1002] ml-4 flex-shrink-0">
                                             <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
                                         </svg>
                                         <input 
                                             ref="tagSearchInput"
                                             v-model="tagSearchQuery"
-                                            class="relative text-base p-2 w-full z-40 bg-transparent focus:border-none focus:outline-none placeholder-slate-400 touch-manipulation"
+                                            class="relative text-4xl p-2 w-full z-40 bg-transparent focus:border-none focus:outline-none placeholder-slate-400 touch-manipulation"
                                             placeholder="Search tags"
                                             @click.stop
                                             autocomplete="off"
@@ -213,23 +234,42 @@
                                             }"
                                             class="mr-4 flex-shrink-0"
                                         >
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                             </svg>
                                         </button>
                                     </div>
                                 </div>
-                                <div v-if="selectedFilters.tags.length && !isSearchingTags" class="bg-black rounded-full px-2 py-0.5">
-                                    <span class="text-1xl text-white">
+                                <div v-if="selectedFilters.tags.length && !isSearchingTags" class="bg-black rounded-full px-4 py-2">
+                                    <span class="text-2xl text-white">
                                         {{ selectedFilters.tags.length }} selected
                                     </span>
                                 </div>
+                                <!-- Add chevron icon that indicates section state -->
+                                <svg 
+                                    v-if="activeSection !== 'tags' && !isSearchingTags" 
+                                    class="w-10 h-10 text-gray-600 ml-2" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                </svg>
+                                <svg 
+                                    v-else-if="!isSearchingTags" 
+                                    class="w-10 h-10 text-gray-600 ml-2" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                                </svg>
                             </div>
                         </div>
                         
                         <div 
                             v-show="activeSection === 'tags'" 
-                            class="px-6 pb-6"
+                            class="pb-6"
                         >
                             <!-- Tags list -->
                             <div class="grid grid-cols-2 gap-3">
@@ -249,7 +289,7 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                                         </svg>
                                     </div>
-                                    <span class="text-sm truncate">{{ tag.name }}</span>
+                                    <span class="text-2xl">{{ tag.name }}</span>
                                 </button>
                             </div>
                         </div>
@@ -260,7 +300,7 @@
                 <div class="bg-white p-4 flex-shrink-0 border-t border-neutral-200 flex items-center justify-between sticky bottom-0">
                     <button 
                         @click="clearAll" 
-                        class="underline text-neutral-600 py-3 px-4"
+                        class="font-semibold text-neutral-600 py-3 px-4"
                     >
                         Clear all
                     </button>
@@ -333,6 +373,23 @@ const activeSection = ref('')
 // Computed properties
 const filteredCategories = computed(() => {
     let filtered = sortedCategories.value
+    
+    // Filter categories based on attendance type
+    if (selectedFilters.value.atHome) {
+        // For remote events (atHome), only show categories applicable to attendance_type_id 2
+        filtered = filtered.filter(cat => 
+            !cat.applicable_attendance_types || 
+            cat.applicable_attendance_types.includes(2)
+        )
+    } else {
+        // For in-person events, only show categories applicable to attendance_type_id 1
+        filtered = filtered.filter(cat => 
+            !cat.applicable_attendance_types || 
+            cat.applicable_attendance_types.includes(1)
+        )
+    }
+    
+    // Then apply search query filter
     if (categorySearchQuery.value) {
         const query = categorySearchQuery.value.toLowerCase()
         filtered = filtered.filter(cat => 
@@ -435,16 +492,12 @@ const submitSelection = () => {
     const isPriceAdjusted = selectedFilters.value.price[0] !== 0 || 
                           selectedFilters.value.price[1] !== selectedFilters.value.maxPrice;
     
-    // Set the searchType based on the atHome toggle
-    const searchType = selectedFilters.value.atHome ? 'atHome' : undefined;
-    
     selectedFilters.value = {
         ...selectedFilters.value,
         searchingByPrice: isPriceAdjusted,
         price: isPriceAdjusted 
             ? selectedFilters.value.price 
-            : [0, selectedFilters.value.maxPrice],
-        searchType
+            : [0, selectedFilters.value.maxPrice]
     };
     
     // Emit the final filter state when Apply is clicked
@@ -491,7 +544,13 @@ const handleBackgroundClick = (event) => {
 
 // Toggle section
 const toggleSection = (section) => {
-    activeSection.value = activeSection.value === section ? null : section
+    // Always reset search states when toggling sections
+    isSearchingCategories.value = false;
+    isSearchingTags.value = false;
+    categorySearchQuery.value = '';
+    tagSearchQuery.value = '';
+    
+    activeSection.value = activeSection.value === section ? null : section;
 }
 
 // Sort lists
@@ -535,6 +594,47 @@ watch(() => props.modelValue, (newValue) => {
         selectedFilters.value.maxPrice = newValue.maxPrice;
     }
 }, { deep: true });
+
+// Add a watch for atHome changes
+watch(() => selectedFilters.value.atHome, (newValue) => {
+    // When attendance type changes, filter out categories that aren't applicable
+    if (selectedFilters.value.categories.length) {
+        // Get all applicable categories for the current mode
+        const applicableCategories = categories.value.filter(cat => {
+            if (!cat.applicable_attendance_types) return true; // No restrictions
+            return newValue 
+                ? cat.applicable_attendance_types.includes(2) // Remote
+                : cat.applicable_attendance_types.includes(1); // In-person
+        });
+        
+        // Filter selected categories to only include applicable ones
+        const applicableCategoryIds = applicableCategories.map(cat => cat.id);
+        selectedFilters.value.categories = selectedFilters.value.categories.filter(
+            id => applicableCategoryIds.includes(id)
+        );
+    }
+    
+    // Resort the lists to reflect the new state
+    sortLists();
+});
+
+// Add a computed property for hasActiveFilters
+const hasActiveFilters = computed(() => {
+    // Check for categories, tags and atHome
+    const hasActiveFilter = 
+        selectedFilters.value.categories?.length > 0 || 
+        selectedFilters.value.tags?.length > 0 || 
+        selectedFilters.value.atHome === true;
+    
+    // Check price filters
+    const hasPriceFilter = selectedFilters.value.price[0] !== 0 || 
+                          selectedFilters.value.price[1] !== selectedFilters.value.maxPrice;
+    
+    return hasActiveFilter || hasPriceFilter;
+});
+
+// Expose hasActiveFilters for parent components
+defineExpose({ hasActiveFilters });
 </script>
 
 <style>
@@ -553,5 +653,10 @@ input, select, textarea {
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
+}
+
+/* Safe area padding for iOS devices */
+.safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
 }
 </style>

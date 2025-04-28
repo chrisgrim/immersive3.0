@@ -71,7 +71,7 @@
     <div class="max-w-screen-5xl relative m-auto px-10 lg-air:px-16 2xl-air:px-32">
         <div class="flex flex-col md:flex-row">
             <div class="w-full md:w-1/2 flex flex-col justify-center py-16 md:py-0">
-                <h2 class="text-5xl text-white mb-8 text-left font-optima">Discover Immersive Experiences</h2>
+                <h2 class="text-5xl text-white mb-8 text-left">Discover Immersive Experiences</h2>
                 <p class="text-xl text-gray-100 mb-12 text-left leading-relaxed">Explore our database of curated events, containing everything from immersive theatre to installation art to escape rooms and beyond.</p>
                 <div class="text-left">
                     <a href="/index/search?searchType=null&page=1">

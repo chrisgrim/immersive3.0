@@ -27,6 +27,27 @@
                         <span class="block font-bold invisible h-0">Name</span>
                         <span class="block" :class="{ 'font-bold text-black': search === 'e' }">Name</span>
                     </button>
+                    <button 
+                        @click="showFilters = true"
+                        class="w-[4.5rem] h-[4.5rem] ml-6 flex-shrink-0 flex items-center justify-center rounded-full shadow-custom-3 transition-colors"
+                        :class="[
+                            hasActiveFilters 
+                                ? 'bg-black hover:bg-gray-800' 
+                                : 'hover:bg-gray-200'
+                        ]"
+                    >
+                        <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            viewBox="0 0 32 32" 
+                            aria-hidden="true" 
+                            role="presentation" 
+                            focusable="false" 
+                            style="display: block; fill: none; height: 16px; width: 16px; stroke-width: 2.5; overflow: visible;"
+                            :style="{ stroke: hasActiveFilters ? 'white' : 'currentcolor' }"
+                        >
+                            <path fill="none" d="M7 16H3m26 0H15M29 6h-4m-8 0H3m26 20h-4M7 16a4 4 0 1 0 8 0 4 4 0 0 0-8 0zM17 6a4 4 0 1 0 8 0 4 4 0 0 0-8 0zm0 20a4 4 0 1 0 8 0 4 4 0 0 0-8 0zm0 0H3"></path>
+                        </svg>
+                    </button>
                 </div>
                 <div class="w-full mx-auto flex relative max-w-6xl mt-8">
                     <SearchLocation 
@@ -126,6 +147,7 @@
             :show-price="isSearchPage"
             @close="showFilters = false"
             @filter-change="handleFilterUpdate"
+            ref="filtersComponent"
         />
     </div>
 </template>
@@ -158,6 +180,8 @@ const search = ref(null);
 const showFilters = ref(false);
 const unsubscribe = ref(null);
 const locationSearch = ref(null);
+// Add ref for filters component to access hasActiveFilters
+const filtersComponent = ref(null);
 
 // Remove the getUrlParams utility function and replace with computed property
 const urlParams = computed(() => new URLSearchParams(window.location.search));
@@ -197,11 +221,18 @@ const formatDateDisplay = computed(() => {
     }
 });
 
-// Update hasActiveFilters to use the computed property
+// Update hasActiveFilters to use the filters component
 const hasActiveFilters = computed(() => {
-    return (state.value.filters.categories?.length > 0) || 
-           (state.value.filters.tags?.length > 0) || 
-           (isSearchPage.value && (urlParams.value.has('price0') || urlParams.value.has('price1')));
+    // Check if we have access to the filters component's hasActiveFilters
+    if (filtersComponent.value?.hasActiveFilters) {
+        return filtersComponent.value.hasActiveFilters.value;
+    }
+    
+    // Simple fallback when filters component isn't mounted
+    return state.value.filters.categories?.length > 0 || 
+           state.value.filters.tags?.length > 0 || 
+           state.value.filters.atHome === true || 
+           state.value.filters.searchingByPrice === true;
 });
 
 const debounce = (fn, delay) => {
@@ -241,8 +272,25 @@ const handleFilterUpdate = async (filters) => {
         filters: filters
     });
     
+    // Close the filters modal
+    showFilters.value = false;
+    
+    // Close the search modal when filters are applied
+    search.value = null;
+    
     if (isSearchPage.value) {
         const params = urlParams.value;
+        
+        // Get current search type to detect mode changes
+        const currentSearchType = params.get('searchType');
+        const newSearchType = filters.atHome ? 'atHome' : 'null';
+        
+        // Detect if we're switching between in-person and remote modes
+        const isCurrentlyInPerson = currentSearchType === 'inPerson';
+        const isCurrentlyRemote = currentSearchType === 'atHome';
+        const isTogglingModes = (isCurrentlyInPerson && filters.atHome) || 
+                               (isCurrentlyRemote && !filters.atHome);
+        
         params.set('page', 1);
         
         // Handle categories
@@ -292,34 +340,23 @@ const handleFilterUpdate = async (filters) => {
             }
         }
 
-        // Check if we're switching between location-based and remote searches
-        const currentSearchType = params.get('searchType');
-        const newSearchType = filters.searchType === 'atHome' ? 'atHome' : 
-                              (state.value.location.city ? 'inPerson' : 'null');
-        
-        // Redirect if switching between inPerson and atHome or vice versa
-        const isChangingSearchMode = (
-            (currentSearchType === 'inPerson' && newSearchType === 'atHome') || 
-            (currentSearchType === 'atHome' && newSearchType === 'inPerson')
-        );
-        
-        // Set the searchType parameter
+        // Set searchType based on atHome filter
         params.set('searchType', newSearchType);
         
-        // Redirect or update in place based on search mode change
-        if (isChangingSearchMode) {
-            // Remove location data when switching to atHome mode
-            if (newSearchType === 'atHome') {
-                params.delete('city');
-                params.delete('lat');
-                params.delete('lng');
-                params.delete('NElat');
-                params.delete('NElng');
-                params.delete('SWlat');
-                params.delete('SWlng');
-                params.delete('live');
-            }
-            
+        // Remove location data when switching to atHome mode
+        if (filters.atHome) {
+            params.delete('city');
+            params.delete('lat');
+            params.delete('lng');
+            params.delete('NElat');
+            params.delete('NElng');
+            params.delete('SWlat');
+            params.delete('SWlng');
+            params.delete('live');
+        }
+        
+        // Do a full redirect when toggling between modes, otherwise update in place
+        if (isTogglingModes) {
             window.location.href = `/index/search?${params.toString()}`;
         } else {
             updateUrlParams(params);
@@ -343,12 +380,8 @@ const handleFilterUpdate = async (filters) => {
             params.set('price1', maxPrice);
         }
 
-        // Handle searchType for remote events
-        if (filters.searchType === 'atHome') {
-            params.set('searchType', 'atHome');
-        } else {
-            params.set('searchType', 'null');
-        }
+        // Handle searchType based on atHome
+        params.set('searchType', filters.atHome ? 'atHome' : 'null');
         
         window.location.href = `/index/search?${params.toString()}`;
     }
@@ -363,7 +396,6 @@ const handleLocationSearch = (searchData) => {
             city: searchData.location.city,
             lat: searchData.location.lat,
             lng: searchData.location.lng,
-            searchType: searchData.location.searchType,
             live: searchData.location.live
         },
         dates: {
@@ -417,6 +449,16 @@ const handleLocationSearch = (searchData) => {
         }
         if (parsedLng !== null) {
             params.set('lng', parsedLng.toString());
+        }
+        
+        // If we have location data, make sure atHome is false
+        if (state.value.filters.atHome) {
+            SearchStore.updateState({
+                filters: {
+                    ...state.value.filters,
+                    atHome: false
+                }
+            });
         }
     } else {
         // For date-only search, use 'null' searchType
@@ -500,6 +542,9 @@ onMounted(() => {
   SearchStore.initializeFromUrl(props.searchedEvents, props.maxPrice === undefined ? null : props.maxPrice);
   subscribeToMapStore();
   setupEventListeners();
+  
+  // Add listener for opening filters from anywhere in the app
+  window.addEventListener('open-filters', () => showFilters.value = true);
 });
 
 // Cleanup on component unmount
@@ -512,6 +557,7 @@ onUnmounted(() => {
   // Remove event listeners
   window.removeEventListener('scroll', handleScroll);
   window.removeEventListener('hide-search', hideSearch);
+  window.removeEventListener('open-filters', () => showFilters.value = true);
 });
 
 // Add after handleLocationSearch

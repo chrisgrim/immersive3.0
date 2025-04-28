@@ -15,13 +15,14 @@ class SocialAuthController extends Controller
     {
         return Socialite::driver('google')
             ->with(['prompt' => 'select_account'])
+            ->stateless()
             ->redirect();
     }
 
     public function handleGoogleCallback()
     {
         try {
-            $googleUser = Socialite::driver('google')->user();
+            $googleUser = Socialite::driver('google')->stateless()->user();
             
             $user = User::where('email', $googleUser->email)->first();
 

@@ -49,7 +49,6 @@ export default {
         extend: {
             fontFamily: {
                 'montserrat': ['Montserrat', 'sans-serif'],
-                'optima': ['Optima', 'sans-serif'],
             },
             zIndex: {
                 '40': '40',

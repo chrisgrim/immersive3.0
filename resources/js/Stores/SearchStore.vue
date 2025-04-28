@@ -27,7 +27,6 @@ class SearchStore {
                 city: null,
                 lat: null,
                 lng: null,
-                searchType: null,
                 live: false
             },
             dates: {
@@ -64,7 +63,6 @@ class SearchStore {
                 city: cityName || null,
                 lat: params.has('lat') ? parseFloat(params.get('lat')) : null,
                 lng: params.has('lng') ? parseFloat(params.get('lng')) : null,
-                searchType: params.get('searchType') || null,
                 live: params.get('live') === 'true'
             },
             dates: {
@@ -119,7 +117,6 @@ class SearchStore {
                 city: newData.location.city !== undefined ? newData.location.city : this.state.location.city,
                 lat: newData.location.lat !== undefined ? newData.location.lat : this.state.location.lat,
                 lng: newData.location.lng !== undefined ? newData.location.lng : this.state.location.lng,
-                searchType: newData.location.searchType !== undefined ? newData.location.searchType : this.state.location.searchType,
                 live: newData.location.live !== undefined ? newData.location.live : this.state.location.live
             };
             
@@ -146,8 +143,8 @@ class SearchStore {
         // Only update maxPrice if it's explicitly provided and not undefined
         if (newData.maxPrice !== undefined && newData.maxPrice !== null) {
             this.state.filters.maxPrice = newData.maxPrice;
-        } else if (newData.location?.searchType !== 'inPerson' && this.state.filters.maxPrice === null) {
-            // Only update for non-inPerson searches if we don't already have a maxPrice
+        } else if (newData.filters?.atHome === true && this.state.filters.maxPrice === null) {
+            // Only update for atHome searches if we don't already have a maxPrice
             this.state.filters.maxPrice = newData.maxPrice;
         }
 
@@ -163,9 +160,6 @@ class SearchStore {
         try {
             this.setLoading(true);
             const response = await axios.get(`/api/index/search?${queryString}`);
-            
-            // Get searchType from URL
-            const params = new URLSearchParams(window.location.search);
             
             // Format city name to remove country for US cities
             let cityName = response.data.city;
@@ -188,7 +182,6 @@ class SearchStore {
                     city: cityName,
                     lat: response.data.lat,
                     lng: response.data.lng,
-                    searchType: params.get('searchType'),
                     live: response.data.live
                 },
                 filters: {

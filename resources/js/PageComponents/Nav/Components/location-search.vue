@@ -438,6 +438,12 @@ function formatDate(date) {
    });
 }
 
+// Add the isPlaceEmpty function for consistency with mobile version
+const isPlaceEmpty = (place) => {
+    if (!place) return true;
+    return !place.name && !place.lat && !place.lng;
+};
+
 // Disable past dates
 const disabledDate = (date) => {
    return date < new Date();
@@ -513,7 +519,6 @@ const handleSearch = () => {
     const searchData = {
         location: {
             city: selectedPlace.value?.name || null,
-            searchType: 'inPerson',
             live: false,
             lat: selectedPlace.value?.lat ? parseFloat(selectedPlace.value.lat) : null,
             lng: selectedPlace.value?.lng ? parseFloat(selectedPlace.value.lng) : null

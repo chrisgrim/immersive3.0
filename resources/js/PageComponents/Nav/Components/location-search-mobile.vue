@@ -474,6 +474,12 @@ function formatDate(date) {
    });
 }
 
+// Add the missing isPlaceEmpty function
+const isPlaceEmpty = (place) => {
+    if (!place) return true;
+    return !place.name && !place.lat && !place.lng;
+};
+
 // Add a reusable function for formatting dates for consistency
 const formatDateForUrl = (dateObj) => {
     if (!dateObj) return null;
@@ -482,51 +488,72 @@ const formatDateForUrl = (dateObj) => {
 
 // Update handleSearch function
 const handleSearch = () => {
-    if (!selectedPlace.value && !date.value) return;
+    // Validate city selection if required
+    if (!props.showDatesTab && !selectedPlace.value) {
+        return; // Prevent search without location if dates tab is disabled
+    }
     
-    // Hide the search modal
-    window.dispatchEvent(new CustomEvent('hide-search'));
-    
-    // Format dates if available
-    const formattedStartDate = date.value && date.value[0] ? formatDateForUrl(date.value[0]) : null;
-    const formattedEndDate = date.value && date.value[1] ? formatDateForUrl(date.value[1]) : formattedStartDate;
-    
-    // Build search URL parameters
-    const params = new URLSearchParams();
-    
-    // Add location parameters if we have a city
-    if (selectedPlace.value) {
-        params.set('city', selectedPlace.value.name);
+    // If dates are required and not selected, prevent search
+    if (props.showDatesTab && !selectedPlace.value && (!date.value || !date.value.length)) {
+        return;
+    }
+
+    // Build the search data for emitting
+    let searchData = {};
+
+    // Add location data if we have a selected place
+    if (selectedPlace.value && !isPlaceEmpty(selectedPlace.value)) {
+        searchData.city = selectedPlace.value.name;
+        searchData.lat = selectedPlace.value.lat;
+        searchData.lng = selectedPlace.value.lng;
+        searchData.live = false;
+    }
+
+    // Add date data if we have dates selected
+    if (date.value && Array.isArray(date.value) && date.value.length === 2) {
+        const [start, end] = date.value;
+        const formatForUrl = (date) => {
+            return date.toISOString().split('T')[0] + ' 00:00:00';
+        };
         
-        if (selectedPlace.value.lat !== null && selectedPlace.value.lng !== null) {
-            params.set('lat', selectedPlace.value.lat);
-            params.set('lng', selectedPlace.value.lng);
+        searchData.start = formatForUrl(start);
+        searchData.end = end ? formatForUrl(end) : formatForUrl(start);
+    }
+
+    // Emit updated location & date data to parent
+    emit('update:location', searchData);
+    
+    // If parent component is directly handling the search, emit search event
+    if (props.search) {
+        emit('search');
+    } else {
+        // Otherwise, construct URL and redirect
+        const params = new URLSearchParams();
+        
+        // Add location parameters if we have a city
+        if (searchData.city) {
+            params.set('city', searchData.city);
+            
+            if (searchData.lat !== undefined && searchData.lng !== undefined) {
+                params.set('lat', searchData.lat);
+                params.set('lng', searchData.lng);
+            }
+            
+            params.set('searchType', 'inPerson');
+            params.set('live', 'false');
+        } else if (searchData.start) {
+            // For date-only search, use 'null' searchType
+            params.set('searchType', 'null');
         }
         
-        params.set('searchType', 'inPerson');
-        params.set('live', 'false');
-    } else {
-        // For date-only search, use 'null' searchType
-        params.set('searchType', 'null');
+        // Add date parameters if they exist
+        if (searchData.start) {
+            params.set('start', searchData.start);
+            params.set('end', searchData.end || searchData.start);
+        }
+        
+        window.location.href = `/index/search?${params.toString()}`;
     }
-    
-    // Add date parameters if they exist
-    if (formattedStartDate) {
-        params.set('start', formattedStartDate);
-        params.set('end', formattedEndDate || formattedStartDate);
-    }
-    
-    // Update parent component with complete location and date data
-    emit('update:location', {
-        city: selectedPlace.value?.name || null, 
-        lat: selectedPlace.value?.lat || null,
-        lng: selectedPlace.value?.lng || null,
-        start: formattedStartDate,
-        end: formattedEndDate
-    });
-    
-    // Navigate directly to the search page
-    window.location.href = `/index/search?${params.toString()}`;
 };
 
 // Update handleDateChange to use the new formatDateForUrl function

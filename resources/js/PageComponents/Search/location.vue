@@ -6,9 +6,14 @@
                 :class="{ 'w-0 hidden' : isFullMap }"
                 class="z-10 relative inline-block w-[59%] min-h-[calc(100vh-8rem)]"
             >
-                <div class="inline-block text-left pt-16 pb-4 px-8">
-                    <p v-if="hasEvents">{{ events.total }} immersive events.</p>
-                    <p v-else>There are no location based events with these filters.</p>
+                <div class="px-8 pt-16">
+                    <!-- Active Filters -->
+                    <active-filters />
+                    
+                    <div class="inline-block text-left pb-4">
+                        <p class="text-2xl font-medium" v-if="hasEvents">{{ events.total }} immersive events.</p>
+                        <p class="text-2xl font-medium" v-else>There are no location based events with these filters.</p>
+                    </div>
                 </div>
                 
                 <div class="px-8">
@@ -44,6 +49,7 @@ import EventList from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 import Map from './Components/map.vue'
 import SearchStore from '@/Stores/SearchStore.vue'
+import ActiveFilters from './Components/active-filters.vue'
 
 // Constants
 const DEFAULT_LOCATION = {
