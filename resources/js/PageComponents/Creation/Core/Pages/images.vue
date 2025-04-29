@@ -236,6 +236,12 @@ const handleSort = ({ moved }) => {
 
 const validateFile = (file) => {
     return new Promise((resolve, reject) => {
+        // Check if file is defined
+        if (!file) {
+            alert('No file was provided.');
+            return resolve(false);
+        }
+        
         // Check file type
         if (!ALLOWED_TYPES.includes(file.type)) {
             alert(`"${file.name}" is not a supported image type. Please use JPEG, PNG, or WebP.`);
@@ -294,7 +300,9 @@ const validateFile = (file) => {
         
         // Set the src after defining event handlers
         try {
-            img.src = URL.createObjectURL(file);
+            // Create a blob URL from a slice of the file to ensure it's valid
+            const safeBlob = file.slice(0, file.size, file.type);
+            img.src = URL.createObjectURL(safeBlob);
         } catch (error) {
             clearTimeout(timeoutId);
             alert(`"${file.name}" could not be processed. Error: ${error.message}`);
@@ -415,7 +423,7 @@ const completeCrop = () => {
         const createImageBlob = (quality = 0.95) => {
             outputCanvas.toBlob((blob) => {
                 // Make sure we got a valid blob
-                if (!blob) {
+                if (!blob || blob.size === 0) {
                     alert('Failed to create image from canvas. Please try again.');
                     showCropper.value = false;
                     cropperImage.value = '';
@@ -438,46 +446,64 @@ const completeCrop = () => {
                     return;
                 }
                 
-                const file = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const oldMainImage = mainImage.value;
+                try {
+                    // Create a file with proper MIME type and name
+                    const timestamp = Date.now();
+                    const fileName = `cropped-image-${timestamp}.jpg`;
+                    const file = new File([blob], fileName, { type: 'image/jpeg' });
                     
-                    // Verify that we got valid file data
-                    if (!e.target.result) {
-                        alert('Failed to read the cropped image. Please try again.');
+                    // Verify the file was created correctly
+                    if (!file || file.size === 0) {
+                        throw new Error('Created file is empty or invalid');
+                    }
+                    
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const oldMainImage = mainImage.value;
+                        
+                        // Verify that we got valid file data
+                        if (!e.target.result) {
+                            alert('Failed to read the cropped image. Please try again.');
+                            showCropper.value = false;
+                            cropperImage.value = '';
+                            setComponentReady(true);
+                            return;
+                        }
+                        
+                        mainImage.value = { 
+                            url: e.target.result, 
+                            file,
+                            rank: 0
+                        };
+                        
+                        if (oldMainImage?.isExisting) {
+                            const oldMainImagePath = oldMainImage.url.replace(imageUrl, '');
+                            if (!deletedImages.value.includes(oldMainImagePath)) {
+                                addToDeletedImages(oldMainImagePath);
+                            }
+                        }
+                        
                         showCropper.value = false;
                         cropperImage.value = '';
                         setComponentReady(true);
-                        return;
-                    }
-                    
-                    mainImage.value = { 
-                        url: e.target.result, 
-                        file,
-                        rank: 0
                     };
                     
-                    if (oldMainImage?.isExisting) {
-                        const oldMainImagePath = oldMainImage.url.replace(imageUrl, '');
-                        if (!deletedImages.value.includes(oldMainImagePath)) {
-                            addToDeletedImages(oldMainImagePath);
-                        }
-                    }
+                    reader.onerror = (error) => {
+                        console.error('FileReader error:', error);
+                        alert('Error reading the cropped image. Please try again.');
+                        showCropper.value = false;
+                        cropperImage.value = '';
+                        setComponentReady(true);
+                    };
                     
+                    reader.readAsDataURL(file);
+                } catch (error) {
+                    console.error('Error creating file from blob:', error);
+                    alert(`Error creating image file: ${error.message}. Please try again.`);
                     showCropper.value = false;
                     cropperImage.value = '';
                     setComponentReady(true);
-                };
-                
-                reader.onerror = () => {
-                    alert('Error reading the cropped image. Please try again.');
-                    showCropper.value = false;
-                    cropperImage.value = '';
-                    setComponentReady(true);
-                };
-                
-                reader.readAsDataURL(file);
+                }
             }, 'image/jpeg', quality);
         };
         
@@ -587,18 +613,30 @@ defineExpose({
                 if (!mainImage.value.file.size || mainImage.value.file.size === 0) {
                     console.error('Main image file appears to be empty/corrupted, skipping');
                 } else {
-                    const fileExtension = mainImage.value.file.name.split('.').pop();
-                    const timestamp = Date.now();
-                    const newFileName = `image-rank-0-${timestamp}.${fileExtension}`;
-                    const newFile = new File([mainImage.value.file], newFileName, { type: mainImage.value.file.type });
-                    
-                    formData.append('images[]', newFile);
-                    formData.append(`ranks[${newImageCount}]`, 0);
-                    newImageCount++;
-                    
-                    // Track that we've uploaded this file
-                    if (mainImage.value.id) {
-                        uploadedFileIds.add(mainImage.value.id);
+                    try {
+                        const fileExtension = mainImage.value.file.name.split('.').pop();
+                        const timestamp = Date.now();
+                        const newFileName = `image-rank-0-${timestamp}.${fileExtension}`;
+                        
+                        // Create a new Blob from the file content to ensure it's properly created
+                        const blob = mainImage.value.file.slice(0, mainImage.value.file.size, mainImage.value.file.type);
+                        const newFile = new File([blob], newFileName, { type: mainImage.value.file.type });
+                        
+                        // Verify the new file has content before adding to FormData
+                        if (newFile.size > 0) {
+                            formData.append('images[]', newFile);
+                            formData.append(`ranks[${newImageCount}]`, 0);
+                            newImageCount++;
+                            
+                            // Track that we've uploaded this file
+                            if (mainImage.value.id) {
+                                uploadedFileIds.add(mainImage.value.id);
+                            }
+                        } else {
+                            console.error('Failed to create valid main image file');
+                        }
+                    } catch (e) {
+                        console.error('Error creating main image file:', e);
                     }
                 }
             } else if (mainImage.value.isExisting) {
@@ -626,18 +664,30 @@ defineExpose({
                 if (!image.file.size || image.file.size === 0) {
                     console.error(`Image at rank ${rank} appears to be empty/corrupted, skipping`);
                 } else {
-                    const fileExtension = image.file.name.split('.').pop();
-                    const timestamp = Date.now();
-                    const newFileName = `image-rank-${rank}-${timestamp}.${fileExtension}`;
-                    const newFile = new File([image.file], newFileName, { type: image.file.type });
-                    
-                    formData.append('images[]', newFile);
-                    formData.append(`ranks[${newImageCount}]`, rank);
-                    newImageCount++;
-                    
-                    // Track that we've uploaded this file
-                    if (image.id) {
-                        uploadedFileIds.add(image.id);
+                    try {
+                        const fileExtension = image.file.name.split('.').pop();
+                        const timestamp = Date.now();
+                        const newFileName = `image-rank-${rank}-${timestamp}.${fileExtension}`;
+                        
+                        // Create a new Blob from the file content to ensure it's properly created
+                        const blob = image.file.slice(0, image.file.size, image.file.type);
+                        const newFile = new File([blob], newFileName, { type: image.file.type });
+                        
+                        // Verify the new file has content before adding to FormData
+                        if (newFile.size > 0) {
+                            formData.append('images[]', newFile);
+                            formData.append(`ranks[${newImageCount}]`, rank);
+                            newImageCount++;
+                            
+                            // Track that we've uploaded this file
+                            if (image.id) {
+                                uploadedFileIds.add(image.id);
+                            }
+                        } else {
+                            console.error(`Failed to create valid image file for rank ${rank}`);
+                        }
+                    } catch (e) {
+                        console.error(`Error creating image file for rank ${rank}:`, e);
                     }
                 }
             } else if (image.isExisting) {

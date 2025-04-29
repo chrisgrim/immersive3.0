@@ -130,26 +130,36 @@ class StoreEventRequest extends FormRequest
         // Log the image details if it exists
         if ($this->hasFile('images')) {
             foreach ($this->file('images') as $index => $image) {
+                if (!$image || !$image->isValid()) {
+                    \Log::warning("Invalid image file at index {$index}");
+                    continue;
+                }
+                
                 $pathname = $image->getPathname();
                 
                 $logData = [
-                    'mime' => $image->getMimeType(),
-                    'size' => $image->getSize(),
                     'original_name' => $image->getClientOriginalName()
                 ];
                 
-                // Only try to get image size if the path exists and is readable
+                // Only try to get MIME type, size, and dimensions if the path exists and is readable
                 if ($pathname && file_exists($pathname) && is_readable($pathname)) {
                     try {
+                        $logData['mime'] = $image->getMimeType();
+                        $logData['size'] = $image->getSize();
+                        
                         $size = getimagesize($pathname);
                         $logData['width'] = $size[0] ?? 'unknown';
                         $logData['height'] = $size[1] ?? 'unknown';
                     } catch (\Exception $e) {
-                        \Log::warning("Failed to get image size for {$image->getClientOriginalName()}: {$e->getMessage()}");
+                        \Log::warning("Failed to get image details for {$image->getClientOriginalName()}: {$e->getMessage()}");
+                        $logData['mime'] = 'error';
+                        $logData['size'] = 'error';
                         $logData['width'] = 'error';
                         $logData['height'] = 'error';
                     }
                 } else {
+                    $logData['mime'] = 'unavailable';
+                    $logData['size'] = 'unavailable';
                     $logData['width'] = 'unavailable';
                     $logData['height'] = 'unavailable';
                     \Log::warning("Image path unavailable or unreadable for {$image->getClientOriginalName()}");

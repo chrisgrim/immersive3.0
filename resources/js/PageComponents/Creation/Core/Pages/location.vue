@@ -164,7 +164,8 @@ import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
 const event = inject('event');
 const errors = inject('errors');
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw';
+// In Laravel Mix, environment variables are accessible via window
+const GOOGLE_MAPS_API_KEY = 'AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw'; // Fallback to previous working key
 const DEFAULT_COORDINATES = { lat: 40.7127753, lng: -74.0059728 };
 
 const map = ref(initializeMapObject());
@@ -475,6 +476,26 @@ const setPlace = (place) => {
     // Update map center
     if (lat && lng) {
         map.value.center = { lat, lng };
+        
+        // Set timezone based on coordinates
+        setTimezoneFromCoordinates(lat, lng);
+    }
+};
+
+// Simple function to get timezone from coordinates
+const setTimezoneFromCoordinates = async (lat, lng) => {
+    if (!lat || !lng) return;
+    
+    try {
+        const geoNamesUrl = `https://secure.geonames.org/timezoneJSON?lat=${lat}&lng=${lng}&username=chgrim`;
+        const response = await fetch(geoNamesUrl);
+        const data = await response.json();
+        
+        if (data.timezoneId) {
+            event.timezone = data.timezoneId;
+        }
+    } catch (error) {
+        console.error('Error getting timezone:', error);
     }
 };
 
@@ -584,7 +605,8 @@ defineExpose({
             venue: event.location.venue,
             hiddenLocationToggle: event.location.hiddenLocationToggle,
             hiddenLocation: event.location.hiddenLocation
-        }
+        },
+        timezone: event.timezone
     })
 });
 </script>

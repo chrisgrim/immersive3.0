@@ -649,7 +649,6 @@ defineExpose({
             show_times: event.show_times,
             embargo_date: event.embargo_date
         };
-        console.log('Submitting data:', data);
         return data;
     }
 });
@@ -665,6 +664,11 @@ onMounted(() => {
     
     // Initialize embargo toggle based on existing embargo date
     embargoToggle.value = !!event.embargo_date;
+    
+    // If event has a timezone set (from location), use it
+    if (event.timezone) {
+        selectedTimezone.value = event.timezone;
+    }
     
     // Only set dates if we have shows and we're in specific dates mode (s), live mode (l), or ongoing mode (o)
     if (event.shows?.length > 0 && (event.showtype === 's' || event.showtype === 'l' || event.showtype === 'o')) {

@@ -26,7 +26,10 @@ class EventController extends Controller
 { 
     public function show(Event $event)
     {
-        abort_if($event->status !== 'p', 404);
+        // If event is embargoed or not published, redirect to home page instead of 404
+        if ($event->status !== 'p') {
+            return redirect('/');
+        }
         
         $event->load([
             'category',

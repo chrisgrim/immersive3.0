@@ -1,5 +1,5 @@
 <template>
-    <div class="md:sticky md:top-40">
+    <div class="md:sticky md:top-20">
         <div class="inline-block border w-full bg-white md:rounded-2xl md:shadow-custom-1 md:flex-col py-6 px-8">
             <div 
                 v-if="!ticketsVisible"
@@ -136,7 +136,7 @@
                 </a>
             </div>
         </div>
-        <!-- <vue-similar-events :event="event"></vue-similar-events> -->
+        <vue-similar-events :event="event"></vue-similar-events>
     </div>
 </template>
 

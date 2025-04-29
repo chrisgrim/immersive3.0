@@ -119,6 +119,12 @@ class HostEventController extends Controller
             $this->storeRemoteLocations($validatedData['remotelocations'], $event);
         }
 
+        // Handle timezone directly if provided
+        if (isset($validatedData['timezone'])) {
+            $event->timezone = $validatedData['timezone'];
+            $event->save();
+        }
+
         if (isset($validatedData['showtype'])) {
             Show::saveShows($request, $event);
             Show::updateEvent($request, $event);

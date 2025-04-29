@@ -76,7 +76,8 @@ const hasPriceFilter = computed(() => {
     return (
         activeFilters.value.price?.[0] > 0 || 
         (activeFilters.value.price?.[1] !== undefined && 
-         activeFilters.value.price?.[1] < (activeFilters.value.maxPrice || 1000))
+         activeFilters.value.price?.[1] < (activeFilters.value.maxPrice || 1000) &&
+         activeFilters.value.maxPrice > 0)
     );
 });
 

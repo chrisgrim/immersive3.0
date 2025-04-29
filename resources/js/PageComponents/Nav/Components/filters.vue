@@ -47,7 +47,7 @@
 
                         <!-- Price Range Section -->
                         <div 
-                            v-if="showPrice"
+                            v-if="showPrice && selectedFilters.maxPrice > 0"
                             class="transition-all duration-300 ease-in-out flex-1 bg-white border-b flex flex-col"
                         >
                             <div 
@@ -513,12 +513,14 @@ const submitSelection = () => {
 }
 
 const clearAll = () => {
+    const currentMaxPrice = selectedFilters.value.maxPrice; // Store current maxPrice
     selectedFilters.value = {
         categories: [],
         tags: [],
-        price: [0, props.maxPrice],
-        searchingByPrice: false,  // Reset the searching by price flag
-        atHome: false  // Reset atHome to false
+        price: [0, currentMaxPrice], // Use stored maxPrice
+        maxPrice: currentMaxPrice, // Preserve maxPrice
+        searchingByPrice: false,
+        atHome: false
     };
     
     // Clear any search queries

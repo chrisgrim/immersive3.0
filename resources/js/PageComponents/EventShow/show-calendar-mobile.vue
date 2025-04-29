@@ -2,7 +2,7 @@
   <div class="event-calendar-mobile py-8 border-t border-b border-neutral-200">
     <p class="text-5xl font-medium text-black mb-8">
       Show Dates
-      <span v-if="remaining.length > 0" class="text-3xl font-normal text-neutral-600 ml-2">
+      <span v-if="remaining.length > 0 && event.showtype !== 'a'" class="text-3xl font-normal text-neutral-600 ml-2">
         ({{ remaining.length }} {{ remaining.length === 1 ? 'date' : 'dates' }} remaining)
       </span>
     </p>

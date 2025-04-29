@@ -283,7 +283,7 @@ const handleFilterUpdate = async (filters) => {
         
         // Get current search type to detect mode changes
         const currentSearchType = params.get('searchType');
-        const newSearchType = filters.atHome ? 'atHome' : 'null';
+        const newSearchType = filters.atHome ? 'atHome' : 'inPerson';
         
         // Detect if we're switching between in-person and remote modes
         const isCurrentlyInPerson = currentSearchType === 'inPerson';
@@ -381,7 +381,7 @@ const handleFilterUpdate = async (filters) => {
         }
 
         // Handle searchType based on atHome
-        params.set('searchType', filters.atHome ? 'atHome' : 'null');
+        params.set('searchType', filters.atHome ? 'atHome' : 'inPerson');
         
         window.location.href = `/index/search?${params.toString()}`;
     }
@@ -461,8 +461,8 @@ const handleLocationSearch = (searchData) => {
             });
         }
     } else {
-        // For date-only search, use 'null' searchType
-        params.set('searchType', 'null');
+        // For date-only search, use 'inPerson' searchType
+        params.set('searchType', 'inPerson');
         
         // Remove any previous location data if it exists
         params.delete('city');

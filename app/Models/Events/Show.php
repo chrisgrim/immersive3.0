@@ -130,6 +130,11 @@ class Show extends Model
             'closingDate' => $lastDate,
             'showtype' => $type,
         ];
+        
+        // Include timezone if provided
+        if ($request->timezone) {
+            $updateData['timezone'] = $request->timezone;
+        }
 
         // Handle embargo status changes
         if ($event->status === 'e' && !$request->embargo_date) {

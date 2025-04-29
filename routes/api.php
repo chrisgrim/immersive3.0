@@ -42,6 +42,10 @@ Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])->n
 Route::GET('/events/{event}/similar', [SimilarEventsController::class, 'getSimilar'])
     ->name('events.similar');
 
+// Get similar events by location
+Route::GET('/events/similar-by-location', [SimilarEventsController::class, 'getSimilarByLocation'])
+    ->name('events.similar-by-location');
+
 // Event duplication route for organizer owners
 Route::POST('/events/{event}/duplicate', [HostEventController::class, 'duplicate'])
     ->middleware(['auth:sanctum'])

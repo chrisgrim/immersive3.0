@@ -12,7 +12,6 @@
                     
                     <div class="inline-block text-left pb-4">
                         <p class="text-2xl font-medium" v-if="hasEvents">{{ events.total }} immersive events.</p>
-                        <p class="text-2xl font-medium" v-else>There are no location based events with these filters.</p>
                     </div>
                 </div>
                 
@@ -24,10 +23,19 @@
                         :columns="4"
                     />
                     <Pagination 
-                        v-if="events"
+                        v-if="events && hasEvents"
                         class="mt-6"
                         :pagination="events"
                         @paginate="handlePageChange"
+                    />
+                    
+                    <SimilarResults 
+                        v-if="!hasEvents"
+                        :event="{id: 0, slug: 'placeholder'}"
+                        :user="user"
+                        :columns="4"
+                        :noResultsMode="true"
+                        class="mt-12 mb-10"
                     />
                 </div>
             </section>
@@ -50,6 +58,7 @@ import Pagination from '@/GlobalComponents/pagination.vue'
 import Map from './Components/map.vue'
 import SearchStore from '@/Stores/SearchStore.vue'
 import ActiveFilters from './Components/active-filters.vue'
+import SimilarResults from './Components/similar-results.vue'
 
 // Constants
 const DEFAULT_LOCATION = {

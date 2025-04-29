@@ -13,14 +13,14 @@
             <meta property="og:url" content="{{ url()->current() }}">
             <meta property="og:title" content="{{ isset($title) ? $title : config('app.name') . ' - Discover Immersive Events' }}">
             <meta property="og:description" content="{{ isset($description) ? $description : 'Find and explore immersive events, experiences, and performances. Everything Immersive connects you with unique entertainment around the world.' }}">
-            <meta property="og:image" content="{{ isset($ogImage) ? $ogImage : asset('storage/website-files/default-social-image.jpg') }}">
+            <meta property="og:image" content="{{ isset($ogImage) ? $ogImage : asset('storage/website-files/Everything_Immersive_logo_Short.png') }}">
             
             {{-- Twitter Meta Tags --}}
             <meta name="twitter:card" content="summary_large_image">
             <meta name="twitter:url" content="{{ url()->current() }}">
             <meta name="twitter:title" content="{{ isset($title) ? $title : config('app.name') . ' - Discover Immersive Events' }}">
             <meta name="twitter:description" content="{{ isset($description) ? $description : 'Find and explore immersive events, experiences, and performances. Everything Immersive connects you with unique entertainment around the world.' }}">
-            <meta name="twitter:image" content="{{ isset($ogImage) ? $ogImage : asset('storage/website-files/default-social-image.jpg') }}">
+            <meta name="twitter:image" content="{{ isset($ogImage) ? $ogImage : asset('storage/website-files/Everything_Immersive_logo_Short.png') }}">
             
             {{-- Canonical URL to prevent duplicate content issues --}}
             <link rel="canonical" href="{{ url()->current() }}">

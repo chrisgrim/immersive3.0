@@ -3,10 +3,10 @@
         <div class="justify-between flex">
             <div class="my-4 h-16">
                 <div class="h-full flex items-center">
-                    <h2 class="text-3xl md:text-4xl text-black font-medium mt-2">{{ title }}</h2>
+                    <h2 class="text-2.5xl text-black font-medium mt-2">{{ title }}</h2>
                 </div>
             </div>
-            <div v-if="similarEvents.length >= 4" class="inline-flex items-center gap-2 invisible md:visible">
+            <div v-if="similarEvents.length >= 1" class="inline-flex items-center gap-2 invisible md:visible">
                 <button 
                     aria-label="Scroll Left"
                     class="rounded-full w-14 h-14 border border-gray-300 p-0 bg-white hover:shadow-md transition-shadow" 
@@ -102,119 +102,41 @@
   const similarEvents = ref([])
   const isLoading = ref(false)
   const error = ref(null)
-  const imageUrl = import.meta.env.VITE_IMAGE_URL
+  const isSameCity = ref(false)
   const scrollContainer = ref(null)
-  const cardWidth = ref(0)
+  const imageUrl = import.meta.env.VITE_IMAGE_URL
   
-  // Compute title based on location
   const title = computed(() => {
-    if (props.event.hasLocation) {
+    // If the event has a location and we found events in the same city
+    if (props.event.hasLocation && isSameCity.value && props.event.location && props.event.location.city) {
       return `More events in ${props.event.location.city}`
     }
-    return 'Similar events you might like'
-  })
-  
-  
-  onMounted(async () => {
-    // Track component instances to detect duplicates
-    if (!window._similarEventsInstances) window._similarEventsInstances = 0;
-    window._similarEventsInstances++;
     
-    console.log(`⏱️ Similar events component instance #${window._similarEventsInstances} mounted for event ${props.event.slug}`);
-    console.time('similar-events-total')
-    
-    // Try up to 2 retries
-    for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-            console.time('similar-events-fetch')
-            console.log(`⏱️ Starting API fetch for similar events (attempt ${attempt + 1})`)
-            
-            const response = await axios.get(`/api/events/${props.event.slug}/similar`)
-            console.timeEnd('similar-events-fetch')
-            console.log(`⏱️ Received ${response?.data?.length || 0} similar events`)
-            
-            if (response?.data?.length) {
-                similarEvents.value = response.data
-                break // Success, exit retry loop
-            } else {
-                console.warn('Received empty response from similar events API')
-                
-                // On the last attempt, try the client-side fallback
-                if (attempt === 2) {
-                    // Try client-side fallback for empty results
-                    const localSimilarEvents = findSimilarEventsLocally()
-                    if (localSimilarEvents.length > 0) {
-                        console.log('⏱️ Using client-side fallback for empty API response')
-                        similarEvents.value = localSimilarEvents
-                    } else {
-                        similarEvents.value = []
-                    }
-                }
-            }
-        } catch (err) {
-            console.error(`Error fetching similar events (attempt ${attempt + 1}):`, err)
-            
-            // On last attempt, set error and try client-side fallback
-            if (attempt === 2) {
-                error.value = 'Could not load similar events'
-                
-                // Try client-side fallback as last resort
-                const localSimilarEvents = findSimilarEventsLocally()
-                if (localSimilarEvents.length > 0) {
-                    similarEvents.value = localSimilarEvents
-                    console.log('⏱️ Using client-side fallback for similar events')
-                } else {
-                    similarEvents.value = []
-                }
-            } else {
-                // Wait before retry
-                await new Promise(resolve => setTimeout(resolve, 500))
-            }
-        }
+    // If we found events but they're not from the same city as the current event
+    if (props.event.hasLocation && !isSameCity.value) {
+      return 'Other events you might enjoy'
     }
     
-    console.timeEnd('similar-events-total')
-    console.log('⏱️ Similar events component fully loaded')
+    // Default for online/remote events
+    return 'Similar online events'
   })
   
-  onUnmounted(() => {
-    // Decrement instance count when component is unmounted
-    if (window._similarEventsInstances) window._similarEventsInstances--;
-    console.log(`⏱️ Similar events component unmounted, ${window._similarEventsInstances} instances remain`);
-  })
+  const scrollLeft = () => {
+    if (scrollContainer.value) {
+      scrollContainer.value.scrollBy({
+        left: -scrollContainer.value.offsetWidth,
+        behavior: 'smooth'
+      })
+    }
+  }
   
-  const findSimilarEventsLocally = () => {
-    // This is a fallback method if the API fails
-    // We'll look for events from the global window object if available
-    
-    console.log('⏱️ Attempting to find similar events on the client side')
-    
-    if (!window.allEvents || !window.allEvents.length) {
-        console.log('⏱️ No global events available for client-side matching')
-        return []
+  const scrollRight = () => {
+    if (scrollContainer.value) {
+      scrollContainer.value.scrollBy({
+        left: scrollContainer.value.offsetWidth,
+        behavior: 'smooth'
+      })
     }
-    
-    // Find events with the same category
-    const sameCategorySimilar = window.allEvents.filter(e => 
-        e.id !== props.event.id && 
-        e.category_id === props.event.category_id
-    ).slice(0, 6)
-    
-    // If we have enough category matches, use those
-    if (sameCategorySimilar.length >= 3) {
-        console.log(`⏱️ Found ${sameCategorySimilar.length} similar events by category on client side`)
-        return sameCategorySimilar
-    }
-    
-    // Otherwise, add some more events
-    const otherEvents = window.allEvents
-        .filter(e => e.id !== props.event.id && !sameCategorySimilar.some(s => s.id === e.id))
-        .slice(0, 6 - sameCategorySimilar.length)
-    
-    const combined = [...sameCategorySimilar, ...otherEvents]
-    console.log(`⏱️ Found ${combined.length} similar events on client side (${sameCategorySimilar.length} by category)`)
-    
-    return combined
   }
   
   const formatDate = (dateString) => {
@@ -223,13 +145,37 @@
     return new Date(dateString).toLocaleDateString('en-US', options)
   }
   
+  const getEventLocation = (event) => {
+    // For remote events
+    if (!event.hasLocation && event.remotelocations && event.remotelocations.length > 0) {
+      return event.remotelocations[0].name || 'Remote Event'
+    } 
+    // For events with location object
+    else if (event.location) {
+      if (event.location.country === 'United States') {
+        return `${event.location.city}, ${event.location.region}`
+      }
+      return `${event.location.city}, ${event.location.country}`
+    }
+    // For events with location_latlon (from API)
+    else if (event.location_latlon && typeof event.location_latlon === 'object') {
+      if (event.location_latlon.city) {
+        if (event.location_latlon.country === 'United States') {
+          return `${event.location_latlon.city}, ${event.location_latlon.region || ''}`
+        }
+        return `${event.location_latlon.city}, ${event.location_latlon.country || ''}`
+      }
+    }
+    
+    // For online events
+    if (!event.hasLocation) {
+      return 'Online event'
+    }
+    
+    return 'Location details on event page'
+  }
+  
   const getEventImage = (event) => {
-    console.log('Event image data:', { 
-        event: event,
-        event_id: event.id,
-        has_images: !!event.images?.length,
-        image_data: event.thumbImagePath
-    })
     // Check for images array first
     if (event.images && event.images.length > 0) {
       return event.images[0].large_image_path || event.images[0].thumb_image_path;
@@ -253,38 +199,7 @@
       return event.large_image_path;
     }
     
-    console.warn(`No image found for event ${event.id} (${event.name})`);
     return null;
-  }
-  
-  const getEventLocation = (event) => {
-    if (!event.hasLocation && event.remotelocations && event.remotelocations.length > 0) {
-      return event.remotelocations[0].name || 'Remote Event'
-    } else if (event.location) {
-      if (event.location.country === 'United States') {
-        return `${event.location.city}, ${event.location.region}`
-      }
-      return `${event.location.city}, ${event.location.country}`
-    }
-    return 'Location not specified'
-  }
-  
-  const scrollLeft = () => {
-    if (scrollContainer.value) {
-      scrollContainer.value.scrollBy({
-        left: -scrollContainer.value.offsetWidth,
-        behavior: 'smooth'
-      })
-    }
-  }
-  
-  const scrollRight = () => {
-    if (scrollContainer.value) {
-      scrollContainer.value.scrollBy({
-        left: scrollContainer.value.offsetWidth,
-        behavior: 'smooth'
-      })
-    }
   }
   
   const getImageSrc = (event) => {
@@ -298,6 +213,63 @@
     // Otherwise, prepend the image URL
     return `${imageUrl}${imagePath}`;
   }
+  
+  const findSimilarEventsLocally = () => {
+    if (!window.allEvents || !window.allEvents.length) {
+        return []
+    }
+    
+    // Find events with the same category
+    const sameCategorySimilar = window.allEvents.filter(e => 
+        e.id !== props.event.id && 
+        e.category_id === props.event.category_id
+    ).slice(0, 6)
+    
+    // If we have enough category matches, use those
+    if (sameCategorySimilar.length >= 3) {
+        return sameCategorySimilar
+    }
+    
+    // Otherwise, add some more events
+    const otherEvents = window.allEvents
+        .filter(e => e.id !== props.event.id && !sameCategorySimilar.some(s => s.id === e.id))
+        .slice(0, 6 - sameCategorySimilar.length)
+    
+    return [...sameCategorySimilar, ...otherEvents]
+  }
+  
+  onMounted(async () => {
+    isLoading.value = true
+    
+    try {
+      const response = await axios.get(`/api/events/${props.event.slug}/similar`)
+      
+      // Check if we have the new response format
+      if (response?.data?.events) {
+        similarEvents.value = response.data.events
+        isSameCity.value = response.data.isSameCity
+      } else if (Array.isArray(response?.data)) {
+        // Handle old format for backward compatibility
+        similarEvents.value = response.data
+      } else {
+        // Try client-side fallback for empty results
+        similarEvents.value = findSimilarEventsLocally()
+      }
+    } catch (err) {
+      console.error(`Error fetching similar events:`, err)
+      error.value = 'Could not load similar events'
+      
+      // Try client-side fallback
+      similarEvents.value = findSimilarEventsLocally()
+    } finally {
+      isLoading.value = false
+    }
+  })
+  
+  onUnmounted(() => {
+    // Decrement instance count when component is unmounted
+    if (window._similarEventsInstances) window._similarEventsInstances--;
+  })
   </script>
   
   <style scoped>

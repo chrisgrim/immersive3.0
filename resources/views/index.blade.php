@@ -1,26 +1,32 @@
 @extends('layouts.master-container')
 
 @section('meta')
-    <title>{{config('app.name')}}</title>
-    <meta name="description" content="Your resource for immersive and interactive theatre, art, virtual reality, escape rooms, dance and more.">
+    <title>Everything Immersive</title>
+    <meta name="description" content="Explore our database of curated events, containing everything from immersive theatre to installation art to escape rooms and beyond.">
+    <meta name="keywords" content="immersive events, interactive theatre, immersive art, escape rooms, immersive experiences">
     <meta property="og:locale" content="en_US" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="{{config('app.name')}}" />
-    <meta property="og:description" content="Your resource for immersive and interactive theatre, art, virtual reality, escape rooms, dance and more." />
+    <meta property="og:title" content="Everything Immersive" />
+    <meta property="og:description" content="Explore our database of curated events, containing everything from immersive theatre to installation art to escape rooms and beyond." />
     <meta property="og:url" content="{{url()->current()}}" />
-    <meta property="og:site_name" content="{{config('app.name')}}" />
-    <meta property="article:publisher" content="https://www.facebook.com/webfxinc" />
+    <meta property="og:site_name" content="Everything Immersive" />
+    <meta property="article:publisher" content="https://www.facebook.com/EverythingImmersive/" />
     <meta property="article:section" content="Immersive" />
-    <meta property="og:image" content="{{ url('/') }}/storage/website-files/ei-logo.png" />
-    <meta property="og:image:secure_url" content="{{ url('/') }}/storage/website-files/ei-logo.png" />
-    <meta property="og:image:width" content="1280" />
-    <meta property="og:image:height" content="720" />
+    <meta property="og:image" content="{{ url('/') }}/storage/website-files/Everything_Immersive_logo_Short.png" />
+    <meta property="og:image:secure_url" content="{{ url('/') }}/storage/website-files/Everything_Immersive_logo_Short.png" />
+    <meta property="og:image:width" content="321" />
+    <meta property="og:image:height" content="277" />
+    <meta property="og:image:alt" content="Everything Immersive logo" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:description" content="Your resource for immersive and interactive theatre, art, virtual reality, escape rooms, dance and more." />
-    <meta name="twitter:title" content="{{config('app.name')}}" />
+    <meta name="twitter:description" content="Explore our database of curated events, containing everything from immersive theatre to installation art to escape rooms and beyond." />
+    <meta name="twitter:title" content="Everything Immersive" />
     <meta name="twitter:site" content="@everythingimmersive" />
-    <meta name="twitter:image" content="{{ url('/') }}/storage/website-files/ei-logo.png" />
+    <meta name="twitter:image" content="{{ url('/') }}/storage/website-files/Everything_Immersive_logo_Short.png" />
     <meta name="twitter:creator" content="@everythingimmersive" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="canonical" href="{{url()->current()}}" />
     <script>
         window.scrollDockLeft = function() {
             const container = document.getElementById('dock-scroll-container');
@@ -43,7 +49,34 @@
         }
     </script>
 
-    <script type="application/ld+json">{"@context":"http://schema.org", "@type":"Organization", "address":{"@type":"PostalAddress", "addressLocality":"Petaluma", "addressRegion":"SF", "postalCode":"94952", "streetAddress":"600 East D St"}, "description": "Your resource for immersive and interactive theatre, art, virtual reality, escape rooms, dance and more.", "logo":"https://everythingimmersive.com/storage/website-files/ei-logo.png", "name":"Everything Immersive", "sameAs":[ "https://www.facebook.com/EverythingImmersive/", "https://www.linkedin.com/company/everythingimmersive", "https://www.instagram.com/everythingimmersive/", "https://twitter.com/everythingimmersive", "https://plus.google.com/+everythingimmersive", "https://en.wikipedia.org/wiki/everythingimmersive"], "url":"https://everythingimmersive.com"}</script>
+    <script type="application/ld+json">
+    {
+        "@context": "http://schema.org",
+        "@type": "Organization",
+        "name": "Everything Immersive",
+        "url": "https://everythingimmersive.com",
+        "logo": "https://everythingimmersive.com/storage/website-files/Everything_Immersive_logo_Short.png",
+        "description": "Explore our database of curated events, containing everything from immersive theatre to installation art to escape rooms and beyond.",
+        "address": {
+            "@type": "PostalAddress",
+            "addressLocality": "Petaluma",
+            "addressRegion": "SF",
+            "postalCode": "94952",
+            "streetAddress": "600 East D St"
+        },
+        "sameAs": [
+            "https://www.facebook.com/EverythingImmersive/",
+            "https://www.linkedin.com/company/everythingimmersive",
+            "https://www.instagram.com/everythingimmersive/",
+            "https://twitter.com/everythingimmersive"
+        ],
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://everythingimmersive.com/index/search?q={search_term}",
+            "query-input": "required name=search_term"
+        }
+    }
+    </script>
 
 
 @endsection 

@@ -22,13 +22,19 @@
     <meta property="article:published_time" content="{{$event->created_at}}" />
     <meta property="article:modified_time" content="{{$event->updated_at}}" />
     <meta property="og:updated_time" content="{{$event->updated_at}}" />
-    @foreach($event->images as $image)
-        <meta property="og:image" content="{{ env('VITE_IMAGE_URL') }}{{$image->large_image_path}}" />
-        <meta property="og:image:secure_url" content="{{ env('VITE_IMAGE_URL') }}{{$image->large_image_path}}" />
-        <meta property="og:image:width" content="1280" />
-        <meta property="og:image:height" content="720" />
-        <meta name="twitter:image" content="{{ env('VITE_IMAGE_URL') . $image->large_image_path }}" />
-    @endforeach
+    @if(count($event->images) > 0)
+        @foreach($event->images as $image)
+            <meta property="og:image" content="{{ env('VITE_IMAGE_URL') }}{{$image->large_image_path}}" />
+            <meta property="og:image:secure_url" content="{{ env('VITE_IMAGE_URL') }}{{$image->large_image_path}}" />
+            <meta property="og:image:width" content="1280" />
+            <meta property="og:image:height" content="720" />
+            <meta name="twitter:image" content="{{ env('VITE_IMAGE_URL') . $image->large_image_path }}" />
+        @endforeach
+    @else
+        <meta property="og:image" content="{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}" />
+        <meta property="og:image:secure_url" content="{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}" />
+        <meta name="twitter:image" content="{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}" />
+    @endif
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:description" content="{{$event->tag_line ? $event->tag_line : $event->description}}" />
     <meta name="twitter:title" content="{{$event->name}}" />
@@ -53,6 +59,8 @@
                 @endforeach
             @elseif($event->largeImagePath)
                 "{{ env('VITE_IMAGE_URL') }}{{ $event->largeImagePath }}"
+            @else
+                "{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}"
             @endif
         ],
         "offers": {
@@ -382,7 +390,7 @@
                                         </div>
 
                                         {{-- Event Title --}}
-                                        <h1 class="text-5.5xl font-medium text-black leading-tight">{{ $event->name }}</h1>
+                                        <h1 class="text-4.5xl font-medium text-black leading-tight">{{ $event->name }}</h1>
 
                                         {{-- Tag Line --}}
                                         @if($event->tag_line)
@@ -623,11 +631,11 @@
                                         </div>
 
                                         {{-- Event Title --}}
-                                        <h1 class="text-5.5xl font-medium text-black leading-tight">{{ $event->name }}</h1>
+                                        <h1 class="text-5xl font-medium text-black leading-tight">{{ $event->name }}</h1>
 
                                         {{-- Tag Line --}}
                                         @if($event->tag_line)
-                                            <p class="text-2xl text-neutral-700 font-medium">{{ $event->tag_line }}</p>
+                                            <p class="text-2xl mt-2 text-neutral-700 font-medium">{{ $event->tag_line }}</p>
                                         @endif
 
                                     </div>
