@@ -22,9 +22,6 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->withoutOverlapping()
                 ->appendOutputTo(storage_path('logs/event-renewals.log'));
                 
-            // Run the publish-embargoed command every 2 hours
-            // We handle event timezones properly, so checking every 2 hours
-            // is sufficient to ensure events go live at appropriate times
             $schedule->command('ei:publish-embargoed')
                 ->everyTwoHours()
                 ->withoutOverlapping()

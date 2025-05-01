@@ -4,7 +4,7 @@
         <h2 class="text-2.5xl text-black font-medium">
             Sorry, we couldn't find any events in {{ cityName }}
         </h2>
-        <p class="text-xl text-gray-700 mt-2">
+        <p class="text-xl text-gray-700 mt-2 leading-tight">
             {{ isRemote ? 
           'Here are some online events you might be interested in:' : 
           'Here are some events in nearby areas you might be interested in:' 

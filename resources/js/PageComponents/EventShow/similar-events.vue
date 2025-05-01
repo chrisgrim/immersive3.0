@@ -1,5 +1,5 @@
 <template>
-    <div v-if="similarEvents.length > 0" class="mt-12">
+    <div v-if="similarEvents.length > 0" class="md:mt-12">
         <div class="justify-between flex">
             <div class="my-4 h-16">
                 <div class="h-full flex items-center">

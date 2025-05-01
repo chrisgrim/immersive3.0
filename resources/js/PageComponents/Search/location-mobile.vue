@@ -33,7 +33,7 @@
                         <p class="text-black text-1xl font-medium w-full text-center" v-if="hasEvents">{{ events.total }} immersive events.</p>
                         <p class="text-black text-1xl font-medium w-full text-center" v-else>No events found.</p>
                     </div>
-                    <div class="whitespace-nowrap p-8 mt-[-1rem] overflow-y-hidden overflow-x-auto gap-x-6 scrolling-touch min-h-[64vh]">
+                    <div class="p-8 mt-[-1rem] overflow-y-auto overflow-x-hidden gap-x-6 scrolling-touch min-h-[64vh]">
                         <EventList
                             v-if="hasEvents"
                             :items="events.data"
@@ -41,10 +41,19 @@
                             :columns="2"
                         />
                         <Pagination 
-                            v-if="events"
+                            v-if="events && hasEvents"
                             class="mt-6 mb-8"
                             :pagination="events"
                             @paginate="handlePageChange"
+                        />
+                        
+                        <SimilarResults 
+                            v-if="!hasEvents"
+                            :event="{id: 0, slug: 'placeholder'}"
+                            :user="user"
+                            :columns="2"
+                            :noResultsMode="true"
+                            class="mt-12 mb-10"
                         />
                     </div>
                 </div>
@@ -60,6 +69,7 @@ import EventList from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 import Map from './Components/map-mobile.vue'
 import SearchStore from '@/Stores/SearchStore.vue'
+import SimilarResults from './Components/similar-results.vue'
 
 // Props
 const props = defineProps({

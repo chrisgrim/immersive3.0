@@ -70,12 +70,13 @@
             </div>
 
             {{-- Rest of your content --}}
-            <div class="relative w-full m-auto px-10 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
+            <div class="relative w-full m-auto pb-12 px-10 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
                 @if ($event->eventreviews && count($event->eventreviews) > 0)
                     @include('events.show.reviews')
                 @endif
                 <vue-show-map :event="{{ $event }}"></vue-show-map>
                 @include('events.show.organizer')
+                <vue-similar-events :event="{{ $event }}"></vue-similar-events>
             </div>
 
             <div class="w-full relative shrink-0 md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
