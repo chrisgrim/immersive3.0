@@ -1,5 +1,5 @@
 <section>
-    <div class="border-b border-neutral-200">
+    <div class="{{ !$event->eventreviews || count($event->eventreviews) === 0 ? 'border-b border-neutral-200' : '' }}">
         <div class="py-8 flex items-center gap-4 border-b md:pb-16 md:pt-0">
             <a href="{{ route('organizers.show', $event->organizer->slug) }}" class="flex items-center gap-8">
                 @if($event->organizer->thumbImagePath)

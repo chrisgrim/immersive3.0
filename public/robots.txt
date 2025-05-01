@@ -1,2 +1,40 @@
 User-agent: *
-Disallow:
+
+# Don't index query parameter versions of event pages
+Disallow: /events/*?name=
+Disallow: /events/*?lat=
+Disallow: /events/*?lng=
+
+# Authentication and utility routes
+Disallow: /auth/
+Disallow: /menu
+Disallow: /login
+Disallow: /register
+Disallow: /password/
+Disallow: /inbox/
+Disallow: /hosting/
+Disallow: /teams/
+Disallow: /users/
+
+# Admin routes
+Disallow: /admin/
+Disallow: /api/admin/
+
+# API routes
+Disallow: /api/
+
+# Complex search routes
+Disallow: */search-online
+Disallow: */search?*
+Disallow: */search/?*
+
+# Fix for wrong organizer routes
+Disallow: /organizer/
+
+# Allow sitemap and important paths
+Allow: /sitemap.xml
+Allow: /events/
+Allow: /organizers/
+Allow: /communities/
+
+Sitemap: https://everythingimmersive.com/sitemap.xml

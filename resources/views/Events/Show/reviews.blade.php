@@ -1,15 +1,11 @@
-<section class="border-b border-slate-200 py-12 px-8 md:py-16 md:px-0">
+<section class="border rounded-5xl border-neutral-300 py-12 px-8 md:py-16 md:px-0">
     @foreach ($event->eventreviews as $review)
         <div>
             <a 
                 rel="noreferrer" 
                 target="_blank" 
                 href="{{ $review->url }}">
-                <div class="flex items-center mb-4">
-                    <img 
-                        class="w-12 h-12 md:w-8 md:h-8 mr-4" 
-                        alt="{{ $review->reviewer_name }}"
-                        src="{{ $review->image_path }}">
+                <div class="px-8 flex items-center mb-4">
                     <h3> {{ $review->reviewer_name }}'s Review</h3>
                 </div>
                 <blockquote 

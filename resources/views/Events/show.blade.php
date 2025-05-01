@@ -9,33 +9,55 @@
 @section('meta')
     
     <title>{{$event->name}} {{$event->tag_line ? '- ' . \Illuminate\Support\Str::limit($event->tag_line, 80) : '- ' . \Illuminate\Support\Str::limit($event->description, 80)}} </title>
-    <link rel="canonical" href="{{url()->current()}}">
+    @php
+        // Generate a clean canonical URL without location parameters
+        $url = url("/events/{$event->slug}");
+    @endphp
+    <link rel="canonical" href="{{ $url }}">
     <meta name="description" content="{{$event->tag_line ? $event->tag_line : $event->description}}"/>
     <meta property="og:locale" content="en_US" />
     <meta property="og:type" content="event" />
     <meta property="og:title" content="{{$event->name}}" />
     <meta property="og:description" content="{{$event->tag_line ? $event->tag_line : $event->description}}" />
-    <meta property="og:url" content="{{url()->current()}}" />
+    <meta property="og:url" content="{{ $url }}" />
     <meta property="og:site_name" content="{{config('app.name')}}" />
     <meta property="article:publisher" content="https://www.everythingimmersive.com" />
     <meta property="article:section" content="Events" />
     <meta property="article:published_time" content="{{$event->created_at}}" />
     <meta property="article:modified_time" content="{{$event->updated_at}}" />
     <meta property="og:updated_time" content="{{$event->updated_at}}" />
-    @if(count($event->images) > 0)
-        @foreach($event->images as $image)
-            <meta property="og:image" content="{{ env('VITE_IMAGE_URL') }}{{$image->large_image_path}}" />
-            <meta property="og:image:secure_url" content="{{ env('VITE_IMAGE_URL') }}{{$image->large_image_path}}" />
-            <meta property="og:image:width" content="1280" />
-            <meta property="og:image:height" content="720" />
-            <meta name="twitter:image" content="{{ env('VITE_IMAGE_URL') . $image->large_image_path }}" />
-        @endforeach
+    {{-- Primary Image Selection Logic - Check for image in order of importance --}}
+    @php
+        $mainImage = null;
+        // First check for rank 0 image in event images
+        if(count($event->images) > 0) {
+            $mainImage = $event->images->firstWhere('rank', 0);
+            // If no rank 0 image, use the first image
+            if (!$mainImage && count($event->images) > 0) {
+                $mainImage = $event->images[0];
+            }
+        }
+        // If no image in collection, check for largeImagePath
+        if (!$mainImage && $event->largeImagePath) {
+            $mainImage = (object)['large_image_path' => $event->largeImagePath];
+        }
+        // Get the image URL
+        $imageUrl = env('VITE_IMAGE_URL');
+    @endphp
+    
+    @if($mainImage)
+        {{-- Using a single set of meta tags for the main image to ensure it's consistently used --}}
+        <meta property="og:image" content="{{ $imageUrl . $mainImage->large_image_path }}" />
+        <meta property="og:image:secure_url" content="{{ $imageUrl . $mainImage->large_image_path }}" />
+        <meta property="og:image:alt" content="{{ $event->name }}" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content="{{ $imageUrl . $mainImage->large_image_path }}" />
     @else
         <meta property="og:image" content="{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}" />
         <meta property="og:image:secure_url" content="{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}" />
+        <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:image" content="{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}" />
     @endif
-    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:description" content="{{$event->tag_line ? $event->tag_line : $event->description}}" />
     <meta name="twitter:title" content="{{$event->name}}" />
     <meta name="twitter:site" content="@everythingimmersive" />
@@ -53,12 +75,8 @@
         "eventStatus": "https://schema.org/EventScheduled",
         "eventAttendanceMode": "{{ $event->hasLocation ? 'https://schema.org/OfflineEventAttendanceMode' : 'https://schema.org/OnlineEventAttendanceMode' }}",
         "image": [
-            @if(count($event->images) > 0)
-                @foreach($event->images as $image)
-                    "{{ env('VITE_IMAGE_URL') }}{{ $image->large_image_path }}"@if(!$loop->last),@endif
-                @endforeach
-            @elseif($event->largeImagePath)
-                "{{ env('VITE_IMAGE_URL') }}{{ $event->largeImagePath }}"
+            @if($mainImage)
+                "{{ $imageUrl . $mainImage->large_image_path }}"
             @else
                 "{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}"
             @endif
@@ -164,7 +182,7 @@
         "organizer": {
             "@type": "Organization",
             "name": "{{$event->organizer->name}}",
-            "url": "{{$event->organizer->website ? $event->organizer->website : Request::root() .'/organizer/' . $event->organizer->slug}}"
+            "url": "{{$event->organizer->website ? $event->organizer->website : Request::root() .'/organizers/' . $event->organizer->slug}}"
         },
         @if($event->hasLocation)
         "location": {
@@ -430,6 +448,9 @@
                                     <div>
                                         @include('events.show.header-old')
                                         @include('events.show.about')
+                                        @if ($event->eventreviews && count($event->eventreviews) > 0)
+                                            @include('events.show.reviews')
+                                        @endif
                                         @include('events.show.details')
                                     </div>         
                                 </div>
@@ -582,6 +603,9 @@
                                 <div class="flex-grow">
                                     <div class="">
                                         @include('events.show.about')
+                                        @if ($event->eventreviews && count($event->eventreviews) > 0)
+                                            @include('events.show.reviews')
+                                        @endif
                                         @include('events.show.details')
                                     </div>
                                 </div>
@@ -673,6 +697,9 @@
                             <div class="md:flex md:mt-8 md:gap-20 lg:gap-36 border-b">
                                 <div class="flex-1 min-w-0">
                                     @include('events.show.about')
+                                    @if ($event->eventreviews && count($event->eventreviews) > 0)
+                                        @include('events.show.reviews')
+                                    @endif
                                     @include('events.show.details')
                                 </div>
 
@@ -689,9 +716,6 @@
 
                     {{-- Rest of your content --}}
                     <div class="relative w-full m-auto px-10 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
-                        @if ($event->eventreviews && count($event->eventreviews) > 0)
-                            @include('events.show.reviews')
-                        @endif
                         <vue-show-map :event="{{ $event }}"></vue-show-map>
                         @include('events.show.organizer')
                     </div>

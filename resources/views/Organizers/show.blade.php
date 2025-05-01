@@ -17,7 +17,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:title" content="{{$organizer->name}}" />
     <meta property="og:description" content="{{$organizer->description}}" />
-    <meta property="og:url" content="{{ url('/') }}/organizer/{{$organizer->slug}}" />
+    <meta property="og:url" content="{{ url('/') }}/organizers/{{$organizer->slug}}" />
     <meta property="og:site_name" content="{{$organizer->name}}" />
     @if ($organizer->largeImagePath) 
         <meta property="og:image" content="{{ env('VITE_IMAGE_URL') }}{{$organizer->largeImagePath}}" />
@@ -25,9 +25,9 @@
         <meta name="twitter:image" content="{{ env('VITE_IMAGE_URL') }}{{$organizer->largeImagePath}}" />
     @endif
     <title>{{$organizer->name}}</title>
-    <script type="application/ld+json">{"@context":"http://schema.org", "@type":"Organization", "description": "{{$organizer->description}}", "name": "{{$organizer->name}}{{'- ' . \Illuminate\Support\Str::limit($organizer->description, 80)}}", "sameAs": @json($organizer->getHandles()), @if ($organizer->website) "url":"{{$organizer->website}}", @else "url":"{{url('/')}}/organizer/{{$organizer->slug}}", @endif @if ($organizer->largeImagePath) "logo":"{{ env('VITE_IMAGE_URL') }}{{$organizer->largeImagePath}}"}@else "logo":"{{url('/')}}/storage/website-files/schema-organizer.png"}@endif </script>
+    <script type="application/ld+json">{"@context":"http://schema.org", "@type":"Organization", "description": "{{$organizer->description}}", "name": "{{$organizer->name}}{{'- ' . \Illuminate\Support\Str::limit($organizer->description, 80)}}", "sameAs": @json($organizer->getHandles()), @if ($organizer->website) "url":"{{$organizer->website}}", @else "url":"{{url('/')}}/organizers/{{$organizer->slug}}", @endif @if ($organizer->largeImagePath) "logo":"{{ env('VITE_IMAGE_URL') }}{{$organizer->largeImagePath}}"}@else "logo":"{{url('/')}}/storage/website-files/schema-organizer.png"}@endif </script>
 
-
+    <link rel="canonical" href="{{ url('/organizers/' . $organizer->slug) }}" />
 @endsection
 
 @section('nav')
