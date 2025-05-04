@@ -581,4 +581,24 @@ class HostEventController extends Controller
 
         return $duplicateEvents->isNotEmpty() ? $duplicateEvents : null;
     }
+
+    /**
+     * Restore a soft-deleted event
+     *
+     * @param  string  $slug
+     * @return \Illuminate\Http\Response
+     */
+    public function restore(Event $event)
+    {
+        // Find the event with trashed records included
+        $event = Event::withTrashed()->where('slug', $slug)->firstOrFail();
+        
+        // Ensure the user has permission to manage this event
+        $this->authorize('manage', $event);
+        
+        // Restore the event
+        $event->restore();
+        
+        return redirect()->route('hosting.dashboard')->with('success', 'Event restored successfully.');
+    }
 }

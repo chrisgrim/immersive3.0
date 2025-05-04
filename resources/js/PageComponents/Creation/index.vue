@@ -221,70 +221,81 @@
 					<component :is="RiCloseCircleFill" />
 				</div>
 
-				<!-- Event Image -->
-				<div class="w-full flex justify-center mb-8">
-					<div class="w-1/3 max-w-md aspect-[3/4] rounded-2xl overflow-hidden mt-16">
-						<template v-if="selectedEvent.images?.length > 0">
-							<picture>
-								<source :srcset="`${imageUrl}${selectedEvent.images[0].large_image_path}`" type="image/webp">
-								<img :src="`${imageUrl}${selectedEvent.images[0].large_image_path}`"
-									 :alt="`${selectedEvent.name} Immersive Event`"
-									 class="w-full h-full object-cover">
-							</picture>
-						</template>
-						<template v-else-if="selectedEvent.thumbImagePath">
-							<picture>
-								<source :srcset="`${imageUrl}${selectedEvent.thumbImagePath}`" type="image/webp">
-								<img :src="`${imageUrl}${selectedEvent.thumbImagePath.slice(0, -4)}jpg`"
-									 :alt="`${selectedEvent.name} Immersive Event`"
-									 class="w-full h-full object-cover">
-							</picture>
-						</template>
-						<template v-else>
-							<div class="w-full h-full bg-gray-200"></div>
-						</template>
+				<!-- For deleted events, show a simplified modal -->
+				<template v-if="selectedEvent.is_deleted">
+					<div class="text-center py-16">
+						<h2 class="text-3xl md:text-4xl font-bold mb-8 break-words hyphens-auto">{{ selectedEvent.name }}</h2>
+						<p class="text-xl text-gray-600 mb-12">This event has been deleted.</p>
 					</div>
-				</div>
-
-				<!-- Event Name -->
-				<h2 class="text-3xl md:text-4xl font-bold mb-8 md:mb-12 text-center break-words hyphens-auto">{{ selectedEvent.name }}</h2>
-
-				<!-- Event Statistics (if published) -->
-				<div v-if="isEventPublished(selectedEvent) && selectedEvent.total_clicks" class="mb-8 text-center">
-					<div class="inline-flex items-center bg-gray-100 px-6 py-3 rounded-lg">
-						<div class="flex flex-col items-center">
-							<span class="text-2xl font-bold">{{ selectedEvent.total_clicks }}</span>
-							<span class="text-gray-500 text-sm">Ticket Link Clicks</span>
+				</template>
+				
+				<!-- For regular events, show the full modal content -->
+				<template v-else>
+					<!-- Event Image -->
+					<div class="w-full flex justify-center mb-8">
+						<div class="w-1/3 max-w-md aspect-[3/4] rounded-2xl overflow-hidden mt-16">
+							<template v-if="selectedEvent.images?.length > 0">
+								<picture>
+									<source :srcset="`${imageUrl}${selectedEvent.images[0].large_image_path}`" type="image/webp">
+									<img :src="`${imageUrl}${selectedEvent.images[0].large_image_path}`"
+										 :alt="`${selectedEvent.name} Immersive Event`"
+										 class="w-full h-full object-cover">
+								</picture>
+							</template>
+							<template v-else-if="selectedEvent.thumbImagePath">
+								<picture>
+									<source :srcset="`${imageUrl}${selectedEvent.thumbImagePath}`" type="image/webp">
+									<img :src="`${imageUrl}${selectedEvent.thumbImagePath.slice(0, -4)}jpg`"
+										 :alt="`${selectedEvent.name} Immersive Event`"
+										 class="w-full h-full object-cover">
+								</picture>
+							</template>
+							<template v-else>
+								<div class="w-full h-full bg-gray-200"></div>
+							</template>
 						</div>
 					</div>
-				</div>
 
-				<!-- Action Buttons -->
-				<div class="flex flex-col md:flex-row gap-2 md:gap-6 mb-12 md:mb-0">
-					<button 
-						v-if="isEventPublished(selectedEvent)"
-						@click="viewEvent(selectedEvent)"
-						class="w-full text-lg px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800">
-						View Event
-					</button>
-					<button 
-						v-if="selectedEvent.status !== 'r'"
-						@click="editEvent(selectedEvent)"
-						class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100">
-						Edit Event
-					</button>
-					<button 
-						v-if="selectedEvent.status !== 'r'"
-						@click="duplicateEvent(selectedEvent)"
-						class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100">
-						Duplicate Event
-					</button>
-					<button 
-						@click="confirmRemoveEvent(selectedEvent)"
-						class="w-full text-lg px-6 py-3 border border-red-500 text-red-500 rounded-xl hover:bg-red-50">
-						Delete Event
-					</button>
-				</div>
+					<!-- Event Name -->
+					<h2 class="text-3xl md:text-4xl font-bold mb-8 md:mb-12 text-center break-words hyphens-auto">{{ selectedEvent.name }}</h2>
+
+					<!-- Event Statistics (if published) -->
+					<div v-if="isEventPublished(selectedEvent) && selectedEvent.total_clicks" class="mb-8 text-center">
+						<div class="inline-flex items-center bg-gray-100 px-6 py-3 rounded-lg">
+							<div class="flex flex-col items-center">
+								<span class="text-2xl font-bold">{{ selectedEvent.total_clicks }}</span>
+								<span class="text-gray-500 text-sm">Ticket Link Clicks</span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Action Buttons -->
+					<div class="flex flex-col md:flex-row gap-2 md:gap-6 mb-12 md:mb-0">
+						<button 
+							v-if="isEventPublished(selectedEvent)"
+							@click="viewEvent(selectedEvent)"
+							class="w-full text-lg px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800">
+							View Event
+						</button>
+						<button 
+							v-if="selectedEvent.status !== 'r'"
+							@click="editEvent(selectedEvent)"
+							class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100">
+							Edit Event
+						</button>
+						<button 
+							v-if="selectedEvent.status !== 'r'"
+							@click="duplicateEvent(selectedEvent)"
+							class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100">
+							Duplicate Event
+						</button>
+						<button 
+							@click="confirmRemoveEvent(selectedEvent)"
+							class="w-full text-lg px-6 py-3 border border-red-500 text-red-500 rounded-xl hover:bg-red-50">
+							Delete Event
+						</button>
+					</div>
+				</template>
 			</div>
 		</div>
 
@@ -386,7 +397,7 @@ const currentFilter = ref('active');
 const filters = [
 	{ id: 'active', name: 'Active Events' },
 	{ id: 'past', name: 'Past Events' },
-	{ id: 'archived', name: 'Archived' }
+	{ id: 'archived', name: 'Deleted' }
 ];
 
 const isOpen = ref(false);
@@ -545,6 +556,9 @@ const createNewEvent = async () => {
 
 // Helper function to check if an event is past
 const isPastEvent = (event) => {
+	// Don't show deleted events in past
+	if (event.is_deleted) return false;
+	
 	// Check if the event is published and either:
 	// 1. Has no more show dates (isShowing is false)
 	// 2. Or its end_date is in the past
@@ -556,6 +570,9 @@ const isPastEvent = (event) => {
 
 // Helper function to check if an event is active
 const isActive = (event) => {
+	// Don't show deleted events in active
+	if (event.is_deleted) return false;
+	
 	// Currently playing events
 	const isCurrentlyPlaying = event.status === 'p' && event.isShowing;
 	// Embargoed events
@@ -579,7 +596,7 @@ const getFilteredEvents = (filterId) => {
 			case 'past':
 				return isPastEvent(event);
 			case 'archived':
-				return event.archived;
+				return event.is_deleted;
 			default:
 				return true;
 		}

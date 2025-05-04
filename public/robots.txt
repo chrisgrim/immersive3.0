@@ -1,9 +1,25 @@
 User-agent: *
 
 # Don't index query parameter versions of event pages
-Disallow: /events/*?name=
-Disallow: /events/*?lat=
-Disallow: /events/*?lng=
+Disallow: /events/*?*
+Disallow: /organizers/*?*
+Disallow: /communities/*?*
+Disallow: /*?ref=*
+Disallow: /*?source=*
+Disallow: /*?name=*
+Disallow: /*?lat=*
+Disallow: /*?lng=*
+
+# Don't index singular URL versions (we redirect these)
+Disallow: /event/
+Disallow: /organizer/
+
+# Don't index search results pages with parameters
+Disallow: /index/search-online
+Disallow: /index/search-online?*
+Disallow: /index/search?*
+Disallow: */search?*
+Disallow: */search/?*
 
 # Authentication and utility routes
 Disallow: /auth/
@@ -22,14 +38,6 @@ Disallow: /api/admin/
 
 # API routes
 Disallow: /api/
-
-# Complex search routes
-Disallow: */search-online
-Disallow: */search?*
-Disallow: */search/?*
-
-# Fix for wrong organizer routes
-Disallow: /organizer/
 
 # Allow sitemap and important paths
 Allow: /sitemap.xml

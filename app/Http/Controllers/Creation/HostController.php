@@ -17,7 +17,7 @@ class HostController extends Controller
         $organizer = auth()->user()->organizer()
             ->withUserRole()
             ->with(['images', 'events' => function ($query) {
-                $query->with(['images', 'clicks']);
+                $query->withTrashed()->with(['images', 'clicks']);
             }])
             ->first();
 
@@ -25,6 +25,8 @@ class HostController extends Controller
         if ($organizer && $organizer->events) {
             foreach ($organizer->events as $event) {
                 $event->total_clicks = $event->clicks->count();
+                // Add a flag to identify deleted events
+                $event->is_deleted = $event->trashed();
             }
         }
             

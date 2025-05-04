@@ -25,6 +25,7 @@
     @endif
 
     <title>{{ $community->name }}</title>
+    <link rel="canonical" href="{{ url('/communities/' . $community->slug) }}" />
 
     <script type="application/ld+json">
     {

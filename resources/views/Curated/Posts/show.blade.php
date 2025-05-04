@@ -5,6 +5,90 @@
 @endphp
 
 @section('meta')
+    {{-- Basic Meta --}}
+    <title>{{ $post->name }} - {{ $community->name }}</title>
+    <link rel="canonical" href="{{ url('/communities/' . $community->slug . '/posts/' . $post->slug) }}" />
+    <meta name="description" content="{{ Str::limit(strip_tags($post->blurb ?? ''), 160) }}"/>
+    
+    {{-- Open Graph Meta --}}
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="{{ $post->name }}" />
+    <meta property="og:description" content="{{ Str::limit(strip_tags($post->blurb ?? ''), 160) }}" />
+    <meta property="og:url" content="{{ url('/communities/' . $community->slug . '/posts/' . $post->slug) }}" />
+    <meta property="og:site_name" content="EverythingImmersive" />
+    <meta property="article:publisher" content="https://www.everythingimmersive.com" />
+    <meta property="article:section" content="Communities" />
+    <meta property="article:published_time" content="{{ $post->created_at->toIso8601String() }}" />
+    <meta property="article:modified_time" content="{{ $post->updated_at->toIso8601String() }}" />
+    <meta property="og:updated_time" content="{{ $post->updated_at->toIso8601String() }}" />
+
+    {{-- Image Meta --}}
+    @php
+        $imagePath = '';
+        
+        if ($post->event_id && $post->featuredEventImage) {
+            $imagePath = $post->featuredEventImage->largeImagePath ?? $post->featuredEventImage->thumbImagePath;
+        } elseif ($post->images && $post->images->isNotEmpty()) {
+            $imagePath = $post->images[0]->large_image_path ?? $post->images[0]->thumb_image_path;
+        } else {
+            $imagePath = $post->largeImagePath ?? $post->thumbImagePath;
+        }
+    @endphp
+    
+    @if($imagePath)
+        <meta property="og:image" content="{{ $imageUrl . $imagePath }}" />
+        <meta property="og:image:secure_url" content="{{ $imageUrl . $imagePath }}" />
+        <meta property="og:image:alt" content="{{ $post->name }}" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content="{{ $imageUrl . $imagePath }}" />
+    @else
+        <meta property="og:image" content="{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}" />
+        <meta property="og:image:secure_url" content="{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}" />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:image" content="{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}" />
+    @endif
+    
+    {{-- Twitter Meta --}}
+    <meta name="twitter:description" content="{{ Str::limit(strip_tags($post->blurb ?? ''), 160) }}" />
+    <meta name="twitter:title" content="{{ $post->name }}" />
+    <meta name="twitter:site" content="@everythingimmersive" />
+    <meta name="twitter:creator" content="@everythingimmersive" />
+    
+    {{-- Schema.org JSON-LD --}}
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "{{ $post->name }}",
+        "description": "{{ Str::limit(strip_tags($post->blurb ?? ''), 160) }}",
+        "image": [
+            @if($imagePath)
+                "{{ $imageUrl . $imagePath }}"
+            @else
+                "{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}"
+            @endif
+        ],
+        "datePublished": "{{ $post->created_at->toIso8601String() }}",
+        "dateModified": "{{ $post->updated_at->toIso8601String() }}",
+        "author": {
+            "@type": "Person",
+            "name": "{{ $post->user->name }}"
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "Everything Immersive",
+            "logo": {
+                "@type": "ImageObject",
+                "url": "{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}"
+            }
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "{{ url('/communities/' . $community->slug . '/posts/' . $post->slug) }}"
+        }
+    }
+    </script>
 @endsection 
 
 @section('nav')

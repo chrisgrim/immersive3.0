@@ -31,6 +31,23 @@ Route::prefix('communities')->name('communities.')->group(function () {
         // Public community show route
         Route::GET('', [CommunityController::class, 'show'])->name('show');
         
+        // Generic redirect for old post URLs - must be before other routes with parameters
+        Route::GET('/{slug}', function($community, $slug) {
+            // Find if there's a post with this slug in this community
+            $post = \App\Models\Curated\Post::where('slug', $slug)
+                ->whereHas('community', function($query) use ($community) {
+                    $query->where('slug', $community);
+                })
+                ->first();
+                
+            if ($post) {
+                return redirect("/communities/{$community}/posts/{$slug}", 301);
+            }
+            
+            // If no post found with that slug, continue to other routes
+            return abort(404);
+        })->where('slug', '^(?!posts|edit|listings|paginate|curators|submit|name-change|shelves).*$');
+        
         // Protected routes
         Route::middleware(['auth', 'verified'])->group(function () {
             // Community management

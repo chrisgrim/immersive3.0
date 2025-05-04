@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+@php echo '<?xml version="1.0" encoding="UTF-8"?>'; @endphp
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <!-- Home Page -->
     <url>
@@ -43,7 +43,7 @@
     </url>
     @endforeach
     
-    <!-- Events -->
+    <!-- Events - Only include canonical plural URLs -->
     @foreach ($events as $event)
     <url>
         <loc>{{ route('events.show', $event) }}</loc>
@@ -53,11 +53,21 @@
     </url>
     @endforeach
     
-    <!-- Organizers -->
+    <!-- Organizers - Only include canonical plural URLs -->
     @foreach ($organizers as $organizer)
     <url>
         <loc>{{ route('organizers.show', $organizer) }}</loc>
         <lastmod>{{ $organizer->updated_at->toIso8601String() }}</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+    @endforeach
+    
+    <!-- Communities -->
+    @foreach ($communities as $community)
+    <url>
+        <loc>{{ url('/communities/' . $community->slug) }}</loc>
+        <lastmod>{{ $community->updated_at->toIso8601String() }}</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.7</priority>
     </url>
