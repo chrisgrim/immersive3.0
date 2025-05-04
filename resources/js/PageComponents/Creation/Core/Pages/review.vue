@@ -121,6 +121,35 @@
                             <p class="text-black font-medium mb-4">{{ event.location.venue }}</p>
                             <p class="text-neutral-500 font-normal text-1xl leading-tight">{{ event.location.street }}</p>
                             <p class="text-neutral-500 font-normal text-1xl leading-tight">{{ event.location.city }}, {{ event.location.region }} {{ event.location.postal_code }}</p>
+                            <p v-if="event.location.hiddenLocationToggle" class="mt-4 p-3 bg-yellow-50 rounded-xl text-yellow-800">
+                                <span class="font-semibold">⚠️ Secret Location:</span> {{ event.location.hiddenLocation }}
+                            </p>
+                        </div>
+                        
+                        <!-- Map using Leaflet -->
+                        <div v-if="event.location.latitude && event.location.longitude" class="mt-8 w-full h-[30rem] rounded-lg overflow-hidden">
+                            <l-map 
+                                ref="locationMapRef"
+                                :zoom="map.zoom" 
+                                :center="map.center"
+                                style="height: 100%; width: 100%;"
+                                @ready="onMapReady"
+                                :options="{ 
+                                    scrollWheelZoom: false, 
+                                    zoomControl: true,
+                                    dragging: true,
+                                    touchZoom: true,
+                                    doubleClickZoom: true,
+                                    boxZoom: true,
+                                    tap: true
+                                }"
+                            >
+                                <l-tile-layer :url="map.url" />
+                                <l-marker 
+                                    :lat-lng="map.center"
+                                    :icon="markerIcon"
+                                />
+                            </l-map>
                         </div>
                     </div>
                     <div v-else>
@@ -165,6 +194,18 @@
                     <div class="flex justify-between items-center mb-4">
                         <p class="text-gray-600">{{ formatDateRange(event.shows) }}</p>
                         <p class="text-gray-600">{{ event.shows?.length || 0 }} show{{ event.shows?.length !== 1 ? 's' : '' }}</p>
+                    </div>
+                    
+                    <!-- Show Times -->
+                    <div v-if="event.show_times" class="mt-4 mb-4">
+                        <h4 class="text-xl font-semibold mb-4">Show Times:</h4>
+                        <p class="text-gray-600 whitespace-pre-line">{{ event.show_times }}</p>
+                    </div>
+
+                    <!-- Timezone -->
+                    <div v-if="event.timezone" class="mt-4 mb-4">
+                        <h4 class="text-xl font-semibold mb-4">Timezone:</h4>
+                        <p class="text-gray-600">{{ event.timezone }}</p>
                     </div>
 
                     <!-- Embargo Date -->
@@ -258,8 +299,11 @@
 </template>
 
 <script setup>
-import { inject, computed } from 'vue';
+import { ref, computed, inject, onMounted } from 'vue';
 import moment from 'moment-timezone';
+import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const event = inject('event');
@@ -278,6 +322,59 @@ const formatEmbargoDate = (date) => {
     return moment(date).format('MMM D, YYYY');
 };
 
+// Map configuration
+const locationMapRef = ref(null);
+
+const map = computed(() => ({
+    zoom: 14,
+    center: [
+        parseFloat(event.location?.latitude) || 40.7127753,
+        parseFloat(event.location?.longitude) || -74.0059728
+    ],
+    url: 'https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=5Pwt4rF8iefMU4hIcRqZJ0GXPqWi5l4NVjEn4owEBKOdGyuJVARXbYTBDO2or3cU'
+}));
+
+const markerIcon = L.divIcon({
+    className: 'custom-div-icon',
+    html: `
+        <div style="position: relative; width: 30px; height: 30px;">
+            <div style="
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 25px;
+                height: 25px;
+                background: #ff385c;
+                border: 3.5px solid white;
+                border-radius: 50%;
+                box-shadow: 0 0 0 5px #ff385c;
+            "></div>
+            <div style="
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 40px;
+                height: 40px;
+                background: rgba(255, 56, 92, 0.35);
+                border-radius: 50%;
+                animation: markerPulse 2s infinite;
+            "></div>
+        </div>
+    `,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15]
+});
+
+const onMapReady = () => {
+    setTimeout(() => {
+        if (locationMapRef.value?.leafletObject) {
+            locationMapRef.value.leafletObject.invalidateSize();
+            locationMapRef.value.leafletObject.setView(map.value.center, map.value.zoom);
+        }
+    }, 100);
+};
 
 // Component API
 defineExpose({
@@ -285,3 +382,46 @@ defineExpose({
     submitData: () => ({}) // No data to submit from review page
 });
 </script>
+
+<style>
+@import 'leaflet/dist/leaflet.css';
+
+@keyframes markerPulse {
+    0% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(3);
+        opacity: 0;
+    }
+}
+
+.leaflet-control-attribution {
+    display: none;
+}
+
+/* Custom zoom control positioning and styling */
+.leaflet-left {
+    right: 3rem !important;
+    left: auto !important;
+}
+
+.leaflet-top {
+    top: 2rem;
+}
+
+.leaflet-bar {
+    border: none !important;
+    margin: 0 !important;
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 2px 16px rgb(0 0 0 / 12%) !important;
+}
+
+.leaflet-touch .leaflet-bar a {
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
+}
+</style>

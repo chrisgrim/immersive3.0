@@ -244,7 +244,7 @@
                                 <p class="text-neutral-500 font-normal text-1xl leading-tight">{{ props.event?.location.city }}, {{ props.event?.location.region }} {{ props.event?.location.postal_code }}</p>
                             </div>
                             <!-- Map -->
-                            <div class="w-full h-60 rounded-lg overflow-hidden">
+                            <div class="w-full h-[30rem] rounded-lg overflow-hidden">
                                 <l-map 
                                     ref="locationMapRef"
                                     :zoom="map.zoom" 
@@ -315,6 +315,18 @@
                         <div class="flex justify-between items-center mb-4">
                             <p class="text-gray-600">{{ formatDateRange(props.event?.shows) }}</p>
                             <p class="text-gray-600">{{ props.event?.shows?.length || 0 }} show{{ props.event?.shows?.length !== 1 ? 's' : '' }}</p>
+                        </div>
+
+                            <!-- Show Times -->
+                        <div v-if="event.show_times" class="mt-4 mb-4">
+                            <h4 class="text-xl font-semibold mb-4">Show Times:</h4>
+                            <p class="text-gray-600 whitespace-pre-line">{{ event.show_times }}</p>
+                        </div>
+
+                        <!-- Timezone -->
+                        <div v-if="event.timezone" class="mt-4 mb-4">
+                            <h4 class="text-xl font-semibold mb-4">Timezone:</h4>
+                            <p class="text-gray-600">{{ event.timezone }}</p>
                         </div>
 
                         <!-- Embargo Date -->

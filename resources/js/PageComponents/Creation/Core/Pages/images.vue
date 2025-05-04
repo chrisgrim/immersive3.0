@@ -123,16 +123,37 @@
     <!-- Teleport the cropper to body for fullscreen -->
     <teleport to="body">
         <div v-if="showCropper" class="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
-            <div class="w-full max-w-4xl h-[80vh]">
+            <div class="w-full max-w-4xl h-[80vh] relative">
                 <Cropper
+                    ref="cropperRef"
                     class="h-full w-full"
                     :src="cropperImage"
                     :stencil-props="{
                         aspectRatio: 3/4
                     }"
                     :image-restriction="'none'"
+                    :default-size="maximizeCropperSize"
                     @change="onChange"
                 />
+                
+                <!-- Zoom controls -->
+                <div class="absolute right-[-5rem] top-1/2 transform -translate-y-1/2 bg-white rounded-lg shadow-md flex flex-col overflow-hidden">
+                    <button 
+                        @click="zoomIn"
+                        class="w-16 p-4 hover:bg-neutral-300  transition-colors duration-200 flex items-center justify-center border-b border-gray-200"
+                        aria-label="Zoom in"
+                    >
+                        <span class="text-3xl font-bold">+</span>
+                    </button>
+                    <button 
+                        @click="zoomOut"
+                        class="w-16 p-4 hover:bg-neutral-300  transition-colors duration-200 flex items-center justify-center"
+                        aria-label="Zoom out"
+                    >
+                        <span class="text-3xl font-bold">−</span>
+                    </button>
+                </div>
+                
                 <div class="mt-6 flex justify-center gap-4">
                     <button 
                         @click="cancelCrop"
@@ -186,6 +207,7 @@ const videos = ref([]);
 const showVideosInSlideshow = ref(true);
 const showMainImageError = ref(false);
 const mainFileInput = ref(null);
+const cropperRef = ref(null);
 
 // Injected values
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
@@ -196,6 +218,13 @@ const setComponentReady = inject('setComponentReady');
 const remainingSlots = computed(() => {
     return Math.max(0, 4 - images.value.length);
 });
+
+const maximizeCropperSize = ({ imageSize, visibleArea }) => {
+    return {
+        width: (visibleArea || imageSize).width,
+        height: (visibleArea || imageSize).height
+    };
+};
 
 // Image handling methods
 const handleSort = ({ moved }) => {
@@ -540,6 +569,18 @@ const triggerMainFileInput = () => {
 
 const triggerFileInput = (event) => {
     event.currentTarget.querySelector('.fileInput').click();
+};
+
+const zoomIn = () => {
+    if (cropperRef.value) {
+        cropperRef.value.zoom(1.2);
+    }
+};
+
+const zoomOut = () => {
+    if (cropperRef.value) {
+        cropperRef.value.zoom(0.8);
+    }
 };
 
 // Load initial data on component mount

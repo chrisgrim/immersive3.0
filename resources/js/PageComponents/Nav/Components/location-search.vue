@@ -533,8 +533,17 @@ const handleSearch = () => {
     // Add dates if available
     if (date.value && Array.isArray(date.value) && date.value.length === 2) {
         const [start, end] = date.value;
+        
+        // Format dates in UTC to avoid timezone issues
         const formatForUrl = (date) => {
-            return date.toISOString().split('T')[0] + ' 00:00:00';
+            // Create a new date set to midnight UTC on the selected date
+            const d = new Date(Date.UTC(
+                date.getFullYear(),
+                date.getMonth(),
+                date.getDate(),
+                0, 0, 0
+            ));
+            return d.toISOString().split('T')[0] + ' 00:00:00';
         };
         
         searchData.dates = {
@@ -609,8 +618,8 @@ const clearDates = () => {
     // Clear the local state
     date.value = null;
     
-    // Only close the calendar dropdown, not the entire search popup
-    dateDropdown.value = false;
+    // Keep the calendar dropdown open - don't close it
+    // dateDropdown.value = false; <-- Remove this line
     
     // We don't emit dates-cleared here anymore - user needs to click Search button
     // to confirm the change

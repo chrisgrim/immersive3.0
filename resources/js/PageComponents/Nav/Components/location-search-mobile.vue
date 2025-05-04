@@ -483,7 +483,15 @@ const isPlaceEmpty = (place) => {
 // Add a reusable function for formatting dates for consistency
 const formatDateForUrl = (dateObj) => {
     if (!dateObj) return null;
-    return dateObj.toISOString().split('T')[0] + ' 00:00:00';
+    
+    // Create a new date set to midnight UTC on the selected date
+    const d = new Date(Date.UTC(
+        dateObj.getFullYear(),
+        dateObj.getMonth(),
+        dateObj.getDate(),
+        0, 0, 0
+    ));
+    return d.toISOString().split('T')[0] + ' 00:00:00';
 };
 
 // Update handleSearch function
@@ -512,12 +520,8 @@ const handleSearch = () => {
     // Add date data if we have dates selected
     if (date.value && Array.isArray(date.value) && date.value.length === 2) {
         const [start, end] = date.value;
-        const formatForUrl = (date) => {
-            return date.toISOString().split('T')[0] + ' 00:00:00';
-        };
-        
-        searchData.start = formatForUrl(start);
-        searchData.end = end ? formatForUrl(end) : formatForUrl(start);
+        searchData.start = formatDateForUrl(start);
+        searchData.end = end ? formatDateForUrl(end) : formatDateForUrl(start);
     }
 
     // Emit updated location & date data to parent

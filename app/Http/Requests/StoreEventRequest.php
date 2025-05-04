@@ -131,7 +131,7 @@ class StoreEventRequest extends FormRequest
         if ($this->hasFile('images')) {
             foreach ($this->file('images') as $index => $image) {
                 if (!$image || !$image->isValid()) {
-                    \Log::warning("Invalid image file at index {$index}");
+                    // Skip this iteration - don't log a warning for empty array slots
                     continue;
                 }
                 
@@ -208,8 +208,9 @@ class StoreEventRequest extends FormRequest
                         // Force the validation to succeed if the file is readable and has a valid mime type
                         if (in_array($logData['mime'], ['image/jpeg', 'image/png', 'image/jpg', 'image/webp']) && 
                             $logData['size'] > 0 && $logData['size'] <= 5120 * 1024) {
-                            \Log::info("Image passed basic validation, allowing despite possible dimension issues");
+                            \Log::debug("Image passed basic validation check - index {$index}");
                             // We'll let it pass and handle actual image processing later
+                            continue; // Skip logging "validation failed" message
                         } else {
                             $validationErrors = [];
                             
@@ -267,7 +268,10 @@ class StoreEventRequest extends FormRequest
                     \Log::warning("Image path unavailable or unreadable for {$image->getClientOriginalName()}", $logData);
                 }
                 
-                \Log::info("Image validation failed for index {$index}", $logData);
+                // Only log validation failures for actual problematic files
+                if (!empty($logData['validation_errors']) || !empty($logData['integrity_issues'])) {
+                    \Log::warning("Image validation issues for index {$index}", $logData);
+                }
             }
         }
 

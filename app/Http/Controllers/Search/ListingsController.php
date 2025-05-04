@@ -158,15 +158,28 @@ class ListingsController extends Controller
         if ($request->start && $request->end) {
             $dateFilter = Query::bool();
             
-            // Add the nested date range query
+            // Modified date query to properly include BOTH start and end dates
+            // This ensures events on both June 4 and June 5 are found when searching June 4-5
             $dateFilter->should(
                 Query::nested()
                     ->path('shows')
                     ->query(
-                        Query::range()
-                            ->field('shows.date')
-                            ->gte($request->start)
-                            ->lte($request->end)
+                        Query::bool()
+                            ->should(
+                                // Match dates exactly on the start date
+                                Query::term()->field('shows.date')->value($request->start)
+                            )
+                            ->should(
+                                // Match dates exactly on the end date
+                                Query::term()->field('shows.date')->value($request->end)
+                            )
+                            ->should(
+                                // Match dates that fall between the range (excluding exact start/end)
+                                Query::range()
+                                    ->field('shows.date')
+                                    ->gt($request->start)
+                                    ->lt($request->end)
+                            )
                     )
             );
             

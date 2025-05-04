@@ -125,7 +125,7 @@ class Show extends Model
 
         // Prepare update data
         $updateData = [
-            'show_times' => $request->showTimes,
+            'show_times' => $request->show_times,
             'embargo_date' => $request->embargo_date,
             'closingDate' => $lastDate,
             'showtype' => $type,

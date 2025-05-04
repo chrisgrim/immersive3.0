@@ -23,6 +23,14 @@ Route::GET('/index/search', [ListingsController::class, 'index'])->name('search'
 Route::GET('/events/{event}', [EventController::class, 'show'])->name('events.show');
 Route::GET('/organizers/{organizer}', [OrganizerController::class, 'show'])->name('organizers.show');
 
+// Redirect singular versions to plural versions
+Route::GET('/event/{event}', function($event) {
+    return redirect("/events/{$event}", 301);
+});
+Route::GET('/organizer/{organizer}', function($organizer) {
+    return redirect("/organizers/{$organizer}", 301);
+});
+
 // Legal and Site Information Pages
 Route::view('/terms', 'terms')->name('terms');
 Route::view('/privacy', 'privacy')->name('privacy');
