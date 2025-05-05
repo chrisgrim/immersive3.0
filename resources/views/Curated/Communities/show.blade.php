@@ -4,6 +4,9 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:description" content="{{ $community->blurb }}" />
     <meta name="twitter:title" content="{{ $community->name }}" />
+    @if ($community->twitter)
+        <meta name="twitter:site" content="{{ '@' . $community->twitter }}" />
+    @endif
     @if ($community->images?->first())
         <meta name="twitter:image" content="{{ $community->images->first()->path }}" />
     @elseif ($community->largeImagePath)
@@ -14,7 +17,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:title" content="{{ $community->name }}" />
     <meta property="og:description" content="{{ $community->blurb }}" />
-    <meta property="og:url" content="{{ url('/') }}/communities/{{ $community->slug }}" />
+    <meta property="og:url" content="{{ url('/communities/' . $community->slug) }}" />
     <meta property="og:site_name" content="{{ $community->name }}" />
     @if ($community->images?->first())
         <meta property="og:image" content="{{ $community->images->first()->path }}" />
@@ -29,17 +32,17 @@
 
     <script type="application/ld+json">
     {
-        "@context": "http://schema.org",
+        "@context": "https://schema.org",
         "@type": "Organization",
         "description": "{{ $community->blurb }}",
-        "name": "{{ $community->name }}{{ '- ' . \Illuminate\Support\Str::limit($community->blurb, 80) }}",
-        "url": "{{ url('/') }}/communities/{{ $community->slug }}",
+        "name": "{{ $community->name }}",
+        "url": "{{ url('/communities/' . $community->slug) }}",
         @if ($community->images?->first())
-            "logo": "{{ $community->images->first()->path }}"
+        "logo": "{{ $community->images->first()->path }}"
         @elseif ($community->largeImagePath)
-            "logo": "{{ env('VITE_IMAGE_URL') }}{{ $community->largeImagePath }}"
+        "logo": "{{ env('VITE_IMAGE_URL') }}{{ $community->largeImagePath }}"
         @else
-            "logo": "{{ url('/') }}/storage/website-files/schema-community.png"
+        "logo": "{{ url('/') }}/storage/website-files/schema-community.png"
         @endif
     }
     </script>

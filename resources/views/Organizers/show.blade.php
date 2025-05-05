@@ -6,8 +6,8 @@
     <meta name="twitter:description" content="{{$organizer->description}}" />
     <meta name="twitter:title" content="{{$organizer->name}}" />
     @if ($organizer->twitterHandle) 
-        <meta name="twitter:site" content="@{{$organizer->twitterHandle}}" />
-        <meta name="twitter:creator" content="@{{$organizer->twitterHandle}}" />
+        <meta name="twitter:site" content="{{ '@' . $organizer->twitterHandle }}" />
+        <meta name="twitter:creator" content="{{ '@' . $organizer->twitterHandle }}" />
     @endif
     @if ($organizer->largeImagePath) 
         <meta name="twitter:image" content="{{ env('VITE_IMAGE_URL') }}{{$organizer->largeImagePath}}" />
@@ -25,7 +25,25 @@
         <meta name="twitter:image" content="{{ env('VITE_IMAGE_URL') }}{{$organizer->largeImagePath}}" />
     @endif
     <title>{{$organizer->name}}</title>
-    <script type="application/ld+json">{"@context":"http://schema.org", "@type":"Organization", "description": "{{$organizer->description}}", "name": "{{$organizer->name}}{{'- ' . \Illuminate\Support\Str::limit($organizer->description, 80)}}", "sameAs": @json($organizer->getHandles()), @if ($organizer->website) "url":"{{$organizer->website}}", @else "url":"{{url('/')}}/organizers/{{$organizer->slug}}", @endif @if ($organizer->largeImagePath) "logo":"{{ env('VITE_IMAGE_URL') }}{{$organizer->largeImagePath}}"}@else "logo":"{{url('/')}}/storage/website-files/schema-organizer.png"}@endif </script>
+    <script type="application/ld+json">
+    {
+        "@context": "http://schema.org",
+        "@type": "Organization",
+        "description": "{{$organizer->description}}",
+        "name": "{{$organizer->name}}",
+        "sameAs": @json($organizer->getHandles()),
+        @if ($organizer->website)
+            "url": "{{$organizer->website}}",
+        @else
+            "url": "{{url('/')}}/organizers/{{$organizer->slug}}",
+        @endif
+        @if ($organizer->largeImagePath)
+            "logo": "{{ env('VITE_IMAGE_URL') }}{{$organizer->largeImagePath}}"
+        @else
+            "logo": "{{url('/')}}/storage/website-files/schema-organizer.png"
+        @endif
+    }
+    </script>
 
     <link rel="canonical" href="{{ url('/organizers/' . $organizer->slug) }}" />
 @endsection

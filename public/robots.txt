@@ -17,6 +17,8 @@ Disallow: /organizer/
 # Don't index search results pages with parameters
 Disallow: /index/search-online
 Disallow: /index/search-online?*
+# Allow specific category pages but disallow other search parameters
+Allow: /index/search?category=*
 Disallow: /index/search?*
 Disallow: */search?*
 Disallow: */search/?*

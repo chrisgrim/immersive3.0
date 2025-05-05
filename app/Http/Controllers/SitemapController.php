@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Category;
 use App\Models\Event;
 use App\Models\Organizer;
 use App\Models\Curated\Community;
@@ -16,13 +15,11 @@ class SitemapController extends Controller
      */
     public function index()
     {
-        $categories = Category::all();
         $events = Event::whereIn('status', ['p', 'e'])->get();
         $organizers = Organizer::has('events')->get();
         $communities = Community::where('status', 'p')->get();
         
         $content = view('sitemaps.index', [
-            'categories' => $categories,
             'events' => $events,
             'organizers' => $organizers,
             'communities' => $communities,

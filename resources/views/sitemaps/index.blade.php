@@ -1,4 +1,5 @@
-@php echo '<?xml version="1.0" encoding="UTF-8"?>'; @endphp
+<?php echo '<?xml version="1.0" encoding="UTF-8"?>'; ?>
+
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <!-- Home Page -->
     <url>
@@ -19,29 +20,22 @@
     <!-- Static Pages -->
     <url>
         <loc>{{ route('terms') }}</loc>
+        <lastmod>{{ $lastmod }}</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.3</priority>
     </url>
     <url>
         <loc>{{ route('privacy') }}</loc>
+        <lastmod>{{ $lastmod }}</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.3</priority>
     </url>
     <url>
         <loc>{{ route('sitemap') }}</loc>
+        <lastmod>{{ $lastmod }}</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.5</priority>
     </url>
-    
-    <!-- Categories -->
-    @foreach ($categories as $category)
-    <url>
-        <loc>{{ url('/index/search?category=' . $category->id) }}</loc>
-        <lastmod>{{ $lastmod }}</lastmod>
-        <changefreq>weekly</changefreq>
-        <priority>0.8</priority>
-    </url>
-    @endforeach
     
     <!-- Events - Only include canonical plural URLs -->
     @foreach ($events as $event)
