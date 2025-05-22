@@ -10,9 +10,13 @@ Disallow: /*?name=*
 Disallow: /*?lat=*
 Disallow: /*?lng=*
 
-# Don't index singular URL versions (we redirect these)
-Disallow: /event/
-Disallow: /organizer/
+# Allow redirected singular URLs since they properly redirect to canonical
+Allow: /event/
+Allow: /organizer/
+
+# Allow community post URLs with and without the /posts/ segment
+Allow: /communities/*/posts/*
+Allow: /communities/*/*
 
 # Don't index search results pages with parameters
 Disallow: /index/search-online
@@ -40,6 +44,11 @@ Disallow: /api/admin/
 
 # API routes
 Disallow: /api/
+
+# Complex search routes
+Disallow: */search-online
+Disallow: */search?*
+Disallow: */search/?*
 
 # Allow sitemap and important paths
 Allow: /sitemap.xml

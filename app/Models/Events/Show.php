@@ -84,6 +84,11 @@ class Show extends Model
 
         // Update the event's showtype to the new value
         $event->update(['showtype' => $request->showtype]);
+        
+        // Force reindex the event in Elasticsearch
+        if ($event->shouldBeSearchable()) {
+            $event->searchable();
+        }
     }
 
     private static function createOrUpdateShow($date, $eventId, $oldTickets)
@@ -146,6 +151,11 @@ class Show extends Model
 
         // Update the event
         $event->update($updateData);
+        
+        // Force reindex the event in Elasticsearch
+        if ($event->shouldBeSearchable()) {
+            $event->searchable();
+        }
     }
 
     private static function determineShowType($request): string
@@ -165,6 +175,7 @@ class Show extends Model
             ->orderBy('date', 'DESC')
             ->first();
         
+        // If we have a last show, use its date; otherwise use current date
         return $lastShow ? $lastShow->date : Carbon::now()->format('Y-m-d H:i:s');
     }
 }

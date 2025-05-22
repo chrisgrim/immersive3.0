@@ -45,9 +45,33 @@ class AdminOrganizerController extends Controller
         switch($request->action) {
             case 'add_member':
                 $organizer->users()->attach($request->user_id, ['role' => 'moderator']);
+                
+                // Update user's current_team_id if they don't have one set
+                $user = User::find($request->user_id);
+                if ($user && is_null($user->current_team_id)) {
+                    $user->update(['current_team_id' => $organizer->id]);
+                }
                 break;
             
             case 'remove_member':
+                $user = User::find($request->user_id);
+                
+                // Check if this organizer is the user's current team
+                if ($user && $user->current_team_id == $organizer->id) {
+                    // Find another organization this user belongs to
+                    $otherOrganizer = $user->organizers()
+                        ->where('id', '!=', $organizer->id)
+                        ->first();
+                    
+                    if ($otherOrganizer) {
+                        // Set current_team_id to another organization
+                        $user->update(['current_team_id' => $otherOrganizer->id]);
+                    } else {
+                        // No other organizations, set to NULL
+                        $user->update(['current_team_id' => null]);
+                    }
+                }
+                
                 $organizer->users()->detach($request->user_id);
                 break;
             

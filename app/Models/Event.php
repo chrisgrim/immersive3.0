@@ -65,6 +65,10 @@ class Event extends Model
             $hasValidLocation = true;
         }
 
+        // Explicitly refresh the shows relationship to ensure we have the latest data
+        $this->refresh();
+        $shows = $this->shows()->select('date')->get();
+
         return [
             'name' => $this->name,
             'status' => $this->status,
@@ -74,7 +78,7 @@ class Event extends Model
             'attendance_type_id' => $this->attendance_type_id,
             'location_latlon' => $location,  // Will be null if no valid coordinates
             'hasLocation' => $hasValidLocation,  // Only true if we have non-zero coordinates
-            'shows' => $this->showsSelect,
+            'shows' => $shows,
             'published_at' => $this->published_at ? Carbon::parse($this->published_at)->format('Y-m-d H:i:s') : null,
             'closingDate' => $this->closingDate ? Carbon::parse($this->closingDate)->format('Y-m-d H:i:s') : null,
             'priceranges' => $this->pricerangesSelect,

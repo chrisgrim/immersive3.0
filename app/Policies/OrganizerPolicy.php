@@ -23,6 +23,7 @@ class OrganizerPolicy
     public function edit(User $user, Organizer $organizer): bool
     {
         return $user->ownsOrganization($organizer) || 
+               $user->belongsToOrganization($organizer) ||
                $user->isModerator();  // This includes both moderators and admins
     }
 
