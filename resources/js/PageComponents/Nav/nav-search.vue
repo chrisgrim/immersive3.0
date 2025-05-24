@@ -28,6 +28,12 @@
                         <span class="block" :class="{ 'font-bold text-black': search === 'e' }">Name</span>
                     </button>
                     <button 
+                        @click="navigateToAtHome"
+                        class="text-gray-500 relative border-none p-4 text-2xl rounded-full transition-all duration-200 font-normal hover:bg-gray-100">
+                        <span class="block font-bold invisible h-0">At Home</span>
+                        <span class="block">At Home</span>
+                    </button>
+                    <button 
                         @click="showFilters = true"
                         class="w-[4.5rem] h-[4.5rem] ml-6 flex-shrink-0 flex items-center justify-center rounded-full shadow-custom-3 transition-colors"
                         :class="[
@@ -251,6 +257,10 @@ const openDateSearch = () => {
             locationSearch.value.openDateDropdown();
         }
     });
+};
+
+const navigateToAtHome = () => {
+    window.location.href = '/index/search?searchType=atHome';
 };
 
 const handleScroll = debounce(() => {

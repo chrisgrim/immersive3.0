@@ -38,7 +38,7 @@
                         {{ item.name }}
                     </li>
                     <li 
-                        v-if="creatable && searchTerm && !filteredItems.length"
+                        v-if="creatable && searchTerm && showCreateOption"
                         class="py-6 px-6 flex items-center gap-8 hover:bg-neutral-100 cursor-pointer transition-colors duration-200"
                         @click="createItem(searchTerm)"
                         @mousedown.stop.prevent>
@@ -98,6 +98,20 @@ const filteredItems = computed(() => {
     );
 });
 
+const showCreateOption = computed(() => {
+    if (!searchTerm.value) return false;
+    
+    // Show create option if no results found
+    if (filteredItems.value.length === 0) return true;
+    
+    // Show create option if no exact match exists
+    const exactMatch = filteredItems.value.find(item => 
+        item.name.toLowerCase() === searchTerm.value.toLowerCase()
+    );
+    
+    return !exactMatch;
+});
+
 const selectItem = (item) => {
     emit('onSelect', item);
 
@@ -131,7 +145,7 @@ const handleClickOutside = (event) => {
 };
 
 const handleEnter = () => {
-    if (props.creatable && searchTerm.value && !filteredItems.value.length) {
+    if (props.creatable && searchTerm.value && showCreateOption.value) {
         createItem(searchTerm.value);
     } else if (filteredItems.value.length > 0) {
         selectItem(filteredItems.value[0]);
