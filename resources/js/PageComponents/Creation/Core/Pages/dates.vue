@@ -434,7 +434,6 @@ const onDateSelect = (dates) => {
     if (addedDate || removedDate) {
         const dateToCheck = addedDate || removedDate;
         const dateObj = new Date(dateToCheck);
-        dateObj.setDate(dateObj.getDate() + 1);
         const weekday = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
         const futureDatesExist = checkFutureDates(dateToCheck);
 
