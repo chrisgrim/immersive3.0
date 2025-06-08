@@ -102,7 +102,6 @@
                             multi-calendars-solo
                             :enable-time-picker="false"
                             :dark="isDark"
-                            :timezone="tz"
                             :preview-date="previewDate"
                             :min-date="minDate"
                             inline
@@ -116,8 +115,8 @@
                             :class="{ 'row-layout': shouldUseRowLayout }"
                         />
                         
-                        <!-- Load More Button - modified to always show for admins or show when displayedMonths < 6 -->
-                        <div v-if="displayedMonths < 6 || isAdmin" class="w-full flex justify-center my-8">
+                        <!-- Load More Button - hide when regular users reach 6 months or admins reach 12 months -->
+                        <div v-if="(displayedMonths < 6) || (isAdmin && displayedMonths < 12)" class="w-full flex justify-center my-8">
                             <button 
                                 @click="loadMoreMonths"
                                 class="text-black underline font-semibold hover:text-gray-600"
@@ -270,10 +269,8 @@
 <script setup>
 // 1. Core Imports
 import { ref, computed, inject, onMounted, watch, onUnmounted } from 'vue';
-import VueCal from 'vue-cal';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
-import 'vue-cal/dist/vuecal.css';
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import { maxLength, required } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
@@ -291,7 +288,6 @@ const date = ref([]);
 const windowWidth = ref(0);
 const displayedMonths = ref(3);
 const isDesktop = computed(() => windowWidth.value >= 768);
-const calendarLayout = computed(() => isDesktop.value ? 'horizontal' : 'vertical');
 const initialMonthsToShow = computed(() => isDesktop.value ? 2 : 3);
 const isAdmin = computed(() => user && (user.isAdmin || false));
 const previewDate = ref(new Date());
@@ -301,7 +297,6 @@ const isPublished = computed(() => event.status === 'p' || event.status === 'e')
 const calendarRef = ref(null);
 
 // 3. Calendar State
-const events = ref([]);
 const selectedDates = ref([]);
 
 // 4. Prompt State
@@ -314,7 +309,6 @@ const hoveredLocation = ref(null);
 // 5. Timezone & Embargo State
 const timezones = ref([]);
 const selectedTimezone = ref(Intl.DateTimeFormat().resolvedOptions().timeZone);
-const userGMTOffset = ref('');
 const showEmbargoModal = ref(false);
 const tempEmbargoDate = ref(null);
 const showClearConfirmation = ref(false);
@@ -413,19 +407,30 @@ const checkFutureDates = (dateStr) => {
 
 // 8. Date Selection & Event Handling
 const onDateSelect = (dates) => {
-    date.value = dates;
-    
-    const newSelectedDates = dates.map(d => {
+    // Create a more robust comparison by normalizing dates to just the date string
+    const normalizeDate = (d) => {
         const date = new Date(d);
-        date.setHours(12, 0, 0, 0);
+        date.setHours(12, 0, 0, 0); // Always set to noon to avoid timezone issues
         return date.toISOString().split('T')[0];
-    });
+    };
+    
+    const newSelectedDates = dates.map(normalizeDate);
+    const previousSelectedDates = [...selectedDates.value]; // Create a copy for comparison
 
-    const addedDate = newSelectedDates.find(d => !selectedDates.value.includes(d));
-    const removedDate = selectedDates.value.find(d => !newSelectedDates.includes(d));
+    // Only find truly new or removed dates by comparing the normalized date strings
+    const addedDate = newSelectedDates.find(d => !previousSelectedDates.includes(d));
+    const removedDate = previousSelectedDates.find(d => !newSelectedDates.includes(d));
 
+    // Update the internal state
+    date.value = dates;
     selectedDates.value = newSelectedDates;
+    
     promptVisible.value = false;
+
+    // Early return if no actual changes (this prevents timezone-triggered false changes)
+    if (!addedDate && !removedDate) {
+        return;
+    }
 
     if (dates.length < date.value.length) {
         return;
@@ -447,7 +452,6 @@ const onDateSelect = (dates) => {
 
 const handleDateSelection = (formattedDate, weekday) => {
     selectedDates.value.push(formattedDate);
-    events.value.push({ start: formattedDate, end: formattedDate, title: 'Selected' });
 
     const futureDatesExist = checkFutureDates(formattedDate);
     if (!futureDatesExist) {
@@ -457,7 +461,6 @@ const handleDateSelection = (formattedDate, weekday) => {
 
 const handleDateDeselection = (formattedDate, weekday) => {
     selectedDates.value = selectedDates.value.filter(d => d !== formattedDate);
-    events.value = events.value.filter(event => event.start !== formattedDate);
     
     const futureDatesExist = checkFutureDates(formattedDate);
     if (futureDatesExist) {
@@ -472,15 +475,18 @@ const createWeeklyEvents = async (startDateStr) => {
     const startDate = moment.tz(startDateStr + 'T12:00:00', timezone);
     const targetDay = startDate.day();
     const currentDate = moment().tz(timezone);
-    const sixMonthsFromNow = moment().tz(timezone).add(180, 'days');
+    
+    // For admins, use the full range of displayed months; for regular users, stick to 6 months
+    const maxMonths = isAdmin.value ? Math.max(displayedMonths.value, 6) : 6;
+    const maxDateRange = moment().tz(timezone).add(maxMonths * 30, 'days'); // Approximate month calculation
     
     const newDates = [...date.value];
     
     // Start from the selected date
     let nextDate = startDate.clone();
     
-    // Keep adding weekly occurrences until we reach 6 months from today
-    while (nextDate.isBefore(sixMonthsFromNow)) {
+    // Keep adding weekly occurrences until we reach the maximum range
+    while (nextDate.isBefore(maxDateRange)) {
         const dateObj = nextDate.clone().hours(12).minutes(0).seconds(0).toDate();
         
         // Only add the date if it's not already selected
@@ -505,17 +511,20 @@ const removeWeeklyEvents = async (startDateStr) => {
     const timezone = selectedTimezone.value;
     const startDate = moment.tz(startDateStr + 'T12:00:00', timezone);
     const startDay = startDate.day();
-    const sixMonthsFromNow = moment().tz(timezone).add(180, 'days');
+    
+    // For admins, use the full range of displayed months; for regular users, stick to 6 months
+    const maxMonths = isAdmin.value ? Math.max(displayedMonths.value, 6) : 6;
+    const maxDateRange = moment().tz(timezone).add(maxMonths * 30, 'days'); // Approximate month calculation
 
     // Keep dates that are either:
     // 1. Not on the same day of week as the selected date, or
     // 2. Not after the selected date, or
-    // 3. Beyond 6 months from today
+    // 3. Beyond the maximum date range
     const newDates = date.value.filter(d => {
         const dateObj = moment(d).tz(timezone).hours(12);
         return dateObj.day() !== startDay || 
                !dateObj.isAfter(startDate) || 
-               dateObj.isAfter(sixMonthsFromNow);
+               dateObj.isAfter(maxDateRange);
     });
 
     date.value = newDates;
@@ -557,7 +566,6 @@ const clearAllDates = () => {
 const confirmClearAllDates = () => {
     date.value = [];
     selectedDates.value = [];
-    events.value = [];
     event.show_times = '';
     showClearConfirmation.value = false;
 };
@@ -595,7 +603,6 @@ const confirmEmbargoDate = () => {
         date.setUTCHours(12, 0, 0, 0);
         event.embargo_date = date.toISOString().slice(0, 19).replace('T', ' ');
         embargoToggle.value = true; // Ensure toggle is set to Yes
-        console.log('Set embargo_date to:', event.embargo_date);
         showEmbargoModal.value = false;
         tempEmbargoDate.value = null;
     }
@@ -659,7 +666,6 @@ onMounted(() => {
     // Clear any existing dates first
     date.value = [];
     selectedDates.value = [];
-    events.value = [];
     
     // Initialize embargo toggle based on existing embargo date
     embargoToggle.value = !!event.embargo_date;
@@ -685,11 +691,6 @@ onMounted(() => {
         
         date.value = showDates;
         selectedDates.value = showDates.map(d => d.toISOString().split('T')[0]);
-        events.value = selectedDates.value.map(date => ({
-            start: date,
-            end: date,
-            title: 'Selected'
-        }));
     }
     
     windowWidth.value = window?.innerWidth ?? 0;
@@ -730,37 +731,26 @@ onUnmounted(() => {
 
 // 16. Utility Methods
 const loadMoreMonths = () => {
-    // First, capture the current active month before we change anything
-    const calendar = document.querySelector('.dp__instance_calendar');
-    const currentScrollPosition = calendar ? calendar.scrollTop : 0;
-    
-    // Remember which months we already have displayed before adding more
-    const oldMonthCount = displayedMonths.value;
-    
     // For non-admins, cap at 6 months
-    // For admins, if already at 6, add 3 more months
+    // For admins, cap at 12 months maximum
     if (!isAdmin.value) {
         displayedMonths.value = 6;
     } else {
-        displayedMonths.value = displayedMonths.value >= 6 ? displayedMonths.value + 3 : 6;
+        // For admins: if less than 6, go to 6; if 6-8, go to 9; if 9-11, go to 12; if 12+, stay at 12
+        if (displayedMonths.value < 6) {
+            displayedMonths.value = 6;
+        } else if (displayedMonths.value < 9) {
+            displayedMonths.value = 9;
+        } else if (displayedMonths.value < 12) {
+            displayedMonths.value = 12;
+        }
+        // If already at 12 or more, do nothing (stay capped at 12)
     }
     
-    // After adding more months, try to maintain the same scroll position
-    // This is a much simpler approach that should work reliably
+    // Update the year labels after component re-renders
     setTimeout(() => {
-        // First update the year labels
         updateMonthYearElements();
-        
-        // Then restore the scroll position
-        const updatedCalendar = document.querySelector('.dp__instance_calendar');
-        if (updatedCalendar) {
-            // Simply restore the previous scroll position
-            updatedCalendar.scrollTop = currentScrollPosition;
-            
-            // Add a console log to debug
-            console.log('Restoring scroll position:', currentScrollPosition);
-        }
-    }, 100);
+    }, 200);
 };
 
 const getMonthDate = (offset) => {
@@ -771,24 +761,17 @@ const getMonthDate = (offset) => {
 
 // Add these with your other refs (in section "2. Injected Dependencies & Core State")
 const isDark = ref(false);  // for dark mode state
-const tz = computed(() => selectedTimezone.value);  // use the selected timezone
 
 const showPreviousMonths = () => {
-    // Get a reference to the calendar component
-    console.log('Calendar ref:', calendarRef.value);
-    
     // Get current date
     const currentDate = new Date(previewDate.value);
-    console.log('Current date:', currentDate);
     
     // Calculate the new date (2 months back instead of 3)
     const newMonth = currentDate.getMonth() - 2;
     const newYear = currentDate.getFullYear() + Math.floor(newMonth / 12);
     const adjustedMonth = ((newMonth % 12) + 12) % 12; // Handle negative months
     
-    console.log('New month/year:', adjustedMonth, newYear);
-    
-    // Update previewDate (this alone doesn't seem to work)
+    // Update previewDate
     currentDate.setMonth(currentDate.getMonth() - 2);
     previewDate.value = currentDate;
     
@@ -799,7 +782,6 @@ const showPreviousMonths = () => {
             month: adjustedMonth, 
             year: newYear 
         });
-        console.log('Updated calendar using setMonthYear');
         
         // Update the month/year elements with year data
         updateMonthYearElements();

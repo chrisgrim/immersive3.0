@@ -18,6 +18,7 @@ use App\Http\Middleware\CheckHostAccess;
 | Public Routes
 |--------------------------------------------------------------------------
 */
+
 Route::GET('/', [IndexController::class, 'index'])->name('home');
 Route::GET('/index/search', [ListingsController::class, 'index'])->name('search');
 

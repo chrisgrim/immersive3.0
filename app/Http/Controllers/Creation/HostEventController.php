@@ -389,10 +389,10 @@ class HostEventController extends Controller
     {
         $organizerId = $request->input('organizer_id');
         
-        // Check unpublished events count
+        // Check unpublished events count (bypass for admins)
         $unpublishedCount = Event::countUnpublishedEvents($organizerId);
         
-        if ($unpublishedCount >= 5) {
+        if ($unpublishedCount >= 5 && !auth()->user()->isAdmin()) {
             return response()->json([
                 'message' => 'You can only have 5 unpublished events at a time.'
             ], 422);
@@ -523,10 +523,10 @@ class HostEventController extends Controller
 
     public function duplicate(Event $event)
     {
-        // Check unpublished events count
+        // Check unpublished events count (bypass for admins)
         $unpublishedCount = Event::countUnpublishedEvents($event->organizer_id);
         
-        if ($unpublishedCount >= 5) {
+        if ($unpublishedCount >= 5 && !auth()->user()->isAdmin()) {
             return response()->json([
                 'message' => 'You can only have 5 unpublished events at a time.'
             ], 422);
