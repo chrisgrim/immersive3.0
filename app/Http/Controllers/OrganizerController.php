@@ -24,6 +24,9 @@ class OrganizerController extends Controller
         $organizer = Organizer::where('id', $organizer->id)
             ->withPaginatedEvents()
             ->withUserRole()
+            ->withCount(['events' => function($query) {
+                $query->where('status', 'p')->where('archived', false);
+            }])
             ->with(['images', 'nameChangeRequests' => function($query) {
                 $query->where('status', 'pending')->latest();
             }])

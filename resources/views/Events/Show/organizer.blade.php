@@ -49,7 +49,7 @@
                     <!-- Stats -->
                     <a href="/organizers/{{ $event->organizer->slug }}" class="flex flex-col items-start group cursor-pointer">
                         <p class="text-5xl font-semibold text-gray-900">
-                            {{ count($event->organizer->events) }}
+                            {{ $event->organizer->events_count ?? count($event->organizer->events) }}
                         </p>
                         <p class="text-md font-bold text-gray-600">
                             Events

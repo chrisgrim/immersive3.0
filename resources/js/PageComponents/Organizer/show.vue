@@ -45,9 +45,9 @@
                     <div class="flex-1 flex flex-col space-y-8 m-auto">
                         <!-- Stats -->
                         <div class="flex flex-col items-start">
-                            <p class="text-5xl font-semibold text-gray-900">
-                                {{ organizer.events?.length || 0 }}
-                            </p>
+                                                    <p class="text-5xl font-semibold text-gray-900">
+                            {{ organizer.events_count || organizer.events?.length || 0 }}
+                        </p>
                             <p class="text-md font-bold text-gray-600">
                                 Events
                             </p>
@@ -210,9 +210,19 @@
                             Events by {{ organizer.name }}
                         </h3>
                         <EventListings 
-                            :items="organizer.events"
+                            :items="paginatedEvents.data"
                             :user="user"
                         />
+                        
+                        <!-- Pagination -->
+                        <div v-if="paginatedEvents.last_page > 1" class="mt-12">
+                            <Pagination 
+                                v-if="paginatedEvents"
+                                class="mt-6"
+                                :pagination="paginatedEvents"
+                                @paginate="handlePageChange"
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -221,7 +231,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { 
     RiGlobalLine,
     RiTwitterLine,
@@ -231,6 +241,8 @@ import {
     RiPatreonLine
 } from '@remixicon/vue';
 import EventListings from '@/GlobalComponents/Grid/event-grid.vue'
+import Pagination from '@/GlobalComponents/pagination.vue'
+import axios from 'axios'
 
 const props = defineProps({
     organizer: {
@@ -247,7 +259,44 @@ const props = defineProps({
     }
 });
 
+// Pagination state
+const paginatedEvents = ref({
+    data: props.organizer.events || [],
+    total: 0,
+    current_page: 1,
+    last_page: 1,
+    from: 0,
+    to: 0,
+    per_page: 10
+});
+
 const imageUrl = computed(() => import.meta.env.VITE_IMAGE_URL);
+
+// Methods
+const loadEvents = async (page = 1) => {
+    try {
+        const response = await axios.get(`/api/organizers/${props.organizer.slug}/events`, {
+            params: { page, pageSize: 10 }
+        });
+        paginatedEvents.value = response.data;
+    } catch (error) {
+        console.error('Error loading organizer events:', error);
+    }
+};
+
+const handlePageChange = (page) => {
+    loadEvents(page);
+    // Scroll to events section
+    document.getElementById('events')?.scrollIntoView({ behavior: 'smooth' });
+};
+
+onMounted(() => {
+    // Initialize with server-side loaded events or load from API
+    if (props.organizer.events && props.organizer.events.length > 0) {
+        // If we have initial events, check if we need to load more via API
+        loadEvents(1);
+    }
+});
 
 const calculateYearsOnEI = computed(() => {
     const joinDate = new Date(props.organizer.created_at);

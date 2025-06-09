@@ -50,8 +50,12 @@ class EventController extends Controller
         ]);
         
         $event->load(['organizer' => function($query) {
-            $query->with(['events' => function($eventsQuery) {
+            $query->withCount(['events' => function($eventsQuery) {
+                $eventsQuery->where('status', 'p')->where('archived', false);
+            }])
+            ->with(['events' => function($eventsQuery) {
                 $eventsQuery->where('status', 'p')
+                    ->where('archived', false)
                     ->orderByDesc('updated_at');
             }]);
         }]);
@@ -63,7 +67,12 @@ class EventController extends Controller
 
     public function getOrganizerPaginatedEvents(Organizer $organizer, Request $request)
     {
-        return Event::where('status', 'p')->where('organizer_id', $organizer->id)->orderByRaw('closingDate >= NOW() desc')->paginate($request->input('pageSize', 9));
+        return Event::where('status', 'p')
+            ->where('organizer_id', $organizer->id)
+            ->where('archived', false)
+            ->with(['category', 'genres'])
+            ->orderBy('created_at', 'desc')
+            ->paginate($request->input('pageSize', 10));
     }
 
 
