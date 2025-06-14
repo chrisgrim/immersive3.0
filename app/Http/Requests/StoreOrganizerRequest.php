@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Models\Organizer;
-use App\Rules\UniqueSlugRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreOrganizerRequest extends FormRequest
@@ -22,8 +21,7 @@ class StoreOrganizerRequest extends FormRequest
             $rules['name'] = [
                 'required', 
                 'string', 
-                'max:80',
-                new UniqueSlugRule($this->name, Organizer::class, 'slug', $this->route('organizer')?->id)
+                'max:80'
             ];
         }
 

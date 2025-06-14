@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\SimilarEventsController;
 
 Route::GET('/index/search', [ListingsController::class, 'apiIndex']);
 Route::GET('/organizers/{organizer}/events', [App\Http\Controllers\EventController::class, 'getOrganizerPaginatedEvents'])->name('organizers.events.paginated');
+Route::POST('/organizers/check-name', [OrganizerController::class, 'checkNameAvailability'])->name('organizers.check-name');
 Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])->name('event.update');
 
 // Get similar events

@@ -111,8 +111,7 @@ class OrganizerController extends Controller
                 'requested_name' => [
                     'required',
                     'string',
-                    'max:80',
-                    new \App\Rules\UniqueSlugRule($request->requested_name, Organizer::class, 'slug', $organizer->id)
+                    'max:80'
                 ],
                 'current_name' => 'required|string'
             ]);
@@ -271,6 +270,36 @@ class OrganizerController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    public function checkNameAvailability(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:80'
+        ]);
+
+        $existingOrganizers = Organizer::where('name', 'LIKE', $request->name)
+            ->where('status', '!=', 'd') // Exclude deleted/deactivated
+            ->select('id', 'name', 'slug', 'description')
+            ->get();
+
+        if ($existingOrganizers->isEmpty()) {
+            return response()->json([
+                'available' => true,
+                'message' => 'This organization name is available.'
+            ]);
+        }
+
+        return response()->json([
+            'available' => false,
+            'existing_organizations' => $existingOrganizers,
+            'message' => 'One or more organizations with this name already exist.'
+        ]);
+    }
+
+    public function index()
+    {
+        return view('organizers.index');
     }
 }
 

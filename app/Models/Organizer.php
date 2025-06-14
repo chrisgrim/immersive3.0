@@ -20,14 +20,46 @@ class Organizer extends Model
         parent::boot();
 
         static::creating(function ($organizer) {
-            $organizer->slug = Str::slug($organizer->name);
+            $organizer->slug = static::generateUniqueSlug($organizer->name);
         });
 
         static::updating(function ($organizer) {
             if ($organizer->isDirty('name')) {
-                $organizer->slug = Str::slug($organizer->name);
+                $organizer->slug = static::generateUniqueSlug($organizer->name, $organizer->id);
             }
         });
+    }
+
+    /**
+     * Generate a unique slug for the organizer
+     */
+    protected static function generateUniqueSlug($name, $excludeId = null)
+    {
+        $baseSlug = Str::slug($name);
+        $slug = $baseSlug;
+        $counter = 1;
+
+        // Keep checking until we find a unique slug
+        while (static::slugExists($slug, $excludeId)) {
+            $slug = $baseSlug . '-' . $counter;
+            $counter++;
+        }
+
+        return $slug;
+    }
+
+    /**
+     * Check if a slug already exists
+     */
+    protected static function slugExists($slug, $excludeId = null)
+    {
+        $query = static::where('slug', $slug);
+        
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+        
+        return $query->exists();
     }
 
     protected $fillable = [

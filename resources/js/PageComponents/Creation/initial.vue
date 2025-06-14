@@ -197,14 +197,61 @@
                                 'bg-gray-200 text-gray-400 cursor-not-allowed': !isFormComplete || isSubmitting
                             }"
                             :disabled="!isFormComplete || isSubmitting"
-                            @click="onSubmit"
+                            @click="checkDuplicateAndSubmit"
                         >
                             {{ isSubmitting ? 'Creating...' : 'Create Organization' }}
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
+
+                <!-- Duplicate Name Confirmation Modal -->
+                <teleport to="body">
+                    <div v-if="showDuplicateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div class="bg-white rounded-3xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden">
+                            <div class="p-8 border-b border-neutral-200">
+                                <h3 class="text-2xl font-bold text-black mb-2">Organization Name Already Exists</h3>
+                                <p class="text-gray-600">
+                                    We found {{ existingOrganizations.length }} organization{{ existingOrganizations.length > 1 ? 's' : '' }} with the name "{{ team.name }}":
+                                </p>
+                            </div>
+                            
+                            <div class="p-8 max-h-96 overflow-y-auto">
+                                <div v-for="org in existingOrganizations" :key="org.id" class="mb-6 p-4 border border-gray-200 rounded-2xl">
+                                    <h4 class="font-semibold text-lg text-black mb-2">{{ org.name }}</h4>
+                                    <p class="text-gray-600 text-md mb-3 leading-tight">{{ org.description?.substring(0, 150) }}{{ org.description?.length > 150 ? '...' : '' }}</p>
+                                    <a :href="`/organizers/${org.slug}`" 
+                                       target="_blank" 
+                                       class="text-blue-600 hover:text-blue-800 underline text-md">
+                                        View Organization →
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <div class="p-8 border-t border-neutral-200 bg-gray-50">
+                                <p class="text-gray-700 mb-6">
+                                    If none of these organizations are yours and you want to create a new organization with the same name, click "Create Anyway" below.
+                                </p>
+                                <div class="flex justify-end space-x-4">
+                                    <button 
+                                        @click="closeDuplicateModal"
+                                        class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        @click="proceedWithSubmission"
+                                        :disabled="isSubmitting"
+                                        class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl"
+                                    >
+                                        {{ isSubmitting ? 'Creating...' : 'Create Anyway' }}
+                                    </button>
+                                                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 </teleport>
+             </div>
+         </div>
     </div>
 </template>
 
@@ -212,6 +259,7 @@
 import { ref, reactive, nextTick, computed } from 'vue';
 import { useVuelidate } from '@vuelidate/core';
 import { required, email, maxLength, helpers } from '@vuelidate/validators';
+import axios from 'axios';
 
 import { 
     RiSearchLine,
@@ -306,6 +354,10 @@ const imagePreview = ref(null);
 const errors = ref({});
 const isSubmitting = ref(false);
 const inputRefs = reactive({});
+
+// Duplicate name modal state
+const showDuplicateModal = ref(false);
+const existingOrganizations = ref([]);
 
 // Add debounce for website validation
 let websiteTimeout;
@@ -587,6 +639,54 @@ const openOrganizerPage = () => {
     if (slugFromError.value) {
         window.open(`/organizers/${slugFromError.value}`, '_blank');
     }
+};
+
+// Duplicate name check methods
+const checkDuplicateAndSubmit = async () => {
+    if (!$v.value) return;
+    
+    // First run basic validation
+    await $v.value.$validate();
+    
+    if ($v.value.$error) {
+        if ($v.value.team.name.$error) {
+            errors.value.name = ['Name must be between 1 and 80 characters'];
+        }
+        if ($v.value.team.description.$error) {
+            errors.value.description = ['Description must be between 1 and 2000 characters'];
+        }
+        return;
+    }
+    
+    // Check for duplicate names
+    try {
+        const response = await axios.post('/api/organizers/check-name', {
+            name: team.name
+        });
+        
+        if (response.data.available) {
+            // No duplicates found, proceed with submission
+            await onSubmit();
+        } else {
+            // Duplicates found, show modal
+            existingOrganizations.value = response.data.existing_organizations || [];
+            showDuplicateModal.value = true;
+        }
+    } catch (error) {
+        console.error('Error checking name availability:', error);
+        // If check fails, proceed with submission anyway
+        await onSubmit();
+    }
+};
+
+const closeDuplicateModal = () => {
+    showDuplicateModal.value = false;
+    existingOrganizations.value = [];
+};
+
+const proceedWithSubmission = async () => {
+    showDuplicateModal.value = false;
+    await onSubmit();
 };
 
 </script>
