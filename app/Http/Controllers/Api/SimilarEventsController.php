@@ -54,7 +54,14 @@ class SimilarEventsController extends Controller
                 }
             } else {
                 // Event is remote - get other remote events with same category
-                $result['events'] = $this->getEventsByCategoryQuickly($event, 6);
+                $remoteEvents = $this->getRemoteEvents($event);
+                
+                if ($remoteEvents->count() > 0) {
+                    $result['events'] = $remoteEvents;
+                } else {
+                    // Fall back to category-based events if no remote events
+                    $result['events'] = $this->getEventsByCategoryQuickly($event, 6);
+                }
             }
             
             // Store results in cache for 24 hours
@@ -131,13 +138,33 @@ class SimilarEventsController extends Controller
     protected function getRemoteEvents(Event $event)
     {
         try {
-            return Event::where('status', 'p')
-                ->whereRaw('`closingDate` >= CURDATE()')  // Use raw SQL for direct date comparison
+            // First try to get remote events in the same category
+            $sameCategoryEvents = Event::where('status', 'p')
+                ->whereRaw('`closingDate` >= CURDATE()')
                 ->where('id', '!=', $event->id)
                 ->where('hasLocation', false)
-                ->with('remotelocations')
+                ->where('category_id', $event->category_id)
+                ->with(['remotelocations', 'category'])
                 ->take(6)
                 ->get();
+
+            // If we have enough same-category events, return them
+            if ($sameCategoryEvents->count() >= 3) {
+                return $sameCategoryEvents;
+            }
+
+            // Otherwise, get additional remote events from other categories
+            $otherCategoryEvents = Event::where('status', 'p')
+                ->whereRaw('`closingDate` >= CURDATE()')
+                ->where('id', '!=', $event->id)
+                ->where('hasLocation', false)
+                ->where('category_id', '!=', $event->category_id)
+                ->whereNotIn('id', $sameCategoryEvents->pluck('id'))
+                ->with(['remotelocations', 'category'])
+                ->take(6 - $sameCategoryEvents->count())
+                ->get();
+
+            return $sameCategoryEvents->concat($otherCategoryEvents);
         } catch (\Exception $e) {
             \Log::error("Error in getRemoteEvents: " . $e->getMessage());
             return collect([]);

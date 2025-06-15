@@ -234,10 +234,10 @@ const getDates = () => {
             
             if (normalizedEventDate >= normalizedToday) {
                 remaining.value.push(event.date);
-                
-                // Format date for highlighting in calendar
-                highlightedDates.value.push(normalizedEventDate);
             }
+            
+            // Add all dates to highlightedDates, regardless of whether they're past or future
+            highlightedDates.value.push(normalizedEventDate);
             
             // Keep all dates for reference
             dates.value.push(event.date);
@@ -290,7 +290,7 @@ onMounted(getDates);
 .show-purchase-calendar .dp--past .dp__active,
 .lockedcalendar .dp--past.dp__active_date,
 .lockedcalendar .dp--past .dp__active {
-    background-color: #999 !important;
+    background-color: black !important;
     color: #fff !important;
 }
 
@@ -546,7 +546,7 @@ onMounted(getDates);
 
 .lockedcalendar .dp__menu_inner {
     display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-columns: repeat(2, minmax(30rem, 1fr)) !important;
     gap: 20px !important;
     width: 100% !important;
     padding: 1rem !important;

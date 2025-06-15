@@ -278,6 +278,13 @@ const loadEvents = async (page = 1) => {
         const response = await axios.get(`/api/organizers/${props.organizer.slug}/events`, {
             params: { page, pageSize: 10 }
         });
+        
+        // Sort events to show past events last
+        response.data.data.sort((a, b) => {
+            if (a.isShowing === b.isShowing) return 0;
+            return a.isShowing ? -1 : 1;
+        });
+        
         paginatedEvents.value = response.data;
     } catch (error) {
         console.error('Error loading organizer events:', error);

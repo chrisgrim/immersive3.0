@@ -19,7 +19,13 @@
                 <!-- Event Image Container with 3:4 aspect ratio -->
                 <div class="relative overflow-hidden rounded-2xl bg-gray-100 transition-transform duration-200 ease-in-out group-hover:scale-[1.02]">
                     <div class="pb-[133.33%]"></div>
-                    <picture v-if="card.images?.length" class="absolute inset-0">
+                    <!-- Past Event Banner -->
+                    <div v-if="!card.isShowing" 
+                         class="absolute bottom-0 left-0 right-0 bg-black text-white py-6 text-center text-lg font-bold z-10">
+                        PAST EVENT
+                    </div>
+                    <picture v-if="card.images?.length" class="absolute inset-0"
+                            :class="{ 'opacity-60': !card.isShowing }">
                         <source 
                             type="image/webp" 
                             :srcset="`${imageUrl}${card.images[0].large_image_path}`"
@@ -31,7 +37,8 @@
                             :alt="`${card.name} Event`"
                         >
                     </picture>
-                    <picture v-else-if="card.largeImagePath" class="absolute inset-0">
+                    <picture v-else-if="card.largeImagePath" class="absolute inset-0"
+                            :class="{ 'opacity-60': !card.isShowing }">
                         <source 
                             type="image/webp" 
                             :srcset="`${imageUrl}${card.largeImagePath}`"
@@ -46,7 +53,8 @@
                 </div>
 
                 <!-- Content wrapper -->
-                <div class="flex flex-col flex-grow min-h-0">
+                <div class="flex flex-col flex-grow min-h-0"
+                     :class="{ 'opacity-75': !card.isShowing }">
                     <!-- Location information -->
                     <p v-if="showLocation" 
                     class="mt-6 uppercase text-md font-medium text-left break-words hyphens-auto w-full block overflow-hidden text-ellipsis">
@@ -71,7 +79,8 @@
                         {{ card.category.name }}
                     </button>
 
-                    <h3 class="mt-2 mb-4 text-3.5xl text-black font-medium">
+                    <h3 class="mt-2 mb-4 text-3.5xl text-black font-medium"
+                        :class="{ 'opacity-60': !card.isShowing }">
                         <span class="line-clamp-2 block">{{ card.name }}</span>
                     </h3>
                     

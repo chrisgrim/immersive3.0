@@ -14,7 +14,7 @@ use App\Http\Controllers\CachedDataController;
 
 class UpdateWebsiteData extends Command
 {
-    protected $signature = 'website:update-data {--reset-elastic-migrations : Reset Elasticsearch migrations} {--rebuild-cache : Rebuild Redis cache for categories and genres} {--refactor-categories : Refactor categories to remove redundancy, correctly assign attendance types, and migrate events}';
+    protected $signature = 'website:update-data {--reset-elastic-migrations : Reset Elasticsearch migrations} {--rebuild-cache : Rebuild Redis cache for categories and genres} {--refactor-categories : Refactor categories to remove redundancy, correctly assign attendance types, and migrate events} {--clear-similar-events : Clear cache for similar events}';
     protected $description = 'Run all necessary data updates across the website models';
 
     public function handle()
@@ -31,6 +31,11 @@ class UpdateWebsiteData extends Command
 
         if ($this->option('refactor-categories')) {
             $this->refactorCategories();
+            return;
+        }
+
+        if ($this->option('clear-similar-events')) {
+            $this->clearSimilarEventsCache();
             return;
         }
 
@@ -754,5 +759,61 @@ class UpdateWebsiteData extends Command
         // Rebuild the cache after making changes
         $this->info("Rebuilding cache to reflect category changes...");
         $this->rebuildRedisCache();
+    }
+
+    /**
+     * Clear the cache for similar events
+     */
+    private function clearSimilarEventsCache()
+    {
+        $this->info('Clearing similar events cache...');
+        
+        try {
+            $redis = \Illuminate\Support\Facades\Redis::connection('cache');
+            
+            // Get the full cache prefix including database prefix
+            $cachePrefix = config('cache.prefix');
+            $databasePrefix = config('database.redis.options.prefix');
+            $fullPrefix = $databasePrefix . $cachePrefix;
+            $pattern = $fullPrefix . 'similar_events_*';
+            
+            $count = 0;
+            
+            // Use Laravel's Redis scan method
+            $cursor = null;
+            do {
+                $result = $redis->scan($cursor, [
+                    'match' => $pattern,
+                    'count' => 100
+                ]);
+                
+                if ($result === false) {
+                    break;
+                }
+                
+                $cursor = $result[0];
+                $keys = $result[1];
+                
+                if (!empty($keys)) {
+                    // Remove full prefix from keys for deletion
+                    $keysToDelete = array_map(function($key) use ($databasePrefix) {
+                        return str_replace($databasePrefix, '', $key);
+                    }, $keys);
+                    
+                    // Delete the keys
+                    $redis->del($keysToDelete);
+                    $count += count($keysToDelete);
+                }
+                
+            } while ($cursor !== 0 && $cursor !== '0');
+            
+            if ($count > 0) {
+                $this->info("Cleared {$count} similar events cache entries.");
+            } else {
+                $this->info('No similar events cache found.');
+            }
+        } catch (\Exception $e) {
+            $this->error("Error clearing cache: " . $e->getMessage());
+        }
     }
 }
