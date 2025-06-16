@@ -14,7 +14,7 @@ use App\Http\Controllers\CachedDataController;
 
 class UpdateWebsiteData extends Command
 {
-    protected $signature = 'website:update-data {--reset-elastic-migrations : Reset Elasticsearch migrations} {--rebuild-cache : Rebuild Redis cache for categories and genres} {--refactor-categories : Refactor categories to remove redundancy, correctly assign attendance types, and migrate events} {--clear-similar-events : Clear cache for similar events}';
+    protected $signature = 'website:update-data {--reset-elastic-migrations : Reset Elasticsearch migrations} {--rebuild-cache : Rebuild Redis cache for categories and genres} {--refactor-categories : Refactor categories to remove redundancy, correctly assign attendance types, and migrate events} {--clear-similar-events : Clear cache for similar events} {--populate-country-long : Populate country_long field for existing locations}';
     protected $description = 'Run all necessary data updates across the website models';
 
     public function handle()
@@ -36,6 +36,11 @@ class UpdateWebsiteData extends Command
 
         if ($this->option('clear-similar-events')) {
             $this->clearSimilarEventsCache();
+            return;
+        }
+
+        if ($this->option('populate-country-long')) {
+            $this->populateCountryLong();
             return;
         }
 
@@ -814,6 +819,153 @@ class UpdateWebsiteData extends Command
             }
         } catch (\Exception $e) {
             $this->error("Error clearing cache: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Populate country_long field for existing locations with country codes
+     */
+    private function populateCountryLong()
+    {
+        $this->info('Populating country_long field for existing locations...');
+        
+        // Define country code to full name mappings
+        $countryMappings = [
+            'CA' => 'Canada',
+            'US' => 'United States',
+            'UK' => 'United Kingdom',
+            'GB' => 'United Kingdom',
+            'AU' => 'Australia',
+            'DE' => 'Germany',
+            'FR' => 'France',
+            'IT' => 'Italy',
+            'ES' => 'Spain',
+            'NL' => 'Netherlands',
+            'BE' => 'Belgium',
+            'CH' => 'Switzerland',
+            'AT' => 'Austria',
+            'SE' => 'Sweden',
+            'NO' => 'Norway',
+            'DK' => 'Denmark',
+            'FI' => 'Finland',
+            'IE' => 'Ireland',
+            'PT' => 'Portugal',
+            'PL' => 'Poland',
+            'CZ' => 'Czech Republic',
+            'HU' => 'Hungary',
+            'GR' => 'Greece',
+            'TR' => 'Turkey',
+            'RU' => 'Russia',
+            'JP' => 'Japan',
+            'KR' => 'South Korea',
+            'CN' => 'China',
+            'IN' => 'India',
+            'BR' => 'Brazil',
+            'MX' => 'Mexico',
+            'AR' => 'Argentina',
+            'CL' => 'Chile',
+            'CO' => 'Colombia',
+            'PE' => 'Peru',
+            'VE' => 'Venezuela',
+            'ZA' => 'South Africa',
+            'EG' => 'Egypt',
+            'MA' => 'Morocco',
+            'NG' => 'Nigeria',
+            'KE' => 'Kenya',
+            'GH' => 'Ghana',
+            'TZ' => 'Tanzania',
+            'UG' => 'Uganda',
+            'ZW' => 'Zimbabwe',
+            'BW' => 'Botswana',
+            'ZM' => 'Zambia',
+            'MW' => 'Malawi',
+            'MZ' => 'Mozambique',
+            'AO' => 'Angola',
+            'NA' => 'Namibia',
+            'SZ' => 'Eswatini',
+            'LS' => 'Lesotho',
+            'NZ' => 'New Zealand',
+            'EC' => 'Ecuador',
+            'BG' => 'Bulgaria',
+            'SG' => 'Singapore',
+            'QA' => 'Qatar',
+        ];
+        
+        // Count locations that need updating
+        $locationsToUpdate = DB::table('locations')
+            ->whereNotNull('country')
+            ->where('country', '!=', '')
+            ->whereNull('country_long')
+            ->count();
+            
+        if ($locationsToUpdate === 0) {
+            $this->info('No locations found that need country_long population.');
+            return;
+        }
+        
+        $this->info("Found {$locationsToUpdate} locations to update.");
+        
+        // Create a progress bar
+        $bar = $this->output->createProgressBar($locationsToUpdate);
+        
+        $updated = 0;
+        $skipped = 0;
+        
+        // Process locations in chunks
+        DB::table('locations')
+            ->whereNotNull('country')
+            ->where('country', '!=', '')
+            ->whereNull('country_long')
+            ->chunkById(100, function ($locations) use (&$updated, &$skipped, $countryMappings, $bar) {
+                foreach ($locations as $location) {
+                    $countryCode = trim($location->country);
+                    
+                    // Check if this is a country code that needs mapping
+                    if (isset($countryMappings[$countryCode])) {
+                        // Update with the full country name
+                        DB::table('locations')
+                            ->where('id', $location->id)
+                            ->update(['country_long' => $countryMappings[$countryCode]]);
+                        $updated++;
+                    } else {
+                        // If it's already a full country name, copy it to country_long
+                        // This handles cases where the country field already contains full names
+                        if (strlen($countryCode) > 3) { // Assume full names are longer than 3 characters
+                            DB::table('locations')
+                                ->where('id', $location->id)
+                                ->update(['country_long' => $countryCode]);
+                            $updated++;
+                        } else {
+                            // Unknown country code, skip but log it
+                            $this->warn("Unknown country code: '{$countryCode}' for location ID {$location->id}");
+                            $skipped++;
+                        }
+                    }
+                    
+                    $bar->advance();
+                }
+            });
+            
+        $bar->finish();
+        
+        $this->newLine();
+        $this->info("Completed! Updated country_long for {$updated} locations.");
+        
+        if ($skipped > 0) {
+            $this->info("Skipped {$skipped} locations with unknown country codes.");
+        }
+        
+        // Show some examples of what was updated
+        $this->info("\nSample of updated locations:");
+        $samples = DB::table('locations')
+            ->whereNotNull('country_long')
+            ->select('country', 'country_long')
+            ->distinct()
+            ->limit(10)
+            ->get();
+            
+        foreach ($samples as $sample) {
+            $this->info("  {$sample->country} → {$sample->country_long}");
         }
     }
 }

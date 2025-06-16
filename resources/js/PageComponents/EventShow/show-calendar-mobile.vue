@@ -31,7 +31,7 @@
         :six-weeks="true"
         inline
         auto-apply
-        month-name-format="long"
+        month-name-format="short"
         hide-offset-dates
         week-start="0"
         @update:model-value="preventDefault"
@@ -70,10 +70,10 @@ const getDates = () => {
       
       if (normalizedEventDate >= normalizedToday) {
         remaining.value.push(event.date);
-        
-        // Format date for highlighting in calendar
-        highlightedDates.value.push(normalizedEventDate);
       }
+      
+      // Add all dates to highlightedDates, regardless of whether they're past or future
+      highlightedDates.value.push(normalizedEventDate);
       
       // Keep all dates for reference
       dates.value.push(event.date);

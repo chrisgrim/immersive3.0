@@ -412,16 +412,20 @@ const selectLocation = async (location) => {
 
 const setPlace = (place) => {
     // Helper function to extract address components
-    const getAddressComponent = (type) => {
+    const getAddressComponent = (type, preferLong = false) => {
         if (place.addressComponents) {
             const component = place.addressComponents.find(component => 
                 component.types && component.types.includes(type)
             );
             
             if (component) {
-                // The text value is in the Fg property
-                const componentValue = component.Fg;
-                return componentValue || '';
+                if (preferLong) {
+                    // Return long name (e.g., "Canada" instead of "CA")
+                    return component.longText || component.Fg || '';
+                } else {
+                    // Return short name (e.g., "CA" instead of "Canada")
+                    return component.Fg || '';
+                }
             }
         }
         return '';
@@ -454,7 +458,8 @@ const setPlace = (place) => {
                 
     const region = getAddressComponent('administrative_area_level_1');
     const postal_code = getAddressComponent('postal_code');
-    const country = getAddressComponent('country');
+    const country = getAddressComponent('country'); // Short name (e.g., "CA")
+    const country_long = getAddressComponent('country', true); // Long name (e.g., "Canada")
     
     const currentVenue = event.location?.venue || '';
     
@@ -468,6 +473,7 @@ const setPlace = (place) => {
         region: region || '',
         postal_code: postal_code || '',
         country: country || '',
+        country_long: country_long || '',
         hiddenLocationToggle: event.location?.hiddenLocationToggle || false,
         hiddenLocation: event.location?.hiddenLocation || '',
         venue: currentVenue
@@ -602,6 +608,7 @@ defineExpose({
             region: event.location.region,
             postal_code: event.location.postal_code,
             country: event.location.country,
+            country_long: event.location.country_long,
             venue: event.location.venue,
             hiddenLocationToggle: event.location.hiddenLocationToggle,
             hiddenLocation: event.location.hiddenLocation

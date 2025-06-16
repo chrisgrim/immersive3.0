@@ -194,7 +194,7 @@
                 "addressLocality": "{{$event->location->city}}",
                 "postalCode": "{{$event->location->postal_code}}",
                 "addressRegion": "{{$event->location->region}}",
-                "addressCountry": "{{$event->location->country}}"
+                "addressCountry": "{{ $event->location->country_long ?: $event->location->country }}"
             }
         },
         @else
@@ -398,10 +398,10 @@
                                                 @if(!$event->hasLocation)
                                                     {{ ucfirst($event->remoteLocations->first()?->name ?? 'Remote Event') }}
                                                 @else
-                                                    @if($event->location->country === 'United States')
+                                                    @if($event->location->country === 'United States' || $event->location->country === 'US')
                                                         {{ ucfirst($event->location->city) }}, {{ $event->location->region }}
                                                     @else
-                                                        {{ ucfirst($event->location->city) }}, {{ $event->location->country }}
+                                                        {{ ucfirst($event->location->city) }}, {{ $event->location->country_long ?: $event->location->country }}
                                                     @endif
                                                 @endif
                                             </p>
@@ -493,10 +493,10 @@
                                                     @if(!$event->hasLocation)
                                                         {{ ucfirst($event->remoteLocations->first()?->name ?? 'Remote Event') }}
                                                     @else
-                                                        @if($event->location->country === 'United States')
+                                                        @if($event->location->country === 'United States' || $event->location->country === 'US')
                                                             {{ ucfirst($event->location->city) }}, {{ $event->location->region }}
                                                         @else
-                                                            {{ ucfirst($event->location->city) }}, {{ $event->location->country }}
+                                                            {{ ucfirst($event->location->city) }}, {{ $event->location->country_long ?: $event->location->country }}
                                                         @endif
                                                     @endif
                                                 </p>
@@ -645,10 +645,10 @@
                                                 @if(!$event->hasLocation)
                                                     {{ ucfirst($event->remoteLocations->first()?->name ?? 'Remote Event') }}
                                                 @else
-                                                    @if($event->location->country === 'United States')
+                                                    @if($event->location->country === 'United States' || $event->location->country === 'US')
                                                         {{ ucfirst($event->location->city) }}, {{ $event->location->region }}
                                                     @else
-                                                        {{ ucfirst($event->location->city) }}, {{ $event->location->country }}
+                                                        {{ ucfirst($event->location->city) }}, {{ $event->location->country_long ?: $event->location->country }}
                                                     @endif
                                                 @endif
                                             </p>

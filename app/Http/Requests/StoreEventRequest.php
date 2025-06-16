@@ -40,6 +40,7 @@ class StoreEventRequest extends FormRequest
             'location.city' => 'sometimes|string|max:255',
             'location.region' => 'sometimes|string|max:255',
             'location.country' => 'sometimes|string|max:255',
+            'location.country_long' => 'sometimes|string|max:255',
             'location.postal_code' => 'sometimes|nullable|string|max:20',
             'location.hiddenLocation' => 'nullable|string|max:255',
             'location.hiddenLocationToggle' => 'sometimes|boolean',
