@@ -411,6 +411,10 @@ const selectLocation = async (location) => {
 };
 
 const setPlace = (place) => {
+    // Debug: Log the full place object to see what Google is returning
+    console.log('Google Places API response:', place);
+    console.log('Address Components:', place.addressComponents);
+    
     // Helper function to extract address components
     const getAddressComponent = (type, preferLong = false) => {
         if (place.addressComponents) {
@@ -420,11 +424,11 @@ const setPlace = (place) => {
             
             if (component) {
                 if (preferLong) {
-                    // Return long name (e.g., "Canada" instead of "CA")
-                    return component.longText || component.Fg || '';
+                    // Return long name (e.g., "California" instead of "CA")
+                    return component.long_name || component.longText || '';
                 } else {
-                    // Return short name (e.g., "CA" instead of "Canada")
-                    return component.Fg || '';
+                    // Return short name (e.g., "CA" instead of "California")
+                    return component.short_name || component.Fg || '';
                 }
             }
         }
@@ -456,7 +460,8 @@ const setPlace = (place) => {
                 getAddressComponent('sublocality') || 
                 getAddressComponent('postal_town');
                 
-    const region = getAddressComponent('administrative_area_level_1');
+    const region = getAddressComponent('administrative_area_level_1'); // Short name (e.g., "CA")
+    const region_long = getAddressComponent('administrative_area_level_1', true); // Long name (e.g., "California")
     const postal_code = getAddressComponent('postal_code');
     const country = getAddressComponent('country'); // Short name (e.g., "CA")
     const country_long = getAddressComponent('country', true); // Long name (e.g., "Canada")
@@ -471,6 +476,7 @@ const setPlace = (place) => {
         street: street,
         city: city || '',
         region: region || '',
+        region_long: region_long || '',
         postal_code: postal_code || '',
         country: country || '',
         country_long: country_long || '',
@@ -598,7 +604,7 @@ defineExpose({
         
         return isValid;
     },
-    submitData: () => ({
+            submitData: () => ({
         location: {
             latitude: event.location.latitude,
             longitude: event.location.longitude,
@@ -606,6 +612,7 @@ defineExpose({
             street: event.location.street,
             city: event.location.city,
             region: event.location.region,
+            region_long: event.location.region_long,
             postal_code: event.location.postal_code,
             country: event.location.country,
             country_long: event.location.country_long,

@@ -14,7 +14,7 @@ use App\Http\Controllers\CachedDataController;
 
 class UpdateWebsiteData extends Command
 {
-    protected $signature = 'website:update-data {--reset-elastic-migrations : Reset Elasticsearch migrations} {--rebuild-cache : Rebuild Redis cache for categories and genres} {--refactor-categories : Refactor categories to remove redundancy, correctly assign attendance types, and migrate events} {--clear-similar-events : Clear cache for similar events} {--populate-country-long : Populate country_long field for existing locations}';
+    protected $signature = 'website:update-data {--reset-elastic-migrations : Reset Elasticsearch migrations} {--rebuild-cache : Rebuild Redis cache for categories and genres} {--refactor-categories : Refactor categories to remove redundancy, correctly assign attendance types, and migrate events} {--clear-similar-events : Clear cache for similar events} {--populate-country-long : Populate country_long field for existing locations} {--populate-location-data : Populate both country_long and region_long, fix region abbreviations}';
     protected $description = 'Run all necessary data updates across the website models';
 
     public function handle()
@@ -41,6 +41,11 @@ class UpdateWebsiteData extends Command
 
         if ($this->option('populate-country-long')) {
             $this->populateCountryLong();
+            return;
+        }
+
+        if ($this->option('populate-location-data')) {
+            $this->populateLocationData();
             return;
         }
 
@@ -966,6 +971,263 @@ class UpdateWebsiteData extends Command
             
         foreach ($samples as $sample) {
             $this->info("  {$sample->country} → {$sample->country_long}");
+        }
+    }
+
+    /**
+     * Populate both country_long and region_long fields, and fix region abbreviations
+     */
+    private function populateLocationData()
+    {
+        $this->info('Populating location data (country_long, region_long, and fixing region abbreviations)...');
+        
+        // Define country code to full name mappings
+        $countryMappings = [
+            'CA' => 'Canada',
+            'US' => 'United States',
+            'UK' => 'United Kingdom',
+            'GB' => 'United Kingdom',
+            'AU' => 'Australia',
+            'DE' => 'Germany',
+            'FR' => 'France',
+            'IT' => 'Italy',
+            'ES' => 'Spain',
+            'NL' => 'Netherlands',
+            'BE' => 'Belgium',
+            'CH' => 'Switzerland',
+            'AT' => 'Austria',
+            'SE' => 'Sweden',
+            'NO' => 'Norway',
+            'DK' => 'Denmark',
+            'FI' => 'Finland',
+            'IE' => 'Ireland',
+            'PT' => 'Portugal',
+            'PL' => 'Poland',
+            'CZ' => 'Czech Republic',
+            'HU' => 'Hungary',
+            'GR' => 'Greece',
+            'TR' => 'Turkey',
+            'RU' => 'Russia',
+            'JP' => 'Japan',
+            'KR' => 'South Korea',
+            'CN' => 'China',
+            'IN' => 'India',
+            'BR' => 'Brazil',
+            'MX' => 'Mexico',
+            'AR' => 'Argentina',
+            'CL' => 'Chile',
+            'CO' => 'Colombia',
+            'PE' => 'Peru',
+            'VE' => 'Venezuela',
+            'ZA' => 'South Africa',
+            'EG' => 'Egypt',
+            'MA' => 'Morocco',
+            'NG' => 'Nigeria',
+            'KE' => 'Kenya',
+            'GH' => 'Ghana',
+            'TZ' => 'Tanzania',
+            'UG' => 'Uganda',
+            'ZW' => 'Zimbabwe',
+            'BW' => 'Botswana',
+            'ZM' => 'Zambia',
+            'MW' => 'Malawi',
+            'MZ' => 'Mozambique',
+            'AO' => 'Angola',
+            'NA' => 'Namibia',
+            'SZ' => 'Eswatini',
+            'LS' => 'Lesotho',
+            'NZ' => 'New Zealand',
+            'EC' => 'Ecuador',
+            'BG' => 'Bulgaria',
+            'SG' => 'Singapore',
+            'QA' => 'Qatar',
+        ];
+
+        // Define US state full name to abbreviation mappings
+        $usStateMappings = [
+            'Alabama' => 'AL',
+            'Alaska' => 'AK',
+            'Arizona' => 'AZ',
+            'Arkansas' => 'AR',
+            'California' => 'CA',
+            'Colorado' => 'CO',
+            'Connecticut' => 'CT',
+            'Delaware' => 'DE',
+            'Florida' => 'FL',
+            'Georgia' => 'GA',
+            'Hawaii' => 'HI',
+            'Idaho' => 'ID',
+            'Illinois' => 'IL',
+            'Indiana' => 'IN',
+            'Iowa' => 'IA',
+            'Kansas' => 'KS',
+            'Kentucky' => 'KY',
+            'Louisiana' => 'LA',
+            'Maine' => 'ME',
+            'Maryland' => 'MD',
+            'Massachusetts' => 'MA',
+            'Michigan' => 'MI',
+            'Minnesota' => 'MN',
+            'Mississippi' => 'MS',
+            'Missouri' => 'MO',
+            'Montana' => 'MT',
+            'Nebraska' => 'NE',
+            'Nevada' => 'NV',
+            'New Hampshire' => 'NH',
+            'New Jersey' => 'NJ',
+            'New Mexico' => 'NM',
+            'New York' => 'NY',
+            'North Carolina' => 'NC',
+            'North Dakota' => 'ND',
+            'Ohio' => 'OH',
+            'Oklahoma' => 'OK',
+            'Oregon' => 'OR',
+            'Pennsylvania' => 'PA',
+            'Rhode Island' => 'RI',
+            'South Carolina' => 'SC',
+            'South Dakota' => 'SD',
+            'Tennessee' => 'TN',
+            'Texas' => 'TX',
+            'Utah' => 'UT',
+            'Vermont' => 'VT',
+            'Virginia' => 'VA',
+            'Washington' => 'WA',
+            'West Virginia' => 'WV',
+            'Wisconsin' => 'WI',
+            'Wyoming' => 'WY',
+            'District of Columbia' => 'DC'
+        ];
+
+        // Create reverse mapping for states (abbreviation to full name)
+        $usStateReverseMappings = array_flip($usStateMappings);
+
+        // Count locations that need updating
+        $locationsToUpdate = DB::table('locations')
+            ->where(function($query) {
+                $query->whereNull('country_long')
+                      ->orWhereNull('region_long')
+                      ->orWhereIn('region', [
+                          'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware',
+                          'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky',
+                          'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi',
+                          'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey', 'New Mexico',
+                          'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania',
+                          'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont',
+                          'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming', 'District of Columbia'
+                      ]);
+            })
+            ->count();
+            
+        if ($locationsToUpdate === 0) {
+            $this->info('No locations found that need location data updates.');
+            return;
+        }
+        
+        $this->info("Found {$locationsToUpdate} locations to update.");
+        
+        // Create a progress bar
+        $bar = $this->output->createProgressBar($locationsToUpdate);
+        
+        $countryUpdated = 0;
+        $regionUpdated = 0;
+        $regionAbbreviated = 0;
+        $skipped = 0;
+        
+        // Process locations in chunks
+        DB::table('locations')
+            ->where(function($query) {
+                $query->whereNull('country_long')
+                      ->orWhereNull('region_long')
+                      ->orWhereIn('region', [
+                          'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware',
+                          'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky',
+                          'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi',
+                          'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey', 'New Mexico',
+                          'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania',
+                          'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont',
+                          'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming', 'District of Columbia'
+                      ]);
+            })
+            ->chunkById(100, function ($locations) use (&$countryUpdated, &$regionUpdated, &$regionAbbreviated, &$skipped, $countryMappings, $usStateMappings, $usStateReverseMappings, $bar) {
+                foreach ($locations as $location) {
+                    $updates = [];
+                    
+                    // Handle country_long
+                    if (empty($location->country_long) && !empty($location->country)) {
+                        $countryCode = trim($location->country);
+                        
+                        if (isset($countryMappings[$countryCode])) {
+                            $updates['country_long'] = $countryMappings[$countryCode];
+                            $countryUpdated++;
+                        } elseif (strlen($countryCode) > 3) {
+                            // Already a full country name
+                            $updates['country_long'] = $countryCode;
+                            $countryUpdated++;
+                        }
+                    }
+                    
+                    // Handle region data (only for US locations)
+                    if (!empty($location->region) && (
+                        $location->country === 'US' || 
+                        $location->country === 'United States' || 
+                        $location->country_long === 'United States'
+                    )) {
+                        $regionValue = trim($location->region);
+                        
+                        // Check if region is a full state name that needs to be abbreviated
+                        if (isset($usStateMappings[$regionValue])) {
+                            // Convert full name to abbreviation
+                            $updates['region'] = $usStateMappings[$regionValue];
+                            $updates['region_long'] = $regionValue;
+                            $regionAbbreviated++;
+                        } 
+                        // Check if region is already an abbreviation
+                        elseif (isset($usStateReverseMappings[$regionValue]) && empty($location->region_long)) {
+                            // Region is already abbreviated, just populate region_long
+                            $updates['region_long'] = $usStateReverseMappings[$regionValue];
+                            $regionUpdated++;
+                        }
+                        // Check if region_long is empty but region exists and might be abbreviated
+                        elseif (empty($location->region_long) && strlen($regionValue) === 2 && isset($usStateReverseMappings[$regionValue])) {
+                            $updates['region_long'] = $usStateReverseMappings[$regionValue];
+                            $regionUpdated++;
+                        }
+                    }
+                    
+                    // Apply updates if any
+                    if (!empty($updates)) {
+                        DB::table('locations')
+                            ->where('id', $location->id)
+                            ->update($updates);
+                    } else {
+                        $skipped++;
+                    }
+                    
+                    $bar->advance();
+                }
+            });
+            
+        $bar->finish();
+        
+        $this->newLine();
+        $this->info("Completed location data update!");
+        $this->info("- Updated country_long for {$countryUpdated} locations");
+        $this->info("- Converted {$regionAbbreviated} full state names to abbreviations");
+        $this->info("- Populated region_long for {$regionUpdated} locations");
+        $this->info("- Skipped {$skipped} locations (no updates needed)");
+        
+        // Show some examples of what was updated
+        $this->info("\nSample of updated locations:");
+        $samples = DB::table('locations')
+            ->whereNotNull('region_long')
+            ->where('country', 'US')
+            ->select('region', 'region_long', 'city')
+            ->distinct()
+            ->limit(10)
+            ->get();
+            
+        foreach ($samples as $sample) {
+            $this->info("  {$sample->city}: {$sample->region} → {$sample->region_long}");
         }
     }
 }

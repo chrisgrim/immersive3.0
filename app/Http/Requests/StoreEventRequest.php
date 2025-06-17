@@ -39,6 +39,7 @@ class StoreEventRequest extends FormRequest
             'location.street' => 'sometimes|string|max:255',
             'location.city' => 'sometimes|string|max:255',
             'location.region' => 'sometimes|string|max:255',
+            'location.region_long' => 'sometimes|string|max:255',
             'location.country' => 'sometimes|string|max:255',
             'location.country_long' => 'sometimes|string|max:255',
             'location.postal_code' => 'sometimes|nullable|string|max:20',
@@ -75,10 +76,10 @@ class StoreEventRequest extends FormRequest
             'currentImages' => 'nullable|json',
             'deletedImages' => 'nullable|json',
             // Add validation for contentAdvisories
-            'contentAdvisories' => 'nullable|array',
+            'contentAdvisories' => 'nullable|array|max:16',
             'contentAdvisories.*.name' => 'sometimes|string|max:100',
             // Add validation for mobilityAdvisories
-            'mobilityAdvisories' => 'nullable|array',
+            'mobilityAdvisories' => 'nullable|array|max:16',
             'mobilityAdvisories.*.name' => 'sometimes|string|max:100',
             'wheelchairReady' => 'sometimes|boolean',
             // Add validation for contact and interactive levels
@@ -123,6 +124,8 @@ class StoreEventRequest extends FormRequest
     {
         return [
             'images.*.dimensions' => 'Images must be at least 400x400 pixels and no larger than 10000x10000 pixels.',
+            'contentAdvisories.max' => 'You can select a maximum of 16 content advisories.',
+            'mobilityAdvisories.max' => 'You can select a maximum of 16 mobility advisories.',
         ];
     }
 

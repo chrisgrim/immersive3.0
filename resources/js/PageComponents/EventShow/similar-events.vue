@@ -146,30 +146,37 @@
   }
   
   const getEventLocation = (event) => {
-    // For remote events
-    if (!event.hasLocation && event.remotelocations && event.remotelocations.length > 0) {
-      return event.remotelocations[0].name || 'Remote Event'
-    } 
-    // For events with location object
-    else if (event.location) {
-      if (event.location.country === 'United States') {
-        return `${event.location.city}, ${event.location.region}`
+    // For remote events - match blade template logic
+    if (!event.hasLocation) {
+      // Check for remoteLocations (capital L) first, then fallback to remotelocations (lowercase)
+      const remoteLocations = event.remoteLocations || event.remotelocations
+      if (remoteLocations && remoteLocations.length > 0) {
+        const locationName = remoteLocations[0].name || 'Remote Event'
+        return locationName.charAt(0).toUpperCase() + locationName.slice(1)
       }
-      return `${event.location.city}, ${event.location.country}`
-    }
-    // For events with location_latlon (from API)
-    else if (event.location_latlon && typeof event.location_latlon === 'object') {
-      if (event.location_latlon.city) {
-        if (event.location_latlon.country === 'United States') {
-          return `${event.location_latlon.city}, ${event.location_latlon.region || ''}`
-        }
-        return `${event.location_latlon.city}, ${event.location_latlon.country || ''}`
-      }
+      return 'Remote Event'
     }
     
-    // For online events
-    if (!event.hasLocation) {
-      return 'Online event'
+    // For events with location object - match blade template logic
+    if (event.location) {
+      const city = event.location.city ? event.location.city.charAt(0).toUpperCase() + event.location.city.slice(1) : ''
+      
+      if (event.location.country === 'United States' || event.location.country === 'US') {
+        return `${city}, ${event.location.region}`
+      }
+      return `${city}, ${event.location.country_long || event.location.country}`
+    }
+    
+    // For events with location_latlon (from API)
+    if (event.location_latlon && typeof event.location_latlon === 'object') {
+      if (event.location_latlon.city) {
+        const city = event.location_latlon.city.charAt(0).toUpperCase() + event.location_latlon.city.slice(1)
+        
+        if (event.location_latlon.country === 'United States' || event.location_latlon.country === 'US') {
+          return `${city}, ${event.location_latlon.region || ''}`
+        }
+        return `${city}, ${event.location_latlon.country || ''}`
+      }
     }
     
     return 'Location details on event page'

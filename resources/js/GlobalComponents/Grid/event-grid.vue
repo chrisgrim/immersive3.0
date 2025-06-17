@@ -59,14 +59,14 @@
                     <p v-if="showLocation" 
                     class="mt-6 uppercase text-md font-medium text-left break-words hyphens-auto w-full block overflow-hidden text-ellipsis">
                         <span v-if="!card.hasLocation">
-                            {{ card.remoteLocations?.length ? card.remoteLocations[0].name.charAt(0).toUpperCase() + card.remoteLocations[0].name.slice(1) : 'Remote' }}
+                            {{ card.remoteLocations?.length ? card.remoteLocations[0].name.charAt(0).toUpperCase() + card.remoteLocations[0].name.slice(1) : 'Remote Event' }}
                         </span>
                         <span v-else-if="card.location">
-                            <template v-if="card.location.country === 'United States'">
+                            <template v-if="card.location.country === 'United States' || card.location.country === 'US'">
                                 {{ card.location.city?.charAt(0).toUpperCase() + card.location.city?.slice(1) }}, {{ card.location.region }}
                             </template>
                             <template v-else>
-                                {{ card.location.city?.charAt(0).toUpperCase() + card.location.city?.slice(1) }}, {{ card.location.country }}
+                                {{ card.location.city?.charAt(0).toUpperCase() + card.location.city?.slice(1) }}, {{ card.location.country_long || card.location.country }}
                             </template>
                         </span>
                     </p>

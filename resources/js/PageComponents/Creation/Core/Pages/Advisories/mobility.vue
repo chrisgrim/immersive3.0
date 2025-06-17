@@ -35,13 +35,13 @@
                     placeholder="Additional advisories"
                     @onSelect="itemSelected"
                     :error="showAdvisoriesError"
-                    :max-selections="10"
+                    :max-selections="16"
                     :max-input-length="50"
                 />
-                <div v-if="(hasSelectedWheelchair && !hasRequiredAdvisories && $v.hasAdditionalAdvisories.$error) || mobilityAdvisories.length >= 10" class="mt-4">
+                <div v-if="(hasSelectedWheelchair && !hasRequiredAdvisories && $v.hasAdditionalAdvisories.$error) || mobilityAdvisories.length >= 16" class="mt-4">
                     <p class="text-red-500 text-1xl">
-                        {{ mobilityAdvisories.length >= 10 
-                            ? 'Maximum of 10 mobility advisories allowed' 
+                        {{ mobilityAdvisories.length >= 16 
+                            ? 'Maximum of 16 mobility advisories allowed' 
                             : 'Please select at least one additional mobility advisory' 
                         }}
                     </p>
@@ -125,7 +125,7 @@ const onSelectWheelchair = (isAccessible) => {
 };
 
 const itemSelected = (item) => {
-    if (mobilityAdvisories.value.length >= 10) {
+    if (mobilityAdvisories.value.length >= 16) {
         return;
     }
     otherAdvisories.value.push(item);
@@ -207,8 +207,8 @@ onMounted(async () => {
 
 // Add computed property for error state
 const showAdvisoriesError = computed(() => {
-    if (mobilityAdvisories.value.length >= 10) {
-        return 'Maximum of 10 mobility advisories allowed';
+    if (mobilityAdvisories.value.length >= 16) {
+        return 'Maximum of 16 mobility advisories allowed';
     }
     if (hasSelectedWheelchair.value && !hasRequiredAdvisories.value && $v.value.hasAdditionalAdvisories.$error) {
         return 'Please select at least one additional mobility advisory';

@@ -13,7 +13,7 @@ class Location extends Model
     * @var array
     */
     protected $fillable = [
-    	'hiddenLocation','home','street','city','region','country','country_long','postal_code','longitude','latitude','event_id', 'hiddenLocationToggle', 'venue'
+    	'hiddenLocation','home','street','city','region','region_long','country','country_long','postal_code','longitude','latitude','event_id', 'hiddenLocationToggle', 'venue'
     ];
     
     /**

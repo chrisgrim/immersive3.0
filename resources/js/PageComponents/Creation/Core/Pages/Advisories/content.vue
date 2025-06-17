@@ -33,13 +33,13 @@
                     placeholder="Additional advisories"
                     @onSelect="itemSelected" 
                     :error="showAdvisoriesError"
-                    :max-selections="10"
+                    :max-selections="16"
                     :max-input-length="50"
                 />
-                <div v-if="(hasSelectedSexual && !hasRequiredAdvisories && $v.hasAdditionalAdvisories.$error) || contentAdvisories.length >= 10" class="mt-4">
+                <div v-if="(hasSelectedSexual && !hasRequiredAdvisories && $v.hasAdditionalAdvisories.$error) || contentAdvisories.length >= 16" class="mt-4">
                     <p class="text-red-500 text-1xl">
-                        {{ contentAdvisories.length >= 10 
-                            ? 'Maximum of 10 content advisories allowed' 
+                        {{ contentAdvisories.length >= 16 
+                            ? 'Maximum of 16 content advisories allowed' 
                             : 'Please select at least one additional content advisory' 
                         }}
                     </p>
@@ -124,8 +124,8 @@ const showDescriptionError = computed(() => {
 });
 
 const showAdvisoriesError = computed(() => {
-    if (contentAdvisories.value.length >= 10) {
-        return 'Maximum of 10 content advisories allowed';
+    if (contentAdvisories.value.length >= 16) {
+        return 'Maximum of 16 content advisories allowed';
     }
     if (hasSelectedSexual.value && !hasRequiredAdvisories.value && $v.value.hasAdditionalAdvisories.$error) {
         return 'Please select at least one additional content advisory';
@@ -186,7 +186,7 @@ const onSelectSexual = (hasSexualContent) => {
 };
 
 const itemSelected = (item) => {
-    if (contentAdvisories.value.length >= 10) {
+    if (contentAdvisories.value.length >= 16) {
         return;
     }
     otherAdvisories.value.push(item);
