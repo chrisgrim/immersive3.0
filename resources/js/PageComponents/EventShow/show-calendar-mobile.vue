@@ -16,7 +16,7 @@
     <div v-else class="calendar-container">
       <VueDatePicker
         v-model="selectedDates"
-        :model-value="highlightedDates"
+        :preview-date="previewDate"
         :enable-time-picker="false"
         :disable-month-year-select="false"
         :prevent-min-max-navigation="false"
@@ -41,7 +41,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
 
@@ -52,11 +52,12 @@ const props = defineProps({
   }
 });
 
-const selectedDates = ref(null); // This is just for the v-model of VueDatePicker
+const selectedDates = ref([]);  // Start empty like dates.vue
 const highlightedDates = ref([]);
 const dates = ref([]);
 const remaining = ref([]);
 const maxDate = ref(new Date(new Date().setFullYear(new Date().getFullYear() + 1)));
+const previewDate = ref(new Date());
 
 const getDates = () => {
   if (props.event.shows) {
@@ -77,6 +78,11 @@ const getDates = () => {
       
       // Keep all dates for reference
       dates.value.push(event.date);
+    });
+    
+    // Set selectedDates AFTER calendar is initialized
+    nextTick(() => {
+      selectedDates.value = [...highlightedDates.value];
     });
   }
 };
