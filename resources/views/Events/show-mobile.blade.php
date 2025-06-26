@@ -45,6 +45,16 @@
                                         @if($event->tag_line)
                                             <p class="text-3xl mt-8 text-neutral-700 font-medium">{{ $event->tag_line }}</p>
                                         @endif
+                                        
+                                        @if(auth()->check() && (auth()->user()->isAdmin || auth()->user()->isModerator || (auth()->user()->organizer && auth()->user()->organizer->id === $event->organizer_id)))
+                                            <div class="mt-8">
+                                                <a href="/hosting/event/{{ $event->slug }}/edit">
+                                                    <button class="font-medium py-4 px-4 rounded-2xl bg-white border border-neutral-300 hover:border-[#222222] hover:shadow-focus-black transition-all duration-200">
+                                                        Edit Event
+                                                    </button>
+                                                </a>
+                                            </div>
+                                        @endif
                                     </div>
                             </div>
                         @else
@@ -57,6 +67,17 @@
                                     @if($event->tag_line)
                                         <p class="text-3xl mt-4 text-neutral-700 font-medium">{{ $event->tag_line }}</p>
                                     @endif
+                                    
+                                    {{-- Edit Button --}}
+                                    @if(auth()->check() && (auth()->user()->isAdmin || auth()->user()->isModerator || (auth()->user()->organizer && auth()->user()->organizer->id === $event->organizer_id)))
+                                        <div class="mt-8">
+                                            <a href="/hosting/event/{{ $event->slug }}/edit">
+                                                <button class="font-medium py-4 px-4 rounded-2xl bg-white border border-neutral-300 hover:border-[#222222] hover:shadow-focus-black transition-all duration-200">
+                                                    Edit Event
+                                                </button>
+                                            </a>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         @endif
@@ -68,6 +89,7 @@
                     </div>
                 </div>
             </div>
+            
 
             {{-- Rest of your content --}}
             <div class="relative w-full m-auto pb-12 px-10 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">

@@ -82,7 +82,7 @@ const lat = parseFloat(params.get('lat'));
 const lng = parseFloat(params.get('lng'));
 
 const mapConfig = {
-    zoom: 13,
+    zoom: 12,
     center: (!isNaN(lat) && !isNaN(lng)) ? [lat, lng] : [34.0549076, -118.242643],
     maxZoom: 20,
     minZoom: 8,

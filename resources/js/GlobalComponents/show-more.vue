@@ -1,15 +1,17 @@
 <template>
     <div>
         <blockquote v-if="blockquote" class="text-3.5xl md:text-2.5xl px-4 py-2">
-            <span :class="[bodyClass]" :style="`white-space: ${whiteSpace};`">"{{ adjustedText }}"</span>
-            <span v-if="needsShowMore" v-show="showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer"><br><span>Show Less</span></span>
-            <span v-if="needsShowMore" v-show="lessButton && !showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer"><br>Show More</span>
+            <span :class="[bodyClass, needsShowMore && showMore ? 'mb-8 block' : '']" :style="`white-space: ${whiteSpace};`">"{{ adjustedText }}"</span>
+            <div v-if="needsShowMore" v-show="showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer mt-2">Show Less</div>
+            <div v-if="needsShowMore" v-show="lessButton && !showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer mt-2">Show More</div>
         </blockquote>
-        <p v-else class="text-3.5xl md:text-2.5xl leading-normal md:leading-9">
-            <span :class="[bodyClass]" :style="`white-space: ${whiteSpace};`">{{ adjustedText }}</span>
-            <span v-if="needsShowMore" v-show="showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer"><br><span>Show Less</span></span>
-            <span v-if="needsShowMore" v-show="lessButton && !showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer"><br>Show More</span>
-        </p>
+        <div v-else class="text-3.5xl md:text-2.5xl leading-normal md:leading-9">
+            <p :class="needsShowMore && showMore ? 'mb-8' : 'mb-0'">
+                <span :class="[bodyClass]" :style="`white-space: ${whiteSpace};`">{{ adjustedText }}</span>
+            </p>
+            <div v-if="needsShowMore" v-show="showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer mt-2">Show Less</div>
+            <div v-if="needsShowMore" v-show="lessButton && !showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer mt-2">Show More</div>
+        </div>
     </div>
 </template>
 
