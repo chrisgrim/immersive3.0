@@ -167,7 +167,7 @@ class Show extends Model
     {
         if ($type === 'a' || $type === 'o' || $type === 'l') {
             // For 'always available', 'on request', and 'limited availability' shows
-            return Carbon::now()->addMonths(6)->format('Y-m-d H:i:s');
+            return Carbon::now()->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
         }
         
         // For single shows, get the last date from shows
@@ -175,7 +175,11 @@ class Show extends Model
             ->orderBy('date', 'DESC')
             ->first();
         
-        // If we have a last show, use its date; otherwise use current date
-        return $lastShow ? $lastShow->date : Carbon::now()->format('Y-m-d H:i:s');
+        // If we have a last show, use end of day for that date; otherwise use current date
+        if ($lastShow) {
+            return Carbon::parse($lastShow->date)->endOfDay()->format('Y-m-d H:i:s');
+        }
+        
+        return Carbon::now()->endOfDay()->format('Y-m-d H:i:s');
     }
 }

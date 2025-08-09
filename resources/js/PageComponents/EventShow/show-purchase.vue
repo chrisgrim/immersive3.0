@@ -230,7 +230,7 @@ const getDates = () => {
             const normalizedEventDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
             const normalizedToday = new Date();
             normalizedToday.setHours(0, 0, 0, 0);
-            normalizedToday.setDate(normalizedToday.getDate() - 1); // yesterday
+            // Use today as baseline, not yesterday
             
             if (normalizedEventDate >= normalizedToday) {
                 remaining.value.push(event.date);
