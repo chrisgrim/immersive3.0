@@ -239,9 +239,16 @@ const goToNext = async () => {
             const currentStepValue = STEP_MAP[currentStep.value];
             const existingStepValue = event.status || '0';
             
-            submitData.status = currentStepValue > existingStepValue 
+            const statusToSet = currentStepValue > existingStepValue 
                 ? currentStepValue 
                 : existingStepValue;
+            
+            // Handle both FormData and regular objects
+            if (submitData instanceof FormData) {
+                submitData.append('status', statusToSet);
+            } else {
+                submitData.status = statusToSet;
+            }
         }
 
         isSubmitting.value = true;
