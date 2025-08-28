@@ -46,6 +46,14 @@ class Dock extends Model
     }
 
     /**
+     * Get all of the cards that are assigned this dock.
+     */
+    public function cards()
+    {
+        return $this->morphedByMany(\App\Models\Curated\Card::class, 'association');
+    }
+
+    /**
     * Helpful command to see published listings
     *
     * @return bool

@@ -36,6 +36,31 @@ class AdminDocksController extends Controller
                       ])
                       ->orderBy('order')
                       ->limit(4);
+            },
+            'posts' => function($query) {
+                $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order', 'event_id', 'community_id')
+                      ->with([
+                          'community:id,name',
+                          'shelf:id,name',
+                          'featuredEventImage',
+                          'images',
+                          'limitedCards.event' => function($query) {
+                              $query->select('id', 'thumbImagePath', 'largeImagePath');
+                          }
+                      ])
+                      ->orderBy('order')
+                      ->limit(4);
+            },
+            'cards' => function($query) {
+                $query->select('id', 'name', 'blurb', 'type', 'order', 'post_id', 'event_id', 'button_text')
+                      ->with([
+                          'post:id,name,community_id',
+                          'post.community:id,name',
+                          'event:id,name,thumbImagePath,largeImagePath',
+                          'images'
+                      ])
+                      ->orderBy('order')
+                      ->limit(4);
             }
         ])
         ->orderBy('order', 'ASC')
@@ -155,6 +180,31 @@ class AdminDocksController extends Controller
                       ])
                       ->orderBy('order')
                       ->limit(4);
+            },
+            'posts' => function($query) {
+                $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order', 'event_id', 'community_id')
+                      ->with([
+                          'community:id,name',
+                          'shelf:id,name',
+                          'featuredEventImage',
+                          'images',
+                          'limitedCards.event' => function($query) {
+                              $query->select('id', 'thumbImagePath', 'largeImagePath');
+                          }
+                      ])
+                      ->orderBy('order')
+                      ->limit(4);
+            },
+            'cards' => function($query) {
+                $query->select('id', 'name', 'blurb', 'type', 'order', 'post_id', 'event_id', 'button_text')
+                      ->with([
+                          'post:id,name,community_id',
+                          'post.community:id,name',
+                          'event:id,name,thumbImagePath,largeImagePath',
+                          'images'
+                      ])
+                      ->orderBy('order')
+                      ->limit(4);
             }
         ])
         ->orderBy('order', 'ASC')
@@ -189,6 +239,63 @@ class AdminDocksController extends Controller
         return $this->dockActions->toggleShelf(
             $dock, 
             $request->shelf_id, 
+            $request->action
+        );
+    }
+
+    public function getAvailablePosts()
+    {
+        return Post::with([
+            'community:id,name',
+            'shelf:id,name',
+            'featuredEventImage',
+            'images',
+            'limitedCards.event' => function($query) {
+                $query->select('id', 'thumbImagePath', 'largeImagePath');
+            }
+        ])
+        ->select('id', 'name', 'thumbImagePath', 'shelf_id', 'community_id', 'order', 'event_id')
+        ->orderBy('name')
+        ->get();
+    }
+
+    public function getAvailableCards()
+    {
+        return \App\Models\Curated\Card::with([
+            'post:id,name,community_id',
+            'post.community:id,name',
+            'event:id,name,thumbImagePath,largeImagePath',
+            'images'
+        ])
+        ->select('id', 'name', 'blurb', 'type', 'order', 'post_id', 'event_id', 'button_text')
+        ->orderBy('order')
+        ->get();
+    }
+
+    public function togglePost(Request $request, Dock $dock)
+    {
+        $request->validate([
+            'post_id' => 'required|exists:posts,id',
+            'action' => 'required|in:attach,detach'
+        ]);
+
+        return $this->dockActions->togglePost(
+            $dock, 
+            $request->post_id, 
+            $request->action
+        );
+    }
+
+    public function toggleCard(Request $request, Dock $dock)
+    {
+        $request->validate([
+            'card_id' => 'required|exists:cards,id',
+            'action' => 'required|in:attach,detach'
+        ]);
+
+        return $this->dockActions->toggleCard(
+            $dock, 
+            $request->card_id, 
             $request->action
         );
     }

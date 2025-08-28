@@ -25,6 +25,7 @@ class CardActions
             'name' => $request->name,
             'blurb' => $request->blurb,
             'url' => $request->url,
+            'button_text' => $request->button_text,
             'type' => $request->type,
             'order' => $request->order ?? ($post->cards()->exists() ? $post->cards->last()->order + 1 : 0)
         ]);

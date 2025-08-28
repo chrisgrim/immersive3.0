@@ -38,7 +38,7 @@
             <div class="mt-8 mb-16">
                 <a :rel="internalUrl" :href="hasUrl">
                     <button class="px-4 py-2 text-white bg-black border-white inline-block rounded-full hover:bg-white hover:text-black hover:border-black z-50">
-                        Check it out
+                        {{ (card.button_text && card.button_text.trim()) || 'Check it out' }}
                     </button>
                 </a>
             </div>

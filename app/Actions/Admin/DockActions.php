@@ -66,6 +66,73 @@ class DockActions
     }
 
     /**
+     * Toggle a post relationship with a dock.
+     *
+     * @param  \App\Models\Admin\Dock  $dock
+     * @param  int  $postId
+     * @param  string  $action
+     * @return \App\Models\Admin\Dock
+     */
+    public function togglePost(Dock $dock, $postId, $action)
+    {
+        if ($action === 'attach') {
+            $this->detachAllRelations($dock);
+            $dock->posts()->syncWithoutDetaching([$postId]);
+        } else {
+            $dock->posts()->detach($postId);
+        }
+
+        return $dock->fresh([
+            'posts' => function($query) {
+                $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order', 'event_id', 'community_id')
+                      ->with([
+                          'community:id,name',
+                          'shelf:id,name',
+                          'featuredEventImage',
+                          'images',
+                          'limitedCards.event' => function($query) {
+                              $query->select('id', 'thumbImagePath', 'largeImagePath');
+                          }
+                      ])
+                      ->orderBy('order')
+                      ->limit(4);
+            }
+        ]);
+    }
+
+    /**
+     * Toggle a card relationship with a dock.
+     *
+     * @param  \App\Models\Admin\Dock  $dock
+     * @param  int  $cardId
+     * @param  string  $action
+     * @return \App\Models\Admin\Dock
+     */
+    public function toggleCard(Dock $dock, $cardId, $action)
+    {
+        if ($action === 'attach') {
+            $this->detachAllRelations($dock);
+            $dock->cards()->syncWithoutDetaching([$cardId]);
+        } else {
+            $dock->cards()->detach($cardId);
+        }
+
+        return $dock->fresh([
+            'cards' => function($query) {
+                $query->select('id', 'name', 'blurb', 'type', 'order', 'post_id', 'event_id', 'button_text')
+                      ->with([
+                          'post:id,name,community_id',
+                          'post.community:id,name',
+                          'event:id,name,thumbImagePath,largeImagePath',
+                          'images'
+                      ])
+                      ->orderBy('order')
+                      ->limit(4);
+            }
+        ]);
+    }
+
+    /**
      * Detach all relations from a dock.
      *
      * @param  \App\Models\Admin\Dock  $dock
@@ -74,5 +141,7 @@ class DockActions
     protected function detachAllRelations(Dock $dock)
     {
         $dock->shelves()->detach();
+        $dock->posts()->detach();
+        $dock->cards()->detach();
     }
 }

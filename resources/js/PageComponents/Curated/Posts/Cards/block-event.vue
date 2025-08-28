@@ -203,6 +203,7 @@ const addCardData = () => {
     }
     if (card.value.url) formData.value.append('url', card.value.url)
     if (card.value.name) formData.value.append('name', card.value.name)
+    if (card.value.button_text) formData.value.append('button_text', card.value.button_text)
 }
 
 const selectEvent = (event) => {

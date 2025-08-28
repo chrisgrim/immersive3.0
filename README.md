@@ -64,3 +64,58 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+---
+
+## Everything Immersive Status Codes & Types
+
+### User Status
+- **C** = Curator
+- **M** = Moderator  
+- **A** = Admin
+- **G** = Guest
+
+### Post Type
+- **s** = Normal post with featured image
+- **h** = Hidden featured image
+- **e** = Event featured image
+- **c** = Cards featured image
+
+### Notification Type
+- **n** = No newsletter or event updates
+- **a** = Yes newsletter and yes updates
+- **m** = Yes newsletter and no updates
+- **u** = No newsletter and yes updates
+
+### Card Type
+- **E** = Event
+- **T** = Text
+- **I** = Image
+- **H** = Event without Image
+
+### Show Type
+- **S** = Specific show dates
+- **L** = Limited Run
+- **O** = Ongoing all days
+- **A** = Always
+
+### Event Status
+- **D** = Draft
+- **E** = Embargo dated
+- **P** = Published
+- **R** = Ready for admin
+- **N** = Notes
+- **0** = New Event
+- **1** = Added Title
+- **2** = Added Location
+- **3** = Added Category
+- **4** = Added Dates
+- **5** = Added Tickets
+- **6** = Added Description
+- **7** = Added Advisories
+- **8** = Added Image
+
+### User Reminder
+- **0** = No organizer or Event Submitted
+- **1** = Organizer Created but no event created
+- **2** = Event Created but not submitted

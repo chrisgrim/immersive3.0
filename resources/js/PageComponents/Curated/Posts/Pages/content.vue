@@ -12,6 +12,7 @@
                 <draggable
                     v-model="post.cards" 
                     :item-key="card => card.id"
+                    :disabled="isAnyCardInEditMode"
                     @start="handleDragStart" 
                     @end="debouncePostOrder"
                     class="space-y-4"
@@ -61,6 +62,7 @@
                                     <!-- Card Content -->
                                     <EditCard 
                                         @update="updatePost"
+                                        @edit-mode-change="handleEditModeChange"
                                         :parent-card="{ ...card, post }"
                                         :community="community"
                                     />
@@ -171,6 +173,7 @@ const newCardPosition = ref(null);
 const topPosition = ref(null);
 const buttonOptions = ref(false);
 const isDragging = ref(false);
+const isAnyCardInEditMode = ref(false);
 const timeout = ref(null);
 
 // Block components mapping
@@ -232,6 +235,10 @@ const handleNewCardUpdate = (updatedPost) => {
 const updatePost = (value) => {
     Object.assign(post, value);
     clear();
+};
+
+const handleEditModeChange = (isInEditMode) => {
+    isAnyCardInEditMode.value = isInEditMode;
 };
 
 const clear = () => {

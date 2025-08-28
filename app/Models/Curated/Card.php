@@ -12,7 +12,7 @@ class Card extends Model
 {
     use HasFactory;
 
-    protected $fillable = [ 'name', 'blurb', 'url', 'order', 'post_id', 'event_id', 'type' ];
+    protected $fillable = [ 'name', 'blurb', 'url', 'button_text', 'order', 'post_id', 'event_id', 'type' ];
 
     /**
     * The relations to eager load on every query.
@@ -43,6 +43,14 @@ class Card extends Model
     public function images()
     {
         return $this->morphMany(Image::class, 'imageable');
+    }
+
+    /**
+     * Get the Docks of the Cards.
+     */
+    public function docks()
+    {
+        return $this->morphToMany('\App\Models\Admin\Dock', 'association')->using('App\Models\Featured\Association');
     }
 
     /**

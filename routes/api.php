@@ -235,7 +235,11 @@ Route::middleware(['auth:sanctum', 'moderator'])->group(function () {
             Route::DELETE('/docks/{dock}', 'destroy');
             Route::GET('/docks/available-shelves', 'getAvailableShelves');
             Route::GET('/docks/available-communities', 'getAvailableCommunities');
+            Route::GET('/docks/available-posts', 'getAvailablePosts');
+            Route::GET('/docks/available-cards', 'getAvailableCards');
             Route::POST('/docks/{dock}/shelves', 'toggleShelf');
+            Route::POST('/docks/{dock}/posts', 'togglePost');
+            Route::POST('/docks/{dock}/cards', 'toggleCard');
         });
     });
 });

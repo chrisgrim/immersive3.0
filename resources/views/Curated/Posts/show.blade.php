@@ -324,16 +324,8 @@
             <div class="relative space-y-4">
                 @foreach($post->cards as $card)
                     <div class="card-wrapper mb-4">
-                        @if($card->type === 't')
-                            {{-- Text Card --}}
-                            <div class="mt-4 mb-12 md:mb-16">
-                                <div class="card-blurb leading-relaxed">
-                                    {!! $card->blurb !!}
-                                </div>
-                            </div>
-
-                        @elseif($card->type === 'i')
-                            {{-- Image Card --}}
+                        @if($card->type === 'i')
+                            {{-- Image Card - No border, full width --}}
                             <div class="relative aspect-[16/9] mb-12 md:mb-16">
                                 <img 
                                     src="{{ $imageUrl . ($card->images->first()?->large_image_path ?? $card->thumbImagePath) }}" 
@@ -342,20 +334,145 @@
                                 />
                             </div>
 
+                        @elseif($card->type === 't' || $card->type === 'h')
+                            {{-- Text Card - Border only if has URL/button --}}
+                            @php
+                                // Get card image for text cards first
+                                $cardImage = null;
+                                if ($card->images && $card->images->count() > 0) {
+                                    $cardImage = $card->images->first()->large_image_path ?? $card->images->first()->thumbImagePath;
+                                } else {
+                                    $cardImage = $card->largeImagePath ?? $card->thumbImagePath;
+                                }
+                                
+                                // Determine if card should have border
+                                $hasBorder = !empty($card->url) || !empty($card->button_text) || $card->event_id || ($cardImage && $card->type !== 'i' && $card->type !== 'h');
+                            @endphp
+                            
+                            <div class="{{ $hasBorder ? 'border-t md:border border-neutral-400 md:rounded-2xl py-12 md:mb-16 md:p-12 overflow-hidden' : 'mt-4 mb-12 md:mb-16' }}">
+                                @if($cardImage && $card->type !== 'h')
+                                    {{-- Card with border and image layout --}}
+                                    <div class="flex flex-col md:flex-row md:gap-16">
+                                        {{-- Image Section --}}
+                                        <div class="flex gap-10 w-full md:w-[35%] mb-6 md:mb-0">
+                                            <div class="w-1/5 md:w-full">
+                                                <div class="aspect-[3/4] w-full rounded-2xl overflow-hidden">
+                                                    <img 
+                                                        src="{{ $imageUrl . $cardImage }}" 
+                                                        class="w-full h-full object-cover" 
+                                                        alt="{{ $card->name ?? 'Card image' }}"
+                                                    />
+                                                </div>
+                                            </div>
+                                            {{-- Mobile-only title --}}
+                                            @if($card->name)
+                                                <div class="w-4/5 flex items-center md:hidden">
+                                                    <h3 class="text-4xl font-bold mt-0">{{ $card->name }}</h3>
+                                                </div>
+                                            @endif
+                                        </div>
+
+                                        {{-- Content Section --}}
+                                        <div class="md:w-[65%] md:my-auto">
+                                            {{-- Desktop-only title --}}
+                                            @if($card->name)
+                                                <h3 class="text-4xl font-bold mt-0 mb-6 hidden md:block">{{ $card->name }}</h3>
+                                            @endif
+
+                                            <div class="md:mt-6 space-y-6">
+                                                {{-- Blurb --}}
+                                                @if(Str::of($card->blurb)->stripTags()->trim()->isNotEmpty())
+                                                    <div class="card-blurb leading-relaxed">
+                                                        {!! $card->blurb !!}
+                                                    </div>
+                                                @endif
+
+                                                {{-- Button --}}
+                                                @if($card->url)
+                                                    <div>
+                                                        <a 
+                                                            href="{{ $card->url }}" 
+                                                            target="_blank"
+                                                            class="inline-block bg-black text-white px-8 py-4 rounded-2xl hover:bg-gray-800 transition-colors">
+                                                            {{ !empty($card->button_text) ? $card->button_text : 'Read More' }}
+                                                        </a>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </div>
+                                @else
+                                    {{-- Simple text card or text card with hidden image --}}
+                                    @if($card->name)
+                                        <h3 class="text-4xl font-bold mt-0 mb-6">{{ $card->name }}</h3>
+                                    @endif
+                                    
+                                    <div class="card-blurb leading-relaxed">
+                                        {!! $card->blurb !!}
+                                    </div>
+                                    
+                                    @if($card->url)
+                                        <div class="mt-6">
+                                            <a 
+                                                href="{{ $card->url }}" 
+                                                target="_blank"
+                                                class="inline-block bg-black text-white px-8 py-4 rounded-2xl hover:bg-gray-800 transition-colors">
+                                                {{ !empty($card->button_text) ? $card->button_text : 'Read More' }}
+                                            </a>
+                                        </div>
+                                    @endif
+                                @endif
+                            </div>
+
                         @elseif($card->type === 'e')
                             {{-- Event Card --}}
                             <div class="border-t md:border border-neutral-400 md:rounded-2xl py-12 md:mb-16 md:p-12 overflow-hidden">
                                 @if($card->event)
                                     <div class="flex flex-col md:flex-row md:gap-16">
                                         {{-- Event Image and Mobile Title --}}
-                                        @if($card->event->thumbImagePath)
+                                        @php
+                                            // Priority: Card's own image > Event's images > Event's direct image
+                                            $cardImage = null;
+                                            
+                                            // Debug what we have
+                                            $debugInfo = [
+                                                'card_has_images' => $card->images ? $card->images->count() : 0,
+                                                'event_has_images' => $card->event && $card->event->images ? $card->event->images->count() : 0,
+                                                'event_largeImagePath' => $card->event->largeImagePath ?? 'null',
+                                                'event_thumbImagePath' => $card->event->thumbImagePath ?? 'null',
+                                            ];
+                                            
+                                            // First check if card has its own uploaded image
+                                            if ($card->images && $card->images->count() > 0) {
+                                                $cardImage = $card->images->first()->large_image_path ?? $card->images->first()->thumbImagePath;
+                                                $debugInfo['source'] = 'card_image';
+                                            }
+                                            // If no card image, check event's images collection
+                                            elseif ($card->event && $card->event->images && $card->event->images->count() > 0) {
+                                                $eventImg = $card->event->images->first();
+                                                $cardImage = $eventImg->large_image_path ?? $eventImg->thumb_image_path ?? $eventImg->largeImagePath ?? $eventImg->thumbImagePath;
+                                                $debugInfo['source'] = 'event_images_collection';
+                                            }
+                                            // Finally fallback to event's direct image properties
+                                            elseif ($card->event) {
+                                                $cardImage = $card->event->largeImagePath ?? $card->event->thumbImagePath;
+                                                $debugInfo['source'] = 'event_direct';
+                                            }
+                                            
+                                            $debugInfo['final_image'] = $cardImage ?? 'null';
+                                            
+                                            // Temporarily show debug info
+                                            // dd($debugInfo);
+                                        @endphp
+
+                                        @if($cardImage && $card->type !== 'h')
                                             <div class="flex gap-10 w-full md:w-[35%] mb-6 md:mb-0">
                                                 <div class="w-1/5 md:w-full">
                                                     <div class="aspect-[3/4] w-full rounded-2xl overflow-hidden">
                                                         <img 
-                                                            src="{{ $imageUrl . $card->event->thumbImagePath }}" 
+                                                            src="{{ $imageUrl . $cardImage }}" 
                                                             class="w-full h-full object-cover" 
-                                                            alt="{{ $card->event->name }}"
+                                                            alt="{{ $card->name ?? $card->event->name }}"
                                                         />
                                                     </div>
                                                 </div>
@@ -368,8 +485,17 @@
                                             </div>
                                         @endif
 
+                                        {{-- Mobile-only title when image is hidden --}}
+                                        @if($card->type === 'h')
+                                            <div class="mb-6 md:hidden">
+                                                <a href="{{ $card->url ?? '/events/' . $card->event->slug }}">
+                                                    <h3 class="text-4xl font-bold mt-0">{{ $card->name ?? $card->event->name }}</h3>
+                                                </a>
+                                            </div>
+                                        @endif
+
                                         {{-- Event Content - Right side on desktop --}}
-                                        <div class="md:w-[65%] md:my-auto">
+                                        <div class="{{ ($cardImage && $card->type !== 'h') ? 'md:w-[65%]' : 'w-full' }} md:my-auto">
                                             {{-- Desktop-only title --}}
                                             <a href="{{ $card->url ?? '/events/' . $card->event->slug }}" class="hidden md:block">
                                                 <h3 class="text-4xl font-bold mt-0">{{ $card->name ?? $card->event->name }}</h3>
@@ -384,7 +510,7 @@
                                                 {{-- Event Dates --}}
                                                 @if($card->event)
                                                     <p class="text-gray-600 text-xl">
-                                                        Booking Through: {{ \Carbon\Carbon::parse($card->event->end_date)->format('l, F j Y') }}
+                                                        Booking Through: {{ \Carbon\Carbon::parse($card->event->closingDate)->format('l, F j Y') }}
                                                     </p>
                                                 @endif
 
@@ -393,7 +519,7 @@
                                                     <a 
                                                         href="{{ $card->url ?? '/events/' . $card->event->slug }}" 
                                                         class="inline-block bg-black text-white px-8 py-4 rounded-2xl hover:bg-gray-800 transition-colors">
-                                                        Read More
+                                                        {{ !empty($card->button_text) ? $card->button_text : 'Read More' }}
                                                     </a>
                                                 </div>
                                             </div>

@@ -8,173 +8,154 @@
             
             <!-- Event Image -->
             <template v-if="card.event_id">
-                <div class="event-card border rounded-2xl p-12 overflow-hidden">
-                    <div class="flex flex-col md:flex-row gap-8 items-start">
-                        <!-- Event Image -->
-                        <div 
-                            @click="onEdit = true"
-                            v-if="hasImage" 
-                            class="md:w-[45%] overflow-hidden rounded-2xl">
-                            <div class="aspect-[3/4] w-full relative">
-                                <picture v-if="isVisible">
-                                    <source 
-                                        type="image/webp" 
-                                        :srcset="`${imageUrl}${hasImage}`" /> 
-                                    <img 
-                                        loading="lazy"
-                                        class="w-full h-full object-cover"
-                                        :src="`${imageUrl}${hasImage}`"
-                                        :alt="card.event?.name">
-                                </picture>
-                                <div class="absolute top-4 right-4">
-                                    <ToggleSwitch
-                                        v-model="isVisible"
-                                        left-label="Hidden"
-                                        right-label="Visible"
-                                        text-size="sm"
-                                        @update:modelValue="handleVisibilityChange" />
+                <div class="event-card border-t md:border border-neutral-400 md:rounded-2xl py-12 md:mb-16 md:p-12 overflow-hidden">
+                    <div class="flex flex-col md:flex-row md:gap-16">
+                        <!-- Event Image and Mobile Title -->
+                        <template v-if="hasImage && isVisible">
+                            <div class="flex gap-10 w-full md:w-[35%] mb-6 md:mb-0">
+                                <div class="w-1/5 md:w-full">
+                                    <div class="aspect-[3/4] w-full rounded-2xl overflow-hidden relative group">
+                                        <picture>
+                                            <source 
+                                                v-if="!imageFile?.src"
+                                                type="image/webp" 
+                                                :srcset="`${imageUrl}${hasImage}`" /> 
+                                            <img 
+                                                loading="lazy"
+                                                class="w-full h-full object-cover"
+                                                :src="imageFile?.src || `${imageUrl}${hasImage}`"
+                                                :alt="card.event?.name">
+                                        </picture>
+                                        
+                                        <!-- Clickable overlay for image upload when in edit mode -->
+                                        <label v-if="onEdit" class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                            <div class="text-white text-center pointer-events-none">
+                                                <svg class="w-8 h-8 mx-auto mb-2">
+                                                    <use xlink:href="/storage/website-files/icons.svg#ri-camera-line" />
+                                                </svg>
+                                                <p class="text-sm">Click to change</p>
+                                            </div>
+                                            <!-- Hidden file input -->
+                                            <input
+                                                type="file"
+                                                class="hidden"
+                                                accept="image/*"
+                                                @change="onFileChange">
+                                        </label>
+                                        
+                                        <!-- Toggle switch - separate from image upload -->
+                                        <div v-if="onEdit && isVisible" class="absolute top-4 right-4 z-10">
+                                            <ToggleSwitch
+                                                v-model="isVisible"
+                                                left-label="Hidden"
+                                                right-label="Visible"
+                                                text-size="sm" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Mobile-only title -->
+                                <div class="w-4/5 flex items-center md:hidden">
+                                    <div @click="onEdit = true">
+                                        <h3 class="text-4xl font-bold mt-0">{{ hasName }}</h3>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </template>
 
-                        <!-- Event Content -->
-
-                        <div v-if="onEdit">
-                            <div class="field h3">
-                                <input 
-                                    type="text" 
-                                    v-model="card.name"
-                                    :class="{ 'border-red-500': v$.card.name.$error }"
-                                    class="border-gray-200 border p-4 rounded-2xl w-full mb-4"
-                                    :placeholder="hasName">
-                                <div v-if="v$.card.name.$error" class="text-red-500 text-sm mt-1">
-                                    <p v-if="!v$.card.name.maxLength">The name is too long.</p>
+                        <!-- Event Content - Right side on desktop -->
+                        <div :class="[hasImage && isVisible ? 'md:w-[65%]' : 'w-full', 'md:my-auto']">
+                            <div v-if="hasImage && !isVisible && onEdit" class="mb-4">
+                                <ToggleSwitch
+                                    v-model="isVisible"
+                                    left-label="Hidden"
+                                    right-label="Visible"
+                                    text-size="sm"
+ />
+                            </div>
+                            
+                            <template v-if="onEdit">
+                                <div class="field border border-gray-300 rounded-md p-4 mb-4">
+                                    <input 
+                                        type="text" 
+                                        v-model="card.name"
+                                        class="w-full"
+                                        :class="{ 'border-red-500': v$.card.name.$error }"
+                                        :placeholder="hasName">
+                                    <div v-if="v$.card.name.$error" class="text-red-500 text-sm mt-1">
+                                        <p v-if="!v$.card.name.maxLength">The name is too long.</p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div>
-                                <input 
-                                    type="text" 
-                                    v-model="card.url"
-                                    :class="{ 'border-red-500': v$.card.url.$error }"
-                                    class="border-gray-200 border p-4 rounded-2xl w-full mb-4"
-                                    :placeholder="hasUrl">
-                                <div v-if="v$.card.url.$error" class="text-red-500 text-sm mt-1">
-                                    <p v-if="!v$.card.url.maxLength">The url is too long.</p>
+                                <div class="field border border-gray-300 rounded-md p-4 mb-4">
+                                    <input 
+                                        type="text" 
+                                        v-model="card.url"
+                                        class="w-full"
+                                        :class="{ 'border-red-500': v$.card.url.$error }"
+                                        :placeholder="hasUrl">
+                                    <div v-if="v$.card.url.$error" class="text-red-500 text-sm mt-1">
+                                        <p v-if="!v$.card.url.maxLength">The url is too long.</p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="flex gap-4 mb-4">
-                                <a target="_blank" :href="`/hosting/event/${card.event.slug}/edit?dates`">
-                                    <button class="px-4 py-2 font-medium border border-black rounded-full text-xl hover:bg-white hover:text-black">
-                                        Edit event
-                                    </button>
-                                </a>
-                                <a target="_blank" :href="card.event.ticketUrl">
-                                    <button class="px-4 py-2 font-medium border border-black rounded-full text-xl hover:bg-white hover:text-black">
-                                        Check Event
-                                    </button>
-                                </a>
-                            </div>
+                                <div class="field border border-gray-300 rounded-md p-4 mb-4">
+                                    <input 
+                                        type="text" 
+                                        v-model="card.button_text"
+                                        class="w-full"
+                                        :class="{ 'border-red-500': v$.card.button_text.$error }"
+                                        placeholder="Button text (If left blank, 'Read More' will be used)">
+                                    <div v-if="v$.card.button_text.$error" class="text-red-500 text-sm mt-1">
+                                        <p v-if="!v$.card.button_text.maxLength">The button text is too long.</p>
+                                    </div>
+                                </div>
+                                <div class="flex gap-4 mb-4">
+                                    <a target="_blank" :href="`/hosting/event/${card.event.slug}/edit?dates`">
+                                        <button class="px-4 py-2 font-medium border border-black rounded-full text-xl hover:bg-white hover:text-black">
+                                            Edit event
+                                        </button>
+                                    </a>
+                                    <a target="_blank" :href="card.event.ticketUrl">
+                                        <button class="px-4 py-2 font-medium border border-black rounded-full text-xl hover:bg-white hover:text-black">
+                                            Check Event
+                                        </button>
+                                    </a>
+                                </div>
+                                
+                                <div v-if="card.event">
+                                    <p class="mb-4">Booking Through: {{ cleanDate(card.event?.closingDate) }}</p>
+                                </div>
+                            </template>
                             
-                            <tiptap 
-                                v-model="card.blurb"
-                                @cancel="resetCard"
-                                @save="updateCard"
-                                :disabled="disabled"
-                                :class="{ 'border-red-500': v$.card.blurb.$error }" />
-                            <div v-if="v$.card.blurb.$error" class="text-red-500 text-sm mt-1">
-                                <p v-if="!v$.card.blurb.required">Please add a description.</p>
-                                <p v-if="!v$.card.blurb.maxLength">The description is too long.</p>
-                            </div>
-                            
+                            <template v-else>
+                                <!-- Desktop-only title -->
+                                <div @click="onEdit = true" class="hidden md:block">
+                                    <h3 class="text-4xl font-bold mt-0">{{ hasName }}</h3>
+                                </div>
+
+                                <div @click="onEdit = true" class="mt-6 space-y-6">
+                                    <!-- Blurb -->
+                                    <div v-if="card.blurb" class="card-blurb">
+                                        <div v-html="card.blurb.split(' ').slice(0, 40).join(' ') + (card.blurb.split(' ').length > 40 ? '...' : '')" />
+                                    </div>
+
+                                    <!-- Event Dates -->
+                                    <p v-if="card.event" class="text-gray-600 text-xl">
+                                        Booking Through: {{ cleanDate(card.event?.closingDate) }}
+                                    </p>
+
+                                    <!-- Read More Button -->
+                                    <div>
+                                        <a 
+                                            :href="hasUrl" 
+                                            class="inline-block bg-black text-white px-8 py-4 rounded-2xl hover:bg-gray-800 transition-colors">
+                                            {{ !card.button_text || card.button_text.trim() === '' ? 'Read More' : card.button_text }}
+                                        </a>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
-                        <div 
-                            @click="onEdit = true"
-                            v-else 
-                            class="space-y-6 md:w-[65%]">
-
-                            <h3 class="text-4xl font-bold mt-0">{{ hasName }}</h3>
-                            <!-- Event Dates -->
-
-                            <div class="card-blurb text-2xl leading-tight">
-                                <vue-show-more 
-                                    :text="stripHtml(card.blurb)"
-                                    :limit="50"
-                                    white-space="pre-wrap"
-                                />
-                            </div>
-                            
-                            <p class="text-gray-600 text-xl">
-                                Booking Through: {{ cleanDate(card.event?.closingDate) }}
-                            </p>
-
-                            <!-- Event Blurb -->
-                            <p class="text-gray-800">{{ card.event?.blurb }}</p>
-                            
-                        </div>
-
-                        
                     </div>
-                </div>
-
-            </template>
-            
-            <template v-else>
-                <!-- Regular Image -->
-                <template v-if="!card.event_id && card.type === 'i'">
-                    <div :class="['relative rounded-2xl overflow-hidden mb-8 cursor-pointer', isVisible ? 'aspect-[16/9]' : 'h-16']" >
-                        <picture v-if="isVisible && hasImage">
-                            <source 
-                                type="image/webp" 
-                                :srcset="imageUrl + hasImage" /> 
-                            <img 
-                                loading="lazy"
-                                class="w-full rounded-2xl align-bottom object-cover h-full"
-                                :src="imageUrl + hasImage"
-                                :alt="card.name || 'Card image'">
-                        </picture>
-                    </div>
-                </template>
-
-                <template v-if="hasName || cardBeforeEdit.name">
-                    <template v-if="onEdit">
-                        <div class="field h3">
-                            <input 
-                                type="text" 
-                                v-model="card.name"
-                                :class="{ 'border-red-500': v$.card.name.$error }"
-                                class="border-gray-200 border p-4 rounded-2xl w-full mb-4"
-                                :placeholder="hasName">
-                            <div v-if="v$.card.name.$error" class="text-red-500 text-sm mt-1">
-                                <p v-if="!v$.card.name.maxLength">The name is too long.</p>
-                            </div>
-                        </div>
-                    </template>
-                    <template v-else>
-                        <div 
-                            @click="onEdit = true"
-                            class="card-name">
-                            <h2>{{ hasName }}</h2>
-                        </div>
-                    </template>
-                </template>
-
-                <template v-if="hasUrl || cardBeforeEdit.url">
-                    <template v-if="onEdit">
-                        <div class="field h3">
-                            <input 
-                                type="text" 
-                                v-model="card.url"
-                                :class="{ 'border-red-500': v$.card.url.$error }"
-                                class="border-gray-200 border p-4 rounded-2xl w-full mb-4"
-                                :placeholder="hasUrl">
-                            <div v-if="v$.card.url.$error" class="text-red-500 text-sm mt-1">
-                                <p v-if="!v$.card.url.maxLength">The url is too long.</p>
-                            </div>
-                        </div>
-                    </template>
-                </template>
-
-                <div class="mt-4" v-if="card.blurb">
+                    
+                    <!-- Full-width TipTap Editor -->
                     <template v-if="onEdit">
                         <tiptap 
                             v-model="card.blurb"
@@ -187,16 +168,233 @@
                             <p v-if="!v$.card.blurb.maxLength">The description is too long.</p>
                         </div>
                     </template>
-                    <template v-else>
-                        <div 
-                            @click="onEdit=true"
-                            class="card-blurb text-lg leading-relaxed">
-                            <div v-html="card.blurb" />
-                        </div>
-                    </template>
                 </div>
 
+            </template>
+            
+            <template v-else-if="card.type === 'i'">
+                <!-- Image Card - Full Width -->
+                <div v-if="hasImage && isVisible" class="relative aspect-[16/9] mb-8">
+                    <label v-if="onEdit" 
+                        for="image-card-upload"
+                        class="relative block w-full h-full rounded-2xl overflow-hidden cursor-pointer group">
+                        
+                        <!-- Current Image -->
+                        <img 
+                            :src="hasImage" 
+                            class="w-full h-full object-cover" 
+                            :alt="card.name || 'Card image'"
+                        />
+                        
+                        <!-- Upload Overlay -->
+                        <div class="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                            <span class="text-white text-lg font-medium">
+                                Change Image
+                            </span>
+                        </div>
+                        
+                        <input 
+                            id="image-card-upload"
+                            type="file"
+                            class="hidden"
+                            accept="image/*"
+                            @change="onFileChange">
+                    </label>
+                    
+                    <!-- Display Only Mode -->
+                    <div v-else class="w-full h-full rounded-2xl overflow-hidden">
+                        <img 
+                            :src="hasImage" 
+                            class="w-full h-full object-cover" 
+                            :alt="card.name || 'Card image'"
+                        />
+                    </div>
+                    
+                    <!-- Toggle switch for image cards -->
+                    <div v-if="onEdit && isVisible" class="absolute top-4 right-4 z-10">
+                        <ToggleSwitch
+                            v-model="isVisible"
+                            left-label="Hidden"
+                            right-label="Visible"
+                            text-size="sm" />
+                    </div>
+                </div>
                 
+                <!-- Toggle switch when image is hidden -->
+                <div v-if="hasImage && !isVisible && onEdit" class="mb-4">
+                    <ToggleSwitch
+                        v-model="isVisible"
+                        left-label="Hidden"
+                        right-label="Visible"
+                        text-size="sm" />
+                </div>
+                
+            </template>
+            
+            <template v-else>
+                <!-- Text Card with Event-like Layout -->
+                <div class="flex flex-col md:flex-row md:gap-16 mb-8">
+                    <!-- Image Section - Left side on desktop -->
+                    <div v-if="hasImage && isVisible" class="relative flex gap-10 w-full md:w-[35%] mb-6 md:mb-0">
+                        <div class="w-1/5 md:w-full">
+                            <!-- Image Upload Area -->
+                            <label v-if="onEdit" 
+                                for="regular-image-upload"
+                                class="relative block aspect-[3/4] w-full rounded-2xl overflow-hidden cursor-pointer group">
+                                
+                                <!-- Current Image or Placeholder -->
+                                <div v-if="hasImage" class="w-full h-full">
+                                    <img 
+                                        :src="hasImage" 
+                                        class="w-full h-full object-cover" 
+                                        :alt="card.name || 'Card image'"
+                                    />
+                                </div>
+                                <div v-else class="w-full h-full bg-gray-200 flex items-center justify-center">
+                                    <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                    </svg>
+                                </div>
+                                
+                                <!-- Upload Overlay -->
+                                <div class="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                                    <span class="text-white text-sm font-medium">
+                                        {{ hasImage ? 'Change Image' : 'Upload Image' }}
+                                    </span>
+                                </div>
+                                
+                                <input 
+                                    id="regular-image-upload"
+                                    type="file"
+                                    class="hidden"
+                                    accept="image/*"
+                                    @change="onFileChange">
+                            </label>
+                            
+                            <!-- Display Only Mode -->
+                            <div v-else-if="hasImage && isVisible" class="aspect-[3/4] w-full rounded-2xl overflow-hidden">
+                                <img 
+                                    :src="hasImage" 
+                                    class="w-full h-full object-cover" 
+                                    :alt="card.name || 'Card image'"
+                                />
+                            </div>
+                            
+                            <!-- Toggle switch - separate from image upload -->
+                            <div v-if="onEdit && isVisible" class="absolute top-4 right-4 z-10">
+                                <ToggleSwitch
+                                    v-model="isVisible"
+                                    left-label="Hidden"
+                                    right-label="Visible"
+                                    text-size="sm"
+ />
+                            </div>
+                        </div>
+                        
+                        <!-- Mobile-only title -->
+                        <div class="w-4/5 flex items-center md:hidden">
+                            <div v-if="onEdit">
+                                <input 
+                                    type="text" 
+                                    v-model="card.name"
+                                    :class="{ 'border-red-500': v$.card.name.$error }"
+                                    class="border-gray-200 border p-4 rounded-2xl w-full text-4xl font-bold"
+                                    placeholder="Card Title">
+                            </div>
+                            <div v-else-if="card.name && card.name.trim()" @click="onEdit = true" class="cursor-pointer">
+                                <h3 class="text-4xl font-bold mt-0">{{ card.name }}</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Content Section - Right side on desktop -->
+                    <div :class="[(hasImage && isVisible) ? 'md:w-[65%]' : 'w-full', (hasImage && isVisible) ? 'md:my-auto' : '']">
+                        <!-- Toggle switch when image is hidden -->
+                        <div v-if="hasImage && !isVisible && onEdit" class="mb-4">
+                            <ToggleSwitch
+                                v-model="isVisible"
+                                left-label="Hidden"
+                                right-label="Visible"
+                                text-size="sm" />
+                        </div>
+                        
+                        <!-- Desktop-only title -->
+                        <div class="hidden md:block">
+                            <div v-if="onEdit">
+                                <input 
+                                    type="text" 
+                                    v-model="card.name"
+                                    :class="{ 'border-red-500': v$.card.name.$error }"
+                                    class="border-gray-200 border p-4 rounded-2xl w-full mb-4 text-4xl font-bold"
+                                    placeholder="Card Title (Optional)">
+                                <div v-if="v$.card.name.$error" class="text-red-500 text-sm mt-1">
+                                    <p v-if="!v$.card.name.maxLength">The name is too long.</p>
+                                </div>
+                            </div>
+                            <div v-else-if="card.name && card.name.trim()" @click="onEdit = true" class="cursor-pointer">
+                                <h3 class="text-4xl font-bold mt-0 mb-6">{{ card.name }}</h3>
+                            </div>
+                        </div>
+
+                        <div class="md:mt-6 space-y-6">
+                            <!-- URL and Button Text Fields -->
+                            <div v-if="onEdit">
+                                <input 
+                                    type="text" 
+                                    v-model="card.url"
+                                    :class="{ 'border-red-500': v$.card.url.$error }"
+                                    class="border-gray-200 border p-4 rounded-2xl w-full mb-4"
+                                    placeholder="URL (optional)">
+                                <div v-if="v$.card.url.$error" class="text-red-500 text-sm mt-1">
+                                    <p v-if="!v$.card.url.maxLength">The url is too long.</p>
+                                </div>
+                                
+                                <input 
+                                    type="text" 
+                                    v-model="card.button_text"
+                                    :class="{ 'border-red-500': v$.card.button_text.$error }"
+                                    class="border-gray-200 border p-4 rounded-2xl w-full mb-4"
+                                    placeholder="Button text (If left blank, 'Read More' will be used)">
+                                <div v-if="v$.card.button_text.$error" class="text-red-500 text-sm mt-1">
+                                    <p v-if="!v$.card.button_text.maxLength">The button text is too long.</p>
+                                </div>
+                            </div>
+
+                            <!-- Blurb Display Only -->
+                            <div v-if="!onEdit">
+                                <div 
+                                    @click="onEdit = true"
+                                    class="card-blurb text-lg leading-relaxed cursor-pointer">
+                                    <div v-html="card.blurb" />
+                                </div>
+                            </div>
+
+                            <!-- Button (when URL exists) -->
+                            <div v-if="card.url && !onEdit">
+                                <a 
+                                    :href="card.url" 
+                                    target="_blank"
+                                    class="inline-block bg-black text-white px-8 py-4 rounded-2xl hover:bg-gray-800 transition-colors">
+                                    {{ !card.button_text || card.button_text.trim() === '' ? 'Read More' : card.button_text }}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Full-width TipTap Editor -->
+                <template v-if="onEdit">
+                    <tiptap 
+                        v-model="card.blurb"
+                        @cancel="resetCard"
+                        @save="updateCard"
+                        :disabled="disabled"
+                        :class="{ 'border-red-500': v$.card.blurb.$error }" />
+                    <div v-if="v$.card.blurb.$error" class="text-red-500 text-sm mt-1">
+                        <p v-if="!v$.card.blurb.required">Please add a description.</p>
+                        <p v-if="!v$.card.blurb.maxLength">The description is too long.</p>
+                    </div>
+                </template>
             </template>
             <template v-if="hover && !onEdit">
                 <div class="absolute top-[-1rem] right-[-1rem]">
@@ -215,7 +413,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useVuelidate } from '@vuelidate/core'
 import { required, maxLength } from '@vuelidate/validators'
 import moment from 'moment'
@@ -237,7 +435,7 @@ const props = defineProps({
     }
 })
 
-const emit = defineEmits(['update'])
+const emit = defineEmits(['update', 'edit-mode-change'])
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL
 
@@ -248,6 +446,12 @@ const onEdit = ref(false)
 const disabled = ref(false)
 const formData = ref(new FormData())
 const hover = ref(false)
+const imageFile = ref(null)
+
+// Watch for edit mode changes and emit to parent
+watch(onEdit, (newValue) => {
+    emit('edit-mode-change', newValue)
+})
 
 // Validation rules
 const rules = {
@@ -257,7 +461,8 @@ const rules = {
             required,
             maxLength: maxLength(40000)
         },
-        url: { maxLength: maxLength(255) }
+        url: { maxLength: maxLength(255) },
+        button_text: { maxLength: maxLength(50) }
     }
 }
 
@@ -267,24 +472,38 @@ const v$ = useVuelidate(rules, { card })
 const hasImage = computed(() => {
     if (!card.value) return null
 
+    // If there's a custom uploaded image, use that first
+    if (imageFile.value?.src) {
+        return imageFile.value.src
+    }
+
     // For event cards
     if (card.value.event_id) {
-        // Check event images first
+        // Check card's own images first (uploaded overrides)
+        if (card.value.images?.length > 0) {
+            const imagePath = card.value.images[0].large_image_path || card.value.images[0].thumbImagePath
+            return imagePath ? imageUrl + imagePath : null
+        }
+        // Then check event images
         if (card.value.event?.images?.length > 0) {
-            return card.value.event.images[0].largeImagePath || card.value.event.images[0].thumbImagePath
+            const imagePath = card.value.event.images[0].largeImagePath || card.value.event.images[0].thumbImagePath
+            return imagePath ? imageUrl + imagePath : null
         }
         // Fallback to event direct images
-        return card.value.event?.largeImagePath || card.value.event?.thumbImagePath
+        const imagePath = card.value.event?.largeImagePath || card.value.event?.thumbImagePath
+        return imagePath ? imageUrl + imagePath : null
     }
     
-    // For regular cards
-    if (card.value.type === 'i') {
+    // For regular cards (both type 'i' and type 't')
+    if (!card.value.event_id) {
         // Check card images first
         if (card.value.images?.length > 0) {
-            return card.value.images[0].large_image_path
+            const imagePath = card.value.images[0].large_image_path || card.value.images[0].thumbImagePath
+            return imagePath ? imageUrl + imagePath : null
         }
-        // Fallback to direct image path
-        return card.value.thumbImagePath
+        // Fallback to direct image path properties
+        const imagePath = card.value.largeImagePath || card.value.thumbImagePath
+        return imagePath ? imageUrl + imagePath : null
     }
 
     return null
@@ -363,9 +582,11 @@ const deleteCard = async () => {
 
 const appendCardData = () => {
     formData.value = new FormData()
-    if (card.value.name) formData.value.append('name', card.value.name)
-    if (card.value.url) formData.value.append('url', card.value.url)
+    formData.value.append('name', card.value.name || '')
+    formData.value.append('url', card.value.url || '')
+    formData.value.append('button_text', card.value.button_text || '')
     if (card.value.blurb) formData.value.append('blurb', card.value.blurb)
+    if (imageFile.value?.file) formData.value.append('image', imageFile.value.file)
     formData.value.append('type', card.value.type)
     formData.value.append('community_id', props.community.id)
     formData.value.append('post_id', props.parentCard.post.id)
@@ -384,18 +605,42 @@ const cleanDate = (date) => {
     return moment(date).format("dddd, MMMM D YYYY")
 }
 
+const onFileChange = async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+        const img = new Image()
+        img.src = e.target.result
+        img.onload = async () => {
+            imageFile.value = {
+                file,
+                src: e.target.result,
+                width: img.width,
+                height: img.height
+            }
+        }
+    }
+    reader.readAsDataURL(file)
+}
+
 // Add isVisible computed
 const isVisible = computed({
     get: () => card.value.type !== 'h',
     set: (value) => {
-        card.value.type = value ? 'e' : 'h'
+        // Use the same logic as handleVisibilityChange
+        if (card.value.event_id) {
+            // Event cards: 'e' when visible, 'h' when hidden
+            card.value.type = value ? 'e' : 'h'
+        } else {
+            // Text cards: 't' when visible, 'h' when hidden  
+            card.value.type = value ? 't' : 'h'
+        }
     }
 })
 
-// Add handleVisibilityChange method
-const handleVisibilityChange = (value) => {
-    card.value.type = value ? 'e' : 'h'
-}
+
 
 // Add this function to strip HTML tags
 const stripHtml = (html) => {

@@ -92,21 +92,22 @@
                         </td>
                         <td class="px-6 py-4">
                             <div class="flex flex-col gap-2">
-                                <!-- If there's a shelf assigned -->
-                                <div v-if="dock.shelves?.length" class="flex items-center gap-4">
+                                <!-- If there's content assigned -->
+                                <div v-if="getAssignedContent(dock)" class="flex items-center gap-4">
                                     <div class="flex-1">
-                                        <div class="font-medium">{{ dock.shelves[0].name }}</div>
+                                        <div class="font-medium">{{ getAssignedContent(dock).name }}</div>
+                                        <div class="text-sm text-gray-500">{{ getContentType(dock) }}</div>
                                         <!-- Preview Grid -->
-                                        <div v-if="dock.shelves[0].posts?.length" class="flex gap-2 mt-2">
+                                        <div v-if="getContentPreviews(dock)?.length" class="flex gap-2 mt-2">
                                             <div 
-                                                v-for="post in dock.shelves[0].posts.slice(0, 4)" 
-                                                :key="post.id" 
+                                                v-for="item in getContentPreviews(dock).slice(0, 4)" 
+                                                :key="item.id" 
                                                 class="aspect-square w-12 rounded-lg overflow-hidden"
                                             >
-                                                <template v-if="getPostImage(post)">
+                                                <template v-if="getPreviewImage(item)">
                                                     <img 
-                                                        :src="getImageUrl(getPostImage(post))" 
-                                                        :alt="post.name"
+                                                        :src="getImageUrl(getPreviewImage(item))" 
+                                                        :alt="item.name"
                                                         class="w-full h-full object-cover"
                                                     >
                                                 </template>
@@ -116,7 +117,7 @@
                                                         style="background-color: #c69669"
                                                     >
                                                         <span class="text-xl font-bold text-white">
-                                                            {{ post.name?.charAt(0).toUpperCase() || '?' }}
+                                                            {{ item.name?.charAt(0).toUpperCase() || '?' }}
                                                         </span>
                                                     </div>
                                                 </template>
@@ -133,7 +134,7 @@
                                         </svg>
                                     </button>
                                 </div>
-                                <!-- If no shelf is assigned -->
+                                <!-- If no content is assigned -->
                                 <button 
                                     v-else
                                     @click="openManageContentModal(dock)"
@@ -284,12 +285,30 @@
                         </button>
                     </div>
 
+                    <!-- Content Type Tabs -->
+                    <div class="flex gap-1 bg-gray-100 p-1 rounded-lg mb-4">
+                        <button 
+                            v-for="tab in ['shelves', 'posts', 'cards']"
+                            :key="tab"
+                            @click="contentModal.activeTab = tab"
+                            :class="[
+                                'px-4 py-2 rounded-md text-sm font-medium transition-colors capitalize',
+                                contentModal.activeTab === tab 
+                                    ? 'bg-white text-gray-900 shadow-sm' 
+                                    : 'text-gray-600 hover:text-gray-900'
+                            ]"
+                        >
+                            {{ tab }}
+                        </button>
+                    </div>
+
                     <!-- Community Selector -->
-                    <div>
+                    <div v-if="contentModal.activeTab !== 'cards'">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Select Community</label>
                         <select 
                             v-model="contentModal.selectedCommunityId"
                             class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                            @change="contentModal.selectedPostId = ''"
                         >
                             <option value="">Select a community</option>
                             <option 
@@ -301,65 +320,217 @@
                             </option>
                         </select>
                     </div>
+
+                    <!-- Post Selector (for Cards tab) -->
+                    <div v-if="contentModal.activeTab === 'cards'">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Select Community</label>
+                                <select 
+                                    v-model="contentModal.selectedCommunityId"
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    @change="contentModal.selectedPostId = ''"
+                                >
+                                    <option value="">Select a community</option>
+                                    <option 
+                                        v-for="community in availableCommunities" 
+                                        :key="community.id" 
+                                        :value="community.id"
+                                    >
+                                        {{ community.name }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Select Post</label>
+                                <select 
+                                    v-model="contentModal.selectedPostId"
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    :disabled="!contentModal.selectedCommunityId"
+                                >
+                                    <option value="">Select a post</option>
+                                    <option 
+                                        v-for="post in filteredPosts" 
+                                        :key="post.id" 
+                                        :value="post.id"
+                                    >
+                                        {{ post.name }}
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Scrollable Content -->
                 <div class="flex-1 overflow-y-auto px-8 py-6">
                     <!-- Shelves List -->
-                    <div v-if="contentModal.selectedCommunityId" class="space-y-4">
-                        <div 
-                            v-for="shelf in filteredShelves" 
-                            :key="shelf.id" 
-                            class="bg-ne rounded-xl p-4 hover:bg-gray-100 transition-colors"
-                        >
-                            <div class="flex items-center gap-4 mb-3">
-                                <input 
-                                    type="radio"
-                                    :id="'shelf-' + shelf.id"
-                                    :checked="isShelfSelected(shelf.id)"
-                                    @change="toggleShelf(shelf)"
-                                    class="w-5 h-5 border-gray-300 text-blue-600 focus:ring-blue-500"
-                                >
-                                <label :for="'shelf-' + shelf.id" class="flex-1 cursor-pointer">
-                                    <div class="font-medium text-lg">{{ shelf.name }}</div>
-                                    <div class="text-sm text-gray-500">{{ shelf.description || 'No description' }}</div>
-                                </label>
-                            </div>
+                    <div v-if="contentModal.activeTab === 'shelves'">
+                        <div v-if="contentModal.selectedCommunityId" class="space-y-4">
+                            <div 
+                                v-for="shelf in filteredShelves" 
+                                :key="shelf.id" 
+                                class="bg-ne rounded-xl p-4 hover:bg-gray-100 transition-colors"
+                            >
+                                <div class="flex items-center gap-4 mb-3">
+                                    <input 
+                                        type="radio"
+                                        :id="'shelf-' + shelf.id"
+                                        :checked="isShelfSelected(shelf.id)"
+                                        @change="toggleShelf(shelf)"
+                                        class="w-5 h-5 border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    >
+                                    <label :for="'shelf-' + shelf.id" class="flex-1 cursor-pointer">
+                                        <div class="font-medium text-lg">{{ shelf.name }}</div>
+                                        <div class="text-sm text-gray-500">{{ shelf.description || 'No description' }}</div>
+                                    </label>
+                                </div>
 
-                            <!-- Preview Grid -->
-                            <div v-if="shelf.posts?.length" class="flex gap-4 pl-9">
-                                <div 
-                                    v-for="post in shelf.posts.slice(0, 4)" 
-                                    :key="post.id" 
-                                    class="aspect-square w-16 rounded-lg overflow-hidden"
-                                >
-                                    <template v-if="getPostImage(post)">
-                                        <img 
-                                            :src="getImageUrl(getPostImage(post))" 
-                                            :alt="post.name"
-                                            class="w-full h-full object-cover"
-                                        >
-                                    </template>
-                                    <template v-else>
-                                        <div 
-                                            class="w-full h-full flex items-center justify-center"
-                                            style="background-color: #c69669"
-                                        >
-                                            <span class="text-2xl font-bold text-white">
-                                                {{ post.name?.charAt(0).toUpperCase() || '?' }}
-                                            </span>
-                                        </div>
-                                    </template>
-                                    <div class="p-1 text-xs truncate">{{ post.name }}</div>
+                                <!-- Preview Grid -->
+                                <div v-if="shelf.posts?.length" class="flex gap-4 pl-9">
+                                    <div 
+                                        v-for="post in shelf.posts.slice(0, 4)" 
+                                        :key="post.id" 
+                                        class="aspect-square w-16 rounded-lg overflow-hidden"
+                                    >
+                                        <template v-if="getPostImage(post)">
+                                            <img 
+                                                :src="getImageUrl(getPostImage(post))" 
+                                                :alt="post.name"
+                                                class="w-full h-full object-cover"
+                                            >
+                                        </template>
+                                        <template v-else>
+                                            <div 
+                                                class="w-full h-full flex items-center justify-center"
+                                                style="background-color: #c69669"
+                                            >
+                                                <span class="text-2xl font-bold text-white">
+                                                    {{ post.name?.charAt(0).toUpperCase() || '?' }}
+                                                </span>
+                                            </div>
+                                        </template>
+                                        <div class="p-1 text-xs truncate">{{ post.name }}</div>
+                                    </div>
+                                </div>
+                                <div v-else class="pl-9 text-sm text-gray-500">
+                                    No posts in this shelf
                                 </div>
                             </div>
-                            <div v-else class="pl-9 text-sm text-gray-500">
-                                No posts in this shelf
-                            </div>
+                        </div>
+                        <div v-else class="text-center text-gray-500 py-8">
+                            Select a community to view its shelves
                         </div>
                     </div>
-                    <div v-else class="text-center text-gray-500 py-8">
-                        Select a community to view its shelves
+
+                    <!-- Posts List -->
+                    <div v-if="contentModal.activeTab === 'posts'">
+                        <div v-if="contentModal.selectedCommunityId" class="space-y-4">
+                            <div 
+                                v-for="post in filteredPosts" 
+                                :key="post.id" 
+                                class="bg-ne rounded-xl p-4 hover:bg-gray-100 transition-colors"
+                            >
+                                <div class="flex items-center gap-4 mb-3">
+                                    <input 
+                                        type="radio"
+                                        :id="'post-' + post.id"
+                                        :checked="isPostSelected(post.id)"
+                                        @change="togglePost(post)"
+                                        class="w-5 h-5 border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    >
+                                    <label :for="'post-' + post.id" class="flex-1 cursor-pointer">
+                                        <div class="font-medium text-lg">{{ post.name }}</div>
+                                        <div class="text-sm text-gray-500">
+                                            {{ post.community?.name }} • {{ post.shelf?.name }}
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <!-- Preview Grid -->
+                                <div v-if="post.limited_cards?.length" class="flex gap-4 pl-9">
+                                    <div 
+                                        v-for="card in post.limited_cards.slice(0, 4)" 
+                                        :key="card.id" 
+                                        class="aspect-square w-16 rounded-lg overflow-hidden"
+                                    >
+                                        <template v-if="getCardImage(card)">
+                                            <img 
+                                                :src="getImageUrl(getCardImage(card))" 
+                                                :alt="card.name"
+                                                class="w-full h-full object-cover"
+                                            >
+                                        </template>
+                                        <template v-else>
+                                            <div 
+                                                class="w-full h-full flex items-center justify-center"
+                                                style="background-color: #c69669"
+                                            >
+                                                <span class="text-2xl font-bold text-white">
+                                                    {{ card.name?.charAt(0).toUpperCase() || getCardTypeIcon(card.type) }}
+                                                </span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                                <div v-else class="pl-9 text-sm text-gray-500">
+                                    No cards in this post
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else class="text-center text-gray-500 py-8">
+                            Select a community to view its posts
+                        </div>
+                    </div>
+
+                    <!-- Cards List -->
+                    <div v-if="contentModal.activeTab === 'cards'">
+                        <div v-if="contentModal.selectedPostId" class="space-y-4">
+                            <div 
+                                v-for="card in filteredCards" 
+                                :key="card.id" 
+                                class="bg-ne rounded-xl p-4 hover:bg-gray-100 transition-colors"
+                            >
+                                <div class="flex items-center gap-4">
+                                    <input 
+                                        type="radio"
+                                        :id="'card-' + card.id"
+                                        :checked="isCardSelected(card.id)"
+                                        @change="toggleCard(card)"
+                                        class="w-5 h-5 border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    >
+                                    <label :for="'card-' + card.id" class="flex-1 cursor-pointer">
+                                        <div class="font-medium text-lg">{{ card.name || card.event?.name || 'Unnamed Card' }}</div>
+                                        <div class="text-sm text-gray-500">
+                                            Type: {{ getCardTypeName(card.type) }} • {{ card.post?.community?.name }}
+                                        </div>
+                                        <div v-if="card.blurb" class="text-sm text-gray-600 mt-1 line-clamp-2" v-html="card.blurb"></div>
+                                    </label>
+                                    <div class="aspect-square w-16 rounded-lg overflow-hidden flex-shrink-0">
+                                        <template v-if="getCardImage(card)">
+                                            <img 
+                                                :src="getImageUrl(getCardImage(card))" 
+                                                :alt="card.name"
+                                                class="w-full h-full object-cover"
+                                            >
+                                        </template>
+                                        <template v-else>
+                                            <div 
+                                                class="w-full h-full flex items-center justify-center"
+                                                style="background-color: #c69669"
+                                            >
+                                                <span class="text-2xl font-bold text-white">
+                                                    {{ getCardTypeIcon(card.type) }}
+                                                </span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else class="text-center text-gray-500 py-8">
+                            Select a community and post to view its cards
+                        </div>
                     </div>
                 </div>
 
@@ -444,16 +615,34 @@ const v$ = useVuelidate(rules, newDock)
 const contentModal = ref({
     show: false,
     dock: null,
-    selectedCommunityId: ''
+    selectedCommunityId: '',
+    selectedPostId: '',
+    activeTab: 'shelves' // shelves, posts, cards
 })
 const availableShelves = ref([])
 const availableCommunities = ref([])
+const availablePosts = ref([])
+const availableCards = ref([])
 
-// Add computed property for filtered shelves
+// Add computed properties for filtering
 const filteredShelves = computed(() => {
     if (!contentModal.value.selectedCommunityId) return []
     return availableShelves.value.filter(shelf => 
         shelf.community_id === contentModal.value.selectedCommunityId
+    )
+})
+
+const filteredPosts = computed(() => {
+    if (!contentModal.value.selectedCommunityId) return []
+    return availablePosts.value.filter(post => 
+        post.community_id === contentModal.value.selectedCommunityId
+    )
+})
+
+const filteredCards = computed(() => {
+    if (!contentModal.value.selectedPostId) return []
+    return availableCards.value.filter(card => 
+        card.post_id === contentModal.value.selectedPostId
     )
 })
 
@@ -525,20 +714,37 @@ const openManageContentModal = async (dock) => {
     contentModal.value = {
         show: true,
         dock: dock,
-        selectedCommunityId: ''
+        selectedCommunityId: '',
+        selectedPostId: '',
+        activeTab: 'shelves'
     }
 
     await Promise.all([
         fetchAvailableShelves(),
-        fetchAvailableCommunities()
+        fetchAvailableCommunities(),
+        fetchAvailablePosts(),
+        fetchAvailableCards()
     ])
 
-    // If there's a shelf assigned, set its community for filtering
+    // Set initial tab and community based on existing assignments
     if (dock.shelves?.length) {
+        contentModal.value.activeTab = 'shelves'
         const shelf = dock.shelves[0]
         const community = availableShelves.value.find(s => s.id === shelf.id)?.community
         if (community) {
             contentModal.value.selectedCommunityId = community.id
+        }
+    } else if (dock.posts?.length) {
+        contentModal.value.activeTab = 'posts'
+        const post = dock.posts[0]
+        contentModal.value.selectedCommunityId = post.community_id
+    } else if (dock.cards?.length) {
+        contentModal.value.activeTab = 'cards'
+        const card = dock.cards[0]
+        const post = availablePosts.value.find(p => p.id === card.post_id)
+        if (post) {
+            contentModal.value.selectedCommunityId = post.community_id
+            contentModal.value.selectedPostId = post.id
         }
     }
 }
@@ -561,8 +767,34 @@ const fetchAvailableCommunities = async () => {
     }
 }
 
+const fetchAvailablePosts = async () => {
+    try {
+        const response = await axios.get('/api/admin/docks/available-posts')
+        availablePosts.value = response.data
+    } catch (error) {
+        console.error('Error fetching posts:', error)
+    }
+}
+
+const fetchAvailableCards = async () => {
+    try {
+        const response = await axios.get('/api/admin/docks/available-cards')
+        availableCards.value = response.data
+    } catch (error) {
+        console.error('Error fetching cards:', error)
+    }
+}
+
 const isShelfSelected = (shelfId) => {
     return contentModal.value.dock?.shelves?.some(s => s.id === shelfId) || false
+}
+
+const isPostSelected = (postId) => {
+    return contentModal.value.dock?.posts?.some(p => p.id === postId) || false
+}
+
+const isCardSelected = (cardId) => {
+    return contentModal.value.dock?.cards?.some(c => c.id === cardId) || false
 }
 
 const isCommunitySelected = (communityId) => {
@@ -585,6 +817,44 @@ const toggleShelf = async (shelf) => {
     } catch (error) {
         console.error('Error toggling shelf:', error)
         alert(error.response?.data?.message || 'Error updating shelf association')
+    }
+}
+
+const togglePost = async (post) => {
+    try {
+        const isSelected = isPostSelected(post.id)
+        const response = await axios.post(`/api/admin/docks/${contentModal.value.dock.id}/posts`, {
+            post_id: post.id,
+            action: isSelected ? 'detach' : 'attach'
+        })
+        // Update the dock's posts in the local state
+        const dockIndex = docks.value.findIndex(d => d.id === contentModal.value.dock.id)
+        if (dockIndex !== -1) {
+            docks.value[dockIndex] = response.data
+            contentModal.value.dock = response.data
+        }
+    } catch (error) {
+        console.error('Error toggling post:', error)
+        alert(error.response?.data?.message || 'Error updating post association')
+    }
+}
+
+const toggleCard = async (card) => {
+    try {
+        const isSelected = isCardSelected(card.id)
+        const response = await axios.post(`/api/admin/docks/${contentModal.value.dock.id}/cards`, {
+            card_id: card.id,
+            action: isSelected ? 'detach' : 'attach'
+        })
+        // Update the dock's cards in the local state
+        const dockIndex = docks.value.findIndex(d => d.id === contentModal.value.dock.id)
+        if (dockIndex !== -1) {
+            docks.value[dockIndex] = response.data
+            contentModal.value.dock = response.data
+        }
+    } catch (error) {
+        console.error('Error toggling card:', error)
+        alert(error.response?.data?.message || 'Error updating card association')
     }
 }
 
@@ -617,6 +887,73 @@ const getContentCount = (dock) => {
 const getImageUrl = (path) => {
     if (!path) return ''
     return `${imageUrl}${path}`
+}
+
+// Helper methods for content management
+const getAssignedContent = (dock) => {
+    if (dock.shelves?.length) return dock.shelves[0]
+    if (dock.posts?.length) return dock.posts[0]
+    if (dock.cards?.length) return dock.cards[0]
+    return null
+}
+
+const getContentType = (dock) => {
+    if (dock.shelves?.length) return 'Shelf'
+    if (dock.posts?.length) return 'Post'
+    if (dock.cards?.length) return 'Card'
+    return 'No content'
+}
+
+const getContentPreviews = (dock) => {
+    if (dock.shelves?.length) return dock.shelves[0].posts || []
+    if (dock.posts?.length) return dock.posts[0].limited_cards || []
+    if (dock.cards?.length) return [dock.cards[0]]
+    return []
+}
+
+const getPreviewImage = (item) => {
+    // Handle different item types
+    if (item.type) {
+        // This is a card
+        return getCardImage(item)
+    } else {
+        // This is a post
+        return getPostImage(item)
+    }
+}
+
+const getCardImage = (card) => {
+    // First check for card images
+    if (card.images && card.images.length > 0) {
+        return card.images[0].thumb_image_path || card.images[0].large_image_path
+    }
+    
+    // Then check for event images if it's an event card
+    if (card.event) {
+        return card.event.thumbImagePath || card.event.largeImagePath
+    }
+    
+    return null
+}
+
+const getCardTypeName = (type) => {
+    const types = {
+        'e': 'Event',
+        'i': 'Image',
+        't': 'Text',
+        'h': 'Hidden'
+    }
+    return types[type] || 'Unknown'
+}
+
+const getCardTypeIcon = (type) => {
+    const icons = {
+        'e': '📅',
+        'i': '🖼️',
+        't': '📝',
+        'h': '👁️'
+    }
+    return icons[type] || '?'
 }
 
 const getPostImage = (post) => {
