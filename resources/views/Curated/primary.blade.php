@@ -127,40 +127,59 @@
 @endphp
 
 @if($shouldRender)
-<div class="my-8 md:mt-16 md:mb-24 px-10 lg-air:px-16 2xl-air:px-32 py-16 lg-air:py-20 2xl-air:py-24 border-y border-slate-200">
-    <div class="w-full relative block overflow-hidden mb-8 rounded-xl md:flex flex-col md:flex-row">
-        @if($element && $imagePath)
-            <a href="{{ $url }}" class="rounded-2xl overflow-hidden relative inline-block bg-slate-400 md:w-3/5 mb-8 md:mb-0 order-first md:order-last">
-                <div class="aspect-video">
-                    <picture class="w-full h-full">
-                        <source 
-                            type="image/webp" 
-                            srcset="{{ $imageUrl }}{{ $imagePath }}">
-                        <img 
-                            loading="lazy"
-                            class="object-cover w-full h-full"
-                            src="{{ $imageUrl }}{{ Str::replaceLast('webp', 'jpg', $imagePath) }}"
-                            alt="{{ $getElementName($element) }}">
-                    </picture>
+    <div class="px-10 lg-air:px-16 2xl-air:px-32">
+        <div class="flex flex-col md:flex-row min-h-[70vh]">
+            <!-- Text Content - Left Half -->
+            <div class="w-full md:w-1/2 flex flex-col justify-center py-16 md:py-24 md:pr-16">
+                @if($name)
+                    <h2 class="text-5xl text-white mb-8 text-left">
+                        {{ $name }}
+                    </h2>
+                @endif
+                
+                @if($element && isset($element->blurb) && $element->blurb)
+                    <div class="text-lg md:text-xl text-white mb-8 leading-relaxed [&_*]:text-white [&_p]:text-white [&_p]:text-xl [&_h1]:text-white [&_h2]:text-white [&_h3]:text-white [&_h4]:text-white [&_h5]:text-white [&_h6]:text-white [&_span]:text-white [&_div]:text-white">
+                        {!! $element->blurb !!}
+                    </div>
+                @endif
+                
+                <div class="text-left">
+                    <a 
+                        href="{{ $url }}" 
+                        class="bg-transparent text-white border-2 border-[#f7653b] px-8 py-4 text-lg rounded-full font-semibold transition-colors duration-300 hover:bg-[#f7653b] uppercase">
+                        @if($element && isset($element->button_text) && $element->button_text)
+                            {{ $element->button_text }}
+                        @else
+                            Explore Now
+                        @endif
+                    </a>
                 </div>
-            </a>
-        @endif
-        
-        <div class="flex items-center justify-center md:justify-start md:w-2/5 mt-8 md:mt-0">
-            <div class="w-full md:w-4/5">
-                <div>
-                    @if($name)
-                    <p class="text-gray-500">{{ $name }}: </p>
-                    @endif
-                    <h2 class="text-6xl leading-[4.5rem] mt-8 font-medium text-black">{{ $getElementName($element) }}</h2>
-                </div>
-                <a href="{{ $url }}">
-                    <button class="bg-[#ff385c] text-white border-none p-6 mt-8 rounded-2xl font-bold text-xl">
-                        Check it out
-                    </button>
-                </a>
+            </div>
+            
+            <!-- Image - Right Half -->
+            <div class="w-full md:w-1/2 relative">
+                @if($imagePath)
+                    <div class="min-h-[250px] md:min-h-[600px] relative overflow-hidden">
+                        <picture class="absolute inset-0 w-full h-full">
+                            <source 
+                                type="image/webp" 
+                                srcset="{{ config('app.image_url') }}{{ str_replace(['.jpg', '.jpeg', '.png'], '.webp', $imagePath) }}">
+                            <img 
+                                src="{{ config('app.image_url') }}{{ $imagePath }}"
+                                alt="{{ $getElementName($element) }}"
+                                class="w-full h-full object-cover" 
+                                loading="lazy" />
+                        </picture>
+                    </div>
+                @else
+                    <!-- Fallback placeholder if no image -->
+                    <div class="h-64 md:h-full md:min-h-[70vh] bg-gray-800 flex items-center justify-center">
+                        <div class="text-gray-400 text-6xl">
+                            {{ $getElementName($element) ? substr($getElementName($element), 0, 1) : '?' }}
+                        </div>
+                    </div>
+                @endif
             </div>
         </div>
     </div>
-</div>
 @endif

@@ -174,22 +174,29 @@
             
             <template v-else-if="card.type === 'i'">
                 <!-- Image Card - Full Width -->
-                <div v-if="hasImage && isVisible" class="relative aspect-[16/9] mb-8">
+                <div v-if="(hasImage && isVisible) || onEdit" class="relative aspect-[16/9] mb-8">
                     <label v-if="onEdit" 
                         for="image-card-upload"
                         class="relative block w-full h-full rounded-2xl overflow-hidden cursor-pointer group">
                         
-                        <!-- Current Image -->
-                        <img 
-                            :src="hasImage" 
-                            class="w-full h-full object-cover" 
-                            :alt="card.name || 'Card image'"
-                        />
+                        <!-- Current Image or Placeholder -->
+                        <div v-if="hasImage" class="w-full h-full">
+                            <img 
+                                :src="hasImage" 
+                                class="w-full h-full object-cover" 
+                                :alt="card.name || 'Card image'"
+                            />
+                        </div>
+                        <div v-else class="w-full h-full bg-gray-200 flex items-center justify-center">
+                            <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                        </div>
                         
                         <!-- Upload Overlay -->
                         <div class="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                             <span class="text-white text-lg font-medium">
-                                Change Image
+                                {{ hasImage ? 'Change Image' : 'Upload Image' }}
                             </span>
                         </div>
                         
@@ -202,7 +209,7 @@
                     </label>
                     
                     <!-- Display Only Mode -->
-                    <div v-else class="w-full h-full rounded-2xl overflow-hidden">
+                    <div v-else-if="hasImage && isVisible" class="w-full h-full rounded-2xl overflow-hidden">
                         <img 
                             :src="hasImage" 
                             class="w-full h-full object-cover" 
@@ -211,7 +218,7 @@
                     </div>
                     
                     <!-- Toggle switch for image cards -->
-                    <div v-if="onEdit && isVisible" class="absolute top-4 right-4 z-10">
+                    <div v-if="onEdit && (hasImage || isVisible)" class="absolute top-4 right-4 z-10">
                         <ToggleSwitch
                             v-model="isVisible"
                             left-label="Hidden"
@@ -221,7 +228,7 @@
                 </div>
                 
                 <!-- Toggle switch when image is hidden -->
-                <div v-if="hasImage && !isVisible && onEdit" class="mb-4">
+                <div v-if="!isVisible && onEdit" class="mb-4">
                     <ToggleSwitch
                         v-model="isVisible"
                         left-label="Hidden"
@@ -235,7 +242,7 @@
                 <!-- Text Card with Event-like Layout -->
                 <div class="flex flex-col md:flex-row md:gap-16 mb-8">
                     <!-- Image Section - Left side on desktop -->
-                    <div v-if="hasImage && isVisible" class="relative flex gap-10 w-full md:w-[35%] mb-6 md:mb-0">
+                    <div v-if="(hasImage && isVisible) || onEdit" class="relative flex gap-10 w-full md:w-[35%] mb-6 md:mb-0">
                         <div class="w-1/5 md:w-full">
                             <!-- Image Upload Area -->
                             <label v-if="onEdit" 
@@ -281,7 +288,7 @@
                             </div>
                             
                             <!-- Toggle switch - separate from image upload -->
-                            <div v-if="onEdit && isVisible" class="absolute top-4 right-4 z-10">
+                            <div v-if="onEdit && (hasImage || isVisible)" class="absolute top-4 right-4 z-10">
                                 <ToggleSwitch
                                     v-model="isVisible"
                                     left-label="Hidden"
@@ -308,9 +315,9 @@
                     </div>
 
                     <!-- Content Section - Right side on desktop -->
-                    <div :class="[(hasImage && isVisible) ? 'md:w-[65%]' : 'w-full', (hasImage && isVisible) ? 'md:my-auto' : '']">
+                    <div :class="[((hasImage && isVisible) || onEdit) ? 'md:w-[65%]' : 'w-full', (hasImage && isVisible) ? 'md:my-auto' : '']">
                         <!-- Toggle switch when image is hidden -->
-                        <div v-if="hasImage && !isVisible && onEdit" class="mb-4">
+                        <div v-if="!isVisible && onEdit" class="mb-4">
                             <ToggleSwitch
                                 v-model="isVisible"
                                 left-label="Hidden"

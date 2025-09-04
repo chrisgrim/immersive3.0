@@ -84,7 +84,7 @@ class DockActions
 
         return $dock->fresh([
             'posts' => function($query) {
-                $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order', 'event_id', 'community_id')
+                $query->select('posts.id', 'posts.name', 'posts.thumbImagePath', 'posts.shelf_id', 'posts.order', 'posts.event_id', 'posts.community_id')
                       ->with([
                           'community:id,name',
                           'shelf:id,name',
@@ -94,7 +94,7 @@ class DockActions
                               $query->select('id', 'thumbImagePath', 'largeImagePath');
                           }
                       ])
-                      ->orderBy('order')
+                      ->orderBy('posts.order')
                       ->limit(4);
             }
         ]);
@@ -119,18 +119,20 @@ class DockActions
 
         return $dock->fresh([
             'cards' => function($query) {
-                $query->select('id', 'name', 'blurb', 'type', 'order', 'post_id', 'event_id', 'button_text')
+                $query->select('cards.id', 'cards.name', 'cards.blurb', 'cards.type', 'cards.order', 'cards.post_id', 'cards.event_id', 'cards.button_text')
                       ->with([
                           'post:id,name,community_id',
                           'post.community:id,name',
                           'event:id,name,thumbImagePath,largeImagePath',
                           'images'
                       ])
-                      ->orderBy('order')
+                      ->orderBy('cards.order')
                       ->limit(4);
             }
         ]);
     }
+
+
 
     /**
      * Detach all relations from a dock.

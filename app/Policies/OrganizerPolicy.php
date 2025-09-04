@@ -14,6 +14,12 @@ class OrganizerPolicy
      */
     public function viewAny(User $user, ?string $type = null): bool
     {
+        // Allow moderators and admins to view any organizers
+        if ($user->isModerator()) {
+            return true;
+        }
+        
+        // Regular users can only view if they belong to at least one organizer
         return $user->organizers()->exists();
     }
 

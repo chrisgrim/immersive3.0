@@ -71,17 +71,18 @@
                             </select>
                         </td>
                         <td class="px-6 py-4">
-                            <select 
-                                v-model="dock.type"
-                                class="w-full text-xl border-b border-transparent hover:bg-ne focus:bg-white focus:border-blue-500 focus:outline-none px-2 py-1"
-                                @change="onUpdate(dock)"
-                            >
-                                <option value="f">Four</option>
-                                <option value="t">Three</option>
-                                <option value="i">Icon</option>
-                                <option value="h">Hero</option>
-                                <option value="s">Spotlight</option>
-                            </select>
+                                                            <select 
+                                    v-model="dock.type"
+                                    class="w-full text-xl border-b border-transparent hover:bg-ne focus:bg-white focus:border-blue-500 focus:outline-none px-2 py-1"
+                                    @change="onUpdate(dock)"
+                                >
+                                    <option value="s">Spotlight</option>
+                                    <option value="p">Primary</option>
+                                    <option value="h">Hero Grid</option>
+                                    <option value="f">Four</option>
+                                    <option value="t">Three</option>
+                                    <option value="i">Icon</option>
+                                </select>
                         </td>
                         <td class="px-6 py-4">
                             <input 
@@ -198,11 +199,12 @@
                                     v-model="newDock.type"
                                     class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4 bg-white"
                                 >
+                                    <option value="s">Spotlight</option>
+                                    <option value="p">Primary</option>
+                                    <option value="h">Hero Grid</option>
                                     <option value="f">Four</option>
                                     <option value="t">Three</option>
                                     <option value="i">Icon</option>
-                                    <option value="h">Hero</option>
-                                    <option value="s">Spotlight</option>
                                 </select>
                             </div>
 
@@ -288,7 +290,7 @@
                     <!-- Content Type Tabs -->
                     <div class="flex gap-1 bg-gray-100 p-1 rounded-lg mb-4">
                         <button 
-                            v-for="tab in ['shelves', 'posts', 'cards']"
+                            v-for="tab in ['shelves', 'posts']"
                             :key="tab"
                             @click="contentModal.activeTab = tab"
                             :class="[
@@ -303,7 +305,7 @@
                     </div>
 
                     <!-- Community Selector -->
-                    <div v-if="contentModal.activeTab !== 'cards'">
+                    <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Select Community</label>
                         <select 
                             v-model="contentModal.selectedCommunityId"
@@ -319,46 +321,6 @@
                                 {{ community.name }}
                             </option>
                         </select>
-                    </div>
-
-                    <!-- Post Selector (for Cards tab) -->
-                    <div v-if="contentModal.activeTab === 'cards'">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Select Community</label>
-                                <select 
-                                    v-model="contentModal.selectedCommunityId"
-                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                    @change="contentModal.selectedPostId = ''"
-                                >
-                                    <option value="">Select a community</option>
-                                    <option 
-                                        v-for="community in availableCommunities" 
-                                        :key="community.id" 
-                                        :value="community.id"
-                                    >
-                                        {{ community.name }}
-                                    </option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Select Post</label>
-                                <select 
-                                    v-model="contentModal.selectedPostId"
-                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                    :disabled="!contentModal.selectedCommunityId"
-                                >
-                                    <option value="">Select a post</option>
-                                    <option 
-                                        v-for="post in filteredPosts" 
-                                        :key="post.id" 
-                                        :value="post.id"
-                                    >
-                                        {{ post.name }}
-                                    </option>
-                                </select>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -448,9 +410,9 @@
                                 </div>
 
                                 <!-- Preview Grid -->
-                                <div v-if="post.limited_cards?.length" class="flex gap-4 pl-9">
+                                <div v-if="post.cards?.length" class="flex gap-4 pl-9">
                                     <div 
-                                        v-for="card in post.limited_cards.slice(0, 4)" 
+                                        v-for="card in post.cards.slice(0, 4)" 
                                         :key="card.id" 
                                         class="aspect-square w-16 rounded-lg overflow-hidden"
                                     >
@@ -476,60 +438,79 @@
                                 <div v-else class="pl-9 text-sm text-gray-500">
                                     No cards in this post
                                 </div>
-                            </div>
-                        </div>
-                        <div v-else class="text-center text-gray-500 py-8">
-                            Select a community to view its posts
-                        </div>
-                    </div>
 
-                    <!-- Cards List -->
-                    <div v-if="contentModal.activeTab === 'cards'">
-                        <div v-if="contentModal.selectedPostId" class="space-y-4">
-                            <div 
-                                v-for="card in filteredCards" 
-                                :key="card.id" 
-                                class="bg-ne rounded-xl p-4 hover:bg-gray-100 transition-colors"
-                            >
-                                <div class="flex items-center gap-4">
-                                    <input 
-                                        type="radio"
-                                        :id="'card-' + card.id"
-                                        :checked="isCardSelected(card.id)"
-                                        @change="toggleCard(card)"
-                                        class="w-5 h-5 border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    >
-                                    <label :for="'card-' + card.id" class="flex-1 cursor-pointer">
-                                        <div class="font-medium text-lg">{{ card.name || card.event?.name || 'Unnamed Card' }}</div>
-                                        <div class="text-sm text-gray-500">
-                                            Type: {{ getCardTypeName(card.type) }} • {{ card.post?.community?.name }}
+                                <!-- Show card selection if any card from this post is selected -->
+                                <div v-if="post.cards?.length && (isPostSelected(post.id) || hasSelectedCardFromPost(post.id))" class="mt-4 pl-9">
+                                    <div v-if="hasSelectedCardFromPost(post.id)" class="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <div class="text-sm font-medium text-blue-800">
+                                            Selected card from this post
                                         </div>
-                                        <div v-if="card.blurb" class="text-sm text-gray-600 mt-1 line-clamp-2" v-html="card.blurb"></div>
+                                    </div>
+                                    
+                                    <label class="flex items-center gap-2 text-sm">
+                                        <input 
+                                            type="checkbox" 
+                                            v-model="post.showCardSelection"
+                                            class="w-4 h-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        >
+                                        Choose specific card from this post
                                     </label>
-                                    <div class="aspect-square w-16 rounded-lg overflow-hidden flex-shrink-0">
-                                        <template v-if="getCardImage(card)">
-                                            <img 
-                                                :src="getImageUrl(getCardImage(card))" 
-                                                :alt="card.name"
-                                                class="w-full h-full object-cover"
+                                    
+                                    <!-- Cards Selection -->
+                                    <div v-if="post.showCardSelection || hasSelectedCardFromPost(post.id)" class="mt-3 space-y-1 max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50 p-2">
+                                        <div class="text-xs font-medium text-gray-600 mb-2 px-1">Choose a specific card:</div>
+                                        <div 
+                                            v-for="card in post.cards" 
+                                            :key="card.id"
+                                            :class="[
+                                                'flex items-center gap-2 p-2 rounded border transition-colors',
+                                                isCardSelected(card.id) 
+                                                    ? 'bg-blue-100 border-blue-300' 
+                                                    : 'bg-white border-gray-100 hover:border-gray-300'
+                                            ]"
+                                        >
+                                            <input 
+                                                type="radio"
+                                                :name="'card-select-' + post.id"
+                                                :id="'card-' + card.id"
+                                                :checked="isCardSelected(card.id)"
+                                                @change="toggleCard(card)"
+                                                class="w-3 h-3 border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
                                             >
-                                        </template>
-                                        <template v-else>
-                                            <div 
-                                                class="w-full h-full flex items-center justify-center"
-                                                style="background-color: #c69669"
-                                            >
-                                                <span class="text-2xl font-bold text-white">
-                                                    {{ getCardTypeIcon(card.type) }}
-                                                </span>
+                                            <div class="aspect-square w-8 rounded overflow-hidden flex-shrink-0">
+                                                <template v-if="getCardImage(card)">
+                                                    <img 
+                                                        :src="getImageUrl(getCardImage(card))" 
+                                                        :alt="card.name"
+                                                        class="w-full h-full object-cover"
+                                                    >
+                                                </template>
+                                                <template v-else>
+                                                    <div 
+                                                        class="w-full h-full flex items-center justify-center text-xs font-bold text-white"
+                                                        style="background-color: #c69669"
+                                                    >
+                                                        {{ getCardTypeIcon(card.type) }}
+                                                    </div>
+                                                </template>
                                             </div>
-                                        </template>
+                                            <label :for="'card-' + card.id" class="flex-1 cursor-pointer min-w-0">
+                                                <div class="text-sm font-medium truncate">
+                                                    {{ card.name || card.event?.name || 'Unnamed Card' }}
+                                                </div>
+                                                <div class="text-xs text-gray-500">
+                                                    {{ getCardTypeName(card.type) }}
+                                                    <span v-if="card.order !== undefined" class="ml-1">(#{{ card.order + 1 }})</span>
+                                                </div>
+                                                <div v-if="card.blurb" class="text-xs text-gray-600 mt-0.5 line-clamp-1 max-w-full" v-html="truncateText(stripHtml(card.blurb), 50)"></div>
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div v-else class="text-center text-gray-500 py-8">
-                            Select a community and post to view its cards
+                            Select a community to view its posts
                         </div>
                     </div>
                 </div>
@@ -722,8 +703,7 @@ const openManageContentModal = async (dock) => {
     await Promise.all([
         fetchAvailableShelves(),
         fetchAvailableCommunities(),
-        fetchAvailablePosts(),
-        fetchAvailableCards()
+        fetchAvailablePosts()
     ])
 
     // Set initial tab and community based on existing assignments
@@ -739,12 +719,15 @@ const openManageContentModal = async (dock) => {
         const post = dock.posts[0]
         contentModal.value.selectedCommunityId = post.community_id
     } else if (dock.cards?.length) {
-        contentModal.value.activeTab = 'cards'
+        contentModal.value.activeTab = 'posts'
         const card = dock.cards[0]
-        const post = availablePosts.value.find(p => p.id === card.post_id)
+        const post = availablePosts.value.find(p => 
+            p.cards && p.cards.some(c => c.id === card.id)
+        )
         if (post) {
             contentModal.value.selectedCommunityId = post.community_id
-            contentModal.value.selectedPostId = post.id
+            // Expand card selection for posts with selected cards
+            post.showCardSelection = true
         }
     }
 }
@@ -795,6 +778,19 @@ const isPostSelected = (postId) => {
 
 const isCardSelected = (cardId) => {
     return contentModal.value.dock?.cards?.some(c => c.id === cardId) || false
+}
+
+const hasSelectedCardFromPost = (postId) => {
+    if (!contentModal.value.dock?.cards?.length) return false
+    
+    // Check if any selected card belongs to this post
+    return contentModal.value.dock.cards.some(card => {
+        // Find the card in available posts to get its post_id
+        const post = availablePosts.value.find(p => 
+            p.cards && p.cards.some(c => c.id === card.id)
+        )
+        return post && post.id === postId
+    })
 }
 
 const isCommunitySelected = (communityId) => {
@@ -988,6 +984,19 @@ const getPostImage = (post) => {
     
     // Return null if no image is found
     return null
+}
+
+// Text utility functions
+const stripHtml = (html) => {
+    if (!html) return ''
+    const tmp = document.createElement('div')
+    tmp.innerHTML = html
+    return tmp.textContent || tmp.innerText || ''
+}
+
+const truncateText = (text, maxLength) => {
+    if (!text || text.length <= maxLength) return text
+    return text.substring(0, maxLength) + '...'
 }
 
 // Lifecycle hooks

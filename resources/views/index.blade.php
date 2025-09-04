@@ -124,10 +124,14 @@
         @foreach($docks as $dock)
             @if($dock->type === 'h')
                 <div class="max-w-screen-5xl relative m-auto">
-                    @include('curated.hero')
+                    @include('curated.hero', ['dock' => $dock])
                 </div>
             @endif
-
+            @if($dock->type === 'p')
+                <div class="max-w-screen-5xl relative m-auto bg-black text-white">
+                    @include('curated.primary', ['dock' => $dock])
+                </div>
+             @endif
             @if($dock->type === 's')
                 <div class="max-w-screen-5xl relative m-auto">
                     @include('curated.spotlight', ['dock' => $dock])
@@ -136,7 +140,7 @@
 
             <div class="max-w-screen-5xl relative h-full m-auto px-10 lg-air:px-16 2xl-air:px-32">
                 @if($dock->type === 'i')
-                    @include('curated.icon')
+                    @include('curated.icon', ['dock' => $dock])
                 @endif
 
                 @if($dock->type === 'f')

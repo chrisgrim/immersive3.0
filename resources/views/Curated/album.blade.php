@@ -3,65 +3,190 @@
     $name = null;
     $count = $number === 'four' ? 4 : 3;
 
-    $getPostImage = function($post) {
+    $getElementImage = function($element) {
+        // Handle cards differently than posts
+        if (isset($element->type) && in_array($element->type, ['i', 'e', 't', 'v'])) {
+            // This is a card
+            if (!empty($element->images) && $element->images->first()) {
+                return $element->images->first()->thumb_image_path ?? $element->images->first()->large_image_path;
+            }
+            
+            // Check if card has an event with image
+            if ($element->event && $element->event->thumbImagePath) {
+                return $element->event->thumbImagePath;
+            }
+            
+            return null;
+        }
+        
+        // This is a post - use existing logic
         // Most common case first
-        if ($post->thumbImagePath) {
-            return $post->thumbImagePath;
+        if ($element->thumbImagePath) {
+            return $element->thumbImagePath;
         }
 
         // Featured event image check
-        if ($post->featuredEventImage) {
-            return is_string($post->featuredEventImage) 
-                ? $post->featuredEventImage 
-                : ($post->featuredEventImage->thumbImagePath ?? $post->featuredEventImage->largeImagePath ?? null);
+        if ($element->featuredEventImage) {
+            return is_string($element->featuredEventImage) 
+                ? $element->featuredEventImage 
+                : ($element->featuredEventImage->thumbImagePath ?? $element->featuredEventImage->largeImagePath ?? null);
         }
 
         // Check cards if no featured image
-        if (isset($post->cards)) {
+        if (isset($element->cards)) {
             // Look for event card with image
-            $eventCard = $post->cards->firstWhere('type', 'e');
+            $eventCard = $element->cards->firstWhere('type', 'e');
             if ($eventCard && isset($eventCard->event) && isset($eventCard->event->thumbImagePath)) {
                 return $eventCard->event->thumbImagePath;
             }
 
             // Look for image card
-            $imageCard = $post->cards->firstWhere('type', 'i');
+            $imageCard = $element->cards->firstWhere('type', 'i');
             if ($imageCard && isset($imageCard->thumbImagePath)) {
                 return $imageCard->thumbImagePath;
             }
         }
 
         // Fallback to images collection
-        return !empty($post->images) ? $post->images->first()?->path : null;
+        return !empty($element->images) ? ($element->images->first()?->thumb_image_path ?? $element->images->first()?->large_image_path) : null;
     };
 
-    $mapPost = function($post) {
-        return (object)[
-            'id' => $post->id,
-            'name' => $post->name,
-            'slug' => $post->slug,
-            'event_id' => $post->event_id,
-            'featuredEventImage' => $post->featuredEventImage,
-            'limitedCards' => $post->limitedCards ?? collect(),
-            'community' => $post->community,
-            'created_at' => $post->created_at,
-            'cards' => $post->cards ?? collect(),
-            'images' => $post->images ?? collect(),
-            'thumbImagePath' => $post->thumbImagePath ?? null
-        ];
-    };
-
-    if (count($dock->shelves)) {
-        $elements = collect($dock->shelves[0]->publishedPosts)->map($mapPost);
-        $name = $dock->shelves[0]->name;
-        
-        if ($dock->type === 't') {
-            $number = 'three'; // Force three images for type 't'
+    $mapElement = function($element) {
+        // Handle different element types (posts vs cards)
+        if (isset($element->type) && in_array($element->type, ['i', 'e', 't', 'v'])) {
+            // This is a card - map to expected properties for grid-image component
+            return (object)[
+                'id' => $element->id,
+                'name' => $element->name,
+                'slug' => null, // Cards don't have slugs
+                'url' => $element->url ?? null,
+                'type' => $element->type,
+                'post' => $element->post ?? null,
+                'event' => $element->event ?? null,
+                'community' => $element->post->community ?? null,
+                'images' => $element->images ?? collect(),
+                'button_text' => $element->button_text ?? null,
+                // Add properties expected by grid-image component
+                'event_id' => $element->event_id ?? null,
+                'featured_event_image' => $element->event ?? null,
+                'largeImagePath' => null, // Cards don't have direct image paths
+                'thumbImagePath' => null, // Cards don't have direct image paths
+                'limited_cards' => collect(), // Cards don't have nested cards
+                'cards' => collect() // Cards don't have nested cards
+            ];
+        } else {
+            // This is a post
+            return (object)[
+                'id' => $element->id,
+                'name' => $element->name,
+                'slug' => $element->slug,
+                'event_id' => $element->event_id,
+                'featuredEventImage' => $element->featuredEventImage,
+                'limitedCards' => $element->limitedCards ?? collect(),
+                'community' => $element->community,
+                'created_at' => $element->created_at,
+                'cards' => $element->cards ?? collect(),
+                'images' => $element->images ?? collect(),
+                'thumbImagePath' => $element->thumbImagePath ?? null
+            ];
         }
+    };
+
+    // Define helper functions
+    $getElementImage = function($element) {
+        if (!$element) return null;
+        
+        // Handle cards differently than posts
+        if (isset($element->type) && in_array($element->type, ['i', 'e', 't', 'v'])) {
+            // This is a card - check card's images first
+            if (!empty($element->images) && $element->images->first()) {
+                return $element->images->first()->large_image_path ?? $element->images->first()->thumb_image_path;
+            }
+            
+            // Check if card has an event with image
+            if ($element->event) {
+                if (isset($element->event->largeImagePath) && $element->event->largeImagePath) {
+                    return $element->event->largeImagePath;
+                }
+                if (isset($element->event->thumbImagePath) && $element->event->thumbImagePath) {
+                    return $element->event->thumbImagePath;
+                }
+            }
+            
+            return null;
+        }
+        
+        // This is a post - existing logic
+        if (isset($element->largeImagePath) && $element->largeImagePath) {
+            return $element->largeImagePath;
+        }
+
+        if (isset($element->featuredEventImage) && $element->featuredEventImage) {
+            return is_string($element->featuredEventImage) 
+                ? $element->featuredEventImage 
+                : ($element->featuredEventImage->largeImagePath ?? $element->featuredEventImage->thumbImagePath ?? null);
+        }
+
+        if (!empty($element->limitedCards)) {
+            foreach ($element->limitedCards as $card) {
+                if (!empty($card->images)) {
+                    return $card->images->first()?->large_image_path ?? $card->images->first()?->thumb_image_path;
+                }
+            }
+        }
+
+        return !empty($element->images) ? ($element->images->first()?->large_image_path ?? $element->images->first()?->thumb_image_path) : null;
+    };
+
+    $getElementName = function($element) {
+        if (!$element) return '';
+        // Handle cards - fallback to event name if card name is empty
+        if (isset($element->type) && in_array($element->type, ['i', 'e', 't', 'v'])) {
+            return $element->name ?: ($element->event->name ?? '');
+        }
+        // Handle posts and other elements
+        return $element->name ?? '';
+    };
+
+    // Collect elements from different dock types
+    if (count($dock->shelves)) {
+        $elements = collect($dock->shelves[0]->publishedPosts)->map($mapElement);
+        $name = $dock->shelves[0]->name;
+    } elseif (count($dock->posts)) {
+        // For posts, use the post's cards as elements instead of the post itself
+        $allCards = collect();
+        foreach ($dock->posts as $post) {
+            if ($post->cards && count($post->cards)) {
+                $allCards = $allCards->merge($post->cards->map($mapElement));
+            }
+        }
+        // Filter out cards with no displayable content (no name and no image)
+        $elements = $allCards->filter(function($card) use ($getElementImage, $getElementName) {
+            $hasImage = $getElementImage($card);
+            $hasName = $getElementName($card);
+            return $hasImage || $hasName;
+        });
+    } elseif (count($dock->cards)) {
+        $allCards = collect($dock->cards)->map($mapElement);
+        // Filter out cards with no displayable content (no name and no image)
+        $elements = $allCards->filter(function($card) use ($getElementImage, $getElementName) {
+            $hasImage = $getElementImage($card);
+            $hasName = $getElementName($card);
+            return $hasImage || $hasName;
+        });
+    } elseif (count($dock->communities)) {
+        $elements = $dock->communities;
+    }
+    
+    if ($dock->type === 't') {
+        $number = 'three'; // Force three images for type 't'
     }
 
     $name = $dock->name ?? $name;
     $elements = $elements->take($count);
+    
+    // If no elements to display, don't render the dock
+    $shouldRender = $elements && count($elements) > 0;
 
     // After setting $count
     $widthClass = "w-[85vw] md:w-[calc(" . ($count === 3 ? '33.333%' : '25%') . "-1.5rem)]";
@@ -75,16 +200,38 @@
     };
 
     $getElementUrl = function($element) use ($dock) {
-        if (count($dock->shelves)) {
-            return '/communities/' . $element->community->slug . '/posts/' . $element->slug;
-        }
+        // Handle communities
         if (count($dock->communities)) {
             return '/communities/' . $element->slug;
         }
+        
+        // Handle cards
+        if (isset($element->type) && in_array($element->type, ['i', 'e', 't', 'v'])) {
+            // Card with custom URL
+            if ($element->url) {
+                return $element->url;
+            }
+            // Card linked to event
+            if ($element->event && $element->event->slug) {
+                return '/events/' . $element->event->slug;
+            }
+            // Card linked to post
+            if ($element->post && $element->post->slug && $element->community) {
+                return '/communities/' . $element->community->slug . '/posts/' . $element->post->slug;
+            }
+            return '#';
+        }
+        
+        // Handle posts (from shelves or direct dock posts)
+        if ($element->slug && $element->community) {
+            return '/communities/' . $element->community->slug . '/posts/' . $element->slug;
+        }
+        
         return '#';
     };
 @endphp
 
+@if($shouldRender)
 <div class="whitespace-nowrap overflow-y-hidden overflow-x-auto m-auto w-full">
     <div>
         @if($name)
@@ -107,8 +254,9 @@
                         <div class="w-1/2 md:w-full">
                             <div class="aspect-[16/9] w-full rounded-2xl overflow-hidden">
                                 @php 
-                                    $imagePath = $getPostImage($element);
-                                    $firstLetter = $getFirstLetter($element->name);
+                                    $imagePath = $getElementImage($element);
+                                    $elementName = $getElementName($element);
+                                    $firstLetter = $getFirstLetter($elementName);
                                 @endphp
                                 @if($imagePath)
                                     <picture>
@@ -117,7 +265,7 @@
                                             type="image/webp"
                                         >
                                         <img src="{{ config('app.image_url') }}{{ $imagePath }}"
-                                             alt="{{ $element->name }}"
+                                             alt="{{ $elementName }}"
                                              class="w-full h-full object-cover" />
                                     </picture>
                                 @else
@@ -133,7 +281,7 @@
 
                         <div class="w-1/2 md:w-full md:mb-8 md:mt-4">
                             <div class="font-medium whitespace-normal">
-                                <p class="text-3xl md:text-4xl leading-tight text-black">{{ $element->name }}</p>
+                                <p class="text-3xl md:text-4xl leading-tight text-black">{{ $elementName }}</p>
                             </div>
                         </div>
                     </div>
@@ -142,3 +290,4 @@
         </div>
     </div>
 </div>
+@endif

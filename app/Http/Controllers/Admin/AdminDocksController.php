@@ -38,28 +38,25 @@ class AdminDocksController extends Controller
                       ->limit(4);
             },
             'posts' => function($query) {
-                $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order', 'event_id', 'community_id')
+                $query->select('posts.id', 'posts.name', 'posts.thumbImagePath', 'posts.shelf_id', 'posts.order', 'posts.event_id', 'posts.community_id')
                       ->with([
                           'community:id,name',
                           'shelf:id,name',
                           'featuredEventImage',
-                          'images',
-                          'limitedCards.event' => function($query) {
-                              $query->select('id', 'thumbImagePath', 'largeImagePath');
-                          }
+                          'images'
                       ])
-                      ->orderBy('order')
+                      ->orderBy('posts.order')
                       ->limit(4);
             },
             'cards' => function($query) {
-                $query->select('id', 'name', 'blurb', 'type', 'order', 'post_id', 'event_id', 'button_text')
+                $query->select('cards.id', 'cards.name', 'cards.blurb', 'cards.type', 'cards.order', 'cards.post_id', 'cards.event_id', 'cards.button_text')
                       ->with([
                           'post:id,name,community_id',
                           'post.community:id,name',
                           'event:id,name,thumbImagePath,largeImagePath',
                           'images'
                       ])
-                      ->orderBy('order')
+                      ->orderBy('cards.order')
                       ->limit(4);
             }
         ])
@@ -79,7 +76,7 @@ class AdminDocksController extends Controller
     {
         $validated = $request->validate([
             'name' => 'nullable|string|max:50',
-            'type' => 'required|string|in:f,t,i,h,s',
+            'type' => 'required|string|in:f,t,i,h,s,p',
             'location' => 'required|string|in:home,search,none',
             'order' => 'integer'
         ]);
@@ -100,7 +97,7 @@ class AdminDocksController extends Controller
     {
         $validated = $request->validate([
             'name' => 'nullable|string|max:50',
-            'type' => 'required|string|in:f,t,i,h,s',
+            'type' => 'required|string|in:f,t,i,h,s,p',
             'location' => 'required|string|in:home,search,none',
             'order' => 'integer'
         ]);
@@ -136,18 +133,7 @@ class AdminDocksController extends Controller
         return $this->getOrderedDocks();
     }
 
-    /**
-     * Add a post to the specified dock.
-     *
-     * @param  \App\Models\Admin\Dock  $dock
-     * @param  \App\Models\Curated\Post  $post
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function addPost(Dock $dock, Post $post)
-    {
-        $this->dockActions->addPost($dock, $post);
-        return $this->getOrderedDocks();
-    }
+
 
     /**
      * Remove the specified dock.
@@ -182,28 +168,25 @@ class AdminDocksController extends Controller
                       ->limit(4);
             },
             'posts' => function($query) {
-                $query->select('id', 'name', 'thumbImagePath', 'shelf_id', 'order', 'event_id', 'community_id')
+                $query->select('posts.id', 'posts.name', 'posts.thumbImagePath', 'posts.shelf_id', 'posts.order', 'posts.event_id', 'posts.community_id')
                       ->with([
                           'community:id,name',
                           'shelf:id,name',
                           'featuredEventImage',
-                          'images',
-                          'limitedCards.event' => function($query) {
-                              $query->select('id', 'thumbImagePath', 'largeImagePath');
-                          }
+                          'images'
                       ])
-                      ->orderBy('order')
+                      ->orderBy('posts.order')
                       ->limit(4);
             },
             'cards' => function($query) {
-                $query->select('id', 'name', 'blurb', 'type', 'order', 'post_id', 'event_id', 'button_text')
+                $query->select('cards.id', 'cards.name', 'cards.blurb', 'cards.type', 'cards.order', 'cards.post_id', 'cards.event_id', 'cards.button_text')
                       ->with([
                           'post:id,name,community_id',
                           'post.community:id,name',
                           'event:id,name,thumbImagePath,largeImagePath',
                           'images'
                       ])
-                      ->orderBy('order')
+                      ->orderBy('cards.order')
                       ->limit(4);
             }
         ])
@@ -250,25 +233,14 @@ class AdminDocksController extends Controller
             'shelf:id,name',
             'featuredEventImage',
             'images',
-            'limitedCards.event' => function($query) {
-                $query->select('id', 'thumbImagePath', 'largeImagePath');
+            'cards' => function($query) {
+                $query->select('id', 'name', 'blurb', 'type', 'order', 'post_id', 'event_id', 'button_text')
+                      ->with(['event:id,name,thumbImagePath,largeImagePath', 'images'])
+                      ->orderBy('order');
             }
         ])
         ->select('id', 'name', 'thumbImagePath', 'shelf_id', 'community_id', 'order', 'event_id')
         ->orderBy('name')
-        ->get();
-    }
-
-    public function getAvailableCards()
-    {
-        return \App\Models\Curated\Card::with([
-            'post:id,name,community_id',
-            'post.community:id,name',
-            'event:id,name,thumbImagePath,largeImagePath',
-            'images'
-        ])
-        ->select('id', 'name', 'blurb', 'type', 'order', 'post_id', 'event_id', 'button_text')
-        ->orderBy('order')
         ->get();
     }
 
