@@ -415,6 +415,13 @@ const setPlace = (place) => {
     console.log('Google Places API response:', place);
     console.log('Address Components:', place.addressComponents);
     
+    // Log each component for debugging
+    if (place.addressComponents) {
+        place.addressComponents.forEach((component, index) => {
+            console.log(`Component ${index}:`, component);
+        });
+    }
+    
     // Helper function to extract address components
     const getAddressComponent = (type, preferLong = false) => {
         if (place.addressComponents) {
@@ -423,13 +430,37 @@ const setPlace = (place) => {
             );
             
             if (component) {
+                console.log(`Found component for ${type}:`, component);
+                
+                let value = '';
                 if (preferLong) {
-                    // Return long name (e.g., "California" instead of "CA")
-                    return component.long_name || component.longText || '';
+                    // Try different properties for long name
+                    value = component.longText || component.long_name || component.shortText || component.short_name || '';
                 } else {
-                    // Return short name (e.g., "CA" instead of "California")
-                    return component.short_name || component.Fg || '';
+                    // Try different properties for short name
+                    value = component.shortText || component.short_name || component.longText || component.long_name || '';
                 }
+                
+                // Handle case where value might be an array
+                if (Array.isArray(value)) {
+                    console.warn(`Component ${type} returned array:`, value);
+                    return value[0] || '';
+                }
+                
+                // Handle case where the entire component might be malformed
+                if (typeof value !== 'string') {
+                    console.warn(`Component ${type} returned non-string:`, value, 'Component:', component);
+                    // Try to extract from component object keys
+                    const keys = Object.keys(component);
+                    for (const key of keys) {
+                        if (typeof component[key] === 'string' && component[key].length > 0 && !key.includes('type')) {
+                            return component[key];
+                        }
+                    }
+                    return '';
+                }
+                
+                return value;
             }
         }
         return '';
@@ -463,8 +494,18 @@ const setPlace = (place) => {
     const region = getAddressComponent('administrative_area_level_1'); // Short name (e.g., "CA")
     const region_long = getAddressComponent('administrative_area_level_1', true); // Long name (e.g., "California")
     const postal_code = getAddressComponent('postal_code');
-    const country = getAddressComponent('country'); // Short name (e.g., "CA")
-    const country_long = getAddressComponent('country', true); // Long name (e.g., "Canada")
+    const country = getAddressComponent('country'); // Short name (e.g., "US")
+    const country_long = getAddressComponent('country', true); // Long name (e.g., "United States")
+    
+    // Additional debugging for the location object being set
+    console.log('Extracted values:', {
+        city,
+        region,
+        region_long,
+        postal_code,
+        country,
+        country_long
+    });
     
     const currentVenue = event.location?.venue || '';
     
