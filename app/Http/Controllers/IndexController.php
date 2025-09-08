@@ -17,6 +17,7 @@ class IndexController extends Controller
             ->with([
                 'posts' => function($query) {
                     $query->where('status', 'p')
+                          ->where('is_hidden', false)
                           ->with([
                               'community:id,name,slug',
                               'featuredEventImage',
@@ -36,13 +37,17 @@ class IndexController extends Controller
                     ->orderBy('order')
                     ->limit(4);
                 },
+                'shelves' => function($query) {
+                    $query->where('is_hidden', false);
+                },
                 'shelves.publishedPosts' => function($query) {
-                    $query->with([
-                        'community:id,name,slug',
-                        'featuredEventImage',
-                        'images',
-                        'limitedCards'
-                    ]);
+                    $query->where('is_hidden', false)
+                          ->with([
+                              'community:id,name,slug',
+                              'featuredEventImage',
+                              'images',
+                              'limitedCards'
+                          ]);
                 },
                 'communities'
             ])

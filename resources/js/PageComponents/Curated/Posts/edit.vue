@@ -19,6 +19,7 @@
                             @navigate="handleNavigation"
                             @status-change="handleStatusChange"
                             @shelf-change="handleShelfChange"
+                            @hidden-change="handleHiddenChange"
                         />
                     </div>
                 </div>
@@ -269,6 +270,10 @@ const handleShelfChange = async (shelfId) => {
     } finally {
         isSubmitting.value = false;
     }
+};
+
+const handleHiddenChange = (isHidden) => {
+    post.is_hidden = isHidden;
 };
 
 const saveChanges = async () => {

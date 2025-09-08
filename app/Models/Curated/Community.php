@@ -88,7 +88,7 @@ class Community extends Model
      */
     public function publishedShelves()
     {
-        return $this->hasMany(Shelf::class)->orderBy('order', 'ASC')->where('status', 'p');
+        return $this->hasMany(Shelf::class)->orderBy('order', 'ASC')->where('status', 'p')->where('is_hidden', false);
     }
 
     /**

@@ -73,4 +73,22 @@ class ShelfController extends Controller
     {
         return $shelfActions->reorder($request);
     }
+
+    /**
+     * Toggle the hidden status of the specified shelf.
+     *
+     * @param  \App\Models\Curated\Community  $community
+     * @param  \App\Models\Curated\Shelf  $shelf
+     * @return \Illuminate\Http\Response
+     */
+    public function toggleHidden(Community $community, Shelf $shelf)
+    {
+        $shelf->update(['is_hidden' => !$shelf->is_hidden]);
+        
+        return response()->json([
+            'success' => true,
+            'is_hidden' => $shelf->is_hidden,
+            'message' => $shelf->is_hidden ? 'Shelf hidden successfully' : 'Shelf shown successfully'
+        ]);
+    }
 }

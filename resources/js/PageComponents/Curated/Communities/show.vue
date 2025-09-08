@@ -41,19 +41,21 @@
                                 <a 
                                     :href="`/communities/${community.slug}/listings`" 
                                     class="cursor-pointer"
-                                >
-                                    <div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center hover:bg-gray-200">
-                                        <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                            <path 
-                                                stroke-linecap="round" 
-                                                stroke-linejoin="round" 
-                                                stroke-width="2" 
-                                                d="M8 6h13M8 12h13M8 18h13" 
-                                            />
-                                            <circle cx="3" cy="6" r="1" />
-                                            <circle cx="3" cy="12" r="1" />
-                                            <circle cx="3" cy="18" r="1" />
-                                        </svg>
+                                >   <div class="flex items-center bg-gray-100 rounded-full pr-6 hover:bg-gray-200">
+                                        <div class="w-20 h-20 flex items-center justify-center">
+                                            <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                <path 
+                                                    stroke-linecap="round" 
+                                                    stroke-linejoin="round" 
+                                                    stroke-width="2" 
+                                                    d="M8 6h13M8 12h13M8 18h13" 
+                                                />
+                                                <circle cx="3" cy="6" r="1" />
+                                                <circle cx="3" cy="12" r="1" />
+                                                <circle cx="3" cy="18" r="1" />
+                                            </svg>
+                                        </div>
+                                        <div>Listings</div>
                                     </div>
                                 </a>
                             </template>

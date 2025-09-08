@@ -74,6 +74,7 @@ Route::prefix('communities')->name('communities.')->group(function () {
             // Post-specific routes
             Route::GET('/posts/{post}/edit', [PostController::class, 'edit'])->name('posts.edit')->middleware('can:update,community');
             Route::POST('/posts/{post}', [PostController::class, 'update'])->name('posts.update')->middleware('can:update,community');
+            Route::PATCH('/posts/{post}/toggle-hidden', [PostController::class, 'toggleHidden'])->name('posts.toggle-hidden')->middleware('can:update,community');
             Route::DELETE('/posts/{post}', [PostController::class, 'destroy'])->name('posts.destroy')->middleware('can:update,community');
 
             // Shelves
@@ -81,6 +82,7 @@ Route::prefix('communities')->name('communities.')->group(function () {
                 Route::POST('/shelves', 'store');
                 Route::POST('/shelves/order', 'order');
                 Route::PUT('/shelves/{shelf}', 'update');
+                Route::PATCH('/shelves/{shelf}/toggle-hidden', 'toggleHidden');
                 Route::DELETE('/shelves/{shelf}', 'destroy');
                 Route::GET('/shelves/{shelf}/paginate', 'paginate');
             });

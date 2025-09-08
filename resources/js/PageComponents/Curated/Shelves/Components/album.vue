@@ -15,8 +15,8 @@
                     @mouseleave="showDelete = null"
                     :class="{ drag: draggable }"
                     class="block cursor-pointer">
-                    <div class="group relative grid grid-cols-4 gap-8 py-2 items-center hover:bg-gray-100 rounded-2xl"
-                         style="grid-template-columns: 8rem auto 15% 1%;">
+                    <div class="group relative grid grid-cols-3 gap-8 py-2 items-center hover:bg-gray-100 rounded-2xl"
+                         style="grid-template-columns: 8rem auto 1fr;">
                         <div class="px-6 flex items-center">
                             <a v-if="community?.slug && element?.slug" 
                                :href="`/communities/${community.slug}/posts/${element.slug}/edit`"
@@ -37,17 +37,29 @@
                             </div>
                             <p class="text-md leading-4 text-gray-500">last edited: {{ formatDate(element.updated_at) }}</p>
                         </div>
-                        <div class="text-lg">
-                            <span :class="element.status === 'd' ? 'text-orange-500' : 'text-green-500'">
-                                {{ element.status === 'd' ? 'Draft' : 'Live' }}
-                            </span>
-                        </div>
-                        <div class="flex items-center justify-end pr-8">
+                        <div class="flex items-center justify-end gap-8 pr-8">
                             <button 
-                                v-if="showDelete === element.id"
+                                @click="togglePostStatus(element)"
+                                class="text-lg px-3 py-1 rounded-full transition-colors hover:bg-gray-100"
+                                :title="element.status === 'd' ? 'Make Live' : 'Make Draft'"
+                            >
+                                <span :class="element.status === 'd' ? 'text-orange-500' : 'text-green-500'">
+                                    {{ element.status === 'd' ? 'Draft' : 'Live' }}
+                                </span>
+                            </button>
+                            <button 
+                                @click="togglePostHidden(element)"
+                                class="p-2 rounded-full group transition-colors bg-gray-100 hover:bg-gray-200"
+                                :title="element.is_hidden ? 'Show post' : 'Hide post'"
+                            >
+                                <svg class="w-6 h-6 fill-gray-700">
+                                    <use :xlink:href="element.is_hidden ? '/storage/website-files/icons.svg#ri-eye-off-line' : '/storage/website-files/icons.svg#ri-eye-line'" />
+                                </svg>
+                            </button>
+                            <button 
                                 @click.stop="openDeleteModal(element)"
-                                class="absolute top-[-1rem] z-20 right-[-.4rem] items-center justify-center rounded-full p-0 w-12 h-12 flex border-2 bg-white border-black hover:bg-black hover:fill-white">
-                                <svg class="w-6 h-6 text-red-500">
+                                class="p-2 rounded-full transition-colors bg-gray-100 hover:bg-red-100 border-2 border-transparent hover:border-red-200">
+                                <svg class="w-6 h-6 fill-gray-700 hover:fill-red-600">
                                     <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
                                 </svg>
                             </button>
@@ -204,6 +216,41 @@ const deletePost = async () => {
         closeDeleteModal()
     } catch (error) {
         console.error('Delete failed:', error)
+    }
+}
+
+const togglePostHidden = async (post) => {
+    try {
+        const response = await axios.patch(`/communities/${props.community.slug}/posts/${post.slug}/toggle-hidden`)
+        
+        // Update the post in the local posts array
+        const postIndex = posts.value.findIndex(p => p.id === post.id)
+        if (postIndex !== -1) {
+            posts.value[postIndex].is_hidden = response.data.is_hidden
+        }
+        
+        console.log(response.data.message)
+    } catch (error) {
+        console.error('Error toggling post visibility:', error)
+    }
+}
+
+const togglePostStatus = async (post) => {
+    try {
+        const newStatus = post.status === 'd' ? 'p' : 'd'
+        const response = await axios.post(`/communities/${props.community.slug}/posts/${post.slug}`, {
+            status: newStatus
+        })
+        
+        // Update the post in the local posts array
+        const postIndex = posts.value.findIndex(p => p.id === post.id)
+        if (postIndex !== -1) {
+            posts.value[postIndex].status = response.data.status
+        }
+        
+        console.log(`Post ${newStatus === 'p' ? 'published' : 'saved as draft'}`)
+    } catch (error) {
+        console.error('Error updating post status:', error)
     }
 }
 

@@ -15,7 +15,7 @@ class Post extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = [ 'name', 'slug', 'blurb', 'thumbImagePath', 'shelf_id', 'largeImagePath', 'user_id', 'community_id', 'event_id', 'section_id', 'status', 'type', 'image_type', 'order' ];
+    protected $fillable = [ 'name', 'slug', 'blurb', 'thumbImagePath', 'shelf_id', 'largeImagePath', 'user_id', 'community_id', 'event_id', 'section_id', 'status', 'type', 'image_type', 'order', 'is_hidden' ];
 
     protected $with = ['community', 'featuredEventImage'];
 

@@ -48,6 +48,15 @@ class PostController extends Controller
      */
     public function show(Community $community, Post $post)
     {
+        // Get authenticated user or null for guests
+        $user = auth()->user();
+        $isCurator = $user ? $user->can('curator', $community) : false;
+        
+        // Check if post is hidden and user is not a curator
+        if ($post->is_hidden && !$isCurator) {
+            abort(404);
+        }
+        
         $post->load([
             'cards.images',
             'cards.event',
@@ -56,12 +65,9 @@ class PostController extends Controller
             'featuredEventImage.images'
         ]);
         
-        // Get authenticated user or null for guests
-        $user = auth()->user();
-        
         return view('curated.posts.show', [
             'post' => $post,
-            'curator' => $user ? $user->can('curator', $community) : false,
+            'curator' => $isCurator,
             'community' => $community,
             'user' => $user,
         ]);
@@ -128,6 +134,24 @@ class PostController extends Controller
     public function order(Request $request, Community $community, PostActions $postActions)
     {
         return $postActions->reorder($request);
+    }
+
+    /**
+     * Toggle the hidden status of the specified post.
+     *
+     * @param  \App\Models\Curated\Community  $community
+     * @param  \App\Models\Curated\Post  $post
+     * @return \Illuminate\Http\Response
+     */
+    public function toggleHidden(Community $community, Post $post)
+    {
+        $post->update(['is_hidden' => !$post->is_hidden]);
+        
+        return response()->json([
+            'success' => true,
+            'is_hidden' => $post->is_hidden,
+            'message' => $post->is_hidden ? 'Post hidden successfully' : 'Post shown successfully'
+        ]);
     }
 
     /**

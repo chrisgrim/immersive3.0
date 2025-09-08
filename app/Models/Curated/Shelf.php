@@ -10,7 +10,7 @@ class Shelf extends Model
 {
     use HasFactory;
 
-    protected $fillable = [ 'name', 'order', 'user_id', 'community_id', 'parent_id', 'status'];
+    protected $fillable = [ 'name', 'order', 'user_id', 'community_id', 'parent_id', 'status', 'is_hidden'];
 
     protected $with = ['community'];
 
@@ -52,7 +52,7 @@ class Shelf extends Model
      */
     public function publishedPosts()
     {
-        return $this->hasMany(Post::class)->orderBy('order', 'ASC')->where('status', 'p')->limit(4);
+        return $this->hasMany(Post::class)->orderBy('order', 'ASC')->where('status', 'p')->where('is_hidden', false)->limit(4);
     }
 
     /**

@@ -28,7 +28,7 @@
             <!-- Post Controls -->
             <div class="flex flex-col md:flex-row gap-8 items-start md:items-center justify-between mt-8">
                 <!-- Left side controls - now in a row -->
-                <div class="flex items-center gap-6 flex-shrink-0">
+                <div class="flex items-center gap-2 flex-shrink-0">
                     <ToggleSwitch
                         v-model="isLive"
                         left-label="Draft"
@@ -36,14 +36,31 @@
                         text-size="xl"
                         @update:modelValue="handleStatusChange" 
                     />
-                    <a 
-                        v-if="isLive"
-                        :href="`/communities/${community?.slug}/posts/${post?.slug}`"
-                        class="inline-flex items-center justify-center w-16 h-16 min-w-16 min-h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors"
-                        title="View live post"
-                    >
-                        <component :is="RiExternalLinkLine" class="w-8 h-8 text-neutral-800" />
-                    </a>
+                    <div class="flex items-center gap-2">
+                        <!-- Visibility Toggle -->
+                        <button 
+                            @click="toggleHidden"
+                            class="inline-flex items-center justify-center w-16 h-16 min-w-16 min-h-16 rounded-full transition-colors bg-gray-100 hover:bg-gray-200"
+                            :title="post?.is_hidden ? 'Show post' : 'Hide post'"
+                        >
+                            <svg 
+                                class="w-8 h-8 fill-gray-700"
+                                viewBox="0 0 24 24"
+                            >
+                                <use :xlink:href="post?.is_hidden ? '/storage/website-files/icons.svg#ri-eye-off-line' : '/storage/website-files/icons.svg#ri-eye-line'" />
+                            </svg>
+                        </button>
+                        
+                        <!-- View Live Post -->
+                        <a 
+                            v-if="isLive"
+                            :href="`/communities/${community?.slug}/posts/${post?.slug}`"
+                            class="inline-flex items-center justify-center w-16 h-16 min-w-16 min-h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors"
+                            title="View live post"
+                        >
+                            <component :is="RiExternalLinkLine" class="w-8 h-8 text-neutral-800" />
+                        </a>
+                    </div>
                 </div>
 
                 <!-- Right side shelf selector - now with proper width constraints -->
@@ -171,7 +188,7 @@ const props = defineProps({
     }
 });
 
-const emit = defineEmits(['navigate', 'statusChange', 'shelfChange']);
+const emit = defineEmits(['navigate', 'statusChange', 'shelfChange', 'hiddenChange']);
 
 const isMobile = computed(() => window?.Laravel?.isMobile ?? false);
 const imageUrl = computed(() => import.meta.env.VITE_IMAGE_URL);
@@ -208,5 +225,18 @@ const removeShelf = () => {
 
 const handleStatusChange = (value) => {
     emit('statusChange', value ? 'p' : 'd');
+};
+
+const toggleHidden = async () => {
+    try {
+        const response = await axios.patch(`/communities/${props.community?.slug}/posts/${props.post?.slug}/toggle-hidden`);
+        emit('hiddenChange', response.data.is_hidden);
+        
+        // Optional: Show a toast notification
+        console.log(response.data.message);
+    } catch (error) {
+        console.error('Error toggling post visibility:', error);
+        // Handle error - maybe show a toast notification
+    }
 };
 </script>

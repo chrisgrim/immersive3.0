@@ -25,7 +25,7 @@
                                 @mouseover="hover = true"
                                 @mouseleave="hover = false"
                                 @click="editName=true"
-                                class="inline-flex items-center">
+                                class="relative inline-flex items-center">
                                 <template v-if="shelf.name">
                                     <h3>{{ shelf.name }}</h3>
                                 </template>
@@ -33,7 +33,7 @@
                                     <h3>Edit Name</h3>
                                 </template>
                                 <template v-if="!editName && hover && shelf.status !== 'a'">
-                                    <button class="border-none underline p-0 block w-8 h-8 rounded-full justify-center items-center">
+                                    <button class="absolute -left-12  border-2 border-black underline p-0 bg-white flex w-12 h-12 rounded-full justify-center items-center">
                                         <svg class="h-8 w-8">
                                             <use :xlink:href="`/storage/website-files/icons.svg#ri-pencil-line`" />
                                         </svg>
@@ -41,6 +41,17 @@
                                 </template>
                             </div>
                         </template>
+                        
+                        <!-- Visibility Toggle -->
+                        <button 
+                            @click="toggleHidden"
+                            class="p-2 rounded-full group transition-colors bg-gray-100 hover:bg-gray-200"
+                            :title="shelf.is_hidden ? 'Show shelf' : 'Hide shelf'"
+                        >
+                            <svg class="w-8 h-8 fill-gray-700">
+                                <use :xlink:href="shelf.is_hidden ? '/storage/website-files/icons.svg#ri-eye-off-line' : '/storage/website-files/icons.svg#ri-eye-line'" />
+                            </svg>
+                        </button>
                     </div>
 
                     <!-- Delete Button -->
@@ -87,7 +98,7 @@
             </div>
 
             <!-- Save/Cancel Buttons for Name Edit -->
-            <div v-if="editName && shelf.status !== 'a'" class="flex gap-4 mt-4">
+            <div v-if="editName && shelf.status !== 'a'" class="flex gap-4 mb-4">
                 <button 
                     class="rounded-full border border-black py-2 px-4 bg-white hover:bg-black hover:text-white hover:border-black"
                     @click="resetShelf">Cancel</button>
@@ -183,6 +194,19 @@ const clear = () => {
 
 const startEditing = () => {
     editName.value = true
+}
+
+const toggleHidden = async () => {
+    try {
+        const response = await axios.patch(`/communities/${props.community.slug}/shelves/${shelf.value.id}/toggle-hidden`)
+        shelf.value.is_hidden = response.data.is_hidden
+        
+        // Optional: Show a toast notification
+        console.log(response.data.message)
+    } catch (error) {
+        console.error('Error toggling shelf visibility:', error)
+        // Handle error - maybe show a toast notification
+    }
 }
 
 // Add emit
