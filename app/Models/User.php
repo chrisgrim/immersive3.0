@@ -70,6 +70,9 @@ class User extends Authenticatable
 
     public function forClientSide()
     {
+        // Get the appropriate organizer for the frontend
+        $organizer = $this->getCurrentOrganizer();
+        
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -83,11 +86,49 @@ class User extends Authenticatable
             'isCommunityMember' => $this->isCommunityMember,
             'unread' => $this->unread,
             'hasCreatedOrganizers' => $this->hasCreatedOrganizers,
-            'organizer' => $this->organizer ? [
-                'id' => $this->organizer->id,
-                'name' => $this->organizer->name,
+            'organizer' => $organizer ? [
+                'id' => $organizer->id,
+                'name' => $organizer->name,
             ] : null,
         ];
+    }
+
+    public function getCurrentOrganizer()
+    {
+        // First try current_team_id if it's set and valid
+        if ($this->current_team_id) {
+            $currentOrganizer = Organizer::find($this->current_team_id);
+            if ($currentOrganizer && ($this->ownsOrganization($currentOrganizer) || $this->belongsToOrganization($currentOrganizer))) {
+                return $currentOrganizer;
+            }
+        }
+        
+        // Fallback to their first owned organizer
+        $ownedOrganizer = $this->organizers()->first();
+        if ($ownedOrganizer) {
+            // Auto-update current_team_id if it was invalid
+            if ($this->current_team_id !== $ownedOrganizer->id) {
+                $this->update(['current_team_id' => $ownedOrganizer->id]);
+            }
+            return $ownedOrganizer;
+        }
+        
+        // Final fallback: any team they're a member of
+        $membershipOrganizer = $this->teams()->first();
+        if ($membershipOrganizer) {
+            // Auto-update current_team_id if it was invalid
+            if ($this->current_team_id !== $membershipOrganizer->id) {
+                $this->update(['current_team_id' => $membershipOrganizer->id]);
+            }
+            return $membershipOrganizer;
+        }
+        
+        // No organizers at all - clear current_team_id
+        if ($this->current_team_id) {
+            $this->update(['current_team_id' => null]);
+        }
+        
+        return null;
     }
 
     public function events() 
