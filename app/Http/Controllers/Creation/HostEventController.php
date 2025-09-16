@@ -538,7 +538,7 @@ class HostEventController extends Controller
             return response()->json([
                 'message' => 'Event duplicated successfully.',
                 'event' => $newEvent->load([
-                    'shows.tickets', 
+                    // 'shows.tickets', 
                     'location', 
                     'images', 
                     'advisories', 

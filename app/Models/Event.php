@@ -511,22 +511,24 @@ class Event extends Model
      */
     public function duplicate()
     {
-        // Create new event with duplicated attributes
-        $newEvent = $this->replicate(['location_latlon']);
+        // Create new event with duplicated attributes (excluding location, ticket, and price data)
+        $newEvent = $this->replicate(['location_latlon', 'ticketUrl', 'price_range', 'closingDate', 'show_times', 'showtype']);
         $newEvent->slug = Str::slug('new-event-' . Str::random(6));
         $newEvent->status = '0'; // Set as draft
         $newEvent->name = $this->name . ' (Copy)';
         $newEvent->published_at = null;
-        $newEvent->hasLocation = $this->hasLocation; // Copy the hasLocation flag
-        $newEvent->attendance_type_id = $this->attendance_type_id; // Copy the attendance type
+        $newEvent->hasLocation = $this->attendance_type_id === 1; // Set hasLocation based on attendance type (true for in-person, false for remote)
+        $newEvent->attendance_type_id = $this->attendance_type_id; // Copy the attendance type (in-person vs remote)
         $newEvent->save();
 
-        // Always duplicate location since it's always created
-        if ($this->location) {
-            $newLocation = $this->location->replicate();
-            $newLocation->event_id = $newEvent->id;
-            $newLocation->save();
-        }
+        // Create empty location record (required for all events) - duplicated location data commented out per client request
+        // if ($this->location) {
+        //     $newLocation = $this->location->replicate();
+        //     $newLocation->event_id = $newEvent->id;
+        //     $newLocation->save();
+        // }
+        // Create empty location record instead
+        $newEvent->location()->create([]);
 
         // Duplicate advisories
         if ($this->advisories) {
@@ -542,27 +544,27 @@ class Event extends Model
         $newEvent->contactlevels()->sync($this->contactlevels->pluck('id'));
         $newEvent->remotelocations()->sync($this->remotelocations->pluck('id'));
 
-        // Duplicate price ranges
-        foreach ($this->priceranges as $priceRange) {
-            $newPriceRange = $priceRange->replicate();
-            $newPriceRange->event_id = $newEvent->id;
-            $newPriceRange->save();
-        }
+        // Price ranges duplication commented out per client request
+        // foreach ($this->priceranges as $priceRange) {
+        //     $newPriceRange = $priceRange->replicate();
+        //     $newPriceRange->event_id = $newEvent->id;
+        //     $newPriceRange->save();
+        // }
 
-        // Duplicate shows and their tickets
-        foreach ($this->shows as $show) {
-            $newShow = $show->replicate();
-            $newShow->event_id = $newEvent->id;
-            $newShow->save();
+        // Shows/dates duplication commented out per client request
+        // foreach ($this->shows as $show) {
+        //     $newShow = $show->replicate();
+        //     $newShow->event_id = $newEvent->id;
+        //     $newShow->save();
 
-            // Duplicate tickets for this show
-            foreach ($show->tickets as $ticket) {
-                $newTicket = $ticket->replicate();
-                $newTicket->ticket_type = get_class($newShow);
-                $newTicket->ticket_id = $newShow->id;
-                $newTicket->save();
-            }
-        }
+        //     // Duplicate tickets for this show
+        //     foreach ($show->tickets as $ticket) {
+        //         $newTicket = $ticket->replicate();
+        //         $newTicket->ticket_type = get_class($newShow);
+        //         $newTicket->ticket_id = $newShow->id;
+        //         $newTicket->save();
+        //     }
+        // }
 
         // Duplicate images
         foreach ($this->images as $image) {
@@ -586,8 +588,8 @@ class Event extends Model
             'mobilityadvisories',
             'contactlevels',
             'remotelocations',
-            'priceranges',
-            'shows.tickets',
+            // 'priceranges', // Commented out since we're not duplicating price ranges
+            // 'shows.tickets', // Commented out since we're not duplicating shows/tickets
             'images',
             'videos'
         ]);
