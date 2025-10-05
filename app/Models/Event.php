@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use App\Models\NameChangeRequest;
+use App\Services\ImageHandler;
 
 /**
  * Event Model
@@ -566,12 +567,8 @@ class Event extends Model
         //     }
         // }
 
-        // Duplicate images
-        foreach ($this->images as $image) {
-            $newImage = $image->replicate();
-            $newImage->imageable_id = $newEvent->id;
-            $newImage->save();
-        }
+        // Duplicate images - copy actual files to new location
+        ImageHandler::duplicateImages($this, $newEvent, 'event');
 
         // Duplicate videos
         foreach ($this->videos as $video) {

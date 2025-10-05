@@ -65,6 +65,9 @@
 
     // Override name if dock name exists
     $name = $dock->name ?? $name;
+    
+    // Get URL security attributes
+    $urlAttrs = get_url_security_attributes($url);
 
     // Image handling function
     $getElementImage = function($element) {
@@ -145,7 +148,9 @@
                 
                 <div class="text-left">
                     <a 
-                        href="{{ $url }}" 
+                        href="{{ $url }}"
+                        @if($urlAttrs['target']) target="{{ $urlAttrs['target'] }}" @endif
+                        @if($urlAttrs['rel']) rel="{{ $urlAttrs['rel'] }}" @endif
                         class="bg-transparent text-white border-2 border-[#f7653b] px-8 py-4 text-lg rounded-full font-semibold transition-colors duration-300 hover:bg-[#f7653b] uppercase">
                         @if($element && isset($element->button_text) && $element->button_text)
                             {{ $element->button_text }}

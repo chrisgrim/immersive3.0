@@ -62,7 +62,8 @@ class Show extends Model
         } else {
             // Only delete shows not in the new date array if staying on same showtype
             $showsToDelete = $event->shows();
-            if ($request->showtype === 's') {
+            if ($request->showtype === 's' || $request->showtype === 'o') {
+                // For specific and ongoing dates, only delete shows not in the new date array
                 $showsToDelete = $showsToDelete->whereNotIn('date', $request->dateArray);
             }
             $showsToDelete->get()->each(function ($show) {
@@ -72,12 +73,19 @@ class Show extends Model
         }
 
         // Handle show creation based on showtype
-        if ($request->showtype === 's') {
+        if ($request->showtype === 's' || $request->showtype === 'o') {
+            // For specific dates ('s') and ongoing dates ('o'), create individual shows
             foreach ($request->dateArray as $date) {
                 self::createOrUpdateShow($date, $event->id, $old_tickets);
             }
-        } elseif (in_array($request->showtype, ['a', 'o', 'l'])) {
-            // For 'always available', 'on request', and 'limited availability' shows
+        } elseif ($request->showtype === 'a') {
+            // For 'always available' shows, use custom end date if provided
+            $endDate = isset($request->always_config) && $request->always_config['endDate']
+                ? Carbon::parse($request->always_config['endDate'])->format('Y-m-d H:i:s')
+                : Carbon::now()->addMonths(6)->format('Y-m-d H:i:s');
+            self::createOrUpdateShow($endDate, $event->id, $old_tickets);
+        } elseif ($request->showtype === 'l') {
+            // For 'limited availability' shows
             $sixMonthsFromNow = Carbon::now()->addMonths(6)->format('Y-m-d H:i:s');
             self::createOrUpdateShow($sixMonthsFromNow, $event->id, $old_tickets);
         }
@@ -126,7 +134,7 @@ class Show extends Model
     {
         // Determine show type and last date
         $type = self::determineShowType($request);
-        $lastDate = self::calculateLastDate($event, $type);
+        $lastDate = self::calculateLastDate($event, $type, $request);
 
         // Prepare update data
         $updateData = [
@@ -163,10 +171,30 @@ class Show extends Model
         return $request->showtype ?? 's';
     }
 
-    private static function calculateLastDate(Event $event, string $type): string
+    private static function calculateLastDate(Event $event, string $type, $request = null): string
     {
-        if ($type === 'a' || $type === 'o' || $type === 'l') {
-            // For 'always available', 'on request', and 'limited availability' shows
+        if ($type === 'a') {
+            // For 'always available' shows, check if there's a specific end date in the configuration
+            if ($request && isset($request->always_config) && $request->always_config['endDate']) {
+                return Carbon::parse($request->always_config['endDate'])->endOfDay()->format('Y-m-d H:i:s');
+            }
+            
+            // Default for always shows: 6 months from now
+            return Carbon::now()->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
+        }
+        
+        if ($type === 'l') {
+            // For 'limited availability' shows
+            return Carbon::now()->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
+        }
+        
+        if ($type === 'o') {
+            // For ongoing shows, check if there's a specific end date in the configuration
+            if ($request && isset($request->ongoing_config) && $request->ongoing_config['endDate']) {
+                return Carbon::parse($request->ongoing_config['endDate'])->endOfDay()->format('Y-m-d H:i:s');
+            }
+            
+            // Default for ongoing shows: 6 months from now
             return Carbon::now()->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
         }
         

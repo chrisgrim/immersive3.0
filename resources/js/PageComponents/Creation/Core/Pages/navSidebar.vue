@@ -2,7 +2,7 @@
     <!-- Main Navigation -->
     <nav class="relative flex flex-col items-center flex-shrink-0 w-full mx-auto pt-12">
         <!-- Fixed Header -->
-        <div class="w-full flex items-center px-8 gap-4 pb-8 z-50 bg-white p-10 lg-air:max-w-[40rem]">
+        <div class="w-full flex items-center gap-4 z-50 bg-white p-8 lg-air:max-w-[40rem] overflow-hidden">
             <button 
                 @click="goBack"
                 class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"
@@ -22,7 +22,7 @@
             </button>
             <a 
             href="/hosting/events" 
-            class="cursor-pointer">
+            class="cursor-pointer flex-shrink-0">
                 <div class="rounded-full bg-neutral-100 w-16 h-16 flex items-center justify-center hover:bg-neutral-200">
                     <svg 
                         class="w-8 h-8" 
@@ -42,17 +42,19 @@
                     </svg>
                 </div>
             </a>
-            <template v-if="['p', 'e'].includes(event.status)">
-                <a :href="`/events/${event.slug}`" class="ml-4 text-3xl md:text-5xl font-semibold truncate hover:underline">{{ event.name || 'No name set' }}</a>
-            </template>
-            <template v-else>
-                <span class="ml-4 text-3xl md:text-5xl font-semibold truncate">{{ event.name || 'No name set' }}</span>
-            </template>
+            <div class="flex-1 min-w-0 pl-4">
+                <template v-if="['p', 'e'].includes(event.status)">
+                    <a :href="`/events/${event.slug}`" class="text-3xl md:text-5xl font-semibold truncate hover:underline block">{{ event.name || 'No name set' }}</a>
+                </template>
+                <template v-else>
+                    <span class="text-3xl md:text-5xl font-semibold truncate block">{{ event.name || 'No name set' }}</span>
+                </template>
+            </div>
         </div>
 
         <!-- Scrollable Content -->
-        <div class="w-full flex flex-col md:items-center overflow-y-auto max-h-[calc(100vh-20rem)]">
-            <div class="space-y-10 lg-air:max-w-[40rem] p-10 mb-20">
+        <div class="w-full flex flex-col md:items-center overflow-y-auto max-h-[calc(100vh-11rem)] md:max-h-[calc(100vh-20rem)]">
+            <div class="space-y-10 lg-air:max-w-[40rem] p-10 pb-40 md:pb-20">
                 <!-- Name & Tag Line -->
                 <button
                     @click="$emit('navigate', 'Name')"

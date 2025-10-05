@@ -122,6 +122,9 @@
 
     $imagePath = $element ? $getElementImage($element) : null;
     
+    // Get URL security attributes
+    $urlAttrs = get_url_security_attributes($url);
+    
     // If no element or no content, don't render the dock
     $shouldRender = $element && ($imagePath || $element->name);
 @endphp
@@ -130,7 +133,11 @@
 <div class="my-8 md:mt-16 md:mb-24 px-10 lg-air:px-16 2xl-air:px-32 py-16 lg-air:py-20 2xl-air:py-24 border-y border-slate-200">
     <div class="w-full relative block overflow-hidden mb-8 rounded-xl md:flex flex-col md:flex-row">
         @if($element && $imagePath)
-            <a href="{{ $url }}" class="rounded-2xl overflow-hidden relative inline-block bg-slate-400 md:w-3/5 mb-8 md:mb-0 order-first md:order-last">
+            <a 
+                href="{{ $url }}"
+                @if($urlAttrs['target']) target="{{ $urlAttrs['target'] }}" @endif
+                @if($urlAttrs['rel']) rel="{{ $urlAttrs['rel'] }}" @endif
+                class="rounded-2xl overflow-hidden relative inline-block bg-slate-400 md:w-3/5 mb-8 md:mb-0 order-first md:order-last">
                 <div class="aspect-video">
                     <picture class="w-full h-full">
                         <source 
@@ -154,7 +161,10 @@
                     @endif
                     <h2 class="text-6xl leading-[4.5rem] mt-8 font-medium text-black">{{ $getElementName($element) }}</h2>
                 </div>
-                <a href="{{ $url }}">
+                <a 
+                    href="{{ $url }}"
+                    @if($urlAttrs['target']) target="{{ $urlAttrs['target'] }}" @endif
+                    @if($urlAttrs['rel']) rel="{{ $urlAttrs['rel'] }}" @endif>
                     <button class="bg-[#ff385c] text-white border-none p-6 mt-8 rounded-2xl font-bold text-xl">
                         Check it out
                     </button>

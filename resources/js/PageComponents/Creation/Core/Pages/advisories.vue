@@ -135,7 +135,7 @@
                             <textarea 
                                 v-model="event.advisories.audience"
                                 @input="handleAudienceInput"
-                                class="w-full p-4 text-1xl border border-neutral-300 rounded-2xl relative outline-none transition-all duration-200"
+                                class="w-full p-4 text-2.5xl md:text-1xl border border-neutral-300 rounded-2xl relative outline-none transition-all duration-200"
                                 :class="{ 
                                     'border-red-500': 
                                         $v.event.advisories.audience.$error || 

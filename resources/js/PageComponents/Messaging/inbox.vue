@@ -1,7 +1,7 @@
 <template>
     <div class="relative text-1xl font-medium w-full h-[calc(100vh-8rem)] flex flex-col">
         <!-- Main Content Area with separate scrolling -->
-        <div class="flex-1 flex h-full">
+        <div class="flex-1 md:flex h-full">
             <div class="mx-auto flex flex-1 flex-col md:flex-row">
                 <!-- Navigation Sidebar with own scroll -->
                 <div 

@@ -51,7 +51,7 @@
         </div>
 
         <!-- Scrollable Content -->
-        <div class="w-full flex flex-col md:items-center overflow-y-auto max-h-[calc(100vh-20rem)]">
+        <div class="w-full flex flex-col md:items-center overflow-y-auto max-h-[calc(100vh-11rem)] md:max-h-[calc(100vh-20rem)]">
             <div class="space-y-10 lg-air:max-w-[40rem] p-10 mb-20">
                 <!-- Name -->
                 <button

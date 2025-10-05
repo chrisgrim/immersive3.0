@@ -21,7 +21,7 @@
                     <!-- Category Input -->
                     <input 
                         :class="[
-                            'text-2xl relative p-8 w-full border rounded-3xl transition-all duration-200',
+                            'text-2.5xl relative p-8 w-full border rounded-3xl transition-all duration-200',
                             {
                                 'border-red-500 hover:border-red-500 focus:border-red-500 focus:shadow-focus-error': showError,
                                 'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !showError,

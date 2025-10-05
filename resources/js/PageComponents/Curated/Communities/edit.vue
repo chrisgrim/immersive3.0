@@ -1,6 +1,6 @@
 <template>
     <div class="relative text-1xl font-medium w-full h-[calc(100vh-8rem)] flex flex-col">
-        <div class="flex-1 flex h-full">
+        <div class="flex-1 md:flex h-full">
             <div class="mx-auto flex flex-1 flex-col md:flex-row">
                 <!-- Navigation Sidebar -->
                 <div 
@@ -18,7 +18,7 @@
 
                 <!-- Main Content Column -->
                 <div 
-                    class="flex-1 flex-col h-full w-full md:w-auto"
+                    class="md:flex-1 flex-col h-screen md:h-full w-full md:w-auto transition-all duration-300"
                     :class="currentSection ? 'flex' : 'hidden md:flex'">
                     <!-- Mobile back button -->
                     <div 
@@ -198,6 +198,12 @@
                 </div>
             </div>
         </Teleport>
+
+        <!-- Mobile Bottom Navigation - Only show on mobile when sidebar is visible -->
+        <NavBarMobile 
+            v-if="isMobile && !currentSection" 
+            :user="user" 
+        />
     </div>
 </template>
 
@@ -208,6 +214,7 @@ import Name from './Pages/name.vue';
 import Description from './Pages/description.vue';
 import Image from './Pages/image.vue';
 import Curators from './Pages/curators.vue';
+import NavBarMobile from '../../Nav/nav-bar-mobile.vue';
 
 const props = defineProps({
     community: {

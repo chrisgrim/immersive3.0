@@ -8,7 +8,7 @@
                 :key="post.id"
                 class="group relative aspect-[4/3] rounded-2xl overflow-hidden"
             >
-                <a :href="`/communities/${community.slug}/${post.slug}`">
+                <a :href="`/communities/${community.slug}/posts/${post.slug}`">
                     <!-- Image -->
                     <div class="w-full h-full">
                         <img 

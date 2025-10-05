@@ -75,7 +75,7 @@
 							<!-- Dropdown menu -->
 							<teleport to="body">
 								<div v-if="isOpen" 
-									 class="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50"
+									 class="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-[401]"
 									 @click="isOpen = false">
 									<div class="bg-white w-full rounded-t-2xl p-8 max-h-[80vh] overflow-y-auto" 
 										 @click.stop>
@@ -209,7 +209,7 @@
 
 		<!-- Modal -->
 		<div v-if="selectedEvent" 
-			 class="fixed inset-0 bg-black bg-opacity-50 flex md:items-center justify-center z-50"
+			 class="fixed inset-0 bg-black bg-opacity-50 flex md:items-center justify-center z-[401]"
 			 @click="closeModal">
 			<div class="bg-white w-full rounded-t-2xl md:rounded-3xl md:p-20 p-8 md:max-w-3xl relative mt-auto md:mt-0 md:mx-4" 
 				 @click.stop>

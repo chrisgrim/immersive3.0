@@ -3,8 +3,9 @@
         <a 
             aria-label="Visit Listing"
             v-if="hasUrl"
-            :rel="internalUrl"
             :href="hasUrl"
+            :target="urlSecurity.target"
+            :rel="urlSecurity.rel"
             :class="[ hasImage ? 'h-80 md:h-[42rem]' : 'h-full' ]"
             class="w-full absolute rounded-xl z-10 top-0 left-0 block" />
         <template v-if="hasImage">
@@ -36,7 +37,10 @@
         </template>
         <template v-if="hasUrl">
             <div class="mt-8 mb-16">
-                <a :rel="internalUrl" :href="hasUrl">
+                <a 
+                    :href="hasUrl"
+                    :target="urlSecurity.target"
+                    :rel="urlSecurity.rel">
                     <button class="px-4 py-2 text-white bg-black border-white inline-block rounded-full hover:bg-white hover:text-black hover:border-black z-50">
                         {{ (card.button_text && card.button_text.trim()) || 'Check it out' }}
                     </button>
@@ -49,6 +53,7 @@
 <script setup>
 import { computed } from 'vue'
 import moment from 'moment'
+import { useSecureUrl } from '@/composables/useSecureUrl'
 
 const props = defineProps({
     card: {
@@ -113,11 +118,7 @@ const hasUrl = computed(() =>
         : props.card.url
 )
 
-const internalUrl = computed(() => 
-    props.card.event && !props.card.url 
-        ? '' 
-        : 'noopener noreferrer nofollow'
-)
+const urlSecurity = computed(() => useSecureUrl(hasUrl.value))
 </script>
 
 <style scoped>

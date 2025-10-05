@@ -28,9 +28,12 @@
 
         <!-- Main Content Area (with proper scrolling) -->
         <div class="flex-1 overflow-y-auto">
-            <div class="max-w-screen-xl mx-auto min-h-full flex">
-                <div :class="['w-full mx-auto pt-40 md:pb-20', containerWidthClass]">
-                    <div class="h-full flex p-8">
+            <div 
+                class="mx-auto min-h-full flex"
+                :class="currentStep !== 'Dates' ? 'max-w-screen-xl' : ''"
+            >
+                <div :class="['w-full mx-auto', containerWidthClass]">
+                    <div class="h-full flex px-8 pb-8">
                         <component :is="currentComponent" ref="currentComponentRef" />
                     </div>
                 </div>
@@ -38,7 +41,8 @@
         </div>
 
         <!-- Bottom Navigation (fixed at bottom) -->
-        <div class="flex-none">
+        <div class="fixed md:relative bottom-0 left-0 right-0 w-full flex-none">
+        <!-- <div class="flex-none"> -->
             <!-- Progress Bar -->
             <div class="w-full h-[5px] bg-gray-200">
                 <div 
@@ -138,7 +142,7 @@ const currentStep = ref('EventType');
 const isSubmitting = ref(false);
 const errors = ref({});
 const currentComponentRef = ref(null);
-
+const isHome = ref(false); // Add missing isHome property
 
 const stepsWithLocation = ['EventType', 'Name', 'Category', 'Genres', 'Location', 'Description', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility', 'Review'];
 const stepsWithoutLocation = ['EventType', 'Name', 'Category', 'Genres', 'Remote', 'Description', 'Dates', 'Tickets', 'Images', 'Advisories', 'Content', 'Mobility', 'Review'];
@@ -173,9 +177,9 @@ const isComponentReady = ref(true); // Default to true
 const containerWidthClass = computed(() => {
     const componentName = currentComponent.value.__name?.toLowerCase();
     
-    if (componentName === 'dates') return 'lg:w-full';
-    if (componentName === 'images') return 'lg:w-2/3';
-    return 'lg:w-1/2';
+    if (componentName === 'dates') return 'lg:w-full pt-40 pb-0';
+    if (componentName === 'images') return 'lg:w-2/3 pt-40 md:pb-20';
+    return 'lg:w-1/2 pt-40 md:pb-20';
 });
 
 const goToPrevious = () => {

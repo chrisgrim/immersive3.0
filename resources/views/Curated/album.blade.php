@@ -245,10 +245,17 @@
         <div class="block md:flex w-full scroll-p-7 overflow-auto mt-8 scroll-smooth gap-8 md:whitespace-nowrap whitespace-normal" 
              style="scroll-snap-type: x mandatory;">
             @foreach($elements as $element)
+                @php
+                    $elementUrl = $getElementUrl($element);
+                    $elementUrlAttrs = get_url_security_attributes($elementUrl);
+                @endphp
                 <div class="relative snap-start snap-always {{ $widthClass }} mb-8 md:mb-0">
                     <div class="flex md:block w-full gap-10 md:gap-0 overflow-hidden relative">
-                        <a href="{{ $getElementUrl($element) }}" 
-                           class="block h-full absolute w-full rounded-2xl top-0 left-0 z-10">
+                        <a 
+                            href="{{ $elementUrl }}"
+                            @if($elementUrlAttrs['target']) target="{{ $elementUrlAttrs['target'] }}" @endif
+                            @if($elementUrlAttrs['rel']) rel="{{ $elementUrlAttrs['rel'] }}" @endif
+                            class="block h-full absolute w-full rounded-2xl top-0 left-0 z-10">
                         </a>
                         
                         <div class="w-1/2 md:w-full">

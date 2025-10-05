@@ -1,6 +1,6 @@
 <template>
     <div 
-        class="fixed bottom-0 left-0 right-0 h-36 bg-white border-t border-neutral-200 z-40"
+        class="fixed bottom-0 left-0 right-0 h-36 bg-white border-t border-neutral-200 z-[400]"
         :style="{
             transform: `translateY(${isHidden ? '100%' : '0'})`,
             transition: 'transform 0.3s ease-in-out'
@@ -69,7 +69,7 @@ const eventsLink = computed(() => {
 let lastScrollY = window.scrollY;
 let scrollUpAmount = 0;
 let scrollDownAmount = 0;
-const SCROLL_THRESHOLD = 100; // Amount of scrolling needed before showing/hiding
+const SCROLL_THRESHOLD = window.innerHeight; // Amount of scrolling needed before showing/hiding (full screen height)
 
 const handleScroll = () => {
     const currentScrollY = window.scrollY;

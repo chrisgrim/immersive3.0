@@ -389,10 +389,14 @@
 
                                                 {{-- Button --}}
                                                 @if($card->url)
+                                                    @php
+                                                        $urlAttrs = get_url_security_attributes($card->url);
+                                                    @endphp
                                                     <div>
                                                         <a 
-                                                            href="{{ $card->url }}" 
-                                                            target="_blank"
+                                                            href="{{ $card->url }}"
+                                                            @if($urlAttrs['target']) target="{{ $urlAttrs['target'] }}" @endif
+                                                            @if($urlAttrs['rel']) rel="{{ $urlAttrs['rel'] }}" @endif
                                                             class="inline-block bg-black text-white px-8 py-4 rounded-2xl hover:bg-gray-800 transition-colors">
                                                             {{ !empty($card->button_text) ? $card->button_text : 'Read More' }}
                                                         </a>
@@ -412,10 +416,14 @@
                                     </div>
                                     
                                     @if($card->url)
+                                        @php
+                                            $urlAttrs = get_url_security_attributes($card->url);
+                                        @endphp
                                         <div class="mt-6">
                                             <a 
-                                                href="{{ $card->url }}" 
-                                                target="_blank"
+                                                href="{{ $card->url }}"
+                                                @if($urlAttrs['target']) target="{{ $urlAttrs['target'] }}" @endif
+                                                @if($urlAttrs['rel']) rel="{{ $urlAttrs['rel'] }}" @endif
                                                 class="inline-block bg-black text-white px-8 py-4 rounded-2xl hover:bg-gray-800 transition-colors">
                                                 {{ !empty($card->button_text) ? $card->button_text : 'Read More' }}
                                             </a>
@@ -463,6 +471,10 @@
                                             
                                             // Temporarily show debug info
                                             // dd($debugInfo);
+                                            
+                                            // Get URL security attributes for event card
+                                            $eventCardUrl = $card->url ?? '/events/' . $card->event->slug;
+                                            $eventUrlAttrs = get_url_security_attributes($eventCardUrl);
                                         @endphp
 
                                         @if($cardImage && $card->type !== 'h')
@@ -478,7 +490,10 @@
                                                 </div>
                                                 {{-- Mobile-only title --}}
                                                 <div class="w-4/5 flex items-center md:hidden">
-                                                    <a href="{{ $card->url ?? '/events/' . $card->event->slug }}">
+                                                    <a 
+                                                        href="{{ $eventCardUrl }}"
+                                                        @if($eventUrlAttrs['target']) target="{{ $eventUrlAttrs['target'] }}" @endif
+                                                        @if($eventUrlAttrs['rel']) rel="{{ $eventUrlAttrs['rel'] }}" @endif>
                                                         <h3 class="text-4xl font-bold mt-0">{{ $card->name ?? $card->event->name }}</h3>
                                                     </a>
                                                 </div>
@@ -488,7 +503,10 @@
                                         {{-- Mobile-only title when image is hidden --}}
                                         @if($card->type === 'h')
                                             <div class="mb-6 md:hidden">
-                                                <a href="{{ $card->url ?? '/events/' . $card->event->slug }}">
+                                                <a 
+                                                    href="{{ $eventCardUrl }}"
+                                                    @if($eventUrlAttrs['target']) target="{{ $eventUrlAttrs['target'] }}" @endif
+                                                    @if($eventUrlAttrs['rel']) rel="{{ $eventUrlAttrs['rel'] }}" @endif>
                                                     <h3 class="text-4xl font-bold mt-0">{{ $card->name ?? $card->event->name }}</h3>
                                                 </a>
                                             </div>
@@ -497,7 +515,11 @@
                                         {{-- Event Content - Right side on desktop --}}
                                         <div class="{{ ($cardImage && $card->type !== 'h') ? 'md:w-[65%]' : 'w-full' }} md:my-auto">
                                             {{-- Desktop-only title --}}
-                                            <a href="{{ $card->url ?? '/events/' . $card->event->slug }}" class="hidden md:block">
+                                            <a 
+                                                href="{{ $eventCardUrl }}"
+                                                @if($eventUrlAttrs['target']) target="{{ $eventUrlAttrs['target'] }}" @endif
+                                                @if($eventUrlAttrs['rel']) rel="{{ $eventUrlAttrs['rel'] }}" @endif
+                                                class="hidden md:block">
                                                 <h3 class="text-4xl font-bold mt-0">{{ $card->name ?? $card->event->name }}</h3>
                                             </a>
 
@@ -517,7 +539,9 @@
                                                 {{-- Check it out Button --}}
                                                 <div>
                                                     <a 
-                                                        href="{{ $card->url ?? '/events/' . $card->event->slug }}" 
+                                                        href="{{ $eventCardUrl }}"
+                                                        @if($eventUrlAttrs['target']) target="{{ $eventUrlAttrs['target'] }}" @endif
+                                                        @if($eventUrlAttrs['rel']) rel="{{ $eventUrlAttrs['rel'] }}" @endif
                                                         class="inline-block bg-black text-white px-8 py-4 rounded-2xl hover:bg-gray-800 transition-colors">
                                                         {{ !empty($card->button_text) ? $card->button_text : 'Read More' }}
                                                     </a>

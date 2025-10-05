@@ -76,7 +76,7 @@
                         <p class="text-neutral-500 font-normal">Tag Line</p>
                         <textarea 
                             name="tag_line" 
-                            class="text-2xl border rounded-2xl p-4 w-full mt-4 transition-all duration-200" 
+                            class="text-2.5xl border rounded-2xl p-4 w-full mt-4 transition-all duration-200" 
                             :class="{ 
                                 'border-red-500 focus:border-red-500 focus:shadow-focus-error': showTagLineError,
                                 'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !showTagLineError 
@@ -84,7 +84,7 @@
                             v-model="event.tag_line" 
                             @input="handleTagLineInput"
                             placeholder="Enter a catchy tagline"
-                            rows="2" 
+                            rows="4" 
                         />
 
                         <!-- Tag Line Character Count -->

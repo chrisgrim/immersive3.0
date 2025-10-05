@@ -115,7 +115,7 @@
           type="text"
           v-model="videoUrl"
           placeholder="Paste video URL here"
-          class="w-full p-4 pr-12 border border-neutral-300 rounded-xl transition-all duration-200 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black"
+          class="w-full text-2.5xl p-4 pr-12 border border-neutral-300 rounded-xl transition-all duration-200 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black"
           @input="handleVideoInput"
         />
         <div v-if="videoId" 

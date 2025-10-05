@@ -259,9 +259,16 @@
              class="overflow-x-auto flex scroll-p-10 lg:scroll-p-32 scrollbar-hide" 
              style="scroll-snap-type: x mandatory;">
             @foreach($elements as $element)
+                @php
+                    $elementUrl = $getElementUrl($element);
+                    $elementUrlAttrs = get_url_security_attributes($elementUrl);
+                @endphp
                 <div class="ml-10 first:ml-0 snap-start snap-always first:pl-10 last:pr-10 lg-air:first:pl-16 lg-air:last:pr-16 2xl-air:first:pl-32 2xl-air:last:pr-32">
-                    <a href="{{ $getElementUrl($element) }}" 
-                       class="block w-full pb-16">
+                    <a 
+                        href="{{ $elementUrl }}"
+                        @if($elementUrlAttrs['target']) target="{{ $elementUrlAttrs['target'] }}" @endif
+                        @if($elementUrlAttrs['rel']) rel="{{ $elementUrlAttrs['rel'] }}" @endif
+                        class="block w-full pb-16">
                         <div class="rounded-2xl overflow-hidden h-full border border-gray-300 w-[75vw] md:w-[25vw]">
                             <div class="w-full aspect-square">
                                 @php

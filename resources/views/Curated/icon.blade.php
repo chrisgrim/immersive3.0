@@ -225,10 +225,17 @@
         <div style="grid-template-columns: 1fr 1fr;" 
              class="w-full whitespace-nowrap overflow-visible my-8 grid md:flex gap-8">
             @foreach($elements as $element)
+                @php
+                    $elementUrl = $getElementUrl($element);
+                    $elementUrlAttrs = get_url_security_attributes($elementUrl);
+                @endphp
                 <div class="w-10/12 relative inline-block md:w-3/12">
                     <div class="w-[70vw] items-center relative flex md:w-full">
-                        <a href="{{ $getElementUrl($element) }}" 
-                           class="block h-full absolute left-0 top-0 w-full rounded-4 z-10">
+                        <a 
+                            href="{{ $elementUrl }}"
+                            @if($elementUrlAttrs['target']) target="{{ $elementUrlAttrs['target'] }}" @endif
+                            @if($elementUrlAttrs['rel']) rel="{{ $elementUrlAttrs['rel'] }}" @endif
+                            class="block h-full absolute left-0 top-0 w-full rounded-4 z-10">
                         </a>
                         
                         @include('curated.components.grid-image', [

@@ -60,7 +60,7 @@
                     <textarea 
                         v-model="event.location.hiddenLocation"
                         :class="[
-                            'text-2xl font-normal border rounded-2xl p-4 w-full transition-all duration-200',
+                            'text-2.5xl font-normal border rounded-2xl p-4 w-full transition-all duration-200',
                             {
                                 'border-red-500 focus:border-red-500 focus:shadow-focus-error': hiddenLocationError,
                                 'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !hiddenLocationError

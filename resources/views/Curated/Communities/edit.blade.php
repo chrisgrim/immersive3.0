@@ -7,7 +7,7 @@
 @section('nav')
 
     @if (Browser::isMobile())
-        <vue-nav-bar-mobile :user="user"></vue-nav-bar-mobile>
+    <!-- moved to vue file -->
     @else
         @include('nav.nav-full')
     @endif

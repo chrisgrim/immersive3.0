@@ -111,7 +111,7 @@
             <!-- Mobile Shelf Selection Modal -->
             <teleport to="body">
                 <div v-if="isOpen" 
-                     class="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50"
+                     class="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-[401]"
                      @click="isOpen = false">
                     <div class="bg-white w-full rounded-t-2xl p-8 max-h-[80vh] overflow-y-auto" 
                          @click.stop>

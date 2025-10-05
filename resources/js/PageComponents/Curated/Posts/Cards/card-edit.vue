@@ -145,7 +145,9 @@
                                     <!-- Read More Button -->
                                     <div>
                                         <a 
-                                            :href="hasUrl" 
+                                            :href="hasUrl"
+                                            :target="urlSecurity.target"
+                                            :rel="urlSecurity.rel"
                                             class="inline-block bg-black text-white px-8 py-4 rounded-2xl hover:bg-gray-800 transition-colors">
                                             {{ !card.button_text || card.button_text.trim() === '' ? 'Read More' : card.button_text }}
                                         </a>
@@ -379,8 +381,9 @@
                             <!-- Button (when URL exists) -->
                             <div v-if="card.url && !onEdit">
                                 <a 
-                                    :href="card.url" 
-                                    target="_blank"
+                                    :href="card.url"
+                                    :target="textCardUrlSecurity.target"
+                                    :rel="textCardUrlSecurity.rel"
                                     class="inline-block bg-black text-white px-8 py-4 rounded-2xl hover:bg-gray-800 transition-colors">
                                     {{ !card.button_text || card.button_text.trim() === '' ? 'Read More' : card.button_text }}
                                 </a>
@@ -426,6 +429,7 @@ import { required, maxLength } from '@vuelidate/validators'
 import moment from 'moment'
 import Tiptap from './Components/Tiptap.vue'
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue'
+import { useSecureUrl } from '@/composables/useSecureUrl'
 
 const props = defineProps({
     parentCard: {
@@ -526,6 +530,10 @@ const hasUrl = computed(() => {
     }
     return card.value?.url || ''
 })
+
+const urlSecurity = computed(() => useSecureUrl(hasUrl.value))
+
+const textCardUrlSecurity = computed(() => useSecureUrl(card.value?.url))
 
 // Methods
 const updateCard = async () => {

@@ -214,8 +214,6 @@ const saveCard = async () => {
     const isValid = await v$.value.$validate()
     if (!isValid) return
     
-    console.log('Sending card data:', card.value)
-    
     try {
         const formData = new FormData()
         formData.append('name', card.value.name || '')
@@ -237,7 +235,6 @@ const saveCard = async () => {
             `/communities/${props.community.slug}/posts/${props.post.slug}/cards`, 
             formData
         )
-        console.log('Response received:', res.data)
         emit('update', res.data)
     } catch (error) {
         console.error('Failed to save card:', error)
@@ -247,6 +244,4 @@ const saveCard = async () => {
 const cancelCard = () => {
     emit('cancel')
 }
-
-console.log('TextBlock initialized with position:', props.position)
 </script>

@@ -247,6 +247,96 @@ class ImageHandler
         }
     }
 
+    /**
+     * Duplicate images for a new model (used during event duplication)
+     */
+    public static function duplicateImages($originalModel, $newModel, $type)
+    {
+        if (!$originalModel->images()->exists()) {
+            return;
+        }
+
+        foreach ($originalModel->images as $originalImage) {
+            $modelId = uniqid();
+            $newSlug = $newModel->slug ?? Str::random(8);
+            $newDirectory = "$type-images/$newSlug";
+            $newFileName = "$newSlug-$modelId";
+            
+            try {
+                // Check if source files exist
+                $largeWebpExists = Storage::disk('digitalocean')->exists("/public/$originalImage->large_image_path");
+                $largeJpgPath = preg_replace('/\.webp$/', '.jpg', $originalImage->large_image_path);
+                $largeJpgExists = Storage::disk('digitalocean')->exists("/public/$largeJpgPath");
+                $thumbWebpExists = Storage::disk('digitalocean')->exists("/public/$originalImage->thumb_image_path");
+                $thumbJpgPath = preg_replace('/\.webp$/', '.jpg', $originalImage->thumb_image_path);
+                $thumbJpgExists = Storage::disk('digitalocean')->exists("/public/$thumbJpgPath");
+
+                // Log a warning if any source files are missing
+                if (!$largeWebpExists || !$largeJpgExists || !$thumbWebpExists || !$thumbJpgExists) {
+                    Log::warning("Some source files missing for original image {$originalImage->id} during duplication", [
+                        'largeWebp' => $largeWebpExists,
+                        'largeJpg' => $largeJpgExists, 
+                        'thumbWebp' => $thumbWebpExists,
+                        'thumbJpg' => $thumbJpgExists
+                    ]);
+                }
+
+                // Ensure destination directory exists
+                if (!Storage::disk('digitalocean')->exists("/public/$newDirectory")) {
+                    Storage::disk('digitalocean')->makeDirectory("/public/$newDirectory");
+                }
+                
+                // Copy files to new location
+                if ($largeWebpExists) {
+                    Storage::disk('digitalocean')->copy(
+                        "/public/$originalImage->large_image_path",
+                        "/public/$newDirectory/$newFileName.webp"
+                    );
+                }
+                
+                if ($largeJpgExists) {
+                    Storage::disk('digitalocean')->copy(
+                        "/public/$largeJpgPath",
+                        "/public/$newDirectory/$newFileName.jpg"
+                    );
+                }
+                
+                if ($thumbWebpExists) {
+                    Storage::disk('digitalocean')->copy(
+                        "/public/$originalImage->thumb_image_path",
+                        "/public/$newDirectory/$newFileName-thumb.webp"
+                    );
+                }
+                
+                if ($thumbJpgExists) {
+                    Storage::disk('digitalocean')->copy(
+                        "/public/$thumbJpgPath",
+                        "/public/$newDirectory/$newFileName-thumb.jpg"
+                    );
+                }
+
+                // Create new image record for the duplicated model
+                $newImage = $newModel->images()->create([
+                    'large_image_path' => "$newDirectory/$newFileName.webp",
+                    'thumb_image_path' => "$newDirectory/$newFileName-thumb.webp",
+                    'rank' => $originalImage->rank
+                ]);
+
+                // Update model image columns if this is the primary image (rank 0)
+                $table = $newModel->getTable();
+                $hasImageColumns = \Schema::hasColumns($table, ['largeImagePath', 'thumbImagePath']);
+                if ($hasImageColumns && $originalImage->rank === 0) {
+                    $newModel->largeImagePath = "$newDirectory/$newFileName.webp";
+                    $newModel->thumbImagePath = "$newDirectory/$newFileName-thumb.webp";
+                    $newModel->save();
+                }
+                
+            } catch (\Exception $e) {
+                Log::error("Failed to duplicate image {$originalImage->id}: " . $e->getMessage());
+            }
+        }
+    }
+
     public static function moveImagesForNewSlug($model, $oldSlug, $newSlug, $type)
     {
 

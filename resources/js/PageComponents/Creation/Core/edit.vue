@@ -2,7 +2,7 @@
     <div class="relative text-1xl font-medium w-full h-[calc(100vh-8rem)] flex flex-col">
 
         <!-- Main Content Area with separate scrolling -->
-        <div class="flex-1 flex h-full">
+        <div class="flex-1 md:flex h-full">
             <div class="mx-auto flex flex-1 flex-col md:flex-row">
                 <!-- Navigation Sidebar with own scroll -->
                 <div 
@@ -22,7 +22,7 @@
 
                 <!-- Main Content Column -->
                 <div 
-                    class="flex-1 flex-col h-full w-full md:w-auto transition-all duration-300"
+                    class="md:flex-1 flex-col md:h-full w-full md:w-auto transition-all duration-300"
                     :class="[
                         currentSection ? 'flex' : 'hidden md:flex',
                         { 'md:!w-full': isSidebarHidden && currentStep === 'Dates' }
@@ -56,8 +56,11 @@
                     <!-- Scrollable Component Area -->
                     <div class="flex-1 overflow-y-auto relative" ref="containerRef">
                         <div 
-                            class="w-full xl:w-2/3 mx-auto"
-                            :class="currentSection ? 'pt-4 md:pt-40 md:pb-40' : 'pt-20 md:pt-40 md:pb-40'">
+                            class="mx-auto"
+                            :class="[
+                                currentStep === 'Dates' && isSidebarHidden ? 'w-full' : 'w-full xl:w-2/3',
+                                currentSection ? 'pt-4 md:pt-40 pb-40 md:pb-40' : 'pt-20 md:pt-40 pb-40 md:pb-40'
+                            ]">
                             <div class="p-8">
                                 <component 
                                     :is="currentComponent" 
@@ -69,8 +72,8 @@
                     </div>
                     
                     <!-- Fixed Footer -->
-                    <div class="flex border-t border-gray-200 bg-white h-32 justify-end items-center">
-                        <div class="px-8 py-6 flex gap-4">
+                    <div class="fixed md:relative bottom-0 left-0 right-0 w-full flex border-t border-gray-200 bg-white h-32 justify-end items-center z-[400]">
+                        <div class="px-8 py-6 flex gap-4 w-full justify-end">
 
                             <!-- Update button -->
                             <button 
@@ -209,6 +212,12 @@
                 </div>
             </div>
         </Teleport>
+
+        <!-- Mobile Bottom Navigation - Only show on mobile when sidebar is visible -->
+        <NavBarMobile 
+            v-if="isMobile && !currentSection" 
+            :user="user" 
+        />
     </div>
 </template>
 
@@ -229,6 +238,7 @@ import Advisories from './Pages/advisories.vue';
 import Content from './Pages/Advisories/content.vue';
 import Mobility from './Pages/Advisories/mobility.vue';
 import Review from './Pages/review.vue';
+import NavBarMobile from '../../Nav/nav-bar-mobile.vue';
 
 const props = defineProps({
     event: {
@@ -401,8 +411,9 @@ const toggleSidebar = () => {
     setTimeout(updateContainerWidth, 300);
 };
 
-// Provide container width to child components
+// Provide container width and sidebar state to child components
 provide('parentContainerWidth', containerWidth);
+provide('isSidebarCollapsed', isSidebarHidden);
 
 // Event listener for sidebar toggle
 onMounted(() => {
