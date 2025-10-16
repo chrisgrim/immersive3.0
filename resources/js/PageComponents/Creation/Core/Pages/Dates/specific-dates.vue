@@ -67,7 +67,7 @@
                 </div>
                 <div class="w-full h-full overflow-x-hidden md:pb-20">
                     <!-- Admin controls -->
-                    <div v-if="false" class="flex items-center justify-center gap-4 py-8">
+                    <div v-if="isAdmin" class="flex items-center justify-center gap-4 py-8">
                         <button 
                             @click="showPreviousMonths"
                             class="text-black underline font-semibold hover:text-gray-600"
@@ -285,6 +285,13 @@ import '@vuepic/vue-datepicker/dist/main.css';
 import { maxLength } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
+import moment from 'moment-timezone';
+import { 
+    normalizeDateToTimezone,
+    createDateAtNoon,
+    formatDateForAPI,
+    parseDateString
+} from '@/composables/dateUtils';
 
 // Props and emits
 const props = defineProps({
@@ -339,6 +346,7 @@ const isDesktop = computed(() => windowWidth.value >= 768);
 const initialMonthsToShow = computed(() => isDesktop.value ? 6 : 3);
 const isAdmin = computed(() => user && (user.isAdmin || false));
 const selectedDatesCount = computed(() => selectedDates.value.length);
+const selectedTimezone = computed(() => props.selectedTimezone);
 
 const minDate = computed(() => {
     // Admins can select past dates (up to 1 year ago)
@@ -435,14 +443,8 @@ const checkFutureDates = (dateStr) => {
 };
 
 const onDateSelect = (dates) => {
-    // Create a more robust comparison by normalizing dates to just the date string
-    const normalizeDate = (d) => {
-        const date = new Date(d);
-        date.setHours(12, 0, 0, 0); // Always set to noon to avoid timezone issues
-        return date.toISOString().split('T')[0];
-    };
-    
-    const newSelectedDates = dates.map(normalizeDate);
+    // Normalize all dates to YYYY-MM-DD format in the selected timezone
+    const newSelectedDates = dates.map(d => normalizeDateToTimezone(d, selectedTimezone.value));
     const previousSelectedDates = [...selectedDates.value]; // Create a copy for comparison
 
     // Only find truly new or removed dates by comparing the normalized date strings
@@ -466,10 +468,12 @@ const onDateSelect = (dates) => {
 
     if (addedDate || removedDate) {
         const dateToCheck = addedDate || removedDate;
-        // Parse date string as local date to avoid timezone shift
-        const [year, month, day] = dateToCheck.split('-');
-        const dateObj = new Date(year, month - 1, day, 12, 0, 0); // Set to noon in local timezone
-        const weekday = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+        // Parse date in the selected timezone
+        const dateObj = parseDateString(dateToCheck, selectedTimezone.value);
+        const weekday = dateObj.toLocaleDateString('en-US', { 
+            weekday: 'long',
+            timeZone: selectedTimezone.value 
+        });
         const futureDatesExist = checkFutureDates(dateToCheck);
 
         if (addedDate) {
@@ -484,16 +488,15 @@ const onDateSelect = (dates) => {
 };
 
 // Weekly events management
-const createWeeklyEvents = async (startDateStr) => {
-    const { default: moment } = await import('moment-timezone');
+const createWeeklyEvents = (startDateStr) => {
     const timezone = localTimezone.value;
-    const startDate = moment.tz(startDateStr + 'T12:00:00', timezone);
+    const startDate = moment.tz(startDateStr, timezone).hour(12);
     const targetDay = startDate.day();
     const currentDate = moment().tz(timezone);
     
     // For admins, use the full range of displayed months; for regular users, stick to 6 months
     const maxMonths = isAdmin.value ? Math.max(displayedMonths.value, 6) : 6;
-    const maxDateRange = moment().tz(timezone).add(maxMonths * 30, 'days'); // Approximate month calculation
+    const maxDateRange = moment().tz(timezone).add(maxMonths, 'months').endOf('day');
     
     const newDates = [...date.value];
     
@@ -501,11 +504,12 @@ const createWeeklyEvents = async (startDateStr) => {
     let nextDate = startDate.clone();
     
     // Keep adding weekly occurrences until we reach the maximum range
-    while (nextDate.isBefore(maxDateRange)) {
-        const dateObj = nextDate.clone().hours(12).minutes(0).seconds(0).toDate();
+    while (nextDate.isSameOrBefore(maxDateRange)) {
+        const dateStr = nextDate.format('YYYY-MM-DD');
+        const dateObj = createDateAtNoon(dateStr, timezone);
         
         // Only add the date if it's not already selected
-        if (!date.value.some(d => moment(d).isSame(dateObj, 'day'))) {
+        if (!selectedDates.value.includes(dateStr)) {
             newDates.push(dateObj);
         }
         
@@ -514,43 +518,35 @@ const createWeeklyEvents = async (startDateStr) => {
     }
     
     date.value = newDates;
-    selectedDates.value = newDates.map(d => {
-        const date = new Date(d);
-        date.setHours(12, 0, 0, 0);
-        return date.toISOString().split('T')[0];
-    });
+    selectedDates.value = newDates.map(d => normalizeDateToTimezone(d, timezone));
 
     // Emit the updated dates to parent
     emit('dates-updated', selectedDates.value);
 };
 
-const removeWeeklyEvents = async (startDateStr) => {
-    const { default: moment } = await import('moment-timezone');
+const removeWeeklyEvents = (startDateStr) => {
     const timezone = localTimezone.value;
-    const startDate = moment.tz(startDateStr + 'T12:00:00', timezone);
+    const startDate = moment.tz(startDateStr, timezone).hour(12);
     const startDay = startDate.day();
     
     // For admins, use the full range of displayed months; for regular users, stick to 6 months
     const maxMonths = isAdmin.value ? Math.max(displayedMonths.value, 6) : 6;
-    const maxDateRange = moment().tz(timezone).add(maxMonths * 30, 'days'); // Approximate month calculation
+    const maxDateRange = moment().tz(timezone).add(maxMonths, 'months').endOf('day');
 
     // Keep dates that are either:
     // 1. Not on the same day of week as the selected date, or
     // 2. Not after the selected date, or
     // 3. Beyond the maximum date range
     const newDates = date.value.filter(d => {
-        const dateObj = moment(d).tz(timezone).hours(12);
+        const dateStr = normalizeDateToTimezone(d, timezone);
+        const dateObj = moment.tz(dateStr, timezone).hour(12);
         return dateObj.day() !== startDay || 
                !dateObj.isAfter(startDate) || 
                dateObj.isAfter(maxDateRange);
     });
 
     date.value = newDates;
-    selectedDates.value = newDates.map(d => {
-        const date = new Date(d);
-        date.setHours(12, 0, 0, 0);
-        return date.toISOString().split('T')[0];
-    });
+    selectedDates.value = newDates.map(d => normalizeDateToTimezone(d, timezone));
 
     // Emit the updated dates to parent
     emit('dates-updated', selectedDates.value);
@@ -564,11 +560,11 @@ const showPrompt = (action, message, date) => {
     selectedDate.value = date;
 };
 
-const handlePromptYes = async () => {
+const handlePromptYes = () => {
     if (promptAction.value === 'selectWeekly') {
-        await createWeeklyEvents(selectedDate.value);
+        createWeeklyEvents(selectedDate.value);
     } else if (promptAction.value === 'removeFuture') {
-        await removeWeeklyEvents(selectedDate.value);
+        removeWeeklyEvents(selectedDate.value);
     }
     promptVisible.value = false;
     promptAction.value = null;
@@ -782,8 +778,7 @@ const updateMonthYearElements = () => {
 };
 
 // Initialize timezones
-const initializeTimezones = async () => {
-    const { default: moment } = await import('moment-timezone');
+const initializeTimezones = () => {
     timezones.value = moment.tz.names().map(name => ({ name }));
 };
 
@@ -812,19 +807,13 @@ defineExpose({
     setDates: (dates) => {
         if (dates && dates.length > 0) {
             const showDates = dates.map(dateStr => {
-                // Parse date string as local date to avoid timezone shifts
-                const [year, month, day] = dateStr.split('-');
-                const date = new Date(year, month - 1, day, 12, 0, 0);
-                return date;
+                return createDateAtNoon(dateStr, selectedTimezone.value);
             });
             
             date.value = showDates;
-            selectedDates.value = showDates.map(d => {
-                const year = d.getFullYear();
-                const month = String(d.getMonth() + 1).padStart(2, '0');
-                const day = String(d.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            });
+            selectedDates.value = showDates.map(d => 
+                normalizeDateToTimezone(d, selectedTimezone.value)
+            );
             
             // Emit the updated dates to parent so state is synced
             emit('dates-updated', selectedDates.value);

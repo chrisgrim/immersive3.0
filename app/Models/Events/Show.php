@@ -101,8 +101,9 @@ class Show extends Model
 
     private static function createOrUpdateShow($date, $eventId, $oldTickets)
     {
-        // Format the date to match the datetime column in Laravel
-        $formattedDate = \Carbon\Carbon::parse($date)->format('Y-m-d H:i:s');
+        // Date arrives from frontend as UTC timestamp in 'Y-m-d H:i:s' format
+        // Parse it as UTC to preserve the exact date selected by the user
+        $formattedDate = \Carbon\Carbon::parse($date, 'UTC')->format('Y-m-d H:i:s');
 
         $show = self::updateOrCreate([
             'date' => $formattedDate,
@@ -173,29 +174,34 @@ class Show extends Model
 
     private static function calculateLastDate(Event $event, string $type, $request = null): string
     {
+        // Get the event's timezone, default to UTC
+        $timezone = $request->timezone ?? $event->timezone ?? 'UTC';
+        
         if ($type === 'a') {
             // For 'always available' shows, check if there's a specific end date in the configuration
             if ($request && isset($request->always_config) && $request->always_config['endDate']) {
-                return Carbon::parse($request->always_config['endDate'])->endOfDay()->format('Y-m-d H:i:s');
+                // Parse in UTC (frontend already converted)
+                return Carbon::parse($request->always_config['endDate'], 'UTC')->endOfDay()->format('Y-m-d H:i:s');
             }
             
-            // Default for always shows: 6 months from now
-            return Carbon::now()->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
+            // Default for always shows: 6 months from now in the event's timezone
+            return Carbon::now($timezone)->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
         }
         
         if ($type === 'l') {
             // For 'limited availability' shows
-            return Carbon::now()->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
+            return Carbon::now($timezone)->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
         }
         
         if ($type === 'o') {
             // For ongoing shows, check if there's a specific end date in the configuration
             if ($request && isset($request->ongoing_config) && $request->ongoing_config['endDate']) {
-                return Carbon::parse($request->ongoing_config['endDate'])->endOfDay()->format('Y-m-d H:i:s');
+                // Parse in UTC (frontend already converted)
+                return Carbon::parse($request->ongoing_config['endDate'], 'UTC')->endOfDay()->format('Y-m-d H:i:s');
             }
             
-            // Default for ongoing shows: 6 months from now
-            return Carbon::now()->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
+            // Default for ongoing shows: 6 months from now in the event's timezone
+            return Carbon::now($timezone)->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
         }
         
         // For single shows, get the last date from shows
@@ -205,9 +211,9 @@ class Show extends Model
         
         // If we have a last show, use end of day for that date; otherwise use current date
         if ($lastShow) {
-            return Carbon::parse($lastShow->date)->endOfDay()->format('Y-m-d H:i:s');
+            return Carbon::parse($lastShow->date, 'UTC')->endOfDay()->format('Y-m-d H:i:s');
         }
         
-        return Carbon::now()->endOfDay()->format('Y-m-d H:i:s');
+        return Carbon::now($timezone)->endOfDay()->format('Y-m-d H:i:s');
     }
 }

@@ -57,7 +57,7 @@
                     <textarea 
                         v-model="event.advisories.sexualDescription"
                         @input="handleDescriptionInput"
-                        class="w-full p-4 text-1xl border border-neutral-300 rounded-2xl relative outline-none transition-all duration-200 hover:border-[#222222]"
+                        class="w-full p-4 text-2.5xl md:text-1xl border border-neutral-300 rounded-2xl relative outline-none transition-all duration-200 hover:border-[#222222]"
                         :class="{ 
                             'border-red-500 focus:border-red-500 focus:shadow-focus-error': showDescriptionError,
                             'focus:border-[#222222] focus:shadow-focus-black': !showDescriptionError 

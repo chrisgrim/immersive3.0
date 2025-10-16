@@ -250,7 +250,7 @@
     {{-- Navigation Icons --}}
     <div class="absolute top-4 left-4 right-4 flex justify-between">
         <button 
-            onclick="window.history.back()"
+            onclick="if (window.history.length > 1) { window.history.back(); } else { window.location.href = '/'; }"
             class="w-20 h-20 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg"
             aria-label="Go back"
         >

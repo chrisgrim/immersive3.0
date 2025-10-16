@@ -437,6 +437,16 @@ import '@vuepic/vue-datepicker/dist/main.css';
 import { required } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
+import moment from 'moment-timezone';
+import { 
+    generateRecurringDates,
+    formatDateForDisplay,
+    addMonths,
+    parseDateString,
+    createDateAtNoon,
+    getBrowserTimezone,
+    daysBetween
+} from '@/composables/dateUtils';
 
 // Props and emits
 const props = defineProps({
@@ -541,74 +551,60 @@ const $v = useVuelidate(rules, { selectedDays });
 const calculatedStartDate = computed(() => {
     if (selectedDays.value.length === 0) return null;
     
-    const today = new Date();
-    const nextWeek = new Date(today);
-    nextWeek.setDate(today.getDate() + 7);
+    const timezone = selectedTimezone.value;
+    const today = moment.tz(timezone);
     
     // Find the next occurrence of the first selected day
     const firstSelectedDay = Math.min(...selectedDays.value);
     
+    let checkDate = today.clone();
     for (let i = 0; i < 7; i++) {
-        const checkDate = new Date(today);
-        checkDate.setDate(today.getDate() + i);
-        
-        if (checkDate.getDay() === firstSelectedDay) {
+        if (checkDate.day() === firstSelectedDay) {
             // If it's today, start from next week to give time to set up
             if (i === 0) {
-                checkDate.setDate(checkDate.getDate() + 7);
+                checkDate.add(7, 'days');
             }
-            return checkDate;
+            return checkDate.toDate();
         }
+        checkDate.add(1, 'day');
     }
     
-    return nextWeek;
+    return today.add(7, 'days').toDate();
 });
 
 const effectiveStartDate = computed(() => {
     return customStartDate.value || calculatedStartDate.value;
 });
 
-const generatedDates = computed(() => {
+// Generate date strings in YYYY-MM-DD format
+const generatedDateStrings = computed(() => {
     if (selectedDays.value.length === 0 || !effectiveStartDate.value) {
         return [];
     }
     
-    const dates = [];
-    const startDate = new Date(effectiveStartDate.value);
+    const timezone = selectedTimezone.value;
     
-    // Use endDate if set, otherwise default to 6 months from now (proper calendar calculation)
+    // Use endDate if set, otherwise default to 6 months from now
     const maxDate = endDate.value 
-        ? new Date(endDate.value)
-        : (() => {
-            const sixMonthsFromNow = new Date();
-            sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
-            sixMonthsFromNow.setHours(23, 59, 59, 999); // End of day
-            console.log('Frontend 6-month calculation:', sixMonthsFromNow);
-            console.log('vs event.closingDate:', event.closingDate);
-            return sixMonthsFromNow;
-        })();
+        ? endDate.value
+        : addMonths(new Date(), 6, timezone);
     
-    // Generate dates for each selected day of the week
-    for (const dayIndex of selectedDays.value) {
-        let currentDate = new Date(startDate);
-        
-        // Find the first occurrence of this day from the start date
-        while (currentDate.getDay() !== dayIndex) {
-            currentDate.setDate(currentDate.getDate() + 1);
-        }
-        
-        // Generate weekly occurrences
-        while (currentDate <= maxDate) {
-            dates.push(new Date(currentDate));
-            currentDate.setDate(currentDate.getDate() + 7);
-        }
-    }
-    
-    // Sort dates chronologically
-    return dates.sort((a, b) => a - b);
+    // Use the centralized date utility for generating recurring dates
+    return generateRecurringDates(
+        selectedDays.value,
+        effectiveStartDate.value,
+        maxDate,
+        timezone
+    );
 });
 
-const selectedDatesCount = computed(() => generatedDates.value.length);
+// For internal display, convert to Date objects
+const generatedDates = computed(() => {
+    const timezone = selectedTimezone.value;
+    return generatedDateStrings.value.map(dateStr => createDateAtNoon(dateStr, timezone));
+});
+
+const selectedDatesCount = computed(() => generatedDateStrings.value.length);
 
 // Methods
 const toggleDay = (dayIndex) => {
@@ -633,12 +629,7 @@ const getSelectedDaysText = () => {
 
 const formatDate = (date) => {
     if (!date) return '';
-    return new Date(date).toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
+    return formatDateForDisplay(date, selectedTimezone.value);
 };
 
 const formatDateWithDay = (date) => {
@@ -652,15 +643,7 @@ const formatDateWithDay = (date) => {
 };
 
 const extendToSixMonths = () => {
-    const sixMonthsFromNow = new Date();
-    sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
-    sixMonthsFromNow.setHours(23, 59, 59, 999); // Set to end of day
-    endDate.value = sixMonthsFromNow;
-    
-    console.log('Extended to 6 months:', {
-        newEndDate: endDate.value,
-        formattedForDisplay: formatDate(endDate.value)
-    });
+    endDate.value = addMonths(new Date(), 6, selectedTimezone.value);
 };
 
 // Start date modal methods
@@ -680,8 +663,7 @@ const selectStartDate = (selectedDate) => {
 
 const confirmStartDate = () => {
     if (tempStartDate.value) {
-        const d = new Date(tempStartDate.value);
-        customStartDate.value = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+        customStartDate.value = createDateAtNoon(tempStartDate.value, selectedTimezone.value);
         showStartDateModal.value = false;
         tempStartDate.value = null;
     }
@@ -709,16 +691,9 @@ const selectEndDate = (selectedDate) => {
 
 const confirmEndDate = () => {
     if (tempEndDate.value) {
-        // Ensure we preserve the date without timezone conversion
-        const d = new Date(tempEndDate.value);
-        endDate.value = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+        endDate.value = createDateAtNoon(tempEndDate.value, selectedTimezone.value);
         showEndDateModal.value = false;
         tempEndDate.value = null;
-        
-        console.log('End date confirmed:', {
-            finalEndDate: endDate.value,
-            formattedForDisplay: formatDate(endDate.value)
-        });
     }
 };
 
@@ -769,8 +744,8 @@ const cancelEmbargoDate = () => {
     showEmbargoModal.value = false;
 };
 
-// Watch for changes and emit generated dates
-watch(generatedDates, (newDates) => {
+// Watch for changes and emit generated dates as strings
+watch(generatedDateStrings, (newDates) => {
     emit('dates-generated', newDates);
 }, { deep: true });
 
@@ -780,8 +755,7 @@ watch(localTimezone, (newTimezone) => {
 });
 
 // Initialize timezones
-const initializeTimezones = async () => {
-    const { default: moment } = await import('moment-timezone');
+const initializeTimezones = () => {
     timezones.value = moment.tz.names().map(name => ({ name }));
 };
 
@@ -801,7 +775,7 @@ watch(hasEmbargoDate, (newValue) => {
 defineExpose({
     isValid: async () => {
         await $v.value.$validate();
-        const isValid = !$v.value.$error && generatedDates.value.length > 0;
+        const isValid = !$v.value.$error && generatedDateStrings.value.length > 0;
         
         if (!isValid) {
             errors.value = { 
@@ -815,11 +789,8 @@ defineExpose({
     },
     
     getDates: () => {
-        return generatedDates.value.map(date => {
-            const d = new Date(date);
-            d.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
-            return d.toISOString().split('T')[0]; // Return as YYYY-MM-DD
-        });
+        // Return dates as YYYY-MM-DD strings
+        return generatedDateStrings.value;
     },
     
     getConfiguration: () => {
@@ -833,12 +804,10 @@ defineExpose({
     setConfiguration: (config) => {
         if (config.selectedDays) selectedDays.value = config.selectedDays;
         if (config.startDate) {
-            const d = new Date(config.startDate);
-            customStartDate.value = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+            customStartDate.value = createDateAtNoon(config.startDate, selectedTimezone.value);
         }
         if (config.endDate) {
-            const d = new Date(config.endDate);
-            endDate.value = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+            endDate.value = createDateAtNoon(config.endDate, selectedTimezone.value);
         }
     },
     

@@ -120,6 +120,11 @@ import useVuelidate from '@vuelidate/core';
 import OngoingDates from './Dates/ongoing-dates.vue';
 import SpecificDates from './Dates/specific-dates.vue';
 import AlwaysDates from './Dates/always-dates.vue';
+import { 
+    parseDateString, 
+    formatDateForAPI, 
+    getBrowserTimezone 
+} from '@/composables/dateUtils';
 
 const emit = defineEmits(['toggle-sidebar']);
 
@@ -154,7 +159,7 @@ const alwaysDatesState = ref({
 });
 
 // 5. Core State
-const selectedTimezone = ref(Intl.DateTimeFormat().resolvedOptions().timeZone);
+const selectedTimezone = ref(getBrowserTimezone());
 const isSidebarHidden = ref(false);
 
 // 6. Validation Rules
@@ -226,9 +231,7 @@ const setSpecificDates = () => {
     // Restore specific dates state
     selectedDates.value = [...specificDatesState.value];
     date.value = specificDatesState.value.map(dateStr => {
-        const d = new Date(dateStr);
-        d.setHours(12, 0, 0, 0);
-        return d;
+        return parseDateString(dateStr, selectedTimezone.value);
     });
     
     // Set the specific dates in the component when it's ready
@@ -307,18 +310,12 @@ const setAlwaysDates = () => {
 };
 
 const handleOngoingDatesGenerated = (dates) => {
-    // Convert Date objects to the format expected by the rest of the component
-    selectedDates.value = dates.map(date => {
-        const d = new Date(date);
-        d.setHours(12, 0, 0, 0);
-        return d.toISOString().split('T')[0];
-    });
+    // Dates come from ongoing-dates component as YYYY-MM-DD strings
+    selectedDates.value = dates;
     
     // Update the VueDatePicker date array
-    date.value = dates.map(date => {
-        const d = new Date(date);
-        d.setHours(12, 0, 0, 0);
-        return d;
+    date.value = dates.map(dateStr => {
+        return parseDateString(dateStr, selectedTimezone.value);
     });
 };
 
@@ -348,9 +345,7 @@ const handleSpecificDatesUpdated = (dates) => {
     
     // Update the VueDatePicker date array for consistency
     date.value = dates.map(dateStr => {
-        const d = new Date(dateStr);
-        d.setHours(12, 0, 0, 0);
-        return d;
+        return parseDateString(dateStr, selectedTimezone.value);
     });
 };
 
@@ -389,23 +384,23 @@ defineExpose({
         // Get dates based on the showtype
         if (event.showtype === 'o' && ongoingDatesRef.value) {
             const ongoingDates = ongoingDatesRef.value.getDates();
-            formattedDates = ongoingDates.map(date => 
-                new Date(date).toISOString().slice(0, 19).replace('T', ' ')
+            formattedDates = ongoingDates.map(dateStr => 
+                formatDateForAPI(dateStr, selectedTimezone.value)
             );
         } else if (event.showtype === 'a' && alwaysDatesRef.value) {
             const alwaysDates = alwaysDatesRef.value.getDates();
-            formattedDates = alwaysDates.map(date => 
-                new Date(date).toISOString().slice(0, 19).replace('T', ' ')
+            formattedDates = alwaysDates.map(dateStr => 
+                formatDateForAPI(dateStr, selectedTimezone.value)
             );
         } else if (event.showtype === 's' && specificDatesRef.value) {
             const specificDates = specificDatesRef.value.getDates();
-            formattedDates = specificDates.map(date => 
-                new Date(date).toISOString().slice(0, 19).replace('T', ' ')
+            formattedDates = specificDates.map(dateStr => 
+                formatDateForAPI(dateStr, selectedTimezone.value)
             );
         } else {
             // Fallback to the internal selectedDates
-            formattedDates = selectedDates.value.map(date => 
-                new Date(date).toISOString().slice(0, 19).replace('T', ' ')
+            formattedDates = selectedDates.value.map(dateStr => 
+                formatDateForAPI(dateStr, selectedTimezone.value)
             );
         }
         
@@ -421,14 +416,7 @@ defineExpose({
         if (event.showtype === 'o' && ongoingDatesRef.value) {
             const config = ongoingDatesRef.value.getConfiguration();
             data.ongoing_config = {
-                endDate: config.endDate ? (() => {
-                    const date = new Date(config.endDate);
-                    // Format as YYYY-MM-DD HH:MM:SS in local timezone to avoid UTC conversion
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    return `${year}-${month}-${day} 23:59:59`;
-                })() : null
+                endDate: config.endDate ? formatDateForAPI(config.endDate, selectedTimezone.value) : null
             };
         }
         
@@ -436,14 +424,7 @@ defineExpose({
         if (event.showtype === 'a' && alwaysDatesRef.value) {
             const config = alwaysDatesRef.value.getConfiguration();
             data.always_config = {
-                endDate: config.endDate ? (() => {
-                    const date = new Date(config.endDate);
-                    // Format as YYYY-MM-DD HH:MM:SS in local timezone to avoid UTC conversion
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    return `${year}-${month}-${day} 23:59:59`;
-                })() : null
+                endDate: config.endDate ? formatDateForAPI(config.endDate, selectedTimezone.value) : null
             };
         }
         
@@ -469,14 +450,14 @@ onMounted(() => {
             event.showtype = 's';
         }
         
+        // Parse dates from database (stored in UTC) back to display timezone
         const showDates = event.shows.map(show => {
-            const date = new Date(show.date);
-            date.setHours(12, 0, 0, 0);
-            return date;
+            // show.date is in UTC from database, parse it in the event's timezone
+            return parseDateString(show.date.split(' ')[0], selectedTimezone.value);
         });
         
         date.value = showDates;
-        selectedDates.value = showDates.map(d => d.toISOString().split('T')[0]);
+        selectedDates.value = event.shows.map(show => show.date.split(' ')[0]);
         
         // Initialize state for specific dates mode
         if (event.showtype === 's') {

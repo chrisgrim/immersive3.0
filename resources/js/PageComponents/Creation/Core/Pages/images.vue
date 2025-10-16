@@ -122,8 +122,8 @@
 
     <!-- Teleport the cropper to body for fullscreen -->
     <teleport to="body">
-        <div v-if="showCropper" class="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
-            <div class="w-full max-w-4xl h-[80vh] relative">
+        <div v-if="showCropper" class="fixed inset-0 z-[1000] bg-black/90 flex flex-col items-center justify-center p-4">
+            <div class="w-full max-w-4xl h-[65vh] md:h-[80vh] relative">
                 <Cropper
                     ref="cropperRef"
                     class="h-full w-full"
@@ -154,7 +154,7 @@
                     </button>
                 </div>
                 
-                <div class="mt-6 flex justify-center gap-4">
+                <div class="mt-3 md:mt-6 flex justify-center gap-4">
                     <button 
                         @click="cancelCrop"
                         class="px-6 py-3 border border-white text-white rounded-lg hover:bg-white/10 transition-colors duration-200"

@@ -1,6 +1,6 @@
 <template>
 	<div class="flex justify-center md:justify-end">
-		<div class="px-8 lg-air:px-16 2xl-air:px-32 w-full max-w-screen-5xl mt-20">
+		<div class="px-8 lg-air:px-16 2xl-air:px-32 w-full max-w-screen-5xl mt-8 md:mt-20 pb-40 md:pb-0">
 			<!-- Header Section -->
 			<div class="w-full flex flex-col">
 				<!-- Organizer Name and Create Button -->
@@ -9,20 +9,20 @@
 						<a :href="`/organizers/${organizer.slug}`" class="group flex flex-row items-center gap-8">
 							<div class="flex gap-4">
 								<a :href="`/organizers/${organizer.slug}/edit`" class="cursor-pointer">
-									<div class="rounded-full bg-gray-100 w-16 h-16 flex items-center justify-center hover:bg-gray-200">
+									<div class="rounded-full bg-gray-100 w-20 h-20 md:w-16 md:h-16 flex items-center justify-center hover:bg-gray-200">
 										<svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
 										</svg>
 									</div>
 								</a>
 							</div>			
-							<h2 class="text-3xl md:text-5xl font-medium group-hover:underline break-words hyphens-auto leading-tight">{{organizer.name}}</h2>
+							<h2 class="text-4xl md:text-5xl font-medium group-hover:underline break-words hyphens-auto leading-tight">{{organizer.name}}</h2>
 						</a>
 						
 						<!-- Switch Organization Link -->
 						<a v-if="user.hasCreatedOrganizers" 
 						   href="/teams" 
-						   class="text-xl mt-4 text-gray-500 hover:text-black ml-28 md:ml-28">
+						   class="text-xl md:mt-4 text-gray-500 hover:text-black ml-28 md:ml-28">
 						   Switch Organization
 						</a>
 					</div>
@@ -52,16 +52,16 @@
 
 				<!-- Mobile dropdown -->
 				<div class="flex justify-between items-center md:hidden mb-16">
-					<h3 class="text-5xl leading-tight">Your <br>Listings</h3>
+					<h3 class="text-4xl md:text-5xl font-black leading-tight">Your Listings</h3>
 					<div class="flex gap-4">
 						<div @click="createNewEvent" class="cursor-pointer flex">
-							<div class="rounded-full bg-gray-100 flex items-center h-16 justify-center text-4xl font-light hover:bg-gray-200">
-								<div class="px-6 text-lg font-medium flex flex-row items-center gap-2"><span class="text-4xl">+</span> Add Event</div>
+							<div class="rounded-full bg-gray-100 flex items-center w-16 h-16 md:w-auto justify-center text-4xl font-light hover:bg-gray-200">
+								<div class="px-0 md:px-6 text-1xl font-medium flex flex-row items-center gap-2"><span class="text-4xl">+</span> <span class="hidden md:inline">Add Event</span></div>
 							</div>
 						</div>
 						<div @click="isOpen = !isOpen" class="cursor-pointer flex">
-							<div class="rounded-full bg-gray-100 w-16 h-16 flex items-center justify-center hover:bg-gray-200">
-								<svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<div class="rounded-full bg-gray-100 w-16 h-16 md:w-12 md:h-12 flex items-center justify-center hover:bg-gray-200">
+								<svg class="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 									<path d="M3 6h18M3 12h18M3 18h18" stroke-linecap="round" stroke-linejoin="round"/>
 								</svg>
 							</div>
@@ -157,7 +157,7 @@
 						</div>
 						<div class="">
 							<div class="flex items-center gap-2">
-								<p class="text-2xl font-medium break-words hyphens-auto">{{ event.name }}</p>
+								<p class="text-3xl md:text-2xl font-medium break-words hyphens-auto">{{ event.name }}</p>
 								<svg v-if="event.status === 'r'" 
 									 class="h-5 w-5 text-gray-500" 
 									 fill="none" 
@@ -169,7 +169,11 @@
 										  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
 								</svg>
 							</div>
-							<p class="text-md leading-4 text-gray-500">last edited: {{ cleanDate(event.updated_at) }}</p>
+							<p class="text-lg md:text-md leading-4 text-gray-500">last edited: {{ cleanDate(event.updated_at) }}</p>
+							<div class="flex md:hidden flex-row items-center mt-2">
+								<div :class="getStatusInfo(event, cleanDate).color" class="w-4 h-4 rounded-full"></div>
+								<p class="text-lg font-medium text-gray-500 ml-4">{{ getStatusInfo(event, cleanDate).progress }}</p>
+							</div>
 						</div>
 						<div class="hidden md:flex flex-row items-center">
 							<div :class="getStatusInfo(event, cleanDate).color" class="w-4 h-4 rounded-full"></div>

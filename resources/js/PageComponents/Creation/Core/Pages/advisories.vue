@@ -8,7 +8,7 @@
                 <div class="w-full">
                     <h4 class="mb-8">Audience Contact Level</h4>
                     <div v-if="!selectedContact" class="flex flex-col w-full">
-                        <div class="grid grid-cols-3 gap-4">
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
                             <div 
                                 v-for="contact in contactLevelList" 
                                 :key="contact.id" 
@@ -16,14 +16,14 @@
                                 class="relative cursor-pointer items-end flex justify-between p-8 h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
                             >
                                 <div class="w-full">
-                                    <p class="text-2xl leading-tight">{{ contact.name }}</p>
+                                    <p class="text-2xl leading-tight break-words hyphens-auto">{{ contact.name }}</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div v-else class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 transition-all duration-200">
                         <div>
-                            <p class="text-1xl leading-tight"
+                            <p class="text-1xl leading-tight break-words hyphens-auto"
                                 :class="{
                                     'text-neutral-400': selectedContact.model,
                                     'text-black': selectedContact.model 
@@ -51,22 +51,22 @@
                 <div class="w-full">
                     <h4 class="mb-8">Age Requirement</h4>
                     <div v-if="!selectedAge" class="flex flex-col w-full">
-                        <div class="grid grid-cols-3 gap-4">
+                        <div class="grid grid-cols-4 md:grid-cols-3 gap-4">
                             <div 
                                 v-for="age in ageLimitList" 
                                 :key="age.id" 
                                 @click="selectAgeLimit(age)"
-                                class="relative cursor-pointer items-end flex justify-between p-8 h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
+                                class="relative cursor-pointer items-end flex justify-between p-8 h-32 md:h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
                             >
                                 <div class="w-full">
-                                    <p class="text-2xl leading-tight">{{ age.name }}</p>
+                                    <p class="text-2xl leading-tight break-words hyphens-auto">{{ age.name }}</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div v-else class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 transition-all duration-200">
                         <div>
-                            <p class="text-1xl leading-tight"
+                            <p class="text-1xl leading-tight break-words hyphens-auto"
                                 :class="{
                                     'text-neutral-400': selectedAge.model,
                                     'text-black': selectedAge.model 
@@ -101,8 +101,8 @@
                             class="relative cursor-pointer flex flex-col p-8 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
                         >
                             <div class="w-full">
-                                <p class="text-2.5xl leading-tight mb-2">{{ interactive.name }}</p>
-                                <p class="text-lg leading-snug text-neutral-600">{{ interactive.description }}</p>
+                                <p class="text-2.5xl leading-tight mb-2 break-words hyphens-auto">{{ interactive.name }}</p>
+                                <p class="text-lg leading-snug text-neutral-600 break-words hyphens-auto">{{ interactive.description }}</p>
                             </div>
                         </div>
                     </div>

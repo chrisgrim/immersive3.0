@@ -151,7 +151,7 @@
         <div class="relative bg-white mb-8">
             <div class="flex items-center gap-4">
                 <button 
-                    onclick="window.history.back()"
+                    onclick="if (window.history.length > 1) { window.history.back(); } else { window.location.href = '/'; }"
                     class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
                 >
                     <svg 

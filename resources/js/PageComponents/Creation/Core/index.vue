@@ -1,7 +1,8 @@
 <template>
     <div class="relative text-1xl font-medium w-full h-screen flex flex-col">
         <!-- Top Navigation Bar -->
-        <div class="flex-none h-24">
+        <div class="h-24 fixed md:relative top-0 left-0 right-0 w-full flex-none bg-white z-[1000]">
+        <!-- <div class="flex-none h-24"> -->
             <div class="mx-auto p-8 md:p-16 h-full flex justify-between items-center">
                 <!-- Left: EI Logo/Link -->
                 <a href="/hosting/events" class="flex flex-col items-center gap-1" :class="isHome ? 'text-primary font-medium' : 'text-neutral-600'">
@@ -27,13 +28,13 @@
         </div>
 
         <!-- Main Content Area (with proper scrolling) -->
-        <div class="flex-1 overflow-y-auto">
+        <div class="md:flex-1 md:overflow-y-auto pt-24 md:pt-0 pb-40 md:pb-0">
             <div 
-                class="mx-auto min-h-full flex"
+                class="mx-auto md:min-h-full md:flex"
                 :class="currentStep !== 'Dates' ? 'max-w-screen-xl' : ''"
             >
                 <div :class="['w-full mx-auto', containerWidthClass]">
-                    <div class="h-full flex px-8 pb-8">
+                    <div class="h-full md:flex px-8 pb-8">
                         <component :is="currentComponent" ref="currentComponentRef" />
                     </div>
                 </div>
@@ -41,8 +42,7 @@
         </div>
 
         <!-- Bottom Navigation (fixed at bottom) -->
-        <div class="fixed md:relative bottom-0 left-0 right-0 w-full flex-none">
-        <!-- <div class="flex-none"> -->
+        <div class="fixed md:relative bottom-0 left-0 right-0 w-full flex-none bg-white z-[1000]">
             <!-- Progress Bar -->
             <div class="w-full h-[5px] bg-gray-200">
                 <div 

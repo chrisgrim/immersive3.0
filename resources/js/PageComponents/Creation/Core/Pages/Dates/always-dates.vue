@@ -188,6 +188,13 @@ import { required, maxLength } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import moment from 'moment-timezone';
+import { 
+    formatDateForDisplay,
+    addMonths,
+    createDateAtNoon,
+    daysBetween,
+    getBrowserTimezone
+} from '@/composables/dateUtils';
 
 // Props
 const props = defineProps({
@@ -257,35 +264,18 @@ const showTimesError = computed(() => {
 const daysUntilEnd = computed(() => {
     if (!endDate.value) return 0;
     
-    const today = new Date();
-    const end = new Date(endDate.value);
-    
-    // Reset time to start of day for accurate day calculation
-    today.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
-    
-    const diffTime = end - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    return Math.max(0, diffDays); // Don't show negative days
+    const days = daysBetween(new Date(), endDate.value, localTimezone.value);
+    return Math.max(0, days); // Don't show negative days
 });
 
 // Methods
 const formatDate = (date) => {
     if (!date) return '';
-    return new Date(date).toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
+    return formatDateForDisplay(date, localTimezone.value);
 };
 
 const extendToSixMonths = () => {
-    const sixMonthsFromNow = new Date();
-    sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
-    sixMonthsFromNow.setHours(23, 59, 59, 999); // Set to end of day
-    endDate.value = sixMonthsFromNow;
+    endDate.value = addMonths(new Date(), 6, localTimezone.value);
 };
 
 // End date modal methods
@@ -306,11 +296,7 @@ const selectEndDate = (selectedDate) => {
 
 const confirmEndDate = () => {
     if (tempEndDate.value) {
-        // Ensure we preserve the date without timezone conversion
-        const selectedDate = new Date(tempEndDate.value);
-        // Set to noon to avoid any timezone edge cases
-        selectedDate.setHours(12, 0, 0, 0);
-        endDate.value = selectedDate;
+        endDate.value = createDateAtNoon(tempEndDate.value, localTimezone.value);
         showEndDateModal.value = false;
         tempEndDate.value = null;
     }
@@ -353,8 +339,7 @@ defineExpose({
     
     setConfiguration: (config) => {
         if (config.endDate) {
-            const d = new Date(config.endDate);
-            endDate.value = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+            endDate.value = createDateAtNoon(config.endDate, localTimezone.value);
         }
         if (config.timezone) {
             localTimezone.value = config.timezone;
@@ -368,13 +353,9 @@ onMounted(() => {
     
     // Initialize with current event data or default to 6 months from now
     if (event.closingDate) {
-        const d = new Date(event.closingDate);
-        endDate.value = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+        endDate.value = createDateAtNoon(event.closingDate, props.selectedTimezone);
     } else {
-        const sixMonthsFromNow = new Date();
-        sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
-        sixMonthsFromNow.setHours(23, 59, 59, 999);
-        endDate.value = sixMonthsFromNow;
+        endDate.value = addMonths(new Date(), 6, props.selectedTimezone);
     }
     
     localTimezone.value = props.selectedTimezone;

@@ -146,6 +146,11 @@ const selectCategory = (item) => {
     state.value.category = item.name;
     state.value.dropdown = false;
     $v.value.$reset();
+    
+    // Blur the active input to dismiss the keyboard on mobile
+    if (document.activeElement) {
+        document.activeElement.blur();
+    }
 };
 
 const handleClickOutside = (event) => {
