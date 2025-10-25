@@ -100,7 +100,7 @@
 
 @endif
 
-<div class="w-full bg-black">
+<!-- <div class="w-full bg-black">
     <div class="max-w-screen-5xl relative m-auto px-10 lg-air:px-16 2xl-air:px-32">
         <div class="flex flex-col md:flex-row">
             <div class="w-full md:w-1/2 flex flex-col justify-center py-16 md:py-0">
@@ -117,7 +117,7 @@
             <div class="w-full md:w-1/2 bg-cover bg-center min-h-[250px] md:min-h-[600px]" style="background-image: url('{{ asset('storage/website-files/ei_background_01.jpg') }}');"></div>
         </div>
     </div>
-</div>
+</div> -->
 
 <div>
     @if($docks && count($docks))

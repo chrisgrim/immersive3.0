@@ -123,7 +123,7 @@
                 :class="{ 'border-red-500': v$.card.blurb.$error }"
                 v-model="card.blurb" />
             <div v-if="v$.card.blurb.$error" class="text-red-500 text-sm mt-1">
-                <p v-if="!v$.card.blurb.required">Please add a description.</p>
+                <p v-if="!v$.card.blurb.atLeastOneRequired">Please add a title, description, or image.</p>
                 <p v-if="!v$.card.blurb.maxLength">The description is too long.</p>
             </div>
         </div>
@@ -133,7 +133,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useVuelidate } from '@vuelidate/core'
-import { required, maxLength } from '@vuelidate/validators'
+import { maxLength } from '@vuelidate/validators'
 import Tiptap from './Components/Tiptap.vue'
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue'
 
@@ -168,6 +168,14 @@ const card = ref({
 const imageFile = ref(null)
 const isVisible = ref(false) // Default to hidden when no image
 
+// Custom validator: At least one of name, blurb, or image must be present
+const atLeastOneRequired = (value) => {
+    const hasName = card.value?.name && card.value.name.trim().length > 0
+    const hasBlurb = value && value.trim().length > 0
+    const hasImage = imageFile.value?.file
+    return hasName || hasBlurb || hasImage
+}
+
 // Validation rules
 const rules = {
     card: {
@@ -181,7 +189,7 @@ const rules = {
             maxLength: maxLength(50)
         },
         blurb: {
-            required,
+            atLeastOneRequired,
             maxLength: maxLength(40000)
         }
     }
@@ -219,7 +227,12 @@ const saveCard = async () => {
         formData.append('name', card.value.name || '')
         formData.append('url', card.value.url || '')
         formData.append('button_text', card.value.button_text || '')
-        formData.append('blurb', card.value.blurb)
+        
+        // Only append blurb if it has a value
+        if (card.value.blurb) {
+            formData.append('blurb', card.value.blurb)
+        }
+        
         formData.append('type', card.value.type)
         formData.append('order', card.value.order)
         formData.append('post_id', card.value.post_id)

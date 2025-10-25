@@ -4,7 +4,7 @@
     $imageUrl = "https://ei-prod.sfo3.digitaloceanspaces.com/public/";
 
     if (count($dock->shelves)) {
-        $elements = $dock->shelves[0]->publishedPosts;
+        $elements = $dock->shelves[0]->dockPosts;
         $name = $dock->shelves[0]->name;
     } elseif (count($dock->communities)) {
         $elements = $dock->communities;

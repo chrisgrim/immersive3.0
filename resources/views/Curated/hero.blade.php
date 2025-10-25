@@ -188,7 +188,7 @@
 
     // Collect elements from different dock types
     if (count($dock->shelves)) {
-        $elements = collect($dock->shelves[0]->publishedPosts)->map($mapElement);
+        $elements = collect($dock->shelves[0]->dockPosts)->map($mapElement);
         $name = $dock->shelves[0]->name;
     } elseif (count($dock->posts)) {
         // For posts, use the post's cards as elements instead of the post itself
@@ -313,7 +313,7 @@
                             </div>
                             
                             <div class="text-left bg-white p-8">
-                                <h3 class="text-3.5xl font-medium text-black">{{ $getElementName($element) }}</h3>
+                                <h3 class="text-3.5xl font-medium text-black whitespace-normal break-words">{{ $getElementName($element) }}</h3>
                                 
                             </div>
                         </div>

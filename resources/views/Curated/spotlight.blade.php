@@ -21,7 +21,7 @@
 
     // Determine element and name based on dock type
     if (count($dock->shelves)) {
-        $element = $dock->shelves[0]->publishedPosts[0] ?? null;
+        $element = $dock->shelves[0]->dockPosts[0] ?? null;
         $name = $dock->shelves[0]->name ?? null;
         if ($element) {
             $url = "/communities/{$element->community->slug}/posts/{$element->slug}";

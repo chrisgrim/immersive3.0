@@ -179,7 +179,7 @@
 
     // Collect elements from different dock types
     if (count($dock->shelves)) {
-        $elements = collect($dock->shelves[0]->publishedPosts)->map($mapElement);
+        $elements = collect($dock->shelves[0]->dockPosts)->map($mapElement);
         $name = $dock->shelves[0]->name;
     } elseif (count($dock->posts)) {
         // For posts, use the post's cards as elements instead of the post itself

@@ -16,8 +16,8 @@ class IndexController extends Controller
         $docks = Dock::where('location', 'home')
             ->with([
                 'posts' => function($query) {
+                    // Don't filter by is_hidden - hidden posts should still appear in docks
                     $query->where('status', 'p')
-                          ->where('is_hidden', false)
                           ->with([
                               'community:id,name,slug',
                               'featuredEventImage',
@@ -40,9 +40,9 @@ class IndexController extends Controller
                 'shelves' => function($query) {
                     $query->where('is_hidden', false);
                 },
-                'shelves.publishedPosts' => function($query) {
-                    $query->where('is_hidden', false)
-                          ->with([
+                'shelves.dockPosts' => function($query) {
+                    // Use dockPosts relationship which includes hidden posts
+                    $query->with([
                               'community:id,name,slug',
                               'featuredEventImage',
                               'images',

@@ -21,7 +21,7 @@
 
     // Determine element and name based on dock type
     if (count($dock->shelves)) {
-        $element = $dock->shelves[0]->publishedPosts[0] ?? null;
+        $element = $dock->shelves[0]->dockPosts[0] ?? null;
         $name = $dock->shelves[0]->name ?? null;
         if ($element) {
             $url = "/communities/{$element->community->slug}/posts/{$element->slug}";
@@ -130,10 +130,10 @@
 @endphp
 
 @if($shouldRender)
-    <div class="px-10 lg-air:px-16 2xl-air:px-32">
-        <div class="flex flex-col md:flex-row min-h-[70vh]">
-            <!-- Text Content - Left Half -->
-            <div class="w-full md:w-1/2 flex flex-col justify-center py-16 md:py-24 md:pr-16">
+    <div class="">
+        <div class="flex flex-col md:flex-row max-h-[600px] overflow-hidden">
+            <!-- Text Content - Left Third -->
+            <div class="w-full md:w-1/3 pl-10 lg-air:pl-16 2xl-air:pl-32 flex flex-col justify-center py-16 md:py-24 md:pr-16">
                 @if($name)
                     <h2 class="text-5xl text-white mb-8 text-left">
                         {{ $name }}
@@ -161,11 +161,11 @@
                 </div>
             </div>
             
-            <!-- Image - Right Half -->
-            <div class="w-full md:w-1/2 relative">
+            <!-- Image - Right Two-Thirds -->
+            <div class="w-full md:w-2/3 relative flex items-center">
                 @if($imagePath)
-                    <div class="min-h-[250px] md:min-h-[600px] relative overflow-hidden">
-                        <picture class="absolute inset-0 w-full h-full">
+                    <div class="w-full h-full min-h-[250px] md:min-h-[70vh] relative overflow-hidden">
+                        <picture class="absolute inset-0 w-full h-full flex items-center justify-center">
                             <source 
                                 type="image/webp" 
                                 srcset="{{ config('app.image_url') }}{{ str_replace(['.jpg', '.jpeg', '.png'], '.webp', $imagePath) }}">
@@ -175,6 +175,8 @@
                                 class="w-full h-full object-cover" 
                                 loading="lazy" />
                         </picture>
+                        <!-- Gradient overlay from black to transparent (hidden on mobile) -->
+                        <div class="hidden md:block absolute inset-0 bg-gradient-to-r from-black via-black/50 to-transparent" style="background: linear-gradient(to right, #000000 0%, rgba(0, 0, 0, 0.5) 15%, transparent 25%);"></div>
                     </div>
                 @else
                     <!-- Fallback placeholder if no image -->

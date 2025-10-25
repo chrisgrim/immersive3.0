@@ -10,7 +10,10 @@ class StoreEventRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        // This request is only used for event updates
+        // Verify user can manage the event
+        $event = $this->route('event');
+        return $event && $this->user() && $this->user()->can('manage', $event);
     }
 
     public function rules(): array

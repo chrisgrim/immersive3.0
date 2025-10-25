@@ -18,6 +18,19 @@ class LoginCodeController extends Controller
             'email' => ['required', 'email']
         ]);
         
+        // Rate limiting: Max 5 code requests per email per hour
+        $rateLimitKey = 'login_code_requests:' . $validated['email'];
+        $attempts = Cache::get($rateLimitKey, 0);
+        
+        if ($attempts >= 5) {
+            throw ValidationException::withMessages([
+                'email' => ['Too many login attempts. Please try again in 1 hour.']
+            ]);
+        }
+        
+        // Increment attempt counter
+        Cache::put($rateLimitKey, $attempts + 1, now()->addHour());
+        
         // Find or create user
         $user = User::firstOrCreate(
             ['email' => $validated['email']],
@@ -61,6 +74,16 @@ class LoginCodeController extends Controller
             'code' => ['required', 'string', 'size:6']
         ]);
 
+        // Rate limiting: Max 10 verification attempts per email per 15 minutes
+        $rateLimitKey = 'login_verify_attempts:' . $validated['email'];
+        $attempts = Cache::get($rateLimitKey, 0);
+        
+        if ($attempts >= 10) {
+            throw ValidationException::withMessages([
+                'code' => ['Too many failed attempts. Please request a new code.']
+            ]);
+        }
+
         $cacheKey = "login_code_{$validated['email']}";
         
         $cached = Cache::get($cacheKey);
@@ -72,6 +95,9 @@ class LoginCodeController extends Controller
         }
 
         if ($cached['code'] !== $validated['code']) {
+            // Increment failed attempts
+            Cache::put($rateLimitKey, $attempts + 1, now()->addMinutes(15));
+            
             throw ValidationException::withMessages([
                 'code' => ['Invalid code. Please try again.']
             ]);
@@ -87,8 +113,9 @@ class LoginCodeController extends Controller
         // Login with remember me
         auth()->login($user, true); // The true parameter enables "remember me"
         
-        // Remove used code
+        // Remove used code and clear verification attempts
         Cache::forget($cacheKey);
+        Cache::forget($rateLimitKey);
 
         // Generate session
         $request->session()->regenerate();

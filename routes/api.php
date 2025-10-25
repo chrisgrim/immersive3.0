@@ -35,58 +35,78 @@ use App\Http\Controllers\Api\SimilarEventsController;
 |--------------------------------------------------------------------------
 */
 
-Route::GET('/index/search', [ListingsController::class, 'apiIndex']);
-Route::GET('/organizers/{organizer}/events', [App\Http\Controllers\EventController::class, 'getOrganizerPaginatedEvents'])->name('organizers.events.paginated');
-Route::POST('/organizers/check-name', [OrganizerController::class, 'checkNameAvailability'])->name('organizers.check-name');
-Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])->name('event.update');
-
-// Get similar events
-Route::GET('/events/{event}/similar', [SimilarEventsController::class, 'getSimilar'])
-    ->name('events.similar');
-
-// Get similar events by location
-Route::GET('/events/similar-by-location', [SimilarEventsController::class, 'getSimilarByLocation'])
-    ->name('events.similar-by-location');
-
-// Event duplication route for organizer owners
-Route::POST('/events/{event}/duplicate', [HostEventController::class, 'duplicate'])
-    ->middleware(['auth:sanctum'])
-    ->middleware('can:duplicate,event')
-    ->name('event.duplicate');
-
-// Event click tracking routes
-Route::POST('/events/{eventId}/track-click', [EventClickController::class, 'trackClick'])
-    ->name('event.track.click');
-
-// Event click statistics (protected route)
-Route::GET('/events/{eventId}/click-stats', [EventClickController::class, 'getStats'])
-    ->middleware(['auth:sanctum'])
-    ->name('event.click.stats');
-
-// Event Attributes Routes
-Route::controller(EventAttributesController::class)->group(function () {
-    Route::GET('/categories', 'categories');
-    Route::GET('/genres', 'genres');
-    Route::GET('/remotelocations', 'remoteLocations');
-    Route::GET('/contactlevels', 'contactLevels');
-    Route::GET('/interactivelevels', 'interactiveLevels');
-    Route::GET('/contentadvisories', 'contentAdvisories');
-    Route::GET('/mobilityadvisories', 'mobilityAdvisories');
-    Route::GET('/agelimits', 'ageLimits');
+// Critical: Click tracking - Generous but prevents spam (30 clicks/min per IP)
+Route::middleware(['throttle:30,1'])->group(function () {
+    Route::POST('/events/{eventId}/track-click', [EventClickController::class, 'trackClick'])
+        ->name('event.track.click');
 });
 
-// Navigation Search Routes
-Route::controller(SearchController::class)->group(function () {
-    Route::GET('search/nav/events', 'navEvents');
-    Route::GET('search/nav/organizers', 'navOrganizers');
-    Route::GET('search/nav/names', 'navNames');
-    Route::GET('search/nav/genres', 'navGenres');
+// Resource-intensive: Search & recommendations - Very generous (180/min = 3/sec)
+Route::middleware(['throttle:180,1'])->group(function () {
+    Route::GET('/index/search', [ListingsController::class, 'apiIndex']);
+    Route::GET('/events/{event}/similar', [SimilarEventsController::class, 'getSimilar'])
+        ->name('events.similar');
+    Route::GET('/events/similar-by-location', [SimilarEventsController::class, 'getSimilarByLocation'])
+        ->name('events.similar-by-location');
 });
 
-// Cached Data Routes
-Route::GET('/categories/active/cached', [CachedDataController::class, 'getActiveCategories']);
-Route::GET('/genres/active/cached', [CachedDataController::class, 'getActiveGenres']);
-Route::GET('/price/max/cached', [CachedDataController::class, 'getMaxPrice']);
+// Validation endpoints - Generous for real-time typing (60/min = 1/sec)
+Route::middleware(['throttle:60,1'])->group(function () {
+    Route::POST('/organizers/check-name', [OrganizerController::class, 'checkNameAvailability'])
+        ->name('organizers.check-name');
+});
+
+// Standard public endpoints - Very generous
+Route::middleware(['throttle:180,1'])->group(function () {
+    Route::GET('/organizers/{organizer}/events', [App\Http\Controllers\EventController::class, 'getOrganizerPaginatedEvents'])
+        ->name('organizers.events.paginated');
+});
+
+// Authenticated user operations - Very high limits (300/min = 5/sec)
+Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
+    Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])
+        ->middleware('can:manage,event')
+        ->name('event.update');
+    
+    Route::GET('/events/{eventId}/click-stats', [EventClickController::class, 'getStats'])
+        ->name('event.click.stats');
+});
+
+// Event duplication - Generous for legitimate use (20/min)
+Route::middleware(['auth:sanctum', 'throttle:20,1'])->group(function () {
+    Route::POST('/events/{event}/duplicate', [HostEventController::class, 'duplicate'])
+        ->middleware('can:duplicate,event')
+        ->name('event.duplicate');
+});
+
+// Navigation Search Routes - Autocomplete (fired on keystroke, very generous 120/min = 2/sec)
+Route::middleware(['throttle:120,1'])->group(function () {
+    Route::controller(SearchController::class)->group(function () {
+        Route::GET('search/nav/events', 'navEvents');
+        Route::GET('search/nav/organizers', 'navOrganizers');
+        Route::GET('search/nav/names', 'navNames');
+        Route::GET('search/nav/genres', 'navGenres');
+    });
+});
+
+// Event Attributes Routes - Reference data (very high limits, typically cached)
+Route::middleware(['throttle:300,1'])->group(function () {
+    Route::controller(EventAttributesController::class)->group(function () {
+        Route::GET('/categories', 'categories');
+        Route::GET('/genres', 'genres');
+        Route::GET('/remotelocations', 'remoteLocations');
+        Route::GET('/contactlevels', 'contactLevels');
+        Route::GET('/interactivelevels', 'interactiveLevels');
+        Route::GET('/contentadvisories', 'contentAdvisories');
+        Route::GET('/mobilityadvisories', 'mobilityAdvisories');
+        Route::GET('/agelimits', 'ageLimits');
+    });
+    
+    // Cached Data Routes
+    Route::GET('/categories/active/cached', [CachedDataController::class, 'getActiveCategories']);
+    Route::GET('/genres/active/cached', [CachedDataController::class, 'getActiveGenres']);
+    Route::GET('/price/max/cached', [CachedDataController::class, 'getMaxPrice']);
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -94,20 +114,20 @@ Route::GET('/price/max/cached', [CachedDataController::class, 'getMaxPrice']);
 |--------------------------------------------------------------------------
 */
 
-// Add this route before the moderator middleware group
-Route::middleware(['auth:sanctum'])->group(function () {
+// Authenticated user routes - Very generous for logged-in users (300/min = 5/sec)
+Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     Route::GET('/teams/search', [OrganizerController::class, 'searchTeams'])
         ->name('api.teams.search')
         ->middleware('can:viewAny,App\Models\Organizer');
 });
 
-// Keep your existing moderator routes
-Route::middleware(['auth:sanctum', 'moderator'])->group(function () {
+// Admin/Moderator routes - High limits for trusted users (600/min = 10/sec)
+Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(function () {
     Route::GET('/user', fn (Request $request) => $request->user());
     
     /*
     |--------------------------------------------------------------------------
-    | Admin Routes
+    | Admin Routes - High limits for admin operations (600/min = 10/sec)
     |--------------------------------------------------------------------------
     */
     

@@ -103,41 +103,44 @@
                                 Please select at least one day of the week
                             </p>
                         </div>
+                        <div class="flex flex-col gap-4">
+                            <div class="border border-neutral-300 rounded-2xl p-8">
+                                <h3 class="text-2xl font-bold mb-2">Start Date</h3>
+                                <div class="flex items-center justify-between">
+                                    <button 
+                                        @click="openStartDateModal"
+                                        class="hover:border-[#222222] text-gray-500 hover:bg-neutral-50 transition-all duration-200 underline"
+                                        :disabled="selectedDays.length === 0"
+                                    >
+                                        <span v-if="customStartDate">{{ formatDate(customStartDate) }}</span>
+                                        <span v-else-if="calculatedStartDate">{{ formatDate(calculatedStartDate) }}</span>
+                                        <span v-else class="text-gray-400">Select start date</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- End Date Selection -->
+                            <div class="border border-neutral-300 rounded-2xl p-8">
+                                <h3 class="text-2xl font-bold mb-2">Last Date</h3>
+                                <button 
+                                    @click="openLastDateModal"
+                                    class="hover:border-[#222222] text-gray-500 hover:bg-neutral-50 transition-all duration-200 underline"
+                                >
+                                    <span v-if="endDate">{{ formatDate(endDate) }}</span>
+                                    <span v-else>{{ formatDate((() => {
+                                        const sixMonthsFromNow = new Date();
+                                        sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
+                                        return sixMonthsFromNow;
+                                    })()) }}</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Right column - All configuration options (1/4 width) -->
                     <div class="w-full flex flex-col gap-8" :class="shouldUseMobileLayout ? '' : 'md:w-1/3 md:mt-12 md:mt-12 lg:px-8'">
                         <!-- Start Date Selection -->
-                        <div class="border border-neutral-300 rounded-2xl p-8">
-                            <h3 class="text-2xl font-bold mb-2">Start Date</h3>
-                            <div class="flex items-center justify-between">
-                                <button 
-                                    @click="openStartDateModal"
-                                    class="hover:border-[#222222] text-gray-500 hover:bg-neutral-50 transition-all duration-200 underline"
-                                    :disabled="selectedDays.length === 0"
-                                >
-                                    <span v-if="customStartDate">{{ formatDate(customStartDate) }}</span>
-                                    <span v-else-if="calculatedStartDate">{{ formatDate(calculatedStartDate) }}</span>
-                                    <span v-else class="text-gray-400">Select start date</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- End Date Selection -->
-                        <div class="border border-neutral-300 rounded-2xl p-8">
-                            <h3 class="text-2xl font-bold mb-2">Last Date</h3>
-                            <button 
-                                @click="openLastDateModal"
-                                class="hover:border-[#222222] text-gray-500 hover:bg-neutral-50 transition-all duration-200 underline"
-                            >
-                                <span v-if="endDate">{{ formatDate(endDate) }}</span>
-                                <span v-else>{{ formatDate((() => {
-                                    const sixMonthsFromNow = new Date();
-                                    sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
-                                    return sixMonthsFromNow;
-                                })()) }}</span>
-                            </button>
-                        </div>
+                        
 
                         <!-- Show Times -->
                         

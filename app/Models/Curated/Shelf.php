@@ -56,6 +56,15 @@ class Shelf extends Model
     }
 
     /**
+     * Show published posts for docks (including hidden posts)
+     * Hidden posts should still appear in homepage docks
+     */
+    public function dockPosts()
+    {
+        return $this->hasMany(Post::class)->orderBy('order', 'ASC')->where('status', 'p')->limit(4);
+    }
+
+    /**
      * Get all of the communities featureds.
      */
     public function featured()

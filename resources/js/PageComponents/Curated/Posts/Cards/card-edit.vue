@@ -27,6 +27,9 @@
                                                 :alt="card.event?.name">
                                         </picture>
                                         
+                                        <!-- Clickable overlay to enter edit mode when NOT editing -->
+                                        <div v-if="!onEdit" @click="onEdit = true" class="absolute inset-0 cursor-pointer"></div>
+                                        
                                         <!-- Clickable overlay for image upload when in edit mode -->
                                         <label v-if="onEdit" class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                                             <div class="text-white text-center pointer-events-none">
@@ -166,7 +169,7 @@
                             :disabled="disabled"
                             :class="{ 'border-red-500': v$.card.blurb.$error }" />
                         <div v-if="v$.card.blurb.$error" class="text-red-500 text-sm mt-1">
-                            <p v-if="!v$.card.blurb.required">Please add a description.</p>
+                            <p v-if="!v$.card.blurb.atLeastOneRequired">Please add a title, description, or image.</p>
                             <p v-if="!v$.card.blurb.maxLength">The description is too long.</p>
                         </div>
                     </template>
@@ -211,7 +214,7 @@
                     </label>
                     
                     <!-- Display Only Mode -->
-                    <div v-else-if="hasImage && isVisible" class="w-full h-full rounded-2xl overflow-hidden">
+                    <div v-else-if="hasImage && isVisible" @click="onEdit = true" class="w-full h-full rounded-2xl overflow-hidden cursor-pointer">
                         <img 
                             :src="hasImage" 
                             class="w-full h-full object-cover" 
@@ -281,7 +284,7 @@
                             </label>
                             
                             <!-- Display Only Mode -->
-                            <div v-else-if="hasImage && isVisible" class="aspect-[3/4] w-full rounded-2xl overflow-hidden">
+                            <div v-else-if="hasImage && isVisible" @click="onEdit = true" class="aspect-[3/4] w-full rounded-2xl overflow-hidden cursor-pointer">
                                 <img 
                                     :src="hasImage" 
                                     class="w-full h-full object-cover" 
@@ -401,7 +404,7 @@
                         :disabled="disabled"
                         :class="{ 'border-red-500': v$.card.blurb.$error }" />
                     <div v-if="v$.card.blurb.$error" class="text-red-500 text-sm mt-1">
-                        <p v-if="!v$.card.blurb.required">Please add a description.</p>
+                        <p v-if="!v$.card.blurb.atLeastOneRequired">Please add a title, description, or image.</p>
                         <p v-if="!v$.card.blurb.maxLength">The description is too long.</p>
                     </div>
                 </template>
@@ -425,7 +428,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useVuelidate } from '@vuelidate/core'
-import { required, maxLength } from '@vuelidate/validators'
+import { maxLength } from '@vuelidate/validators'
 import moment from 'moment'
 import Tiptap from './Components/Tiptap.vue'
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue'
@@ -463,21 +466,6 @@ const imageFile = ref(null)
 watch(onEdit, (newValue) => {
     emit('edit-mode-change', newValue)
 })
-
-// Validation rules
-const rules = {
-    card: {
-        name: { maxLength: maxLength(255) },
-        blurb: {
-            required,
-            maxLength: maxLength(40000)
-        },
-        url: { maxLength: maxLength(255) },
-        button_text: { maxLength: maxLength(50) }
-    }
-}
-
-const v$ = useVuelidate(rules, { card })
 
 // Computed
 const hasImage = computed(() => {
@@ -534,6 +522,29 @@ const hasUrl = computed(() => {
 const urlSecurity = computed(() => useSecureUrl(hasUrl.value))
 
 const textCardUrlSecurity = computed(() => useSecureUrl(card.value?.url))
+
+// Custom validator: At least one of name, blurb, or image must be present
+const atLeastOneRequired = (value) => {
+    const hasNameValue = card.value?.name && card.value.name.trim().length > 0
+    const hasBlurbValue = value && value.trim().length > 0
+    const hasImageValue = hasImage.value || imageFile.value?.file
+    return hasNameValue || hasBlurbValue || hasImageValue
+}
+
+// Validation rules
+const rules = {
+    card: {
+        name: { maxLength: maxLength(255) },
+        blurb: {
+            atLeastOneRequired,
+            maxLength: maxLength(40000)
+        },
+        url: { maxLength: maxLength(255) },
+        button_text: { maxLength: maxLength(50) }
+    }
+}
+
+const v$ = useVuelidate(rules, { card })
 
 // Methods
 const updateCard = async () => {
