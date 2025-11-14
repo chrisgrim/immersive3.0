@@ -445,6 +445,22 @@
                     </div>
                 </a>
 
+                <!-- Duplicate Button -->
+                <button 
+                    @click="onDuplicate"
+                    :disabled="processing"
+                    :class="{
+                        'px-6 py-3 rounded-lg transition-colors border border-black': true,
+                        'bg-white text-black hover:bg-gray-100': !processing,
+                        'bg-gray-300 text-gray-500 cursor-not-allowed': processing
+                    }"
+                >
+                    <div class="flex items-center gap-2">
+                        <LoadingSpinner v-if="isDuplicating" />
+                        {{ isDuplicating ? 'Duplicating...' : 'Duplicate Event' }}
+                    </div>
+                </button>
+
                 <!-- Reject Button -->
                 <button 
                     @click="onReject"
@@ -652,6 +668,7 @@ const rejectionReason = ref('');
 const processing = ref(false);
 const isRejecting = ref(false);
 const isApproving = ref(false);
+const isDuplicating = ref(false);
 
 const onReject = () => {
     showRejectModal.value = true;
@@ -693,6 +710,29 @@ const onApprove = async () => {
     } finally {
         processing.value = false;
         isApproving.value = false;
+    }
+};
+
+const onDuplicate = async () => {
+    if (confirm('Are you sure you want to duplicate this event?')) {
+        try {
+            processing.value = true;
+            isDuplicating.value = true;
+            const response = await axios.post(`/api/events/${props.event.slug}/duplicate`);
+            
+            // Redirect to edit page of duplicated event
+            window.location.href = `/hosting/event/${response.data.event.slug}/edit`;
+        } catch (error) {
+            console.error('Error duplicating event:', error);
+            if (error.response?.status === 422) {
+                alert(error.response.data.message);
+            } else {
+                alert('Failed to duplicate event. Please try again.');
+            }
+        } finally {
+            processing.value = false;
+            isDuplicating.value = false;
+        }
     }
 };
 

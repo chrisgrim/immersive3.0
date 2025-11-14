@@ -412,10 +412,11 @@ defineExpose({
             embargo_date: event.embargo_date
         };
         
-        // For ongoing events, include the end date configuration
+        // For ongoing events, include the start date and end date configuration
         if (event.showtype === 'o' && ongoingDatesRef.value) {
             const config = ongoingDatesRef.value.getConfiguration();
             data.ongoing_config = {
+                startDate: config.startDate ? formatDateForAPI(config.startDate, selectedTimezone.value) : null,
                 endDate: config.endDate ? formatDateForAPI(config.endDate, selectedTimezone.value) : null
             };
         }
@@ -478,8 +479,8 @@ onMounted(() => {
             if (event.showtype === 's' && specificDatesRef.value) {
                 specificDatesRef.value.setDates(selectedDates.value);
             } else if (event.showtype === 'o' && ongoingDatesRef.value) {
-                // Reconstruct the ongoing configuration from the saved dates
-                ongoingDatesRef.value.reconstructFromDates(selectedDates.value);
+                // Reconstruct from dates, which will use stored start_date if available
+                ongoingDatesRef.value.reconstructFromDates(selectedDates.value, event.start_date);
             } else if (event.showtype === 'a' && alwaysDatesRef.value) {
                 // Set the always dates configuration
                 alwaysDatesRef.value.setConfiguration(alwaysDatesState.value);

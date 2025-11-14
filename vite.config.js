@@ -41,7 +41,10 @@ export default defineConfig(({ command, mode }) => {
             sourcemap: !isProduction,
         },
         server: {
+            host: 'localhost',
+            port: 5173,
             hmr: {
+                host: 'localhost',
                 overlay: true,
             },
         },

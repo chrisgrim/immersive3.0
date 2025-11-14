@@ -40,6 +40,18 @@ Focused audit of the event creation dates section covering:
 
 ---
 
+#### [KNOWN_ISSUES.md](./KNOWN_ISSUES.md)
+Tracking document for known issues and technical debt:
+- Critical bugs requiring fixes
+- Medium priority issues
+- Technical debt items
+- Resolved issues archive
+
+**Status**: 🔄 Active tracking  
+**Scope**: Application-wide issues
+
+---
+
 ### Technical Implementation Guides
 
 #### [TIMEZONE_STANDARDIZATION.md](./TIMEZONE_STANDARDIZATION.md)
@@ -69,6 +81,8 @@ Complete guide to timezone handling standardization:
 
 **Modifying event creation?** → Review [DATES_AUDIT.md](./DATES_AUDIT.md)
 
+**Found a bug or issue?** → Add it to [KNOWN_ISSUES.md](./KNOWN_ISSUES.md)
+
 ---
 
 ## 📝 Document Status
@@ -78,6 +92,7 @@ Complete guide to timezone handling standardization:
 | AUDIT_REPORT.md | 1.0 | Complete | Oct 2025 |
 | DATES_AUDIT.md | 1.0 | Complete | Oct 2025 |
 | TIMEZONE_STANDARDIZATION.md | 1.0 | Complete | Oct 2025 |
+| KNOWN_ISSUES.md | 1.0 | Active | Nov 2025 |
 
 ---
 

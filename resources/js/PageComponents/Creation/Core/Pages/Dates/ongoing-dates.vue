@@ -103,7 +103,7 @@
                                 Please select at least one day of the week
                             </p>
                         </div>
-                        <div class="flex flex-col gap-4">
+                        <div class="flex flex-col gap-4 mt-8">
                             <div class="border border-neutral-300 rounded-2xl p-8">
                                 <h3 class="text-2xl font-bold mb-2">Start Date</h3>
                                 <div class="flex items-center justify-between">
@@ -275,15 +275,25 @@
                         </div>
                         
                         <div class="flex-1 overflow-y-auto p-8 pt-6 pb-0">
+                            <!-- Show previous months button - hide when we reach 12 months before today -->
+                            <div v-if="canShowMorePreviousMonths" class="flex items-center justify-center gap-4 pb-4">
+                                <button 
+                                    @click="showPreviousMonthsStartModal"
+                                    class="text-black underline font-semibold hover:text-gray-600"
+                                >
+                                    Show previous months
+                                </button>
+                            </div>
+                            
                             <div class="max-h-[400px] overflow-y-auto">
                                 <VueDatePicker
+                                    ref="startDateCalendarRef"
                                     v-model="tempStartDate"
                                     :enable-time-picker="false"
                                     :dark="false"
                                     :timezone="selectedTimezone"
-                                    :start-date="new Date()"
-                                    focus-start-date
-                                    :multi-calendars="6"
+                                    :preview-date="previewDateStartModal"
+                                    :multi-calendars="displayedMonthsStartModal"
                                     multi-calendars-solo
                                     inline
                                     auto-apply
@@ -294,6 +304,16 @@
                                     @update:model-value="selectStartDate"
                                     class="start-date-calendar modal-calendar"
                                 />
+                            </div>
+                            
+                            <!-- Load More Button - hide when we reach 12 months ahead of today -->
+                            <div v-if="canShowMoreFutureMonths" class="w-full flex justify-center py-4">
+                                <button 
+                                    @click="loadMoreMonthsStartModal"
+                                    class="text-black underline font-semibold hover:text-gray-600"
+                                >
+                                    Show more months
+                                </button>
                             </div>
                         </div>
                         
@@ -320,44 +340,6 @@
                     </div>
                 </div>
 
-                <!-- End Date Modal -->
-                <div v-if="showEndDateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div class="bg-white p-8 rounded-2xl w-[600px] mx-4">
-                        <h3 class="text-2xl mb-4">Select end date</h3>
-                        <VueDatePicker
-                            v-model="tempEndDate"
-                            :enable-time-picker="false"
-                            :dark="false"
-                            :timezone="selectedTimezone"
-                            :preview-date="effectiveStartDate || new Date()"
-                            :min-date="effectiveStartDate || new Date()"
-                            inline
-                            auto-apply
-                            month-name-format="long"
-                            hide-offset-dates
-                            :month-change-on-scroll="false"
-                            week-start="0"
-                            @update:model-value="selectEndDate"
-                            class="end-date-calendar"
-                        />
-                        <div class="mt-4 flex justify-end gap-4">
-                            <button 
-                                @click="cancelEndDate"
-                                class="px-6 py-2 border rounded-lg hover:bg-gray-100"
-                            >
-                                Cancel
-                            </button>
-                            <button 
-                                @click="confirmEndDate"
-                                class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
-                                :disabled="!tempEndDate"
-                            >
-                                Set End Date
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Last Date Options Modal -->
                 <div v-if="showLastDateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[500] p-4 overflow-y-auto">
                     <div class="bg-white rounded-2xl w-[600px] mx-4 max-h-[90vh] my-auto flex flex-col">
@@ -375,16 +357,27 @@
                         </div>
                         
                         <div class="flex-1 overflow-y-auto p-8 pt-6 pb-0">
+                            <!-- Show previous months button - hide when we reach 12 months before today -->
+                            <div v-if="canShowMorePreviousMonthsEnd" class="flex items-center justify-center gap-4 pb-4">
+                                <button 
+                                    @click="showPreviousMonthsEndModal"
+                                    class="text-black underline font-semibold hover:text-gray-600"
+                                >
+                                    Show previous months
+                                </button>
+                            </div>
+                            
                             <div class="max-h-[400px] overflow-y-auto">
                                 <VueDatePicker
+                                    ref="endDateCalendarRef"
                                     v-model="tempEndDate"
                                     :enable-time-picker="false"
                                     :dark="false"
                                     :timezone="selectedTimezone"
-                                    :start-date="new Date()"
-                                    focus-start-date
-                                    :multi-calendars="6"
+                                    :preview-date="previewDateEndModal"
+                                    :multi-calendars="displayedMonthsEndModal"
                                     multi-calendars-solo
+                                    :min-date="effectiveStartDate || new Date()"
                                     inline
                                     auto-apply
                                     month-name-format="long"
@@ -394,6 +387,16 @@
                                     @update:model-value="selectEndDate"
                                     class="end-date-calendar modal-calendar"
                                 />
+                            </div>
+                            
+                            <!-- Load More Button - hide when we reach 12 months ahead of today -->
+                            <div v-if="canShowMoreFutureMonthsEnd" class="w-full flex justify-center py-4">
+                                <button 
+                                    @click="loadMoreMonthsEndModal"
+                                    class="text-black underline font-semibold hover:text-gray-600"
+                                >
+                                    Show more months
+                                </button>
                             </div>
                         </div>
                         
@@ -484,12 +487,67 @@ const customStartDate = ref(null);
 const endDate = ref(null);
 const isOngoing = ref(false); // Default to showing end date
 const showStartDateModal = ref(false);
-const showEndDateModal = ref(false);
 const showLastDateModal = ref(false);
 const tempStartDate = ref(null);
 const tempEndDate = ref(null);
 const timezones = ref([]);
 const localTimezone = ref(props.selectedTimezone);
+
+// Start date modal calendar navigation
+const displayedMonthsStartModal = ref(6);
+const previewDateStartModal = ref(new Date());
+const startDateCalendarRef = ref(null);
+
+// End date modal calendar navigation
+const displayedMonthsEndModal = ref(6);
+const previewDateEndModal = ref(new Date());
+const endDateCalendarRef = ref(null);
+
+// Computed property to check if we can show more previous months
+const canShowMorePreviousMonths = computed(() => {
+    // Calculate how many months back from today we are
+    const today = new Date();
+    const previewDate = new Date(previewDateStartModal.value);
+    const monthsDiff = (today.getFullYear() - previewDate.getFullYear()) * 12 + 
+                       (today.getMonth() - previewDate.getMonth());
+    
+    // Allow going back up to 12 months from today
+    return monthsDiff < 12;
+});
+
+// Computed property to check if we can show more future months
+const canShowMoreFutureMonths = computed(() => {
+    const today = new Date();
+    
+    // Calculate what the last visible month WOULD BE if we added 3 more months
+    const futureLastVisibleMonth = new Date(previewDateStartModal.value);
+    futureLastVisibleMonth.setMonth(futureLastVisibleMonth.getMonth() + displayedMonthsStartModal.value + 3 - 1);
+    
+    // Calculate months difference from today to that future last visible month
+    const monthsFromToday = (futureLastVisibleMonth.getFullYear() - today.getFullYear()) * 12 + 
+                            (futureLastVisibleMonth.getMonth() - today.getMonth());
+    
+    // Only show button if adding 3 more months wouldn't exceed 12 months ahead
+    return monthsFromToday <= 12;
+});
+
+// Computed properties for end date modal navigation
+const canShowMorePreviousMonthsEnd = computed(() => {
+    const today = new Date();
+    const previewDate = new Date(previewDateEndModal.value);
+    const monthsDiff = (today.getFullYear() - previewDate.getFullYear()) * 12 + 
+                       (today.getMonth() - previewDate.getMonth());
+    return monthsDiff < 12;
+});
+
+const canShowMoreFutureMonthsEnd = computed(() => {
+    const today = new Date();
+    const futureLastVisibleMonth = new Date(previewDateEndModal.value);
+    futureLastVisibleMonth.setMonth(futureLastVisibleMonth.getMonth() + displayedMonthsEndModal.value + 3 - 1);
+    const monthsFromToday = (futureLastVisibleMonth.getFullYear() - today.getFullYear()) * 12 + 
+                            (futureLastVisibleMonth.getMonth() - today.getMonth());
+    return monthsFromToday <= 12;
+});
 
 // Embargo state
 const showEmbargoModal = ref(false);
@@ -587,10 +645,10 @@ const generatedDateStrings = computed(() => {
     
     const timezone = selectedTimezone.value;
     
-    // Use endDate if set, otherwise default to 6 months from now
+    // Use endDate if set, otherwise default to 6 months from start date
     const maxDate = endDate.value 
         ? endDate.value
-        : addMonths(new Date(), 6, timezone);
+        : addMonths(effectiveStartDate.value, 6, timezone);
     
     // Use the centralized date utility for generating recurring dates
     return generateRecurringDates(
@@ -646,7 +704,7 @@ const formatDateWithDay = (date) => {
 };
 
 const extendToSixMonths = () => {
-    endDate.value = addMonths(new Date(), 6, selectedTimezone.value);
+    endDate.value = addMonths(effectiveStartDate.value, 6, selectedTimezone.value);
 };
 
 // Start date modal methods
@@ -654,10 +712,48 @@ const openStartDateModal = () => {
     if (customStartDate.value) {
         const d = new Date(customStartDate.value);
         tempStartDate.value = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+        // Start preview from the selected date
+        previewDateStartModal.value = new Date(d.getFullYear(), d.getMonth(), 1);
     } else {
         tempStartDate.value = null;
+        // Start preview from today
+        previewDateStartModal.value = new Date();
     }
+    
+    // Reset calendar to default view
+    displayedMonthsStartModal.value = 6;
+    
     showStartDateModal.value = true;
+};
+
+const showPreviousMonthsStartModal = () => {
+    // Get current preview date
+    const currentDate = new Date(previewDateStartModal.value);
+    
+    // Calculate the new date (2 months back)
+    const newMonth = currentDate.getMonth() - 2;
+    const newYear = currentDate.getFullYear() + Math.floor(newMonth / 12);
+    const adjustedMonth = ((newMonth % 12) + 12) % 12; // Handle negative months
+    
+    // Update previewDate
+    currentDate.setMonth(currentDate.getMonth() - 2);
+    previewDateStartModal.value = currentDate;
+    
+    // Increase displayed months by 2
+    displayedMonthsStartModal.value += 2;
+    
+    // Use the DatePicker's API method to change month programmatically
+    if (startDateCalendarRef.value) {
+        startDateCalendarRef.value.setMonthYear({ 
+            month: adjustedMonth, 
+            year: newYear 
+        });
+    }
+};
+
+const loadMoreMonthsStartModal = () => {
+    // Increment by 3 months (button will hide when reaching 12 months from today)
+    displayedMonthsStartModal.value += 3;
 };
 
 const selectStartDate = (selectedDate) => {
@@ -682,10 +778,49 @@ const openLastDateModal = () => {
     if (endDate.value) {
         const d = new Date(endDate.value);
         tempEndDate.value = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+        // Start preview from the selected end date
+        previewDateEndModal.value = new Date(d.getFullYear(), d.getMonth(), 1);
     } else {
         tempEndDate.value = null;
+        // Start preview from start date or today
+        const startDate = effectiveStartDate.value || new Date();
+        previewDateEndModal.value = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
     }
+    
+    // Reset calendar to default view
+    displayedMonthsEndModal.value = 6;
+    
     showLastDateModal.value = true;
+};
+
+const showPreviousMonthsEndModal = () => {
+    // Get current preview date
+    const currentDate = new Date(previewDateEndModal.value);
+    
+    // Calculate the new date (2 months back)
+    const newMonth = currentDate.getMonth() - 2;
+    const newYear = currentDate.getFullYear() + Math.floor(newMonth / 12);
+    const adjustedMonth = ((newMonth % 12) + 12) % 12; // Handle negative months
+    
+    // Update previewDate
+    currentDate.setMonth(currentDate.getMonth() - 2);
+    previewDateEndModal.value = currentDate;
+    
+    // Increase displayed months by 2
+    displayedMonthsEndModal.value += 2;
+    
+    // Use the DatePicker's API method to change month programmatically
+    if (endDateCalendarRef.value) {
+        endDateCalendarRef.value.setMonthYear({ 
+            month: adjustedMonth, 
+            year: newYear 
+        });
+    }
+};
+
+const loadMoreMonthsEndModal = () => {
+    // Increment by 3 months (button will hide when reaching 12 months from today)
+    displayedMonthsEndModal.value += 3;
 };
 
 const selectEndDate = (selectedDate) => {
@@ -694,14 +829,23 @@ const selectEndDate = (selectedDate) => {
 
 const confirmEndDate = () => {
     if (tempEndDate.value) {
+        // Validate that end date is after start date
+        const selectedEndDate = new Date(tempEndDate.value);
+        const startDate = effectiveStartDate.value;
+        
+        if (startDate && selectedEndDate <= startDate) {
+            alert('End date must be after the start date');
+            return;
+        }
+        
         endDate.value = createDateAtNoon(tempEndDate.value, selectedTimezone.value);
-        showEndDateModal.value = false;
+        showLastDateModal.value = false;
         tempEndDate.value = null;
     }
 };
 
 const cancelEndDate = () => {
-    showEndDateModal.value = false;
+    showLastDateModal.value = false;
     tempEndDate.value = null;
 };
 
@@ -814,8 +958,13 @@ defineExpose({
         }
     },
     
-    reconstructFromDates: (dates) => {
+    reconstructFromDates: (dates, storedStartDate = null) => {
         if (!dates || dates.length === 0) return;
+        
+        // If we have a stored start date, use it directly
+        if (storedStartDate) {
+            customStartDate.value = new Date(storedStartDate);
+        }
         
         // Analyze the dates to determine which days of the week were selected
         const dayFrequency = {};

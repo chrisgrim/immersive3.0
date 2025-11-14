@@ -12,16 +12,74 @@
     <meta property="og:site_name" content="Everything Immersive" />
     <meta property="article:publisher" content="https://www.facebook.com/EverythingImmersive/" />
     <meta property="article:section" content="Immersive" />
-    <meta property="og:image" content="{{ url('/') }}/storage/website-files/Everything_Immersive_logo_Short.png" />
-    <meta property="og:image:secure_url" content="{{ url('/') }}/storage/website-files/Everything_Immersive_logo_Short.png" />
-    <meta property="og:image:width" content="321" />
-    <meta property="og:image:height" content="277" />
-    <meta property="og:image:alt" content="Everything Immersive logo" />
+    
+    @php
+        // Try to get the first image from the first dock
+        $dockImage = null;
+        $imageUrl = env('VITE_IMAGE_URL');
+        
+        if (isset($docks) && count($docks) > 0) {
+            $firstDock = $docks[0];
+            
+            // Try to get image from cards first
+            if ($firstDock->cards && count($firstDock->cards) > 0) {
+                $firstCard = $firstDock->cards[0];
+                if ($firstCard->images && count($firstCard->images) > 0) {
+                    $dockImage = $firstCard->images[0]->large_image_path;
+                } elseif ($firstCard->event && $firstCard->event->largeImagePath) {
+                    $dockImage = $firstCard->event->largeImagePath;
+                }
+            }
+            
+            // If no card image, try posts
+            if (!$dockImage && $firstDock->posts && count($firstDock->posts) > 0) {
+                $firstPost = $firstDock->posts[0];
+                if ($firstPost->images && count($firstPost->images) > 0) {
+                    $dockImage = $firstPost->images[0]->large_image_path;
+                } elseif ($firstPost->featuredEventImage && $firstPost->featuredEventImage->largeImagePath) {
+                    $dockImage = $firstPost->featuredEventImage->largeImagePath;
+                } elseif ($firstPost->largeImagePath) {
+                    $dockImage = $firstPost->largeImagePath;
+                }
+            }
+            
+            // If no post image, try shelves
+            if (!$dockImage && $firstDock->shelves && count($firstDock->shelves) > 0) {
+                foreach ($firstDock->shelves as $shelf) {
+                    if ($shelf->dockPosts && count($shelf->dockPosts) > 0) {
+                        $firstShelfPost = $shelf->dockPosts[0];
+                        if ($firstShelfPost->images && count($firstShelfPost->images) > 0) {
+                            $dockImage = $firstShelfPost->images[0]->large_image_path;
+                            break;
+                        } elseif ($firstShelfPost->featuredEventImage && $firstShelfPost->featuredEventImage->largeImagePath) {
+                            $dockImage = $firstShelfPost->featuredEventImage->largeImagePath;
+                            break;
+                        } elseif ($firstShelfPost->largeImagePath) {
+                            $dockImage = $firstShelfPost->largeImagePath;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Fallback to logo if no dock image found
+        $metaImage = $dockImage ? ($imageUrl . $dockImage) : (url('/') . '/storage/website-files/Everything_Immersive_logo_Short.png');
+        $metaImageAlt = $dockImage ? 'Featured immersive experience' : 'Everything Immersive logo';
+    @endphp
+    
+    <meta property="og:image" content="{{ $metaImage }}" />
+    <meta property="og:image:secure_url" content="{{ $metaImage }}" />
+    @if(!$dockImage)
+        <meta property="og:image:width" content="321" />
+        <meta property="og:image:height" content="277" />
+    @endif
+    <meta property="og:image:alt" content="{{ $metaImageAlt }}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:description" content="Explore our database of curated events, containing everything from immersive theatre to installation art to escape rooms and beyond." />
     <meta name="twitter:title" content="Everything Immersive" />
     <meta name="twitter:site" content="@everythingimmersive" />
-    <meta name="twitter:image" content="{{ url('/') }}/storage/website-files/Everything_Immersive_logo_Short.png" />
+    <meta name="twitter:image" content="{{ $metaImage }}" />
     <meta name="twitter:creator" content="@everythingimmersive" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />

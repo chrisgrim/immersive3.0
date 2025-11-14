@@ -10,6 +10,7 @@ use App\Traits\{Favoritable};
 use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use App\Models\NameChangeRequest;
@@ -31,7 +32,7 @@ class Event extends Model
     ];
 
     protected $fillable = [
-        'slug', 'user_id', 'timezone', 'category_id', 'attendance_type_id', 'interactive_level_id','organizer_id','description','name','largeImagePath','thumbImagePath','advisories_id', 'organizer_id', 'location_latlon', 'closingDate','websiteUrl','ticketUrl','show_times','price_range', 'status','tag_line', 'hasLocation', 'showtype', 'embargo_date', 'remote_description', 'published_at', 'call_to_action', 'age_limits_id', 'rank', 'archived'
+        'slug', 'user_id', 'timezone', 'category_id', 'attendance_type_id', 'interactive_level_id','organizer_id','description','name','largeImagePath','thumbImagePath','advisories_id', 'organizer_id', 'location_latlon', 'closingDate','websiteUrl','ticketUrl','show_times','price_range', 'status','tag_line', 'hasLocation', 'showtype', 'start_date', 'embargo_date', 'remote_description', 'published_at', 'call_to_action', 'age_limits_id', 'rank', 'archived'
     ];
 
     protected $appends = ['isFavorited', 'isShowing'];
@@ -512,84 +513,88 @@ class Event extends Model
      */
     public function duplicate()
     {
-        // Create new event with duplicated attributes (excluding location, ticket, and price data)
-        $newEvent = $this->replicate(['location_latlon', 'ticketUrl', 'price_range', 'closingDate', 'show_times', 'showtype']);
-        $newEvent->slug = Str::slug('new-event-' . Str::random(6));
-        $newEvent->status = '0'; // Set as draft
-        $newEvent->name = $this->name . ' (Copy)';
-        $newEvent->published_at = null;
-        $newEvent->hasLocation = $this->attendance_type_id === 1; // Set hasLocation based on attendance type (true for in-person, false for remote)
-        $newEvent->attendance_type_id = $this->attendance_type_id; // Copy the attendance type (in-person vs remote)
-        $newEvent->save();
+        return DB::transaction(function () {
+            // Create new event with duplicated attributes (excluding location, ticket, and price data)
+            $newEvent = $this->replicate(['location_latlon', 'ticketUrl', 'price_range', 'closingDate', 'show_times', 'showtype']);
+            $newEvent->slug = Str::slug('new-event-' . Str::random(6));
+            $newEvent->status = '0'; // Set as draft
+            $newEvent->name = $this->name . ' (Copy)';
+            $newEvent->published_at = null;
+            $newEvent->hasLocation = $this->attendance_type_id === 1; // Set hasLocation based on attendance type (true for in-person, false for remote)
+            $newEvent->attendance_type_id = $this->attendance_type_id; // Copy the attendance type (in-person vs remote)
+            $newEvent->save();
 
-        // Create empty location record (required for all events) - duplicated location data commented out per client request
-        // if ($this->location) {
-        //     $newLocation = $this->location->replicate();
-        //     $newLocation->event_id = $newEvent->id;
-        //     $newLocation->save();
-        // }
-        // Create empty location record instead
-        $newEvent->location()->create([]);
+            // Create empty location record (required for all events) - duplicated location data commented out per client request
+            // if ($this->location) {
+            //     $newLocation = $this->location->replicate();
+            //     $newLocation->event_id = $newEvent->id;
+            //     $newLocation->save();
+            // }
+            // Create empty location record instead
+            $newEvent->location()->create([]);
 
-        // Duplicate advisories
-        if ($this->advisories) {
-            $newAdvisories = $this->advisories->replicate();
-            $newAdvisories->event_id = $newEvent->id;
-            $newAdvisories->save();
-        }
+            // Duplicate advisories
+            if ($this->advisories) {
+                $newAdvisories = $this->advisories->replicate();
+                $newAdvisories->event_id = $newEvent->id;
+                $newAdvisories->save();
+            }
 
-        // Sync relationships
-        $newEvent->genres()->sync($this->genres->pluck('id'));
-        $newEvent->contentadvisories()->sync($this->contentadvisories->pluck('id'));
-        $newEvent->mobilityadvisories()->sync($this->mobilityadvisories->pluck('id'));
-        $newEvent->contactlevels()->sync($this->contactlevels->pluck('id'));
-        $newEvent->remotelocations()->sync($this->remotelocations->pluck('id'));
+            // Sync relationships
+            $newEvent->genres()->sync($this->genres->pluck('id'));
+            $newEvent->contentadvisories()->sync($this->contentadvisories->pluck('id'));
+            $newEvent->mobilityadvisories()->sync($this->mobilityadvisories->pluck('id'));
+            $newEvent->contactlevels()->sync($this->contactlevels->pluck('id'));
+            $newEvent->remotelocations()->sync($this->remotelocations->pluck('id'));
 
-        // Price ranges duplication commented out per client request
-        // foreach ($this->priceranges as $priceRange) {
-        //     $newPriceRange = $priceRange->replicate();
-        //     $newPriceRange->event_id = $newEvent->id;
-        //     $newPriceRange->save();
-        // }
+            // Price ranges duplication commented out per client request
+            // foreach ($this->priceranges as $priceRange) {
+            //     $newPriceRange = $priceRange->replicate();
+            //     $newPriceRange->event_id = $newEvent->id;
+            //     $newPriceRange->save();
+            // }
 
-        // Shows/dates duplication commented out per client request
-        // foreach ($this->shows as $show) {
-        //     $newShow = $show->replicate();
-        //     $newShow->event_id = $newEvent->id;
-        //     $newShow->save();
+            // Shows/dates duplication commented out per client request
+            // foreach ($this->shows as $show) {
+            //     $newShow = $show->replicate();
+            //     $newShow->event_id = $newEvent->id;
+            //     $newShow->save();
 
-        //     // Duplicate tickets for this show
-        //     foreach ($show->tickets as $ticket) {
-        //         $newTicket = $ticket->replicate();
-        //         $newTicket->ticket_type = get_class($newShow);
-        //         $newTicket->ticket_id = $newShow->id;
-        //         $newTicket->save();
-        //     }
-        // }
+            //     // Duplicate tickets for this show
+            //     foreach ($show->tickets as $ticket) {
+            //         $newTicket = $ticket->replicate();
+            //         $newTicket->ticket_type = get_class($newShow);
+            //         $newTicket->ticket_id = $newShow->id;
+            //         $newTicket->save();
+            //     }
+            // }
 
-        // Duplicate images - copy actual files to new location
-        ImageHandler::duplicateImages($this, $newEvent, 'event');
+            // Duplicate images - copy actual files to new location
+            // Note: File copy operations are not rolled back if transaction fails,
+            // but image database records will be rolled back, preventing orphaned references
+            ImageHandler::duplicateImages($this, $newEvent, 'event');
 
-        // Duplicate videos
-        foreach ($this->videos as $video) {
-            $newVideo = $video->replicate();
-            $newVideo->videoable_id = $newEvent->id;
-            $newVideo->save();
-        }
+            // Duplicate videos
+            foreach ($this->videos as $video) {
+                $newVideo = $video->replicate();
+                $newVideo->videoable_id = $newEvent->id;
+                $newVideo->save();
+            }
 
-        return $newEvent->fresh([
-            'location',
-            'advisories',
-            'genres',
-            'contentadvisories',
-            'mobilityadvisories',
-            'contactlevels',
-            'remotelocations',
-            // 'priceranges', // Commented out since we're not duplicating price ranges
-            // 'shows.tickets', // Commented out since we're not duplicating shows/tickets
-            'images',
-            'videos'
-        ]);
+            return $newEvent->fresh([
+                'location',
+                'advisories',
+                'genres',
+                'contentadvisories',
+                'mobilityadvisories',
+                'contactlevels',
+                'remotelocations',
+                // 'priceranges', // Commented out since we're not duplicating price ranges
+                // 'shows.tickets', // Commented out since we're not duplicating shows/tickets
+                'images',
+                'videos'
+            ]);
+        });
     }
 
     /**

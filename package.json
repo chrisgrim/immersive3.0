@@ -19,7 +19,7 @@
     "vite": "^5.2.6"
   },
   "scripts": {
-    "dev": "node --no-warnings ./node_modules/vite/bin/vite.js",
+    "dev": "node --no-warnings ./node_modules/vite/bin/vite.js --host",
     "build": "node scripts/confirm.project.js --staging && node --no-warnings ./node_modules/vite/bin/vite.js build",
     "production": "node scripts/confirm.project.js --production && NODE_ENV=production node --no-warnings ./node_modules/vite/bin/vite.js build"
   },

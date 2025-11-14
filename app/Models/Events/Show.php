@@ -149,6 +149,13 @@ class Show extends Model
         if ($request->timezone) {
             $updateData['timezone'] = $request->timezone;
         }
+        
+        // Store start date for ongoing events
+        if ($type === 'o' && isset($request->ongoing_config) && isset($request->ongoing_config['startDate'])) {
+            $updateData['start_date'] = $request->ongoing_config['startDate'];
+        } else {
+            $updateData['start_date'] = null;
+        }
 
         // Handle embargo status changes
         if ($event->status === 'e' && !$request->embargo_date) {
