@@ -19,7 +19,7 @@
                     />
                     <div class="flex justify-end mt-1" 
                          :class="{'text-red-500': isNearLimit, 'text-neutral-500': !isNearLimit}">
-                        {{ characterCount }}/2000
+                        {{ characterCount }}/5000
                     </div>
                     <p v-if="showMaxLengthError" 
                        class="text-red-500 text-1xl mt-[-2.5rem] mb-8 px-4">
@@ -48,7 +48,7 @@ const rules = {
     event: {
         description: {
             required,
-            maxLength: maxLength(2000),
+            maxLength: maxLength(5000),
         }
     }
 };
@@ -59,7 +59,7 @@ const characterCount = computed(() => event.description?.length || 0);
 
 const isNearLimit = computed(() => {
     const count = characterCount.value;
-    return count > 1800;
+    return count > 4500;
 });
 
 const showError = computed(() => {
@@ -79,8 +79,8 @@ const showRequiredError = computed(() => {
 // Methods
 const handleInput = () => {
     $v.value.event.description.$touch();
-    if (event.description?.length > 2000) {
-        event.description = event.description.slice(0, 2000);
+    if (event.description?.length > 5000) {
+        event.description = event.description.slice(0, 5000);
     }
 };
 

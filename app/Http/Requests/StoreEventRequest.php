@@ -22,7 +22,7 @@ class StoreEventRequest extends FormRequest
             'category_id' => 'nullable|exists:categories,id',
             'attendance_type_id' => 'nullable|exists:attendance_types,id',
             'interactive_level_id' => 'nullable|exists:interactive_levels,id',
-            'description' => 'sometimes|string|min:1|max:2000',
+            'description' => 'sometimes|string|min:1|max:5000',
             'name' => 'sometimes|string|max:100',
             'closingDate' => 'nullable|date',
             'websiteUrl' => 'sometimes|url|max:255',
