@@ -22,7 +22,15 @@
                     class="text-3xl md:text-2xl text-[#222222] hover:text-neutral-700 transition-colors"
                     :href="`http://maps.google.com/maps?q=${location.home?location.home:''}+${location.street?location.street:''},+${location.city?location.city:''},+${location.region?location.region:''}`">
                     <p class="font-medium mb-2 underline" v-if="event.location.venue">{{ event.location.venue }}</p>
-                    <p class="mb-2">{{ location.home }} {{ location.street }} {{ location.city }}</p>
+                    <p class="mb-2">
+                        <template v-if="location.home === location.street">
+                            {{ location.home }}
+                        </template>
+                        <template v-else>
+                            {{ location.home }} {{ location.street }}
+                        </template>
+                        {{ location.city }}
+                    </p>
                     <p>{{ location.region }} {{ location.country }} {{ location.postal_code }}</p>
                 </a>
             </div>

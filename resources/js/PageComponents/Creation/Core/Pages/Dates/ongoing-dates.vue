@@ -467,6 +467,7 @@ const emit = defineEmits(['dates-generated', 'back-to-selection', 'timezone-chan
 // Injected dependencies
 const event = inject('event');
 const errors = inject('errors');
+const user = inject('user');
 const selectedTimezone = computed(() => props.selectedTimezone);
 const isSidebarCollapsed = inject('isSidebarCollapsed', ref(true));
 
@@ -503,6 +504,9 @@ const displayedMonthsEndModal = ref(6);
 const previewDateEndModal = ref(new Date());
 const endDateCalendarRef = ref(null);
 
+// Admin check
+const isAdmin = computed(() => user && (user.isAdmin || false));
+
 // Computed property to check if we can show more previous months
 const canShowMorePreviousMonths = computed(() => {
     // Calculate how many months back from today we are
@@ -511,8 +515,9 @@ const canShowMorePreviousMonths = computed(() => {
     const monthsDiff = (today.getFullYear() - previewDate.getFullYear()) * 12 + 
                        (today.getMonth() - previewDate.getMonth());
     
-    // Allow going back up to 12 months from today
-    return monthsDiff < 12;
+    // Admins can go back up to 48 months (4 years), regular users 12 months
+    const maxMonthsBack = isAdmin.value ? 60 : 12;
+    return monthsDiff < maxMonthsBack;
 });
 
 // Computed property to check if we can show more future months
@@ -537,7 +542,9 @@ const canShowMorePreviousMonthsEnd = computed(() => {
     const previewDate = new Date(previewDateEndModal.value);
     const monthsDiff = (today.getFullYear() - previewDate.getFullYear()) * 12 + 
                        (today.getMonth() - previewDate.getMonth());
-    return monthsDiff < 12;
+    // Admins can go back up to 48 months (4 years), regular users 12 months
+    const maxMonthsBack = isAdmin.value ? 48 : 12;
+    return monthsDiff < maxMonthsBack;
 });
 
 const canShowMoreFutureMonthsEnd = computed(() => {
