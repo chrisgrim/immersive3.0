@@ -18,16 +18,34 @@ const MapStore = {
     state,
     
     boundsUpdate(bounds, center) {
+        // Validate that all coordinates are valid numbers
+        const neLat = parseFloat(bounds._northEast?.lat);
+        const neLng = parseFloat(bounds._northEast?.lng);
+        const swLat = parseFloat(bounds._southWest?.lat);
+        const swLng = parseFloat(bounds._southWest?.lng);
+        const centerLat = parseFloat(center?.lat);
+        const centerLng = parseFloat(center?.lng);
+        
+        // If any coordinate is NaN or invalid, log warning and skip update
+        if (isNaN(neLat) || isNaN(neLng) || isNaN(swLat) || isNaN(swLng) || isNaN(centerLat) || isNaN(centerLng)) {
+            console.warn('MapStore: Invalid bounds data received, skipping update', {
+                bounds,
+                center,
+                parsed: { neLat, neLng, swLat, swLng, centerLat, centerLng }
+            });
+            return;
+        }
+        
         const updatedBounds = {
             northEast: {
-                lat: bounds._northEast.lat,
-                lng: bounds._northEast.lng
+                lat: neLat,
+                lng: neLng
             },
             southWest: {
-                lat: bounds._southWest.lat,
-                lng: bounds._southWest.lng
+                lat: swLat,
+                lng: swLng
             },
-            center: [center.lat, center.lng]
+            center: [centerLat, centerLng]
         };
         
         state.value.bounds = updatedBounds;

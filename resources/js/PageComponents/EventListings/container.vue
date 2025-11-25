@@ -85,28 +85,39 @@ export default {
         function initializeCenter() {
             const searchParams = new URL(window.location.href).searchParams;
             if (searchParams.get("Clat")) {
-                return {
-                    lat: parseFloat(searchParams.get("Clat")),
-                    lng: parseFloat(searchParams.get("Clng"))
-                };
+                const clat = parseFloat(searchParams.get("Clat"));
+                const clng = parseFloat(searchParams.get("Clng"));
+                if (!isNaN(clat) && !isNaN(clng)) {
+                    return { lat: clat, lng: clng };
+                }
             }
+            const lat = parseFloat(searchParams.get("lat") ?? 0);
+            const lng = parseFloat(searchParams.get("lng") ?? 0);
             return {
-                lat: parseFloat(searchParams.get("lat") ?? 0),
-                lng: parseFloat(searchParams.get("lng") ?? 0)
+                lat: isNaN(lat) ? 0 : lat,
+                lng: isNaN(lng) ? 0 : lng
             };
         }
 
         function initializeBoundaries() {
             const searchParams = new URL(window.location.href).searchParams;
             if (!searchParams.get("NElat")) return null;
+            const neLat = parseFloat(searchParams.get("NElat"));
+            const neLng = parseFloat(searchParams.get("NElng"));
+            const swLat = parseFloat(searchParams.get("SWlat"));
+            const swLng = parseFloat(searchParams.get("SWlng"));
+            if (isNaN(neLat) || isNaN(neLng) || isNaN(swLat) || isNaN(swLng)) {
+                console.warn('Invalid boundary coordinates in URL, ignoring');
+                return null;
+            }
             return {
                     _northEast: {
-                        lat: parseFloat(new URL(window.location.href).searchParams.get("NElat")),
-                        lng: parseFloat(new URL(window.location.href).searchParams.get("NElng"))
+                        lat: neLat,
+                        lng: neLng
                     },
                     _southWest: {
-                        lat: parseFloat(new URL(window.location.href).searchParams.get("SWlat")),
-                        lng: parseFloat(new URL(window.location.href).searchParams.get("SWlng"))
+                        lat: swLat,
+                        lng: swLng
                     }
                 }
 

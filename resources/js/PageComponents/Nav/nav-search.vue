@@ -450,14 +450,15 @@ const handleLocationSearch = (searchData) => {
         // Set location parameters
         params.set('city', searchData.location.city);
         
-        // Explicitly convert to float before setting params
+        // Explicitly convert to float before setting params with validation
         const parsedLat = searchData.location.lat ? parseFloat(searchData.location.lat) : null;
         const parsedLng = searchData.location.lng ? parseFloat(searchData.location.lng) : null;
         
-        if (parsedLat !== null) {
+        // Only set lat/lng if they're valid numbers (not NaN)
+        if (parsedLat !== null && !isNaN(parsedLat)) {
             params.set('lat', parsedLat.toString());
         }
-        if (parsedLng !== null) {
+        if (parsedLng !== null && !isNaN(parsedLng)) {
             params.set('lng', parsedLng.toString());
         }
         
@@ -515,20 +516,34 @@ const fetchResults = async (queryString) => {
 // Set up subscription to MapStore for map-based searches
 const subscribeToMapStore = () => {
   const unsubscribeMap = MapStore.subscribe((mapState) => {
+    // Validate that all boundary coordinates are numeric before proceeding
+    const neLat = parseFloat(mapState.bounds.northEast.lat);
+    const neLng = parseFloat(mapState.bounds.northEast.lng);
+    const swLat = parseFloat(mapState.bounds.southWest.lat);
+    const swLng = parseFloat(mapState.bounds.southWest.lng);
+    const centerLat = parseFloat(mapState.bounds.center[0]);
+    const centerLng = parseFloat(mapState.bounds.center[1]);
+    
+    // Check if any values are NaN - if so, skip this update
+    if (isNaN(neLat) || isNaN(neLng) || isNaN(swLat) || isNaN(swLng) || isNaN(centerLat) || isNaN(centerLng)) {
+      console.warn('Invalid map bounds received, skipping update:', mapState.bounds);
+      return;
+    }
+    
     // Get current params to preserve other values
     const params = urlParams.value;
     
-    // Update boundary coordinates
-    params.set('NElat', parseFloat(mapState.bounds.northEast.lat).toFixed(6));
-    params.set('NElng', parseFloat(mapState.bounds.northEast.lng).toFixed(6));
-    params.set('SWlat', parseFloat(mapState.bounds.southWest.lat).toFixed(6));
-    params.set('SWlng', parseFloat(mapState.bounds.southWest.lng).toFixed(6));
+    // Update boundary coordinates with validated values
+    params.set('NElat', neLat.toFixed(6));
+    params.set('NElng', neLng.toFixed(6));
+    params.set('SWlat', swLat.toFixed(6));
+    params.set('SWlng', swLng.toFixed(6));
     params.set('live', 'true');
     params.set('searchType', 'inPerson');
 
-    // Update center coordinates
-    params.set('lat', mapState.bounds.center[0]);
-    params.set('lng', mapState.bounds.center[1]);
+    // Update center coordinates with validated values
+    params.set('lat', centerLat.toString());
+    params.set('lng', centerLng.toString());
 
     // Update URL without reload
     updateUrlParams(params);

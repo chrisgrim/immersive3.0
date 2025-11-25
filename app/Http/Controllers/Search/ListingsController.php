@@ -18,20 +18,48 @@ class ListingsController extends Controller
         // If searchType is null or not set, we should NOT filter by attendance_type_id
         // This allows the default search to include both in-person and remote events
         if (!$request->searchType || $request->searchType === 'null') {
-            return [
-                // No attendance_type filter means we'll return both types
-                'geoFilter' => $request->lat ? 
-                    Query::geoDistance()
+            $geoFilter = null;
+            
+            if ($request->lat && $request->lng) {
+                if (is_numeric($request->lat) && is_numeric($request->lng)) {
+                    $geoFilter = Query::geoDistance()
                         ->field('location_latlon')
                         ->distance('40km')
                         ->lat((float)$request->lat)
-                        ->lon((float)$request->lng) : null
-            ];
+                        ->lon((float)$request->lng);
+                } else {
+                    \Log::warning('Invalid lat/lng coordinates received', [
+                        'lat' => $request->lat,
+                        'lng' => $request->lng,
+                        'city' => $request->city
+                    ]);
+                }
+            }
+            
+            return ['geoFilter' => $geoFilter];
         }
 
         if ($request->searchType === 'inPerson') {
             // Get in-person attendance type ID (should be 1 based on migration)
             $inPersonId = 1;
+            
+            $geoFilter = null;
+            
+            if ($request->lat && $request->lng) {
+                if (is_numeric($request->lat) && is_numeric($request->lng)) {
+                    $geoFilter = Query::geoDistance()
+                        ->field('location_latlon')
+                        ->distance('40km')
+                        ->lat((float)$request->lat)
+                        ->lon((float)$request->lng);
+                } else {
+                    \Log::warning('Invalid lat/lng coordinates received', [
+                        'lat' => $request->lat,
+                        'lng' => $request->lng,
+                        'city' => $request->city
+                    ]);
+                }
+            }
             
             return [
                 'attendanceType' => Query::term()->field('attendance_type_id')->value($inPersonId),
@@ -39,12 +67,7 @@ class ListingsController extends Controller
                     $query->whereJsonContains('applicable_attendance_types', $inPersonId)
                           ->orWhereNull('applicable_attendance_types'); // Include categories without restrictions
                 })->get(),
-                'geoFilter' => $request->lat ? 
-                    Query::geoDistance()
-                        ->field('location_latlon')
-                        ->distance('40km')
-                        ->lat((float)$request->lat)
-                        ->lon((float)$request->lng) : null
+                'geoFilter' => $geoFilter
             ];
         }
 
@@ -201,20 +224,32 @@ class ListingsController extends Controller
 
     protected function buildMapBoundaryFilter(Request $request)
     {
-        if (!$request->live) {
+        // Only build boundary filter when live is explicitly 'true'
+        if (!isset($request->live) || $request->live !== 'true') {
             return null;
+        }
+
+        // Validate that all required geo coordinates are present and numeric
+        $requiredCoords = ['NElat', 'NElng', 'SWlat', 'SWlng'];
+        foreach ($requiredCoords as $coord) {
+            if (!isset($request->$coord) || !is_numeric($request->$coord)) {
+                \Log::warning('Invalid geo boundary coordinates received', [
+                    'coordinates' => $request->only($requiredCoords)
+                ]);
+                return null;
+            }
         }
 
         return Query::bool()->filterRaw([
             'geo_bounding_box' => [
                 'location_latlon' => [
                     'top_right' => [
-                        'lat' => $request->NElat,
-                        'lon' => $request->NElng,
+                        'lat' => (float)$request->NElat,
+                        'lon' => (float)$request->NElng,
                     ],
                     'bottom_left' => [
-                        'lat' => $request->SWlat,
-                        'lon' => $request->SWlng,
+                        'lat' => (float)$request->SWlat,
+                        'lon' => (float)$request->SWlng,
                     ]
                 ]
             ]
@@ -253,7 +288,10 @@ class ListingsController extends Controller
 
         // Add geo filter if needed
         if ($request->searchType === 'inPerson' && isset($request->live)) {
-            $query->filter($request->live === 'true' ? $boundaryFilter : $locationFilters['geoFilter']);
+            $geoFilter = $request->live === 'true' ? $boundaryFilter : $locationFilters['geoFilter'];
+            if ($geoFilter !== null) {
+                $query->filter($geoFilter);
+            }
         }
 
         // Add date filter
@@ -340,7 +378,10 @@ class ListingsController extends Controller
             ->when($searchFilters['tags'] ?? null, fn($q) => $q->filter($searchFilters['tags']))
             ->when(
                 ($request->searchType === 'inPerson' || !$request->searchType || $request->searchType === 'null') && isset($request->live),
-                fn($q) => $q->filter($request->live === 'true' ? $boundaryFilter : $locationFilters['geoFilter'])
+                function($q) use ($request, $boundaryFilter, $locationFilters) {
+                    $geoFilter = $request->live === 'true' ? $boundaryFilter : $locationFilters['geoFilter'];
+                    return $geoFilter !== null ? $q->filter($geoFilter) : $q;
+                }
             );
 
         // Execute search
