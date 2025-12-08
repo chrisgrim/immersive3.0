@@ -268,7 +268,7 @@ import Dropdown from '@/GlobalComponents/dropdown.vue';
 import List from '@/GlobalComponents/dropdown-list.vue';
 
 // 2. Constants
-const MAX_TICKET_PRICE = 9999.99;
+const MAX_TICKET_PRICE = 99999.99;
 const MAX_DESCRIPTION_LENGTH = 60;
 const MAX_CALL_TO_ACTION_LENGTH = 20;
 const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$'];
@@ -475,8 +475,8 @@ const updateTicketPrice = (e) => {
     }
 
     const parts = value.split('.');
-    if (parts[0].length > 4) {
-        parts[0] = parts[0].substring(0, 4);
+    if (parts[0].length > 5) {
+        parts[0] = parts[0].substring(0, 5);
         value = parts.join('.');
     }
 

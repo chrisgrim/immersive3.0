@@ -99,8 +99,8 @@
                         :class="{ 'row-layout': shouldUseRowLayout }"
                     />
                     
-                    <!-- Load More Button - hide when regular users reach 6 months or admins reach 12 months -->
-                    <div v-if="(displayedMonths < 6) || (isAdmin && displayedMonths < 12)" class="w-full flex justify-center my-8 md:mb-52">
+                    <!-- Load More Button - hide when users reach 12 months -->
+                    <div v-if="displayedMonths < 12" class="w-full flex justify-center my-8 md:mb-52">
                         <button 
                             @click="loadMoreMonths"
                             class="text-black underline font-semibold hover:text-gray-600"
@@ -493,9 +493,9 @@ const createWeeklyEvents = (startDateStr) => {
     const startDate = moment.tz(startDateStr, timezone).hour(12);
     const targetDay = startDate.day();
     const currentDate = moment().tz(timezone);
-    
-    // For admins, use the full range of displayed months; for regular users, stick to 6 months
-    const maxMonths = isAdmin.value ? Math.max(displayedMonths.value, 6) : 6;
+
+    // For all users, use the full range of displayed months (up to 12 months)
+    const maxMonths = Math.max(displayedMonths.value, 6);
     const maxDateRange = moment().tz(timezone).add(maxMonths, 'months').endOf('day');
     
     const newDates = [...date.value];
@@ -528,9 +528,9 @@ const removeWeeklyEvents = (startDateStr) => {
     const timezone = localTimezone.value;
     const startDate = moment.tz(startDateStr, timezone).hour(12);
     const startDay = startDate.day();
-    
-    // For admins, use the full range of displayed months; for regular users, stick to 6 months
-    const maxMonths = isAdmin.value ? Math.max(displayedMonths.value, 6) : 6;
+
+    // For all users, use the full range of displayed months (up to 12 months)
+    const maxMonths = Math.max(displayedMonths.value, 6);
     const maxDateRange = moment().tz(timezone).add(maxMonths, 'months').endOf('day');
 
     // Keep dates that are either:
@@ -687,22 +687,17 @@ const updateCalendarColumnsCSS = () => {
 
 // Calendar navigation
 const loadMoreMonths = () => {
-    // For non-admins, cap at 6 months
-    // For admins, cap at 12 months maximum
-    if (!isAdmin.value) {
+    // For all users: cap at 12 months maximum
+    // If less than 6, go to 6; if 6-8, go to 9; if 9-11, go to 12; if 12+, stay at 12
+    if (displayedMonths.value < 6) {
         displayedMonths.value = 6;
-    } else {
-        // For admins: if less than 6, go to 6; if 6-8, go to 9; if 9-11, go to 12; if 12+, stay at 12
-        if (displayedMonths.value < 6) {
-            displayedMonths.value = 6;
-        } else if (displayedMonths.value < 9) {
-            displayedMonths.value = 9;
-        } else if (displayedMonths.value < 12) {
-            displayedMonths.value = 12;
-        }
-        // If already at 12 or more, do nothing (stay capped at 12)
+    } else if (displayedMonths.value < 9) {
+        displayedMonths.value = 9;
+    } else if (displayedMonths.value < 12) {
+        displayedMonths.value = 12;
     }
-    
+    // If already at 12 or more, do nothing (stay capped at 12)
+
     // Update the year labels after component re-renders
     setTimeout(() => {
         updateMonthYearElements();

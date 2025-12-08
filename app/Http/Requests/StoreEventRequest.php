@@ -63,7 +63,7 @@ class StoreEventRequest extends FormRequest
             // Add validation for tickets
             'tickets' => 'nullable|array',
             'tickets.*.name' => 'required_with:tickets|string|max:40',
-            'tickets.*.ticket_price' => 'sometimes|required|numeric|min:0',
+            'tickets.*.ticket_price' => 'sometimes|required|numeric|min:0|max:99999.99',
             'tickets.*.description' => 'sometimes|nullable|string|max:200',
             'tickets.*.currency' => 'sometimes|required|string|max:3',
             // Relaxed validation for images
