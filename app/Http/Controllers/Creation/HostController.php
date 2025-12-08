@@ -11,9 +11,15 @@ class HostController extends Controller
 {
     public function show()
     {
+        // Redirect users without teams to the getting-started page
+        if (!auth()->user()->teams()->exists()) {
+            return redirect()->route('hosting.intro')
+                ->with('info', 'Please create an organization to start hosting events.');
+        }
+
         // Ensure user has a current team set
         $this->ensureCurrentTeam();
-        
+
         $organizer = auth()->user()->organizer()
             ->withUserRole()
             ->with(['images', 'events' => function ($query) {
@@ -29,7 +35,7 @@ class HostController extends Controller
                 $event->is_deleted = $event->trashed();
             }
         }
-            
+
         return view('creation.index', compact('organizer'));
     }
 

@@ -81,15 +81,14 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('hosting')->name('hosting.')->group(function () {
             // Routes that don't require hosting permissions
             Route::GET('/getting-started', [HostController::class, 'intro'])->name('intro');
-            
-            // Routes that require hosting permissions
+            Route::GET('/events', [HostController::class, 'show'])->name('dashboard');
+
+            // Routes that require hosting permissions (user must have teams)
             Route::middleware('can:host,App\Models\Event')->group(function () {
-                Route::GET('/events', [HostController::class, 'show'])->name('dashboard');
-                
                 Route::prefix('event')->name('event.')->group(function () {
                     Route::POST('/create', [HostEventController::class, 'create'])->name('create');
                     Route::GET('/user/has-created-events', [HostEventController::class, 'hasCreatedEvents'])->name('user.has-created-events');
-                    
+
                     Route::middleware('can:manage,event')->group(function () {
                         Route::GET('/{event}/edit', [HostEventController::class, 'edit'])->name('edit');
                         Route::POST('/{event}/submit', [HostEventController::class, 'submit'])->name('submit');
