@@ -57,15 +57,15 @@ class AdminEventController extends Controller
             ->when($request->sort, function ($query, $sort) {
                 switch ($sort) {
                     case 'oldest':
-                        $query->oldest();
+                        $query->orderBy('published_at', 'asc');
                         break;
                     case 'newest':
                     default:
-                        $query->latest();
+                        $query->orderBy('published_at', 'desc');
                         break;
                 }
             }, function ($query) {
-                $query->latest(); // Default sort
+                $query->orderBy('published_at', 'desc'); // Default sort by approval date
             });
 
         $events = $query->paginate(20);

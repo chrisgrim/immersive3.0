@@ -39,12 +39,6 @@ class ProfilesController extends Controller
     public function update(StoreProfileRequest $request, User $user)
     {
         try {
-            \Log::info('Update request received', [
-                'all' => $request->all(),
-                'newsletter_type' => $request->input('newsletter_type'),
-                'silence' => $request->input('silence')
-            ]);
-
             if ($request->hasFile('image')) {
                 // Delete existing images
                 foreach ($user->images as $image) {
