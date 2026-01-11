@@ -123,7 +123,10 @@
     <!-- Teleport the cropper to body for fullscreen -->
     <teleport to="body">
         <div v-if="showCropper" class="fixed inset-0 z-[1000] bg-black/90 flex flex-col items-center justify-center p-4">
-            <div class="w-full max-w-4xl h-[65vh] md:h-[80vh] relative">
+        <div 
+            class="w-full max-w-4xl h-[65vh] md:h-[80vh] relative"
+            :style="{ '--cropper-bg-color': backgroundColor }"
+        >
                 <Cropper
                     ref="cropperRef"
                     class="h-full w-full"
@@ -154,6 +157,42 @@
                     </button>
                 </div>
                 
+                <!-- Background Color Picker -->
+                <div class="absolute left-[-5rem] top-1/2 transform -translate-y-1/2 bg-white rounded-lg shadow-md p-2 flex flex-col gap-1">
+                    <div class="text-xs text-center text-gray-500 mb-1 font-medium">Fill</div>
+                    <div class="grid grid-cols-2 gap-1">
+                        <button
+                            v-for="color in presetColors"
+                            :key="color.value"
+                            @click="backgroundColor = color.value"
+                            :title="color.name"
+                            class="w-6 h-6 rounded border-2 transition-all duration-150 hover:scale-110"
+                            :class="backgroundColor === color.value ? 'border-blue-500 ring-2 ring-blue-300' : 'border-gray-300'"
+                            :style="{ backgroundColor: color.value }"
+                        />
+                    </div>
+                    <div class="border-t border-gray-200 mt-1 pt-1">
+                        <label class="block w-full cursor-pointer" title="Pick custom color">
+                            <div 
+                                class="w-full h-8 rounded border-2 transition-all duration-150 flex items-center justify-center bg-white hover:bg-gray-50"
+                                :class="isCustomColor ? 'border-blue-500 ring-2 ring-blue-300' : 'border-gray-300'"
+                            >
+                                <svg class="w-4 h-4 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M2 22l1-1h3l9-9"/>
+                                    <path d="M3 21v-3l9-9"/>
+                                    <path d="M14.5 5.5L18.5 9.5"/>
+                                    <path d="M18.5 5.5a2.121 2.121 0 0 1 3 3L12 18l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                            </div>
+                            <input 
+                                type="color" 
+                                v-model="backgroundColor"
+                                class="sr-only"
+                            />
+                        </label>
+                    </div>
+                </div>
+                
                 <div class="mt-3 md:mt-6 flex justify-center gap-4">
                     <button 
                         @click="cancelCrop"
@@ -174,7 +213,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, inject, watch } from 'vue';
+import { ref, computed, onMounted, inject, watch, watchEffect } from 'vue';
 import { RiImageCircleLine, RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import { Cropper } from 'vue-advanced-cropper';
 import 'vue-advanced-cropper/dist/style.css';
@@ -208,6 +247,32 @@ const showVideosInSlideshow = ref(true);
 const showMainImageError = ref(false);
 const mainFileInput = ref(null);
 const cropperRef = ref(null);
+const backgroundColor = ref('#000000');
+
+// Preset colors for background fill
+const presetColors = [
+    { name: 'Black', value: '#000000' },
+    { name: 'White', value: '#FFFFFF' },
+    { name: 'Dark Gray', value: '#333333' },
+    { name: 'Light Gray', value: '#CCCCCC' },
+    { name: 'Navy', value: '#1a365d' },
+    { name: 'Sky Blue', value: '#87CEEB' },
+    { name: 'Forest Green', value: '#228B22' },
+    { name: 'Sage', value: '#9DC183' },
+    { name: 'Burgundy', value: '#722F37' },
+    { name: 'Coral', value: '#FF7F7F' },
+    { name: 'Purple', value: '#663399' },
+    { name: 'Lavender', value: '#E6E6FA' },
+    { name: 'Brown', value: '#8B4513' },
+    { name: 'Cream', value: '#FFFDD0' },
+    { name: 'Teal', value: '#008080' },
+    { name: 'Gold', value: '#DAA520' },
+];
+
+// Check if current color is a preset or custom
+const isCustomColor = computed(() => {
+    return !presetColors.some(c => c.value.toLowerCase() === backgroundColor.value.toLowerCase());
+});
 
 // Injected values
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
@@ -394,6 +459,7 @@ const handleMainFileChange = async (event) => {
             const reader = new FileReader();
             reader.onload = (e) => {
                 cropperImage.value = e.target.result;
+                backgroundColor.value = '#000000'; // Reset to default for new crop
                 showCropper.value = true;
                 setComponentReady(false);
             };
@@ -446,6 +512,11 @@ const completeCrop = () => {
             throw new Error('Could not get canvas context');
         }
         
+        // Fill with the selected background color first
+        outputCtx.fillStyle = backgroundColor.value;
+        outputCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+        
+        // Then draw the cropped image on top
         outputCtx.drawImage(canvas, 0, 0, outputCanvas.width, outputCanvas.height);
         
         // Start with a quality of 0.95 and decrease if needed
@@ -819,18 +890,11 @@ defineExpose({
     background-color: rgba(30, 30, 30, 0.8);
 }
 
-/* Checkerboard pattern for the cropper with blue tint */
+/* Dynamic background color for the cropper - shows selected fill color */
 .vue-advanced-cropper__background, 
 .vue-advanced-cropper__foreground {
     opacity: 1;
-    background: 
-        linear-gradient(45deg, rgba(0, 40, 83, 0.5) 25%, transparent 25%),
-        linear-gradient(-45deg, rgba(0, 40, 83, 0.5) 25%, transparent 25%),
-        linear-gradient(45deg, transparent 75%, rgba(0, 40, 83, 0.5) 75%),
-        linear-gradient(-45deg, transparent 75%, rgba(0, 40, 83, 0.5) 75%);
-    background-size: 20px 20px;
-    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-    background-color: rgba(173, 216, 230, 0.09); /* Light blue base */
+    background-color: var(--cropper-bg-color, #000000);
     transform: translate(-50%, -50%);
     position: absolute;
     top: 50%;

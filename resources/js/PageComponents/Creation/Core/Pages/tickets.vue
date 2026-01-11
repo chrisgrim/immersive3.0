@@ -196,7 +196,19 @@
                     <div class="mt-12" ref="ticketUrlSection">
                         <div class="flex gap-4">
                             <div class="w-9/12 flex-grow">
-                                <p class="text-xl font-medium mb-4">Button Link</p>
+                                <div class="flex items-center gap-3 mb-4">
+                                    <p class="text-xl font-medium">Button Link</p>
+                                    <!-- Admin-only button to strip URL parameters -->
+                                    <button 
+                                        v-if="isAdmin && state.ticketUrl && state.ticketUrl.includes('?')"
+                                        @click="stripUrlParams"
+                                        type="button"
+                                        class="px-3 py-1 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+                                        title="Remove URL parameters"
+                                    >
+                                        Strip params
+                                    </button>
+                                </div>
                                 <input 
                                     class="w-full border border-neutral-300 text-[#222222] text-3xl p-4 rounded-2xl relative transition-all duration-200 h-20"
                                     :class="{ 
@@ -294,6 +306,10 @@ const CALL_TO_ACTION_OPTIONS = [
 
 // 3. Props & Injections
 const event = inject('event');
+const user = inject('user');
+
+// Admin check
+const isAdmin = computed(() => user && (user.isAdmin || false));
 
 // 4. State Management
 const state = ref({
@@ -568,6 +584,15 @@ const validateTicketUrl = () => {
     // Only touch the ticketUrl field, not the entire validation object
     $v.value.ticketUrl.$touch();
     state.value.ticketUrlError = $v.value.ticketUrl.$error;
+};
+
+// Strip URL parameters (admin only)
+const stripUrlParams = () => {
+    if (state.value.ticketUrl && state.value.ticketUrl.includes('?')) {
+        // Simply remove everything after the ? (query string)
+        state.value.ticketUrl = state.value.ticketUrl.split('?')[0];
+        validateTicketUrl();
+    }
 };
 
 // 9. Methods - UI Interactions

@@ -49,7 +49,7 @@ class AdminEventController extends Controller
                                ->orWhereHas('shows', function($showQ) {
                                    $showQ->select('event_id')
                                         ->groupBy('event_id')
-                                        ->havingRaw('COUNT(*) > 100');
+                                        ->havingRaw('COUNT(*) > 30');
                                });
                       });
                 });
