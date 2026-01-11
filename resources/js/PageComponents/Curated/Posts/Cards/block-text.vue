@@ -197,9 +197,18 @@ const rules = {
 
 const v$ = useVuelidate(rules, { card })
 
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+
 const onFileChange = (event) => {
     const file = event.target.files[0]
     if (file) {
+        // Validate file type
+        if (!ALLOWED_TYPES.includes(file.type)) {
+            alert('Please upload a valid image file (JPEG, PNG, or WebP).');
+            event.target.value = '';
+            return;
+        }
+        
         const reader = new FileReader()
         reader.onload = (e) => {
             imageFile.value = {
@@ -251,6 +260,20 @@ const saveCard = async () => {
         emit('update', res.data)
     } catch (error) {
         console.error('Failed to save card:', error)
+        
+        // Handle validation errors
+        if (error.response?.status === 422 && error.response?.data?.errors) {
+            const errors = error.response.data.errors;
+            if (errors.image) {
+                alert('Invalid image file. Please upload a JPEG, PNG, or WebP image.');
+                imageFile.value = null;
+            } else {
+                const allErrors = Object.values(errors).flat();
+                alert(allErrors.join('\n'));
+            }
+        } else {
+            alert('Failed to save card. Please try again.');
+        }
     }
 }
 

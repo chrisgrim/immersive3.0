@@ -92,6 +92,8 @@ const isVisible = computed({
 })
 
 // Methods
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+
 const saveCard = async () => {
     addCardData()
     try {
@@ -103,6 +105,20 @@ const saveCard = async () => {
         disabled.value = false
     } catch (error) {
         console.error('Failed to save card:', error)
+        
+        // Handle validation errors
+        if (error.response?.status === 422 && error.response?.data?.errors) {
+            const errors = error.response.data.errors;
+            if (errors.image) {
+                alert('Invalid image file. Please upload a JPEG, PNG, or WebP image.');
+                imageFile.value = null;
+            } else {
+                const allErrors = Object.values(errors).flat();
+                alert(allErrors.join('\n'));
+            }
+        } else {
+            alert('Failed to save image. Please try again.');
+        }
     }
 }
 
@@ -125,6 +141,13 @@ const addCardData = () => {
 const onFileChange = async (event) => {
     const file = event.target.files[0]
     if (!file) return
+
+    // Validate file type
+    if (!ALLOWED_TYPES.includes(file.type)) {
+        alert('Please upload a valid image file (JPEG, PNG, or WebP).');
+        event.target.value = '';
+        return;
+    }
 
     const reader = new FileReader()
     reader.onload = async (e) => {

@@ -130,9 +130,18 @@ const triggerFileInput = () => {
     fileInput.value.click();
 };
 
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+
 const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
+        // Validate file type
+        if (!ALLOWED_TYPES.includes(file.type)) {
+            alert('Please upload a valid image file (JPEG, PNG, or WebP).');
+            event.target.value = '';
+            return;
+        }
+        
         const formData = new FormData();
         formData.append('image', file);
         submitData(formData);
@@ -171,6 +180,19 @@ const submitData = async (data) => {
         }
     } catch (error) {
         console.error('Error:', error);
+        
+        // Handle validation errors
+        if (error.response?.status === 422 && error.response?.data?.errors) {
+            const errors = error.response.data.errors;
+            if (errors.image) {
+                alert('Invalid image file. Please upload a JPEG, PNG, or WebP image.');
+            } else {
+                const allErrors = Object.values(errors).flat();
+                alert(allErrors.join('\n'));
+            }
+        } else {
+            alert('Failed to save. Please try again.');
+        }
     } finally {
         isSubmitting.value = false;
     }

@@ -562,6 +562,30 @@ const updateCard = async () => {
         clear()
     } catch (error) {
         console.error('Failed to update card:', error)
+        
+        // Handle validation errors
+        if (error.response?.status === 422 && error.response?.data?.errors) {
+            const errors = error.response.data.errors;
+            
+            // Build user-friendly error message
+            let errorMessages = [];
+            if (errors.image) {
+                errorMessages.push('Invalid image file. Please upload a JPEG, PNG, or WebP image.');
+                // Clear the invalid image preview
+                imageFile.value = null;
+            }
+            for (const [field, messages] of Object.entries(errors)) {
+                if (field !== 'image') {
+                    errorMessages.push(...messages);
+                }
+            }
+            
+            if (errorMessages.length > 0) {
+                alert(errorMessages.join('\n'));
+            }
+        } else {
+            alert('Failed to update card. Please try again.');
+        }
     }
 }
 
@@ -655,6 +679,8 @@ const onFileChange = async (event) => {
                 width: img.width,
                 height: img.height
             }
+            // Auto-save after image upload
+            await updateCard()
         }
     }
     reader.readAsDataURL(file)
