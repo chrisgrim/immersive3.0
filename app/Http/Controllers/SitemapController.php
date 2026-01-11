@@ -15,8 +15,14 @@ class SitemapController extends Controller
      */
     public function index()
     {
-        $events = Event::whereIn('status', ['p', 'e'])->get();
-        $organizers = Organizer::has('events')->get();
+        $events = Event::whereIn('status', ['p', 'e'])
+            ->whereNotNull('slug')
+            ->where('slug', '!=', '')
+            ->get();
+        $organizers = Organizer::has('events')
+            ->whereNotNull('slug')
+            ->where('slug', '!=', '')
+            ->get();
         $communities = Community::where('status', 'p')->get();
         
         $content = view('sitemaps.index', [

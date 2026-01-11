@@ -161,7 +161,7 @@
                                 type="file" 
                                 id="image-upload" 
                                 @change="updateImage" 
-                                accept="image/*"
+                                accept="image/jpeg,image/png,image/webp"
                                 class="hidden"
                             >
                         </div>

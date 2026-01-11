@@ -31,6 +31,9 @@ class CardActions
         ]);
 
         if ($request->hasFile('image')) {
+            $request->validate([
+                'image' => 'image|mimes:jpeg,png,jpg,webp|max:8192'
+            ]);
             ImageHandler::saveImage($request->file('image'), $card, 800, 500, 'card-images');
         }
         
@@ -45,6 +48,9 @@ class CardActions
         $card->update($request->except(['image', 'deleteImage']));
 
         if ($request->hasFile('image')) {
+            $request->validate([
+                'image' => 'image|mimes:jpeg,png,jpg,webp|max:8192'
+            ]);
             if ($card->images()->exists()) {
                 foreach ($card->images as $image) {
                     ImageHandler::deleteImage($image);

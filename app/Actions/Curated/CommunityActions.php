@@ -36,6 +36,9 @@ class CommunityActions
         ]);
 
         if ($request->hasFile('image')) {
+            $request->validate([
+                'image' => 'image|mimes:jpeg,png,jpg,webp|max:8192'
+            ]);
             ImageHandler::saveImage($request->file('image'), $community, 800, 500, 'community-images', 0);
         }
 
@@ -59,6 +62,9 @@ class CommunityActions
 
         if ($request->hasFile('image')) {
             try {
+                $request->validate([
+                    'image' => 'image|mimes:jpeg,png,jpg,webp|max:8192'
+                ]);
                 if ($community->images()->exists()) {
                     foreach ($community->images as $image) {
                         if ($image->large_image_path || $image->thumb_image_path) {

@@ -19,7 +19,7 @@
                             type="file" 
                             ref="mainFileInput"
                             class="hidden" 
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp"
                             @change="handleMainFileChange" 
                         />
                         <component :is="RiImageCircleLine" class="w-16 h-16 text-neutral-400" />
@@ -45,7 +45,7 @@
                                 type="file" 
                                 ref="mainFileInput"
                                 class="hidden" 
-                                accept="image/*"
+                                accept="image/jpeg,image/png,image/webp"
                                 @change="handleMainFileChange" 
                             />
                             <div 
@@ -93,7 +93,7 @@
                                         type="file" 
                                         class="hidden fileInput" 
                                         multiple 
-                                        accept="image/*"
+                                        accept="image/jpeg,image/png,image/webp"
                                         @change="handleFileChange" 
                                     />
                                     <component :is="RiImageCircleLine" class="w-16 h-16 text-neutral-400" />

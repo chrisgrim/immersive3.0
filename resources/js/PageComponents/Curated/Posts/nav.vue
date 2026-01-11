@@ -66,7 +66,7 @@
                             <input 
                                 type="file" 
                                 class="hidden fileInput" 
-                                accept="image/*"
+                                accept="image/jpeg,image/png,image/webp"
                                 @change="handleFileChange" 
                             />
                             <component :is="RiImageCircleLine" style="width:4rem; height: 4rem;" />

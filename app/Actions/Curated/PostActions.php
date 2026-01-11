@@ -30,6 +30,9 @@ class PostActions
         ]);
 
         if ($request->hasFile('image')) {
+            $request->validate([
+                'image' => 'image|mimes:jpeg,png,jpg,webp|max:8192'
+            ]);
             ImageHandler::saveImage($request->file('image'), $post, 1000, 563, 'post-images');
         }
 
@@ -71,6 +74,9 @@ class PostActions
 
         // Handle image upload/deletion as before
         if ($request->hasFile('image')) {
+            $request->validate([
+                'image' => 'image|mimes:jpeg,png,jpg,webp|max:8192'
+            ]);
             $post->update(['event_id' => NULL]);
             if ($post->images()->exists()) {
                 foreach ($post->images as $image) {

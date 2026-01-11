@@ -42,7 +42,7 @@
                                             <input
                                                 type="file"
                                                 class="hidden"
-                                                accept="image/*"
+                                                accept="image/jpeg,image/png,image/webp"
                                                 @change="onFileChange">
                                         </label>
                                         
@@ -209,7 +209,7 @@
                             id="image-card-upload"
                             type="file"
                             class="hidden"
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp"
                             @change="onFileChange">
                     </label>
                     
@@ -279,7 +279,7 @@
                                     id="regular-image-upload"
                                     type="file"
                                     class="hidden"
-                                    accept="image/*"
+                                    accept="image/jpeg,image/png,image/webp"
                                     @change="onFileChange">
                             </label>
                             
@@ -631,9 +631,18 @@ const cleanDate = (date) => {
     return moment(date).format("dddd, MMMM D YYYY")
 }
 
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+
 const onFileChange = async (event) => {
     const file = event.target.files[0]
     if (!file) return
+
+    // Validate file type
+    if (!ALLOWED_TYPES.includes(file.type)) {
+        alert('Please upload a valid image file (JPEG, PNG, or WebP).');
+        event.target.value = '';
+        return;
+    }
 
     const reader = new FileReader()
     reader.onload = async (e) => {

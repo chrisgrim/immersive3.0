@@ -48,7 +48,7 @@ class AdminGenreController extends Controller
             'name' => 'required|string|max:255|unique:genres,name',
             'rank' => 'integer|min:0',
             'admin' => 'boolean',
-            'image' => 'nullable|image|max:2048'
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:8192'
         ]);
 
         $genre = Genre::create([
@@ -110,7 +110,7 @@ class AdminGenreController extends Controller
         // Handle image upload
         if ($request->hasFile('image')) {
             $request->validate([
-                'image' => 'required|image|max:2048'
+                'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:8192'
             ]);
 
             // Delete old images first

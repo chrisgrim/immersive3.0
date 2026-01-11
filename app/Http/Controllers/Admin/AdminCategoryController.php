@@ -27,7 +27,7 @@ class AdminCategoryController extends Controller
                 'remote' => 'nullable|boolean',
                 'type' => 'required|string|in:c,g',
                 'slug' => 'nullable|string',
-                'image.*' => 'nullable|image|max:2048',
+                'image.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:8192',
                 'image_index.*' => 'required_with:image.*|integer|in:0,1',
                 'applicable_attendance_types' => 'nullable|array',
                 'applicable_attendance_types.*' => 'integer'

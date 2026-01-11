@@ -13,7 +13,7 @@
                         type="file" 
                         ref="fileInput"
                         class="hidden" 
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/webp"
                         @change="handleFileChange" 
                     />
                     

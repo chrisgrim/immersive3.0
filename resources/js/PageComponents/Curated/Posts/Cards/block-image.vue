@@ -24,7 +24,7 @@
             <input
                 type="file"
                 class="hidden"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
                 @change="onFileChange">
         </label>
 
