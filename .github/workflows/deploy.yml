@@ -1,11 +1,8 @@
 name: Deploy
 
 on:
-  # Auto-deploy to DEV when pushing to main
   push:
     branches: [main]
-  
-  # Manual deploy to production (click button in GitHub)
   workflow_dispatch:
     inputs:
       environment:
@@ -37,23 +34,15 @@ jobs:
       - name: Build assets
         run: npm run build
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-          
-      - name: Debug SSH key
-        run: |
-          echo "Key file info:"
-          wc -l ~/.ssh/deploy_key
-          head -1 ~/.ssh/deploy_key
-          tail -1 ~/.ssh/deploy_key
-          
-      - name: Test SSH connection
-        run: |
-          ssh -vvv -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o BatchMode=yes ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo 'SSH connection successful!'" 2>&1 | head -100
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          known_hosts: unnecessary
+          if_key_exists: replace
+
+      - name: Add known hosts
+        run: ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Determine deploy path
         id: deploy-path
@@ -70,7 +59,6 @@ jobs:
         run: |
           DEPLOY_PATH="${{ steps.deploy-path.outputs.path }}"
           
-          # Sync code (excluding stuff that shouldn't be deployed)
           rsync -avz --delete \
             --exclude='.git' \
             --exclude='node_modules' \
@@ -79,35 +67,25 @@ jobs:
             --exclude='storage/framework/cache/*' \
             --exclude='storage/framework/sessions/*' \
             --exclude='storage/framework/views/*' \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            -e "ssh -o StrictHostKeyChecking=no" \
             ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_PATH/
 
       - name: Run post-deploy commands
         run: |
           DEPLOY_PATH="${{ steps.deploy-path.outputs.path }}"
           
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
             cd $DEPLOY_PATH
             
-            # Install/update composer dependencies
             composer install --no-dev --optimize-autoloader --no-interaction
-            
-            # Run migrations
             php artisan migrate --force
-            
-            # Clear and rebuild caches
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
-            
-            # Restart queue workers if using them
             php artisan queue:restart 2>/dev/null || true
             
             echo "✅ Deployment complete!"
           EOF
-        env:
-          DEPLOY_PATH: ${{ steps.deploy-path.outputs.path }}
 
       - name: Deployment summary
         run: |
