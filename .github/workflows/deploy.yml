@@ -58,6 +58,11 @@ jobs:
             echo "env=dev" >> $GITHUB_OUTPUT
           fi
 
+      - name: Clear server views folder (fix case sensitivity)
+        run: |
+          DEPLOY_PATH="${{ steps.deploy-path.outputs.path }}"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "rm -rf $DEPLOY_PATH/resources/views"
+
       - name: Deploy to server
         run: |
           DEPLOY_PATH="${{ steps.deploy-path.outputs.path }}"
@@ -79,6 +84,10 @@ jobs:
           
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
             cd $DEPLOY_PATH
+            
+            # Fix permissions for web server
+            chown -R www-data:www-data storage bootstrap/cache
+            chmod -R 775 storage bootstrap/cache
             
             composer install --no-dev --optimize-autoloader --no-interaction
             php artisan migrate --force
