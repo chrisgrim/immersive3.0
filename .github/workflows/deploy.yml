@@ -89,6 +89,9 @@ jobs:
             chown -R www-data:www-data storage bootstrap/cache
             chmod -R 775 storage bootstrap/cache
             
+            # Ensure storage symlink exists
+            php artisan storage:link 2>/dev/null || true
+            
             composer install --no-dev --optimize-autoloader --no-interaction
             php artisan migrate --force
             php artisan config:cache
@@ -97,6 +100,13 @@ jobs:
             php artisan queue:restart 2>/dev/null || true
             
             echo "✅ Deployment complete!"
+          EOF
+
+      - name: Block crawlers on dev
+        if: steps.deploy-path.outputs.env == 'dev'
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            echo -e "User-agent: *\nDisallow: /" > /var/www/secret/public/robots.txt
           EOF
 
       - name: Deployment summary
