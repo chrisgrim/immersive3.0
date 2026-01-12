@@ -50,6 +50,9 @@ Disallow: */search-online
 Disallow: */search?*
 Disallow: */search/?*
 
+# Fix for wrong organizer routes (was singular, now plural)
+Disallow: /organizer/
+
 # Allow sitemap and important paths
 Allow: /sitemap.xml
 Allow: /events/
