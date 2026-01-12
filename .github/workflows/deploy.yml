@@ -1,0 +1,104 @@
+name: Deploy
+
+on:
+  # Auto-deploy to DEV when pushing to main
+  push:
+    branches: [main]
+  
+  # Manual deploy to production (click button in GitHub)
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build assets
+        run: npm run build
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Determine deploy path
+        id: deploy-path
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.environment }}" = "production" ]; then
+            echo "path=/var/www/ei" >> $GITHUB_OUTPUT
+            echo "env=production" >> $GITHUB_OUTPUT
+          else
+            echo "path=/var/www/secret" >> $GITHUB_OUTPUT
+            echo "env=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to server
+        run: |
+          DEPLOY_PATH="${{ steps.deploy-path.outputs.path }}"
+          
+          # Sync code (excluding stuff that shouldn't be deployed)
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.env' \
+            --exclude='storage/logs/*' \
+            --exclude='storage/framework/cache/*' \
+            --exclude='storage/framework/sessions/*' \
+            --exclude='storage/framework/views/*' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_PATH/
+
+      - name: Run post-deploy commands
+        run: |
+          DEPLOY_PATH="${{ steps.deploy-path.outputs.path }}"
+          
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            cd $DEPLOY_PATH
+            
+            # Install/update composer dependencies
+            composer install --no-dev --optimize-autoloader --no-interaction
+            
+            # Run migrations
+            php artisan migrate --force
+            
+            # Clear and rebuild caches
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            
+            # Restart queue workers if using them
+            php artisan queue:restart 2>/dev/null || true
+            
+            echo "✅ Deployment complete!"
+          EOF
+        env:
+          DEPLOY_PATH: ${{ steps.deploy-path.outputs.path }}
+
+      - name: Deployment summary
+        run: |
+          echo "🚀 Deployed to ${{ steps.deploy-path.outputs.env }}"
+          echo "📁 Path: ${{ steps.deploy-path.outputs.path }}"
