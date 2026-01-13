@@ -28,6 +28,7 @@ use App\Http\Controllers\OrganizerController;
 use App\Http\Controllers\CachedDataController;
 use App\Http\Controllers\Creation\EventClickController;
 use App\Http\Controllers\Api\SimilarEventsController;
+use App\Http\Controllers\Api\EventScraperController;
 
 /*
 |--------------------------------------------------------------------------
@@ -259,6 +260,12 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
             Route::POST('/docks/{dock}/shelves', 'toggleShelf');
             Route::POST('/docks/{dock}/posts', 'togglePost');
             Route::POST('/docks/{dock}/cards', 'toggleCard');
+        });
+
+        // Event Scraper (AI-assisted event data extraction)
+        Route::controller(EventScraperController::class)->group(function () {
+            Route::POST('/scraper/extract', 'extract');
+            Route::GET('/scraper/test', 'test');
         });
     });
 });

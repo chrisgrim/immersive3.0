@@ -92,6 +92,14 @@
                                 <li><a @click="handleNavigation('settings-advisories')" :class="['nav-link', currentView === 'settings-advisories' ? 'bg-blue-50 text-blue-600' : '']">Advisories</a></li>
                             </ul>
                         </div>
+
+                        <!-- Scraping Section -->
+                        <div class="nav-section">
+                            <h2 class="text-4xl font-medium mb-2">Scraping</h2>
+                            <ul class="space-y-2">
+                                <li><a @click="handleNavigation('scraping-scraper')" :class="['nav-link', currentView === 'scraping-scraper' ? 'bg-blue-50 text-blue-600' : '']">Scraper</a></li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
 
@@ -169,6 +177,7 @@ import SettingsCategories from './Settings/Categories.vue'
 import SettingsTags from './Settings/Tags.vue'
 import SettingsAdvisories from './Settings/Advisories.vue'
 import ApproveRequests from './Approval/Requests.vue'
+import ScrapingScraper from './Scraping/Scraper.vue'
 import axios from 'axios'
 
 const isMobile = ref(false)
@@ -370,6 +379,7 @@ const currentComponent = computed(() => {
         'settings-categories': SettingsCategories,
         'settings-tags': SettingsTags,
         'settings-advisories': SettingsAdvisories,
+        'scraping-scraper': ScrapingScraper,
     }
     return components[currentView.value]
 })
