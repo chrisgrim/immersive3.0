@@ -28,11 +28,33 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Determine deploy environment
+        id: deploy-env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.environment }}" = "production" ]; then
+            echo "env=production" >> $GITHUB_OUTPUT
+            echo "path=/var/www/ei" >> $GITHUB_OUTPUT
+          else
+            echo "env=dev" >> $GITHUB_OUTPUT
+            echo "path=/var/www/secret" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Build assets
+      - name: Build assets (dev)
+        if: steps.deploy-env.outputs.env == 'dev'
         run: npm run build
+        env:
+          VITE_IMAGE_URL: ${{ secrets.VITE_IMAGE_URL_DEV }}
+          VITE_BASE_URL: ${{ secrets.VITE_BASE_URL_DEV }}
+
+      - name: Build assets (production)
+        if: steps.deploy-env.outputs.env == 'production'
+        run: npm run build
+        env:
+          VITE_IMAGE_URL: ${{ secrets.VITE_IMAGE_URL_PROD }}
+          VITE_BASE_URL: ${{ secrets.VITE_BASE_URL_PROD }}
 
       - name: Setup SSH key
         run: |
@@ -47,25 +69,14 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo 'SSH works!'"
 
-      - name: Determine deploy path
-        id: deploy-path
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.environment }}" = "production" ]; then
-            echo "path=/var/www/ei" >> $GITHUB_OUTPUT
-            echo "env=production" >> $GITHUB_OUTPUT
-          else
-            echo "path=/var/www/secret" >> $GITHUB_OUTPUT
-            echo "env=dev" >> $GITHUB_OUTPUT
-          fi
-
       - name: Clear server views folder (fix case sensitivity)
         run: |
-          DEPLOY_PATH="${{ steps.deploy-path.outputs.path }}"
+          DEPLOY_PATH="${{ steps.deploy-env.outputs.path }}"
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "rm -rf $DEPLOY_PATH/resources/views"
 
       - name: Deploy to server
         run: |
-          DEPLOY_PATH="${{ steps.deploy-path.outputs.path }}"
+          DEPLOY_PATH="${{ steps.deploy-env.outputs.path }}"
           
           rsync -avz --delete \
             --exclude='.git' \
@@ -78,7 +89,7 @@ jobs:
 
       - name: Run post-deploy commands
         run: |
-          DEPLOY_PATH="${{ steps.deploy-path.outputs.path }}"
+          DEPLOY_PATH="${{ steps.deploy-env.outputs.path }}"
           
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
             cd $DEPLOY_PATH
@@ -101,7 +112,7 @@ jobs:
           EOF
 
       - name: Block crawlers on dev
-        if: steps.deploy-path.outputs.env == 'dev'
+        if: steps.deploy-env.outputs.env == 'dev'
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             echo -e "User-agent: *\nDisallow: /" > /var/www/secret/public/robots.txt
@@ -109,5 +120,5 @@ jobs:
 
       - name: Deployment summary
         run: |
-          echo "🚀 Deployed to ${{ steps.deploy-path.outputs.env }}"
-          echo "📁 Path: ${{ steps.deploy-path.outputs.path }}"
+          echo "🚀 Deployed to ${{ steps.deploy-env.outputs.env }}"
+          echo "📁 Path: ${{ steps.deploy-env.outputs.path }}"
