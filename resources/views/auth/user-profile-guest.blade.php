@@ -11,9 +11,9 @@
                                     @if(isset($user))
                                         @if($user->largeImagePath)
                                             <picture>
-                                                <source type="image/webp" srcset="{{ env('VITE_IMAGE_URL') }}{{ $user->thumbImagePath }}"> 
+                                                <source type="image/webp" srcset="{{ config('app.image_url') }}{{ $user->thumbImagePath }}"> 
                                                 <img class="w-full h-full object-cover" 
-                                                     src="{{ env('VITE_IMAGE_URL') }}{{ substr($user->thumbImagePath, 0, -4) }}jpg?timestamp={{ time() }}" 
+                                                     src="{{ config('app.image_url') }}{{ substr($user->thumbImagePath, 0, -4) }}jpg?timestamp={{ time() }}" 
                                                      alt="{{ $user->name }}'s account">
                                             </picture>
                                         @elseif($user->gravatar)

@@ -10,7 +10,7 @@
     @if ($community->images?->first())
         <meta name="twitter:image" content="{{ $community->images->first()->path }}" />
     @elseif ($community->largeImagePath)
-        <meta name="twitter:image" content="{{ env('VITE_IMAGE_URL') }}{{ $community->largeImagePath }}" />
+        <meta name="twitter:image" content="{{ config('app.image_url') }}{{ $community->largeImagePath }}" />
     @endif
 
     <meta property="og:locale" content="en_US" />
@@ -23,8 +23,8 @@
         <meta property="og:image" content="{{ $community->images->first()->path }}" />
         <meta property="og:image:secure_url" content="{{ $community->images->first()->path }}" />
     @elseif ($community->largeImagePath)
-        <meta property="og:image" content="{{ env('VITE_IMAGE_URL') }}{{ $community->largeImagePath }}" />
-        <meta property="og:image:secure_url" content="{{ env('VITE_IMAGE_URL') }}{{ $community->largeImagePath }}" />
+        <meta property="og:image" content="{{ config('app.image_url') }}{{ $community->largeImagePath }}" />
+        <meta property="og:image:secure_url" content="{{ config('app.image_url') }}{{ $community->largeImagePath }}" />
     @endif
 
     <title>{{ $community->name }}</title>
@@ -40,7 +40,7 @@
         @if ($community->images?->first())
         "logo": "{{ $community->images->first()->path }}"
         @elseif ($community->largeImagePath)
-        "logo": "{{ env('VITE_IMAGE_URL') }}{{ $community->largeImagePath }}"
+        "logo": "{{ config('app.image_url') }}{{ $community->largeImagePath }}"
         @else
         "logo": "{{ url('/') }}/storage/website-files/schema-community.png"
         @endif

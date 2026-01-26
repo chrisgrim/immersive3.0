@@ -123,6 +123,6 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
-    'image_url' => env('VITE_IMAGE_URL', 'Laravel'),
+    'image_url' => env('VITE_IMAGE_URL', 'https://ei-prod.sfo3.digitaloceanspaces.com/public/'),
 
 ];

@@ -15,11 +15,11 @@
                                             @if(isset($event->images[0]))
                                                 <picture class="absolute inset-0">
                                                     <source 
-                                                        srcset="{{ env('VITE_IMAGE_URL') . str_replace('.jpg', '.webp', $event->images[0]->large_image_path) }}"
+                                                        srcset="{{ config('app.image_url') . str_replace('.jpg', '.webp', $event->images[0]->large_image_path) }}"
                                                         type="image/webp"
                                                     >
                                                     <img 
-                                                        src="{{ env('VITE_IMAGE_URL') . $event->images[0]->large_image_path }}"
+                                                        src="{{ config('app.image_url') . $event->images[0]->large_image_path }}"
                                                         alt="{{ $event->name }}"
                                                         class="w-full h-full object-cover rounded-lg absolute inset-0"
                                                     >

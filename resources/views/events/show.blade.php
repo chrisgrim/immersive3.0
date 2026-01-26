@@ -42,7 +42,7 @@
             $mainImage = (object)['large_image_path' => $event->largeImagePath];
         }
         // Get the image URL
-        $imageUrl = env('VITE_IMAGE_URL');
+        $imageUrl = config('app.image_url');
     @endphp
     
     @if($mainImage)
@@ -224,11 +224,11 @@
 
     @if (Browser::isMobile())
         @foreach($event->images as $image)
-            <link rel="preload" as="image" type="image/webp" imagesrcset="{{ env('VITE_IMAGE_URL') . $image->thumb_image_path }}">
+            <link rel="preload" as="image" type="image/webp" imagesrcset="{{ config('app.image_url') . $image->thumb_image_path }}">
         @endforeach
     @else
         @foreach($event->images as $image)
-            <link rel="preload" as="image" type="image/webp" imagesrcset="{{ env('VITE_IMAGE_URL') . $image->large_image_path }}">
+            <link rel="preload" as="image" type="image/webp" imagesrcset="{{ config('app.image_url') . $image->large_image_path }}">
         @endforeach
     @endif
     @vite(['resources/css/flatpickr.css'])

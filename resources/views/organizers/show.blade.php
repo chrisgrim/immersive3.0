@@ -10,7 +10,7 @@
         <meta name="twitter:creator" content="{{ '@' . $organizer->twitterHandle }}" />
     @endif
     @if ($organizer->largeImagePath) 
-        <meta name="twitter:image" content="{{ env('VITE_IMAGE_URL') }}{{$organizer->largeImagePath}}" />
+        <meta name="twitter:image" content="{{ config('app.image_url') }}{{$organizer->largeImagePath}}" />
     @endif
 
     <meta property="og:locale" content="en_US" />
@@ -20,9 +20,9 @@
     <meta property="og:url" content="{{ url('/') }}/organizers/{{$organizer->slug}}" />
     <meta property="og:site_name" content="{{$organizer->name}}" />
     @if ($organizer->largeImagePath) 
-        <meta property="og:image" content="{{ env('VITE_IMAGE_URL') }}{{$organizer->largeImagePath}}" />
-        <meta property="og:image:secure_url" content="{{ env('VITE_IMAGE_URL') }}{{$organizer->largeImagePath}}" />
-        <meta name="twitter:image" content="{{ env('VITE_IMAGE_URL') }}{{$organizer->largeImagePath}}" />
+        <meta property="og:image" content="{{ config('app.image_url') }}{{$organizer->largeImagePath}}" />
+        <meta property="og:image:secure_url" content="{{ config('app.image_url') }}{{$organizer->largeImagePath}}" />
+        <meta name="twitter:image" content="{{ config('app.image_url') }}{{$organizer->largeImagePath}}" />
     @endif
     <title>{{$organizer->name}}</title>
     <script type="application/ld+json">
@@ -38,7 +38,7 @@
             "url": "{{url('/')}}/organizers/{{$organizer->slug}}",
         @endif
         @if ($organizer->largeImagePath)
-            "logo": "{{ env('VITE_IMAGE_URL') }}{{$organizer->largeImagePath}}"
+            "logo": "{{ config('app.image_url') }}{{$organizer->largeImagePath}}"
         @else
             "logo": "{{url('/')}}/storage/website-files/schema-organizer.png"
         @endif

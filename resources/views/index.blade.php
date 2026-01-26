@@ -16,7 +16,7 @@
     @php
         // Try to get the first image from the first dock
         $dockImage = null;
-        $imageUrl = env('VITE_IMAGE_URL');
+        $imageUrl = config('app.image_url');
         
         if (isset($docks) && count($docks) > 0) {
             $firstDock = $docks[0];

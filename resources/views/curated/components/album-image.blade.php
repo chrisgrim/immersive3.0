@@ -1,7 +1,7 @@
 @php
     $hasFeatured = null;
     $cardImages = [];
-    $imageUrl = env('VITE_IMAGE_URL', 'https://ei-prod.sfo3.digitaloceanspaces.com/public/');
+    $imageUrl = config('app.image_url');
 
     // Handle featured image
     if (isset($element->featured_event_image)) {

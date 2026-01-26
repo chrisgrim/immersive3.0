@@ -6,7 +6,7 @@
     $element = null;
     $name = null;
     $url = '#';
-    $imageUrl = env('VITE_IMAGE_URL', 'https://ei-prod.sfo3.digitaloceanspaces.com/public/');
+    $imageUrl = config('app.image_url');
 
     // Define helper function for element name
     $getElementName = function($element) {
