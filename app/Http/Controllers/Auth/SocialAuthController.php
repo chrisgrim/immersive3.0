@@ -19,8 +19,13 @@ class SocialAuthController extends Controller
             ->redirect();
     }
 
-    public function handleGoogleCallback()
+    public function handleGoogleCallback(Request $request)
     {
+        // Silently redirect if no code (user cancelled, back button, or direct URL access)
+        if (!$request->has('code')) {
+            return redirect()->route('login');
+        }
+
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
             

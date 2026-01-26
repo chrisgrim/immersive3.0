@@ -93,13 +93,14 @@
                             </ul>
                         </div>
 
-                        <!-- Scraping Section -->
+                        <!-- Scraping Section (hidden until ready)
                         <div class="nav-section">
                             <h2 class="text-4xl font-medium mb-2">Scraping</h2>
                             <ul class="space-y-2">
                                 <li><a @click="handleNavigation('scraping-scraper')" :class="['nav-link', currentView === 'scraping-scraper' ? 'bg-blue-50 text-blue-600' : '']">Scraper</a></li>
                             </ul>
                         </div>
+                        -->
                     </div>
                 </div>
 

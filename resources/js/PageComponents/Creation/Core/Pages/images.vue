@@ -136,6 +136,7 @@
                     }"
                     :image-restriction="'none'"
                     :default-size="maximizeCropperSize"
+                    :resize-image="{ wheel: false, touch: false }"
                     @change="onChange"
                 />
                 
@@ -233,6 +234,43 @@ const debounce = (fn, delay) => {
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MIN_DIMENSION = 400; // Minimum pixels for shortest side (lowered from 800)
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+
+// Normalize image to fix Safari canvas issues with wide images and WebP
+// Re-renders through canvas to ensure consistent dimensions across browsers
+const normalizeImage = (file) => {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+
+        img.onload = () => {
+            // Use naturalWidth/naturalHeight to get true dimensions
+            const width = img.naturalWidth;
+            const height = img.naturalHeight;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+            // Clear and draw - this forces Safari to properly decode the image
+            ctx.clearRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+
+            URL.revokeObjectURL(url);
+
+            // Use image/jpeg for better compatibility
+            resolve(canvas.toDataURL('image/jpeg', 0.95));
+        };
+
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Failed to load image'));
+        };
+
+        img.src = url;
+    });
+};
 
 // State refs
 const mainImage = ref(null);
@@ -456,14 +494,26 @@ const handleMainFileChange = async (event) => {
         const isValid = await validateFile(file);
         if (isValid) {
             showMainImageError.value = false;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                cropperImage.value = e.target.result;
+
+            // Normalize image to fix Safari canvas issues with wide images/WebP
+            try {
+                const normalizedDataUrl = await normalizeImage(file);
+                cropperImage.value = normalizedDataUrl;
                 backgroundColor.value = '#000000'; // Reset to default for new crop
                 showCropper.value = true;
                 setComponentReady(false);
-            };
-            reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('Error normalizing image:', error);
+                // Fallback to direct FileReader if normalization fails
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    cropperImage.value = e.target.result;
+                    backgroundColor.value = '#000000';
+                    showCropper.value = true;
+                    setComponentReady(false);
+                };
+                reader.readAsDataURL(file);
+            }
         }
     }
     event.target.value = '';
@@ -475,146 +525,164 @@ const onChange = ({ coordinates, canvas }) => {
 
 const completeCrop = () => {
     showMainImageError.value = false;
-    
-    const canvas = document.querySelector('.vue-advanced-cropper canvas');
-    if (!canvas) {
-        alert('Could not find the cropped image canvas. Please try again.');
+
+    // Get crop coordinates from the cropper
+    const result = cropperRef.value?.getResult();
+    const coordinates = result?.coordinates;
+
+    if (!coordinates) {
+        alert('Could not get crop coordinates. Please try again.');
         showCropper.value = false;
         cropperImage.value = '';
         setComponentReady(true);
         return;
     }
-    
-    const currentWidth = canvas.width;
-    const currentHeight = canvas.height;
-    
-    // Verify the dimensions are valid
-    if (!currentWidth || !currentHeight || isNaN(currentWidth) || isNaN(currentHeight)) {
-        alert('Invalid image dimensions after cropping. Please try again with a different image.');
-        showCropper.value = false;
-        cropperImage.value = '';
-        setComponentReady(true);
-        return;
-    }
-    
-    // Calculate scale needed to ensure minimum 400px on smallest side
-    const smallestSide = Math.min(currentWidth, currentHeight);
-    const scale = smallestSide < 400 ? (400 / smallestSide) : 1;
-    
-    // Create new canvas with scaled dimensions if needed
-    try {
-        const outputCanvas = document.createElement('canvas');
-        outputCanvas.width = Math.round(currentWidth * scale);
-        outputCanvas.height = Math.round(currentHeight * scale);
-        
-        const outputCtx = outputCanvas.getContext('2d');
-        if (!outputCtx) {
-            throw new Error('Could not get canvas context');
-        }
-        
-        // Fill with the selected background color first
-        outputCtx.fillStyle = backgroundColor.value;
-        outputCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
-        
-        // Then draw the cropped image on top
-        outputCtx.drawImage(canvas, 0, 0, outputCanvas.width, outputCanvas.height);
-        
-        // Start with a quality of 0.95 and decrease if needed
-        const createImageBlob = (quality = 0.95) => {
-            outputCanvas.toBlob((blob) => {
-                // Make sure we got a valid blob
-                if (!blob || blob.size === 0) {
-                    alert('Failed to create image from canvas. Please try again.');
-                    showCropper.value = false;
-                    cropperImage.value = '';
-                    setComponentReady(true);
-                    return;
-                }
-                
-                // Check if the blob is too large
-                if (blob.size > MAX_FILE_SIZE) {
-                    if (quality > 0.5) {
-                        // Try again with lower quality
-                        createImageBlob(quality - 0.1);
-                    } else {
-                        // If we're still too large at 0.5 quality, show an error
-                        alert('The cropped image is too large. Please try a smaller image or crop a smaller portion.');
+
+    // Load the source image and do the crop ourselves (fixes Safari canvas bugs)
+    const sourceImg = new Image();
+    sourceImg.onload = () => {
+        try {
+            const cropWidth = coordinates.width;
+            const cropHeight = coordinates.height;
+
+            // Verify dimensions
+            if (!cropWidth || !cropHeight) {
+                throw new Error('Invalid crop dimensions');
+            }
+
+            // Calculate scale needed to ensure minimum 400px on smallest side
+            const smallestSide = Math.min(cropWidth, cropHeight);
+            const scale = smallestSide < 400 ? (400 / smallestSide) : 1;
+
+            const outputCanvas = document.createElement('canvas');
+            outputCanvas.width = Math.round(cropWidth * scale);
+            outputCanvas.height = Math.round(cropHeight * scale);
+
+            const outputCtx = outputCanvas.getContext('2d');
+            if (!outputCtx) {
+                throw new Error('Could not get canvas context');
+            }
+
+            // Fill with the selected background color first
+            outputCtx.fillStyle = backgroundColor.value;
+            outputCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+
+            // Draw the cropped portion directly from source image
+            outputCtx.drawImage(
+                sourceImg,
+                coordinates.left, coordinates.top,     // Source x, y
+                cropWidth, cropHeight,                  // Source width, height
+                0, 0,                                   // Dest x, y
+                outputCanvas.width, outputCanvas.height // Dest width, height
+            );
+
+            // Start with a quality of 0.95 and decrease if needed
+            const createImageBlob = (quality = 0.95) => {
+                outputCanvas.toBlob((blob) => {
+                    // Make sure we got a valid blob
+                    if (!blob || blob.size === 0) {
+                        alert('Failed to create image from canvas. Please try again.');
                         showCropper.value = false;
                         cropperImage.value = '';
                         setComponentReady(true);
+                        return;
                     }
-                    return;
-                }
-                
-                try {
-                    // Create a file with proper MIME type and name
-                    const timestamp = Date.now();
-                    const fileName = `cropped-image-${timestamp}.jpg`;
-                    const file = new File([blob], fileName, { type: 'image/jpeg' });
-                    
-                    // Verify the file was created correctly
-                    if (!file || file.size === 0) {
-                        throw new Error('Created file is empty or invalid');
-                    }
-                    
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const oldMainImage = mainImage.value;
-                        
-                        // Verify that we got valid file data
-                        if (!e.target.result) {
-                            alert('Failed to read the cropped image. Please try again.');
+
+                    // Check if the blob is too large
+                    if (blob.size > MAX_FILE_SIZE) {
+                        if (quality > 0.5) {
+                            // Try again with lower quality
+                            createImageBlob(quality - 0.1);
+                        } else {
+                            // If we're still too large at 0.5 quality, show an error
+                            alert('The cropped image is too large. Please try a smaller image or crop a smaller portion.');
                             showCropper.value = false;
                             cropperImage.value = '';
                             setComponentReady(true);
-                            return;
                         }
-                        
-                        mainImage.value = { 
-                            url: e.target.result, 
-                            file,
-                            rank: 0
-                        };
-                        
-                        if (oldMainImage?.isExisting) {
-                            const oldMainImagePath = oldMainImage.url.replace(imageUrl, '');
-                            if (!deletedImages.value.includes(oldMainImagePath)) {
-                                addToDeletedImages(oldMainImagePath);
+                        return;
+                    }
+
+                    try {
+                        // Create a file with proper MIME type and name
+                        const timestamp = Date.now();
+                        const fileName = `cropped-image-${timestamp}.jpg`;
+                        const file = new File([blob], fileName, { type: 'image/jpeg' });
+
+                        // Verify the file was created correctly
+                        if (!file || file.size === 0) {
+                            throw new Error('Created file is empty or invalid');
+                        }
+
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const oldMainImage = mainImage.value;
+
+                            // Verify that we got valid file data
+                            if (!e.target.result) {
+                                alert('Failed to read the cropped image. Please try again.');
+                                showCropper.value = false;
+                                cropperImage.value = '';
+                                setComponentReady(true);
+                                return;
                             }
-                        }
-                        
+
+                            mainImage.value = {
+                                url: e.target.result,
+                                file,
+                                rank: 0
+                            };
+
+                            if (oldMainImage?.isExisting) {
+                                const oldMainImagePath = oldMainImage.url.replace(imageUrl, '');
+                                if (!deletedImages.value.includes(oldMainImagePath)) {
+                                    addToDeletedImages(oldMainImagePath);
+                                }
+                            }
+
+                            showCropper.value = false;
+                            cropperImage.value = '';
+                            setComponentReady(true);
+                        };
+
+                        reader.onerror = (error) => {
+                            console.error('FileReader error:', error);
+                            alert('Error reading the cropped image. Please try again.');
+                            showCropper.value = false;
+                            cropperImage.value = '';
+                            setComponentReady(true);
+                        };
+
+                        reader.readAsDataURL(file);
+                    } catch (error) {
+                        console.error('Error creating file from blob:', error);
+                        alert(`Error creating image file: ${error.message}. Please try again.`);
                         showCropper.value = false;
                         cropperImage.value = '';
                         setComponentReady(true);
-                    };
-                    
-                    reader.onerror = (error) => {
-                        console.error('FileReader error:', error);
-                        alert('Error reading the cropped image. Please try again.');
-                        showCropper.value = false;
-                        cropperImage.value = '';
-                        setComponentReady(true);
-                    };
-                    
-                    reader.readAsDataURL(file);
-                } catch (error) {
-                    console.error('Error creating file from blob:', error);
-                    alert(`Error creating image file: ${error.message}. Please try again.`);
-                    showCropper.value = false;
-                    cropperImage.value = '';
-                    setComponentReady(true);
-                }
-            }, 'image/jpeg', quality);
-        };
-        
-        createImageBlob();
-    } catch (error) {
-        console.error('Error during image processing:', error);
-        alert(`Error processing image: ${error.message}. Please try again.`);
+                    }
+                }, 'image/jpeg', quality);
+            };
+
+            createImageBlob();
+        } catch (error) {
+            console.error('Error during image processing:', error);
+            alert(`Error processing image: ${error.message}. Please try again.`);
+            showCropper.value = false;
+            cropperImage.value = '';
+            setComponentReady(true);
+        }
+    };
+
+    sourceImg.onerror = () => {
+        alert('Error processing cropped image. Please try again.');
         showCropper.value = false;
         cropperImage.value = '';
         setComponentReady(true);
-    }
+    };
+
+    // Load from the original normalized image (not the cropper's canvas)
+    sourceImg.src = cropperImage.value;
 };
 
 const cancelCrop = () => {
