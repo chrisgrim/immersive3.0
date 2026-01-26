@@ -30,8 +30,8 @@
                 <div v-else class="grid grid-cols-3 gap-4">
                     <!-- Main Image Column -->
                     <div class="col-span-1">
-                        <div class="relative h-full w-full">
-                            <img :src="mainImage.url" class="w-full h-full object-cover rounded-2xl" />
+                        <div class="relative w-full aspect-[3/4]">
+                            <img :src="mainImage.url" class="w-full h-full rounded-2xl" />
                             <div 
                                 v-if="!images.length"
                                 @click="removeMainImage" 
