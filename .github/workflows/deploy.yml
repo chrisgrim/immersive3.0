@@ -77,7 +77,7 @@ jobs:
       - name: Enable maintenance mode
         run: |
           DEPLOY_PATH="${{ steps.deploy-env.outputs.path }}"
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd $DEPLOY_PATH && php artisan down"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd $DEPLOY_PATH && php artisan down || true"
 
       - name: Deploy to server
         run: |
