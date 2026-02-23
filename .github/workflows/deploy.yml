@@ -75,9 +75,10 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "rm -rf $DEPLOY_PATH/resources/views"
 
       - name: Enable maintenance mode
+        continue-on-error: true
         run: |
           DEPLOY_PATH="${{ steps.deploy-env.outputs.path }}"
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd $DEPLOY_PATH && php artisan down || true"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd $DEPLOY_PATH && php artisan down"
 
       - name: Deploy to server
         run: |
