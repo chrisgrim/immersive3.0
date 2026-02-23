@@ -539,7 +539,7 @@ const closeSubmissionModal = () => {
 const createNewEvent = async () => {
 	// Check if organizer has 5 or more unpublished events (bypass for admins)
 	const unpublishedCount = props.organizer.events.filter(
-		event => !['p', 'e'].includes(event.status)
+		event => !['p', 'e'].includes(event.status) && !event.is_deleted
 	).length;
 
 	if (unpublishedCount >= MAX_UNPUBLISHED_EVENTS && !props.user.isAdmin) {
