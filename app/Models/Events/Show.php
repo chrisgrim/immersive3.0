@@ -95,8 +95,10 @@ class Show extends Model
             self::createOrUpdateShow($sixMonthsFromNow, $event->id, $old_tickets);
         }
 
-        // Log date changes
-        self::logDateChanges($event, $oldDates);
+        // Log date changes only for published events
+        if ($event->status === 'p') {
+            self::logDateChanges($event, $oldDates);
+        }
 
         // Update the event's showtype to the new value
         $event->update(['showtype' => $request->showtype]);
