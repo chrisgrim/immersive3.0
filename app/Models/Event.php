@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Models\{Conversation, Genre, Organizer, User, Category, AttendanceType};
-use App\Models\Events\{ Show, PriceRange, Advisory, Location, AgeLimit, InteractiveLevel, RemoteLocation, ContactLevel, ContentAdvisory, MobilityAdvisory};
+use App\Models\Events\{ Show, ShowChangeLog, PriceRange, Advisory, Location, AgeLimit, InteractiveLevel, RemoteLocation, ContactLevel, ContentAdvisory, MobilityAdvisory};
 use App\Models\Admin\{ ReviewEvent, StaffPick, TrackClick, CuratedEventCheck };
 use App\Scopes\PublishedScope;
 use App\Traits\{Favoritable};
@@ -504,6 +504,11 @@ class Event extends Model
     public function nameChangeRequests()
     {
         return $this->morphMany(NameChangeRequest::class, 'requestable');
+    }
+
+    public function showChangeLogs()
+    {
+        return $this->hasMany(ShowChangeLog::class)->orderBy('created_at', 'desc');
     }
 
     /**

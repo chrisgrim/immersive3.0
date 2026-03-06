@@ -19,7 +19,7 @@
                             type="file" 
                             ref="mainFileInput"
                             class="hidden" 
-                            accept="image/jpeg,image/png,image/webp"
+                            accept="image/jpeg,image/png,image/webp,image/avif"
                             @change="handleMainFileChange" 
                         />
                         <component :is="RiImageCircleLine" class="w-16 h-16 text-neutral-400" />
@@ -45,7 +45,7 @@
                                 type="file" 
                                 ref="mainFileInput"
                                 class="hidden" 
-                                accept="image/jpeg,image/png,image/webp"
+                                accept="image/jpeg,image/png,image/webp,image/avif"
                                 @change="handleMainFileChange" 
                             />
                             <div 
@@ -93,7 +93,7 @@
                                         type="file" 
                                         class="hidden fileInput" 
                                         multiple 
-                                        accept="image/jpeg,image/png,image/webp"
+                                        accept="image/jpeg,image/png,image/webp,image/avif"
                                         @change="handleFileChange" 
                                     />
                                     <component :is="RiImageCircleLine" class="w-16 h-16 text-neutral-400" />
@@ -233,7 +233,7 @@ const debounce = (fn, delay) => {
 // Constants
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MIN_DIMENSION = 400; // Minimum pixels for shortest side (lowered from 800)
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/avif'];
 
 // Normalize image to fix Safari canvas issues with wide images and WebP
 // Re-renders through canvas to ensure consistent dimensions across browsers
@@ -376,7 +376,7 @@ const validateFile = (file) => {
         
         // Check file type
         if (!ALLOWED_TYPES.includes(file.type)) {
-            alert(`"${file.name}" is not a supported image type. Please use JPEG, PNG, or WebP.`);
+            alert(`"${file.name}" is not a supported image type. Please use JPEG, PNG, WebP, or AVIF.`);
             return resolve(false);
         }
         

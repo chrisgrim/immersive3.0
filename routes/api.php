@@ -244,6 +244,7 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
         // Events
         Route::controller(AdminEventController::class)->group(function () {
             Route::GET('/events/{event}', 'show');
+            Route::GET('/events/{event}/date-history', 'dateHistory');
             Route::POST('/events/{event}/duplicate', [HostEventController::class, 'duplicate'])
                 ->middleware(['can:moderate,App\Models\Event']);
         });

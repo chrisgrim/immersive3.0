@@ -49,6 +49,11 @@ class Show extends Model
     
     public static function saveShows($request, $event)
     {
+        // Capture current show dates before any changes (for change logging)
+        $oldDates = $event->shows()->pluck('date')
+            ->map(fn($d) => Carbon::parse($d)->format('Y-m-d'))
+            ->sort()->values()->toArray();
+
         // Check if tickets exist for this show and save them as $old_tickets
         $firstShow = $event->shows()->first();
         $old_tickets = $firstShow && $firstShow->tickets()->exists() ? $firstShow->tickets()->get() : null;
@@ -90,12 +95,44 @@ class Show extends Model
             self::createOrUpdateShow($sixMonthsFromNow, $event->id, $old_tickets);
         }
 
+        // Log date changes
+        self::logDateChanges($event, $oldDates);
+
         // Update the event's showtype to the new value
         $event->update(['showtype' => $request->showtype]);
-        
+
         // Force reindex the event in Elasticsearch
         if ($event->shouldBeSearchable()) {
             $event->searchable();
+        }
+    }
+
+    private static function logDateChanges($event, array $oldDates): void
+    {
+        $newDates = $event->shows()->pluck('date')
+            ->map(fn($d) => Carbon::parse($d)->format('Y-m-d'))
+            ->sort()->values()->toArray();
+
+        $added = array_values(array_diff($newDates, $oldDates));
+        $removed = array_values(array_diff($oldDates, $newDates));
+        $userId = auth()->id();
+
+        if (!empty($added)) {
+            ShowChangeLog::create([
+                'event_id' => $event->id,
+                'user_id' => $userId,
+                'action' => 'added',
+                'dates' => $added,
+            ]);
+        }
+
+        if (!empty($removed)) {
+            ShowChangeLog::create([
+                'event_id' => $event->id,
+                'user_id' => $userId,
+                'action' => 'removed',
+                'dates' => $removed,
+            ]);
         }
     }
 

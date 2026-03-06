@@ -10,6 +10,7 @@ use App\Scopes\PublishedScope;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\Comments;
 use App\Models\Messaging\Message;
+use App\Models\Events\ShowChangeLog;
 use App\Services\ImageHandler;
 use Illuminate\Support\Facades\Cache;
 
@@ -255,6 +256,13 @@ class AdminEventController extends Controller
     {
         $event->delete();
         return response()->json(['message' => 'Event deleted successfully']);
+    }
+
+    public function dateHistory(Event $event)
+    {
+        return $event->showChangeLogs()
+            ->with('user:id,name')
+            ->paginate(20);
     }
 
     public function toggleCheck(Request $request, Event $event)
