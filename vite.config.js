@@ -41,11 +41,12 @@ export default defineConfig(({ command, mode }) => {
             sourcemap: !isProduction,
         },
         server: {
-            host: '0.0.0.0',
+            host: 'localhost',
             port: 5173,
             cors: true,
             hmr: {
-                host: 'ei.test',
+                host: 'localhost',
+                overlay: true,
             },
         },
     };
