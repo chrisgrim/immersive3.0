@@ -349,9 +349,11 @@ const selectedDatesCount = computed(() => selectedDates.value.length);
 const selectedTimezone = computed(() => props.selectedTimezone);
 
 const minDate = computed(() => {
-    // Admins can select any past date
+    // Admins can select past dates (up to 10 years ago)
     if (isAdmin.value) {
-        return null;
+        const pastDate = new Date();
+        pastDate.setFullYear(pastDate.getFullYear() - 10);
+        return pastDate;
     }
     // Regular users can only select current dates and future
     return new Date();
