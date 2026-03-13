@@ -174,6 +174,7 @@ const isSubmitting = inject('isSubmitting');
 // Add state for duplicate names
 const duplicateWarning = ref('');
 const duplicateEvents = ref([]);
+const duplicateAcknowledged = ref(false);
 
 // 2. Validation Rules
 const rules = {
@@ -253,6 +254,7 @@ const handleNameInput = () => {
     // Clear duplicate warning when user edits the name
     duplicateWarning.value = '';
     duplicateEvents.value = [];
+    duplicateAcknowledged.value = false;
 };
 
 const handleTagLineInput = () => {
@@ -291,10 +293,12 @@ defineExpose({
     },
     resetName,
     // Add method to handle duplicate name errors
+    duplicateAcknowledged,
     handleDuplicateError: (error) => {
         if (error.response?.status === 409) {
             duplicateWarning.value = error.response.data.warning || 'A similar event name already exists.';
             duplicateEvents.value = error.response.data.duplicateEvents || [];
+            duplicateAcknowledged.value = true;
             return true; // Error was handled
         }
         return false; // Error was not handled

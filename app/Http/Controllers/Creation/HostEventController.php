@@ -60,8 +60,8 @@ class HostEventController extends Controller
         $oldCategoryId = $event->category_id;
         $validatedData = $request->validated();
 
-        // Check for duplicate event names if name is being updated
-        if (isset($validatedData['name']) && $validatedData['name'] !== $event->name) {
+        // Check for duplicate event names if name is being updated (skip if user acknowledged)
+        if (isset($validatedData['name']) && $validatedData['name'] !== $event->name && !$request->boolean('acknowledge_duplicate')) {
             $duplicates = $this->checkDuplicateNames($validatedData['name'], $event->id);
             if ($duplicates) {
                 return response()->json([
@@ -398,8 +398,8 @@ class HostEventController extends Controller
             ], 422);
         }
 
-        // If name is provided, check for duplicates
-        if ($request->has('name') && !empty($request->name)) {
+        // If name is provided, check for duplicates (skip if user acknowledged)
+        if ($request->has('name') && !empty($request->name) && !$request->boolean('acknowledge_duplicate')) {
             $duplicates = $this->checkDuplicateNames($request->name);
             if ($duplicates) {
                 return response()->json([

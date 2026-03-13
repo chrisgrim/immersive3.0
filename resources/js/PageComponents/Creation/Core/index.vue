@@ -239,6 +239,16 @@ const goToNext = async () => {
         }
 
         const submitData = await currentComponentRef.value.submitData();
+
+        // If user acknowledged duplicate name warning, include flag so backend skips the check
+        if (currentStep.value === 'Name' && currentComponentRef.value.duplicateAcknowledged?.value) {
+            if (submitData instanceof FormData) {
+                submitData.append('acknowledge_duplicate', '1');
+            } else {
+                submitData.acknowledge_duplicate = true;
+            }
+        }
+
         if (!event.status || (event.status !== 'p' && event.status !== 'e')) {
             const currentStepValue = STEP_MAP[currentStep.value];
             const existingStepValue = event.status || '0';
@@ -268,14 +278,14 @@ const goToNext = async () => {
         console.error('Error:', error);
         
         // Check if it's a 409 Conflict due to duplicate name
-        if (currentStep.value === 'Name' && 
-            error.response?.status === 409 && 
+        if (currentStep.value === 'Name' &&
+            error.response?.status === 409 &&
             currentComponentRef.value.handleDuplicateError) {
-            
-            // Let the Name component handle the duplicate error
+
+            // Let the Name component handle the duplicate error (shows warning)
+            // User can click Next again to proceed — acknowledge_duplicate flag will be sent
             const handled = currentComponentRef.value.handleDuplicateError(error);
             if (handled) {
-                // Error was handled by the component, no need to set errors here
                 return;
             }
         }
