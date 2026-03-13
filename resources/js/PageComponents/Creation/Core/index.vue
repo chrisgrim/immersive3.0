@@ -241,7 +241,7 @@ const goToNext = async () => {
         const submitData = await currentComponentRef.value.submitData();
 
         // If user acknowledged duplicate name warning, include flag so backend skips the check
-        if (currentStep.value === 'Name' && currentComponentRef.value.duplicateAcknowledged?.value) {
+        if (currentStep.value === 'Name' && currentComponentRef.value.duplicateAcknowledged) {
             if (submitData instanceof FormData) {
                 submitData.append('acknowledge_duplicate', '1');
             } else {
