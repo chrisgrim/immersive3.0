@@ -44,7 +44,7 @@ class AdminOrganizerController extends Controller
     {
         switch($request->action) {
             case 'add_member':
-                $organizer->users()->attach($request->user_id, ['role' => 'moderator']);
+                $organizer->users()->syncWithoutDetaching([$request->user_id => ['role' => 'moderator']]);
                 
                 // Update user's current_team_id if they don't have one set
                 $user = User::find($request->user_id);
