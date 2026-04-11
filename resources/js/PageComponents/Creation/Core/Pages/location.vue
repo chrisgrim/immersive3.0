@@ -487,9 +487,11 @@ const setPlace = (place) => {
     }
     
     // Extract city, region, postal code, country properly
-    const city = getAddressComponent('locality') || 
-                getAddressComponent('sublocality') || 
-                getAddressComponent('postal_town');
+    const city = getAddressComponent('locality') ||
+                getAddressComponent('sublocality') ||
+                getAddressComponent('postal_town') ||
+                getAddressComponent('administrative_area_level_2', true) ||
+                getAddressComponent('administrative_area_level_1', true);
                 
     const region = getAddressComponent('administrative_area_level_1'); // Short name (e.g., "CA")
     const region_long = getAddressComponent('administrative_area_level_1', true); // Long name (e.g., "California")

@@ -128,9 +128,10 @@
                                 >
                                     <span v-if="endDate">{{ formatDate(endDate) }}</span>
                                     <span v-else>{{ formatDate((() => {
-                                        const sixMonthsFromNow = new Date();
-                                        sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
-                                        return sixMonthsFromNow;
+                                        const base = effectiveStartDate || new Date();
+                                        const sixMonthsOut = new Date(base);
+                                        sixMonthsOut.setMonth(sixMonthsOut.getMonth() + 6);
+                                        return sixMonthsOut;
                                     })()) }}</span>
                                 </button>
                             </div>
@@ -377,6 +378,7 @@
                                     :preview-date="previewDateEndModal"
                                     :multi-calendars="displayedMonthsEndModal"
                                     multi-calendars-solo
+                                    :start-date="effectiveStartDate || new Date()"
                                     :min-date="effectiveStartDate || new Date()"
                                     inline
                                     auto-apply
@@ -416,7 +418,7 @@
                                     Cancel
                                 </button>
                                 <button 
-                                    @click="confirmEndDate(); showLastDateModal = false"
+                                    @click="confirmEndDate()"
                                     :class="[
                                         'px-6 py-2 rounded-lg transition-colors',
                                         tempEndDate 
@@ -548,12 +550,12 @@ const canShowMorePreviousMonthsEnd = computed(() => {
 });
 
 const canShowMoreFutureMonthsEnd = computed(() => {
-    const today = new Date();
+    const base = effectiveStartDate.value || new Date();
     const futureLastVisibleMonth = new Date(previewDateEndModal.value);
     futureLastVisibleMonth.setMonth(futureLastVisibleMonth.getMonth() + displayedMonthsEndModal.value + 3 - 1);
-    const monthsFromToday = (futureLastVisibleMonth.getFullYear() - today.getFullYear()) * 12 + 
-                            (futureLastVisibleMonth.getMonth() - today.getMonth());
-    return monthsFromToday <= 12;
+    const monthsFromBase = (futureLastVisibleMonth.getFullYear() - base.getFullYear()) * 12 +
+                            (futureLastVisibleMonth.getMonth() - base.getMonth());
+    return monthsFromBase <= 18;
 });
 
 // Embargo state
@@ -674,7 +676,14 @@ const generatedDates = computed(() => {
 
 const selectedDatesCount = computed(() => generatedDateStrings.value.length);
 
+
 // Methods
+const resetEndDateIfBeforeStart = () => {
+    if (endDate.value && effectiveStartDate.value && endDate.value <= effectiveStartDate.value) {
+        endDate.value = null;
+    }
+};
+
 const toggleDay = (dayIndex) => {
     const index = selectedDays.value.indexOf(dayIndex);
     if (index > -1) {
@@ -683,6 +692,7 @@ const toggleDay = (dayIndex) => {
         selectedDays.value.push(dayIndex);
     }
     selectedDays.value.sort();
+    resetEndDateIfBeforeStart();
 };
 
 const getSelectedDaysText = () => {
@@ -772,6 +782,7 @@ const confirmStartDate = () => {
         customStartDate.value = createDateAtNoon(tempStartDate.value, selectedTimezone.value);
         showStartDateModal.value = false;
         tempStartDate.value = null;
+        resetEndDateIfBeforeStart();
     }
 };
 
@@ -791,7 +802,8 @@ const openLastDateModal = () => {
         tempEndDate.value = null;
         // Start preview from start date or today
         const startDate = effectiveStartDate.value || new Date();
-        previewDateEndModal.value = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        const previewStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        previewDateEndModal.value = previewStart;
     }
     
     // Reset calendar to default view
@@ -963,6 +975,7 @@ defineExpose({
         if (config.endDate) {
             endDate.value = createDateAtNoon(config.endDate, selectedTimezone.value);
         }
+        resetEndDateIfBeforeStart();
     },
     
     reconstructFromDates: (dates, storedStartDate = null) => {
@@ -1021,6 +1034,7 @@ defineExpose({
             if (event.closingDate) {
                 endDate.value = new Date(event.closingDate);
             }
+            resetEndDateIfBeforeStart();
             // If no closingDate, endDate stays null and uses default 6-month calculation
             
             console.log('Reconstructed ongoing configuration:', {
@@ -1123,4 +1137,5 @@ defineExpose({
 }
 
 /* Both start and end date calendars use the same modal styling */
+
 </style>

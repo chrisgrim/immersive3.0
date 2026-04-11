@@ -43,6 +43,7 @@ export default defineConfig(({ command, mode }) => {
         server: {
             host: 'localhost',
             port: 5173,
+            strictPort: true,
             cors: true,
             hmr: {
                 host: 'localhost',
