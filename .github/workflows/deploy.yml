@@ -48,6 +48,7 @@ jobs:
         env:
           VITE_IMAGE_URL: ${{ secrets.VITE_IMAGE_URL_DEV }}
           VITE_BASE_URL: ${{ secrets.VITE_BASE_URL_DEV }}
+          VITE_GOOGLE_MAPS_KEY: ${{ secrets.VITE_GOOGLE_MAPS_KEY }}
 
       - name: Build assets (production)
         if: steps.deploy-env.outputs.env == 'production'
@@ -55,6 +56,7 @@ jobs:
         env:
           VITE_IMAGE_URL: ${{ secrets.VITE_IMAGE_URL_PROD }}
           VITE_BASE_URL: ${{ secrets.VITE_BASE_URL_PROD }}
+          VITE_GOOGLE_MAPS_KEY: ${{ secrets.VITE_GOOGLE_MAPS_KEY }}
 
       - name: Setup SSH key
         run: |

@@ -165,7 +165,7 @@ const event = inject('event');
 const errors = inject('errors');
 
 // In Laravel Mix, environment variables are accessible via window
-const GOOGLE_MAPS_API_KEY = 'AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw'; // Fallback to previous working key
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
 const DEFAULT_COORDINATES = { lat: 40.7127753, lng: -74.0059728 };
 
 const map = ref(initializeMapObject());

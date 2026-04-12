@@ -384,7 +384,7 @@ onMounted(() => {
     // Initialize Google Maps with async loading and new approach
     if (!window.google || !window.google.maps) {
         let script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw&libraries=places&callback=initMap&loading=async`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_KEY}&libraries=places&callback=initMap&loading=async`;
         script.async = true;
         script.defer = true;
         
