@@ -179,40 +179,32 @@ class ListingsController extends Controller
 
         // Date filters
         if ($request->start && $request->end) {
+            // Normalize range to cover the full days the user picked. The frontend
+            // sends both bounds at 00:00:00, which would otherwise exclude any show
+            // happening later in the day on the chosen end date.
+            $start = \Carbon\Carbon::parse($request->start)->startOfDay()->format('Y-m-d H:i:s');
+            $end   = \Carbon\Carbon::parse($request->end)->endOfDay()->format('Y-m-d H:i:s');
+
             $dateFilter = Query::bool();
-            
-            // Modified date query to properly include BOTH start and end dates
-            // This ensures events on both June 4 and June 5 are found when searching June 4-5
+
             $dateFilter->should(
                 Query::nested()
                     ->path('shows')
                     ->query(
-                        Query::bool()
-                            ->should(
-                                // Match dates exactly on the start date
-                                Query::term()->field('shows.date')->value($request->start)
-                            )
-                            ->should(
-                                // Match dates exactly on the end date
-                                Query::term()->field('shows.date')->value($request->end)
-                            )
-                            ->should(
-                                // Match dates that fall between the range (excluding exact start/end)
-                                Query::range()
-                                    ->field('shows.date')
-                                    ->gt($request->start)
-                                    ->lt($request->end)
-                            )
+                        Query::range()
+                            ->field('shows.date')
+                            ->gte($start)
+                            ->lte($end)
                     )
             );
-            
+
             // Add the always-available condition
             $dateFilter->should(
                 Query::term()
                     ->field('showtype')
                     ->value('a')
             );
-            
+
             // Set minimum matches
             $dateFilter->minimumShouldMatch(1);
 
