@@ -54,12 +54,12 @@
 
         <!-- Scrollable Content -->
         <div class="w-full flex flex-col md:items-center overflow-y-auto max-h-[calc(100vh-11rem)] md:max-h-[calc(100vh-20rem)]">
-            <div class="space-y-10 lg-air:max-w-[40rem] p-10 pb-40 md:pb-20">
+            <div class="w-full space-y-10 lg-air:max-w-[40rem] p-10 pb-40 md:pb-20">
                 <!-- Name & Tag Line -->
                 <button
                     @click="$emit('navigate', 'Name')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Name',
                             'border border-neutral-200': currentStep !== 'Name'
@@ -79,7 +79,7 @@
                 <button
                     @click="$emit('navigate', 'Category')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Category',
                             'border border-neutral-200': currentStep !== 'Category'
@@ -104,7 +104,7 @@
                 <button
                     @click="$emit('navigate', 'Genres')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Genres',
                             'border border-neutral-200': currentStep !== 'Genres'
@@ -133,7 +133,7 @@
                 <button
                     @click="$emit('navigate', (props.event?.attendance_type_id === 1 || props.event?.hasLocation) ? 'Location' : 'Remote')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Location',
                             'border border-neutral-200': currentStep !== 'Location'
@@ -186,7 +186,7 @@
                 <button
                     @click="$emit('navigate', 'Description')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Description',
                             'border border-neutral-200': currentStep !== 'Description'
@@ -201,7 +201,7 @@
                 <button
                     @click="$emit('navigate', 'Dates')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Dates',
                             'border border-neutral-200': currentStep !== 'Dates'
@@ -223,7 +223,7 @@
                 <button
                     @click="$emit('navigate', 'Tickets')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Tickets',
                             'border border-neutral-200': currentStep !== 'Tickets'
@@ -239,7 +239,7 @@
                 <button
                     @click="$emit('navigate', 'Images')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Images',
                             'border border-neutral-200': currentStep !== 'Images'
@@ -270,7 +270,7 @@
                 <button
                     @click="$emit('navigate', 'Advisories')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Advisories',
                             'border border-neutral-200': currentStep !== 'Advisories'
@@ -319,7 +319,7 @@
                 <button
                     @click="$emit('navigate', 'Content')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Content',
                             'border border-neutral-200': currentStep !== 'Content'
@@ -348,7 +348,7 @@
                 <button
                     @click="$emit('navigate', 'Mobility')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200 overflow-hidden',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'Mobility',
                             'border border-neutral-200': currentStep !== 'Mobility'

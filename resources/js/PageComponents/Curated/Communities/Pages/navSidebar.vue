@@ -30,12 +30,12 @@
 
         <!-- Scrollable Content -->
         <div class="w-full flex flex-col md:items-center overflow-y-auto max-h-[calc(100vh-11rem)] md:max-h-[calc(100vh-20rem)]">
-            <div class="space-y-10 lg-air:max-w-[40rem] p-10 mb-20">
+            <div class="w-full space-y-10 lg-air:max-w-[40rem] p-10 mb-20">
                 <!-- Name -->
                 <button
                     @click="$emit('navigate', 'Name')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': activeSection === 'Name',
                             'border border-neutral-200': activeSection !== 'Name'
@@ -55,7 +55,7 @@
                 <button
                     @click="$emit('navigate', 'Description')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': activeSection === 'Description',
                             'border border-neutral-200': activeSection !== 'Description'
@@ -72,7 +72,7 @@
                 <button
                     @click="$emit('navigate', 'Image')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': activeSection === 'Image',
                             'border border-neutral-200': activeSection !== 'Image'
@@ -98,7 +98,7 @@
                 <button
                     @click="$emit('navigate', 'Curators')"
                     :class="[
-                        'w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
                         {
                             'border-[#222222] shadow-focus-black bg-neutral-50': activeSection === 'Curators',
                             'border border-neutral-200': activeSection !== 'Curators'
