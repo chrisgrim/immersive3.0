@@ -229,6 +229,8 @@ const submitEvent = async () => {
 };
 
 const goToNext = async () => {
+    if (isSubmitting.value) return;
+    isSubmitting.value = true;
     try {
         const isValid = await currentComponentRef.value.isValid();
         if (!isValid) return;
@@ -265,7 +267,6 @@ const goToNext = async () => {
             }
         }
 
-        isSubmitting.value = true;
         const response = await axios.post(`/api/hosting/event/${event.slug}`, submitData);
         
         if (response.data.event) {

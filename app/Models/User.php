@@ -187,9 +187,8 @@ class User extends Authenticatable
      */
     public function belongsToOrganization($organizer)
     {
-        return $this->teams->contains(function ($t) use ($organizer) {
-            return $t->id === $organizer->id;
-        }) || $this->ownsOrganization($organizer);
+        return $this->teams()->whereKey($organizer->id)->exists()
+            || $this->ownsOrganization($organizer);
     }
 
     /**

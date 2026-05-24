@@ -84,6 +84,7 @@ const events = ref({
     last_page: props.searchedEvents?.last_page || 1
 })
 const unsubscribe = ref(null)
+let pageRequestController = null
 
 // Computed
 const hasEvents = computed(() => events.value.data && events.value.data.length)
@@ -91,15 +92,22 @@ const hasEvents = computed(() => events.value.data && events.value.data.length)
 const handlePageChange = async (page) => {
     const params = new URLSearchParams(window.location.search)
     params.set('page', page)
-    
+
     window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`)
     window.scrollTo(0, 0)
 
+    if (pageRequestController) {
+        pageRequestController.abort()
+    }
+    pageRequestController = new AbortController()
+
     try {
         SearchStore.setLoading(true)
-        
+
         // Make API call
-        const response = await axios.get(`/api/index/search?${params.toString()}`)
+        const response = await axios.get(`/api/index/search?${params.toString()}`, {
+            signal: pageRequestController.signal,
+        })
         
         // First, directly update our local component state for immediate feedback
         if (response.data && response.data.data) {
@@ -134,6 +142,7 @@ const handlePageChange = async (page) => {
         // Then update the store (which will update any other components)
         SearchStore.updateState(completeState)
     } catch (error) {
+        if (axios.isCancel?.(error) || error.name === 'CanceledError') return
         console.error('Error changing page:', error)
     } finally {
         SearchStore.setLoading(false)

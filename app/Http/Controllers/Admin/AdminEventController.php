@@ -20,7 +20,11 @@ class AdminEventController extends Controller
     public function index(Request $request)
     {
         $query = Event::query()
-            ->with(['organizer', 'images', 'location', 'category', 'clicks', 'curatedCheck'])
+            ->with(['organizer', 'images', 'location', 'category', 'curatedCheck'])
+            ->withCount('clicks as total_clicks')
+            ->withCount(['clicks as unique_visitors' => function ($q) {
+                $q->select(\DB::raw('COUNT(DISTINCT ip_address)'));
+            }])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
@@ -69,15 +73,7 @@ class AdminEventController extends Controller
                 $query->orderBy('published_at', 'desc'); // Default sort by approval date
             });
 
-        $events = $query->paginate(20);
-        
-        // Calculate total clicks for each event
-        foreach ($events as $event) {
-            $event->total_clicks = $event->clicks->count();
-            $event->unique_visitors = $event->clicks->unique('ip_address')->count();
-        }
-
-        return $events;
+        return $query->paginate(20);
     }
 
     public function show(Event $event)
@@ -100,12 +96,10 @@ class AdminEventController extends Controller
             'eventreviews',
             'videos',
             'staffpick',
-            'clicks'
         ]);
 
-        // Calculate total clicks and unique visitors
-        $event->total_clicks = $event->clicks->count();
-        $event->unique_visitors = $event->clicks->unique('ip_address')->count();
+        $event->total_clicks = $event->clicks()->count();
+        $event->unique_visitors = $event->clicks()->distinct('ip_address')->count('ip_address');
 
         // Find any events with the same name (case-insensitive)
         $duplicateEvents = Event::whereRaw('LOWER(name) = ?', [strtolower($event->name)])

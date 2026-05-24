@@ -56,7 +56,8 @@ class EventController extends Controller
             ->with(['events' => function($eventsQuery) {
                 $eventsQuery->where('status', 'p')
                     ->where('archived', false)
-                    ->orderByDesc('updated_at');
+                    ->orderByDesc('updated_at')
+                    ->limit(12);
             }]);
         }]);
         

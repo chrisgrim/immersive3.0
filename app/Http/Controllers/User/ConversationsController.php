@@ -89,7 +89,7 @@ class ConversationsController extends Controller
 
         $latestMessage = $conversation->latestMessages()->first();
 
-        if ($this->canAppendMessage($latestMessage)) {
+        if ($latestMessage && $this->canAppendMessage($latestMessage)) {
             $currentMessage = trim($latestMessage->message);
             if (str_ends_with($currentMessage, '</p>')) {
                 $currentMessage = substr($currentMessage, 0, -4);

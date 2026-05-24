@@ -43,10 +43,14 @@ class OrganizerPolicy
 
     /**
      * Determine whether the user can switch to a specific team.
+     *
+     * Moderators can switch into any organizer. This is intentional — moderators
+     * routinely need to assume an organizer's identity for support and content
+     * review. Confirmed 2026-05-24.
      */
     public function switchTeam(User $user, Organizer $organizer): bool
     {
-        return $user->belongsToOrganization($organizer) || 
+        return $user->belongsToOrganization($organizer) ||
                $user->isModerator() ||
                $user->ownsOrganization($organizer);
     }
