@@ -143,7 +143,7 @@
                                     <span 
                                         v-else
                                         class="inline"><b class="mr-2">text block</b> 
-                                        (<span class="text-sm [&>p]:text-sm [&>h3]:text-sm [&>h4]:text-sm [&>p]:inline [&>p]:m-0" v-html="card.blurb.slice(0,50)" />)</span>
+                                        (<span class="text-sm [&>p]:text-sm [&>h3]:text-sm [&>h4]:text-sm [&>p]:inline [&>p]:m-0" v-html="sanitizeBlurb(card.blurb.slice(0,50))" />)
                                 </div>
                             </template>
                         </draggable>
@@ -160,6 +160,7 @@ import draggable from 'vuedraggable'
 import Dropdown from '@/GlobalComponents/dropdown.vue'
 import DropdownList from '@/GlobalComponents/dropdown-list.vue'
 import { RiImageCircleLine, RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
+import { sanitizeBlurb } from '@/composables/useSanitize'
 
 const props = defineProps({
     value: {

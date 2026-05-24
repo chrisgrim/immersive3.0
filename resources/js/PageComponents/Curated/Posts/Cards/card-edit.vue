@@ -137,7 +137,7 @@
                                 <div @click="onEdit = true" class="mt-6 space-y-6">
                                     <!-- Blurb -->
                                     <div v-if="card.blurb" class="card-blurb">
-                                        <div v-html="card.blurb.split(' ').slice(0, 40).join(' ') + (card.blurb.split(' ').length > 40 ? '...' : '')" />
+                                        <div v-html="sanitizeBlurb(card.blurb.split(' ').slice(0, 40).join(' ') + (card.blurb.split(' ').length > 40 ? '...' : ''))" />
                                     </div>
 
                                     <!-- Event Dates -->
@@ -433,6 +433,7 @@ import moment from 'moment'
 import Tiptap from './Components/Tiptap.vue'
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue'
 import { useSecureUrl } from '@/composables/useSecureUrl'
+import { sanitizeBlurb } from '@/composables/useSanitize'
 
 const props = defineProps({
     parentCard: {

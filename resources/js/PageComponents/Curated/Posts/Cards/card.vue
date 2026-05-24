@@ -54,6 +54,7 @@
 import { computed } from 'vue'
 import moment from 'moment'
 import { useSecureUrl } from '@/composables/useSecureUrl'
+import { sanitizeBlurb } from '@/composables/useSanitize'
 
 const props = defineProps({
     card: {
@@ -89,10 +90,7 @@ const cleanDate = (date) => {
     return moment(date).format("dddd, MMMM D YYYY")
 }
 
-const cleanBlurb = (blurb) => {
-    // Return the blurb as-is since Tiptap is handling the HTML structure
-    return blurb
-}
+const cleanBlurb = (blurb) => sanitizeBlurb(blurb)
 
 // Computed properties
 const hasImage = computed(() => {

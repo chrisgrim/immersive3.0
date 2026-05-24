@@ -23,7 +23,7 @@
                 ">
                 <div style="text-align: center;margin: auto;">
                     <span style="font-family: 'Sen', sans-serif;color: white;">
-                        <p style="white-space: pre-line;margin: 0;">{!! $attributes['body'] !!}</p>
+                        <p style="white-space: pre-line;margin: 0;">{!! Purifier::clean($attributes['body'], 'message') !!}</p>
                     </span>
                 </div>
             </div>

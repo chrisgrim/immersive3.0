@@ -114,8 +114,8 @@
                                 </a>
                                 <span class="text-xl text-slate-400">{{ cleanTime(message.created_at) }}</span>
                             </div>
-                            <div 
-                                v-html="message.message" 
+                            <div
+                                v-html="sanitizeMessage(message.message)"
                                 class="text-2xl p-6 mt-2 inline-block [&_p]:m-0 break-all overflow-hidden"
                                 :class="messageClasses(message)"
                             />
@@ -159,6 +159,7 @@
 <script setup>
 import { ref, watchEffect, nextTick, onMounted, computed } from 'vue';
 import dayjs from 'dayjs';
+import { sanitizeMessage } from '@/composables/useSanitize';
 
 const props = defineProps({
     value: Object,

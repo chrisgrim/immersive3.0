@@ -142,7 +142,7 @@
                 
                 @if($element && isset($element->blurb) && $element->blurb)
                     <div class="text-lg md:text-xl text-white mb-8 leading-relaxed [&_*]:text-white [&_p]:text-white [&_p]:text-xl [&_h1]:text-white [&_h2]:text-white [&_h3]:text-white [&_h4]:text-white [&_h5]:text-white [&_h6]:text-white [&_span]:text-white [&_div]:text-white">
-                        {!! $element->blurb !!}
+                        {!! Purifier::clean($element->blurb, 'blurb') !!}
                     </div>
                 @endif
                 

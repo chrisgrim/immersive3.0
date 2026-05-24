@@ -251,7 +251,7 @@
         @if($post->blurb)
         <div class="mt-4 mb-12 md:mb-16">
             <div class="card-blurb leading-relaxed">
-                {!! $post->blurb !!}
+                {!! Purifier::clean($post->blurb, 'blurb') !!}
             </div>
         </div>
         @endif
@@ -383,7 +383,7 @@
                                                 {{-- Blurb --}}
                                                 @if(Str::of($card->blurb)->stripTags()->trim()->isNotEmpty())
                                                     <div class="card-blurb leading-relaxed">
-                                                        {!! $card->blurb !!}
+                                                        {!! Purifier::clean($card->blurb, 'blurb') !!}
                                                     </div>
                                                 @endif
 
@@ -412,7 +412,7 @@
                                     @endif
                                     
                                     <div class="card-blurb leading-relaxed">
-                                        {!! $card->blurb !!}
+                                        {!! Purifier::clean($card->blurb, 'blurb') !!}
                                     </div>
                                     
                                     @if($card->url)
@@ -526,7 +526,7 @@
                                             <div class="md:mt-6 space-y-6">
                                                 {{-- Blurb --}}
                                                 @if(Str::of($card->blurb)->stripTags()->trim()->isNotEmpty())
-                                                    {!! Str::words($card->blurb, 40, '...') !!}
+                                                    {!! Purifier::clean(Str::words($card->blurb, 40, '...'), 'blurb') !!}
                                                 @endif
 
                                                 {{-- Event Dates --}}
