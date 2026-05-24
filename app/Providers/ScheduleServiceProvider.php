@@ -26,6 +26,11 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->everyTwoHours()
                 ->withoutOverlapping()
                 ->appendOutputTo(storage_path('logs/publish-events.log'));
+
+            $schedule->command('ei:archive-clicks')
+                ->dailyAt('03:30')
+                ->withoutOverlapping()
+                ->appendOutputTo(storage_path('logs/archive-clicks.log'));
         });
     }
 }
