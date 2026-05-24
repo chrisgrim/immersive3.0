@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use App\Console\Commands\ArchiveOldClicks;
 use App\Console\Commands\CheckClosingEvents;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -60,9 +61,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        \Sentry\Laravel\Integration::handles($exceptions);
     })
     ->withCommands([
         CheckClosingEvents::class,
+        ArchiveOldClicks::class,
     ])
     ->create();

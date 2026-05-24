@@ -116,6 +116,31 @@ const app = createApp({
     }
 });
 
+// Catch any component-level error so one bad component can't blank the page.
+// Sentry's Vue integration also installs a handler, but having our own ensures
+// dev/no-DSN builds still log instead of failing silently.
+app.config.errorHandler = (err, instance, info) => {
+    console.error('[Vue]', info, err);
+    if (window.Sentry?.captureException) {
+        window.Sentry.captureException(err, { extra: { vueInfo: info } });
+    }
+};
+
+// Sentry (skip if no DSN configured)
+if (import.meta.env.VITE_SENTRY_DSN) {
+    import('@sentry/vue').then((Sentry) => {
+        Sentry.init({
+            app,
+            dsn: import.meta.env.VITE_SENTRY_DSN,
+            environment: import.meta.env.VITE_SENTRY_ENVIRONMENT || 'production',
+            tracesSampleRate: 0.1,
+            replaysSessionSampleRate: 0,
+            replaysOnErrorSampleRate: 1.0,
+        });
+        window.Sentry = Sentry;
+    });
+}
+
 // Setup axios
 window.axios = axios;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
