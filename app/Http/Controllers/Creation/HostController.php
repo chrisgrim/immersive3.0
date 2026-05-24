@@ -11,21 +11,28 @@ class HostController extends Controller
 {
     public function show()
     {
+        $user = auth()->user();
+
         // Redirect users without teams to the getting-started page
-        if (!auth()->user()->teams()->exists()) {
+        if (!$user->teams()->exists()) {
             return redirect()->route('hosting.intro')
                 ->with('info', 'Please create an organization to start hosting events.');
         }
 
-        // Ensure user has a current team set
-        $this->ensureCurrentTeam();
+        // getCurrentOrganizer() handles stale current_team_id by falling back to
+        // an owned organizer or any team membership; returns null only if there
+        // are truly no organizers at all.
+        $currentOrganizer = $user->getCurrentOrganizer();
+        if (!$currentOrganizer) {
+            return redirect()->route('hosting.intro')
+                ->with('info', 'Please create an organization to start hosting events.');
+        }
 
-        $organizer = auth()->user()->organizer()
-            ->withUserRole()
+        $organizer = Organizer::withUserRole()
             ->with(['images', 'events' => function ($query) {
                 $query->withTrashed()->with(['images', 'clicks']);
             }])
-            ->first();
+            ->find($currentOrganizer->id);
 
         // Add total clicks calculation for each event
         if ($organizer && $organizer->events) {
