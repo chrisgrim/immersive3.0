@@ -17,10 +17,15 @@ import moment from 'moment-timezone';
  */
 export const normalizeDateToTimezone = (date, timezone) => {
     if (!date) return null;
-    
+
+    if (timezone && !isValidTimezone(timezone)) {
+        console.warn(`[dateUtils] Invalid timezone "${timezone}" — falling back to UTC.`);
+        timezone = 'UTC';
+    }
+
     // Parse the date in the specified timezone
     const m = moment.tz(date, timezone);
-    
+
     // Return as YYYY-MM-DD (no time component, no timezone conversion)
     return m.format('YYYY-MM-DD');
 };

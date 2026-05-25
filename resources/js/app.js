@@ -144,6 +144,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 // Setup axios
 window.axios = axios;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+axios.defaults.timeout = 30000;
 
 // Register date picker first
 app.component('VueDatePicker', DatePickerComponent);

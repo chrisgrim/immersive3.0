@@ -280,7 +280,7 @@ class OrganizerController extends Controller
 
         $existingOrganizers = Organizer::where('name', 'LIKE', $request->name)
             ->where('status', '!=', 'd') // Exclude deleted/deactivated
-            ->select('id', 'name', 'slug', 'description')
+            ->select('name', 'slug') // intentionally narrow — public endpoint, don't leak descriptions
             ->get();
 
         if ($existingOrganizers->isEmpty()) {

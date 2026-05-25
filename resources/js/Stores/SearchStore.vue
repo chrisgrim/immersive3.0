@@ -36,7 +36,7 @@ class SearchStore {
             loading: false
         });
         
-        this.listeners = [];
+        this.listeners = new Set();
     }
     
     // Initialize state from URL and props
@@ -86,12 +86,13 @@ class SearchStore {
         return initialState;
     }
 
-    // Simple subscription system
+    // Simple subscription system — Set dedupes so a re-mount before unmount
+    // can't accumulate duplicate listeners.
     subscribe(callback) {
-        this.listeners.push(callback);
+        this.listeners.add(callback);
         callback(this.state);
         return () => {
-            this.listeners = this.listeners.filter(l => l !== callback);
+            this.listeners.delete(callback);
         };
     }
 

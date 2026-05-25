@@ -127,14 +127,17 @@ class LoginCodeController extends Controller
 
     public function autoLogin($code)
     {
-        // Get the email from the query string
-        $email = request()->query('email');
-        
-        // Store both code and email in the session
+        // Validate the email param before flashing it — otherwise an attacker
+        // could craft /login/auto/<code>?email=anything and prefill the login
+        // form with arbitrary text. The verify path still requires the cached
+        // code to match the email, so this is just hardening.
+        $validated = request()->validate([
+            'email' => 'required|email',
+        ]);
+
         session()->flash('auto_code', $code);
-        session()->flash('auto_email', $email);
-        
-        // Redirect to login page
+        session()->flash('auto_email', $validated['email']);
+
         return redirect()->route('login');
     }
 }

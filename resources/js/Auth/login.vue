@@ -209,7 +209,12 @@ const isVerifying = ref(false)
 const showResendStatus = ref(false)
 
 // Set default CSRF token for all axios requests
-axios.defaults.headers.common['X-CSRF-TOKEN'] = document.querySelector('meta[name="csrf-token"]').content
+const csrfMeta = document.querySelector('meta[name="csrf-token"]')
+if (csrfMeta) {
+    axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfMeta.content
+} else {
+    console.error('CSRF token meta tag missing — login requests will be rejected')
+}
 
 // Watch codeDigits array to update verificationCode
 watch(codeDigits, (newDigits) => {

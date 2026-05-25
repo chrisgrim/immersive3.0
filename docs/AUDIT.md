@@ -105,6 +105,8 @@ _H1–H12 plus H2 were fixed on 2026-05-24 — see "Already Fixed" at bottom. On
 
 ## Medium
 
+_M2, M3, M4, M5, M6, M7, M8, M14, M15 were fixed on 2026-05-24 — see "Already Fixed" at bottom. M9, M12, M1 deliberately left alone for now. M10, M11 are refactors not yet scheduled. M13 deferred (see below)._
+
 ### M1. Weak 6-digit login codes
 - `app/Http/Controllers/Auth/LoginCodeController.php:41` — `random_int(0, 999999)`. Mitigated by 10 verify-attempts / 15-minute rate limit and 15-minute TTL, so practical brute force is bounded but not impossible.
 - Optional fix: 8-character alphanumeric, or move to magic-link URL only.
@@ -155,9 +157,9 @@ _H1–H12 plus H2 were fixed on 2026-05-24 — see "Already Fixed" at bottom. On
 - `app/Http/Controllers/Search/EventAttributesController.php` — `categories()`, `genres()`, `remoteLocations()`, `contactLevels()`, `interactiveLevels()`, `contentAdvisories()`, `mobilityAdvisories()`, `ageLimits()` all hit the DB on every request. `AdminEventController::approve()` already does `Cache::forget('active-categories')` / `'active-genres'`, indicating the cache key convention exists but is unused here.
 - Fix: wrap each with `Cache::remember('event-attrs-<key>', 3600, fn() => …)`.
 
-### M13. SoftDeletes don't cascade to shows/tickets/images
-- `app/Models/Event.php:41-44` only registers `PublishedScope`. Soft-deleting an event leaves its shows, tickets, and image rows visible.
-- Fix: register `static::deleting` to soft-delete the relations, or adopt a cascade trait.
+### M13. SoftDeletes don't cascade to shows/tickets/images (deferred)
+- `app/Models/Event.php:41-44` only registers `PublishedScope`. Soft-deleting an event leaves its shows, tickets, and image rows visible to direct queries.
+- **Deferred 2026-05-24:** the simple `static::deleting` hook would hard-delete children (since `Show`, `Ticket`, `Image` don't use `SoftDeletes`), which would break the ability to restore an event with its children. The correct fix requires adding `SoftDeletes` + a `deleted_at` migration to all three child models, plus updating any queries that should bypass the new global scope. Worth tackling as its own change.
 
 ### M14. Validation helper exists but is never called
 - `resources/js/composables/dateUtils.js:214-216` exports `isValidTimezone()`. The actual `normalizeDateToTimezone()` at lines 18-26 never calls it; `moment.tz(date, badZone)` silently coerces to UTC.
@@ -211,6 +213,17 @@ _H1–H12 plus H2 were fixed on 2026-05-24 — see "Already Fixed" at bottom. On
 - **H10** organizer event catalog — `->limit(12)` added to eager-loaded `organizer.events`.
 - **H11** missing indexes on `events` — migration adds `organizer_id`, `category_id`, `archived`, `rank`, `published_at`, and composite `(status, organizer_id)`.
 - **H12** global Vue error handler — `app.config.errorHandler` set; routes to Sentry when available, falls back to `console.error`.
+
+### Medium (fixed 2026-05-24)
+- **M2** `LoginCodeController::autoLogin` now validates `email` via `request()->validate(['email' => 'required|email'])` before flashing.
+- **M3** `Auth/login.vue:212` null-guards the CSRF meta lookup and logs an error if missing.
+- **M4** `OrganizerController::checkNameAvailability` only returns `name, slug` (description trimmed; no `id` either).
+- **M5** `config/cors.php` swapped `*` for explicit `allowed_methods` and `allowed_headers` allow-lists.
+- **M6** `axios.defaults.timeout = 30000` set in `resources/js/app.js`.
+- **M7** `SearchStore.listeners` is now a `Set` so duplicate subscribers can't accumulate.
+- **M8** Inline `setMonth(+6)` in `ongoing-dates.vue` template replaced with `addMonths(effectiveStartDate, 6, selectedTimezone)`; also removed adjacent dead code (`sixMonthsFromNow` / `oneMonthBeforeSixMonths` were computed but never read).
+- **M14** `normalizeDateToTimezone` in `dateUtils.js` now calls the existing `isValidTimezone()` helper and `console.warn`s before falling back to UTC.
+- **M15** `POST /organizers/{organizer}/name-change` in `routes/web.php` gets `throttle:5,60` (5 per hour).
 
 ### Sentry & infra
 - Sentry SDKs (`sentry/sentry-laravel`, `@sentry/vue`) installed and wired in `bootstrap/app.php` + `resources/js/app.js`. DSNs in `.env.prod`; production frontend DSN passed via GitHub secret `VITE_SENTRY_DSN` to the Vite build step.

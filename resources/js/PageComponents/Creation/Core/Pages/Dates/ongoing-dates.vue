@@ -127,12 +127,7 @@
                                     class="hover:border-[#222222] text-gray-500 hover:bg-neutral-50 transition-all duration-200 underline"
                                 >
                                     <span v-if="endDate">{{ formatDate(endDate) }}</span>
-                                    <span v-else>{{ formatDate((() => {
-                                        const base = effectiveStartDate || new Date();
-                                        const sixMonthsOut = new Date(base);
-                                        sixMonthsOut.setMonth(sixMonthsOut.getMonth() + 6);
-                                        return sixMonthsOut;
-                                    })()) }}</span>
+                                    <span v-else>{{ formatDate(addMonths(effectiveStartDate || new Date(), 6, selectedTimezone)) }}</span>
                                 </button>
                             </div>
                         </div>
@@ -1018,17 +1013,6 @@ defineExpose({
             if (!customStartDate.value) {
                 customStartDate.value = new Date(parsedDates[0]);
             }
-            
-            // Determine if it's ongoing based on the existing pattern
-            // If we have a lot of dates extending far into the future, assume ongoing
-            const lastDate = parsedDates[parsedDates.length - 1];
-            const now = new Date();
-            const sixMonthsFromNow = new Date();
-            sixMonthsFromNow.setMonth(now.getMonth() + 6);
-            
-            // If the last date is within a month of 6 months from now, assume it's ongoing
-            const oneMonthBeforeSixMonths = new Date(sixMonthsFromNow);
-            oneMonthBeforeSixMonths.setMonth(oneMonthBeforeSixMonths.getMonth() - 1);
             
             // Set end date from event's closingDate if available (this preserves manually set end dates)
             if (event.closingDate) {
