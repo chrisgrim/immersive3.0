@@ -5,10 +5,13 @@ namespace App\Models\Messaging;
 use App\Models\User;
 use App\Models\Event;
 use App\Models\Organizer;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Message extends Model
 {
+    use HasFactory;
+
     protected $fillable = ['message', 'user_id', 'conversation_id', 'is_seen', 'deleted_from_sender', 'deleted_from_receiver'];
 
     /**
