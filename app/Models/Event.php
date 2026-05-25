@@ -8,6 +8,7 @@ use App\Models\Admin\{ ReviewEvent, StaffPick, TrackClick, CuratedEventCheck };
 use App\Scopes\PublishedScope;
 use App\Traits\{Favoritable};
 use Elastic\ScoutDriverPlus\Searchable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,7 @@ use App\Services\ImageHandler;
  */
 class Event extends Model
 {
-    use Favoritable, SoftDeletes, Searchable;
+    use Favoritable, HasFactory, SoftDeletes, Searchable;
 
     protected $casts = [
         'location_latlon' => 'array',

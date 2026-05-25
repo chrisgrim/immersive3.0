@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Elastic\ScoutDriverPlus\Searchable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Genre;
 use Carbon\Carbon;
@@ -13,7 +14,7 @@ use App\Models\NameChangeRequest;
 
 class Organizer extends Model
 {
-    use Searchable;
+    use HasFactory, Searchable;
 
     protected static function boot()
     {
