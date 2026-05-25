@@ -90,8 +90,11 @@ _All three Critical items were fixed on 2026-05-24 — see notes at the top. Rem
 _H1–H12 plus H2 were fixed on 2026-05-24 — see "Already Fixed" at bottom. Only H13 remains as ongoing work._
 
 ### H13. Test coverage on business paths
-- **Now covered:** magic-link auth (`LoginCodeTest`), API auth gates (`AuthGateTest`), event attributes (`EventAttributesTest`), organizer name check (`OrganizerCheckNameTest`), `EventPolicy` in full (`Policies/EventPolicyTest`), click tracking + stats (`EventClickControllerTest`), HostEventController submit/destroy/create/update/duplicate (`HostEventControllerTest`). 75 tests / 178 assertions / ~3s.
-- **Still uncovered:** search (`ListingsController` — needs Scout/ES test infra), image uploads (`ImageHandler` — needs `Storage::fake('do')`), admin approval beyond auth (`AdminEventController::approve/reject`), conversation creation + message-append flow, scheduled commands (`ei:publish-embargoed`, `ei:check-closing-events`, `ei:archive-clicks`), and the remaining policies (`OrganizerPolicy`, `CommunityPolicy`, `PostPolicy`, `ConversationPolicy`).
+- **Now covered:** magic-link auth (`LoginCodeTest`), API auth gates (`AuthGateTest`), event attributes (`EventAttributesTest`), organizer name check (`OrganizerCheckNameTest`), `EventPolicy` + `OrganizerPolicy` + `CommunityPolicy` in full, click tracking + stats (`EventClickControllerTest`), HostEventController submit/destroy/create/update/duplicate (`HostEventControllerTest`), admin approval workflow for events and organizers (`AdminEventControllerTest`, `AdminOrganizerControllerTest`), and the conversation/messaging flow with regression coverage for the H5 null-guard fix (`ConversationsControllerTest`). **144 tests / 294 assertions / ~4s.**
+- **Still uncovered:** search (`ListingsController` — needs Scout/ES test infra), image uploads (`ImageHandler` — needs `Storage::fake('do')`), admin community approval (`AdminCommunityController`), scheduled commands (`ei:publish-embargoed`, `ei:check-closing-events`, `ei:archive-clicks`), `PostPolicy` and `ConversationPolicy` (already partially exercised via ConversationsControllerTest), curated posts/shelves/cards CRUD, and the curator-invitation flow.
+- Live findings while writing tests:
+  - `AdminEventController::reject` silently drops `rejection_reason` (column doesn't exist + not in `$fillable`). Reason only appears in the email and in-app message, not on the event.
+  - `CommunityPolicy::curator` requires pivot membership — owner alone is not enough. Same pattern as `EventPolicy::host`.
 - Fix incrementally as you touch each area; the suite + factories now exist as a foundation.
 
 ### H6 follow-up. FK constraints on `conversations.user_one/user_two`
