@@ -174,7 +174,6 @@ const saveCard = async () => {
 
     addCardData()
     try {
-        console.log('Saving card with order:', card.value.order)
         const res = await axios.post(
             `/communities/${props.community.slug}/posts/${props.post.slug}/cards`,
             formData.value  // Use the FormData we prepared in addCardData()

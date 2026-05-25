@@ -633,7 +633,6 @@ const fetchDocks = async () => {
         loading.value = true
         const response = await axios.get('/api/admin/docks')
         docks.value = response.data
-        console.log('Fetched docks:', response.data)
     } catch (error) {
         console.error('Error fetching docks:', error)
     } finally {

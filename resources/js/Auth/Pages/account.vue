@@ -61,7 +61,6 @@ const owner = inject('owner', {
     silence: 'y'
 });
 
-console.log('Initial owner data:', owner);
 
 const newsletter = ref(
     owner?.newsletter_type?.includes('m') || 
@@ -82,7 +81,6 @@ const newsletterType = computed(() => {
                : newsletter.value ? 'm'
                : eventNewsletter.value ? 'u'
                : 'n';
-    console.log('Computed newsletter type:', type);
     return type;
 });
 
@@ -93,18 +91,11 @@ const submitData = async () => {
         newsletter_type: newsletterType.value,
         silence: emailMessages.value ? 'n' : 'y'
     };
-    console.log('Submitting data:', data);
     return data;
 };
 
 // Watch for changes
 watch([newsletter, eventNewsletter, emailMessages], (newValues) => {
-    console.log('Settings changed:', {
-        newsletter: newValues[0],
-        eventNewsletter: newValues[1],
-        emailMessages: newValues[2],
-        computedType: newsletterType.value
-    });
 });
 
 // Add this method to update the component state

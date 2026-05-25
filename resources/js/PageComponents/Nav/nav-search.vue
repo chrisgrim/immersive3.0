@@ -337,7 +337,6 @@ const handleFilterUpdate = async (filters) => {
         if (maxPrice < state.value.filters.maxPrice) {
             params.set('price1', maxPrice);
         } else {
-            console.log('removing price');
             params.delete('price1');
             // Update searchingByPrice if both price params are being removed
             if (!params.has('price0')) {
@@ -398,7 +397,6 @@ const handleFilterUpdate = async (filters) => {
 };
 
 const handleLocationSearch = (searchData) => {    
-    console.log('handleLocationSearch', searchData);
     
     // Use the updateState method to update the store with search data
     SearchStore.updateState({

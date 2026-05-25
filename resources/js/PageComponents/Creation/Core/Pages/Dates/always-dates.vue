@@ -110,7 +110,7 @@
         </div>
 
         <!-- End Date Modal -->
-        <div v-if="showEndDateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[500] p-4 overflow-y-auto">
+        <div v-if="showEndDateModal" role="dialog" aria-modal="true" aria-label="Select end date" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[500] p-4 overflow-y-auto">
             <div class="bg-white rounded-2xl w-[600px] mx-4 max-h-[90vh] my-auto flex flex-col">
                 <div class="flex items-center justify-between p-8 pb-6 border-b border-gray-200">
                     <h3 class="text-2xl font-bold">Choose End Date</h3>

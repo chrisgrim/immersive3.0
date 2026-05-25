@@ -183,7 +183,6 @@ defineExpose({
         // Force the date dropdown to open
         dateDropdown.value = true;
         dropdown.value = false;
-        console.log('Opening date dropdown with initial dates:', props.initialStartDate, props.initialEndDate);
 
         // Check props first
         if (props.initialStartDate && props.initialEndDate) {
@@ -192,7 +191,6 @@ defineExpose({
                 const endDate = new Date(props.initialEndDate);
                 if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
                     date.value = [startDate, endDate];
-                    console.log('Set date.value from props:', date.value);
                 }
             } catch (e) {
                 console.error('Error in openDateDropdown:', e);
@@ -459,7 +457,6 @@ function handleDateChange(newDate) {
     if (newDate && Array.isArray(newDate) && newDate.length === 2) {
         // Just update the date value, don't trigger search
         date.value = newDate;
-        console.log('Date changed:', date.value, typeof date.value, Array.isArray(date.value));
     }
 }
 
@@ -550,7 +547,6 @@ const handleSearch = () => {
             start: formatForUrl(start),
             end: end ? formatForUrl(end) : formatForUrl(start)
         };
-        console.log('Date criteria:', searchData.dates);
     }
     
     // Close dropdowns
@@ -561,15 +557,9 @@ const handleSearch = () => {
     const hasDates = searchData.dates.start !== null;
     const hasLocation = selectedPlace.value !== null;
     
-    console.log('Search criteria:', { 
-        hasDates, 
-        hasLocation, 
-        isOnSearchPage: isOnSearchPage 
-    });
     
     // Enable search only if we have dates OR location OR we're already on a search page
     if (!hasDates && !hasLocation && !isSearchPage) {
-        console.log('Cannot search: no dates and no location');
         return;
     }
     
@@ -608,7 +598,6 @@ const handleSearch = () => {
         params.set('end', searchData.dates.end || searchData.dates.start);
     }
     
-    console.log('Redirecting to search with params:', params.toString());
     // Redirect to search page
     window.location.href = `/index/search?${params.toString()}`;
 };

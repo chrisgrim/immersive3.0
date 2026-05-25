@@ -156,7 +156,6 @@ const handleAccept = () => {
 // Debug method to clear localStorage (can be triggered from browser console)
 window.clearEIGuidelines = () => {
     localStorage.removeItem('ei_has_accepted_guidelines');
-    console.log('Cleared acceptance guidelines from localStorage. Refresh to see the acceptance screen.');
 };
 
 const onSelect = (hasLocation) => {
@@ -170,20 +169,16 @@ const checkEventCreationHistory = async () => {
         state.value.checkingEventHistory = true;
         
         // For debugging - remove this in production
-        console.log('Checking event creation history');
         
         // Check if user has accepted guidelines before via localStorage first
         if (localStorage.getItem('ei_has_accepted_guidelines') === 'true') {
-            console.log('User has previously accepted guidelines (localStorage)');
             state.value.hasCreatedEventBefore = true;
             state.value.checkingEventHistory = false;
             return;
         }
         
         // Otherwise, check via API
-        console.log('Making API call to check event history');
         const response = await axios.get('/hosting/event/user/has-created-events');
-        console.log('API response:', response.data);
         
         // IMPORTANT: For new users, default to false instead of true
         state.value.hasCreatedEventBefore = response.data.hasCreatedEvents === true;

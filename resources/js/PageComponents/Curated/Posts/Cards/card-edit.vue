@@ -602,16 +602,9 @@ const deleteCard = async () => {
     }
 
     const url = `/communities/${props.community.slug}/posts/${props.parentCard.post.slug}/cards/${card.value.id}`
-    console.log('Attempting to delete card:', {
-        url,
-        community: props.community.slug,
-        post: props.parentCard.post.slug,
-        cardId: card.value.id
-    })
 
     try {
         const res = await axios.delete(url)
-        console.log('Delete response:', res.data)
         emit('update', res.data)
     } catch (error) {
         // If we get a 404, the card might have already been deleted
@@ -644,9 +637,7 @@ const appendCardData = () => {
 }
 
 const clear = () => {
-    console.log('onEdit', onEdit.value)
     onEdit.value = false
-    console.log('onEdit', onEdit.value)
     hover.value = false
     disabled.value = false
     formData.value = new FormData()

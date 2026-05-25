@@ -284,7 +284,6 @@ defineExpose({
 });
 
 watch(() => props.organizer, (newValue) => {
-    console.log('Organizer props in OrganizerReview:', newValue);
 }, { immediate: true, deep: true });
 </script>
 

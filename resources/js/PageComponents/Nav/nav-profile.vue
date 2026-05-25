@@ -193,13 +193,8 @@ const logout = async () => {
 };
 
 const onLogin = () => {
-    console.log('onLogin clicked');
-    console.log('dropdown before:', dropdown.value);
     dropdown.value = false;
-    console.log('dropdown after:', dropdown.value);
-    console.log('showLogin before:', showLogin.value);
     showLogin.value = true;
-    console.log('showLogin after:', showLogin.value);
 };
 
 const onToggle = () => {

@@ -165,31 +165,25 @@ const shouldShowPriceFilter = computed(() => {
 
 // First define the handler
 const handleMaxPriceUpdate = (event) => {
-    console.log('QuickBar received max-price-update event:', event.detail)
     maxPrice.value = event.detail
-    console.log('QuickBar updated maxPrice to:', maxPrice.value)
     
     // Set initial price range if it hasn't been set yet
     if (priceRange.value[1] === 0) {
         priceRange.value = [0, event.detail]
-        console.log('QuickBar initialized priceRange to:', priceRange.value)
     }
 }
 
 onMounted(() => {
-    console.log('QuickBar mounted')
     
     // Initialize searchType check
     if (searchType.value === 'allEvents' || searchType.value === 'inPerson') {
         const params = new URLSearchParams(window.location.search)
-        console.log('Checking URL params for price:', params.toString())
         
         if (params.has('price0') && params.has('price1')) {
             priceRange.value = [
                 parseInt(params.get('price0')),
                 parseInt(params.get('price1'))
             ]
-            console.log('Set price range from URL:', priceRange.value)
         }
     }
 })
@@ -199,7 +193,6 @@ const categories = ref([])
 // Update the categories fetch in onMounted
 onMounted(async () => {
     try {
-        console.log('QuickBar mounted')
         
         // Add max price listener and signal ready
         window.addEventListener('max-price-update', handleMaxPriceUpdate)
@@ -275,7 +268,6 @@ const getCategoryIcon = (category) => {
 }
 
 const emitFilterUpdate = (filterType, value) => {
-    console.log(`Emitting filter update for ${filterType}:`, value);
     
     // Create the parameter object based on filter type
     let params = {};
@@ -368,7 +360,6 @@ const selectTags = (tagIds) => {
 }
 
 const handlePriceUpdate = (newPrice) => {
-    console.log('Price update received:', newPrice)
     priceRange.value = newPrice
     
     // Dispatch the event in the format the search component expects

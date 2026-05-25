@@ -210,7 +210,7 @@
                                 </div>
                             </div>
                             <!-- Embargo Calendar Modal -->
-                            <div v-if="showEmbargoModal" class="c-embargo fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4 overflow-y-auto">
+                            <div v-if="showEmbargoModal" role="dialog" aria-modal="true" aria-label="Set embargo date" class="c-embargo fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4 overflow-y-auto">
                                 <div class="bg-white rounded-2xl w-[600px] mx-4 max-h-[90vh] my-auto flex flex-col">
                                     <div class="flex items-center justify-between p-8 pb-6 border-b border-gray-200">
                                         <h3 class="text-2.5xl font-bold">Select Embargo Date</h3>

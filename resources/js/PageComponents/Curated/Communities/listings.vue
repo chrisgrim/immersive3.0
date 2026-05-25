@@ -278,14 +278,8 @@ const updateShelvesOrder = async () => {
             order: index
         }))
         
-        console.log('Sending shelf order update:', {
-            url: `/communities/${community.value.slug}/shelves/order`,
-            data: orderedShelves,
-            communitySlug: community.value.slug
-        })
         
         const response = await axios.post(`/communities/${community.value.slug}/shelves/order`, orderedShelves)
-        console.log('Shelf order update response:', response.data)
     } catch (error) {
         console.error('Failed to update shelf order:', {
             error,

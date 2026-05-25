@@ -119,7 +119,6 @@ const props = defineProps({
     }
 });
 
-console.log('Edit component props:', props);
 
 // Create a single source of truth
 const user = reactive(props.loaduser);
@@ -166,7 +165,6 @@ const setStep = (step) => {
 
 const saveChanges = async () => {
     try {
-        console.log('Starting save changes...');
         const isValid = await currentComponentRef.value.isValid();
         if (!isValid) return;
 
@@ -182,13 +180,11 @@ const saveChanges = async () => {
             }
         } : {};
 
-        console.log('Sending data:', isFormData ? 'FormData object' : submitData);
         const response = await axios.post(`/users/${user.id}`, submitData, config);
         
         if (response.data) {
             // Ensure we have the latest data including images
             const freshData = response.data;
-            console.log('Received updated data:', freshData);
             
             // Update the reactive user object with new data
             Object.assign(user, freshData);

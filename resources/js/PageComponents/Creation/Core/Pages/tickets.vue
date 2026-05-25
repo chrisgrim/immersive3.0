@@ -446,7 +446,6 @@ const handleDivClick = (index) => {
                 if (pInput) pInput.focus();
             }
         } catch (e) {
-            console.log('Could not focus price input', e);
         }
     }, 100);
 };
@@ -524,7 +523,6 @@ const updateTicketName = (item) => {
                 const descriptionInput = document.querySelector('input[name="AdditionalDetails"]');
                 if (descriptionInput) descriptionInput.focus();
             } catch (e) {
-                console.log('Could not focus description input', e);
             }
         }, 100);
     } else if (item.name.toLowerCase() === 'pwyc') {
@@ -538,7 +536,6 @@ const updateTicketName = (item) => {
                 const descriptionInput = document.querySelector('input[name="AdditionalDetails"]');
                 if (descriptionInput) descriptionInput.focus();
             } catch (e) {
-                console.log('Could not focus description input', e);
             }
         }, 100);
     } else {
@@ -553,7 +550,6 @@ const updateTicketName = (item) => {
                     if (pInput) pInput.focus();
                 }
             } catch (e) {
-                console.log('Could not focus price input', e);
             }
         }, 100);
     }
@@ -646,13 +642,6 @@ defineExpose({
             ticketUrlSection.value?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
                        
-        console.log('Tickets validation:', {
-            ticketsCount: tickets.length,
-            validationErrors: $v.value.tickets.$errors,
-            ticketUrlValid: Boolean(state.value.ticketUrl) && !state.value.ticketUrlError,
-            callToActionValid: Boolean(state.value.callToAction),
-            isValid
-        });
         return isValid;
     },
     submitData: () => {
@@ -715,7 +704,6 @@ onMounted(() => {
                     if (pInput) pInput.focus();
                 }
             } catch (e) {
-                console.log('Could not focus price input', e);
             }
         }, 100);
     }

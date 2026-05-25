@@ -202,7 +202,6 @@ const toggleHidden = async () => {
         shelf.value.is_hidden = response.data.is_hidden
         
         // Optional: Show a toast notification
-        console.log(response.data.message)
     } catch (error) {
         console.error('Error toggling shelf visibility:', error)
         // Handle error - maybe show a toast notification

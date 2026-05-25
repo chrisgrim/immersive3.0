@@ -271,7 +271,6 @@ const saveChanges = async () => {
         if (!isValid) return;
 
         const submitData = await currentComponentRef.value.submitData();
-        console.log('Submit data:', submitData);
         
         // If submitData is false, it means the component handled the update internally
         if (submitData === false) {
@@ -290,7 +289,6 @@ const saveChanges = async () => {
             : `/communities/${community.slug}`;
             
         const response = await axios.post(endpoint, submitData);
-        console.log('Save changes response:', response.data);
         
         if (response.data) {
             // Update the community object with the new data

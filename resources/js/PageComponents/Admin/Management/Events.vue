@@ -650,7 +650,6 @@ watch(organizerSearch, debounce(async () => {
                 limit: 6
             }
         })
-        console.log('Organizer search response:', response.data)
         organizerSearchResults.value = response.data || []
     } catch (error) {
         console.error('Error searching organizers:', error)

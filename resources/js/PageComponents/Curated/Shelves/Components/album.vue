@@ -229,7 +229,6 @@ const togglePostHidden = async (post) => {
             posts.value[postIndex].is_hidden = response.data.is_hidden
         }
         
-        console.log(response.data.message)
     } catch (error) {
         console.error('Error toggling post visibility:', error)
     }
@@ -248,7 +247,6 @@ const togglePostStatus = async (post) => {
             posts.value[postIndex].status = response.data.status
         }
         
-        console.log(`Post ${newStatus === 'p' ? 'published' : 'saved as draft'}`)
     } catch (error) {
         console.error('Error updating post status:', error)
     }

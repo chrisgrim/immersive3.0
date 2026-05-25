@@ -31,6 +31,12 @@
             <!-- Map Container -->
             <div class="w-full h-full relative">
                 <div id="leaflet-map" class="w-full h-full absolute inset-0"></div>
+                <div
+                    v-if="mapError"
+                    class="absolute inset-0 z-[600] flex flex-col items-center justify-center bg-neutral-100 text-neutral-700 p-12 text-center">
+                    <p class="text-2xl font-bold mb-2">Map couldn't load</p>
+                    <p class="text-lg">Try refreshing the page or switching to the list view.</p>
+                </div>
             </div>
         </div>
     </section>
@@ -68,6 +74,7 @@ const emit = defineEmits(['update:modelValue', 'fullMap', 'markerClick']);
 // Refs
 const selectedMarker = ref(null);
 const isLoading = ref(false);
+const mapError = ref(false);
 const markerCount = ref(0);
 const isFullMap = computed(() => props.modelValue);
 
@@ -211,26 +218,28 @@ const stopLoading = () => {
 // Create the map
 const initMap = () => {
     startLoading();
-    
-    // Create the map instance
-    map = L.map('leaflet-map', {
-        center: mapConfig.center,
-        zoom: mapConfig.zoom,
-        maxZoom: mapConfig.maxZoom,
-        minZoom: mapConfig.minZoom,
-        zoomControl: true,
-        scrollWheelZoom: false,
-        zoomAnimation: true,
-        fadeAnimation: true
-    });
-    
-    // Add the tile layer
-    L.tileLayer(mapConfig.tileUrl, {
-        attribution: mapConfig.attribution
-    }).addTo(map);
-    
-    // Create marker cluster group
-    markerClusterGroup = L.markerClusterGroup({
+    mapError.value = false;
+
+    try {
+        // Create the map instance
+        map = L.map('leaflet-map', {
+            center: mapConfig.center,
+            zoom: mapConfig.zoom,
+            maxZoom: mapConfig.maxZoom,
+            minZoom: mapConfig.minZoom,
+            zoomControl: true,
+            scrollWheelZoom: false,
+            zoomAnimation: true,
+            fadeAnimation: true
+        });
+
+        // Add the tile layer
+        L.tileLayer(mapConfig.tileUrl, {
+            attribution: mapConfig.attribution
+        }).addTo(map);
+
+        // Create marker cluster group
+        markerClusterGroup = L.markerClusterGroup({
         maxClusterRadius: 40, // Match your original value
         iconCreateFunction: createClusterIcon,
         animate: true,
@@ -276,8 +285,16 @@ const initMap = () => {
         }, 50);
     });
     
-    // Create markers
-    createMarkers(props.events);
+        // Create markers
+        createMarkers(props.events);
+    } catch (err) {
+        console.error('Map init failed:', err);
+        mapError.value = true;
+        isLoading.value = false;
+        if (window.Sentry?.captureException) {
+            window.Sentry.captureException(err);
+        }
+    }
 };
 
 // Create markers for events

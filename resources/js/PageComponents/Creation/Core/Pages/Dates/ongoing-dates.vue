@@ -193,7 +193,7 @@
                 </div>
 
                 <!-- Embargo Calendar Modal -->
-                <div v-if="showEmbargoModal" class="c-embargo fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4 overflow-y-auto">
+                <div v-if="showEmbargoModal" role="dialog" aria-modal="true" aria-label="Set embargo date" class="c-embargo fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4 overflow-y-auto">
                     <div class="bg-white rounded-2xl w-[600px] mx-4 max-h-[90vh] my-auto flex flex-col">
                         <div class="flex items-center justify-between p-8 pb-6 border-b border-gray-200">
                             <h3 class="text-2.5xl font-bold">Select Embargo Date</h3>
@@ -255,7 +255,7 @@
                 </div>
 
                 <!-- Start Date Modal -->
-                <div v-if="showStartDateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[500] p-4 overflow-y-auto">
+                <div v-if="showStartDateModal" role="dialog" aria-modal="true" aria-label="Select start date" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[500] p-4 overflow-y-auto">
                     <div class="bg-white rounded-2xl w-[600px] mx-4 max-h-[90vh] my-auto flex flex-col">
                         <div class="flex items-center justify-between p-8 pb-6 border-b border-gray-200">
                             <h3 class="text-2xl font-bold">Select Start Date</h3>
@@ -337,7 +337,7 @@
                 </div>
 
                 <!-- Last Date Options Modal -->
-                <div v-if="showLastDateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[500] p-4 overflow-y-auto">
+                <div v-if="showLastDateModal" role="dialog" aria-modal="true" aria-label="Select last date" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[500] p-4 overflow-y-auto">
                     <div class="bg-white rounded-2xl w-[600px] mx-4 max-h-[90vh] my-auto flex flex-col">
                         <div class="flex items-center justify-between p-8 pb-6 border-b border-gray-200">
                             <h3 class="text-2xl font-bold">Choose End Date</h3>
@@ -1021,14 +1021,6 @@ defineExpose({
             resetEndDateIfBeforeStart();
             // If no closingDate, endDate stays null and uses default 6-month calculation
             
-            console.log('Reconstructed ongoing configuration:', {
-                selectedDays: selectedDays.value,
-                startDate: customStartDate.value,
-                endDate: endDate.value,
-                isOngoing: isOngoing.value,
-                lastDate: lastDate,
-                totalDates: parsedDates.length
-            });
         }
     }
 });

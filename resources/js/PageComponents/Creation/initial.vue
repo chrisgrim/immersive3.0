@@ -493,7 +493,6 @@ const onSubmit = async () => {
         if (error.response?.data?.errors) {
             errors.value = error.response.data.errors;
             // Log the error for debugging
-            console.log('Server error:', error.response.data);
         } else {
             errors.value = { general: ['An unexpected error occurred'] };
         }
@@ -532,7 +531,6 @@ const handleDivClick = (mediaName) => {
         if (inputRefs[mediaName]) {
             inputRefs[mediaName].focus();
         } else {
-            console.log('inputRefs not available for media:', mediaName);
         }
     });
 };

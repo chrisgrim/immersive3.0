@@ -321,7 +321,6 @@ const fetchTags = async (page = 1) => {
                 sort_direction: sortDirection.value
             }
         })
-        console.log('API Response:', response.data)
         tags.value = response.data.data
         pagination.value = {
             current_page: response.data.current_page,
@@ -331,8 +330,6 @@ const fetchTags = async (page = 1) => {
             total: response.data.total,
             per_page: response.data.per_page
         }
-        console.log('Tags:', tags.value)
-        console.log('Pagination:', pagination.value)
     } catch (error) {
         console.error('Error fetching genres:', error)
     } finally {

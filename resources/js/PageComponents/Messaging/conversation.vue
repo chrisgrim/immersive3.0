@@ -289,7 +289,6 @@ onMounted(() => {
 watchEffect(() => {
     if (props.value) {
         conversation.value = props.value;
-        console.log('Conversation updated:', conversation.value);
         nextTick(() => {
             scrollToBottom();
         });

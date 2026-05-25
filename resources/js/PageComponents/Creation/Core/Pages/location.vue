@@ -412,13 +412,10 @@ const selectLocation = async (location) => {
 
 const setPlace = (place) => {
     // Debug: Log the full place object to see what Google is returning
-    console.log('Google Places API response:', place);
-    console.log('Address Components:', place.addressComponents);
     
     // Log each component for debugging
     if (place.addressComponents) {
         place.addressComponents.forEach((component, index) => {
-            console.log(`Component ${index}:`, component);
         });
     }
     
@@ -430,7 +427,6 @@ const setPlace = (place) => {
             );
             
             if (component) {
-                console.log(`Found component for ${type}:`, component);
                 
                 let value = '';
                 if (preferLong) {
@@ -500,14 +496,6 @@ const setPlace = (place) => {
     const country_long = getAddressComponent('country', true); // Long name (e.g., "United States")
     
     // Additional debugging for the location object being set
-    console.log('Extracted values:', {
-        city,
-        region,
-        region_long,
-        postal_code,
-        country,
-        country_long
-    });
     
     const currentVenue = event.location?.venue || '';
     

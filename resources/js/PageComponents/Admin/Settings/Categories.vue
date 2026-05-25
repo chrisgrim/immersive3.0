@@ -434,7 +434,6 @@ const triggerFileInput = (categoryId) => {
 }
 
 const storeOriginalValue = (event) => {
-    console.log('Storing original value:', event.target.value)
     event.target.setAttribute('data-original', event.target.value)
 }
 

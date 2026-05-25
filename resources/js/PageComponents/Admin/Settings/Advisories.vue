@@ -284,11 +284,9 @@ const fetchAdvisories = async (page = 1) => {
             params.type = filters.value.type
         }
 
-        console.log('Fetching advisories:', params);
 
         const response = await axios.get(`${apiEndpoint}/${selectedType.value}`, { params });
 
-        console.log('Response:', response.data);
 
         advisories.value = response.data.data || [];
         pagination.value = {
@@ -300,8 +298,6 @@ const fetchAdvisories = async (page = 1) => {
             per_page: response.data.per_page
         };
 
-        console.log('Processed advisories:', advisories.value);
-        console.log('Pagination:', pagination.value);
 
     } catch (error) {
         console.error('Error fetching advisories:', error);

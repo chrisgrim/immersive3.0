@@ -173,6 +173,8 @@ _M2, M3, M4, M5, M6, M7, M8, M14, M15 were fixed on 2026-05-24 — see "Already 
 
 ## Low
 
+_All five Low items were fixed on 2026-05-24 — see "Already Fixed" at bottom._
+
 ### L1. Silent map init failure
 - `resources/js/PageComponents/Search/Components/map.vue:212-281` calls `L.map(...)`, `L.tileLayer(...)`, `L.markerClusterGroup(...)` with no error handling. Leaflet load failures show a blank box.
 - Fix: try/catch around init with a fallback "map unavailable" state.
@@ -213,6 +215,13 @@ _M2, M3, M4, M5, M6, M7, M8, M14, M15 were fixed on 2026-05-24 — see "Already 
 - **H10** organizer event catalog — `->limit(12)` added to eager-loaded `organizer.events`.
 - **H11** missing indexes on `events` — migration adds `organizer_id`, `category_id`, `archived`, `rank`, `published_at`, and composite `(status, organizer_id)`.
 - **H12** global Vue error handler — `app.config.errorHandler` set; routes to Sentry when available, falls back to `console.error`.
+
+### Low (fixed 2026-05-24)
+- **L1** `Search/Components/map.vue` — `initMap()` wrapped in try/catch; on failure `mapError.value = true` shows a "Map couldn't load" fallback panel and the error is forwarded to Sentry when available.
+- **L2** `GlobalComponents/dropdown.vue:124` — `Date.now()` swapped for `crypto.randomUUID()` for temporary client-side item IDs.
+- **L3** All 91 `console.log` calls stripped from `resources/js` (left `console.error` and `console.warn` intact since those are legitimate error tracking).
+- **L4** Five date-picker modals across `specific-dates.vue`, `ongoing-dates.vue`, `always-dates.vue` annotated with `role="dialog"`, `aria-modal="true"`, and a descriptive `aria-label`.
+- **L5** Dead `NewPasswordController.php` and `PasswordResetLinkController.php` deleted (verified not referenced in routes/auth.php or anywhere else).
 
 ### Medium (fixed 2026-05-24)
 - **M2** `LoginCodeController::autoLogin` now validates `email` via `request()->validate(['email' => 'required|email'])` before flashing.

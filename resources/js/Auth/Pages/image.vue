@@ -163,7 +163,6 @@ const triggerFileInput = () => {
 
 // Add updateFromOwner method
 const updateFromOwner = (newData) => {
-    console.log('Updating from new data:', newData?.images);
     const timestamp = Date.now();
     
     if (newData?.images?.[0]) {
@@ -184,7 +183,6 @@ const updateFromOwner = (newData) => {
     } else {
         profileImage.value = null;
     }
-    console.log('Updated profile image:', profileImage.value);
 };
 
 defineExpose({

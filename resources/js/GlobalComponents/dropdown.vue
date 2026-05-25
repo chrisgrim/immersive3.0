@@ -121,7 +121,7 @@ const selectItem = (item) => {
 };
 
 const createItem = (name) => {
-    const newItem = { id: Date.now(), name }; // Generate a temporary ID for the new item
+    const newItem = { id: crypto.randomUUID(), name }; // Temporary client-side ID for the new item
     emit('onSelect', newItem);
 
     searchTerm.value = '';
@@ -153,7 +153,6 @@ const handleEnter = () => {
 };
 
 const filterRemoteLocations = () => {
-    console.log('Dropdown search term:', searchTerm.value);
     emit('input', searchTerm.value);
 };
 

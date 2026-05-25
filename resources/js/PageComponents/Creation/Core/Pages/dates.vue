@@ -219,12 +219,6 @@ const setSpecificDates = () => {
         ongoingDatesState.value = ongoingDatesRef.value.getConfiguration();
     }
     
-    console.log('Switching to specific dates:', {
-        previousShowtype: event.showtype,
-        savedOngoingState: ongoingDatesState.value,
-        specificDatesState: specificDatesState.value,
-        currentSelectedDates: selectedDates.value
-    });
     
     event.showtype = 's';
     
@@ -247,12 +241,6 @@ const setOngoingDates = () => {
     // if we came from the selection screen. If we came directly from specific mode,
     // the state is already being tracked via handleSpecificDatesUpdated
     
-    console.log('Switching to ongoing dates:', {
-        previousShowtype: event.showtype,
-        ongoingDatesState: ongoingDatesState.value,
-        currentSelectedDates: selectedDates.value,
-        specificDatesState: specificDatesState.value
-    });
     
     event.showtype = 'o';
     
@@ -263,7 +251,6 @@ const setOngoingDates = () => {
     // Restore ongoing dates state when component is ready (if it exists)
     setTimeout(() => {
         if (ongoingDatesRef.value && ongoingDatesState.value) {
-            console.log('Restoring ongoing dates configuration:', ongoingDatesState.value);
             ongoingDatesRef.value.setConfiguration(ongoingDatesState.value);
         }
         // If no ongoing state exists, ongoing dates component starts fresh
@@ -278,22 +265,12 @@ const setAlwaysDates = () => {
         specificDatesState.value = [...selectedDates.value];
     }
     
-    console.log('Switching to always dates:', {
-        previousShowtype: event.showtype,
-        alwaysDatesState: alwaysDatesState.value
-    });
     
     event.showtype = 'a';
     
     // Clear embargo date since always-dates doesn't have embargo functionality
     event.embargo_date = null;
     
-    console.log('After setting showtype:', {
-        showtype: event.showtype,
-        isAlwaysMode: isAlwaysMode.value,
-        isOngoingMode: isOngoingMode.value,
-        isSpecificMode: isSpecificMode.value
-    });
     
     // Clear current dates display
     selectedDates.value = [];
@@ -302,7 +279,6 @@ const setAlwaysDates = () => {
     // Restore always dates state when component is ready (if it exists)
     setTimeout(() => {
         if (alwaysDatesRef.value && alwaysDatesState.value.endDate) {
-            console.log('Restoring always dates configuration:', alwaysDatesState.value);
             alwaysDatesRef.value.setConfiguration(alwaysDatesState.value);
         }
         // If no always state exists, always dates component starts with default 6-month end date

@@ -233,7 +233,6 @@ const toggleHidden = async () => {
         emit('hiddenChange', response.data.is_hidden);
         
         // Optional: Show a toast notification
-        console.log(response.data.message);
     } catch (error) {
         console.error('Error toggling post visibility:', error);
         // Handle error - maybe show a toast notification
