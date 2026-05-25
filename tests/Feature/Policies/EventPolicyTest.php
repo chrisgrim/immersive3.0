@@ -27,6 +27,12 @@ test('host: guest with no teams cannot host', function () {
     expect($user->can('host', Event::class))->toBeFalse();
 });
 
+test('host: organizer owner can host (factory attaches to pivot like prod)', function () {
+    $owner = User::factory()->create(['type' => 'u']);
+    Organizer::factory()->create(['user_id' => $owner->id]);
+    expect($owner->fresh()->can('host', Event::class))->toBeTrue();
+});
+
 test('host: organizer member can host', function () {
     $owner = User::factory()->create();
     $member = User::factory()->create(['type' => 'u']);

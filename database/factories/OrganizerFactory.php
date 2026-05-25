@@ -26,4 +26,19 @@ class OrganizerFactory extends Factory
             'type' => 'o',
         ];
     }
+
+    /**
+     * Match production: OrganizerController::store() always attaches the
+     * creator to the organizer_user pivot with role 'owner'. Without this
+     * the owner can't pass the host()/manage()/duplicate() policies, which
+     * all check pivot membership.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Organizer $organizer) {
+            $organizer->users()->syncWithoutDetaching([
+                $organizer->user_id => ['role' => 'owner'],
+            ]);
+        });
+    }
 }
