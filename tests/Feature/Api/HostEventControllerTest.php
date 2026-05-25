@@ -187,6 +187,55 @@ test('update is denied to non-members (403)', function () {
         ->assertStatus(403);
 });
 
+test('update with ongoing showtype persists showtype_config (M11)', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $organizer->id]);
+    $user = memberOf($organizer);
+
+    $payload = [
+        'showtype' => 'o',
+        'dateArray' => [
+            now()->addDay()->format('Y-m-d H:i:s'),
+            now()->addDays(3)->format('Y-m-d H:i:s'),
+        ],
+        'timezone' => 'America/New_York',
+        'ongoing_config' => [
+            'startDate' => now()->addDay()->format('Y-m-d H:i:s'),
+            'endDate' => now()->addMonths(6)->format('Y-m-d H:i:s'),
+            'daysOfWeek' => [1, 3], // Mon, Wed
+        ],
+    ];
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", $payload)
+        ->assertOk();
+
+    $config = $event->fresh()->showtype_config;
+    expect($config)->toBeArray();
+    expect($config['type'])->toBe('ongoing');
+    expect($config['days_of_week'])->toBe([1, 3]);
+    expect($config['start_date'])->not->toBeNull();
+    expect($config['end_date'])->not->toBeNull();
+});
+
+test('update with specific showtype clears showtype_config', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype_config' => ['type' => 'ongoing', 'days_of_week' => [1, 3]],
+    ]);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'dateArray' => [now()->addDay()->format('Y-m-d H:i:s')],
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->showtype_config)->toBeNull();
+});
+
 test('update returns 409 on duplicate name without acknowledgement', function () {
     $organizer = Organizer::factory()->create();
     $event = Event::factory()->create(['organizer_id' => $organizer->id, 'name' => 'Original']);

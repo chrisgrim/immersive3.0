@@ -957,6 +957,7 @@ defineExpose({
     getConfiguration: () => {
         return {
             selectedDays: selectedDays.value,
+            daysOfWeek: selectedDays.value, // alias sent to backend as ongoing_config.daysOfWeek (M11)
             startDate: effectiveStartDate.value,
             endDate: endDate.value
         };
@@ -974,53 +975,63 @@ defineExpose({
     },
     
     reconstructFromDates: (dates, storedStartDate = null) => {
+        // M11: prefer the persisted showtype_config (the rule that *generated*
+        // the shows) over reverse-engineering it from the dates array. Only
+        // fall back to the heuristic for legacy events without a saved config.
+        const config = event.showtype_config;
+        if (config && Array.isArray(config.days_of_week) && config.days_of_week.length > 0) {
+            selectedDays.value = [...config.days_of_week].sort();
+            if (config.start_date) {
+                customStartDate.value = createDateAtNoon(config.start_date, selectedTimezone.value);
+            } else if (storedStartDate) {
+                customStartDate.value = new Date(storedStartDate);
+            }
+            if (config.end_date) {
+                endDate.value = createDateAtNoon(config.end_date, selectedTimezone.value);
+            } else if (event.closingDate) {
+                endDate.value = new Date(event.closingDate);
+            }
+            resetEndDateIfBeforeStart();
+            return;
+        }
+
+        // Legacy fallback: reconstruct by counting weekday frequency.
         if (!dates || dates.length === 0) return;
-        
-        // If we have a stored start date, use it directly
+
         if (storedStartDate) {
             customStartDate.value = new Date(storedStartDate);
         }
-        
-        // Analyze the dates to determine which days of the week were selected
+
         const dayFrequency = {};
         const parsedDates = dates.map(dateStr => {
-            // Parse as YYYY-MM-DD in local timezone to avoid timezone shifts
             const [year, month, day] = dateStr.split('-');
-            return new Date(year, month - 1, day, 12, 0, 0); // Set to noon to avoid timezone issues
+            return new Date(year, month - 1, day, 12, 0, 0);
         }).sort((a, b) => a - b);
-        
-        // Count occurrences of each day of the week
+
         parsedDates.forEach(date => {
             const dayOfWeek = date.getDay();
             dayFrequency[dayOfWeek] = (dayFrequency[dayOfWeek] || 0) + 1;
         });
-        
-        // Determine which days were selected
-        // For ongoing events, if we have very few dates (like just starting), include all days
-        // Otherwise, require multiple occurrences to confirm it's a weekly pattern
+
         const totalDates = parsedDates.length;
-        const minOccurrences = totalDates <= 7 ? 1 : 2; // If 7 or fewer dates, any day counts
-        
+        const minOccurrences = totalDates <= 7 ? 1 : 2;
+
         const reconstructedDays = Object.keys(dayFrequency)
             .filter(day => dayFrequency[day] >= minOccurrences)
             .map(day => parseInt(day))
             .sort();
-        
+
         if (reconstructedDays.length > 0) {
             selectedDays.value = reconstructedDays;
-            
-            // Set the start date to the earliest date (only if not already set)
+
             if (!customStartDate.value) {
                 customStartDate.value = new Date(parsedDates[0]);
             }
-            
-            // Set end date from event's closingDate if available (this preserves manually set end dates)
+
             if (event.closingDate) {
                 endDate.value = new Date(event.closingDate);
             }
             resetEndDateIfBeforeStart();
-            // If no closingDate, endDate stays null and uses default 6-month calculation
-            
         }
     }
 });

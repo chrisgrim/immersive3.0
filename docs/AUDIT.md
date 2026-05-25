@@ -149,9 +149,8 @@ _M2, M3, M4, M5, M6, M7, M8, M14, M15 were fixed on 2026-05-24 — see "Already 
 - `resources/js/PageComponents/Creation/Core/Pages/dates.vue:216-271` switches showtype, then uses `setTimeout(..., 100)` to push state into child refs. Timing-fragile.
 - Fix: drive child config via reactive props instead of imperatively poking refs.
 
-### M11. Ongoing-dates pattern reconstruction is heuristic
-- `resources/js/PageComponents/Creation/Core/Pages/Dates/ongoing-dates.vue:1000-1047` — counts day-of-week frequency and treats anything ≥2 as "part of the pattern". Editing an existing event can drop legitimate weekdays.
-- Fix: persist `showtype_config` (JSON) on `events` with the actual chosen weekdays + start/end so reconstruction is exact.
+### M11. Ongoing-dates pattern reconstruction is heuristic — **FIXED 2026-05-24**
+- See "Already Fixed" section for details. New `events.showtype_config` JSON column stores the rule; `ongoing-dates.vue:reconstructFromDates` prefers it over the heuristic; legacy events without a config still fall back to the heuristic so nothing breaks.
 
 ### M12. Event attributes endpoints never cached
 - `app/Http/Controllers/Search/EventAttributesController.php` — `categories()`, `genres()`, `remoteLocations()`, `contactLevels()`, `interactiveLevels()`, `contentAdvisories()`, `mobilityAdvisories()`, `ageLimits()` all hit the DB on every request. `AdminEventController::approve()` already does `Cache::forget('active-categories')` / `'active-genres'`, indicating the cache key convention exists but is unused here.
@@ -224,6 +223,7 @@ _All five Low items were fixed on 2026-05-24 — see "Already Fixed" at bottom._
 - **L5** Dead `NewPasswordController.php` and `PasswordResetLinkController.php` deleted (verified not referenced in routes/auth.php or anywhere else).
 
 ### Medium (fixed 2026-05-24)
+- **M11** added `events.showtype_config` JSON column (migration `…_add_showtype_config_to_events_table.php`); cast as array on `Event`; persisted by `Show::buildShowtypeConfig()` whenever an event is saved with `showtype = 'o'` or `'a'`. Frontend `ongoing-dates.vue:reconstructFromDates` now reads `event.showtype_config.days_of_week` first when rehydrating an edit; the existing frequency-count heuristic is kept as a fallback for legacy events. Two new tests (`tests/Feature/Api/HostEventControllerTest.php`) lock in the persistence + the "switch back to specific clears the config" path.
 - **M2** `LoginCodeController::autoLogin` now validates `email` via `request()->validate(['email' => 'required|email'])` before flashing.
 - **M3** `Auth/login.vue:212` null-guards the CSRF meta lookup and logs an error if missing.
 - **M4** `OrganizerController::checkNameAvailability` only returns `name, slug` (description trimmed; no `id` either).

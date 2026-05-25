@@ -60,6 +60,14 @@ class StoreEventRequest extends FormRequest
                 'array',
             ],
             'dateArray.*' => 'required_if:showtype,s|date_format:Y-m-d H:i:s',
+            // Ongoing/always config (used by M11 showtype_config persistence)
+            'ongoing_config' => 'sometimes|nullable|array',
+            'ongoing_config.startDate' => 'sometimes|nullable|date_format:Y-m-d H:i:s',
+            'ongoing_config.endDate' => 'sometimes|nullable|date_format:Y-m-d H:i:s',
+            'ongoing_config.daysOfWeek' => 'sometimes|nullable|array',
+            'ongoing_config.daysOfWeek.*' => 'integer|between:0,6',
+            'always_config' => 'sometimes|nullable|array',
+            'always_config.endDate' => 'sometimes|nullable|date_format:Y-m-d H:i:s',
             // Add validation for tickets
             'tickets' => 'nullable|array',
             'tickets.*.name' => 'required_with:tickets|string|max:40',

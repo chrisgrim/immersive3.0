@@ -388,12 +388,14 @@ defineExpose({
             embargo_date: event.embargo_date
         };
         
-        // For ongoing events, include the start date and end date configuration
+        // For ongoing events, include the start date, end date, and selected
+        // weekdays so the backend can persist the rule (M11 showtype_config).
         if (event.showtype === 'o' && ongoingDatesRef.value) {
             const config = ongoingDatesRef.value.getConfiguration();
             data.ongoing_config = {
                 startDate: config.startDate ? formatDateForAPI(config.startDate, selectedTimezone.value) : null,
-                endDate: config.endDate ? formatDateForAPI(config.endDate, selectedTimezone.value) : null
+                endDate: config.endDate ? formatDateForAPI(config.endDate, selectedTimezone.value) : null,
+                daysOfWeek: Array.isArray(config.daysOfWeek) ? config.daysOfWeek : (config.selectedDays || []),
             };
         }
         

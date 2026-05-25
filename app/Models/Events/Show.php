@@ -196,6 +196,10 @@ class Show extends Model
             $updateData['start_date'] = null;
         }
 
+        // Persist the rule that generated the shows (M11) so we can read it back
+        // verbatim on edit instead of reverse-engineering from the shows table.
+        $updateData['showtype_config'] = self::buildShowtypeConfig($type, $request);
+
         // Handle embargo status changes
         if ($event->status === 'e' && !$request->embargo_date) {
             $updateData['status'] = 'p';
@@ -216,6 +220,35 @@ class Show extends Model
     private static function determineShowType($request): string
     {
         return $request->showtype ?? 's';
+    }
+
+    /**
+     * Build the showtype_config payload from a request.
+     *
+     * Returns null for showtypes whose "rule" is just the list of dates themselves
+     * (specific 's' and limited 'l'). For 'o' and 'a', returns the inputs the user
+     * actually chose so the form can rehydrate exactly on edit.
+     */
+    private static function buildShowtypeConfig(string $type, $request): ?array
+    {
+        if ($type === 'o' && isset($request->ongoing_config)) {
+            $cfg = $request->ongoing_config;
+            return array_filter([
+                'type' => 'ongoing',
+                'days_of_week' => isset($cfg['daysOfWeek']) ? array_values(array_map('intval', $cfg['daysOfWeek'])) : null,
+                'start_date' => $cfg['startDate'] ?? null,
+                'end_date' => $cfg['endDate'] ?? null,
+            ], fn ($v) => $v !== null);
+        }
+
+        if ($type === 'a' && isset($request->always_config)) {
+            return array_filter([
+                'type' => 'always',
+                'end_date' => $request->always_config['endDate'] ?? null,
+            ], fn ($v) => $v !== null);
+        }
+
+        return null;
     }
 
     private static function calculateLastDate(Event $event, string $type, $request = null): string
