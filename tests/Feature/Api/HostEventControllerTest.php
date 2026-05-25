@@ -218,6 +218,44 @@ test('update with ongoing showtype persists showtype_config (M11)', function () 
     expect($config['end_date'])->not->toBeNull();
 });
 
+test('update rejects status=p mass-assignment (CR1)', function () {
+    // Without the allow-list, an organizer member could POST status:'p' and skip
+    // the admin approval workflow entirely.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'status' => 'd']);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", ['status' => 'p'])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['status']);
+
+    expect($event->fresh()->status)->toBe('d');
+});
+
+test('update rejects status=e mass-assignment', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'status' => 'd']);
+
+    $this->actingAs(memberOf($organizer))
+        ->postJson("/api/hosting/event/{$event->slug}", ['status' => 'e'])
+        ->assertStatus(422);
+
+    expect($event->fresh()->status)->toBe('d');
+});
+
+test('update accepts legitimate wizard-step status values', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'status' => '0']);
+    $user = memberOf($organizer);
+
+    foreach (['d', '1', '5'] as $status) {
+        $this->actingAs($user)
+            ->postJson("/api/hosting/event/{$event->slug}", ['status' => $status])
+            ->assertOk();
+    }
+});
+
 test('update with specific showtype clears showtype_config', function () {
     $organizer = Organizer::factory()->create();
     $event = Event::factory()->create([

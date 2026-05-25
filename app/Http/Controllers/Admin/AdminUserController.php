@@ -51,6 +51,20 @@ class AdminUserController extends Controller
             'verified' => 'sometimes|boolean'
         ]);
 
+        // Privilege-escalation guard: the route is moderator-gated so moderators
+        // can manage day-to-day user fields (name, email, verified), but only
+        // admins may change `type`. Self-edits on `type` are refused for all
+        // callers — even admins — to prevent a sole admin from demoting
+        // themselves and locking the system out of admin entirely.
+        if (array_key_exists('type', $validated)) {
+            if (auth()->user()->type !== 'a') {
+                abort(403, 'Only admins can change user roles.');
+            }
+            if ($user->id === auth()->id()) {
+                abort(403, 'You cannot change your own role.');
+            }
+        }
+
         // Handle verification separately
         if (isset($validated['verified'])) {
             $user->email_verified_at = $validated['verified'] ? now() : null;
@@ -58,7 +72,7 @@ class AdminUserController extends Controller
         }
 
         $user->update($validated);
-        
+
         return response()->json($user->fresh());
     }
 

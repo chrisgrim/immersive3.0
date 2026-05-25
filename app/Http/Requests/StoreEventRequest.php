@@ -55,6 +55,12 @@ class StoreEventRequest extends FormRequest
             // Add validation for dateArray
             'timezone' => 'sometimes|string|max:255',
             'showtype' => 'sometimes|string|in:s,a,o',
+            // Statuses a user is allowed to set on their own event:
+            //   'd' draft, '0'-'8' creation wizard step markers.
+            // 'p' (published), 'e' (embargoed), 'r' (in-review), 'n' (needs revision)
+            // are deliberately excluded — those transitions go through the dedicated
+            // submit() / approve() / reject() endpoints.
+            'status' => 'sometimes|string|in:d,0,1,2,3,4,5,6,7,8',
             'dateArray' => [
                 'required_if:showtype,s',
                 'array',
@@ -114,7 +120,7 @@ class StoreEventRequest extends FormRequest
             'genres.*.id' => 'sometimes|required',
             'genres.*.name' => 'required|string|max:50',
 
-            'status' => 'sometimes|string',
+            // Note: `status` rule is defined earlier with an allow-list (in:d,0-8).
 
             // Add this to your rules array
             'ageLimit.id' => 'sometimes|exists:age_limits,id',
