@@ -34,6 +34,21 @@ Run through this after each production deploy that includes any of the above fix
 - [ ] **H8 click archival cron** — after 24h, check `storage/logs/archive-clicks.log` for a "Deleted N rows" entry. Or run `php artisan ei:archive-clicks --days=999999` immediately to confirm wiring.
 - [ ] **H12 Vue error handler** — `setTimeout(() => { throw new Error('vue smoke'); }, 0);` shows `[Vue] …` in console AND lands in Sentry.
 
+### Pending manual actions (CR3 — secret rotation)
+
+`.env.local` was removed from git tracking in commit 70a502b, but **past commits still contain it**, so every credential below should be considered leaked since whenever it was first committed. Rotate in order, then update the server's `.env` directly (rsync excludes `.env` from deploys):
+
+- [ ] **`OPENAI_API_KEY`** — direct billing exposure. platform.openai.com → API Keys → revoke + create new. *(Highest urgency.)*
+- [ ] **`DO_ACCESS_KEY_ID` / `DO_SECRET_ACCESS_KEY`** — writes/deletes on `ei-test` Spaces bucket. cloud.digitalocean.com → API → Spaces Keys.
+- [ ] **`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`** — verify what they do (SES? backups?). Rotate via IAM, or delete the keys if unused.
+- [ ] **`GOOGLE_CLIENT_SECRET`** — console.cloud.google.com → APIs & Services → Credentials → reset secret.
+- [ ] **`GITHUB_CLIENT_SECRET`** — github.com/settings/developers → your OAuth app → generate new.
+- [ ] **`APPLE_CLIENT_SECRET`** — Apple developer console; regenerate the signed JWT secret.
+- [ ] **`MIX_GOOGLE_LOC_KEY`** — Google Maps. Same key is also baked into the production frontend bundle as `VITE_GOOGLE_MAPS_KEY`, so domain-restrict in GCP rather than relying on rotation alone.
+- [ ] **`APP_KEY`** — Laravel encryption key. Rotation invalidates every active session (everyone logged out on next request). Lower urgency; schedule for a low-traffic window. `php artisan key:generate --show` to generate without overwriting `.env`.
+- [ ] **`MAIL_PASSWORD`** — Mailtrap sandbox, low risk (can't send real mail). Rotate when convenient.
+- [ ] **(Optional)** Add a `gitleaks` GitHub Action or pre-commit hook so future secret commits get blocked.
+
 ### Recurring
 
 - [ ] Weekly: open both Sentry projects' Issues tabs, triage anything new.
@@ -50,23 +65,7 @@ The deploy workflow doesn't auto-rollback. To revert:
 
 ## Critical — fix this week
 
-_All 3 fixed in code on 2026-05-24. CR3 still needs out-of-band secret rotation — see "Secret rotation checklist" below._
-
-### CR3 follow-up — rotation checklist
-
-`.env.local` is removed from git tracking and confirmed gitignored. Past commits still contain the file, so any of the credentials below should be considered **leaked since whenever they were first committed**. Rotate in this order (most → least urgent), then update the server's `.env` files manually (rsync excludes `.env`, so deploys won't help):
-
-- [ ] **`OPENAI_API_KEY`** — direct billing exposure. Rotate at platform.openai.com → API Keys → revoke and create new. Update on server `.env`. *(Highest urgency.)*
-- [ ] **`DO_ACCESS_KEY_ID` / `DO_SECRET_ACCESS_KEY`** — writes/deletes to `ei-test` Spaces bucket. Rotate at cloud.digitalocean.com → API → Spaces Keys.
-- [ ] **`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`** — verify what these are used for (SES? backups?) and rotate via IAM. If unused, *delete the keys* rather than rotate.
-- [ ] **`GOOGLE_CLIENT_SECRET`** (OAuth) — console.cloud.google.com → APIs & Services → Credentials → reset secret. Update server `.env`.
-- [ ] **`GITHUB_CLIENT_SECRET`** (OAuth) — github.com/settings/developers → your OAuth app → generate new secret. Update server `.env`.
-- [ ] **`APPLE_CLIENT_SECRET`** (OAuth) — Apple developer console; regenerate the signed JWT secret.
-- [ ] **`MIX_GOOGLE_LOC_KEY`** (Google Maps) — same console as above; restrict to your domain. **Note:** this same key is also baked into the production frontend bundle as `VITE_GOOGLE_MAPS_KEY`, so domain restriction is the real defense here, not rotation alone.
-- [ ] **`APP_KEY`** — Laravel encryption key. Rotating this **invalidates every active session** (everyone gets logged out on next request) and any encrypted DB columns. Lower urgency since impact is limited to forging signed routes / decrypting old cookies. Generate new via `php artisan key:generate --show` (don't write to .env automatically), then update server `.env`. Schedule for a low-traffic window.
-- [ ] **`MAIL_PASSWORD`** — Mailtrap sandbox; low risk (can't send real mail). Rotate when convenient.
-
-After rotation, optionally add **gitleaks** as a pre-commit hook or GitHub Action so future commits get blocked at the gate.
+_All 3 fixed in code on 2026-05-24 (commit 70a502b). **CR3 still needs out-of-band secret rotation — see "Pending manual actions" checklist near the top of this doc.**_
 
 ### CR1. Mass-assignment lets event owners self-publish
 - **Where:** `app/Http/Requests/StoreEventRequest.php:117` (rule is `'status' => 'sometimes|string'` — no `in:` constraint); exploited via `app/Http/Controllers/Creation/HostEventController.php:115` (`$event->update($validatedData)`). `Event::$fillable` (`app/Models/Event.php:37`) includes `status`.
