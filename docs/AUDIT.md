@@ -90,8 +90,8 @@ _All three Critical items were fixed on 2026-05-24 — see notes at the top. Rem
 _H1–H12 plus H2 were fixed on 2026-05-24 — see "Already Fixed" at bottom. Only H13 remains as ongoing work._
 
 ### H13. Test coverage on business paths
-- Auth is now covered by `tests/Feature/Auth/LoginCodeTest.php` and gate behavior by `tests/Feature/Api/AuthGateTest.php`.
-- Still no coverage on: event CRUD (HostEventController), search (ListingsController, needs Scout fakes or ES test infra), event duplication, image uploads, click tracking analytics, admin approval flows beyond auth, conversation creation, scheduled commands, policies (Event/Organizer/Community).
+- **Now covered:** magic-link auth (`LoginCodeTest`), API auth gates (`AuthGateTest`), event attributes (`EventAttributesTest`), organizer name check (`OrganizerCheckNameTest`), `EventPolicy` in full (`Policies/EventPolicyTest`), click tracking + stats (`EventClickControllerTest`), HostEventController submit/destroy/create/update/duplicate (`HostEventControllerTest`). 75 tests / 178 assertions / ~3s.
+- **Still uncovered:** search (`ListingsController` — needs Scout/ES test infra), image uploads (`ImageHandler` — needs `Storage::fake('do')`), admin approval beyond auth (`AdminEventController::approve/reject`), conversation creation + message-append flow, scheduled commands (`ei:publish-embargoed`, `ei:check-closing-events`, `ei:archive-clicks`), and the remaining policies (`OrganizerPolicy`, `CommunityPolicy`, `PostPolicy`, `ConversationPolicy`).
 - Fix incrementally as you touch each area; the suite + factories now exist as a foundation.
 
 ### H6 follow-up. FK constraints on `conversations.user_one/user_two`
