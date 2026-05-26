@@ -279,34 +279,41 @@
 
         <!-- Move Events Modal -->
         <div v-if="showMoveEventsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
-            <div class="bg-white w-full md:max-w-3xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
+            <div class="bg-white w-full md:max-w-3xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col h-[80vh] md:h-[700px] relative z-50">
                 <!-- Header -->
-                <div class="p-8 pb-4">
-                    <h2 class="text-2xl font-bold mb-1">Move Events</h2>
-                    <p class="text-gray-500 font-normal">Move all events from <strong>{{ moveSource?.name }}</strong> to another organizer.</p>
+                <div class="p-8 pb-4 flex-none">
+                    <h2 class="text-2xl font-bold mb-3">Move Events</h2>
+                    <!-- Persistent "Moving from" banner so source is always visible -->
+                    <div class="border-2 border-orange-300 bg-orange-50 rounded-2xl p-4">
+                        <div class="text-orange-700 text-sm font-semibold uppercase tracking-wider mb-1">Moving events from</div>
+                        <div class="text-xl font-bold">{{ moveSource?.name }}</div>
+                        <div class="text-base text-gray-600">/{{ moveSource?.slug }}</div>
+                    </div>
                 </div>
 
-                <!-- Scrollable content -->
-                <div class="p-8 pt-2 overflow-y-auto flex-1">
+                <!-- Scrollable content (fixed-size container — doesn't grow with results) -->
+                <div class="px-8 pb-4 overflow-y-auto flex-1">
                     <!-- Step 1: Pick destination -->
                     <div v-if="!moveDestination">
                         <p class="text-gray-500 font-normal mb-3">Search for the destination organizer</p>
                         <input
                             v-model="moveDestinationSearch"
                             placeholder="Search by name, email, or ID…"
-                            class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4">
+                            class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4 mb-4">
 
-                        <div v-if="moveDestinationResults.length" class="mt-4 space-y-2">
+                        <div v-if="moveDestinationSearch.length >= 2 && filteredMoveResults.length === 0" class="text-gray-500 text-base py-4">
+                            No matches.
+                        </div>
+
+                        <div v-if="filteredMoveResults.length" class="space-y-2">
                             <button
-                                v-for="org in moveDestinationResults"
+                                v-for="org in filteredMoveResults"
                                 :key="org.id"
                                 @click="selectMoveDestination(org)"
-                                :disabled="org.id === moveSource?.id"
-                                class="w-full text-left p-4 border border-neutral-400 rounded-2xl hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                                class="block w-full text-left p-4 border border-neutral-400 rounded-2xl hover:bg-gray-50">
                                 <div class="text-xl">{{ org.name }}</div>
                                 <div class="text-gray-500 text-base">
                                     /{{ org.slug }} · {{ org.email || '—' }}
-                                    <span v-if="org.id === moveSource?.id" class="text-orange-600 ml-2">(same as source)</span>
                                 </div>
                             </button>
                         </div>
@@ -314,24 +321,9 @@
 
                     <!-- Step 2: Confirmation -->
                     <div v-else>
-                        <p class="text-gray-500 font-normal mb-4">Review and confirm</p>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                            <!-- Source -->
-                            <div class="border-2 border-orange-300 bg-orange-50 rounded-2xl p-5">
-                                <div class="text-orange-700 text-sm font-semibold uppercase tracking-wider mb-2">Moving from</div>
-                                <div class="text-xl font-bold mb-1">{{ moveSource?.name }}</div>
-                                <div class="text-base text-gray-600 mb-3">/{{ moveSource?.slug }}</div>
-                                <a
-                                    :href="`/organizers/${moveSource?.slug}`"
-                                    target="_blank"
-                                    rel="noopener"
-                                    class="text-blue-600 hover:underline text-base">
-                                    View public page ↗
-                                </a>
-                            </div>
-
-                            <!-- Destination -->
+                        <!-- Destination card (source already shown in the orange banner above) -->
+                        <div class="mb-6">
+                            <p class="text-gray-500 font-normal mb-3">Review and confirm</p>
                             <div class="border-2 border-green-300 bg-green-50 rounded-2xl p-5">
                                 <div class="text-green-700 text-sm font-semibold uppercase tracking-wider mb-2">Moving to</div>
                                 <div class="text-xl font-bold mb-1">{{ moveDestination?.name }}</div>
@@ -402,7 +394,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 import { ClickOutsideDirective } from '@/Directives/ClickOutsideDirective'
 
@@ -437,6 +429,11 @@ const moveSwapSlug = ref(false)
 const moveSubmitting = ref(false)
 const moveError = ref('')
 const successToast = ref('')
+
+// Search results minus the source — you can't move into yourself.
+const filteredMoveResults = computed(() =>
+    moveDestinationResults.value.filter(o => o.id !== moveSource.value?.id)
+)
 
 const filters = ref({
     search: '',
