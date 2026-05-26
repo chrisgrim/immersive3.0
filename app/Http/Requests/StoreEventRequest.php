@@ -55,12 +55,13 @@ class StoreEventRequest extends FormRequest
             // Add validation for dateArray
             'timezone' => 'sometimes|string|max:255',
             'showtype' => 'sometimes|string|in:s,a,o',
-            // Statuses a user is allowed to set on their own event:
-            //   'd' draft, '0'-'8' creation wizard step markers.
-            // 'p' (published), 'e' (embargoed), 'r' (in-review), 'n' (needs revision)
-            // are deliberately excluded — those transitions go through the dedicated
-            // submit() / approve() / reject() endpoints.
-            'status' => 'sometimes|string|in:d,0,1,2,3,4,5,6,7,8',
+            // Statuses a user is allowed to set/persist on their own event:
+            //   'd' draft, '0'-'9' wizard step markers, 'B' and 'C' legacy
+            //   wizard states (3 + 1 prod events still carry these).
+            // 'p' (published), 'e' (embargoed), 'r' (in-review), 'n' (needs
+            // revision) are deliberately excluded — those transitions go
+            // through the dedicated submit() / approve() / reject() endpoints.
+            'status' => 'sometimes|string|in:d,0,1,2,3,4,5,6,7,8,9,B,C',
             'dateArray' => [
                 'required_if:showtype,s',
                 'array',
