@@ -92,7 +92,8 @@
                         <td class="px-6 py-4 whitespace-nowrap relative">
                             <button
                                 @click.stop="toggleActionsMenu(organizer)"
-                                class="px-3 py-1 rounded-md hover:bg-gray-100 focus:outline-none text-xl font-bold leading-none"
+                                class="inline-flex items-center justify-center h-10 w-10 rounded-full border border-gray-300 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xl leading-none"
+                                aria-label="Actions"
                                 aria-haspopup="menu"
                                 :aria-expanded="openActionsMenuId === organizer.id">
                                 ⋯
@@ -101,17 +102,17 @@
                                 v-if="openActionsMenuId === organizer.id"
                                 v-click-outside="closeActionsMenu"
                                 role="menu"
-                                class="absolute right-6 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+                                class="absolute right-6 mt-2 w-56 flex flex-col bg-white border border-gray-200 rounded-md shadow-lg z-20 overflow-hidden">
                                 <button
                                     @click="openMoveEvents(organizer)"
                                     role="menuitem"
-                                    class="w-full text-left px-4 py-3 hover:bg-gray-50">
+                                    class="block w-full text-left px-4 py-3 hover:bg-gray-50">
                                     Move Events…
                                 </button>
                                 <button
                                     @click="confirmDelete(organizer); closeActionsMenu()"
                                     role="menuitem"
-                                    class="w-full text-left px-4 py-3 text-red-600 hover:bg-gray-50 border-t border-gray-200">
+                                    class="block w-full text-left px-4 py-3 text-red-600 hover:bg-gray-50 border-t border-gray-200">
                                     Delete
                                 </button>
                             </div>
