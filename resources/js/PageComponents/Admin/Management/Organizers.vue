@@ -288,6 +288,9 @@
                         <div class="text-orange-700 text-sm font-semibold uppercase tracking-wider mb-1">Moving events from</div>
                         <div class="text-xl font-bold">{{ moveSource?.name }}</div>
                         <div class="text-base text-gray-600">/{{ moveSource?.slug }}</div>
+                        <div v-if="moveSource?.owner" class="text-base text-gray-600 mt-1">
+                            Owner: {{ moveSource.owner.name }} ({{ moveSource.owner.email }})
+                        </div>
                     </div>
                 </div>
 
@@ -312,8 +315,9 @@
                                 @click="selectMoveDestination(org)"
                                 class="block w-full text-left p-4 border border-neutral-400 rounded-2xl hover:bg-gray-50">
                                 <div class="text-xl">{{ org.name }}</div>
-                                <div class="text-gray-500 text-base">
-                                    /{{ org.slug }} · {{ org.email || '—' }}
+                                <div class="text-gray-500 text-base">/{{ org.slug }}</div>
+                                <div v-if="org.owner" class="text-gray-500 text-base">
+                                    Owner: {{ org.owner.name }} ({{ org.owner.email }})
                                 </div>
                             </button>
                         </div>
@@ -327,28 +331,41 @@
                             <div class="border-2 border-green-300 bg-green-50 rounded-2xl p-5">
                                 <div class="text-green-700 text-sm font-semibold uppercase tracking-wider mb-2">Moving to</div>
                                 <div class="text-xl font-bold mb-1">{{ moveDestination?.name }}</div>
-                                <div class="text-base text-gray-600 mb-3">/{{ moveDestination?.slug }}</div>
+                                <div class="text-base text-gray-600">/{{ moveDestination?.slug }}</div>
+                                <div v-if="moveDestination?.owner" class="text-base text-gray-600 mt-1">
+                                    Owner: {{ moveDestination.owner.name }} ({{ moveDestination.owner.email }})
+                                </div>
                                 <a
                                     :href="`/organizers/${moveDestination?.slug}`"
                                     target="_blank"
                                     rel="noopener"
-                                    class="text-blue-600 hover:underline text-base">
+                                    class="inline-block mt-3 text-blue-600 hover:underline text-base">
                                     View public page ↗
                                 </a>
                             </div>
                         </div>
 
                         <!-- Slug swap option -->
-                        <label class="flex items-start gap-3 p-4 border border-neutral-300 rounded-2xl cursor-pointer hover:bg-gray-50">
-                            <input
-                                type="checkbox"
-                                v-model="moveSwapSlug"
-                                class="mt-1 h-5 w-5">
-                            <div>
-                                <div class="text-lg font-semibold">Also move the source's URL to the destination</div>
-                                <div class="text-base text-gray-600 mt-1">
-                                    Destination URL: <code>/{{ moveDestination?.slug }}</code> → <code>/{{ moveSource?.slug }}</code><br>
-                                    Source URL: <code>/{{ moveSource?.slug }}</code> → <code>/{{ moveSource?.slug }}-old</code>
+                        <label class="block p-5 border border-neutral-300 rounded-2xl cursor-pointer hover:bg-gray-50">
+                            <div class="flex items-center gap-3 mb-3">
+                                <input
+                                    type="checkbox"
+                                    v-model="moveSwapSlug"
+                                    class="h-5 w-5">
+                                <span class="text-lg font-semibold">Also move the source's URL to the destination</span>
+                            </div>
+                            <div class="text-base text-gray-600 space-y-2 pl-8">
+                                <div class="flex flex-wrap items-center gap-x-2">
+                                    <span class="font-medium w-32 inline-block">Destination URL:</span>
+                                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">/{{ moveDestination?.slug }}</span>
+                                    <span>→</span>
+                                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">/{{ moveSource?.slug }}</span>
+                                </div>
+                                <div class="flex flex-wrap items-center gap-x-2">
+                                    <span class="font-medium w-32 inline-block">Source URL:</span>
+                                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">/{{ moveSource?.slug }}</span>
+                                    <span>→</span>
+                                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">/{{ moveSource?.slug }}-old</span>
                                 </div>
                             </div>
                         </label>
