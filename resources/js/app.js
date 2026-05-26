@@ -126,6 +126,20 @@ app.config.errorHandler = (err, instance, info) => {
     }
 };
 
+// After a deploy, lazy-loaded chunk hashes change. Sessions that loaded the
+// page pre-deploy will 404 on the old chunk name. Vite emits this event when
+// preload fails — reload once to pick up the new build. Guarded with
+// sessionStorage so a misconfigured deploy can't loop reloads forever; at
+// most one auto-reload per browser session.
+window.addEventListener('vite:preloadError', (event) => {
+    if (sessionStorage.getItem('vite_reload_attempted') === '1') {
+        console.error('[vite:preloadError] Already auto-reloaded once this session — not retrying. Manual refresh may be required.', event);
+        return;
+    }
+    sessionStorage.setItem('vite_reload_attempted', '1');
+    window.location.reload();
+});
+
 // Sentry (skip if no DSN configured)
 if (import.meta.env.VITE_SENTRY_DSN) {
     import('@sentry/vue').then((Sentry) => {
