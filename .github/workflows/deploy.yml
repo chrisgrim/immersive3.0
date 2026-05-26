@@ -82,12 +82,18 @@ jobs:
         run: |
           DEPLOY_PATH="${{ steps.deploy-env.outputs.path }}"
 
+          # vendor/ is excluded so a failed composer install leaves the
+          # previous working dependencies in place — the site keeps serving
+          # old-vendor + new-code (mostly works) rather than no-vendor at all
+          # (totally dead). composer install in the post-deploy step still
+          # updates vendor on success.
           rsync -avz --delete \
             --exclude='.git' \
             --exclude='node_modules' \
             --exclude='.env' \
             --exclude='public/storage' \
             --exclude='storage' \
+            --exclude='vendor' \
             -e "ssh -o StrictHostKeyChecking=no" \
             ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_PATH/
 
@@ -96,22 +102,29 @@ jobs:
           DEPLOY_PATH="${{ steps.deploy-env.outputs.path }}"
           
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+            # Fail loud — without these, a failed composer install or migration
+            # would still let the script reach the final echo, and the heredoc's
+            # exit code would be 0. That's how prod broke silently on 2026-05-26.
+            set -euo pipefail
+
             cd $DEPLOY_PATH
-            
+
             # Fix permissions for web server
             chown -R www-data:www-data storage bootstrap/cache
             chmod -R 775 storage bootstrap/cache
-            
-            # Ensure storage symlink exists
+
+            # Ensure storage symlink exists. Allowed to fail (already exists is fine).
             php artisan storage:link 2>/dev/null || true
-            
+
             composer install --no-dev --optimize-autoloader --no-interaction
             php artisan migrate --force
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
+
+            # Allowed to fail if queue isn't running.
             php artisan queue:restart 2>/dev/null || true
-            
+
             echo "✅ Deployment complete!"
           EOF
 
@@ -121,6 +134,31 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             echo -e "User-agent: *\nDisallow: /" > /var/www/secret/public/robots.txt
           EOF
+
+      # Post-deploy smoke test. Curls the deployed site's home page from the
+      # GitHub runner; non-2xx response fails the workflow. Catches the class
+      # of bug that hit on 2026-05-26 where the deploy reported success but
+      # the site was 500'ing.
+      - name: Smoke test deployed site
+        run: |
+          if [ "${{ steps.deploy-env.outputs.env }}" = "production" ]; then
+            URL="${{ secrets.VITE_BASE_URL_PROD }}"
+          else
+            URL="${{ secrets.VITE_BASE_URL_DEV }}"
+          fi
+          echo "Smoke testing $URL"
+          # Three attempts, 3s apart — gives caches/symlinks a beat to settle.
+          for i in 1 2 3; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$URL" || echo "000")
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "301" ] || [ "$STATUS" = "302" ]; then
+              echo "✅ Smoke test passed (HTTP $STATUS)"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $STATUS — retrying in 3s..."
+            sleep 3
+          done
+          echo "❌ Smoke test failed after 3 attempts — site is not responding."
+          exit 1
 
       - name: Deployment summary
         run: |
