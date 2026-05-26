@@ -815,11 +815,14 @@ const eventStatusLabel = (status) => {
 
 // Only "published" and "embargoed" have a working public page. Anything else
 // (in review, draft, needs revision, wizard steps) gets routed to the admin
-// review screen via ?eventId so the admin can act on it directly.
+// review screen. In-review events specifically land on the approve-events
+// queue view so the admin can take action immediately.
 const isPublicEvent = (event) => event.status === 'p' || event.status === 'e'
-const eventLink = (event) => isPublicEvent(event)
-    ? `/events/${event.slug}`
-    : `/admin/dashboard?eventId=${event.id}`
+const eventLink = (event) => {
+    if (isPublicEvent(event)) return `/events/${event.slug}`
+    if (event.status === 'r') return `/admin/dashboard?view=approve-events&eventId=${event.id}`
+    return `/admin/dashboard?eventId=${event.id}`
+}
 
 const eventStatusClass = (status) => {
     if (status === 'p' || status === 'e') return 'inline-block px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-sm'
