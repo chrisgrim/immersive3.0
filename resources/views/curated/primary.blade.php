@@ -147,7 +147,7 @@
                 @endif
                 
                 <div class="text-left">
-                    <a 
+                    <a
                         href="{{ $url }}"
                         @if($urlAttrs['target']) target="{{ $urlAttrs['target'] }}" @endif
                         @if($urlAttrs['rel']) rel="{{ $urlAttrs['rel'] }}" @endif
@@ -157,6 +157,18 @@
                         @else
                             Explore Now
                         @endif
+                    </a>
+                </div>
+
+                {{-- Immersive Experience Institute partner attribution --}}
+                <div class="mt-10 flex items-center gap-4">
+                    <span class="text-white text-base uppercase tracking-wider opacity-80 whitespace-nowrap">Brought to you by</span>
+                    <a href="https://immersiveexperience.org" target="_blank" rel="noopener noreferrer" class="inline-block" aria-label="Immersive Experience Institute (opens in new tab)">
+                        <img
+                            src="{{ asset('images/partners/iei-logo-white.png') }}"
+                            alt="Immersive Experience Institute"
+                            class="h-14 w-auto"
+                            loading="lazy">
                     </a>
                 </div>
             </div>
