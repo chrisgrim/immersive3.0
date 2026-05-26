@@ -528,17 +528,25 @@ const setPlace = (place) => {
 // Simple function to get timezone from coordinates
 const setTimezoneFromCoordinates = async (lat, lng) => {
     if (!lat || !lng) return;
-    
+
+    // GeoNames sometimes hangs — abort after 8s so the form doesn't sit in limbo.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     try {
         const geoNamesUrl = `https://secure.geonames.org/timezoneJSON?lat=${lat}&lng=${lng}&username=chgrim`;
-        const response = await fetch(geoNamesUrl);
+        const response = await fetch(geoNamesUrl, { signal: controller.signal });
         const data = await response.json();
-        
+
         if (data.timezoneId) {
             event.timezone = data.timezoneId;
         }
     } catch (error) {
-        console.error('Error getting timezone:', error);
+        if (error.name !== 'AbortError') {
+            console.error('Error getting timezone:', error);
+        }
+    } finally {
+        clearTimeout(timeoutId);
     }
 };
 

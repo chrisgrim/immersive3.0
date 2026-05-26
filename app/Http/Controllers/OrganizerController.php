@@ -2,19 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Organizer;
 use App\Http\Requests\StoreOrganizerRequest;
-use App\Services\ImageHandler;
 use App\Models\Event;
-use Illuminate\Support\Facades\Log;
-use App\Http\Requests\UpdateOrganizerRequest;
-use Illuminate\Support\Str;
-use Illuminate\Http\Request;
+use App\Models\Organizer;
+use App\Services\ImageHandler;
 use App\Services\NameChangeRequestService;
-use Illuminate\Support\Facades\DB;
-use Illuminate\View\View;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Log;
+use Illuminate\View\View;
 
 class OrganizerController extends Controller
 {
@@ -24,22 +20,22 @@ class OrganizerController extends Controller
         $organizer = Organizer::where('id', $organizer->id)
             ->withPaginatedEvents()
             ->withUserRole()
-            ->withCount(['events' => function($query) {
+            ->withCount(['events' => function ($query) {
                 $query->where('status', 'p')->where('archived', false);
             }])
-            ->with(['images', 'nameChangeRequests' => function($query) {
+            ->with(['images', 'nameChangeRequests' => function ($query) {
                 $query->where('status', 'pending')->latest();
             }])
             ->firstOrFail();
-        
+
         // Since 'show' is excepted from auth middleware, we need to check for user
-        if ($organizer->status !== 'p' && 
-            (!auth()->check() || 
-            (!auth()->user()->isAdmin() && !auth()->user()->belongsToOrganization($organizer)))
-        ) { 
+        if ($organizer->status !== 'p' &&
+            (! auth()->check() ||
+            (! auth()->user()->isAdmin() && ! auth()->user()->belongsToOrganization($organizer)))
+        ) {
             return redirect('/');
         }
-        
+
         return view('organizers.show', compact('organizer'));
     }
 
@@ -47,11 +43,11 @@ class OrganizerController extends Controller
     {
         $organizer = $organizer->withPaginatedEvents()
             ->withUserRole()
-            ->with(['images', 'nameChangeRequests' => function($query) {
+            ->with(['images', 'nameChangeRequests' => function ($query) {
                 $query->where('status', 'pending')->latest();
             }])
             ->findOrFail($organizer->id);
-        
+
         return view('organizers.edit', compact('organizer'));
     }
 
@@ -63,6 +59,7 @@ class OrganizerController extends Controller
     public function switchTeam(Organizer $organizer)
     {
         auth()->user()->update(['current_team_id' => $organizer->id]);
+
         return redirect('/hosting/events')->with('success', 'Team switched successfully.');
     }
 
@@ -71,7 +68,7 @@ class OrganizerController extends Controller
         try {
             // Create the organizer with user_id
             $organizer = auth()->user()->organizers()->create($request->validated());
-            
+
             // Also attach the creating user as owner in pivot table
             $organizer->users()->attach(auth()->id(), ['role' => 'owner']);
 
@@ -93,13 +90,14 @@ class OrganizerController extends Controller
             } else {
                 // Create a new event and return JSON with the redirect URL for event edit page
                 $event = Event::newEvent($organizer->id);
+
                 return response()->json(['redirect' => route('hosting.event.edit', ['event' => $event->slug])], 200);
             }
         } catch (\Exception $e) {
-            Log::error('Failed to create organizer: ' . $e->getMessage());
+            Log::error('Failed to create organizer: '.$e->getMessage());
+
             return response()->json([
                 'message' => 'Failed to create organizer.',
-                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -111,12 +109,12 @@ class OrganizerController extends Controller
                 'requested_name' => [
                     'required',
                     'string',
-                    'max:80'
+                    'max:80',
                 ],
-                'current_name' => 'required|string'
+                'current_name' => 'required|string',
             ]);
 
-            $nameChangeService = new NameChangeRequestService();
+            $nameChangeService = new NameChangeRequestService;
             $result = $nameChangeService->handleNameChange(
                 $organizer,
                 $requestedName,
@@ -125,21 +123,21 @@ class OrganizerController extends Controller
 
             // Refresh organizer with relationships
             $organizer = Organizer::withUserRole()
-                ->with(['images', 'nameChangeRequests' => function($query) {
+                ->with(['images', 'nameChangeRequests' => function ($query) {
                     $query->where('status', 'pending');
                 }])
                 ->find($organizer->id);
 
             return response()->json([
                 'message' => $result['message'] ?? 'Name change request submitted successfully',
-                'organizer' => $organizer
+                'organizer' => $organizer,
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Failed to submit name change request: ' . $e->getMessage());
+            Log::error('Failed to submit name change request: '.$e->getMessage());
+
             return response()->json([
                 'message' => 'Failed to submit name change request.',
-                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -148,12 +146,12 @@ class OrganizerController extends Controller
     {
         try {
             $data = $request->validated();
-            
+
             // Only remove name from update if status is 'p' and name is different
             if ($organizer->status === 'p' && isset($data['name']) && $data['name'] !== $organizer->name) {
                 unset($data['name']);
             }
-            
+
             // Handle image removal or update
             if ($request->hasFile('image')) {
                 // Delete existing images if there are any
@@ -173,33 +171,33 @@ class OrganizerController extends Controller
                     }
                 }
             }
-            
+
             // Remove image-related keys from data array
             unset($data['image']);
             unset($data['remove_image']);
-            
+
             // Update other fields if any
-            if (!empty($data)) {
+            if (! empty($data)) {
                 $organizer->update($data);
             }
-            
+
             // Refresh organizer with relationships
             $organizer = Organizer::withUserRole()
-                ->with(['images', 'nameChangeRequests' => function($query) {
+                ->with(['images', 'nameChangeRequests' => function ($query) {
                     $query->where('status', 'pending');
                 }])
                 ->find($organizer->id);
-            
+
             return response()->json([
                 'message' => 'Organizer updated successfully',
-                'organizer' => $organizer
+                'organizer' => $organizer,
             ]);
-            
+
         } catch (\Exception $e) {
-            Log::error('Failed to update organizer: ' . $e->getMessage());
+            Log::error('Failed to update organizer: '.$e->getMessage());
+
             return response()->json([
                 'message' => 'Failed to update organizer.',
-                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -214,7 +212,7 @@ class OrganizerController extends Controller
                 }]);
 
             if ($search = $request->get('q')) {
-                $query->where('name', 'like', '%' . $search . '%');
+                $query->where('name', 'like', '%'.$search.'%');
             }
 
             $teams = $query->paginate(40)->through(function ($team) {
@@ -228,20 +226,20 @@ class OrganizerController extends Controller
                     'images' => $team->images,
                     'thumbImagePath' => $team->thumbImagePath,
                     'largeImagePath' => $team->largeImagePath,
-                    'created_at' => $team->created_at
+                    'created_at' => $team->created_at,
                 ];
             });
 
             return response()->json([
                 'teams' => $teams,
-                'current_team_id' => auth()->user()->current_team_id
+                'current_team_id' => auth()->user()->current_team_id,
             ]);
 
         } catch (\Exception $e) {
             Log::error('Error in searchTeams:', [
                 'error' => $e->getMessage(),
                 'user_id' => auth()->id(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
@@ -252,22 +250,22 @@ class OrganizerController extends Controller
         try {
             // Update the organizer status to 'r' (review)
             $organizer->update(['status' => 'r']);
-            
+
             // Refresh organizer with relationships
             $organizer = Organizer::withUserRole()
                 ->with(['images'])
                 ->find($organizer->id);
-            
+
             return response()->json([
                 'message' => 'Organizer submitted successfully',
-                'organizer' => $organizer
+                'organizer' => $organizer,
             ]);
-            
+
         } catch (\Exception $e) {
-            Log::error('Failed to submit organizer: ' . $e->getMessage());
+            Log::error('Failed to submit organizer: '.$e->getMessage());
+
             return response()->json([
                 'message' => 'Failed to submit organizer.',
-                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -275,7 +273,7 @@ class OrganizerController extends Controller
     public function checkNameAvailability(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:80'
+            'name' => 'required|string|max:80',
         ]);
 
         $existingOrganizers = Organizer::where('name', 'LIKE', $request->name)
@@ -286,14 +284,14 @@ class OrganizerController extends Controller
         if ($existingOrganizers->isEmpty()) {
             return response()->json([
                 'available' => true,
-                'message' => 'This organization name is available.'
+                'message' => 'This organization name is available.',
             ]);
         }
 
         return response()->json([
             'available' => false,
             'existing_organizations' => $existingOrganizers,
-            'message' => 'One or more organizations with this name already exist.'
+            'message' => 'One or more organizations with this name already exist.',
         ]);
     }
 
@@ -302,4 +300,3 @@ class OrganizerController extends Controller
         return view('organizers.index');
     }
 }
-

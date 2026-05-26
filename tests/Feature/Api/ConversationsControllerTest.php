@@ -137,6 +137,28 @@ test('update marks the receiver as having unread messages', function () {
     expect($this->other->fresh()->unread)->toBe('m');
 });
 
+test('update sends a notification email when the receiver was caught up (H-Q1 regression)', function () {
+    // Receiver has unread=null (caught up) — should get an email on a new message.
+    expect($this->other->fresh()->unread)->toBeNull();
+
+    $this->actingAs($this->user)
+        ->postJson("/inbox/conversation/{$this->conversation->id}", ['message' => 'first ping'])
+        ->assertOk();
+
+    Mail::assertSent(MessageMail::class, fn ($mail) => $mail->hasTo($this->other->email));
+});
+
+test('update does NOT re-send when the receiver already has unread messages', function () {
+    // Receiver already flagged unread — second ping should not spam another email.
+    $this->other->update(['unread' => 'm']);
+
+    $this->actingAs($this->user)
+        ->postJson("/inbox/conversation/{$this->conversation->id}", ['message' => 'second ping'])
+        ->assertOk();
+
+    Mail::assertNotSent(MessageMail::class);
+});
+
 test('update bumps the conversation updated_at timestamp', function () {
     $original = now()->subHour();
     $this->conversation->update(['updated_at' => $original]);

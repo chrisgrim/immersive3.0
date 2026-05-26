@@ -11,6 +11,7 @@ This document is the **open work list**. Severity ranking is impact × likelihoo
 
 - **Critical:** XSS in blurbs (C1) and messages (C2); foundational test suite (C3).
 - **High:** all 13 — switchTeam intent (H1), pagination races (H2), event-create double-submit (H3), conversation-create race + unique index (H4), null guard in `canAppendMessage` (H5), conversations user index (H6 — FK still deferred), `withCount` for click stats *in admin index only* (H7 — see new finding H-Q4 below for the bit missed in `show()`), `track_clicks` indexes + daily archival cron (H8), `belongsToOrganization` N+1 (H9), organizer event eager-load limit (H10), event-table indexes (H11), global Vue error handler routing to Sentry (H12), test-coverage foundation (H13 — 146 tests passing).
+- **High (fresh audit, batch 1):** H-Q1 silent message-email bug; H-Q2 exception leak in 8 responses; H-Q3 dead `restore()` method deleted; H-Q4 `withCount` on `AdminEventController::show`; H-M1 misnamed migration renamed (with prod `migrations` table SQL fix queued); H-F1 `AbortController` timeout on geonames fetch.
 - **Medium:** 9 — autoLogin email validation (M2), CSRF null-check (M3), organizer name lookup trim (M4), CORS allow-list (M5), axios timeout (M6), SearchStore Set (M7), six-month calc (M8), `isValidTimezone` wire-up (M14), name-change throttle (M15), and `showtype_config` persistence (M11) — left alone: M9 image dimensions, M12 attribute caching, M1 6-digit codes. Deferred: M10 (dates-wizard refactor needs splitting), M13 (cascade soft-delete needs child models to have SoftDeletes first).
 - **Low:** all 5 — map fallback (L1), `crypto.randomUUID` (L2), 91 `console.log` purge (L3), date-picker `aria-*` (L4), dead password-auth controllers deleted (L5).
 - **Plus:** TikTok URL widening, HostController null-organizer fix, Sentry SDKs wired, mews/purifier + DOMPurify wired.
@@ -20,6 +21,20 @@ This document is the **open work list**. Severity ranking is impact × likelihoo
 ## Post-deploy verification checklist
 
 Run through this after each production deploy that includes any of the above fixes. Tick boxes as you go.
+
+### Pre-deploy (run BEFORE the next prod deploy)
+
+- [ ] **H-M1 migration tracker SQL** — On prod DB, run this *before* `php artisan migrate`:
+  ```sql
+  UPDATE migrations
+  SET migration='2025_11_07_222950_add_start_date_to_events_table'
+  WHERE migration='2025_11_07_222950_add_showtype_config_to_events_table';
+  ```
+  Without this step, the deploy's `migrate` will see the renamed file as new, try to re-add `start_date`, and fail with a duplicate-column error.
+
+### Local dev (do now, one-time)
+
+- [ ] `php artisan migrate` on local — adds `showtype_config` column to local `ei` DB (M11; tests already pass because `ei_testing` is migrated fresh, but local dev DB hasn't run it yet).
 
 ### Pending — to verify on next prod deploy
 
@@ -33,6 +48,11 @@ Run through this after each production deploy that includes any of the above fix
 - [ ] **H7 admin events page perf** — `/admin/manage/events` loads noticeably faster.
 - [ ] **H8 click archival cron** — after 24h, check `storage/logs/archive-clicks.log` for a "Deleted N rows" entry. Or run `php artisan ei:archive-clicks --days=999999` immediately to confirm wiring.
 - [ ] **H12 Vue error handler** — `setTimeout(() => { throw new Error('vue smoke'); }, 0);` shows `[Vue] …` in console AND lands in Sentry.
+- [ ] **H-Q1 message email** — send a message to a user whose `unread` is NULL (e.g., someone caught up on inbox) and confirm they receive the "new message about …" email. Send a *second* message before they read the first and confirm no second email fires.
+- [ ] **H-M1 migration rename — RUN BEFORE DEPLOY.** On prod DB, run: `UPDATE migrations SET migration='2025_11_07_222950_add_start_date_to_events_table' WHERE migration='2025_11_07_222950_add_showtype_config_to_events_table';`. Without this, `php artisan migrate` during deploy will try to re-run the renamed file and fail because `start_date` already exists. (Local dev DB already updated.)
+- [ ] **H-F1 location timezone timeout** — open the location wizard step, drop a pin, confirm timezone autofill works under normal conditions; with browser devtools' "Offline" mode on, confirm the UI doesn't hang past 8s.
+- [ ] **H-Q2 error-leak cleanup** — trigger a 500 (e.g., temporarily make an organizer update fail via DB constraint) and verify the JSON response body has *no* `error` field, only `message`. Confirm the Sentry issue still gets the full trace.
+- [ ] **H-Q4 admin event show perf** — load `/admin/manage/events/{slug}` and confirm `total_clicks` / `unique_visitors` still render on the page (proves the `loadCount` swap didn't break the shape the frontend reads).
 
 ### Pending manual actions (CR3 — secret rotation)
 
@@ -113,18 +133,18 @@ _All 3 fixed in code on 2026-05-24 (commit 70a502b). **CR3 still needs out-of-ba
 
 ### Backend correctness
 
-- **H-Q1. `ConversationsController::notifyReceiver` never sends notification emails.** `app/Http/Controllers/User/ConversationsController.php:181` does `$receiver->update(['unread' => 'm'])`, line 184 then checks `if ($receiver->unread === null)`. Eloquent's `update()` mutates the in-memory model, so the check always fails → **`Mail::to(...)->send(new Message(...))` never runs**. Confirmed by reading the file. Users have been silently missing message email notifications. **Fix:** capture `$wasRead = $receiver->unread === null` *before* the update; gate the mail on `$wasRead`.
-- **H-Q2. Exception messages leaked in 500 JSON responses.** `app/Http/Controllers/Creation/HostEventController.php:507, 557`; `app/Http/Controllers/OrganizerController.php:102, 142, 202, 270`; `app/Http/Controllers/Curated/CommunityController.php:462` all return `['error' => $e->getMessage()]` on uncaught exceptions. Leaks SQL fragments, file paths, library internals to the client. Sentry has the trace; clients don't need it. **Fix:** drop the `error` key, return `['message' => 'Something went wrong. Please try again.']`.
-- **H-Q3. `HostEventController::restore()` references undefined `$slug`.** Lines 591-603 — signature is `restore(Event $event)` but body does `Event::withTrashed()->where('slug', $slug)->firstOrFail()` with `$slug` never defined. Currently no route wires this method, but if anyone adds one it throws `Undefined variable $slug` on the first hit. **Fix:** delete the redundant lookup (or delete the whole method).
-- **H-Q4. H7 fix incomplete — `AdminEventController::show` still uses the old click pattern.** `app/Http/Controllers/Admin/AdminEventController.php:101-102` runs `$event->clicks()->count()` and `$event->clicks()->distinct('ip_address')->count('ip_address')` on every admin event view. The `index()` got the `withCount` treatment; `show()` was missed. **Fix:** apply the same pattern — load via `Event::withCount(['clicks as total_clicks', 'clicks as unique_visitors' => fn($q) => $q->select(DB::raw('COUNT(DISTINCT ip_address)'))])->where('id', $event->id)->first()`.
+- ~~**H-Q1. `ConversationsController::notifyReceiver` never sends notification emails.**~~ **FIXED** — `$wasCaughtUp` now captured before the update; two regression tests added. (`ConversationsController.php:174-203`, `ConversationsControllerTest.php`)
+- ~~**H-Q2. Exception messages leaked in 500 JSON responses.**~~ **FIXED** — dropped the `error` key in all 8 responses (HostEventController × 2, OrganizerController × 4, CommunityController × 1, AdminEventController × 1). `Log::error()` calls preserved so Sentry/logs still get the trace.
+- ~~**H-Q3. `HostEventController::restore()` references undefined `$slug`.**~~ **FIXED** — method deleted. Verified zero references in `routes/`, `app/`, or `resources/js/` before removal.
+- ~~**H-Q4. H7 fix incomplete — `AdminEventController::show` still uses the old click pattern.**~~ **FIXED** — `show()` now uses `loadCount` with the same `total_clicks`/`unique_visitors` pattern as `index()`. (`AdminEventController.php:79-104`)
 
 ### Migration hygiene
 
-- **H-M1. Duplicate `add_showtype_config_to_events_table` migration filenames.** `database/migrations/2025_11_07_222950_add_showtype_config_to_events_table.php` actually adds `start_date` (its body was changed at some point), while `2026_05_24_204850_add_showtype_config_to_events_table.php` (the new M11 one) actually adds `showtype_config`. Verified by direct read. Both can run independently because Laravel uses the full filename as the migration key, but a future developer searching for "where is start_date added" will go in circles. **Fix:** rename the older file to `…_add_start_date_to_events_table.php` (a one-line `mv` + update the migration tracker if local DB already ran it).
+- ~~**H-M1. Duplicate `add_showtype_config_to_events_table` migration filenames.**~~ **FIXED** — `2025_11_07_222950_add_showtype_config_to_events_table.php` → `…_add_start_date_to_events_table.php` (`git mv`). Local `migrations` table updated. **Prod requires the same SQL update before next deploy — see post-deploy checklist above.**
 
 ### Frontend
 
-- **H-F1. Native `fetch()` in `location.vue:534` bypasses the axios timeout.** Used for geonames lookup. If geonames hangs, the timezone autofill never resolves and the UI sits in limbo. **Fix:** wrap in `AbortController` with `setTimeout(() => controller.abort(), 8000)`, or move to axios.
+- ~~**H-F1. Native `fetch()` in `location.vue:534` bypasses the axios timeout.**~~ **FIXED** — `AbortController` with 8s timeout. (`location.vue:528-552`)
 
 ---
 

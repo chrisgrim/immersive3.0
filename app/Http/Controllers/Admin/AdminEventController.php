@@ -3,17 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Event;
-use Illuminate\Http\Request;
-use Carbon\Carbon;
-use App\Scopes\PublishedScope;
-use Illuminate\Support\Facades\Mail;
 use App\Mail\Comments;
+use App\Models\Event;
 use App\Models\Messaging\Message;
-use App\Models\Events\ShowChangeLog;
+use App\Scopes\PublishedScope;
 use App\Services\ImageHandler;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-
+use Illuminate\Support\Facades\Mail;
 
 class AdminEventController extends Controller
 {
@@ -28,7 +26,7 @@ class AdminEventController extends Controller
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
-                      ->orWhere('id', 'like', "%{$search}%");
+                        ->orWhere('id', 'like', "%{$search}%");
                 });
             })
             ->when($request->status, function ($query, $status) {
@@ -38,7 +36,7 @@ class AdminEventController extends Controller
                         break;
                     case 'in_progress':
                         $query->whereNotIn('status', ['p', 'e'])
-                              ->whereNull('deleted_at');
+                            ->whereNull('deleted_at');
                         break;
                     case 'deleted':
                         $query->onlyTrashed();
@@ -46,17 +44,17 @@ class AdminEventController extends Controller
                 }
             })
             ->when($request->ending_soon, function ($query) {
-                $query->where(function($q) {
+                $query->where(function ($q) {
                     $q->where('closingDate', '<=', now()->addDays(10))
-                      ->where('closingDate', '>', now())
-                      ->where(function($subQ) {
-                          $subQ->where('showtype', 'a')
-                               ->orWhereHas('shows', function($showQ) {
-                                   $showQ->select('event_id')
+                        ->where('closingDate', '>', now())
+                        ->where(function ($subQ) {
+                            $subQ->where('showtype', 'a')
+                                ->orWhereHas('shows', function ($showQ) {
+                                    $showQ->select('event_id')
                                         ->groupBy('event_id')
                                         ->havingRaw('COUNT(*) > 30');
-                               });
-                      });
+                                });
+                        });
                 });
             })
             ->when($request->sort, function ($query, $sort) {
@@ -96,10 +94,12 @@ class AdminEventController extends Controller
             'eventreviews',
             'videos',
             'staffpick',
+        ])->loadCount([
+            'clicks as total_clicks',
+            'clicks as unique_visitors' => function ($q) {
+                $q->select(\DB::raw('COUNT(DISTINCT ip_address)'));
+            },
         ]);
-
-        $event->total_clicks = $event->clicks()->count();
-        $event->unique_visitors = $event->clicks()->distinct('ip_address')->count('ip_address');
 
         // Find any events with the same name (case-insensitive)
         $duplicateEvents = Event::whereRaw('LOWER(name) = ?', [strtolower($event->name)])
@@ -125,22 +125,23 @@ class AdminEventController extends Controller
     {
         // Find the event even if it's deleted
         $event = Event::withTrashed()->findOrFail($id);
-        
+
         if ($request->has('restore')) {
             $event->restore();
+
             return response()->json(['message' => 'Event restored successfully']);
         }
-        
+
         // Handle organizer update action
         if ($request->action === 'update_organizer') {
             $validated = $request->validate([
                 'organizer_id' => ['required', 'exists:organizers,id'],
             ]);
-            
+
             $event->update([
-                'organizer_id' => $validated['organizer_id']
+                'organizer_id' => $validated['organizer_id'],
             ]);
-            
+
             return $event->fresh(['organizer', 'images', 'category', 'location']);
         }
 
@@ -148,9 +149,9 @@ class AdminEventController extends Controller
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'status' => ['sometimes', 'required', 'string', 'in:0,p,r,e,n'],
         ]);
-        
+
         $event->update($validated);
-        
+
         return $event->fresh(['organizer', 'images', 'category', 'location']);
     }
 
@@ -169,7 +170,7 @@ class AdminEventController extends Controller
 
             // Generate final slug
             $slug = Event::finalSlug($event);
-            
+
             // Update event with slug first before finalizing images
             $event->slug = $slug;
             $event->save();
@@ -178,8 +179,8 @@ class AdminEventController extends Controller
             ImageHandler::finalize($event, $slug, 'event');
 
             // Determine status based on embargo date
-            $status = $event->embargo_date && $event->embargo_date > Carbon::now() 
-                ? 'e' 
+            $status = $event->embargo_date && $event->embargo_date > Carbon::now()
+                ? 'e'
                 : 'p';
 
             // Format the date explicitly to match Elasticsearch mapping
@@ -194,22 +195,23 @@ class AdminEventController extends Controller
 
             // Send notifications if not self-approving
             if (auth()->id() !== $event->user->id) {
-                $message = $event->status === 'e' 
+                $message = $event->status === 'e'
                     ? Message::MESSAGES['APPROVED_EMBARGOED']
                     : Message::MESSAGES['APPROVED'];
-                
+
                 Message::notification($event, $message, $event->slug);
                 Mail::to($event->user)->send(new Comments($event, $message, 'approved'));
             }
 
             return response()->json([
                 'message' => 'Event approved successfully',
-                'event' => $event->fresh(['images', 'organizer'])
+                'event' => $event->fresh(['images', 'organizer']),
             ]);
         } catch (\Exception $e) {
-            \Log::error('Error approving event: ' . $e->getMessage());
+            \Log::error('Error approving event: '.$e->getMessage());
+
             return response()->json([
-                'message' => 'Error approving event: ' . $e->getMessage()
+                'message' => 'Error approving event. Please try again.',
             ], 500);
         }
     }
@@ -217,38 +219,39 @@ class AdminEventController extends Controller
     public function reject(Event $event, Request $request)
     {
         $validated = $request->validate([
-            'reason' => 'required|string|max:1000'
+            'reason' => 'required|string|max:1000',
         ]);
 
         // Update event status
         $event->update([
             'status' => 'n',
-            'rejection_reason' => $validated['reason']
+            'rejection_reason' => $validated['reason'],
         ]);
 
         // Create rejection message with reason
         $message = "We've reviewed your event and have some feedback that needs to be addressed.\n\nFeedback: {$validated['reason']}";
         $inAppMessage = "We've reviewed your event and have some feedback that needs to be addressed.\n\nFeedback: {$validated['reason']}";
 
-        if(auth()->id() !== $event->user->id) {
-            $message = Message::MESSAGES['REJECTED'] . "\n\nReason: {$validated['reason']}";
-            
+        if (auth()->id() !== $event->user->id) {
+            $message = Message::MESSAGES['REJECTED']."\n\nReason: {$validated['reason']}";
+
             // Send in-app notification
             Message::notification($event, $inAppMessage, $event->slug);
-            
+
             // Send email notification
             Mail::to($event->user)->send(new Comments($event, $message, 'rejected'));
         }
 
         return response()->json([
             'message' => 'Event rejected successfully',
-            'event' => $event->fresh()
+            'event' => $event->fresh(),
         ]);
     }
 
     public function destroy(Event $event)
     {
         $event->delete();
+
         return response()->json(['message' => 'Event deleted successfully']);
     }
 
@@ -262,18 +265,18 @@ class AdminEventController extends Controller
     public function toggleCheck(Request $request, Event $event)
     {
         $validated = $request->validate([
-            'type' => 'required|string|in:curated,social,newsletter'
+            'type' => 'required|string|in:curated,social,newsletter',
         ]);
 
         // Load the event with its curated check
         $event->load('curatedCheck');
 
         // If no curated check exists yet, create one
-        if (!$event->curatedCheck) {
+        if (! $event->curatedCheck) {
             $event->curatedCheck()->create([
                 'curated' => null,
                 'social' => null,
-                'newsletter' => null
+                'newsletter' => null,
             ]);
             $event->refresh();
         }
@@ -281,7 +284,7 @@ class AdminEventController extends Controller
         // Cycle through the three states: null -> false -> true -> null
         $type = $validated['type'];
         $currentValue = $event->curatedCheck->$type;
-        
+
         // Determine the next state
         $nextValue = null;
         if ($currentValue === null) {
@@ -291,16 +294,16 @@ class AdminEventController extends Controller
         } else {
             $nextValue = null;
         }
-        
+
         // Update the check
         $event->curatedCheck->update([
-            $type => $nextValue
+            $type => $nextValue,
         ]);
 
         return response()->json([
-            'message' => $type . ' status updated successfully',
+            'message' => $type.' status updated successfully',
             'check' => $event->curatedCheck->fresh(),
-            'event' => $event->fresh(['curatedCheck', 'organizer', 'images', 'category', 'location'])
+            'event' => $event->fresh(['curatedCheck', 'organizer', 'images', 'category', 'location']),
         ]);
     }
 }

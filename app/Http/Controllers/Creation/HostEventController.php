@@ -3,20 +3,19 @@
 namespace App\Http\Controllers\Creation;
 
 use App\Http\Controllers\Controller;
-use App\Models\Organizer;
+use App\Http\Requests\StoreEventRequest;
 use App\Models\Event;
-use App\Services\ImageHandler;
-use App\Models\Events\RemoteLocation;
 use App\Models\Events\ContentAdvisory;
 use App\Models\Events\MobilityAdvisory;
+use App\Models\Events\RemoteLocation;
 use App\Models\Events\Show;
 use App\Models\Events\Ticket;
 use App\Models\Genre;
-use App\Http\Requests\StoreEventRequest;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use App\Services\ImageHandler;
 use App\Services\NameChangeRequestService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class HostEventController extends Controller
 {
@@ -26,7 +25,6 @@ class HostEventController extends Controller
     {
         $this->nameChangeService = $nameChangeService;
     }
-
 
     public function edit(Event $event)
     {
@@ -46,10 +44,11 @@ class HostEventController extends Controller
             'category',
             'genres',
             'videos',
-            'nameChangeRequests' => function($query) {  // Add this relationship
+            'nameChangeRequests' => function ($query) {  // Add this relationship
                 $query->where('status', 'pending')->latest();
-            }
+            },
         ]);
+
         return view('creation.edit', compact('event'));
     }
 
@@ -61,13 +60,13 @@ class HostEventController extends Controller
         $validatedData = $request->validated();
 
         // Check for duplicate event names if name is being updated (skip if user acknowledged)
-        if (isset($validatedData['name']) && $validatedData['name'] !== $event->name && !$request->boolean('acknowledge_duplicate')) {
+        if (isset($validatedData['name']) && $validatedData['name'] !== $event->name && ! $request->boolean('acknowledge_duplicate')) {
             $duplicates = $this->checkDuplicateNames($validatedData['name'], $event->id);
             if ($duplicates) {
                 return response()->json([
                     'message' => 'Duplicate event name detected',
                     'duplicateEvents' => $duplicates,
-                    'warning' => 'An event with a similar name already exists.'
+                    'warning' => 'An event with a similar name already exists.',
                 ], 409); // 409 Conflict
             }
         }
@@ -75,15 +74,15 @@ class HostEventController extends Controller
         // Handle attendance type changes (using either hasLocation or attendance_type_id)
         if (isset($validatedData['attendance_type_id']) && $event->category) {
             // Check if category is compatible with the attendance type
-            if (!$event->category->supportsAttendanceType($validatedData['attendance_type_id'])) {
+            if (! $event->category->supportsAttendanceType($validatedData['attendance_type_id'])) {
                 $event->category()->dissociate();
                 $validatedData['status'] = '1';
             }
             // Keep hasLocation in sync for backward compatibility
             $validatedData['hasLocation'] = $validatedData['attendance_type_id'] == 1;
-        } 
+        }
         // Legacy handling for hasLocation
-        else if (isset($validatedData['hasLocation']) && $event->category && 
+        elseif (isset($validatedData['hasLocation']) && $event->category &&
             $event->category->remote === $validatedData['hasLocation']) {
             $event->category()->dissociate();
             $validatedData['status'] = '1';
@@ -94,22 +93,22 @@ class HostEventController extends Controller
         // Handle location updates
         if (isset($validatedData['location'])) {
             $event->location->update($validatedData['location']);
-            
+
             // Update the location_latlon in events table using the exact format
             if ($event->location->latitude && $event->location->longitude) {
                 $event->update([
                     'location_latlon' => [
-                        "lat" => (float)$event->location->latitude,
-                        "lon" => (float)$event->location->longitude
-                    ]
+                        'lat' => (float) $event->location->latitude,
+                        'lon' => (float) $event->location->longitude,
+                    ],
                 ]);
             }
-            
+
             // Update the status if it's included in the request
             if (isset($validatedData['status'])) {
                 $event->status = $validatedData['status'];
             }
-            
+
             $event->save();
         } else {
             $event->update($validatedData);
@@ -141,12 +140,12 @@ class HostEventController extends Controller
 
         // Consolidate all advisory updates
         $advisoryData = [];
-        
+
         if (isset($validatedData['advisories'])) {
             if (isset($validatedData['advisories']['sexual'])) {
                 $advisoryData['sexual'] = (bool) $validatedData['advisories']['sexual'];
             }
-            
+
             if (isset($validatedData['advisories']['sexualDescription'])) {
                 $advisoryData['sexualDescription'] = $validatedData['advisories']['sexualDescription'];
             }
@@ -161,7 +160,7 @@ class HostEventController extends Controller
             $advisoryData['wheelchairReady'] = $validatedData['wheelchairReady'];
         }
 
-        if (!empty($advisoryData)) {
+        if (! empty($advisoryData)) {
             $event->advisories()->update($advisoryData);
         }
 
@@ -177,12 +176,12 @@ class HostEventController extends Controller
             if ($request->has('deletedImages')) {
                 $deletedImages = json_decode($request->input('deletedImages', '[]'), true);
                 foreach ($deletedImages as $deletedImagePath) {
-                    $image = $existingImages->first(function($img) use ($deletedImagePath) {
+                    $image = $existingImages->first(function ($img) use ($deletedImagePath) {
                         return $img->large_image_path === $deletedImagePath;
                     });
                     if ($image) {
                         ImageHandler::deleteImage($image);
-                        $existingImages = $existingImages->reject(fn($img) => $img->id === $image->id);
+                        $existingImages = $existingImages->reject(fn ($img) => $img->id === $image->id);
                     }
                 }
             }
@@ -190,16 +189,18 @@ class HostEventController extends Controller
             // 3. Handle reordering of existing images
             if ($request->has('currentImages')) {
                 $currentImages = json_decode($request->input('currentImages'), true);
-                
+
                 if ($currentImages && count($currentImages) > 0) {
                     // Update ranks of existing images
                     foreach ($currentImages as $image) {
                         // Skip if no ID - new uploads are handled separately
-                        if (!isset($image['id'])) continue;
-                        
+                        if (! isset($image['id'])) {
+                            continue;
+                        }
+
                         $eventImage = $event->images()->find($image['id']);
                         if ($eventImage && isset($image['rank'])) {
-                            $eventImage->rank = (int)$image['rank'];
+                            $eventImage->rank = (int) $image['rank'];
                             $eventImage->save();
                         }
                     }
@@ -212,27 +213,27 @@ class HostEventController extends Controller
                 $currentRanks = collect(json_decode($request->input('currentImages', '[]'), true))
                     ->pluck('rank')
                     ->toArray();
-                
+
                 foreach ($request->file('images') as $index => $image) {
-                    $rank = (int)($ranks[$index] ?? 0);
-                    
+                    $rank = (int) ($ranks[$index] ?? 0);
+
                     // First delete any existing image with this rank
                     $existingImage = $event->images()->where('rank', $rank)->first();
                     if ($existingImage) {
                         ImageHandler::deleteImage($existingImage);
                     }
-                    
+
                     // Save the new image with the correct rank
                     ImageHandler::saveImage(
-                        $image, 
-                        $event, 
+                        $image,
+                        $event,
                         ($rank === 0) ? 900 : 1200,  // Width
                         ($rank === 0) ? 1200 : 800,  // Height
                         'event-images',
                         $rank
                     );
                 }
-                
+
                 // Refresh to get the latest state
                 $event->refresh();
             }
@@ -258,10 +259,10 @@ class HostEventController extends Controller
         // Handle videos
         if ($request->has('videos')) {
             $videosData = json_decode($request->input('videos'), true);
-            
+
             // Delete existing videos
             $event->videos()->delete();
-            
+
             // Create new videos with the provided data
             foreach ($videosData as $videoData) {
                 $event->videos()->create([
@@ -270,10 +271,10 @@ class HostEventController extends Controller
                     'rank' => $videoData['rank'] ?? 0,
                     // If 'id' in videoData is the platform's video ID (e.g., YouTube ID)
                     // it should not be confused with the database ID
-                    'platform_video_id' => $videoData['id'] ?? null
+                    'platform_video_id' => $videoData['id'] ?? null,
                 ]);
             }
-            
+
             // Handle video slideshow preference
             if ($request->has('videoSlideshow')) {
                 $event->video = $request->videoSlideshow ?: null;
@@ -290,7 +291,7 @@ class HostEventController extends Controller
         // Handle genres
         if (isset($validatedData['genres'])) {
             Genre::saveGenres($event, $validatedData['genres']);
-            
+
             if ($wasPublished || in_array($event->status, ['p', 'e'])) {
                 Cache::forget('active-genres');
             }
@@ -312,22 +313,22 @@ class HostEventController extends Controller
         return response()->json([
             'message' => 'Event updated successfully.',
             'event' => $event->load([
-                'shows.tickets', 
-                'location', 
-                'images', 
-                'advisories', 
-                'mobilityAdvisories', 
-                'contentAdvisories', 
-                'contactLevels', 
+                'shows.tickets',
+                'location',
+                'images',
+                'advisories',
+                'mobilityAdvisories',
+                'contentAdvisories',
+                'contactLevels',
                 'interactive_level',
                 'category',
                 'genres',
                 'videos',
                 'age_limits',
-                'nameChangeRequests' => function($query) {
+                'nameChangeRequests' => function ($query) {
                     $query->where('status', 'pending')->latest();
-                }
-            ])
+                },
+            ]),
         ], 200);
     }
 
@@ -365,14 +366,14 @@ class HostEventController extends Controller
 
         return response()->json([
             'message' => 'Event submitted successfully.',
-            'event' => $event
+            'event' => $event,
         ], 200);
     }
 
     public function destroy(Event $event)
     {
         $wasPublished = in_array($event->status, ['p', 'e']);
-        
+
         $event->delete();
 
         if ($wasPublished) {
@@ -381,31 +382,31 @@ class HostEventController extends Controller
         }
 
         return response()->json([
-            'message' => 'Event deleted successfully'
+            'message' => 'Event deleted successfully',
         ]);
     }
 
     public function create(Request $request)
     {
         $organizerId = $request->input('organizer_id');
-        
+
         // Check unpublished events count (bypass for admins)
         $unpublishedCount = Event::countUnpublishedEvents($organizerId);
-        
-        if ($unpublishedCount >= 5 && !auth()->user()->isAdmin()) {
+
+        if ($unpublishedCount >= 5 && ! auth()->user()->isAdmin()) {
             return response()->json([
-                'message' => 'You can only have 5 unpublished events at a time.'
+                'message' => 'You can only have 5 unpublished events at a time.',
             ], 422);
         }
 
         // If name is provided, check for duplicates (skip if user acknowledged)
-        if ($request->has('name') && !empty($request->name) && !$request->boolean('acknowledge_duplicate')) {
+        if ($request->has('name') && ! empty($request->name) && ! $request->boolean('acknowledge_duplicate')) {
             $duplicates = $this->checkDuplicateNames($request->name);
             if ($duplicates) {
                 return response()->json([
                     'message' => 'Duplicate event name detected',
                     'duplicateEvents' => $duplicates,
-                    'warning' => 'An event with a similar name already exists. This may cause confusion for attendees or be rejected during review.'
+                    'warning' => 'An event with a similar name already exists. This may cause confusion for attendees or be rejected during review.',
                 ], 409); // 409 Conflict
             }
         }
@@ -414,25 +415,24 @@ class HostEventController extends Controller
 
         return response()->json([
             'message' => 'Event created successfully.',
-            'event' => $event
+            'event' => $event,
         ], 201);
     }
 
     /**
      * Check if an event name already exists
-     * 
-     * @param Request $request
+     *
      * @return \Illuminate\Http\JsonResponse
      */
     public function checkNameAvailability(Request $request)
     {
         $request->validate([
             'name' => 'required|string|max:100',
-            'event_id' => 'nullable|integer|exists:events,id'
+            'event_id' => 'nullable|integer|exists:events,id',
         ]);
 
         $duplicates = $this->checkDuplicateNames(
-            $request->name, 
+            $request->name,
             $request->event_id
         );
 
@@ -440,13 +440,13 @@ class HostEventController extends Controller
             return response()->json([
                 'available' => false,
                 'duplicateEvents' => $duplicates,
-                'message' => 'An event with a similar name already exists. This may cause confusion for attendees or be rejected during review.'
+                'message' => 'An event with a similar name already exists. This may cause confusion for attendees or be rejected during review.',
             ]);
         }
 
         return response()->json([
             'available' => true,
-            'message' => 'This event name is available.'
+            'message' => 'This event name is available.',
         ]);
     }
 
@@ -454,37 +454,37 @@ class HostEventController extends Controller
     {
         try {
             $wouldBeSlug = \Illuminate\Support\Str::slug($request->requested_name);
-            
+
             // Quick check for any slug conflicts (including soft-deleted)
             $hasConflict = Event::withTrashed()
                 ->where('slug', $wouldBeSlug)
                 ->where('id', '!=', $event->id)
                 ->exists();
-                
+
             if ($hasConflict) {
                 return response()->json([
                     'message' => 'Validation failed',
                     'errors' => [
-                        'requested_name' => ['An event with this name was created before. Please choose a different name or change it slightly. If you feel this is an error, please contact us at support@everythingimmersive.com']
-                    ]
+                        'requested_name' => ['An event with this name was created before. Please choose a different name or change it slightly. If you feel this is an error, please contact us at support@everythingimmersive.com'],
+                    ],
                 ], 422);
             }
-            
+
             // Validate the request
             $validator = \Validator::make($request->all(), [
                 'requested_name' => [
                     'required',
                     'string',
                     'max:100',
-                    new \App\Rules\UniqueSlugRule($request->requested_name, Event::class, 'slug', $event->id)
+                    new \App\Rules\UniqueSlugRule($request->requested_name, Event::class, 'slug', $event->id),
                 ],
-                'current_name' => 'required|string'
+                'current_name' => 'required|string',
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'message' => 'Validation failed',
-                    'errors' => $validator->errors()
+                    'errors' => $validator->errors(),
                 ], 422);
             }
 
@@ -497,14 +497,14 @@ class HostEventController extends Controller
 
             return response()->json([
                 'message' => $result['message'] ?? 'Name change request submitted successfully',
-                'event' => $event->fresh(['nameChangeRequests'])
+                'event' => $event->fresh(['nameChangeRequests']),
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Failed to submit name change request: ' . $e->getMessage());
+            \Log::error('Failed to submit name change request: '.$e->getMessage());
+
             return response()->json([
                 'message' => 'Failed to submit name change request.',
-                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -515,9 +515,9 @@ class HostEventController extends Controller
      * @return \Illuminate\Http\JsonResponse
      */
     public function hasCreatedEvents()
-    { 
+    {
         return response()->json([
-            'hasCreatedEvents' => auth()->user()->events()->count() > 1
+            'hasCreatedEvents' => auth()->user()->events()->count() > 1,
         ]);
     }
 
@@ -525,10 +525,10 @@ class HostEventController extends Controller
     {
         // Check unpublished events count (bypass for admins)
         $unpublishedCount = Event::countUnpublishedEvents($event->organizer_id);
-        
-        if ($unpublishedCount >= 5 && !auth()->user()->isAdmin()) {
+
+        if ($unpublishedCount >= 5 && ! auth()->user()->isAdmin()) {
             return response()->json([
-                'message' => 'You can only have 5 unpublished events at a time.'
+                'message' => 'You can only have 5 unpublished events at a time.',
             ], 422);
         }
 
@@ -538,32 +538,32 @@ class HostEventController extends Controller
             return response()->json([
                 'message' => 'Event duplicated successfully.',
                 'event' => $newEvent->load([
-                    // 'shows.tickets', 
-                    'location', 
-                    'images', 
-                    'advisories', 
-                    'mobilityAdvisories', 
-                    'contentAdvisories', 
-                    'contactLevels', 
+                    // 'shows.tickets',
+                    'location',
+                    'images',
+                    'advisories',
+                    'mobilityAdvisories',
+                    'contentAdvisories',
+                    'contactLevels',
                     'interactive_level',
                     'category',
-                    'genres'
-                ])
+                    'genres',
+                ]),
             ], 201);
         } catch (\Exception $e) {
-            \Log::error('Failed to duplicate event: ' . $e->getMessage());
+            \Log::error('Failed to duplicate event: '.$e->getMessage());
+
             return response()->json([
                 'message' => 'Failed to duplicate event.',
-                'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
      * Check for duplicate event names
-     * 
-     * @param string $name
-     * @param int|null $excludeId
+     *
+     * @param  string  $name
+     * @param  int|null  $excludeId
      * @return array|null
      */
     protected function checkDuplicateNames($name, $excludeId = null)
@@ -573,32 +573,12 @@ class HostEventController extends Controller
         }
 
         $duplicateEvents = Event::whereRaw('LOWER(name) = ?', [strtolower($name)])
-            ->when($excludeId, function($query) use ($excludeId) {
+            ->when($excludeId, function ($query) use ($excludeId) {
                 return $query->where('id', '!=', $excludeId);
             })
             ->select('id', 'name', 'slug', 'status')
             ->get();
 
         return $duplicateEvents->isNotEmpty() ? $duplicateEvents : null;
-    }
-
-    /**
-     * Restore a soft-deleted event
-     *
-     * @param  string  $slug
-     * @return \Illuminate\Http\Response
-     */
-    public function restore(Event $event)
-    {
-        // Find the event with trashed records included
-        $event = Event::withTrashed()->where('slug', $slug)->firstOrFail();
-        
-        // Ensure the user has permission to manage this event
-        $this->authorize('manage', $event);
-        
-        // Restore the event
-        $event->restore();
-        
-        return redirect()->route('hosting.dashboard')->with('success', 'Event restored successfully.');
     }
 }

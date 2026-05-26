@@ -2,25 +2,21 @@
 
 namespace App\Http\Controllers\Curated;
 
-use Illuminate\Http\Request;
-use App\Models\Curated\Community;
-use App\Models\Curated\CuratorInvitation;
-use App\Models\Featured\Section;
-use App\Models\Featured\Feature;
-use App\Models\Curated\Post;
-use App\Models\Event;
-use App\Models\User;
-use Illuminate\Validation\ValidationException;
-use App\Http\Requests\StoreCommunityRequest;
 use App\Actions\Curated\CommunityActions;
 use App\Http\Controllers\Controller;
-use App\Services\NameChangeRequestService;
+use App\Http\Requests\StoreCommunityRequest;
+use App\Models\Curated\Community;
+use App\Models\Curated\CuratorInvitation;
+use App\Models\User;
 use App\Services\ImageHandler;
+use App\Services\NameChangeRequestService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class CommunityController extends Controller
-{   
-     /**
+{
+    /**
      * Display a listing of the resource.
      *
      * @return \Illuminate\Http\Response
@@ -29,6 +25,7 @@ class CommunityController extends Controller
     {
         $user = auth()->user();
         $communities = auth()->user()->communities()->with(['images'])->get();
+
         return view('curated.communities.index', compact('communities', 'user'));
     }
 
@@ -61,33 +58,32 @@ class CommunityController extends Controller
      */
     public function show(Community $community)
     {
-        $shelves = $community->publishedShelves()->paginate(4)->through(function ($shelf, $key){
+        $shelves = $community->publishedShelves()->paginate(4)->through(function ($shelf, $key) {
             return $shelf->setRelation('published_posts', $shelf->publishedPosts()->with('limitedCards')->paginate(8));
         });
-        
+
         $community->load('curators', 'images');
+
         return view('curated.communities.show', compact('community', 'shelves'));
     }
 
     /**
      * Paginate the specified resource.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Curated\Community  $community
      * @return \Illuminate\Http\Response
      */
     public function paginate(Request $request, Community $community)
     {
         $shelfOffset = $request->query('shelf_offset', 0);
-        
+
         $shelves = $community->publishedShelves()
             ->orderBy('order', 'DESC')
             ->offset($shelfOffset)
             ->limit(4)
-            ->with(['published_posts' => function($query) {
+            ->with(['published_posts' => function ($query) {
                 $query->with('limitedCards')
-                      ->orderBy('order', 'ASC')
-                      ->limit(8);
+                    ->orderBy('order', 'ASC')
+                    ->limit(8);
             }])
             ->get();
 
@@ -97,22 +93,21 @@ class CommunityController extends Controller
     /**
      * Show the form for editing the specified resource.
      *
-     * @param  \App\Models\Curated\Community  $community
      * @return \Illuminate\Http\Response
      */
     public function edit(Community $community)
     {
         $this->authorize('update', $community);
-        
+
         return view('curated.communities.edit', [
             'community' => $community->load([
                 'owner',
                 'curators',
                 'images',
-                'nameChangeRequests' => function($query) {
+                'nameChangeRequests' => function ($query) {
                     $query->where('status', 'pending')->latest();
-                }
-            ])
+                },
+            ]),
         ]);
     }
 
@@ -125,18 +120,19 @@ class CommunityController extends Controller
     public function listings(Community $community)
     {
         $this->authorize('update', $community);
-        
+
         $user = auth()->user();
         $shelves = $community->shelves()
             ->orderBy('status', 'DESC')
             ->orderBy('order', 'DESC')
             ->get()
-            ->map(function($shelf) {
+            ->map(function ($shelf) {
                 // Load posts separately for each shelf with pagination
                 $shelf->posts = $shelf->posts()
                     ->with('limitedCards')
                     ->orderBy('order', 'ASC')
                     ->paginate(8);
+
                 return $shelf;
             });
 
@@ -162,14 +158,14 @@ class CommunityController extends Controller
                 // Handle ownership transfer first if requested
                 if ($request->has('new_owner_id')) {
                     $communityActions->updateOwner(
-                        new Request(['id' => $request->new_owner_id]), 
+                        new Request(['id' => $request->new_owner_id]),
                         $community
                     );
-                    
+
                     // Make sure the old owner is included in curator_ids if not already
-                    if (!in_array($community->user_id, $request->curator_ids)) {
+                    if (! in_array($community->user_id, $request->curator_ids)) {
                         $request->merge([
-                            'curator_ids' => array_merge($request->curator_ids, [$community->user_id])
+                            'curator_ids' => array_merge($request->curator_ids, [$community->user_id]),
                         ]);
                     }
                 }
@@ -177,11 +173,11 @@ class CommunityController extends Controller
                 // Remove all curators not in the new list
                 $currentCuratorIds = $community->curators->pluck('id')->toArray();
                 $newCuratorIds = $request->curator_ids;
-                
+
                 $curatorsToRemove = array_diff($currentCuratorIds, $newCuratorIds);
                 foreach ($curatorsToRemove as $curatorId) {
                     $communityActions->removeCurator(
-                        new Request(['id' => $curatorId]), 
+                        new Request(['id' => $curatorId]),
                         $community
                     );
                 }
@@ -191,23 +187,24 @@ class CommunityController extends Controller
                 foreach ($curatorsToAdd as $curatorId) {
                     $curator = User::findOrFail($curatorId);
                     $communityActions->addCurator(
-                        new Request(['email' => $curator->email]), 
-                        $community, 
+                        new Request(['email' => $curator->email]),
+                        $community,
                         $curator
                     );
                 }
 
                 $community = $community->fresh()->load('curators', 'owner', 'images');
+
                 return $community;
             }
 
             // Handle regular updates
             $data = $request->validated();
-            
+
             // Only remove name from update if status is 'p' and name is different
             if ($community->status === 'p' && isset($data['name']) && $data['name'] !== $community->name) {
                 // Create a name change request instead of direct update
-                $nameChangeService = new NameChangeRequestService();
+                $nameChangeService = new NameChangeRequestService;
                 $result = $nameChangeService->handleNameChange(
                     $community,
                     $data['name'],
@@ -215,7 +212,7 @@ class CommunityController extends Controller
                 );
                 unset($data['name']);
             }
-            
+
             // Handle image updates
             if ($request->hasFile('image')) {
                 // Delete existing images if there are any
@@ -232,26 +229,26 @@ class CommunityController extends Controller
                     }
                 }
             }
-            
+
             // Remove image-related keys from data array
             unset($data['image']);
             unset($data['remove_image']);
-            
+
             // Update other fields if any
-            if (!empty($data)) {
+            if (! empty($data)) {
                 $community->update($data);
             }
-            
+
             // Refresh community with relationships
             $community = $community->fresh()->load('curators', 'owner', 'images', 'nameChangeRequests');
-            
+
             return response()->json([
                 'message' => 'Community updated successfully',
-                'community' => $community
+                'community' => $community,
             ]);
-            
+
         } catch (\Exception $e) {
-            Log::error('Failed to update community: ' . $e->getMessage());
+            Log::error('Failed to update community: '.$e->getMessage());
             throw $e;
         }
     }
@@ -259,7 +256,7 @@ class CommunityController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param  \App\Community $community
+     * @param  \App\Community  $community
      * @return \Illuminate\Http\Response
      */
     public function destroy(Community $community, CommunityActions $communityActions)
@@ -284,10 +281,13 @@ class CommunityController extends Controller
      * @param  \App\Event  $event
      * @return \Illuminate\Http\Response
      */
-    public function addCurator(Request $request, Community $community,  CommunityActions $communityActions)
+    public function addCurator(Request $request, Community $community, CommunityActions $communityActions)
     {
-        $curator =  User::where('email', '=', $request->email)->first();
-        if (!$curator) { throw ValidationException::withMessages(['user' => 'No User exists with that email']);}
+        $curator = User::where('email', '=', $request->email)->first();
+        if (! $curator) {
+            throw ValidationException::withMessages(['user' => 'No User exists with that email']);
+        }
+
         return $communityActions->addCurator($request, $community, $curator);
     }
 
@@ -316,14 +316,12 @@ class CommunityController extends Controller
     /**
      * Invite a curator to the community
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Curated\Community  $community
      * @return \Illuminate\Http\Response
      */
     public function inviteCurator(Request $request, Community $community, CommunityActions $communityActions)
     {
         $request->validate([
-            'email' => 'required|email'
+            'email' => 'required|email',
         ]);
 
         return $communityActions->inviteCurator($request, $community);
@@ -338,39 +336,41 @@ class CommunityController extends Controller
     public function acceptInvitation($token)
     {
         $invitation = CuratorInvitation::where('token', $token)->first();
-        
-        if (!$invitation) {
+
+        if (! $invitation) {
             abort(404, 'Invalid invitation token');
         }
-        
+
         if ($invitation->accepted_at) {
             return redirect("/communities/{$invitation->community->slug}/edit")
                 ->with('info', 'This invitation has already been accepted.');
         }
-        
+
         if ($invitation->expires_at < now()) {
             abort(404, 'This invitation has expired. Please request a new invitation.');
         }
 
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             session(['pending_curator_invitation' => $token]);
+
             return redirect()->route('login')
-                ->withErrors(['email' => 'Please log in with ' . $invitation->email . ' to accept the curator invitation.']);
+                ->withErrors(['email' => 'Please log in with '.$invitation->email.' to accept the curator invitation.']);
         }
 
         // Verify the logged-in user's email matches the invitation
         if (auth()->user()->email !== $invitation->email) {
             auth()->logout();
+
             return redirect()->route('login')
-                ->withErrors(['email' => 'Please log in with ' . $invitation->email . ' to accept the curator invitation.']);
+                ->withErrors(['email' => 'Please log in with '.$invitation->email.' to accept the curator invitation.']);
         }
 
         // Add user as curator
         $invitation->community->curators()->attach(auth()->id());
-        
+
         // Mark invitation as accepted
         $invitation->update([
-            'accepted_at' => now()
+            'accepted_at' => now(),
         ]);
 
         return redirect("/communities/{$invitation->community->slug}/listings")
@@ -383,12 +383,12 @@ class CommunityController extends Controller
     public function updateCurators(Request $request, Community $community, CommunityActions $communityActions)
     {
         $this->authorize('manageCurators', $community);
-        
+
         if ($request->has('curator_ids')) {
             // Handle ownership transfer first if requested
             if ($request->has('new_owner_id')) {
                 $this->updateOwner(
-                    new Request(['id' => $request->new_owner_id]), 
+                    new Request(['id' => $request->new_owner_id]),
                     $community,
                     $communityActions
                 );
@@ -407,17 +407,15 @@ class CommunityController extends Controller
     public function removeSelf(Community $community)
     {
         $this->authorize('removeSelf', $community);
-        
+
         $community->curators()->detach(auth()->id());
-        
+
         return $community->fresh()->load('curators', 'owner');
     }
 
     /**
      * Resubmit the community for review
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Curated\Community  $community
      * @return \Illuminate\Http\Response
      */
     public function submit(Request $request, Community $community)
@@ -435,10 +433,10 @@ class CommunityController extends Controller
         try {
             $request->validate([
                 'requested_name' => 'required|string|max:255',
-                'current_name' => 'required|string'
+                'current_name' => 'required|string',
             ]);
 
-            $nameChangeService = new NameChangeRequestService();
+            $nameChangeService = new NameChangeRequestService;
             $result = $nameChangeService->handleNameChange(
                 $community,
                 $request->requested_name,
@@ -446,22 +444,21 @@ class CommunityController extends Controller
             );
 
             // Refresh community with relationships
-            $community = Community::with(['curators', 'owner', 'images', 'nameChangeRequests' => function($query) {
+            $community = Community::with(['curators', 'owner', 'images', 'nameChangeRequests' => function ($query) {
                 $query->where('status', 'pending');
             }])->find($community->id);
 
             return response()->json([
                 'message' => $result['message'] ?? 'Name change request submitted successfully',
-                'community' => $community
+                'community' => $community,
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Failed to submit name change request: ' . $e->getMessage());
+            Log::error('Failed to submit name change request: '.$e->getMessage());
+
             return response()->json([
                 'message' => 'Failed to submit name change request.',
-                'error' => $e->getMessage()
             ], 500);
         }
     }
-
 }
