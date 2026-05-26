@@ -161,7 +161,7 @@
                 </div>
 
                 {{-- Immersive Experience Institute partner attribution --}}
-                <div class="mt-10 flex items-center gap-4">
+                <div class="mt-20 flex items-center gap-4">
                     <span class="text-white text-base uppercase tracking-wider opacity-80 whitespace-nowrap">Brought to you by</span>
                     <a href="https://immersiveexperience.org" target="_blank" rel="noopener noreferrer" class="inline-block" aria-label="Immersive Experience Institute (opens in new tab)">
                         <img
