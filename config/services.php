@@ -49,4 +49,8 @@ return [
         'id' => env('ANALYTICS_ID'),
     ],
 
+    'geonames' => [
+        'username' => env('GEONAMES_USERNAME'),
+    ],
+
 ];

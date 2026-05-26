@@ -16,7 +16,9 @@ use Illuminate\Support\Facades\Log;
 class GenericAIScraper implements ScraperInterface
 {
     private ?string $anthropicApiKey;
+
     private ?string $openaiApiKey;
+
     private string $provider;
 
     public function __construct()
@@ -45,7 +47,7 @@ class GenericAIScraper implements ScraperInterface
         // Fetch the page content
         $html = $this->fetchPage($url);
 
-        if (!$html) {
+        if (! $html) {
             return new ScrapedEventData(
                 sourceUrl: $url,
                 scrapedAt: now()->toIso8601String(),
@@ -75,51 +77,59 @@ class GenericAIScraper implements ScraperInterface
 
         // Extract from <img> tags
         preg_match_all('/<img[^>]+src=["\']([^"\']+)["\'][^>]*>/i', $html, $imgMatches);
-        if (!empty($imgMatches[1])) {
+        if (! empty($imgMatches[1])) {
             $images = array_merge($images, $imgMatches[1]);
         }
 
         // Extract from og:image meta tags (often the best quality)
         preg_match_all('/<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\'][^>]*>/i', $html, $ogMatches);
-        if (!empty($ogMatches[1])) {
+        if (! empty($ogMatches[1])) {
             $images = array_merge($ogMatches[1], $images); // Prepend og:image as it's usually best
         }
 
         // Also check reverse order meta tags
         preg_match_all('/<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\'][^>]*>/i', $html, $ogMatches2);
-        if (!empty($ogMatches2[1])) {
+        if (! empty($ogMatches2[1])) {
             $images = array_merge($ogMatches2[1], $images);
         }
 
         // Extract from twitter:image
         preg_match_all('/<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\'][^>]*>/i', $html, $twitterMatches);
-        if (!empty($twitterMatches[1])) {
+        if (! empty($twitterMatches[1])) {
             $images = array_merge($twitterMatches[1], $images);
         }
 
         // Clean and dedupe
-        $images = array_unique(array_filter($images, function($img) {
+        $images = array_unique(array_filter($images, function ($img) {
             // Filter out tiny icons, tracking pixels, etc.
-            if (preg_match('/\.(ico|gif)$/i', $img)) return false;
-            if (preg_match('/(icon|logo|avatar|pixel|tracking|badge|button)/i', $img)) return false;
-            if (preg_match('/[0-9]+x[0-9]+/', $img) && preg_match('/([0-9]+)x/', $img, $m) && (int)$m[1] < 100) return false;
+            if (preg_match('/\.(ico|gif)$/i', $img)) {
+                return false;
+            }
+            if (preg_match('/(icon|logo|avatar|pixel|tracking|badge|button)/i', $img)) {
+                return false;
+            }
+            if (preg_match('/[0-9]+x[0-9]+/', $img) && preg_match('/([0-9]+)x/', $img, $m) && (int) $m[1] < 100) {
+                return false;
+            }
+
             return true;
         }));
 
         // Convert relative URLs to absolute
         $parsedBase = parse_url($baseUrl);
-        $baseHost = ($parsedBase['scheme'] ?? 'https') . '://' . ($parsedBase['host'] ?? '');
+        $baseHost = ($parsedBase['scheme'] ?? 'https').'://'.($parsedBase['host'] ?? '');
 
-        $images = array_map(function($img) use ($baseHost, $baseUrl) {
+        $images = array_map(function ($img) use ($baseHost, $baseUrl) {
             if (str_starts_with($img, '//')) {
-                return 'https:' . $img;
+                return 'https:'.$img;
             }
             if (str_starts_with($img, '/')) {
-                return $baseHost . $img;
+                return $baseHost.$img;
             }
-            if (!str_starts_with($img, 'http')) {
-                return rtrim(dirname($baseUrl), '/') . '/' . $img;
+            if (! str_starts_with($img, 'http')) {
+                return rtrim(dirname($baseUrl), '/').'/'.$img;
             }
+
             return $img;
         }, $images);
 
@@ -129,6 +139,11 @@ class GenericAIScraper implements ScraperInterface
     private function fetchPage(string $url): ?string
     {
         try {
+            // Defense-in-depth — the controller already validates, but this
+            // service has multiple entry points (e.g. queued retries) so we
+            // re-check here.
+            \App\Services\EventScraper\SafeUrlValidator::check($url);
+
             $response = Http::timeout(30)
                 ->withHeaders([
                     'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -143,15 +158,16 @@ class GenericAIScraper implements ScraperInterface
 
             Log::warning('EventScraper: Failed to fetch page', [
                 'url' => $url,
-                'status' => $response->status()
+                'status' => $response->status(),
             ]);
 
             return null;
         } catch (\Exception $e) {
             Log::error('EventScraper: Exception fetching page', [
                 'url' => $url,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
@@ -175,7 +191,7 @@ class GenericAIScraper implements ScraperInterface
 
         // Truncate to ~15k chars to fit in context window
         if (strlen($html) > 15000) {
-            $html = substr($html, 0, 15000) . "\n[Content truncated...]";
+            $html = substr($html, 0, 15000)."\n[Content truncated...]";
         }
 
         return trim($html);
@@ -207,8 +223,8 @@ class GenericAIScraper implements ScraperInterface
                     'messages' => [
                         [
                             'role' => 'user',
-                            'content' => $prompt
-                        ]
+                            'content' => $prompt,
+                        ],
                     ],
                     'system' => 'You are an expert at extracting structured event information from web pages. Always respond with valid JSON only, no markdown formatting or code blocks. Just raw JSON.',
                 ]);
@@ -226,14 +242,15 @@ class GenericAIScraper implements ScraperInterface
 
             Log::error('EventScraper: Claude API error', [
                 'status' => $response->status(),
-                'body' => $response->body()
+                'body' => $response->body(),
             ]);
 
             return [];
         } catch (\Exception $e) {
             Log::error('EventScraper: Exception calling Claude', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return [];
         }
     }
@@ -243,7 +260,7 @@ class GenericAIScraper implements ScraperInterface
         try {
             $response = Http::timeout(60)
                 ->withHeaders([
-                    'Authorization' => 'Bearer ' . $this->openaiApiKey,
+                    'Authorization' => 'Bearer '.$this->openaiApiKey,
                     'Content-Type' => 'application/json',
                 ])
                 ->post('https://api.openai.com/v1/chat/completions', [
@@ -251,41 +268,43 @@ class GenericAIScraper implements ScraperInterface
                     'messages' => [
                         [
                             'role' => 'system',
-                            'content' => 'You are an expert at extracting structured event information from web pages. Always respond with valid JSON only, no markdown formatting.'
+                            'content' => 'You are an expert at extracting structured event information from web pages. Always respond with valid JSON only, no markdown formatting.',
                         ],
                         [
                             'role' => 'user',
-                            'content' => $prompt
-                        ]
+                            'content' => $prompt,
+                        ],
                     ],
                     'temperature' => 0.1,
-                    'response_format' => ['type' => 'json_object']
+                    'response_format' => ['type' => 'json_object'],
                 ]);
 
             if ($response->successful()) {
                 $data = $response->json();
                 $jsonContent = $data['choices'][0]['message']['content'] ?? '{}';
+
                 return json_decode($jsonContent, true) ?? [];
             }
 
             Log::error('EventScraper: OpenAI API error', [
                 'status' => $response->status(),
-                'body' => $response->body()
+                'body' => $response->body(),
             ]);
 
             return [];
         } catch (\Exception $e) {
             Log::error('EventScraper: Exception calling OpenAI', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return [];
         }
     }
 
     private function buildExtractionPrompt(string $content, string $url, array $images = []): string
     {
-        $imageList = !empty($images)
-            ? "IMAGES FOUND ON PAGE:\n" . implode("\n", $images) . "\n\n"
+        $imageList = ! empty($images)
+            ? "IMAGES FOUND ON PAGE:\n".implode("\n", $images)."\n\n"
             : "IMAGES: None found\n\n";
 
         return <<<PROMPT

@@ -2,10 +2,10 @@
 
 namespace App\Actions\Curated;
 
-use Illuminate\Http\Request;
 use App\Models\Curated\Card;
 use App\Models\Curated\Post;
 use App\Services\ImageHandler;
+use Illuminate\Http\Request;
 
 class CardActions
 {
@@ -27,16 +27,16 @@ class CardActions
             'url' => $request->url,
             'button_text' => $request->button_text,
             'type' => $request->type,
-            'order' => $request->order ?? ($post->cards()->exists() ? $post->cards->last()->order + 1 : 0)
+            'order' => $request->order ?? ($post->cards()->exists() ? $post->cards->last()->order + 1 : 0),
         ]);
 
         if ($request->hasFile('image')) {
             $request->validate([
-                'image' => 'image|mimes:jpeg,png,jpg,webp|max:8192'
+                'image' => 'image|mimes:jpeg,png,jpg,webp|max:8192',
             ]);
             ImageHandler::saveImage($request->file('image'), $card, 800, 500, 'card-images');
         }
-        
+
         return $post->load('cards.images', 'user');
     }
 
@@ -45,11 +45,13 @@ class CardActions
      */
     public function update(Request $request, Card $card)
     {
-        $card->update($request->except(['image', 'deleteImage']));
+        // Allow-list. Notably excluding `post_id` — without this, a curator could
+        // POST a different post_id and yank any card into their own post.
+        $card->update($request->only(['name', 'blurb', 'url', 'button_text', 'order', 'event_id', 'type']));
 
         if ($request->hasFile('image')) {
             $request->validate([
-                'image' => 'image|mimes:jpeg,png,jpg,webp|max:8192'
+                'image' => 'image|mimes:jpeg,png,jpg,webp|max:8192',
             ]);
             if ($card->images()->exists()) {
                 foreach ($card->images as $image) {
@@ -70,13 +72,13 @@ class CardActions
     {
         $post = $card->post;
         $deletedOrder = $card->order;
-        
+
         // Delete the card
         $card->destroyCard($card);
-        
+
         // Shift remaining cards up
         $this->shiftCardsOrder($post, $deletedOrder + 1, -1);
-        
+
         return $post->load('cards.images', 'user');
     }
 
@@ -96,7 +98,7 @@ class CardActions
         $cardsToShift = Card::where('post_id', $post->id)
             ->where('order', '>=', $position)
             ->get();
-        
+
         // Update their order
         foreach ($cardsToShift as $card) {
             $card->update(['order' => $card->order + $shift]);

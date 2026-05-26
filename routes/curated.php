@@ -87,13 +87,18 @@ Route::prefix('communities')->name('communities.')->group(function () {
                 Route::GET('/shelves/{shelf}/paginate', 'paginate');
             });
 
-            // Cards
-            Route::controller(CardController::class)->middleware('can:update,community')->group(function () {
-                Route::POST('/posts/{post}/cards', 'store');
-                Route::POST('/posts/{post}/cards/{card}', 'update');
-                Route::PUT('/posts/{post}/cards/order', 'order');
-                Route::DELETE('/posts/{post}/cards/{card}', 'destroy');
-            });
+            // Cards — scopeBindings() forces Laravel to verify {card}.post_id = {post}.id
+            // before resolving the binding, blocking the IDOR where a curator could
+            // edit any card by ID via /posts/{their_post}/cards/{other_post_card}.
+            Route::controller(CardController::class)
+                ->middleware('can:update,community')
+                ->scopeBindings()
+                ->group(function () {
+                    Route::POST('/posts/{post}/cards', 'store');
+                    Route::POST('/posts/{post}/cards/{card}', 'update');
+                    Route::PUT('/posts/{post}/cards/order', 'order');
+                    Route::DELETE('/posts/{post}/cards/{card}', 'destroy');
+                });
         });
         
         // Public routes - place after the protected routes to avoid conflicts

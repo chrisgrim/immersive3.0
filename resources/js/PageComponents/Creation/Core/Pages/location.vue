@@ -534,8 +534,12 @@ const setTimezoneFromCoordinates = async (lat, lng) => {
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     try {
-        const geoNamesUrl = `https://secure.geonames.org/timezoneJSON?lat=${lat}&lng=${lng}&username=chgrim`;
-        const response = await fetch(geoNamesUrl, { signal: controller.signal });
+        // Proxied through the Laravel API so the GeoNames username doesn't ship
+        // in the JS bundle. Response shape mirrors upstream — `timezoneId` etc.
+        const response = await fetch(`/api/geonames/timezone?lat=${lat}&lng=${lng}`, {
+            signal: controller.signal,
+            headers: { 'Accept': 'application/json' },
+        });
         const data = await response.json();
 
         if (data.timezoneId) {

@@ -374,10 +374,10 @@
 
                             <!-- Blurb Display Only -->
                             <div v-if="!onEdit">
-                                <div 
+                                <div
                                     @click="onEdit = true"
                                     class="card-blurb text-lg leading-relaxed cursor-pointer">
-                                    <div v-html="card.blurb" />
+                                    <div v-html="sanitizeBlurb(card.blurb)" />
                                 </div>
                             </div>
 

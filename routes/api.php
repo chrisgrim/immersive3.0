@@ -29,6 +29,7 @@ use App\Http\Controllers\CachedDataController;
 use App\Http\Controllers\Creation\EventClickController;
 use App\Http\Controllers\Api\SimilarEventsController;
 use App\Http\Controllers\Api\EventScraperController;
+use App\Http\Controllers\Api\GeonamesController;
 
 /*
 |--------------------------------------------------------------------------
@@ -68,9 +69,17 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])
         ->middleware('can:manage,event')
         ->name('event.update');
-    
+
     Route::GET('/events/{eventId}/click-stats', [EventClickController::class, 'getStats'])
         ->name('event.click.stats');
+});
+
+// Geonames timezone proxy — keeps the GeoNames username out of the JS bundle.
+// Auth-gated because only logged-in event creators hit this; tight throttle
+// since GeoNames itself rate-limits per username.
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
+    Route::GET('/geonames/timezone', [GeonamesController::class, 'timezone'])
+        ->name('geonames.timezone');
 });
 
 // Event duplication - Generous for legitimate use (20/min)

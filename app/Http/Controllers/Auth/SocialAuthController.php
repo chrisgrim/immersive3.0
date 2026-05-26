@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers\Auth;
 
-use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use Laravel\Socialite\Facades\Socialite;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Laravel\Socialite\Facades\Socialite;
 
 class SocialAuthController extends Controller
 {
@@ -22,13 +23,22 @@ class SocialAuthController extends Controller
     public function handleGoogleCallback(Request $request)
     {
         // Silently redirect if no code (user cancelled, back button, or direct URL access)
-        if (!$request->has('code')) {
+        if (! $request->has('code')) {
             return redirect()->route('login');
         }
 
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
-            
+
+            // H-S4: refuse to link/login if Google hasn't verified the email.
+            // Google always verifies for @gmail.com and Workspace, so this is
+            // effectively a defense-in-depth check; reject defensively if the
+            // claim is missing or false.
+            if (! ($googleUser->user['email_verified'] ?? false)) {
+                return redirect()->route('login')
+                    ->withErrors(['error' => 'Google has not verified this email. Please verify it on your Google account first.']);
+            }
+
             $user = User::where('email', $googleUser->email)->first();
 
             if ($user) {
@@ -55,13 +65,13 @@ class SocialAuthController extends Controller
                 if ($googleUser->avatar) {
                     $user->update([
                         'largeImagePath' => $googleUser->avatar,
-                        'thumbImagePath' => $googleUser->avatar
+                        'thumbImagePath' => $googleUser->avatar,
                     ]);
                 }
             }
-            
+
             Auth::login($user);
-            
+
             return redirect()->intended('/');
         } catch (\Exception $e) {
             Log::error('Google login error: ', [
@@ -69,9 +79,9 @@ class SocialAuthController extends Controller
                 'code' => $e->getCode(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            
+
             return redirect()->route('login')
                 ->withErrors(['error' => 'Failed to login with Google. Please try again.']);
         }
@@ -88,7 +98,16 @@ class SocialAuthController extends Controller
     {
         try {
             $appleUser = Socialite::driver('sign-in-with-apple')->user();
-            
+
+            // H-S4: Apple only releases an email once they've verified it, but
+            // the JWT carries an `email_verified` claim — historically as a
+            // string "true"/"false". Accept either form.
+            $verified = $appleUser->user['email_verified'] ?? false;
+            if ($verified !== true && $verified !== 'true' && $verified !== 1 && $verified !== '1') {
+                return redirect()->route('login')
+                    ->withErrors(['error' => 'Apple has not verified this email.']);
+            }
+
             $user = User::where('email', $appleUser->email)->first();
 
             if ($user) {
@@ -112,13 +131,14 @@ class SocialAuthController extends Controller
                     'silence' => 'n', // default silence setting
                 ]);
             }
-            
+
             Auth::login($user);
-            
+
             return redirect()->intended('/');
-            
+
         } catch (\Exception $e) {
-            Log::error('Apple login error: ' . $e->getMessage());
+            Log::error('Apple login error: '.$e->getMessage());
+
             return redirect()->route('login')
                 ->withErrors(['error' => 'Failed to login with Apple. Please try again.']);
         }
@@ -126,15 +146,31 @@ class SocialAuthController extends Controller
 
     public function redirectToGithub()
     {
-        return Socialite::driver('github')->redirect();
+        // H-S4: `user:email` scope lets us call /user/emails in the callback
+        // to verify the primary email — GitHub's default /user endpoint does
+        // not tell us whether the email is verified.
+        return Socialite::driver('github')
+            ->scopes(['user:email'])
+            ->redirect();
     }
 
     public function handleGithubCallback()
     {
         try {
             $githubUser = Socialite::driver('github')->user();
-            
-            $user = User::where('email', $githubUser->email)->first();
+
+            // H-S4: GitHub doesn't tell us via the user endpoint whether the
+            // email is verified — we have to ask /user/emails using the
+            // access token, and accept only the primary+verified row.
+            $verifiedEmail = $this->fetchVerifiedGithubEmail($githubUser->token);
+            if (! $verifiedEmail) {
+                return redirect()->route('login')
+                    ->withErrors(['error' => 'GitHub has not verified an email on this account. Please verify your primary email at github.com/settings/emails, then try again.']);
+            }
+
+            // Use the verified email rather than whatever default GitHub returned —
+            // they can disagree if the user has multiple emails.
+            $user = User::where('email', $verifiedEmail)->first();
 
             if ($user) {
                 // Update existing user
@@ -144,10 +180,11 @@ class SocialAuthController extends Controller
                     'email_verified_at' => $user->email_verified_at ?? now(),
                 ]);
             } else {
-                // Create new user
+                // Create new user — bind to the verified email, not whatever
+                // GitHub returns by default.
                 $user = User::create([
                     'name' => $githubUser->name ?? $githubUser->nickname,
-                    'email' => $githubUser->email,
+                    'email' => $verifiedEmail,
                     'provider' => 'github',
                     'provider_id' => $githubUser->id,
                     'email_verified_at' => now(),
@@ -160,19 +197,54 @@ class SocialAuthController extends Controller
                 if ($githubUser->avatar) {
                     $user->update([
                         'largeImagePath' => $githubUser->avatar,
-                        'thumbImagePath' => $githubUser->avatar
+                        'thumbImagePath' => $githubUser->avatar,
                     ]);
                 }
             }
-            
+
             Auth::login($user);
-            
+
             return redirect()->intended('/');
-            
+
         } catch (\Exception $e) {
-            Log::error('GitHub login error: ' . $e->getMessage());
+            Log::error('GitHub login error: '.$e->getMessage());
+
             return redirect()->route('login')
                 ->withErrors(['error' => 'Failed to login with GitHub. Please try again.']);
         }
+    }
+
+    /**
+     * Fetch the user's primary, verified email from GitHub's /user/emails API.
+     * Returns the verified email address, or null if no primary+verified row
+     * exists (typical when the account was created with an unverified email).
+     */
+    protected function fetchVerifiedGithubEmail(string $token): ?string
+    {
+        try {
+            $response = Http::timeout(5)
+                ->withHeaders([
+                    'Authorization' => 'Bearer '.$token,
+                    'Accept' => 'application/vnd.github+json',
+                    'User-Agent' => 'everything-immersive',
+                ])
+                ->get('https://api.github.com/user/emails');
+
+            if (! $response->successful()) {
+                Log::warning('GitHub /user/emails non-2xx', ['status' => $response->status()]);
+
+                return null;
+            }
+
+            foreach ($response->json() ?? [] as $row) {
+                if (($row['primary'] ?? false) && ($row['verified'] ?? false)) {
+                    return $row['email'] ?? null;
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('GitHub /user/emails exception: '.$e->getMessage());
+        }
+
+        return null;
     }
 }

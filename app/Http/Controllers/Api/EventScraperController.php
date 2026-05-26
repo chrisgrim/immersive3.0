@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\Organizer;
 use App\Services\EventScraper\EventScraperService;
+use App\Services\EventScraper\SafeUrlValidator;
 use App\Services\EventScraper\ScrapedEventData;
+use App\Services\EventScraper\UnsafeUrlException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -37,13 +39,26 @@ class EventScraperController extends Controller
         $urls = $request->input('urls') ?? [$request->input('url')];
 
         // Filter out empty URLs
-        $urls = array_filter($urls, fn($url) => !empty(trim($url)));
+        $urls = array_filter($urls, fn ($url) => ! empty(trim($url)));
         $urls = array_values($urls); // Re-index array
 
         if (empty($urls)) {
             return response()->json([
                 'success' => false,
-                'error' => 'At least one valid URL is required'
+                'error' => 'At least one valid URL is required',
+            ], 422);
+        }
+
+        // SSRF guard — block private / loopback / link-local IPs before any
+        // server-side fetch happens. Validate before doing any work.
+        try {
+            foreach ($urls as $url) {
+                SafeUrlValidator::check($url);
+            }
+        } catch (UnsafeUrlException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'URL is not allowed: '.$e->getMessage(),
             ], 422);
         }
 
@@ -74,12 +89,12 @@ class EventScraperController extends Controller
             \Log::error('EventScraper: Extract failed', [
                 'urls' => $urls,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'error' => 'Scraping failed: ' . $e->getMessage()
+                'error' => 'Scraping failed: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -100,7 +115,7 @@ class EventScraperController extends Controller
                 ->select('id', 'name', 'slug', 'status')
                 ->withoutGlobalScopes()
                 ->get()
-                ->map(fn($event) => [
+                ->map(fn ($event) => [
                     'id' => $event->id,
                     'name' => $event->name,
                     'slug' => $event->slug,
@@ -117,7 +132,7 @@ class EventScraperController extends Controller
                 ->select('id', 'name', 'slug', 'status')
                 ->withoutGlobalScopes()
                 ->get()
-                ->map(fn($org) => [
+                ->map(fn ($org) => [
                     'id' => $org->id,
                     'name' => $org->name,
                     'slug' => $org->slug,
@@ -140,11 +155,20 @@ class EventScraperController extends Controller
     {
         $url = $request->query('url');
 
-        if (!$url) {
+        if (! $url) {
             return response()->json([
                 'error' => 'Missing url parameter',
-                'usage' => 'GET /api/scraper/test?url=https://example.com/event'
+                'usage' => 'GET /api/scraper/test?url=https://example.com/event',
             ], 400);
+        }
+
+        // SSRF guard — same as extract().
+        try {
+            SafeUrlValidator::check($url);
+        } catch (UnsafeUrlException $e) {
+            return response()->json([
+                'error' => 'URL is not allowed: '.$e->getMessage(),
+            ], 422);
         }
 
         $result = $this->scraperService->scrape($url);
@@ -155,7 +179,7 @@ class EventScraperController extends Controller
             'meta' => [
                 'completion_percentage' => $result->getCompletionPercentage(),
                 'fields_needing_review' => $result->getFieldsNeedingReview(),
-            ]
+            ],
         ]);
     }
 }
