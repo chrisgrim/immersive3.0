@@ -45,14 +45,30 @@
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Email</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Owner</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Members</th>
-                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Delete</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 text-xl">
                     <tr v-for="organizer in organizers" :key="organizer.id">
-                        <td class="px-6 py-4 whitespace-nowrap">{{ organizer.id }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <a
+                                :href="`/organizers/${organizer.slug}`"
+                                target="_blank"
+                                rel="noopener"
+                                class="text-blue-600 hover:underline"
+                            >
+                                {{ organizer.id }}
+                            </a>
+                        </td>
                         <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto min-w-[18rem]">
-                            {{ organizer.name }}
+                            <a
+                                :href="`/organizers/${organizer.slug}`"
+                                target="_blank"
+                                rel="noopener"
+                                class="text-blue-600 hover:underline"
+                            >
+                                {{ organizer.name }}
+                            </a>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             {{ organizer.email }}
@@ -73,13 +89,32 @@
                                 {{ organizer.users?.length || 0 }} Members
                             </button>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <button 
-                                @click="confirmDelete(organizer)"
-                                class="text-red-600 hover:text-red-900"
-                            >
-                                Delete
+                        <td class="px-6 py-4 whitespace-nowrap relative">
+                            <button
+                                @click.stop="toggleActionsMenu(organizer)"
+                                class="px-3 py-1 rounded-md hover:bg-gray-100 focus:outline-none text-xl font-bold leading-none"
+                                aria-haspopup="menu"
+                                :aria-expanded="openActionsMenuId === organizer.id">
+                                ⋯
                             </button>
+                            <div
+                                v-if="openActionsMenuId === organizer.id"
+                                v-click-outside="closeActionsMenu"
+                                role="menu"
+                                class="absolute right-6 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+                                <button
+                                    @click="openMoveEvents(organizer)"
+                                    role="menuitem"
+                                    class="w-full text-left px-4 py-3 hover:bg-gray-50">
+                                    Move Events…
+                                </button>
+                                <button
+                                    @click="confirmDelete(organizer); closeActionsMenu()"
+                                    role="menuitem"
+                                    class="w-full text-left px-4 py-3 text-red-600 hover:bg-gray-50 border-t border-gray-200">
+                                    Delete
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 </tbody>
@@ -230,7 +265,7 @@
                 <!-- Footer -->
                 <div class="p-8 border-t border-neutral-400 bg-white md:rounded-b-2xl">
                     <div class="flex justify-end space-x-4">
-                        <button 
+                        <button
                             @click="closeMembersModal"
                             class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg- text-xl"
                         >
@@ -239,6 +274,128 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Move Events Modal -->
+        <div v-if="showMoveEventsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
+            <div class="bg-white w-full md:max-w-3xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
+                <!-- Header -->
+                <div class="p-8 pb-4">
+                    <h2 class="text-2xl font-bold mb-1">Move Events</h2>
+                    <p class="text-gray-500 font-normal">Move all events from <strong>{{ moveSource?.name }}</strong> to another organizer.</p>
+                </div>
+
+                <!-- Scrollable content -->
+                <div class="p-8 pt-2 overflow-y-auto flex-1">
+                    <!-- Step 1: Pick destination -->
+                    <div v-if="!moveDestination">
+                        <p class="text-gray-500 font-normal mb-3">Search for the destination organizer</p>
+                        <input
+                            v-model="moveDestinationSearch"
+                            placeholder="Search by name, email, or ID…"
+                            class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4">
+
+                        <div v-if="moveDestinationResults.length" class="mt-4 space-y-2">
+                            <button
+                                v-for="org in moveDestinationResults"
+                                :key="org.id"
+                                @click="selectMoveDestination(org)"
+                                :disabled="org.id === moveSource?.id"
+                                class="w-full text-left p-4 border border-neutral-400 rounded-2xl hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                                <div class="text-xl">{{ org.name }}</div>
+                                <div class="text-gray-500 text-base">
+                                    /{{ org.slug }} · {{ org.email || '—' }}
+                                    <span v-if="org.id === moveSource?.id" class="text-orange-600 ml-2">(same as source)</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Confirmation -->
+                    <div v-else>
+                        <p class="text-gray-500 font-normal mb-4">Review and confirm</p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <!-- Source -->
+                            <div class="border-2 border-orange-300 bg-orange-50 rounded-2xl p-5">
+                                <div class="text-orange-700 text-sm font-semibold uppercase tracking-wider mb-2">Moving from</div>
+                                <div class="text-xl font-bold mb-1">{{ moveSource?.name }}</div>
+                                <div class="text-base text-gray-600 mb-3">/{{ moveSource?.slug }}</div>
+                                <a
+                                    :href="`/organizers/${moveSource?.slug}`"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="text-blue-600 hover:underline text-base">
+                                    View public page ↗
+                                </a>
+                            </div>
+
+                            <!-- Destination -->
+                            <div class="border-2 border-green-300 bg-green-50 rounded-2xl p-5">
+                                <div class="text-green-700 text-sm font-semibold uppercase tracking-wider mb-2">Moving to</div>
+                                <div class="text-xl font-bold mb-1">{{ moveDestination?.name }}</div>
+                                <div class="text-base text-gray-600 mb-3">/{{ moveDestination?.slug }}</div>
+                                <a
+                                    :href="`/organizers/${moveDestination?.slug}`"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="text-blue-600 hover:underline text-base">
+                                    View public page ↗
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Slug swap option -->
+                        <label class="flex items-start gap-3 p-4 border border-neutral-300 rounded-2xl cursor-pointer hover:bg-gray-50">
+                            <input
+                                type="checkbox"
+                                v-model="moveSwapSlug"
+                                class="mt-1 h-5 w-5">
+                            <div>
+                                <div class="text-lg font-semibold">Also move the source's URL to the destination</div>
+                                <div class="text-base text-gray-600 mt-1">
+                                    Destination URL: <code>/{{ moveDestination?.slug }}</code> → <code>/{{ moveSource?.slug }}</code><br>
+                                    Source URL: <code>/{{ moveSource?.slug }}</code> → <code>/{{ moveSource?.slug }}-old</code>
+                                </div>
+                            </div>
+                        </label>
+
+                        <p class="text-gray-500 text-base mt-6">
+                            The source organizer will NOT be deleted. Its members and contact info stay where they are. After the move, you can delete the source manually from the actions menu.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="p-8 border-t border-neutral-400 bg-white md:rounded-b-2xl">
+                    <div v-if="moveError" class="text-red-600 mb-4">{{ moveError }}</div>
+                    <div class="flex justify-end gap-4">
+                        <button
+                            v-if="moveDestination"
+                            @click="moveDestination = null; moveError = ''"
+                            class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-gray-100 text-xl">
+                            Back
+                        </button>
+                        <button
+                            @click="closeMoveEvents"
+                            class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-gray-100 text-xl">
+                            Cancel
+                        </button>
+                        <button
+                            v-if="moveDestination"
+                            @click="submitMoveEvents"
+                            :disabled="moveSubmitting"
+                            class="px-6 py-3 bg-red-600 text-white rounded-2xl hover:bg-red-700 disabled:opacity-50 text-xl">
+                            {{ moveSubmitting ? 'Moving…' : 'Move events' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success Toast -->
+        <div v-if="successToast" class="fixed bottom-8 right-8 bg-green-600 text-white px-6 py-4 rounded-2xl shadow-xl z-50 max-w-md">
+            {{ successToast }}
         </div>
     </div>
 </template>
@@ -265,6 +422,20 @@ const ownerSearchResults = ref([])
 const showOwnerModal = ref(false)
 const showMembersModal = ref(false)
 const selectedOrganizer = ref(null)
+
+// Actions menu (… dropdown per row)
+const openActionsMenuId = ref(null)
+
+// Move Events modal state
+const showMoveEventsModal = ref(false)
+const moveSource = ref(null)
+const moveDestination = ref(null)
+const moveDestinationSearch = ref('')
+const moveDestinationResults = ref([])
+const moveSwapSlug = ref(false)
+const moveSubmitting = ref(false)
+const moveError = ref('')
+const successToast = ref('')
 
 const filters = ref({
     search: '',
@@ -452,6 +623,90 @@ const closeMembersModal = () => {
     selectedOrganizer.value = null
     newMemberSearch.value = ''
     memberSearchResults.value = []
+}
+
+// ----- Actions menu (… dropdown) -----
+
+const toggleActionsMenu = (organizer) => {
+    openActionsMenuId.value = openActionsMenuId.value === organizer.id ? null : organizer.id
+}
+
+const closeActionsMenu = () => {
+    openActionsMenuId.value = null
+}
+
+// ----- Move Events flow -----
+
+const openMoveEvents = (organizer) => {
+    closeActionsMenu()
+    moveSource.value = organizer
+    moveDestination.value = null
+    moveDestinationSearch.value = ''
+    moveDestinationResults.value = []
+    moveSwapSlug.value = false
+    moveError.value = ''
+    showMoveEventsModal.value = true
+}
+
+const closeMoveEvents = () => {
+    showMoveEventsModal.value = false
+    moveSource.value = null
+    moveDestination.value = null
+    moveDestinationSearch.value = ''
+    moveDestinationResults.value = []
+    moveSwapSlug.value = false
+    moveError.value = ''
+}
+
+watch(moveDestinationSearch, debounce(async () => {
+    if (!moveDestinationSearch.value || moveDestinationSearch.value.length < 2) {
+        moveDestinationResults.value = []
+        return
+    }
+    try {
+        const response = await axios.get('/api/admin/manage/organizers', {
+            params: { search: moveDestinationSearch.value }
+        })
+        moveDestinationResults.value = response.data.data
+    } catch (error) {
+        console.error('Error searching organizers:', error)
+    }
+}, 300))
+
+const selectMoveDestination = (organizer) => {
+    moveDestination.value = organizer
+}
+
+const submitMoveEvents = async () => {
+    if (!moveSource.value || !moveDestination.value) return
+
+    moveSubmitting.value = true
+    moveError.value = ''
+
+    try {
+        const response = await axios.post(
+            `/api/admin/manage/organizers/${moveSource.value.slug}/move-events`,
+            {
+                destination_organizer_id: moveDestination.value.id,
+                swap_slug: moveSwapSlug.value,
+            }
+        )
+
+        // Update both rows in place — no full refresh needed.
+        const { source, destination, moved_count } = response.data
+        const srcIdx = organizers.value.findIndex(o => o.id === source.id)
+        if (srcIdx !== -1) organizers.value[srcIdx] = source
+        const destIdx = organizers.value.findIndex(o => o.id === destination.id)
+        if (destIdx !== -1) organizers.value[destIdx] = destination
+
+        successToast.value = `Moved ${moved_count} event(s) from "${source.name}" to "${destination.name}".`
+        setTimeout(() => { successToast.value = '' }, 6000)
+        closeMoveEvents()
+    } catch (error) {
+        moveError.value = error.response?.data?.message || 'Failed to move events.'
+    } finally {
+        moveSubmitting.value = false
+    }
 }
 </script>
 

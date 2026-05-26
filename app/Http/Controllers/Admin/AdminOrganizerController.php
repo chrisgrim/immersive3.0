@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Event;
 use App\Models\Organizer;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\Comments;
 use App\Models\Messaging\Message;
@@ -95,6 +97,87 @@ class AdminOrganizerController extends Controller
     {
         $organizer->deleteOrganizer($organizer);
         return response()->json(['message' => 'Organizer deleted successfully']);
+    }
+
+    /**
+     * Move all events from this organizer to another. Optionally swap slugs
+     * (destination takes the source's clean slug; source gets renamed with an
+     * "-old" suffix). Used by admins to clean up duplicate organizer entries
+     * (e.g. real venue creates their own org and we want to consolidate).
+     *
+     * The source organizer is NOT deleted — admin can delete manually after
+     * reviewing the result.
+     */
+    public function moveEvents(Request $request, Organizer $organizer)
+    {
+        $validated = $request->validate([
+            'destination_organizer_id' => 'required|integer|exists:organizers,id',
+            'swap_slug' => 'sometimes|boolean',
+        ]);
+
+        if ((int) $validated['destination_organizer_id'] === $organizer->id) {
+            return response()->json([
+                'message' => 'Source and destination organizers must be different.',
+            ], 422);
+        }
+
+        $destination = Organizer::findOrFail($validated['destination_organizer_id']);
+        $sourceSlug = $organizer->slug;
+        $movedCount = 0;
+
+        DB::transaction(function () use ($organizer, $destination, $validated, $sourceSlug, &$movedCount) {
+            // Move events. Includes soft-deleted in case admin wants those moved too.
+            $movedCount = Event::withTrashed()
+                ->where('organizer_id', $organizer->id)
+                ->update(['organizer_id' => $destination->id]);
+
+            if (! empty($validated['swap_slug'])) {
+                // Source becomes "{slug}-old" (or "-old-2", "-old-3", ... if taken).
+                // Then destination takes the source's original clean slug.
+                $organizer->update(['slug' => $this->generateOldSlug($sourceSlug)]);
+                $destination->update(['slug' => $sourceSlug]);
+            }
+        });
+
+        // Notify the source organizer's owner — they need to know events moved.
+        if ($organizer->user && auth()->id() !== $organizer->user->id) {
+            $body = Message::MESSAGES['EVENTS_MOVED'] .
+                " {$movedCount} event(s) were moved from \"{$organizer->name}\" to \"{$destination->name}\".";
+
+            try {
+                Message::notification($organizer->fresh(), $body, $destination->fresh()->slug);
+                Mail::to($organizer->user)->send(new Comments($organizer->fresh(), $body, 'events_moved'));
+            } catch (\Exception $e) {
+                \Log::warning('Events-moved notification failed: '.$e->getMessage());
+            }
+        }
+
+        return response()->json([
+            'message' => "Moved {$movedCount} event(s).",
+            'moved_count' => $movedCount,
+            'source' => $organizer->fresh()->load(['owner', 'users']),
+            'destination' => $destination->fresh()->load(['owner', 'users']),
+        ]);
+    }
+
+    /**
+     * Find the next available "{slug}-old" variant. Tries `-old`, then
+     * `-old-2`, `-old-3`, etc. until one is unused.
+     */
+    protected function generateOldSlug(string $cleanSlug): string
+    {
+        $candidate = $cleanSlug.'-old';
+        $i = 2;
+        while (Organizer::where('slug', $candidate)->exists()) {
+            $candidate = $cleanSlug.'-old-'.$i;
+            $i++;
+            if ($i > 100) {
+                // Safety valve — exceptional case, fall back to timestamped.
+                return $cleanSlug.'-old-'.now()->timestamp;
+            }
+        }
+
+        return $candidate;
     }
 
     public function getPending()

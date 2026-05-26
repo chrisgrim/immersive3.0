@@ -151,6 +151,7 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
                 Route::GET('/organizers', 'index');
                 Route::PATCH('/organizers/{organizer}', 'update');
                 Route::DELETE('/organizers/{organizer}', 'destroy');
+                Route::POST('/organizers/{organizer}/move-events', 'moveEvents');
             });
         });
 

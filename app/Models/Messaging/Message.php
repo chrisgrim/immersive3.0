@@ -29,6 +29,7 @@ class Message extends Model
         'ORGANIZER_APPROVED' => 'Your organization has been approved!',
         'COMMUNITY_REJECTED' => 'We have reviewed your community and have some feedback that needs to be addressed. Please see the details below:',
         'COMMUNITY_APPROVED' => 'Your community has been approved!',
+        'EVENTS_MOVED' => 'An admin has moved your events to another organization.',
     ];
 
     public function sender()
