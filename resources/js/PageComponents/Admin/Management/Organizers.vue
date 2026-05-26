@@ -313,7 +313,7 @@
                         <a
                             v-for="event in eventsModalEvents"
                             :key="event.id"
-                            :href="`/events/${event.slug}`"
+                            :href="eventLink(event)"
                             target="_blank"
                             rel="noopener"
                             class="flex items-center gap-4 p-3 border border-neutral-200 rounded-2xl hover:bg-gray-50 transition-colors">
@@ -331,8 +331,9 @@
                             <div class="flex-1 min-w-0">
                                 <div class="text-lg font-semibold truncate">{{ event.name }}</div>
                                 <div class="text-base text-gray-500 truncate">/{{ event.slug }}</div>
-                                <div class="text-sm mt-1">
+                                <div class="text-sm mt-1 flex items-center gap-2">
                                     <span :class="eventStatusClass(event.status)">{{ eventStatusLabel(event.status) }}</span>
+                                    <span v-if="!isPublicEvent(event)" class="text-gray-400 text-sm">→ opens in admin</span>
                                 </div>
                             </div>
                             <div class="flex-none text-gray-400 text-2xl">↗</div>
@@ -811,6 +812,14 @@ const eventStatusLabel = (status) => {
     }
     return map[status] || `Status: ${status}`
 }
+
+// Only "published" and "embargoed" have a working public page. Anything else
+// (in review, draft, needs revision, wizard steps) gets routed to the admin
+// review screen via ?eventId so the admin can act on it directly.
+const isPublicEvent = (event) => event.status === 'p' || event.status === 'e'
+const eventLink = (event) => isPublicEvent(event)
+    ? `/events/${event.slug}`
+    : `/admin/dashboard?eventId=${event.id}`
 
 const eventStatusClass = (status) => {
     if (status === 'p' || status === 'e') return 'inline-block px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-sm'
