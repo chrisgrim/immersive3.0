@@ -149,6 +149,7 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
             Route::GET('/organizers/{organizer}', 'show');
             Route::prefix('manage')->group(function () {
                 Route::GET('/organizers', 'index');
+                Route::GET('/organizers/{organizer}/events', 'events');
                 Route::PATCH('/organizers/{organizer}', 'update');
                 Route::DELETE('/organizers/{organizer}', 'destroy');
                 Route::POST('/organizers/{organizer}/move-events', 'moveEvents');

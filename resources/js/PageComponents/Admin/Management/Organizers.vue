@@ -45,6 +45,7 @@
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Email</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Owner</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Members</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Events</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
@@ -82,11 +83,19 @@
                             </button>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <button 
+                            <button
                                 @click="toggleMembersList(organizer)"
                                 class="px-3 py-1 border rounded-md hover:bg- focus:outline-none"
                             >
                                 {{ organizer.users?.length || 0 }} Members
+                            </button>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <button
+                                @click="openEventsModal(organizer)"
+                                :disabled="(organizer.events_count || 0) === 0"
+                                class="px-3 py-1 border rounded-md hover:bg-gray-50 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed">
+                                {{ organizer.events_count || 0 }} Event{{ (organizer.events_count || 0) === 1 ? '' : 's' }}
                             </button>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap relative">
@@ -277,6 +286,73 @@
             </div>
         </div>
 
+        <!-- Events List Modal -->
+        <div v-if="showEventsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
+            <div class="bg-white w-full md:max-w-3xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col h-[80vh] md:h-[700px] relative z-50">
+                <!-- Header -->
+                <div class="p-8 pb-4 flex-none border-b border-neutral-200">
+                    <h2 class="text-2xl font-bold mb-1">Events</h2>
+                    <p class="text-gray-500 font-normal">
+                        {{ eventsModalOrganizer?.name }}
+                        <span class="text-gray-400">·</span>
+                        <span class="text-gray-400">{{ eventsModalEvents.length }} total</span>
+                    </p>
+                </div>
+
+                <!-- Content -->
+                <div class="p-8 overflow-y-auto flex-1">
+                    <div v-if="eventsModalLoading" class="flex items-center justify-center h-32">
+                        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+                    </div>
+
+                    <div v-else-if="eventsModalEvents.length === 0" class="text-gray-500 text-base text-center py-12">
+                        This organizer has no events.
+                    </div>
+
+                    <div v-else class="space-y-3">
+                        <a
+                            v-for="event in eventsModalEvents"
+                            :key="event.id"
+                            :href="`/events/${event.slug}`"
+                            target="_blank"
+                            rel="noopener"
+                            class="flex items-center gap-4 p-3 border border-neutral-200 rounded-2xl hover:bg-gray-50 transition-colors">
+                            <!-- Thumbnail -->
+                            <div class="flex-none w-20 h-20 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center">
+                                <img
+                                    v-if="event.thumbImagePath || event.largeImagePath"
+                                    :src="imageUrl + (event.thumbImagePath || event.largeImagePath)"
+                                    :alt="event.name"
+                                    class="w-full h-full object-cover"
+                                    loading="lazy">
+                                <span v-else class="text-gray-400 text-3xl">{{ event.name?.charAt(0) || '?' }}</span>
+                            </div>
+                            <!-- Info -->
+                            <div class="flex-1 min-w-0">
+                                <div class="text-lg font-semibold truncate">{{ event.name }}</div>
+                                <div class="text-base text-gray-500 truncate">/{{ event.slug }}</div>
+                                <div class="text-sm mt-1">
+                                    <span :class="eventStatusClass(event.status)">{{ eventStatusLabel(event.status) }}</span>
+                                </div>
+                            </div>
+                            <div class="flex-none text-gray-400 text-2xl">↗</div>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="p-8 border-t border-neutral-400 bg-white md:rounded-b-2xl">
+                    <div class="flex justify-end">
+                        <button
+                            @click="closeEventsModal"
+                            class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-gray-100 text-xl">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Move Events Modal -->
         <div v-if="showMoveEventsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
             <div class="bg-white w-full md:max-w-3xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col h-[80vh] md:h-[700px] relative z-50">
@@ -451,6 +527,15 @@ const successToast = ref('')
 const filteredMoveResults = computed(() =>
     moveDestinationResults.value.filter(o => o.id !== moveSource.value?.id)
 )
+
+// Events modal state
+const showEventsModal = ref(false)
+const eventsModalOrganizer = ref(null)
+const eventsModalEvents = ref([])
+const eventsModalLoading = ref(false)
+
+// Vite env for image CDN — same one the rest of the site uses.
+const imageUrl = import.meta.env.VITE_IMAGE_URL || '/'
 
 const filters = ref({
     search: '',
@@ -690,6 +775,48 @@ watch(moveDestinationSearch, debounce(async () => {
 
 const selectMoveDestination = (organizer) => {
     moveDestination.value = organizer
+}
+
+// ----- Events list modal -----
+
+const openEventsModal = async (organizer) => {
+    eventsModalOrganizer.value = organizer
+    eventsModalEvents.value = []
+    eventsModalLoading.value = true
+    showEventsModal.value = true
+
+    try {
+        const response = await axios.get(`/api/admin/manage/organizers/${organizer.slug}/events`)
+        eventsModalEvents.value = response.data
+    } catch (error) {
+        console.error('Error loading events:', error)
+    } finally {
+        eventsModalLoading.value = false
+    }
+}
+
+const closeEventsModal = () => {
+    showEventsModal.value = false
+    eventsModalOrganizer.value = null
+    eventsModalEvents.value = []
+}
+
+const eventStatusLabel = (status) => {
+    const map = {
+        p: 'Published',
+        e: 'Embargoed',
+        r: 'In Review',
+        n: 'Needs Revision',
+        d: 'Draft',
+    }
+    return map[status] || `Status: ${status}`
+}
+
+const eventStatusClass = (status) => {
+    if (status === 'p' || status === 'e') return 'inline-block px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-sm'
+    if (status === 'r') return 'inline-block px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 text-sm'
+    if (status === 'n') return 'inline-block px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-sm'
+    return 'inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-sm'
 }
 
 const submitMoveEvents = async () => {

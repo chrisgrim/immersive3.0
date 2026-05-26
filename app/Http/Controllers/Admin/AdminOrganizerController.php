@@ -18,6 +18,7 @@ class AdminOrganizerController extends Controller
     {
         $query = Organizer::query()
             ->with(['owner', 'users'])
+            ->withCount('events')
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
@@ -152,11 +153,16 @@ class AdminOrganizerController extends Controller
             }
         }
 
+        // Reload with eager-loads + fresh events_count so the admin table
+        // can swap rows in place without a pagination refresh.
+        $freshSource = Organizer::with(['owner', 'users'])->withCount('events')->find($organizer->id);
+        $freshDestination = Organizer::with(['owner', 'users'])->withCount('events')->find($destination->id);
+
         return response()->json([
             'message' => "Moved {$movedCount} event(s).",
             'moved_count' => $movedCount,
-            'source' => $organizer->fresh()->load(['owner', 'users']),
-            'destination' => $destination->fresh()->load(['owner', 'users']),
+            'source' => $freshSource,
+            'destination' => $freshDestination,
         ]);
     }
 
@@ -191,10 +197,23 @@ class AdminOrganizerController extends Controller
     public function show(Organizer $organizer)
     {
         return $organizer->load([
-            'owner', 
+            'owner',
             'images',
             'users'
         ]);
+    }
+
+    /**
+     * List events for an organizer — used by the admin "Events" modal.
+     * Returns a slim payload (id, name, slug, status, thumbImagePath) sorted
+     * most-recently-updated first.
+     */
+    public function events(Organizer $organizer)
+    {
+        return $organizer->events()
+            ->select(['id', 'name', 'slug', 'status', 'thumbImagePath', 'largeImagePath', 'updated_at'])
+            ->orderByDesc('updated_at')
+            ->get();
     }
 
     public function approve(Organizer $organizer)
