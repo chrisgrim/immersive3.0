@@ -1,7 +1,8 @@
 # EI Codebase Audit
 
-**Last fresh audit:** 2026-05-24
-**Method:** four specialist sub-agents (security, performance/DB, frontend, backend code-quality + test gaps) ran in parallel against the post-fix codebase. Critical findings were verified against the actual files before being recorded here. The previous audit's "already fixed" content has been pruned — see git history (`git log --oneline -30`) for the resolved items.
+**Last fresh audit:** 2026-05-24 (with major session update 2026-05-26 — server migration)
+**Production:** `64.23.181.106` (Ubuntu 24.04 LTS, PHP 8.4.21) as of 2026-05-26. Old droplet `143.198.58.168` (Ubuntu 24.10, PHP 8.3) is in proxy mode forwarding to new box during DNS propagation; will be destroyed once new box is stable (~1-2 weeks).
+**Method:** four specialist sub-agents (security, performance/DB, frontend, backend code-quality + test gaps) ran in parallel against the post-fix codebase. Critical findings were verified against the actual files before being recorded here. The previous audit's "already fixed" content has been pruned — see git history (`git log --oneline -40`) for the resolved items.
 
 This document is the **open work list**. Severity ranking is impact × likelihood × ease of exploitation, not just blast radius. Each finding cites file:line so you can jump straight in.
 
@@ -16,6 +17,7 @@ This document is the **open work list**. Severity ranking is impact × likelihoo
 - **Medium:** 9 — autoLogin email validation (M2), CSRF null-check (M3), organizer name lookup trim (M4), CORS allow-list (M5), axios timeout (M6), SearchStore Set (M7), six-month calc (M8), `isValidTimezone` wire-up (M14), name-change throttle (M15), and `showtype_config` persistence (M11) — left alone: M9 image dimensions, M12 attribute caching, M1 6-digit codes. Deferred: M10 (dates-wizard refactor needs splitting), M13 (cascade soft-delete needs child models to have SoftDeletes first).
 - **Low:** all 5 — map fallback (L1), `crypto.randomUUID` (L2), 91 `console.log` purge (L3), date-picker `aria-*` (L4), dead password-auth controllers deleted (L5).
 - **Plus:** TikTok URL widening, HostController null-organizer fix, Sentry SDKs wired, mews/purifier + DOMPurify wired.
+- **Cutover session (2026-05-26):** Server migration 24.10→24.04 LTS (new IP `64.23.181.106`); PHP 8.3→8.4.21; composer platform pin (`platform.php=8.3.11`) to prevent local-prod PHP drift breaking deploys; deploy.yml hardened (`set -euo pipefail`, smoke test step, `--exclude='vendor'` on rsync so failed composer install no longer wipes vendor); CR1 regression fixed (allow-list widened from `d,0-8` to `d,0-9,B,C` after legacy prod statuses 9/B/C triggered 422s on event edits — see `513c6a7`); ufw + PHP ini limits + `.env` perms hardened on new box; ES `network.host: _local_`.
 
 ---
 
@@ -23,58 +25,58 @@ This document is the **open work list**. Severity ranking is impact × likelihoo
 
 Run through this after each production deploy that includes any of the above fixes. Tick boxes as you go.
 
-### Pre-deploy (run BEFORE the next prod deploy)
+### Cutover follow-ups (post-migration to 64.23.181.106)
 
-- [ ] **H-M1 migration tracker SQL** — On prod DB, run this *before* `php artisan migrate`:
-  ```sql
-  UPDATE migrations
-  SET migration='2025_11_07_222950_add_start_date_to_events_table'
-  WHERE migration='2025_11_07_222950_add_showtype_config_to_events_table';
-  ```
-  Without this step, the deploy's `migrate` will see the renamed file as new, try to re-add `start_date`, and fail with a duplicate-column error.
-
-### Local dev (do now, one-time)
-
-- [ ] `php artisan migrate` on local — adds `showtype_config` column to local `ei` DB (M11; tests already pass because `ei_testing` is migrated fresh, but local dev DB hasn't run it yet).
+- [ ] **Set up rclone on new box** — daily 9am cron is installed in `crontab -l` but commented out. Need to: install rclone, copy/recreate `~/.config/rclone/rclone.conf` from old box (Ei_Prod + Ei_Dev DO Spaces remotes), then uncomment the cron line. The classifier blocked auto-copying the config because it contains Spaces credentials.
+- [ ] **Verify Let's Encrypt cert renewal on new box** — current certs were copied from old box; first auto-renewal will happen ~30 days before expiry via `snap.certbot.renew.timer` (already enabled). The 2026-05-26 dry-run for ei failed because DNS was mid-propagation. Re-run `certbot renew --dry-run` in 24h to confirm.
+- [ ] **Destroy old droplet** after ~1-2 weeks of stable operation on new box. Don't rush — old box is currently in nginx-proxy mode forwarding to new box, useful as fallback. Once destroyed, the proxy is gone and any visitor with cached old DNS gets a connection error rather than the proxied content.
+- [ ] **Bump `composer.json` `platform.php`** from `8.3.11` to `8.4.x` once new box has been stable for a week. Then `composer update --with-all-dependencies` to allow PHP 8.4-only deps.
+- [ ] **Plan Ubuntu 26.04 LTS upgrade** for August 2026 (when `26.04.1` releases and the LTS-to-LTS `do-release-upgrade` path opens). In-place upgrade on new box; should be ~30 min.
 
 ### Pending — to verify on next prod deploy
 
+**Smoke-tested during 2026-05-26 cutover** (mark ✅ here so we don't redo, but worth keeping in mind these were quick sanity checks, not deep verification):
+
+- [x] **Sentry backend** — confirmed working; backend project auto-captured the N+1 issues from real traffic.
+- [x] **Sentry frontend** — user ran the `setTimeout(throw)` smoke and confirmed in `EI_Vue` project.
+- [x] **H12 Vue error handler** — same smoke as above.
+- [x] **H-Q1 message email** — sent a tinker `Mail::raw` test from prod, arrived in `chgrim@gmail.com` within 1 min.
+- [x] **H-F1 location timezone timeout** — user dropped a pin, timezone autofilled correctly.
+- [x] **H-S4 OAuth verified-email gating** — user logged in via Google in incognito; flow works.
+- [x] **H-S5 card-edit blurb sanitization** — user edited a curated card, no JS errors.
+- [x] **H-S6 geonames proxy** — same as H-F1 verify; Network tab confirmed `/api/geonames/timezone` is the URL.
+
+**Still to verify (deeper checks, do at your convenience):**
+
 - [ ] **TikTok URL widening (`videos.url` → TEXT)** — Verify `mysql -uroot ei -e "SHOW COLUMNS FROM videos LIKE 'url'"` shows `text`. Live test: paste a long TikTok share link into an event's videos.
 - [ ] **HostController null-organizer fix** — Visit `/hosting` while logged in; watch Sentry for 24h for any `Attempt to read property "status" on null` recurrence.
-- [ ] **Sentry backend** — temporarily add `Route::get('/sentry-test', fn() => throw new \Exception('Sentry smoke'));`, deploy, hit it, delete the route, redeploy. Verify the issue appears in the Laravel project.
-- [ ] **Sentry frontend** — in browser console, `setTimeout(() => { throw new Error('frontend sentry smoke'); }, 0);`. Verify in the Vue project.
 - [ ] **C1 blurb sanitization** — view a curated post with bold/italic/link/heading — should still render; put `<img src=x onerror=alert(1)>` into a blurb — no alert.
 - [ ] **C2 message sanitization** — multi-line messages keep line breaks; `<script>alert(1)</script>` renders as text.
 - [ ] **H4 conversations unique index** — pre-flight aborts if dupes exist; otherwise `SHOW INDEX FROM conversations WHERE Key_name = 'conversations_participants_unique';` returns a row.
 - [ ] **H7 admin events page perf** — `/admin/manage/events` loads noticeably faster.
 - [ ] **H8 click archival cron** — after 24h, check `storage/logs/archive-clicks.log` for a "Deleted N rows" entry. Or run `php artisan ei:archive-clicks --days=999999` immediately to confirm wiring.
-- [ ] **H12 Vue error handler** — `setTimeout(() => { throw new Error('vue smoke'); }, 0);` shows `[Vue] …` in console AND lands in Sentry.
-- [ ] **H-Q1 message email** — send a message to a user whose `unread` is NULL (e.g., someone caught up on inbox) and confirm they receive the "new message about …" email. Send a *second* message before they read the first and confirm no second email fires.
-- [ ] **H-M1 migration rename — RUN BEFORE DEPLOY.** On prod DB, run: `UPDATE migrations SET migration='2025_11_07_222950_add_start_date_to_events_table' WHERE migration='2025_11_07_222950_add_showtype_config_to_events_table';`. Without this, `php artisan migrate` during deploy will try to re-run the renamed file and fail because `start_date` already exists. (Local dev DB already updated.)
-- [ ] **H-F1 location timezone timeout** — open the location wizard step, drop a pin, confirm timezone autofill works under normal conditions; with browser devtools' "Offline" mode on, confirm the UI doesn't hang past 8s.
 - [ ] **H-Q2 error-leak cleanup** — trigger a 500 (e.g., temporarily make an organizer update fail via DB constraint) and verify the JSON response body has *no* `error` field, only `message`. Confirm the Sentry issue still gets the full trace.
 - [ ] **H-Q4 admin event show perf** — load `/admin/manage/events/{slug}` and confirm `total_clicks` / `unique_visitors` still render on the page (proves the `loadCount` swap didn't break the shape the frontend reads).
 - [ ] **H-S1/H-S2 curated allow-list** — as a curator, attempt to POST `community_id` to a post update / `post_id` to a card update. Confirm both fields are silently ignored (response 200 but fresh model still has the original parent). Also confirm `/communities/A/posts/{post}/cards/{card_from_another_post}` returns 404 (scopeBindings working).
 - [ ] **H-S3 scraper SSRF guard** — `GET /api/scraper/test?url=http://169.254.169.254/` returns 422 with "URL is not allowed" message. A legitimate URL still works.
-- [ ] **H-S4 OAuth verified-email gating** — happy path: log in with Google as usual (Gmail always verified → works). GitHub login still works *only if* primary email is verified. (Optional negative test: temporarily mark your GitHub primary email as unverified at github.com/settings/emails, try login — should get the "verify your primary email" error.)
-- [ ] **H-S5 card-edit blurb sanitization** — open a card with HTML in its blurb, hit Edit Mode and back. Try saving `<img src=x onerror=alert(1)>` — no alert.
-- [ ] **H-S6 geonames proxy** — set `GEONAMES_USERNAME=chgrim` (or whatever username after rotation) in server `.env`. `php artisan config:cache`. Drop a pin in the location wizard; verify the timezone autofills. View Network tab — request should go to `/api/geonames/timezone`, NOT `secure.geonames.org`. Then **rotate the username** (geonames.org allows free creation of new usernames; the old one is in the published JS bundles).
 
 ### Pending manual actions (CR3 — secret rotation)
 
-`.env.local` was removed from git tracking in commit 70a502b, but **past commits still contain it**, so every credential below should be considered leaked since whenever it was first committed. Rotate in order, then update the server's `.env` directly (rsync excludes `.env` from deploys):
+`.env.local` was removed from git tracking in commit 70a502b, but **past commits still contain it**. On 2026-05-26 we audited what was *actually* in the committed file — most "leaked" secrets turned out to be blank placeholders. The real exposure list is much smaller than originally feared:
 
-- [ ] **`OPENAI_API_KEY`** — direct billing exposure. platform.openai.com → API Keys → revoke + create new. *(Highest urgency.)*
-- [ ] **`DO_ACCESS_KEY_ID` / `DO_SECRET_ACCESS_KEY`** — writes/deletes on `ei-test` Spaces bucket. cloud.digitalocean.com → API → Spaces Keys.
-- [ ] **`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`** — verify what they do (SES? backups?). Rotate via IAM, or delete the keys if unused.
-- [ ] **`GOOGLE_CLIENT_SECRET`** — console.cloud.google.com → APIs & Services → Credentials → reset secret.
-- [ ] **`GITHUB_CLIENT_SECRET`** — github.com/settings/developers → your OAuth app → generate new.
-- [ ] **`APPLE_CLIENT_SECRET`** — Apple developer console; regenerate the signed JWT secret.
-- [ ] **`MIX_GOOGLE_LOC_KEY`** — Google Maps. Same key is also baked into the production frontend bundle as `VITE_GOOGLE_MAPS_KEY`, so domain-restrict in GCP rather than relying on rotation alone.
-- [ ] **`APP_KEY`** — Laravel encryption key. Rotation invalidates every active session (everyone logged out on next request). Lower urgency; schedule for a low-traffic window. `php artisan key:generate --show` to generate without overwriting `.env`.
-- [ ] **`MAIL_PASSWORD`** — Mailtrap sandbox, low risk (can't send real mail). Rotate when convenient.
-- [ ] **`GEONAMES_USERNAME`** — *new* env var introduced by H-S6 fix. The current value (`chgrim`) was in published JS bundles for the lifetime of the old `location.vue`, so rotate to a fresh username on geonames.org and update prod `.env` (account creation is free).
-- [ ] **(Optional)** Add a `gitleaks` GitHub Action or pre-commit hook so future secret commits get blocked.
+**Verified safe (no action needed):**
+- ~~`OPENAI_API_KEY`~~ — blank in committed file; real key only ever lived in untracked local `.env`.
+- ~~`DO_SECRET_ACCESS_KEY`, `AWS_ACCESS_KEY_ID/SECRET`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_SECRET`, `APPLE_CLIENT_SECRET`~~ — all blank in commit.
+- ~~`APP_KEY`~~ — the leaked one (`CCorR5sFnp9RzcUZUU5WQwqcMI…`) is local-dev only. Verified prod has a different `APP_KEY` that was never committed. **No rotation needed.**
+
+**Actually exposed — rotate when convenient:**
+- [ ] **`DO_ACCESS_KEY_ID`** — `DO004YL84U4DBMWWWHKK` is in the git history. The matching secret was blank in the commit, so this alone grants nothing today, but rotate anyway as part of good hygiene. cloud.digitalocean.com → API → Spaces Keys.
+- [ ] **`MIX_GOOGLE_LOC_KEY`** — `AIzaSyBxpUKfSJMC4_3xwLU73AmH-jszjexoriw`. **Verified domain-locked** in GCP (luxe.test, luxe.demo-sites.space, everythingimmersive.com, etc.). Useless to attackers because of the restrictions. The *prod* EI Maps key is a different value not in git history. **Action: confirmed safe; no rotation needed.**
+- [ ] **`MAIL_USERNAME` / `MAIL_PASSWORD`** — Mailtrap sandbox creds (`8e6f73a4c15c7b` / `32891dd734efc8`). Can't send real mail. Rotate when convenient.
+- [ ] **`GEONAMES_USERNAME`** — `chgrim` was in published JS bundles too (separate from .env.local). Now properly proxied via `/api/geonames/timezone` after the H-S6 fix. Rotation requires: sign up for a fresh geonames.org username, update prod `.env`, `php artisan config:cache`. Low urgency since quota-only exposure.
+
+**Optional hardening:**
+- [ ] Add a `gitleaks` GitHub Action or pre-commit hook so future secret commits get blocked.
 
 ### Recurring
 
@@ -134,9 +136,11 @@ _All 3 fixed in code on 2026-05-24 (commit 70a502b). **CR3 still needs out-of-ba
 ### Performance
 
 - **H-P1. `User` model auto-loads 3+ count queries on every serialize.** `app/Models/User.php:60-69` has `$appends = ['hasCreatedOrganizers','hasMessages','isCommunityMember', …]` + `$with = ['organizer']`. Every JSON response (every paginated list, every conversation thread) fires `teams()->count()`, conversation count, `communities()->exists()` per row. `AdminUserController::index` paginates 20 → 60+ extra queries. **Fix:** drop appends, introduce `UserResource` with explicit fields.
+- **H-P1b. `Event` model has same `$appends` disease.** `app/Models/Event.php:40` — `$appends = ['isFavorited', 'isShowing']`. Every event serialization triggers a `favorites` lookup (`isFavorited`) per row. Sentry's `EI-LARAVEL-3` shows ~5 events on `/index/search` per search request. **Fix:** drop appends → introduce `EventResource` / bulk-load favorites for the authed user once per request, check in memory.
 - **H-P2. `ListingsController` runs every Elasticsearch search twice.** `app/Http/Controllers/Search/ListingsController.php:295-309` and `380-394` run the full query once for `paginate(20)` and again to compute `max_price`. **Fix:** use the Scout-Plus builder's `aggregate(...)` to get both from one ES round-trip.
 - **H-P3. `CommunityPolicy::isCurator` materializes the whole curators collection.** `app/Policies/CommunityPolicy.php:18` — `$community->curators->contains('id', $user->id)`. Called by `curator`, `update`, `preview`, `removeSelf` — many times per page. A community with 30 curators hydrates 30 User models per check. **Fix:** `$community->curators()->whereKey($user->id)->exists()`.
 - **H-P4. `CommunityController::listings` and `show` are N+1 per shelf.** `app/Http/Controllers/Curated/CommunityController.php:64-66, 130-141` — each shelf triggers its own `posts()->paginate(8)` and `limitedCards` eager-load. A community with 12 shelves = 24+ extra queries. `listings()` is worse because it never paginates the outer shelf list. **Fix:** eager-load `shelves.posts.limitedCards` once, paginate in memory or per-shelf in a single query.
+- **H-P5. Homepage lazy-loads posts + communities one-by-one.** `app/Http/Controllers/IndexController.php:16-55` does an extensive eager-load chain, but Sentry (`EI-LARAVEL-1`, `EI-LARAVEL-2`) shows 36 events each of `select * from posts where id = ? limit 1` and `select * from communities where id in (1)` per homepage view. Some Blade view in the `index.blade.php` tree is accessing a relation property that wasn't included in the eager-load. **Fix:** in dev, enable `Model::preventLazyLoading()` in `AppServiceProvider::boot()`, hit `/`, trace which `$something->relation` triggers, add to the controller's `with(...)`. Probably needs `'posts.user'`, `'cards.post'`, or `'communities.curators'` somewhere.
 
 ### Backend correctness
 
@@ -214,6 +218,7 @@ _All 3 fixed in code on 2026-05-24 (commit 70a502b). **CR3 still needs out-of-ba
 - **L7. Dead admin-mail loop in `NameChangeRequestService:41-44`.** `foreach ($admins as $admin) { /* Mail::to(...) commented out */ }` — admins are never notified, but `User::where('type', 'a')->get()` runs every request. **Fix:** delete the loop or uncomment the mail.
 - **L8. `AdminDocksController` has a duplicated 40-line eager-load block.** `:25-67` and `:155-194` are identical. **Fix:** extract `getOrderedDocks()` helper.
 - **L9. Frontend `v-for` lacks `:key` in several lists.** `Curated/Posts/event-search.vue:31`, `Curated/Communities/index.vue:35`, `show.vue:96`, `album-show.vue:7`, `grid-shelf.vue:10`. **Fix:** add `:key="item.id"`.
+- **L10. Sentry doesn't capture 422 validation errors by default.** Laravel's `ValidationException` is in the don't-report list. The CR1 regression on 2026-05-26 (status `'C'` rejected by the allow-list) caused 422s for hours and only surfaced when a user reported it — Sentry would have caught it within minutes of deploy if we captured authed 422s. **Fix (5 lines in `bootstrap/app.php`):** capture `ValidationException` as `warning` severity, *only* when there's an authenticated user (skips bot noise) and tag with `exception_type=validation`. Set up a Sentry inbox rule that mutes them by default so they're queryable but not paging.
 
 ---
 
@@ -225,12 +230,14 @@ _All 3 fixed in code on 2026-05-24 (commit 70a502b). **CR3 still needs out-of-ba
 - **No `JsonResource` adoption — full models serialize on every response.** Every endpoint sends model + all appends + all loaded relations. The right fix is incremental: introduce `EventListResource`, `EventDetailResource`, `UserListResource` for the highest-traffic endpoints first.
 - **No TypeScript.** 201 `.vue` + `.js` files, no `.ts`. Big migration, not urgent — better done opportunistically when refactoring big components.
 - **`OrganizerPolicy::switchTeam` moderator superpower (H1).** Confirmed intentional. Documented in `OrganizerPolicy` docblock.
+- **Local/prod parity for catching version drift early.** The 2026-05-26 deploy outage was caused by local PHP 8.4 generating a `composer.lock` that demanded PHP 8.4 features, then a server PHP 8.3 silently failing `composer install`. Bandaid fix: `composer.json` now pins `platform.php`. Real fix options when next visited: (a) add a CI step that runs `composer install` under the prod PHP version against the committed lock (would catch this entire class of bug pre-merge), (b) move dev to Docker/Herd for exact prod parity. Option (a) is the minimum-effort high-value follow-up.
+- **CI: linting still has 20+ pre-existing format issues** flagged by `pint --test` (mostly old migrations + a few routes/tests). Run `./vendor/bin/pint` on its own commit to clean up at low risk; many are whitespace-only.
 
 ---
 
 ## Test coverage gaps (ranked by value-vs-effort)
 
-Per the backend agent's analysis. Current state: 146 tests / 302 assertions / ~4s.
+Per the backend agent's analysis. Current state: **173 tests / 344 assertions / ~4-5s** (as of 2026-05-26).
 
 | Priority | Gap | Effort | Why |
 |---|---|---|---|
@@ -249,21 +256,21 @@ Per the backend agent's analysis. Current state: 146 tests / 302 assertions / ~4
 
 ## Quick wins under 1 hour each (do-now shortlist)
 
-If you have an hour and want maximum impact:
+(Items struck through have been completed since this list was written; left here for history.)
 
-1. **CR1** — gate event-status mass-assignment. (security)
-2. **CR2** — admin-gate the user-type field. (security)
-3. **CR3** — `git rm --cached .env.local`, rotate secrets, add gitleaks. (security)
-4. **H-Q1** — fix `notifyReceiver` unread bug. (real user impact: notification emails)
-5. **H-S5** — sanitize `card-edit.vue:380` v-html.
-6. **H-Q4** — `withCount` for `AdminEventController::show` (finish H7).
-7. **H-Q2** — drop `$e->getMessage()` leaks from 7 catch blocks.
+1. ~~**CR1** — gate event-status mass-assignment.~~ Done + regression fix.
+2. ~~**CR2** — admin-gate the user-type field.~~ Done.
+3. ~~**CR3** — `git rm --cached .env.local`, rotate secrets, add gitleaks.~~ File untracked; rotation list still open in CR3 section.
+4. ~~**H-Q1** — fix `notifyReceiver` unread bug.~~ Done.
+5. ~~**H-S5** — sanitize `card-edit.vue:380` v-html.~~ Done.
+6. ~~**H-Q4** — `withCount` for `AdminEventController::show` (finish H7).~~ Done.
+7. ~~**H-Q2** — drop `$e->getMessage()` leaks.~~ Done (8 spots).
 8. **M-S1** — IP throttle on `/login/code` and `/login/verify`.
 9. **M-S3** — `orderBy` allow-list in `AdminAdvisoryController`.
 10. **M-P1** — cache `EventAttributesController` endpoints (the long-open M12).
 11. **M-P8** — `npm uninstall` the 8 unused deps.
 12. **M-F5** — `MapStore.subscribers` to `Set`.
 13. **M-F6** — wrap login in `<form>`.
-14. **H-M1** — rename the misleading 2025_11_07 migration filename.
+14. ~~**H-M1** — rename the misleading 2025_11_07 migration filename.~~ Done; tracker updated on dev + prod.
 
-That's a ~3-4 hour batch that closes every Critical, half the Highs, and several Mediums.
+Eight remaining items above = ~3-4 hour focused batch. None block the migration; all are pure tech-debt cleanup.
