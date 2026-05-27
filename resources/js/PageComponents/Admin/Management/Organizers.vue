@@ -356,9 +356,9 @@
 
         <!-- Move Events Modal -->
         <div v-if="showMoveEventsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
-            <div class="bg-white w-full md:max-w-3xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col h-[80vh] md:h-[700px] relative z-50">
+            <div class="bg-white w-full md:max-w-3xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col h-[80vh] md:h-[700px] relative z-50 overflow-hidden min-w-0">
                 <!-- Header -->
-                <div class="p-8 pb-4 flex-none">
+                <div class="p-8 pb-4 flex-none min-w-0">
                     <h2 class="text-2xl font-bold mb-3">Move Events</h2>
                     <!-- Persistent "Moving from" banner so source is always visible -->
                     <div class="border-2 border-orange-300 bg-orange-50 rounded-2xl p-4">
@@ -372,7 +372,7 @@
                 </div>
 
                 <!-- Scrollable content (fixed-size container — doesn't grow with results) -->
-                <div class="px-8 pb-4 overflow-y-auto flex-1">
+                <div class="px-8 pb-4 overflow-y-auto overflow-x-hidden flex-1 min-w-0">
                     <!-- Step 1: Pick destination -->
                     <div v-if="!moveDestination">
                         <p class="text-gray-500 font-normal mb-3">Search for the destination organizer</p>
@@ -423,26 +423,26 @@
                         </div>
 
                         <!-- Slug swap option -->
-                        <label class="block p-5 border border-neutral-300 rounded-2xl cursor-pointer hover:bg-gray-50">
-                            <div class="flex items-center gap-3 mb-3">
+                        <label class="block w-full p-5 border border-neutral-300 rounded-2xl cursor-pointer hover:bg-gray-50">
+                            <div class="mb-3">
                                 <input
                                     type="checkbox"
                                     v-model="moveSwapSlug"
-                                    class="h-5 w-5">
-                                <span class="text-lg font-semibold">Also move the source's URL to the destination</span>
+                                    class="h-5 w-5 align-middle mr-3">
+                                <span class="text-lg font-semibold align-middle">Also move the source's URL to the destination</span>
                             </div>
-                            <div class="text-base text-gray-600 space-y-2 pl-8">
-                                <div class="flex flex-wrap items-center gap-x-2">
+                            <div class="text-base text-gray-600 space-y-2 pl-8 min-w-0">
+                                <div class="flex flex-wrap items-center gap-x-2 min-w-0">
                                     <span class="font-medium w-32 inline-block">Destination URL:</span>
-                                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">/{{ moveDestination?.slug }}</span>
+                                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded break-all">/{{ moveDestination?.slug }}</span>
                                     <span>→</span>
-                                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">/{{ moveSource?.slug }}</span>
+                                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded break-all">/{{ moveSource?.slug }}</span>
                                 </div>
-                                <div class="flex flex-wrap items-center gap-x-2">
+                                <div class="flex flex-wrap items-center gap-x-2 min-w-0">
                                     <span class="font-medium w-32 inline-block">Source URL:</span>
-                                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">/{{ moveSource?.slug }}</span>
+                                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded break-all">/{{ moveSource?.slug }}</span>
                                     <span>→</span>
-                                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">/{{ moveSource?.slug }}-old</span>
+                                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded break-all">/{{ moveSource?.slug }}-old</span>
                                 </div>
                             </div>
                         </label>
