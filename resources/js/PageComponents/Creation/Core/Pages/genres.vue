@@ -97,7 +97,7 @@ const itemSelected = async (item) => {
     // Only add the genre if it has a valid ID
     if (item && item.id) {
         const genre = {
-            id: parseInt(item.id), // Ensure ID is a number
+            id: item.id,
             name: item.name
         };
         
@@ -151,10 +151,11 @@ defineExpose({
         return isValid;
     },
     submitData: () => ({
-        genres: event.genres.map(genre => ({
-            id: genre.id,
-            name: genre.name
-        }))
+        genres: event.genres.map(genre =>
+            Number.isInteger(genre.id)
+                ? { id: genre.id, name: genre.name }
+                : { name: genre.name }
+        )
     })
 });
 

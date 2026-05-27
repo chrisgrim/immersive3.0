@@ -121,7 +121,9 @@ const selectItem = (item) => {
 };
 
 const createItem = (name) => {
-    const newItem = { id: crypto.randomUUID(), name }; // Temporary client-side ID for the new item
+    // String-prefixed temp id — guarantees unique :key without crypto.randomUUID
+    // (unavailable on http://ei.test) and stays non-integer so submitData strips it.
+    const newItem = { id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name };
     emit('onSelect', newItem);
 
     searchTerm.value = '';
