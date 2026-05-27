@@ -249,9 +249,11 @@ test('update accepts legitimate wizard-step status values', function () {
     $event = Event::factory()->create(['organizer_id' => $organizer->id, 'status' => '0']);
     $user = memberOf($organizer);
 
-    // 'C' and 'B' included for prod-incident parity (events in those legacy
-    // wizard states were being rejected by the original CR1 allow-list).
-    foreach (['d', '1', '5', '9', 'B', 'C'] as $status) {
+    // 'A'-'D' are the Advisories/Content/Mobility/Review wizard step markers
+    // (see STEP_MAP in resources/js/PageComponents/Creation/Core/index.vue).
+    // 'A' and 'D' were missed by the original CR1 allow-list, leaving users
+    // stuck at the Advisories step with a 422.
+    foreach (['d', '1', '5', '9', 'A', 'B', 'C', 'D'] as $status) {
         $this->actingAs($user)
             ->postJson("/api/hosting/event/{$event->slug}", ['status' => $status])
             ->assertOk();

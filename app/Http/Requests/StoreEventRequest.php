@@ -56,12 +56,13 @@ class StoreEventRequest extends FormRequest
             'timezone' => 'sometimes|string|max:255',
             'showtype' => 'sometimes|string|in:s,a,o',
             // Statuses a user is allowed to set/persist on their own event:
-            //   'd' draft, '0'-'9' wizard step markers, 'B' and 'C' legacy
-            //   wizard states (3 + 1 prod events still carry these).
+            //   'd' draft, '0'-'9' wizard step markers, 'A'-'D' wizard step
+            //   markers for Advisories/Content/Mobility/Review (see STEP_MAP
+            //   in resources/js/PageComponents/Creation/Core/index.vue).
             // 'p' (published), 'e' (embargoed), 'r' (in-review), 'n' (needs
             // revision) are deliberately excluded — those transitions go
             // through the dedicated submit() / approve() / reject() endpoints.
-            'status' => 'sometimes|string|in:d,0,1,2,3,4,5,6,7,8,9,B,C',
+            'status' => 'sometimes|string|in:d,0,1,2,3,4,5,6,7,8,9,A,B,C,D',
             'dateArray' => [
                 'required_if:showtype,s',
                 'array',
