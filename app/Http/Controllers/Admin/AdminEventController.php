@@ -18,7 +18,18 @@ class AdminEventController extends Controller
     public function index(Request $request)
     {
         $query = Event::query()
-            ->with(['organizer', 'images', 'location', 'category', 'curatedCheck'])
+            // Eager-load favorites (Event appends isFavorited, which reads the
+            // favorites relation) and the category's events_count (Category
+            // appends hasEvent). Without these, paginating 20 events fires a
+            // favorites query and a category COUNT per row — see EI-LARAVEL-C.
+            ->with([
+                'organizer',
+                'images',
+                'location',
+                'curatedCheck',
+                'favorites',
+                'category' => fn ($q) => $q->withCount('events'),
+            ])
             ->withCount('clicks as total_clicks')
             ->withCount(['clicks as unique_visitors' => function ($q) {
                 $q->select(\DB::raw('COUNT(DISTINCT ip_address)'));
