@@ -32,6 +32,7 @@ class EventController extends Controller
         }
         
         $event->load([
+            'favorites',
             'category',
             'location',
             'contentAdvisories',
@@ -71,7 +72,7 @@ class EventController extends Controller
         return Event::where('status', 'p')
             ->where('organizer_id', $organizer->id)
             ->where('archived', false)
-            ->with(['category', 'genres'])
+            ->with(['category', 'genres', 'favorites'])
             ->orderByRaw('CASE WHEN closingDate >= NOW() THEN 0 ELSE 1 END')
             ->orderBy('created_at', 'desc')
             ->paginate($request->input('pageSize', 10));

@@ -39,6 +39,8 @@ class Event extends Model
 
     protected $appends = ['isFavorited', 'isShowing'];
 
+    protected $hidden = ['favorites'];
+
 
     protected static function booted()
     {

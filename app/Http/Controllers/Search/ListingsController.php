@@ -293,7 +293,7 @@ class ListingsController extends Controller
 
         // Execute search and paginate
         $results = Event::searchQuery($query)
-            ->load(['genres', 'category', 'location', 'attendanceType'])
+            ->load(['genres', 'category', 'location', 'attendanceType', 'favorites'])
             ->sortRaw(['published_at' => 'desc'])
             ->paginate(20);
 
@@ -378,7 +378,7 @@ class ListingsController extends Controller
 
         // Execute search
         $results = Event::searchQuery($query)
-            ->load(['genres', 'category', 'location', 'attendanceType'])
+            ->load(['genres', 'category', 'location', 'attendanceType', 'favorites'])
             ->sortRaw(['published_at' => 'desc'])
             ->paginate(20);
 

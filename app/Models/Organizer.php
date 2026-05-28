@@ -160,7 +160,7 @@ class Organizer extends Model
         return $query->with(['events' => function($query) {
             $query->where('status', 'p')
                 ->where('archived', false)
-                ->with(['category', 'genres']) // Add relationships needed for the listings
+                ->with(['category', 'genres', 'favorites']) // Add relationships needed for the listings
                 ->orderBy('created_at', 'desc')
                 ->paginate(10);
         }]);

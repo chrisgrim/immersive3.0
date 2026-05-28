@@ -52,7 +52,13 @@ trait Favoritable
      */
     public function isFavorited()
     {
-        return ! ! $this->favorites->where('user_id', auth()->id())->count();
+        $userId = auth()->id();
+
+        if (! $userId) {
+            return false;
+        }
+
+        return $this->favorites->where('user_id', $userId)->isNotEmpty();
     }
     /**
      * Fetch the favorited status as a property.
