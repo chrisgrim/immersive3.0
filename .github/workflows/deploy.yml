@@ -87,7 +87,15 @@ jobs:
           # old-vendor + new-code (mostly works) rather than no-vendor at all
           # (totally dead). composer install in the post-deploy step still
           # updates vendor on success.
+          # 'P' (protect) keeps the previous build's hashed JS/CSS chunks from
+          # being deleted by --delete. Clients still holding the old index.html
+          # (open tab / bfcache) lazy-import old chunk hashes; if those files are
+          # gone they 404 and Vue throws "error loading dynamically imported
+          # module". Keeping them lets in-flight sessions finish; fresh loads
+          # always get the new manifest + new files. Old chunks are pruned in the
+          # post-deploy step.
           rsync -avz --delete \
+            --filter='P public/build/assets/***' \
             --exclude='.git' \
             --exclude='node_modules' \
             --exclude='.env' \
@@ -121,6 +129,12 @@ jobs:
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
+
+            # Sweep build chunks left untouched for 30+ days. The rsync 'protect'
+            # rule keeps old hashed assets so mid-deploy sessions don't break;
+            # this stops them accumulating forever. 30 days is the grace window
+            # for a client to still be holding a stale index.html. Allowed to fail.
+            find $DEPLOY_PATH/public/build/assets -type f -mtime +30 -delete 2>/dev/null || true
 
             # Allowed to fail if queue isn't running.
             php artisan queue:restart 2>/dev/null || true
