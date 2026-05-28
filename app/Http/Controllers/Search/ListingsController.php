@@ -3,84 +3,83 @@
 namespace App\Http\Controllers\Search;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Event;
 use App\Models\Genre;
-use App\Models\Category;
-use Illuminate\Support\Arr;
 use Elastic\ScoutDriverPlus\Support\Query;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 
 class ListingsController extends Controller
 {
-
     protected function buildLocationFilter(Request $request)
     {
         // If searchType is null or not set, we should NOT filter by attendance_type_id
         // This allows the default search to include both in-person and remote events
-        if (!$request->searchType || $request->searchType === 'null') {
+        if (! $request->searchType || $request->searchType === 'null') {
             $geoFilter = null;
-            
+
             if ($request->lat && $request->lng) {
                 if (is_numeric($request->lat) && is_numeric($request->lng)) {
                     $geoFilter = Query::geoDistance()
                         ->field('location_latlon')
                         ->distance('40km')
-                        ->lat((float)$request->lat)
-                        ->lon((float)$request->lng);
+                        ->lat((float) $request->lat)
+                        ->lon((float) $request->lng);
                 } else {
                     \Log::warning('Invalid lat/lng coordinates received', [
                         'lat' => $request->lat,
                         'lng' => $request->lng,
-                        'city' => $request->city
+                        'city' => $request->city,
                     ]);
                 }
             }
-            
+
             return ['geoFilter' => $geoFilter];
         }
 
         if ($request->searchType === 'inPerson') {
             // Get in-person attendance type ID (should be 1 based on migration)
             $inPersonId = 1;
-            
+
             $geoFilter = null;
-            
+
             if ($request->lat && $request->lng) {
                 if (is_numeric($request->lat) && is_numeric($request->lng)) {
                     $geoFilter = Query::geoDistance()
                         ->field('location_latlon')
                         ->distance('40km')
-                        ->lat((float)$request->lat)
-                        ->lon((float)$request->lng);
+                        ->lat((float) $request->lat)
+                        ->lon((float) $request->lng);
                 } else {
                     \Log::warning('Invalid lat/lng coordinates received', [
                         'lat' => $request->lat,
                         'lng' => $request->lng,
-                        'city' => $request->city
+                        'city' => $request->city,
                     ]);
                 }
             }
-            
+
             return [
                 'attendanceType' => Query::term()->field('attendance_type_id')->value($inPersonId),
-                'inPersonCategories' => Category::where(function($query) use ($inPersonId) {
+                'inPersonCategories' => Category::withCount('events')->where(function ($query) use ($inPersonId) {
                     $query->whereJsonContains('applicable_attendance_types', $inPersonId)
-                          ->orWhereNull('applicable_attendance_types'); // Include categories without restrictions
+                        ->orWhereNull('applicable_attendance_types'); // Include categories without restrictions
                 })->get(),
-                'geoFilter' => $geoFilter
+                'geoFilter' => $geoFilter,
             ];
         }
 
         if ($request->searchType === 'atHome') {
             // Get remote attendance type ID (should be 2 based on migration)
             $remoteId = 2;
-            
+
             return [
                 'attendanceType' => Query::term()->field('attendance_type_id')->value($remoteId),
-                'remoteCategories' => Category::where(function($query) use ($remoteId) {
+                'remoteCategories' => Category::withCount('events')->where(function ($query) use ($remoteId) {
                     $query->whereJsonContains('applicable_attendance_types', $remoteId)
-                          ->orWhereNull('applicable_attendance_types'); // Include categories without restrictions
-                })->get()
+                        ->orWhereNull('applicable_attendance_types'); // Include categories without restrictions
+                })->get(),
             ];
         }
 
@@ -94,17 +93,17 @@ class ListingsController extends Controller
         // Category filters
         if ($request->category) {
             $categoryIds = [];
-            $inputCategories = is_array($request->category) 
-                ? $request->category 
-                : explode(",", $request->category);
-            
+            $inputCategories = is_array($request->category)
+                ? $request->category
+                : explode(',', $request->category);
+
             // Convert any string-based slugs to numeric IDs
             foreach ($inputCategories as $categoryInput) {
                 // Check if it's a valid number first
                 if (is_numeric($categoryInput)) {
                     // Already a numeric ID
-                    $categoryIds[] = (int)$categoryInput;
-                } else if ($categoryInput === "NaN") {
+                    $categoryIds[] = (int) $categoryInput;
+                } elseif ($categoryInput === 'NaN') {
                     // Handle explicit NaN from JavaScript conversion
                     continue;
                 } else {
@@ -115,11 +114,11 @@ class ListingsController extends Controller
                     }
                 }
             }
-            
+
             // Only proceed if we have valid IDs
-            if (!empty($categoryIds)) {
+            if (! empty($categoryIds)) {
                 $request->request->add(['category' => $categoryIds]);
-                $filters['searchedCategories'] = Category::find($categoryIds);
+                $filters['searchedCategories'] = Category::withCount('events')->find($categoryIds);
                 $filters['categories'] = Query::terms()->field('category_id')->values($categoryIds);
             }
         }
@@ -127,17 +126,17 @@ class ListingsController extends Controller
         // Add tag filter
         if ($request->tag) {
             $tagIds = [];
-            $inputTags = is_array($request->tag) 
-                ? $request->tag 
-                : explode(",", $request->tag);
-            
+            $inputTags = is_array($request->tag)
+                ? $request->tag
+                : explode(',', $request->tag);
+
             // Convert any string-based slugs to numeric IDs
             foreach ($inputTags as $tagInput) {
                 // Check if it's a valid number first
                 if (is_numeric($tagInput)) {
                     // Already a numeric ID
-                    $tagIds[] = (int)$tagInput;
-                } else if ($tagInput === "NaN") {
+                    $tagIds[] = (int) $tagInput;
+                } elseif ($tagInput === 'NaN') {
                     // Handle explicit NaN from JavaScript conversion
                     continue;
                 } else {
@@ -148,9 +147,9 @@ class ListingsController extends Controller
                     }
                 }
             }
-            
+
             // Only proceed if we have valid IDs
-            if (!empty($tagIds)) {
+            if (! empty($tagIds)) {
                 $filters['searchedTags'] = Genre::find($tagIds);
                 $filters['tags'] = Query::bool()
                     ->must(
@@ -164,11 +163,11 @@ class ListingsController extends Controller
         // Price filters
         if ($request->has('price0') || $request->has('price1')) {
             $minPrice = $request->has('price0') ? (float) $request->price0 : 0;
-            
+
             $filters['prices'] = Query::range()
                 ->field('priceranges.price')
                 ->gte($minPrice);
-            
+
             // Only add upper bound if price1 is set (meaning we're not at max)
             if ($request->has('price1')) {
                 $maxPrice = (float) $request->price1;
@@ -183,7 +182,7 @@ class ListingsController extends Controller
             // sends both bounds at 00:00:00, which would otherwise exclude any show
             // happening later in the day on the chosen end date.
             $start = \Carbon\Carbon::parse($request->start)->startOfDay()->format('Y-m-d H:i:s');
-            $end   = \Carbon\Carbon::parse($request->end)->endOfDay()->format('Y-m-d H:i:s');
+            $end = \Carbon\Carbon::parse($request->end)->endOfDay()->format('Y-m-d H:i:s');
 
             $dateFilter = Query::bool();
 
@@ -217,17 +216,18 @@ class ListingsController extends Controller
     protected function buildMapBoundaryFilter(Request $request)
     {
         // Only build boundary filter when live is explicitly 'true'
-        if (!isset($request->live) || $request->live !== 'true') {
+        if (! isset($request->live) || $request->live !== 'true') {
             return null;
         }
 
         // Validate that all required geo coordinates are present and numeric
         $requiredCoords = ['NElat', 'NElng', 'SWlat', 'SWlng'];
         foreach ($requiredCoords as $coord) {
-            if (!isset($request->$coord) || !is_numeric($request->$coord)) {
+            if (! isset($request->$coord) || ! is_numeric($request->$coord)) {
                 \Log::warning('Invalid geo boundary coordinates received', [
-                    'coordinates' => $request->only($requiredCoords)
+                    'coordinates' => $request->only($requiredCoords),
                 ]);
+
                 return null;
             }
         }
@@ -236,15 +236,15 @@ class ListingsController extends Controller
             'geo_bounding_box' => [
                 'location_latlon' => [
                     'top_right' => [
-                        'lat' => (float)$request->NElat,
-                        'lon' => (float)$request->NElng,
+                        'lat' => (float) $request->NElat,
+                        'lon' => (float) $request->NElng,
                     ],
                     'bottom_left' => [
-                        'lat' => (float)$request->SWlat,
-                        'lon' => (float)$request->SWlng,
-                    ]
-                ]
-            ]
+                        'lat' => (float) $request->SWlat,
+                        'lon' => (float) $request->SWlng,
+                    ],
+                ],
+            ],
         ]);
     }
 
@@ -301,8 +301,8 @@ class ListingsController extends Controller
         $maxPrice = Event::searchQuery($query)
             ->aggregate('max_price', [
                 'max' => [
-                    'field' => 'priceranges.price'
-                ]
+                    'field' => 'priceranges.price',
+                ],
             ])
             ->execute()
             ->aggregations()
@@ -316,7 +316,7 @@ class ListingsController extends Controller
             'per_page' => 20,       // Default per page
             'from' => null,         // No starting record
             'to' => null,           // No ending record
-            'last_page' => 1        // Default last page
+            'last_page' => 1,        // Default last page
         ];
 
         if ($results->total() > 0) {
@@ -330,11 +330,11 @@ class ListingsController extends Controller
 
         // Prepare view data
         $viewData = [
-            'categories' => $request->searchType === 'inPerson' 
-                ? ($locationFilters['inPersonCategories'] ?? Category::whereJsonContains('applicable_attendance_types', 1)->orWhereNull('applicable_attendance_types')->get())
-                : ($request->searchType === 'atHome' 
-                    ? ($locationFilters['remoteCategories'] ?? Category::whereJsonContains('applicable_attendance_types', 2)->orWhereNull('applicable_attendance_types')->get())
-                    : Category::all()),
+            'categories' => $request->searchType === 'inPerson'
+                ? ($locationFilters['inPersonCategories'] ?? Category::withCount('events')->whereJsonContains('applicable_attendance_types', 1)->orWhereNull('applicable_attendance_types')->get())
+                : ($request->searchType === 'atHome'
+                    ? ($locationFilters['remoteCategories'] ?? Category::withCount('events')->whereJsonContains('applicable_attendance_types', 2)->orWhereNull('applicable_attendance_types')->get())
+                    : Category::withCount('events')->get()),
             'tags' => Genre::where('admin', 1)->orderBy('rank', 'desc')->get(),
             'maxprice' => ceil($maxPrice),
             'searchedEvents' => $searchedEvents,
@@ -350,28 +350,29 @@ class ListingsController extends Controller
     }
 
     public function apiIndex(Request $request)
-    {   
+    {
         // Get location specific filters
         $locationFilters = $this->buildLocationFilter($request);
-        
+
         // Get search filters
         $searchFilters = $this->buildSearchFilters($request);
-        
+
         // Build map boundary filter if needed
         $boundaryFilter = $this->buildMapBoundaryFilter($request);
 
         // Build the main query
         $query = Query::bool()
             ->filter(Query::range()->field('closingDate')->gte('now/d'))
-            ->when($locationFilters['attendanceType'] ?? null, fn($q) => $q->filter($locationFilters['attendanceType']))
-            ->when($searchFilters['prices'] ?? null, fn($q) => $q->filter($searchFilters['prices']))
-            ->when($searchFilters['categories'] ?? null, fn($q) => $q->filter($searchFilters['categories']))
-            ->when($searchFilters['dates'] ?? null, fn($q) => $q->filter($searchFilters['dates']))
-            ->when($searchFilters['tags'] ?? null, fn($q) => $q->filter($searchFilters['tags']))
+            ->when($locationFilters['attendanceType'] ?? null, fn ($q) => $q->filter($locationFilters['attendanceType']))
+            ->when($searchFilters['prices'] ?? null, fn ($q) => $q->filter($searchFilters['prices']))
+            ->when($searchFilters['categories'] ?? null, fn ($q) => $q->filter($searchFilters['categories']))
+            ->when($searchFilters['dates'] ?? null, fn ($q) => $q->filter($searchFilters['dates']))
+            ->when($searchFilters['tags'] ?? null, fn ($q) => $q->filter($searchFilters['tags']))
             ->when(
-                ($request->searchType === 'inPerson' || !$request->searchType || $request->searchType === 'null') && isset($request->live),
-                function($q) use ($request, $boundaryFilter, $locationFilters) {
+                ($request->searchType === 'inPerson' || ! $request->searchType || $request->searchType === 'null') && isset($request->live),
+                function ($q) use ($request, $boundaryFilter, $locationFilters) {
                     $geoFilter = $request->live === 'true' ? $boundaryFilter : $locationFilters['geoFilter'];
+
                     return $geoFilter !== null ? $q->filter($geoFilter) : $q;
                 }
             );
@@ -386,8 +387,8 @@ class ListingsController extends Controller
         $maxPrice = Event::searchQuery($query)
             ->aggregate('max_price', [
                 'max' => [
-                    'field' => 'priceranges.price'
-                ]
+                    'field' => 'priceranges.price',
+                ],
             ])
             ->execute()
             ->aggregations()
@@ -402,7 +403,7 @@ class ListingsController extends Controller
             'from' => null,
             'to' => null,
             'last_page' => 1,
-            'maxPrice' => ceil($maxPrice)
+            'maxPrice' => ceil($maxPrice),
         ];
 
         if ($results->total() > 0) {
@@ -415,5 +416,4 @@ class ListingsController extends Controller
 
         return $response;
     }
-
 }

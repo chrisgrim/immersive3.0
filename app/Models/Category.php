@@ -2,20 +2,19 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 use App\Scopes\RankScope;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 class Category extends Model
 {
     /**
-    * What protected variables are allowed to be passed to the database
-    *
-    * @var array
-    */
+     * What protected variables are allowed to be passed to the database
+     *
+     * @var array
+     */
     protected $fillable = [
-    	'name', 'slug','description','largeImagePath', 'thumbImagePath', 'rank', 'remote','credit', 'type', 'applicable_attendance_types'
+        'name', 'slug', 'description', 'largeImagePath', 'thumbImagePath', 'rank', 'remote', 'credit', 'type', 'applicable_attendance_types',
     ];
 
     /**
@@ -37,34 +36,41 @@ class Category extends Model
 
     protected $casts = [
         'remote' => 'boolean',
-        'applicable_attendance_types' => 'array'
+        'applicable_attendance_types' => 'array',
     ];
-    
+
     /**
-    * Each Category has many events
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\hasMany
-    */
-    public function events() 
+     * Each Category has many events
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\hasMany
+     */
+    public function events()
     {
         return $this->hasMany(Event::class);
     }
 
     /**
-    * Determine if the current user has created events
-    *
-    * @return bool
-    */
+     * Determine if the current user has created events
+     *
+     * @return bool
+     */
     public function getHasEventAttribute()
     {
-        return $this->events()->count() ? true : false;    
+        // Prefer an eager-loaded count (->withCount('events')) when present to
+        // avoid an N+1: this accessor is appended, so it fires on every
+        // serialization — e.g. the category filters listed on /index/search.
+        if (array_key_exists('events_count', $this->attributes)) {
+            return (int) $this->attributes['events_count'] > 0;
+        }
+
+        return $this->events()->count() ? true : false;
     }
-    
+
     /**
-    * Sets the Route Key to slug instead of ID
-    *
-    * @return Route Key Name
-    */
+     * Sets the Route Key to slug instead of ID
+     *
+     * @return Route Key Name
+     */
     public function getRouteKeyName()
     {
         return 'slug';
@@ -73,7 +79,7 @@ class Category extends Model
     /**
      * Check if this category supports a specific attendance type
      *
-     * @param int $attendanceTypeId
+     * @param  int  $attendanceTypeId
      * @return bool
      */
     public function supportsAttendanceType($attendanceTypeId)
@@ -82,32 +88,32 @@ class Category extends Model
         if (empty($this->applicable_attendance_types)) {
             return true;
         }
-        
+
         // Otherwise, check if the specified type is in the array
         return in_array($attendanceTypeId, $this->applicable_attendance_types);
     }
 
     /**
      * Get whether this category supports a given attendance type
-     * 
-     * @param int $attendanceTypeId
+     *
+     * @param  int  $attendanceTypeId
      * @return bool
      */
     public function getSupportsAttendanceTypeAttribute()
     {
-        return function($attendanceTypeId) {
+        return function ($attendanceTypeId) {
             return $this->supportsAttendanceType($attendanceTypeId);
         };
     }
 
     /**
-    * Updates the different elements of the model depending on the request
-    *
-    * @return nothing
-    */
-    public function updateElements($request, $category) 
+     * Updates the different elements of the model depending on the request
+     *
+     * @return nothing
+     */
+    public function updateElements($request, $category)
     {
-        $request->name !== $category->name && !$request->image ? MakeImage::renameImage($category, Str::slug($request->name), 'category', $request) : '';
+        $request->name !== $category->name && ! $request->image ? MakeImage::renameImage($category, Str::slug($request->name), 'category', $request) : '';
         if ($request->image) {
             MakeImage::saveImage($request, $category, 600, 600, 'category');
         } else {
@@ -116,20 +122,21 @@ class Category extends Model
                 'rank' => $request->rank,
                 'description' => $request->description,
                 'name' => $request->name,
-                'slug' => Str::slug($request->name)
+                'slug' => Str::slug($request->name),
             ]);
         }
     }
 
     /**
-    * Deletes the category images and then deletes the catgory
-    *
-    * @return Nothing
-    */
-    public function deleteCategory($category) {
+     * Deletes the category images and then deletes the catgory
+     *
+     * @return Nothing
+     */
+    public function deleteCategory($category)
+    {
         foreach ($category->events as $event) {
             $event->update([
-                'category_id' => 0
+                'category_id' => 0,
             ]);
         }
         $category->delete();
@@ -148,7 +155,7 @@ class Category extends Model
         if (empty($this->applicable_attendance_types)) {
             return AttendanceType::all();
         }
-        
+
         return AttendanceType::whereIn('id', $this->applicable_attendance_types)->get();
     }
 }
