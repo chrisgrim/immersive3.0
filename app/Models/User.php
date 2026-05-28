@@ -2,25 +2,21 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Notifications\Notifiable;
-use Illuminate\View\View;
-use Laravel\Cashier\Billable;
-use Illuminate\Support\Str;
-use App\Models\Events\EventRequest;
-use App\Models\Messaging\Conversation;
+use App\Models\Admin\Dock;
 use App\Models\Curated\Community;
 use App\Models\Curated\Post;
-use App\Models\Admin\Dock;
+use App\Models\Messaging\Conversation;
 use DB;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Cashier\Billable;
 
 class User extends Authenticatable
 {
+    use Billable;
     use HasFactory;
     use Notifiable;
-    use Billable;
 
     /**
      * The attributes that are mass assignable.
@@ -28,7 +24,7 @@ class User extends Authenticatable
      * @var array
      */
     protected $fillable = [
-        'name', 'email', 'password','largeImagePath','thumbImagePath','provider','provider_id', 'gravatar', 'type', 'email_verified_at', 'newsletter_type', 'silence', 'unread', 'reminder', 'current_team_id', 'blurb'
+        'name', 'email', 'password', 'largeImagePath', 'thumbImagePath', 'provider', 'provider_id', 'gravatar', 'type', 'email_verified_at', 'newsletter_type', 'silence', 'unread', 'reminder', 'current_team_id', 'blurb',
     ];
 
     /**
@@ -57,8 +53,14 @@ class User extends Authenticatable
      *
      * @var array
      */
+    // hasCreatedOrganizers / hasMessages / isCommunityMember each run a query
+    // and were appended, so they N+1'd on every serialized User collection
+    // (admin user lists, inbox participants, curators, reviews). They're only
+    // ever read off the logged-in user, which forClientSide() builds explicitly
+    // via direct accessor calls — so they stay off $appends. Call the accessor
+    // directly where needed. (Appends-N+1 sweep.)
     protected $appends = [
-        'hasCreatedOrganizers', 'hasMessages', 'hexColor', 'isCurator', 'isAdmin', 'isModerator', 'isUser', 'isCommunityMember'
+        'hexColor', 'isCurator', 'isAdmin', 'isModerator', 'isUser',
     ];
 
     /**
@@ -72,7 +74,7 @@ class User extends Authenticatable
     {
         // Get the appropriate organizer for the frontend
         $organizer = $this->getCurrentOrganizer();
-        
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -102,7 +104,7 @@ class User extends Authenticatable
                 return $currentOrganizer;
             }
         }
-        
+
         // Fallback to their first owned organizer
         $ownedOrganizer = $this->organizers()->first();
         if ($ownedOrganizer) {
@@ -110,9 +112,10 @@ class User extends Authenticatable
             if ($this->current_team_id !== $ownedOrganizer->id) {
                 $this->update(['current_team_id' => $ownedOrganizer->id]);
             }
+
             return $ownedOrganizer;
         }
-        
+
         // Final fallback: any team they're a member of
         $membershipOrganizer = $this->teams()->first();
         if ($membershipOrganizer) {
@@ -120,18 +123,19 @@ class User extends Authenticatable
             if ($this->current_team_id !== $membershipOrganizer->id) {
                 $this->update(['current_team_id' => $membershipOrganizer->id]);
             }
+
             return $membershipOrganizer;
         }
-        
+
         // No organizers at all - clear current_team_id
         if ($this->current_team_id) {
             $this->update(['current_team_id' => null]);
         }
-        
+
         return null;
     }
 
-    public function events() 
+    public function events()
     {
         return $this->hasMany(Event::class);
     }
@@ -151,10 +155,10 @@ class User extends Authenticatable
         return $this->images()->first();
     }
 
-    public function organizers() 
+    public function organizers()
     {
         return $this->hasMany(Organizer::class)
-                    ->orderBy('created_at', 'DESC');
+            ->orderBy('created_at', 'DESC');
     }
 
     /**
@@ -163,9 +167,9 @@ class User extends Authenticatable
     public function teams()
     {
         return $this->belongsToMany(Organizer::class, 'organizer_user')
-                    ->withPivot('role')
-                    ->as('membership')  // This names the pivot relationship
-                    ->orderBy('organizers.created_at', 'desc');
+            ->withPivot('role')
+            ->as('membership')  // This names the pivot relationship
+            ->orderBy('organizers.created_at', 'desc');
     }
 
     /**
@@ -211,7 +215,7 @@ class User extends Authenticatable
         return $this->hasMany(Dock::class);
     }
 
-     /**
+    /**
      * The User can send many messages
      *
      * @return \Illuminate\Database\Eloquent\Relations\hasMany
@@ -254,7 +258,7 @@ class User extends Authenticatable
      *
      * @return \Illuminate\Database\Eloquent\Relations\hasMany
      */
-    public function staffpicks() 
+    public function staffpicks()
     {
         return $this->hasMany(StaffPick::class);
     }
@@ -264,7 +268,7 @@ class User extends Authenticatable
      *
      * @return \Illuminate\Database\Eloquent\Relations\hasMany
      */
-    public function posts() 
+    public function posts()
     {
         return $this->hasMany(Post::class);
     }
@@ -274,7 +278,7 @@ class User extends Authenticatable
      *
      * @return \Illuminate\Database\Eloquent\Relations\hasMany
      */
-    public function favorites() 
+    public function favorites()
     {
         return $this->hasMany(Favorite::class);
     }
@@ -289,74 +293,80 @@ class User extends Authenticatable
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasOne
      */
-    public function location() 
+    public function location()
     {
         return $this->hasOne(UserLocation::class);
     }
 
     /**
-    * Determine if the current user is Admin
-    *
-    * @return bool
-    */
-    public function isAdmin() {
+     * Determine if the current user is Admin
+     *
+     * @return bool
+     */
+    public function isAdmin()
+    {
         return $this->type === 'a';
     }
 
     /**
-    * Determine if the current user is Moderator
-    *
-    * @return bool
-    */
-    public function isModerator() {
+     * Determine if the current user is Moderator
+     *
+     * @return bool
+     */
+    public function isModerator()
+    {
         return $this->type === 'm' || $this->type === 'a';
     }
 
     /**
-    * Determine if the current user is curator
-    *
-    * @return bool
-    */
-    public function isCurator() {
+     * Determine if the current user is curator
+     *
+     * @return bool
+     */
+    public function isCurator()
+    {
         return $this->type === 'c' || $this->type === 'm' || $this->type === 'a';
     }
 
     /**
-    * Determine if the current user is the profile user
-    *
-    * @return bool
-    */
-    public function getIsUserAttribute() {
+     * Determine if the current user is the profile user
+     *
+     * @return bool
+     */
+    public function getIsUserAttribute()
+    {
         return $this->id === auth()->id();
     }
 
     /**
-    * Determine if the current user has created more than one organizer
-    *
-    * @return bool
-    */
+     * Determine if the current user has created more than one organizer
+     *
+     * @return bool
+     */
     public function getHasCreatedOrganizersAttribute()
     {
         $totalCount = $this->teams()->count();
+
         return $totalCount > 0;
     }
 
     /**
-    * Assign the current user a color
-    *
-    * @return string
-    */
+     * Assign the current user a color
+     *
+     * @return string
+     */
     public function gethexColorAttribute()
     {
-        $myarray = ['#2F405F','#DA5E8E','#20B7A6','#749EEB','#1EAA9A']; 
+        $myarray = ['#2F405F', '#DA5E8E', '#20B7A6', '#749EEB', '#1EAA9A'];
+
         return $myarray[$this->id % count($myarray)];
     }
 
     /**
-    * Determine if the current user has messages 
-    *
-    * @return bool
-    */
+     * Determine if the current user has messages
+     *
+     * @return bool
+     */
     public function getHasMessagesAttribute()
     {
         return DB::table('conversations')
@@ -366,76 +376,75 @@ class User extends Authenticatable
     }
 
     /**
-    * Determine if the user has any unread messages
-    *
-    * @return bool
-    */
+     * Determine if the user has any unread messages
+     *
+     * @return bool
+     */
     public function hasUnreadMessages()
     {
         return $this->unread === 'm';
     }
 
     /**
-    * Determine if the current user has messages 
-    *
-    * @return bool
-    */
+     * Determine if the current user has messages
+     *
+     * @return bool
+     */
     public function getisCuratorAttribute()
     {
         return $this->type === 'c' || $this->type === 'm' || $this->type === 'a';
     }
 
     /**
-    * Determine if the current user has messages 
-    *
-    * @return bool
-    */
+     * Determine if the current user has messages
+     *
+     * @return bool
+     */
     public function getisAdminAttribute()
     {
         return $this->type === 'a';
     }
 
     /**
-    * Determine if the current user has messages 
-    *
-    * @return bool
-    */
+     * Determine if the current user has messages
+     *
+     * @return bool
+     */
     public function getisModeratorAttribute()
     {
         return $this->type === 'm' || $this->type === 'a';
     }
 
-
     public function getGravatar()
     {
         $hash = md5(strtolower(trim($this->email)));
         $url = "https://www.gravatar.com/avatar/$hash?d=404";
-        if (!strstr(get_headers($url, 1)[0], '404 Not Found')) {
-            $this->update([ 'gravatar' => "https://www.gravatar.com/avatar/$hash?s=180"]);
+        if (! strstr(get_headers($url, 1)[0], '404 Not Found')) {
+            $this->update(['gravatar' => "https://www.gravatar.com/avatar/$hash?s=180"]);
         }
     }
 
     /**
-    * Determine if the user is a curator for any community
-    *
-    * @return bool
-    */
-    public function isCommunityMember() 
+     * Determine if the user is a curator for any community
+     *
+     * @return bool
+     */
+    public function isCommunityMember()
     {
-        return $this->communities()->exists() || 
-               $this->type === 'm' || 
+        return $this->communities()->exists() ||
+               $this->type === 'm' ||
                $this->type === 'a';
     }
 
     /**
-    * Get the attribute for checking if user is in any community
-    *
-    * @return bool
-    */
+     * Get the attribute for checking if user is in any community
+     *
+     * @return bool
+     */
     public function getIsCommunityMemberAttribute()
     {
-        return $this->communities()->exists() || 
-               $this->type === 'm' || 
+        return $this->communities()->exists() ||
+               $this->type === 'm' ||
                $this->type === 'a';
     }
 }

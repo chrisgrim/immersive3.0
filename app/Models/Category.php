@@ -22,7 +22,11 @@ class Category extends Model
      *
      * @var array
      */
-    protected $appends = ['hasEvent', 'supportsAttendanceType'];
+    // NOTE: hasEvent is intentionally NOT appended. It runs events()->count()
+    // (or reads an eager-loaded events_count), which N+1s whenever a Category
+    // collection is serialized. No client reads it; call $category->hasEvent
+    // directly if ever needed. See EI-LARAVEL-K / appends-N+1 sweep.
+    protected $appends = ['supportsAttendanceType'];
 
     /**
      * The "booted" method of the model.
