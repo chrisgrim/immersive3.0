@@ -57,6 +57,7 @@ class EventController extends Controller
             ->with(['events' => function($eventsQuery) {
                 $eventsQuery->where('status', 'p')
                     ->where('archived', false)
+                    ->with('favorites')
                     ->orderByDesc('updated_at')
                     ->limit(12);
             }]);
