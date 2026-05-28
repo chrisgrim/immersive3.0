@@ -10,7 +10,7 @@ class AdminReviewController extends Controller
 {
     public function index(Request $request)
     {
-        return ReviewEvent::with(['event', 'user'])
+        return ReviewEvent::with(['event.favorites', 'user'])
             ->when($request->search, function ($query, $search) {
                 $query->whereHas('event', function ($query) use ($search) {
                     $query->where('name', 'like', "%{$search}%");
@@ -30,12 +30,14 @@ class AdminReviewController extends Controller
         ]);
 
         $review->update($validated);
-        return $review->fresh(['event', 'user']);
+
+        return $review->fresh(['event.favorites', 'user']);
     }
 
     public function destroy(ReviewEvent $review)
     {
         $review->delete();
+
         return response()->noContent();
     }
 
@@ -46,7 +48,7 @@ class AdminReviewController extends Controller
             'reviewername' => 'required|string',
             'url' => 'required|url',
             'review' => 'required|string',
-            'rank' => 'required|integer|between:1,5'
+            'rank' => 'required|integer|between:1,5',
         ]);
 
         $review = ReviewEvent::create([
@@ -56,9 +58,9 @@ class AdminReviewController extends Controller
             'review' => $request->review,
             'rank' => $request->rank,
             'user_id' => auth()->id(),
-            'organizer_id' => $request->event['organizer_id'] ?? null
+            'organizer_id' => $request->event['organizer_id'] ?? null,
         ]);
-        
-        return $review->fresh(['event', 'user']);
+
+        return $review->fresh(['event.favorites', 'user']);
     }
-} 
+}

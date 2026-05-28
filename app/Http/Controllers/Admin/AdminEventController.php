@@ -126,7 +126,7 @@ class AdminEventController extends Controller
     public function getPending()
     {
         return Event::where('status', 'r')
-            ->with(['organizer', 'images', 'category', 'location'])
+            ->with(['organizer', 'images', 'category', 'location', 'favorites'])
             ->withoutGlobalScope(PublishedScope::class)
             ->latest()
             ->paginate(20);

@@ -11,7 +11,7 @@ class AdminPicksController extends Controller
 {
     public function index()
     {
-        return PickOfTheWeek::with(['event'])
+        return PickOfTheWeek::with(['event.favorites'])
             ->latest()
             ->paginate(20);
     }
@@ -21,7 +21,7 @@ class AdminPicksController extends Controller
         return PickOfTheWeek::create([
             'event_id' => $event->id,
             'admin_id' => auth()->id(),
-            'featured_until' => $request->featured_until
+            'featured_until' => $request->featured_until,
         ]);
     }
-} 
+}
