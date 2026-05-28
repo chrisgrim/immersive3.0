@@ -514,7 +514,7 @@
                                             <div class="mt-8">
                                                 <a 
                                                     href="{{ $event->ticketUrl ?: ($event->websiteUrl ?: $event->organizer->website) }}"
-                                                    onclick="axios.post('/track/event/click', { event: {{ $event->id }} })"
+                                                    onclick="axios.post('/api/events/{{ $event->id }}/track-click', { click_type: 'ticket_button' }).catch(() => {})"
                                                     rel="noreferrer noopener" 
                                                     target="_blank"
                                                 >
