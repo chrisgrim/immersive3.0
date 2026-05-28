@@ -22,7 +22,8 @@ class IndexController extends Controller
                               'community:id,name,slug',
                               'featuredEventImage',
                               'images',
-                              'limitedCards'
+                              'limitedCards',
+                              'limitedCards.event.favorites'
                           ])
                           ->orderBy('order')
                           ->limit(4);
@@ -32,6 +33,7 @@ class IndexController extends Controller
                         'post:id,name,slug,community_id',
                         'post.community:id,name,slug',
                         'event:id,name,slug,thumbImagePath,largeImagePath',
+                        'event.favorites',
                         'images'
                     ])
                     ->orderBy('order')
@@ -46,7 +48,8 @@ class IndexController extends Controller
                               'community:id,name,slug',
                               'featuredEventImage',
                               'images',
-                              'limitedCards'
+                              'limitedCards',
+                              'limitedCards.event.favorites'
                           ]);
                 },
                 'communities'

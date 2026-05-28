@@ -97,7 +97,7 @@ class SimilarEventsController extends Controller
                     $query->where('city', $event->location->city);
                 })
                 ->where('id', '!=', $event->id)
-                ->with('location')
+                ->with(['location', 'favorites'])
                 ->take(6)
                 ->get();
         } catch (\Exception $e) {
@@ -120,7 +120,7 @@ class SimilarEventsController extends Controller
                 ->whereRaw('`closingDate` >= CURDATE()')  // Use raw SQL for direct date comparison
                 ->where('id', '!=', $event->id)
                 ->where('category_id', $event->category_id)
-                ->with('location')
+                ->with(['location', 'favorites'])
                 ->take($limit)
                 ->get();
         } catch (\Exception $e) {
@@ -144,7 +144,7 @@ class SimilarEventsController extends Controller
                 ->where('id', '!=', $event->id)
                 ->where('hasLocation', false)
                 ->where('category_id', $event->category_id)
-                ->with(['remotelocations', 'category'])
+                ->with(['remotelocations', 'category', 'favorites'])
                 ->take(6)
                 ->get();
 
@@ -160,7 +160,7 @@ class SimilarEventsController extends Controller
                 ->where('hasLocation', false)
                 ->where('category_id', '!=', $event->category_id)
                 ->whereNotIn('id', $sameCategoryEvents->pluck('id'))
-                ->with(['remotelocations', 'category'])
+                ->with(['remotelocations', 'category', 'favorites'])
                 ->take(6 - $sameCategoryEvents->count())
                 ->get();
 
@@ -246,7 +246,7 @@ class SimilarEventsController extends Controller
                     ->where('longitude', '>=', $minLng)
                     ->where('longitude', '<=', $maxLng);
             })
-            ->with('location')
+            ->with(['location', 'favorites'])
             ->take(12)
             ->get();
     }
@@ -262,7 +262,7 @@ class SimilarEventsController extends Controller
             ->whereRaw('`closingDate` >= CURDATE()')  // Use raw SQL for direct date comparison
             ->where('hasLocation', false)
             ->orderBy('created_at', 'desc')
-            ->with('remotelocations')
+            ->with(['remotelocations', 'favorites'])
             ->take(12)
             ->get();
     }

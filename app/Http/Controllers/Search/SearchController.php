@@ -20,6 +20,7 @@ class SearchController extends Controller
         $limit = $request->input('limit', 6);
         
         $query = Event::searchQuery($searchActions->nameSearch($request))
+            ->load(['favorites'])
             ->size($limit);
             
         // Only sort by published_at when not performing a keyword search
@@ -58,6 +59,7 @@ class SearchController extends Controller
     {
         $query = Event::searchQuery($searchActions->eventSearch($request))
             ->join(Organizer::class)
+            ->load(['favorites'])
             ->size(6);
             
         // Only track scores for keyword searches
