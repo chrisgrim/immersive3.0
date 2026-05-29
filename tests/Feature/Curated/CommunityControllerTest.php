@@ -490,7 +490,7 @@ test('acceptInvitation for an expired invitation 404s', function () {
     expect($community->curators()->where('users.id', $invitee->id)->exists())->toBeFalse();
 });
 
-test('acceptInvitation while logged out is bounced to login by middleware (session-store branch is dead code)', function () {
+test('acceptInvitation while logged out stores the token and redirects to login', function () {
     $owner = User::factory()->create(['type' => 'u']);
     $community = Community::factory()->create(['user_id' => $owner->id]);
 
@@ -499,14 +499,12 @@ test('acceptInvitation while logged out is bounced to login by middleware (sessi
         'email' => 'guest@example.com',
     ]);
 
-    // note: the curators.accept route lives INSIDE the auth+verified middleware group in
-    // routes/curated.php, so a guest is redirected to /login by the Authenticate
-    // middleware BEFORE the controller runs. The controller's `! auth()->check()` branch
-    // that would store `pending_curator_invitation` in the session is therefore
-    // unreachable via this route — the token is never stored.
+    // The curators.accept route is now public, so a guest reaches acceptInvitation(),
+    // which stashes the token in the session and redirects to login (so the invite
+    // resumes once they authenticate as the invited email).
     $this->get("/communities/curator-invitations/{$invitation->token}")
-        ->assertRedirect('/login')
-        ->assertSessionMissing('pending_curator_invitation');
+        ->assertRedirect(route('login'))
+        ->assertSessionHas('pending_curator_invitation', $invitation->token);
 });
 
 test('acceptInvitation with an email mismatch logs the user out and redirects to login', function () {
