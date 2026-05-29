@@ -283,7 +283,7 @@ test('update with curator_ids syncs curators and returns the refreshed community
     expect($response->json('curators'))->not->toBeNull();
 });
 
-test('update with curator_ids and new_owner_id transfers ownership but drops the old owner (bug)', function () {
+test('update with curator_ids and new_owner_id transfers ownership and keeps the old owner as a curator', function () {
     $owner = User::factory()->create(['type' => 'u']);
     $community = Community::factory()->create(['user_id' => $owner->id, 'status' => 'd']);
     makeCurator($community, $owner);
@@ -291,10 +291,9 @@ test('update with curator_ids and new_owner_id transfers ownership but drops the
     $newOwner = User::factory()->create(['type' => 'u']);
     makeCurator($community, $newOwner);
 
-    // curator_ids deliberately omits the old owner. The controller intends to re-add
-    // the old owner, but it transfers ownership FIRST (mutating $community->user_id to
-    // the new owner) and only THEN checks `in_array($community->user_id, curator_ids)`.
-    // So it re-checks the *new* owner (already present) and the original owner is lost.
+    // curator_ids deliberately omits the old owner. The controller now captures the
+    // previous owner before the transfer and re-adds them, so the outgoing owner keeps
+    // curator access.
     $this->actingAs($owner)
         ->postJson("/communities/{$community->slug}", [
             'curator_ids' => [$newOwner->id],
@@ -306,10 +305,10 @@ test('update with curator_ids and new_owner_id transfers ownership but drops the
     // Ownership transferred.
     expect($community->user_id)->toBe($newOwner->id);
 
-    // note: BUG — the old owner is NOT re-added (see explanation above).
+    // The previous owner is retained as a curator alongside the new owner.
     $ids = $community->curators->pluck('id')->all();
     expect($ids)->toContain($newOwner->id);
-    expect($ids)->not->toContain($owner->id);
+    expect($ids)->toContain($owner->id);
 });
 
 test('update is denied to a non-owner non-curator (403)', function () {
@@ -674,20 +673,17 @@ test('requestNameChange creates a pending NameChangeRequest and returns JSON', f
     expect($community->fresh()->name)->toBe('Old Brand');
 });
 
-test('requestNameChange swallows validation errors into a 500 instead of a 422 (bug)', function () {
+test('requestNameChange returns a 422 with field errors for an invalid request', function () {
     $owner = User::factory()->create(['type' => 'u']);
     $community = Community::factory()->create(['user_id' => $owner->id]);
     makeCurator($community, $owner);
 
-    // note: BUG — requestNameChange wraps `$request->validate(...)` in a broad
-    // `try { ... } catch (\Exception $e)`. ValidationException extends \Exception,
-    // so a missing requested_name/current_name is caught and re-emitted as a generic
-    // 500 JSON ('Failed to submit name change request.') rather than a 422 with
-    // field-level validation errors.
+    // Validation now runs outside the catch-all, so a missing requested_name/current_name
+    // surfaces as a clean 422 with field errors instead of a swallowed 500.
     $this->actingAs($owner)
         ->postJson("/communities/{$community->slug}/name-change", [])
-        ->assertStatus(500)
-        ->assertJsonPath('message', 'Failed to submit name change request.');
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['requested_name', 'current_name']);
 });
 
 test('requestNameChange is denied to a stranger (403)', function () {
