@@ -123,19 +123,18 @@ test('update saves name and email for the owner', function () {
     expect($this->user->fresh()->name)->toBe('New Name');
 });
 
-test('update defaults newsletter_type to n and silence to y when omitted', function () {
+test('update preserves newsletter_type and silence when omitted', function () {
     $this->user->update(['newsletter_type' => 'a', 'silence' => 'n']);
 
-    // note: the regular-fields path unconditionally injects defaults
-    // newsletter_type='n' and silence='y' when those inputs are absent, so an
-    // update that only changes the name silently resets the newsletter prefs.
+    // A partial edit (name only) must not clobber the user's saved preferences.
     $this->actingAs($this->user)
         ->post("/users/{$this->user->id}", ['name' => 'Just A Name'])
         ->assertOk();
 
     $fresh = $this->user->fresh();
-    expect($fresh->newsletter_type)->toBe('n');
-    expect($fresh->silence)->toBe('y');
+    expect($fresh->name)->toBe('Just A Name');
+    expect($fresh->newsletter_type)->toBe('a');
+    expect($fresh->silence)->toBe('n');
 });
 
 test('update persists provided newsletter_type and silence', function () {
@@ -153,6 +152,8 @@ test('update persists provided newsletter_type and silence', function () {
 });
 
 test('update response makes newsletter_type and silence visible', function () {
+    $this->user->update(['silence' => 'n']);
+
     $response = $this->actingAs($this->user)
         ->postJson("/users/{$this->user->id}", [
             'name' => 'Visible Name',
@@ -160,8 +161,8 @@ test('update response makes newsletter_type and silence visible', function () {
         ]);
 
     $response->assertOk()
-        ->assertJsonPath('newsletter_type', 'u')
-        ->assertJsonPath('silence', 'y'); // default applied
+        ->assertJsonPath('newsletter_type', 'u') // updated + visible
+        ->assertJsonPath('silence', 'n');        // omitted -> preserved + visible
 });
 
 // ----- update(): email-change path -----
