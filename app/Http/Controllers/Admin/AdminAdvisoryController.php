@@ -24,9 +24,11 @@ class AdminAdvisoryController extends Controller
         $validated = $request->validate([
             'type' => 'required|in:content,mobility,interactive,contact',
             'name' => 'required|string',
-            'description' => 'sometimes|string',
+            // interactive_levels.description is NOT NULL, so it is required for that type;
+            // other types do not persist a description.
+            'description' => 'required_if:type,interactive|string',
             'rank' => 'sometimes|integer',
-            'admin' => 'sometimes|boolean'
+            'admin' => 'sometimes|boolean',
         ]);
 
         $model = $this->getModelClass($validated['type']);
@@ -41,12 +43,12 @@ class AdminAdvisoryController extends Controller
             'name' => 'sometimes|required|string',
             'description' => 'sometimes|required|string',
             'rank' => 'sometimes|required|integer',
-            'admin' => 'sometimes|required|boolean'
+            'admin' => 'sometimes|required|boolean',
         ]);
 
         $model = $this->getModelClass($type);
         $advisory = $model::withoutGlobalScopes()->findOrFail($id);
-        
+
         if (in_array($type, ['content', 'mobility']) && isset($validated['name'])) {
             $validated['slug'] = \Str::slug($validated['name']);
         }
@@ -58,7 +60,7 @@ class AdminAdvisoryController extends Controller
     {
         $model = $this->getModelClass($type);
         $advisory = $model::withoutGlobalScopes()->findOrFail($id);
-        
+
         return $advisory->delete();
     }
 
@@ -85,7 +87,7 @@ class AdminAdvisoryController extends Controller
     {
         if (in_array($type, ['content', 'mobility']) && request()->filled('type')) {
             $adminType = request()->input('type');
-            $query->where('admin', (bool)$adminType);
+            $query->where('admin', (bool) $adminType);
         }
     }
 
@@ -93,13 +95,13 @@ class AdminAdvisoryController extends Controller
     {
         $sortField = request()->input('sort_field', 'name');
         $sortDirection = request()->input('sort_direction', 'asc');
-        
+
         if ($sortField === 'rank') {
             $query->orderBy('rank', $sortDirection)
-                  ->orderBy('name', 'asc');
+                ->orderBy('name', 'asc');
         } else {
             $query->orderBy($sortField, $sortDirection)
-                  ->orderBy('rank', 'asc');
+                ->orderBy('rank', 'asc');
         }
     }
 
@@ -122,4 +124,4 @@ class AdminAdvisoryController extends Controller
 
         return $data;
     }
-} 
+}

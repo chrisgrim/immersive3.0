@@ -128,6 +128,20 @@ test('store creates an interactive level using the provided description', functi
     ]);
 });
 
+test('store rejects an interactive level without a description', function () {
+    // interactive_levels.description is NOT NULL; requiring it turns a missing
+    // description into a clean 422 instead of a masked DB 500.
+    $this->actingAs($this->moderator)
+        ->postJson('/api/admin/settings/advisories', [
+            'type' => 'interactive',
+            'name' => 'No Description',
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['description']);
+
+    $this->assertDatabaseMissing('interactive_levels', ['name' => 'No Description']);
+});
+
 test('store creates a contact level', function () {
     $this->actingAs($this->moderator)
         ->postJson('/api/admin/settings/advisories', [

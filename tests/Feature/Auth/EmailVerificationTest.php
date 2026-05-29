@@ -81,6 +81,20 @@ test('sendVerificationCode requires authentication', function () {
         ->assertStatus(401);
 });
 
+test('the email-verification endpoints are rate limited', function () {
+    // throttle:6,1 caps requests per minute, blocking the brute-force / DoS vector
+    // (each verify guess would otherwise be an unthrottled DB-cache round-trip).
+    for ($i = 0; $i < 6; $i++) {
+        $this->actingAs($this->user)
+            ->postJson('/users/email/verify', ['email' => 'new@example.com'])
+            ->assertOk();
+    }
+
+    $this->actingAs($this->user)
+        ->postJson('/users/email/verify', ['email' => 'new@example.com'])
+        ->assertStatus(429);
+});
+
 // ----------------------------------------------------------------------------
 // verifyCode
 // ----------------------------------------------------------------------------
@@ -118,8 +132,32 @@ test('verifyCode with a wrong code returns 422 and leaves the email unchanged', 
         ->assertJsonPath('message', 'Invalid verification code');
 
     expect($this->user->fresh()->email)->toBe('current@example.com');
-    // Cache is NOT cleared on a failed attempt.
+    // Cache is NOT cleared on a single failed attempt.
     expect(Cache::get(verificationKey($this->user)))->not->toBeNull();
+});
+
+test('verifyCode burns the code after 5 failed attempts', function () {
+    Cache::put(verificationKey($this->user), [
+        'code' => '123456',
+        'email' => 'changed@example.com',
+    ], now()->addMinutes(10));
+
+    // Four wrong attempts are rejected but keep the code alive.
+    for ($i = 0; $i < 4; $i++) {
+        $this->actingAs($this->user)
+            ->postJson('/users/email/confirm', ['email' => 'changed@example.com', 'code' => '000000'])
+            ->assertStatus(422);
+    }
+    expect(Cache::get(verificationKey($this->user)))->not->toBeNull();
+
+    // The 5th wrong attempt burns the code so it can't be ground down further.
+    $this->actingAs($this->user)
+        ->postJson('/users/email/confirm', ['email' => 'changed@example.com', 'code' => '000000'])
+        ->assertStatus(429)
+        ->assertJsonPath('message', 'Too many invalid attempts. Please request a new code.');
+
+    expect(Cache::get(verificationKey($this->user)))->toBeNull();
+    expect($this->user->fresh()->email)->toBe('current@example.com');
 });
 
 test('verifyCode fails when the submitted email does not match the cached email', function () {
