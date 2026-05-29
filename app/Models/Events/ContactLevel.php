@@ -7,14 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class ContactLevel extends Model
 {
-	/**
-    * What protected variables are allowed to be passed to the database
-    *
-    * @var array
-    */
-    protected $fillable = [ 'name', 'rank', 'admin', 'user_id'];
+    /**
+     * What protected variables are allowed to be passed to the database
+     *
+     * @var array
+     */
+    protected $fillable = ['name', 'rank', 'admin', 'user_id'];
 
-     /**
+    /**
      * The "booted" method of the model.
      *
      * @return void
@@ -24,41 +24,41 @@ class ContactLevel extends Model
         static::addGlobalScope(new RankScope);
     }
 
-	/**
-	* Each ContactLevel can belong to many events
-	*
-	* @return \Illuminate\Database\Eloquent\Relations\belongsToMany
-	*/
-    public function events() 
+    /**
+     * Each ContactLevel can belong to many events
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\belongsToMany
+     */
+    public function events()
     {
-    	return $this->belongsToMany(Event::class);
+        return $this->belongsToMany(\App\Models\Event::class);
     }
 
     /**
      * This saves a new Contact Level type
      *
-     * @return  nothing
+     * @return nothing
      */
-    public static function saveContactLevel($request) 
+    public static function saveContactLevel($request)
     {
         ContactLevel::create([
             'name' => $request->name,
             'admin' => true,
-            'user_id' => auth()->user()->id
+            'user_id' => auth()->user()->id,
         ]);
     }
 
-     /**
+    /**
      * This updates a ContactLevel type
      *
      * @return nothing
      */
-    public function updateContactLevel($request) 
+    public function updateContactLevel($request)
     {
         $this->update([
             'rank' => $request->rank,
             'name' => $request->name,
-            'user_id' => auth()->user()->id
+            'user_id' => auth()->user()->id,
         ]);
     }
 }

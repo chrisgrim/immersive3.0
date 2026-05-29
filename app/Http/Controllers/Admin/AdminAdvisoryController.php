@@ -61,6 +61,14 @@ class AdminAdvisoryController extends Controller
         $model = $this->getModelClass($type);
         $advisory = $model::withoutGlobalScopes()->findOrFail($id);
 
+        // Guard against orphaning event pivot/FK rows (these models have no SoftDeletes).
+        if ($advisory->events()->count() > 0) {
+            return response()->json([
+                'message' => 'Cannot delete this advisory because it has associated events. Please remove all events from it first.',
+                'error' => 'ADVISORY_HAS_EVENTS',
+            ], 422);
+        }
+
         return $advisory->delete();
     }
 

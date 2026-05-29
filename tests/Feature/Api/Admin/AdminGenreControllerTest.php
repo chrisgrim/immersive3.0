@@ -248,6 +248,20 @@ test('destroy removes the genre', function () {
     $this->assertDatabaseMissing('genres', ['id' => $genre->id]);
 });
 
+test('destroy is blocked when the genre has associated events', function () {
+    $genre = Genre::factory()->create();
+    $event = \App\Models\Event::factory()->create();
+    $genre->events()->attach($event->id);
+
+    $this->actingAs($this->moderator)
+        ->deleteJson("/api/admin/settings/genres/{$genre->id}")
+        ->assertStatus(422)
+        ->assertJsonPath('error', 'GENRE_HAS_EVENTS');
+
+    // The genre is preserved so the event_genre pivot rows aren't orphaned.
+    $this->assertDatabaseHas('genres', ['id' => $genre->id]);
+});
+
 test('destroy requires moderator', function () {
     $user = User::factory()->create(['type' => 'u']);
     $genre = Genre::factory()->create();

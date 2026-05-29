@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Genre;
+use App\Services\ImageHandler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use App\Services\ImageHandler;
 
 class AdminGenreController extends Controller
 {
@@ -18,7 +18,7 @@ class AdminGenreController extends Controller
 
         // Apply search filter
         if ($request->filled('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%');
+            $query->where('name', 'like', '%'.$request->search.'%');
         }
 
         // Apply type filter
@@ -29,14 +29,14 @@ class AdminGenreController extends Controller
         // Apply sorting
         $sortField = $request->input('sort_field', 'name');
         $sortDirection = $request->input('sort_direction', 'asc');
-        
+
         // Handle special sort cases with name as secondary sort
         if (in_array($sortField, ['created_at', 'rank'])) {
             $query->orderBy($sortField, $sortDirection)
-                  ->orderBy('name', 'asc');
+                ->orderBy('name', 'asc');
         } else {
             $query->orderBy($sortField, $sortDirection)
-                  ->orderBy('name', 'asc');
+                ->orderBy('name', 'asc');
         }
 
         return $query->paginate(40);
@@ -48,7 +48,7 @@ class AdminGenreController extends Controller
             'name' => 'required|string|max:255|unique:genres,name',
             'rank' => 'integer|min:0',
             'admin' => 'boolean',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:8192'
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:8192',
         ]);
 
         $genre = Genre::create([
@@ -77,40 +77,43 @@ class AdminGenreController extends Controller
         // If only updating rank
         if ($request->has('rank') && count($request->all()) === 1) {
             $request->validate([
-                'rank' => 'required|integer|min:0'
+                'rank' => 'required|integer|min:0',
             ]);
-            
+
             $genre->update(['rank' => $request->rank]);
+
             return response()->json($genre->fresh()->load('images'));
         }
 
         // If only updating admin status
         if ($request->has('admin') && count($request->all()) === 1) {
             $request->validate([
-                'admin' => 'required|boolean'
+                'admin' => 'required|boolean',
             ]);
-            
+
             $genre->update(['admin' => $request->admin]);
+
             return response()->json($genre->fresh()->load('images'));
         }
 
         // If only updating name
         if ($request->has('name') && count($request->all()) === 1) {
             $request->validate([
-                'name' => 'required|string|max:255|unique:genres,name,' . $genre->id
+                'name' => 'required|string|max:255|unique:genres,name,'.$genre->id,
             ]);
-            
+
             $genre->update([
                 'name' => $request->name,
-                'slug' => Str::slug($request->name)
+                'slug' => Str::slug($request->name),
             ]);
+
             return response()->json($genre->fresh()->load('images'));
         }
 
         // Handle image upload
         if ($request->hasFile('image')) {
             $request->validate([
-                'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:8192'
+                'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:8192',
             ]);
 
             // Delete old images first
@@ -125,15 +128,15 @@ class AdminGenreController extends Controller
                 400,
                 'genre-images'
             );
-            
+
             return response()->json($genre->fresh()->load('images'));
         }
 
         // Full update
         $request->validate([
-            'name' => 'required|string|max:255|unique:genres,name,' . $genre->id,
+            'name' => 'required|string|max:255|unique:genres,name,'.$genre->id,
             'rank' => 'required|integer|min:0',
-            'admin' => 'required|boolean'
+            'admin' => 'required|boolean',
         ]);
 
         $genre->updateGenre($request);
@@ -143,7 +146,16 @@ class AdminGenreController extends Controller
 
     public function destroy(Genre $genre)
     {
+        // Guard against orphaning event_genre pivot rows (Genre has no SoftDeletes).
+        if ($genre->events()->count() > 0) {
+            return response()->json([
+                'message' => 'Cannot delete genre because it has associated events. Please remove all events from this genre first.',
+                'error' => 'GENRE_HAS_EVENTS',
+            ], 422);
+        }
+
         $genre->delete();
+
         return response()->json(['message' => 'Genre deleted successfully']);
     }
 }

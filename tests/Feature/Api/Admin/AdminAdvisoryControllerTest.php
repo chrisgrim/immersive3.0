@@ -293,6 +293,24 @@ test('destroy removes a content advisory', function () {
     $this->assertDatabaseMissing('content_advisories', ['id' => $advisory->id]);
 });
 
+test('destroy is blocked when the advisory has associated events', function () {
+    $advisory = ContentAdvisory::create([
+        'name' => 'Linked',
+        'slug' => 'linked',
+        'user_id' => $this->moderator->id,
+    ]);
+    $event = \App\Models\Event::factory()->create();
+    $advisory->events()->attach($event->id);
+
+    $this->actingAs($this->moderator)
+        ->deleteJson("/api/admin/settings/advisories/content/{$advisory->id}")
+        ->assertStatus(422)
+        ->assertJsonPath('error', 'ADVISORY_HAS_EVENTS');
+
+    // Preserved so the content_advisory_event pivot rows aren't orphaned.
+    $this->assertDatabaseHas('content_advisories', ['id' => $advisory->id]);
+});
+
 test('destroy returns 404 for a missing advisory id', function () {
     $this->actingAs($this->moderator)
         ->deleteJson('/api/admin/settings/advisories/mobility/999999')

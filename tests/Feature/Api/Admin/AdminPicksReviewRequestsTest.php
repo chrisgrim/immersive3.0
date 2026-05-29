@@ -15,34 +15,17 @@ beforeEach(function () {
 
 /*
 |--------------------------------------------------------------------------
-| AdminPicksController (PickOfTheWeek / StaffPick)
+| StaffPick model
 |--------------------------------------------------------------------------
+| The half-built picks controller (AdminPicksController) referenced a
+| non-existent PickOfTheWeek model and had no route; it has been removed.
+| The live StaffPick model — used for the staff-pick badge on events —
+| is exercised directly below.
 */
 
-// note: AdminPicksController is imported in routes/api.php but NO routes are registered for it,
-// so it is unreachable over HTTP. It also references App\Models\PickOfTheWeek, a class that does
-// not exist (the actual model is App\Models\Admin\StaffPick). Both index() and store() therefore
-// fatal-error the moment they run. We invoke the controller directly to pin this behavior.
-
-test('AdminPicksController index fatals because PickOfTheWeek class does not exist', function () {
-    $controller = new App\Http\Controllers\Admin\AdminPicksController;
-
-    expect(fn () => $controller->index())
-        ->toThrow(Error::class, 'Class "App\Models\PickOfTheWeek" not found');
-});
-
-test('AdminPicksController store fatals because PickOfTheWeek class does not exist', function () {
-    $this->actingAs($this->moderator);
-    $controller = new App\Http\Controllers\Admin\AdminPicksController;
-    $event = Event::factory()->create();
-    $request = Illuminate\Http\Request::create('/', 'POST', ['featured_until' => now()->addWeek()]);
-
-    expect(fn () => $controller->store($request, $event))
-        ->toThrow(Error::class, 'Class "App\Models\PickOfTheWeek" not found');
-});
-
-// The intended underlying model (StaffPick) works and its table has the live schema
-// (no admin_id / featured_until columns), which is why the controller is dead code.
+// StaffPick works against its real schema (event_id/user_id/rank/dates/comments;
+// there is no admin_id or featured_until column, which is what the removed
+// controller incorrectly tried to write).
 test('StaffPick can be created against its real schema', function () {
     $event = Event::factory()->create();
     $pick = App\Models\Admin\StaffPick::create([
@@ -55,8 +38,8 @@ test('StaffPick can be created against its real schema', function () {
     ]);
 
     $this->assertDatabaseHas('staff_picks', ['id' => $pick->id, 'event_id' => $event->id]);
-    // note: the staff_picks table has no admin_id or featured_until columns, which is exactly
-    // what AdminPicksController::store() tries to write — another reason that path is broken.
+    // note: the staff_picks table has no admin_id or featured_until columns (the removed
+    // picks controller wrongly assumed those existed).
     expect(\Illuminate\Support\Facades\Schema::hasColumn('staff_picks', 'admin_id'))->toBeFalse();
     expect(\Illuminate\Support\Facades\Schema::hasColumn('staff_picks', 'featured_until'))->toBeFalse();
 });

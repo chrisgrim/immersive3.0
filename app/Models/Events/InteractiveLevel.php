@@ -2,18 +2,18 @@
 
 namespace App\Models\Events;
 
-use Illuminate\Database\Eloquent\Model;
 use App\Scopes\RankScope;
+use Illuminate\Database\Eloquent\Model;
 
 class InteractiveLevel extends Model
 {
-     /**
-    * What protected variables are allowed to be passed to the database
-    *
-    * @var array
-    */
+    /**
+     * What protected variables are allowed to be passed to the database
+     *
+     * @var array
+     */
     protected $fillable = [
-        'name','description', 'rank'
+        'name', 'description', 'rank',
     ];
 
     /**
@@ -25,23 +25,23 @@ class InteractiveLevel extends Model
     {
         static::addGlobalScope(new RankScope);
     }
-    
+
     /**
      * Each genre can belong to many Events
      *
      * @return \Illuminate\Database\Eloquent\Relations\hasMany
      */
-    public function events() 
+    public function events()
     {
-        return $this->hasMany(Event::class);
+        return $this->hasMany(\App\Models\Event::class);
     }
 
     /**
      * This saves a new Interactive Level type
      *
-     * @return  nothing
+     * @return nothing
      */
-    public static function saveInteractiveLevel($request) 
+    public static function saveInteractiveLevel($request)
     {
         InteractiveLevel::create([
             'name' => $request->name,
@@ -49,12 +49,12 @@ class InteractiveLevel extends Model
         ]);
     }
 
-     /**
+    /**
      * This updates a Interactive Level type
      *
      * @return nothing
      */
-    public function updateInteractiveLevel($request) 
+    public function updateInteractiveLevel($request)
     {
         $this->update([
             'name' => $request->name,
