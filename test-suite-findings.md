@@ -7,7 +7,7 @@ Produced while building the comprehensive test suite on **2026-05-28**. Per the 
 - **Backend (Pest):** 914 tests / 2256 assertions passing (was 183 → **+731 new**), ~20s. New tests live under `tests/Feature/**` and `tests/Unit/**`.
 - **Frontend (Vitest, newly stood up):** 12 files / **194 tests** passing, ~1.7s. `npm run test:js`. Config in `vitest.config.js`, globals mocked in `tests/js/setup.js`.
 - **~14 model factories** added under `database/factories/**`.
-- **50 suspected bugs** logged below (3 high, 20 medium, 27 low).
+- **50 suspected bugs** logged below (3 high, 20 medium, 28 low). **✅ H1 and H2 fixed 2026-05-29** (L28 added while fixing H1).
 
 A recurring theme worth a dedicated cleanup pass: **a lot of implemented controller methods have no route** (dead/unreachable), and **broad `try/catch (\Exception)` blocks swallow `ValidationException` into generic 500s**. Both are called out per-item below.
 
@@ -17,11 +17,13 @@ A recurring theme worth a dedicated cleanup pass: **a lot of implemented control
 
 ### H1 — Public event page 500s when optional related data is missing
 **`resources/views/events/show.blade.php:154` (also `:218`, `:221`), via `EventController::show`**
-The JSON-LD block reads `$event->priceranges[0]->created_at` unconditionally and `$event->advisories['wheelchairReady']` / `['ageRestriction']`. A **published** event with no `PriceRange` row throws `Undefined array key 0` (HTTP 500); a missing `Advisory` null-derefs similarly. Verified: published event with a location + show but no price range → 500; adding one price range + one advisory → 200. Public pages can hard-fail purely from missing optional data. *(test: `tests/Feature/EventControllerTest.php`)*
+The JSON-LD block reads `$event->priceranges[0]->created_at` unconditionally and `$event->advisories['wheelchairReady']` / `['ageRestriction']`. A **published** event with no `PriceRange` row throws `Undefined array key 0` (HTTP 500); a missing `Advisory` null-derefs similarly. Verified: published event with a location + show but no price range → 500; adding one price range + one advisory → 200. Public pages can hard-fail purely from missing optional data.
+**✅ Fixed 2026-05-29** — the three JSON-LD reads are now null-safe (`?? ` fallbacks). In practice this never triggered (prices are required and `Event::newEvent()` always creates an advisory row). While fixing, discovered the event *detail* partials also assume an advisory exists — see **L28**. *(test: `tests/Feature/EventControllerTest.php` → "show renders even when the event has no price range")*
 
 ### H2 — Community approval/rejection emails are sent to nobody
 **`app/Http/Controllers/Admin/AdminCommunityController.php:48` and `:76`**
-Both `approve()` and `reject()` call `Mail::to($community->user)->send(...)`, but `Community` defines no `user()` relation (only `owner()`, FK `user_id`), so `$community->user` is `null`. The mail dispatches with an **empty recipient list** (verified: sent count 1, `$mail->to === []`). The owner never receives approval/rejection email. Fix: use `$community->owner`. (The in-app `Message::notification()` is unaffected — it reads `user_id` directly.) *(test: `tests/Feature/Api/Admin/AdminCommunityControllerTest.php`)*
+Both `approve()` and `reject()` call `Mail::to($community->user)->send(...)`, but `Community` defines no `user()` relation (only `owner()`, FK `user_id`), so `$community->user` is `null`. The mail dispatches with an **empty recipient list** (verified: sent count 1, `$mail->to === []`). The owner never receives approval/rejection email. Fix: use `$community->owner`. (The in-app `Message::notification()` is unaffected — it reads `user_id` directly.)
+**✅ Fixed 2026-05-29** — both calls now use `$community->owner`; tests assert the owner receives the mail. *(test: `tests/Feature/Api/Admin/AdminCommunityControllerTest.php`)*
 
 ### H3 — `ei:send-newsletter` is broken (missing mailable class)
 **`app/Console/Commands/NewsletterCommand.php:46`**
@@ -103,6 +105,7 @@ Both `approve()` and `reject()` call `Mail::to($community->user)->send(...)`, bu
 - **L25** `MapStore.boundsUpdate` guards `center?.lat` but not `bounds` itself, so an undefined `bounds` throws a `TypeError` instead of the intended warn-and-skip. `resources/js/Stores/MapStore.vue:22-27`.
 - **L26** Numbered pagination buttons (including the active page) have no click guard, so clicking the current page re-emits `paginate` (prev/next *are* guarded). `resources/js/GlobalComponents/pagination.vue:28`.
 - **L27** *(By-design note, not a bug)* `StoreEventRequest` `status` allow-list (`in:d,0-9,A-D`) deliberately excludes `p/e/r/n` so users can't self-publish. Flagged so reviewers know the corresponding test is asserting a security gate, not an accident. `StoreEventRequest.php:65`.
+- **L28** *(found 2026-05-29 while fixing H1)* The event detail partials assume `$event->advisories` is always present — `resources/views/events/show/details.blade.php` reads `advisories['audience' | 'sexual' | 'sexualDescription' | 'ageRestriction']` unguarded, so an event with no advisory row 500s. **Not a live bug**: `Event::newEvent()` (`Event.php:410`) and `duplicate()` always create an advisory row, so the invariant holds in production. Left unguarded (it would defend an impossible state); harden only if advisory ever becomes optional.
 
 ---
 

@@ -6,13 +6,13 @@ use App\Models\Events\Show;
 use App\Models\Organizer;
 
 /**
- * Build a published event that is rich enough to render the events.show view.
+ * Build a published event that is rich enough to render the events.show view,
+ * with a representative set of relations (location, show, price range, advisory).
  *
- * note: views/events/show.blade.php reads $event->priceranges[0]->created_at and
- * $event->advisories['wheelchairReady'] unconditionally inside its JSON-LD block,
- * so a published event with NO price range OR NO advisory row throws a 500 when
- * the page is rendered (see bugsFound). Every show() happy-path test therefore
- * seeds a location, a show, a price range and an advisory.
+ * The events.show JSON-LD block used to read $event->priceranges[0] and
+ * $event->advisories[...] unconditionally and 500 when they were missing; that is
+ * now guarded in the view. The 'show renders ... with no price range or advisory'
+ * test below covers that regression directly.
  */
 function makeShowableEvent(array $overrides = []): Event
 {
@@ -82,6 +82,27 @@ test('show returns the first show tickets in the appended attribute', function (
     $viewEvent = $response->viewData('event');
     expect($viewEvent->first_show_tickets)->toHaveCount(1);
     expect($viewEvent->first_show_tickets->first()->name)->toBe('General');
+});
+
+test('show renders even when the event has no price range', function () {
+    // Regression for H1: the events.show JSON-LD block read $event->priceranges[0]
+    // unconditionally and 500'd ("Undefined array key 0") when no price range existed.
+    // (Every real event also has an advisory row — Event::newEvent() always creates one —
+    // so we seed one here too; the detail partials still assume advisories is present.)
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $event = Event::factory()->published()->create([
+        'organizer_id' => $organizer->id,
+        'closingDate' => now()->addDays(30),
+        'hasLocation' => true,
+    ]);
+    Location::factory()->create(['event_id' => $event->id]);
+    Show::factory()->create(['event_id' => $event->id]);
+    $event->advisories()->create(['wheelchairReady' => true]);
+    // Intentionally no price range.
+
+    $this->get("/events/{$event->slug}")
+        ->assertOk()
+        ->assertViewIs('events.show');
 });
 
 test('show redirects to home for a draft event', function () {

@@ -151,7 +151,7 @@
             "highPrice": "{{$highestPrice}}",
             "priceCurrency": "{{$currencyCode}}",
             "availability": "https://schema.org/InStock",
-            "validFrom": "{{$event->priceranges[0]->created_at}}",
+            "validFrom": "{{ $event->priceranges[0]->created_at ?? $event->created_at }}",
             "priceSpecification": [
                 @if($hasPWYC)
                 {
@@ -215,10 +215,10 @@
             @endif
         ],
         "isAccessibleForFree": {{ ($hasFreeTicket || (isset($event->priceranges[0]) && $event->priceranges[0]->price == 0)) ? 'true' : 'false' }},
-        @if(!$event->advisories['wheelchairReady'])
+        @if(! ($event->advisories['wheelchairReady'] ?? true))
         "accessibilityHazard": ["NoAccessibleEntrance"],
         @endif
-        "typicalAgeRange": "{{ $event->age_limits ? $event->age_limits['name'] : $event->advisories['ageRestriction'] }}"
+        "typicalAgeRange": "{{ $event->age_limits ? $event->age_limits['name'] : ($event->advisories['ageRestriction'] ?? '') }}"
     }
     </script>
 

@@ -97,11 +97,8 @@ test('approve flips a pending community to published and notifies the owner', fu
     // In-app message recorded by the approving moderator.
     expect(Message::where('user_id', $this->moderator->id)->exists())->toBeTrue();
 
-    // note: BUG — the Comments mailable IS dispatched, but with an EMPTY recipient list.
-    // The controller calls Mail::to($community->user), yet Community defines no `user()`
-    // relation (only `owner()`), so $community->user resolves to null and the owner never
-    // actually receives the approval email. We assert the real (buggy) behavior.
-    Mail::assertSent(Comments::class, fn ($mail) => $mail->to === []);
+    // The approval email is addressed to the community owner (Mail::to($community->owner)).
+    Mail::assertSent(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
 });
 
 test('approve does not notify when moderator approves their own community', function () {
@@ -145,9 +142,8 @@ test('reject sets status to n and emails the owner with the reason', function ()
     // controller's update(['rejection_reason' => ...]) silently drops it. The reason only
     // lives in the email + in-app message.
 
-    // note: same BUG as approve — Mail::to($community->user) addresses a null relation, so the
-    // rejection email is dispatched with an empty recipient list and the owner never gets it.
-    Mail::assertSent(Comments::class, fn ($mail) => $mail->to === []);
+    // The rejection email is addressed to the community owner (Mail::to($community->owner)).
+    Mail::assertSent(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
     expect(Message::where('user_id', $this->moderator->id)->exists())->toBeTrue();
 });
 
