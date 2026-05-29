@@ -384,11 +384,9 @@ test('requestNameChange creates a pending name change request', function () {
     expect($request->requestable_type)->toBe(Organizer::class);
 });
 
-test('requestNameChange missing requested_name returns a 500 (swallowed validation)', function () {
-    // note: requestNameChange() calls $request->validate() INSIDE its try block,
-    // so the thrown ValidationException is caught by the broad catch (\Exception)
-    // and converted into a generic 500 instead of bubbling up as a 422 with
-    // field-level errors. Asserting the real behavior here (see bugsFound).
+test('requestNameChange missing requested_name returns a 422 with field errors', function () {
+    // Validation now runs outside the try/catch, so a missing requested_name surfaces as
+    // a clean 422 instead of a swallowed 500.
     $owner = User::factory()->create(['type' => 'u']);
     $organizer = Organizer::factory()->create(['user_id' => $owner->id, 'status' => 'p']);
 
@@ -396,14 +394,13 @@ test('requestNameChange missing requested_name returns a 500 (swallowed validati
         ->postJson("/organizers/{$organizer->slug}/name-change", [
             'current_name' => $organizer->name,
         ])
-        ->assertStatus(500)
-        ->assertJsonPath('message', 'Failed to submit name change request.');
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['requested_name']);
 
     expect(NameChangeRequest::count())->toBe(0);
 });
 
-test('requestNameChange with a requested_name over 80 characters returns a 500 (swallowed validation)', function () {
-    // note: same swallowed-validation quirk as above — a too-long name yields 500.
+test('requestNameChange with a requested_name over 80 characters returns a 422', function () {
     $owner = User::factory()->create(['type' => 'u']);
     $organizer = Organizer::factory()->create(['user_id' => $owner->id, 'status' => 'p']);
 
@@ -412,8 +409,8 @@ test('requestNameChange with a requested_name over 80 characters returns a 500 (
             'requested_name' => str_repeat('z', 81),
             'current_name' => $organizer->name,
         ])
-        ->assertStatus(500)
-        ->assertJsonPath('message', 'Failed to submit name change request.');
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['requested_name']);
 
     expect(NameChangeRequest::count())->toBe(0);
 });

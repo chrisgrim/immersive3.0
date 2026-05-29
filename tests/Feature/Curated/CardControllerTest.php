@@ -194,18 +194,18 @@ test('store is denied to a user who is not a curator', function () {
     expect(Card::where('post_id', $this->post->id)->exists())->toBeFalse();
 });
 
-test('store is denied to the community owner who is not also a curator', function () {
-    // note: CommunityPolicy::update only allows isCurator() || isAdminOrModerator() —
-    // the community OWNER is NOT automatically authorized to manage cards unless they
-    // are also attached via the curators pivot. So a bare owner gets 403 here.
+test('store allows the community owner even when not attached as a curator', function () {
+    // CommunityPolicy::update() now authorizes the owner directly. (The owner is normally
+    // auto-enrolled as a curator at creation and can't self-remove, but should retain
+    // access even if an admin detaches them from the curators pivot.)
     $this->actingAs($this->owner)
         ->postJson(cardUrl($this->community, $this->post), [
             'name' => 'Owner Card',
             'type' => 'b',
         ])
-        ->assertStatus(403);
+        ->assertOk();
 
-    expect(Card::where('post_id', $this->post->id)->where('name', 'Owner Card')->exists())->toBeFalse();
+    expect(Card::where('post_id', $this->post->id)->where('name', 'Owner Card')->exists())->toBeTrue();
 });
 
 test('store allows an owner who is also attached as a curator', function () {
