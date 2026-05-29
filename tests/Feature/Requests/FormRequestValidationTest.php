@@ -6,6 +6,7 @@ use App\Http\Requests\StoreEventRequest;
 use App\Http\Requests\StoreOrganizerRequest;
 use App\Http\Requests\StoreProfileRequest;
 use App\Models\Curated\Community;
+use App\Models\Organizer;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Validator;
@@ -179,9 +180,11 @@ test('StoreOrganizer website must start with https:// (regex)', function () {
     expect($validator->errors()->has('website'))->toBeTrue();
 });
 
-test('StoreOrganizer accepts an https website', function () {
+test('StoreOrganizer accepts an https website on update', function () {
+    // Update context (bound {organizer}) — only the supplied fields are validated.
+    $organizer = Organizer::factory()->create();
     $data = ['website' => 'https://example.com'];
-    $request = makeRequest(StoreOrganizerRequest::class, $data);
+    $request = makeRequest(StoreOrganizerRequest::class, $data, [], null, ['organizer' => $organizer]);
 
     expect(validateWith($request, $data)->passes())->toBeTrue();
 });
@@ -241,12 +244,25 @@ test('StoreOrganizer enforces handle max lengths', function () {
     expect($validator->errors()->has('patreon'))->toBeTrue();
 });
 
-test('StoreOrganizer description rule is absent when description key is missing', function () {
-    // Social/contact fields are always present in the rule set but all nullable,
-    // so an empty payload passes.
-    $request = makeRequest(StoreOrganizerRequest::class, []);
+test('StoreOrganizer skips name/description on update when the keys are missing', function () {
+    // Update context (bound {organizer}): only changed fields are validated, and the
+    // nullable social/contact fields mean an empty payload passes.
+    $organizer = Organizer::factory()->create();
+    $request = makeRequest(StoreOrganizerRequest::class, [], [], null, ['organizer' => $organizer]);
 
     expect(validateWith($request, [])->passes())->toBeTrue();
+});
+
+test('StoreOrganizer requires name and description on create', function () {
+    // Create context (no bound {organizer}): name + description are mandatory, so an
+    // empty payload fails with both errors — this is what turns a description-less
+    // create into a clean 422 instead of a masked DB 500.
+    $request = makeRequest(StoreOrganizerRequest::class, []);
+
+    $validator = validateWith($request, []);
+    expect($validator->fails())->toBeTrue();
+    expect($validator->errors()->has('name'))->toBeTrue();
+    expect($validator->errors()->has('description'))->toBeTrue();
 });
 
 test('StoreOrganizer image rule only applies when a file is uploaded', function () {

@@ -164,20 +164,20 @@ test('store requires authentication', function () {
     ])->assertRedirect('/login');
 });
 
-test('store without a description returns a 500 (validation gap)', function () {
-    // note: StoreOrganizerRequest only validates `description` when it is present
-    // in the payload, so a missing description passes validation. The controller
-    // then tries to persist an organizer with a NULL description, the DB insert
-    // fails, and the broad catch (\Exception) block masks it as a generic 500
-    // instead of a 422. Asserting the real behavior here (see bugsFound).
+test('store without a description returns a 422 validation error', function () {
+    // StoreOrganizerRequest now requires name + description on create (there is no
+    // bound {organizer}), so a missing description is a clean 422 instead of the DB
+    // NOT NULL violation that the broad catch used to mask as a 500.
     $user = User::factory()->create(['type' => 'u']);
 
     $this->actingAs($user)
         ->postJson('/organizers', [
             'name' => 'Missing Description',
         ])
-        ->assertStatus(500)
-        ->assertJsonPath('message', 'Failed to create organizer.');
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['description']);
+
+    expect(Organizer::where('name', 'Missing Description')->exists())->toBeFalse();
 });
 
 test('store rejects a name over 80 characters', function () {
