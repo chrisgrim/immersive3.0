@@ -154,7 +154,7 @@ test('show computes total_clicks per event from the clicks relation', function (
     expect($otherView->total_clicks)->toBe(1);
 });
 
-test('show loads favorites onto each event', function () {
+test('show eager-loads the current user\'s favorite onto each event', function () {
     $user = User::factory()->create(['type' => 'u']);
     $organizer = Organizer::factory()->create(['user_id' => $user->id, 'status' => 'p']);
     $user->update(['current_team_id' => $organizer->id]);
@@ -164,8 +164,11 @@ test('show loads favorites onto each event', function () {
         'user_id' => $user->id,
     ]);
 
+    // Another user's favorite must NOT leak into the per-user scoped relation.
     $favoriter = User::factory()->create(['type' => 'u']);
     $event->favorites()->create(['user_id' => $favoriter->id]);
+    // The host's own favorite is the one that should load.
+    $event->favorites()->create(['user_id' => $user->id]);
 
     $response = $this->actingAs($user)
         ->get('/hosting/events')
@@ -174,9 +177,11 @@ test('show loads favorites onto each event', function () {
     $organizerView = $response->viewData('organizer');
     $eventView = $organizerView->events->firstWhere('id', $event->id);
 
-    // favorites is eager-loaded (relationLoaded) and contains the one favorite.
-    expect($eventView->relationLoaded('favorites'))->toBeTrue();
-    expect($eventView->favorites)->toHaveCount(1);
+    // The current-user-scoped favorite is eager-loaded (avoids the favorites
+    // N+1) and contains only the host's own favorite, not the other user's.
+    expect($eventView->relationLoaded('currentUserFavorite'))->toBeTrue();
+    expect($eventView->currentUserFavorite)->toHaveCount(1);
+    expect($eventView->isFavorited)->toBeTrue();
 });
 
 test('show renders for an organizer with zero events', function () {

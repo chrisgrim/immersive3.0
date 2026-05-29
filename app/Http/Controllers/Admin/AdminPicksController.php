@@ -11,7 +11,7 @@ class AdminPicksController extends Controller
 {
     public function index()
     {
-        return PickOfTheWeek::with(['event.favorites'])
+        return PickOfTheWeek::with(['event.currentUserFavorite'])
             ->latest()
             ->paginate(20);
     }

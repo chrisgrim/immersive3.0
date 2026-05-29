@@ -27,7 +27,7 @@ class AdminEventController extends Controller
                 'images',
                 'location',
                 'curatedCheck',
-                'favorites',
+                'currentUserFavorite',
                 'category' => fn ($q) => $q->withCount('events'),
             ])
             ->withCount('clicks as total_clicks')
@@ -126,7 +126,7 @@ class AdminEventController extends Controller
     public function getPending()
     {
         return Event::where('status', 'r')
-            ->with(['organizer', 'images', 'category', 'location', 'favorites'])
+            ->with(['organizer', 'images', 'category', 'location', 'currentUserFavorite'])
             ->withoutGlobalScope(PublishedScope::class)
             ->latest()
             ->paginate(20);

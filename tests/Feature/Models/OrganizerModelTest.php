@@ -195,5 +195,5 @@ test('withPaginatedEvents eager-loads only published non-archived events with th
     // relations declared in the scope are eager-loaded on each event
     expect($result->events->first()->relationLoaded('category'))->toBeTrue();
     expect($result->events->first()->relationLoaded('genres'))->toBeTrue();
-    expect($result->events->first()->relationLoaded('favorites'))->toBeTrue();
+    expect($result->events->first()->relationLoaded('currentUserFavorite'))->toBeTrue();
 });

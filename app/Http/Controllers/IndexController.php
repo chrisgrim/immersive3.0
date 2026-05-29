@@ -23,7 +23,7 @@ class IndexController extends Controller
                             'featuredEventImage',
                             'images',
                             'limitedCards',
-                            'limitedCards.event.favorites',
+                            'limitedCards.event.currentUserFavorite',
                             // The hero dock (curated.hero) maps each post's full
                             // cards and reads each card's post, community, event
                             // and images. Eager-load them to avoid an N+1 per
@@ -33,7 +33,7 @@ class IndexController extends Controller
                                     'post:id,name,slug,community_id',
                                     'post.community:id,name,slug',
                                     'event:id,name,slug,thumbImagePath,largeImagePath',
-                                    'event.favorites',
+                                    'event.currentUserFavorite',
                                     'images',
                                 ]);
                             },
@@ -46,7 +46,7 @@ class IndexController extends Controller
                         'post:id,name,slug,community_id',
                         'post.community:id,name,slug',
                         'event:id,name,slug,thumbImagePath,largeImagePath',
-                        'event.favorites',
+                        'event.currentUserFavorite',
                         'images',
                     ])
                         ->orderBy('order')
@@ -62,7 +62,7 @@ class IndexController extends Controller
                         'featuredEventImage',
                         'images',
                         'limitedCards',
-                        'limitedCards.event.favorites',
+                        'limitedCards.event.currentUserFavorite',
                         // Hero maps these posts' cards through the same path
                         // as the posts branch; eager-load to match (EI-LARAVEL-F).
                         'cards' => function ($cardQuery) {
@@ -70,7 +70,7 @@ class IndexController extends Controller
                                 'post:id,name,slug,community_id',
                                 'post.community:id,name,slug',
                                 'event:id,name,slug,thumbImagePath,largeImagePath',
-                                'event.favorites',
+                                'event.currentUserFavorite',
                                 'images',
                             ]);
                         },
