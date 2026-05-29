@@ -7,7 +7,7 @@ Produced while building the comprehensive test suite on **2026-05-28**. Per the 
 - **Backend (Pest):** 914 tests / 2256 assertions passing (was 183 → **+731 new**), ~20s. New tests live under `tests/Feature/**` and `tests/Unit/**`.
 - **Frontend (Vitest, newly stood up):** 12 files / **194 tests** passing, ~1.7s. `npm run test:js`. Config in `vitest.config.js`, globals mocked in `tests/js/setup.js`.
 - **~14 model factories** added under `database/factories/**`.
-- **50 suspected bugs** logged below (3 high, 20 medium, 28 low). **✅ H1 and H2 fixed 2026-05-29** (L28 added while fixing H1).
+- **50 suspected bugs** logged below (3 high, 20 medium, 28 low). **✅ Fixed 2026-05-29: H1, H2, H3, M1** (L28 added while fixing H1).
 
 A recurring theme worth a dedicated cleanup pass: **a lot of implemented controller methods have no route** (dead/unreachable), and **broad `try/catch (\Exception)` blocks swallow `ValidationException` into generic 500s**. Both are called out per-item below.
 
@@ -27,14 +27,15 @@ Both `approve()` and `reject()` call `Mail::to($community->user)->send(...)`, bu
 
 ### H3 — `ei:send-newsletter` is broken (missing mailable class)
 **`app/Console/Commands/NewsletterCommand.php:46`**
-`handle()` calls `new Newsletter($events)` but `App\Mail\Newsletter` does not exist anywhere — only the `use` import references it. Running the command fatals with `Class "App\Mail\Newsletter" not found`, so the newsletter can never send. It's currently not scheduled (only `check-closing-events`, `publish-embargoed`, `archive-clicks` are), which masks the breakage. Fix: create the mailable or remove the command. *(test: `tests/Feature/Commands/ScheduledCommandsTest.php`)*
+`handle()` calls `new Newsletter($events)` but `App\Mail\Newsletter` does not exist anywhere — only the `use` import references it. Running the command fatals with `Class "App\Mail\Newsletter" not found`, so the newsletter can never send. It's currently not scheduled (only `check-closing-events`, `publish-embargoed`, `archive-clicks` are), which masks the breakage. Fix: create the mailable or remove the command.
+**✅ Fixed 2026-05-29** — built the `App\Mail\Newsletter` mailable + `emails.newsletter` view (the newsletter feature was started but never finished; kept the command and gave it a real, runnable mailable rather than deleting it). Command now sends to both configured recipients. *(test: `tests/Feature/Commands/ScheduledCommandsTest.php`)*
 
 ---
 
 ## MEDIUM severity
 
 ### Curated
-- **M1 — Empty community name 500s instead of 422.** `app/Http/Requests/StoreCommunityRequest.php:34` + `app/Rules/UniqueSlugRule.php:16`. `ConvertEmptyStringsToNull` makes `name` null, but `$request->has('name')` is still true, so `rules()` builds `new UniqueSlugRule(null, ...)` and the `string $name` constructor type-hint throws a `TypeError` → 500 rather than a clean "name required" 422. Same risk on update. Fix: `filled('name')` or `?string`.
+- **M1 — Empty community name 500s instead of 422.** `app/Http/Requests/StoreCommunityRequest.php:34` + `app/Rules/UniqueSlugRule.php:16`. `ConvertEmptyStringsToNull` makes `name` null, but `$request->has('name')` is still true, so `rules()` builds `new UniqueSlugRule(null, ...)` and the `string $name` constructor type-hint throws a `TypeError` → 500 rather than a clean "name required" 422. Same risk on update. Fix: `filled('name')` or `?string`. **✅ Fixed 2026-05-29** — `UniqueSlugRule` now accepts `?string` (coalesces null to `''`), so an empty name yields a clean 422 from the `required` rule. *(test: `tests/Feature/Curated/CommunityControllerTest.php`)*
 - **M2 — Ownership transfer drops the original owner from curators.** `app/Http/Controllers/Curated/CommunityController.php:159-171`. `updateOwner()` mutates `$community->user_id` to the new owner *before* the `if (! in_array($community->user_id, $request->curator_ids))` check meant to re-add the old owner — so it checks the *new* owner (already present) and the original owner silently loses curator access. Capture the old owner id before `updateOwner()`.
 - **M3 — `requestNameChange` swallows validation into a 500.** `app/Http/Controllers/Curated/CommunityController.php:431-463`. `$request->validate(...)` is inside a broad `try/catch (\Exception)`; `ValidationException` is caught and re-emitted as a generic `500` JSON instead of a `422` with field errors. Re-throw/exclude `ValidationException` or validate outside the try.
 - **M4 — Logged-out curator-invitation acceptance is dead code.** `routes/curated.php:26` vs `CommunityController.php:353-358`. The `curators.accept` route sits inside the `auth+verified` group, so a logged-out invitee is bounced to `/login` before the controller's "store pending token in session + log in as `<email>`" branch can run. Move the route outside the auth group for the intended resume-after-login flow.

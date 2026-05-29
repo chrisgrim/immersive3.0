@@ -87,22 +87,21 @@ test('store accepts an uploaded image and persists it on the digitalocean disk',
     expect(Storage::disk('digitalocean')->allFiles())->not->toBeEmpty();
 });
 
-test('store with an empty name 500s instead of returning a validation error (bug)', function () {
+test('store with an empty name returns a 422 validation error', function () {
     $user = User::factory()->create(['type' => 'u']);
 
-    // note: BUG — posting an empty `name` is converted to null by Laravel's
-    // ConvertEmptyStringsToNull middleware, but the key still "exists" so
-    // StoreCommunityRequest::rules() builds `new UniqueSlugRule($this->name, ...)`
-    // with null. UniqueSlugRule's constructor type-hints `string $name`, so a
-    // TypeError is thrown while building the rules and the request 500s rather
-    // than producing a clean 422 'name is required' validation error.
+    // An empty `name` is coerced to null by ConvertEmptyStringsToNull but the key
+    // still "exists", so the name rules (incl. UniqueSlugRule) are built. UniqueSlugRule
+    // now tolerates a null name, so the 'required' rule yields a clean 422 instead of a
+    // TypeError 500.
     $this->actingAs($user)
         ->postJson('/communities', [
             'name' => '',
             'blurb' => 'b',
             'description' => 'd',
         ])
-        ->assertStatus(500);
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['name']);
 
     expect(Community::count())->toBe(0);
 });

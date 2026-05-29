@@ -77,31 +77,29 @@ test('check-closing-events is disabled and sends no mail', function () {
 
 // ----- ei:send-newsletter (NewsletterCommand) -----
 
-// note: BUG — NewsletterCommand references App\Mail\Newsletter, which does not exist
-// in the codebase. The command fatals with "Class App\Mail\Newsletter not found"
-// the moment it tries to build the mailable, so it can never send and is effectively
-// broken. We assert the actual (throwing) behavior. See bugsFound[].
-test('send-newsletter throws because the Newsletter mailable is missing', function () {
+test('send-newsletter emails the configured recipients with recent events', function () {
     Mail::fake();
 
-    Event::factory()->create([
+    $event = Event::factory()->create([
         'status' => 'p',
         'created_at' => now()->subDays(2),
     ]);
 
-    expect(fn () => Artisan::call('ei:send-newsletter'))
-        ->toThrow(\Error::class, 'Class "App\Mail\Newsletter" not found');
+    Artisan::call('ei:send-newsletter');
 
-    // It dies before queuing/sending anything.
-    Mail::assertNothingSent();
+    // One Newsletter to each hardcoded recipient.
+    Mail::assertSent(\App\Mail\Newsletter::class, 2);
+    Mail::assertSent(\App\Mail\Newsletter::class, fn ($mail) => $mail->hasTo('chgrim@gmail.com'));
+    Mail::assertSent(\App\Mail\Newsletter::class, fn ($mail) => $mail->hasTo('noah@noproscenium.com'));
+    // The recent published event is carried in the newsletter payload.
+    Mail::assertSent(\App\Mail\Newsletter::class, fn ($mail) => $mail->events->contains('id', $event->id));
 });
 
-test('send-newsletter throws even when there are no recent events', function () {
+test('send-newsletter still emails the recipients when there are no recent events', function () {
     Mail::fake();
 
-    // The query runs fine (returns an empty collection); the crash is on `new Newsletter`.
-    expect(fn () => Artisan::call('ei:send-newsletter'))
-        ->toThrow(\Error::class, 'Class "App\Mail\Newsletter" not found');
+    Artisan::call('ei:send-newsletter');
 
-    Mail::assertNothingSent();
+    Mail::assertSent(\App\Mail\Newsletter::class, 2);
+    Mail::assertSent(\App\Mail\Newsletter::class, fn ($mail) => $mail->events->isEmpty());
 });
