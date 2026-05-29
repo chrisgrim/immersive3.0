@@ -5,21 +5,25 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 
-
 class StoreProfileRequest extends FormRequest
 {
-    
     public function authorize(): bool
     {
-         $user = $this->route('user');
-         return Auth::user()->can('update', $user);
+        $user = $this->route('user');
+
+        return Auth::user()->can('update', $user);
     }
 
     public function rules(): array
     {
+        // Ignore the user BEING EDITED (the route target), not the authenticated user,
+        // so a moderator editing someone else can keep that user's existing email.
+        $userId = $this->route('user')?->id;
+        $emailUnique = 'unique:users,email'.($userId ? ','.$userId : '');
+
         return [
             'name' => 'nullable|string|max:255',
-            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $this->user()->id,
+            'email' => 'sometimes|string|email|max:255|'.$emailUnique,
             'newsletter_type' => 'sometimes|string|in:a,m,u,n',
             'silence' => 'sometimes|string|in:y,n',
             'image' => [

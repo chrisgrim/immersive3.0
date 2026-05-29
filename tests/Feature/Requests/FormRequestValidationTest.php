@@ -318,13 +318,13 @@ test('StoreProfile rejects an email already taken by another user', function () 
     expect($validator->errors()->has('email'))->toBeTrue();
 });
 
-test('StoreProfile allows the user to keep their own email (unique ignores self)', function () {
-    // note: unique rule is `unique:users,email,{currentUserId}` so the
-    // authenticated user submitting their own email is not flagged.
+test('StoreProfile allows the edited user to keep their own email (unique ignores the route user)', function () {
+    // unique rule is `unique:users,email,{routeUserId}` so the user being edited
+    // (the route target) submitting their own email is not flagged.
     $user = User::factory()->create(['email' => 'mine@example.com']);
 
     $data = ['email' => 'mine@example.com'];
-    $request = makeRequest(StoreProfileRequest::class, $data, [], $user);
+    $request = makeRequest(StoreProfileRequest::class, $data, [], $user, ['user' => $user]);
 
     expect(validateWith($request, $data)->passes())->toBeTrue();
 });

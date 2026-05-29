@@ -299,7 +299,6 @@ test('update is denied to a different non-moderator user', function () {
 test('update is allowed for a moderator editing someone else', function () {
     $moderator = User::factory()->create(['type' => 'm']);
 
-    // note: omit email — see "unique rule ignores the wrong user" bug below.
     $this->actingAs($moderator)
         ->postJson("/users/{$this->user->id}", [
             'name' => 'Mod Edited',
@@ -309,10 +308,10 @@ test('update is allowed for a moderator editing someone else', function () {
     expect($this->user->fresh()->name)->toBe('Mod Edited');
 });
 
-test('moderator updating another user with that users own email is wrongly rejected', function () {
-    // note: BUG — StoreProfileRequest's unique rule ignores $this->user()->id (the
-    // authenticated moderator) rather than the route target. So submitting the
-    // target user's existing email trips "email has already been taken".
+test('moderator can update another user while keeping that users own email', function () {
+    // Regression for M9: the email unique rule ignores the route target (the user being
+    // edited), not the authenticated moderator, so submitting the target's existing
+    // email no longer falsely trips "email has already been taken".
     $moderator = User::factory()->create(['type' => 'm']);
 
     $this->actingAs($moderator)
@@ -320,8 +319,9 @@ test('moderator updating another user with that users own email is wrongly rejec
             'name' => 'Mod Edited',
             'email' => $this->user->email,
         ])
-        ->assertStatus(422)
-        ->assertJsonValidationErrors(['email']);
+        ->assertOk();
+
+    expect($this->user->fresh()->name)->toBe('Mod Edited');
 });
 
 test('update requires authentication', function () {
