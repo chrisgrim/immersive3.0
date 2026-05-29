@@ -1,0 +1,507 @@
+<?php
+
+use App\Actions\Search\SearchActions;
+use App\Http\Controllers\Search\ListingsController;
+use App\Models\Category;
+use App\Models\Genre;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+
+// These tests exercise ONLY the pure filter-construction helpers on
+// ListingsController (buildLocationFilter / buildSearchFilters /
+// buildMapBoundaryFilter) plus SearchActions::nameSearch/eventSearch query
+// shaping. Elasticsearch is not available in the test env (SCOUT_DRIVER=null),
+// so none of these tests touch index()/apiIndex() execution paths or
+// Event::searchQuery(). The build* helpers are protected, so we invoke them via
+// reflection against a fresh controller instance.
+
+// ----- helpers -----
+
+/**
+ * Invoke a protected build* method on a fresh ListingsController with a Request
+ * carrying the given query parameters.
+ */
+function callBuilder(string $method, array $query)
+{
+    $controller = new ListingsController;
+    $request = Request::create('/search', 'GET', $query);
+
+    $ref = new ReflectionMethod(ListingsController::class, $method);
+    $ref->setAccessible(true);
+
+    return $ref->invoke($controller, $request);
+}
+
+beforeEach(function () {
+    // The buildLocationFilter geo branch logs a warning on bad coords; keep the
+    // log facade fake so we never write to disk and can assert it fired.
+    Log::spy();
+});
+
+// ============================================================
+// buildLocationFilter — searchType handling
+// ============================================================
+
+test('buildLocationFilter with no searchType returns only a null geoFilter and no attendanceType', function () {
+    $result = callBuilder('buildLocationFilter', []);
+
+    expect($result)->toHaveKey('geoFilter');
+    expect($result['geoFilter'])->toBeNull();
+    expect($result)->not->toHaveKey('attendanceType');
+});
+
+test("buildLocationFilter treats the literal string 'null' searchType like no searchType", function () {
+    $result = callBuilder('buildLocationFilter', ['searchType' => 'null']);
+
+    expect($result)->toHaveKey('geoFilter');
+    expect($result['geoFilter'])->toBeNull();
+    expect($result)->not->toHaveKey('attendanceType');
+});
+
+test('buildLocationFilter with no searchType builds a 40km geoDistance filter from numeric lat/lng', function () {
+    $result = callBuilder('buildLocationFilter', [
+        'lat' => '40.7128',
+        'lng' => '-74.0060',
+    ]);
+
+    expect($result['geoFilter'])->not->toBeNull();
+
+    $built = $result['geoFilter']->buildQuery();
+    expect($built)->toHaveKey('geo_distance');
+    expect($built['geo_distance']['location_latlon']['lat'])->toBe(40.7128);
+    expect($built['geo_distance']['location_latlon']['lon'])->toBe(-74.0060);
+    expect($built['geo_distance']['distance'])->toBe('40km');
+});
+
+test('buildLocationFilter ignores non-numeric lat/lng and logs a warning (no geoFilter)', function () {
+    // note: lat/lng of 'NaN' are truthy strings, so they pass the `$request->lat
+    // && $request->lng` guard but fail is_numeric(), hitting the warning branch.
+    $result = callBuilder('buildLocationFilter', [
+        'lat' => 'NaN',
+        'lng' => 'NaN',
+        'city' => 'Nowhere',
+    ]);
+
+    expect($result['geoFilter'])->toBeNull();
+    Log::shouldHaveReceived('warning')->withArgs(fn ($msg) => str_contains($msg, 'Invalid lat/lng'))->once();
+});
+
+test('buildLocationFilter ignores missing lng even when lat is present', function () {
+    // Only lat present -> the `$request->lat && $request->lng` guard short-circuits,
+    // so no geoFilter is built and nothing is logged.
+    $result = callBuilder('buildLocationFilter', ['lat' => '40.7']);
+
+    expect($result['geoFilter'])->toBeNull();
+    Log::shouldNotHaveReceived('warning');
+});
+
+// ----- inPerson branch -----
+
+test('buildLocationFilter inPerson returns attendance_type_id term of 1', function () {
+    $result = callBuilder('buildLocationFilter', ['searchType' => 'inPerson']);
+
+    expect($result)->toHaveKeys(['attendanceType', 'inPersonCategories', 'geoFilter']);
+    expect($result['geoFilter'])->toBeNull();
+
+    $built = $result['attendanceType']->buildQuery();
+    expect($built['term']['attendance_type_id']['value'])->toBe(1);
+});
+
+test('buildLocationFilter inPerson builds a geoFilter when numeric lat/lng given', function () {
+    $result = callBuilder('buildLocationFilter', [
+        'searchType' => 'inPerson',
+        'lat' => '34.05',
+        'lng' => '-118.24',
+    ]);
+
+    expect($result['geoFilter'])->not->toBeNull();
+    $built = $result['geoFilter']->buildQuery();
+    expect($built['geo_distance']['location_latlon']['lat'])->toBe(34.05);
+    expect($built['geo_distance']['location_latlon']['lon'])->toBe(-118.24);
+});
+
+test('buildLocationFilter inPerson with non-numeric lat/lng yields null geoFilter and logs', function () {
+    $result = callBuilder('buildLocationFilter', [
+        'searchType' => 'inPerson',
+        'lat' => 'foo',
+        'lng' => 'bar',
+    ]);
+
+    expect($result['geoFilter'])->toBeNull();
+    Log::shouldHaveReceived('warning')->once();
+});
+
+test('buildLocationFilter inPerson includes categories with matching or null applicable_attendance_types', function () {
+    $matching = Category::factory()->create(['applicable_attendance_types' => [1]]);
+    $unrestricted = Category::factory()->create(['applicable_attendance_types' => null]);
+    $remoteOnly = Category::factory()->create(['applicable_attendance_types' => [2]]);
+
+    $result = callBuilder('buildLocationFilter', ['searchType' => 'inPerson']);
+
+    $ids = $result['inPersonCategories']->pluck('id')->all();
+    expect($ids)->toContain($matching->id);
+    expect($ids)->toContain($unrestricted->id);
+    expect($ids)->not->toContain($remoteOnly->id);
+});
+
+// ----- atHome branch -----
+
+test('buildLocationFilter atHome returns attendance_type_id term of 2 and no geoFilter key', function () {
+    $result = callBuilder('buildLocationFilter', ['searchType' => 'atHome']);
+
+    expect($result)->toHaveKeys(['attendanceType', 'remoteCategories']);
+    // note: the atHome branch never sets a geoFilter key (remote events have no
+    // geo distance filtering), unlike the default and inPerson branches.
+    expect($result)->not->toHaveKey('geoFilter');
+
+    $built = $result['attendanceType']->buildQuery();
+    expect($built['term']['attendance_type_id']['value'])->toBe(2);
+});
+
+test('buildLocationFilter atHome includes categories with matching or null applicable_attendance_types', function () {
+    $matching = Category::factory()->create(['applicable_attendance_types' => [2]]);
+    $unrestricted = Category::factory()->create(['applicable_attendance_types' => null]);
+    $inPersonOnly = Category::factory()->create(['applicable_attendance_types' => [1]]);
+
+    $result = callBuilder('buildLocationFilter', ['searchType' => 'atHome']);
+
+    $ids = $result['remoteCategories']->pluck('id')->all();
+    expect($ids)->toContain($matching->id);
+    expect($ids)->toContain($unrestricted->id);
+    expect($ids)->not->toContain($inPersonOnly->id);
+});
+
+test('buildLocationFilter returns an empty array for an unrecognized searchType', function () {
+    // note: any non-null searchType that is not inPerson/atHome falls through all
+    // three branches and returns []. No geoFilter key at all.
+    $result = callBuilder('buildLocationFilter', ['searchType' => 'somethingElse']);
+
+    expect($result)->toBe([]);
+});
+
+// ============================================================
+// buildSearchFilters — categories
+// ============================================================
+
+test('buildSearchFilters with no params returns an empty filter set', function () {
+    $result = callBuilder('buildSearchFilters', []);
+
+    expect($result)->toBe([]);
+});
+
+test('buildSearchFilters converts a category slug to its id and builds a terms filter', function () {
+    $category = Category::factory()->create();
+
+    $result = callBuilder('buildSearchFilters', ['category' => $category->slug]);
+
+    expect($result)->toHaveKeys(['searchedCategories', 'categories']);
+    $built = $result['categories']->buildQuery();
+    expect($built['terms']['category_id'])->toBe([$category->id]);
+});
+
+test('buildSearchFilters accepts a numeric category id directly', function () {
+    $category = Category::factory()->create();
+
+    $result = callBuilder('buildSearchFilters', ['category' => (string) $category->id]);
+
+    $built = $result['categories']->buildQuery();
+    expect($built['terms']['category_id'])->toBe([$category->id]);
+});
+
+test('buildSearchFilters handles a comma-separated mix of slug and numeric id', function () {
+    $a = Category::factory()->create();
+    $b = Category::factory()->create();
+
+    $result = callBuilder('buildSearchFilters', ['category' => $a->slug.','.$b->id]);
+
+    $built = $result['categories']->buildQuery();
+    expect($built['terms']['category_id'])->toBe([$a->id, $b->id]);
+});
+
+test('buildSearchFilters handles an array of categories', function () {
+    $a = Category::factory()->create();
+    $b = Category::factory()->create();
+
+    $result = callBuilder('buildSearchFilters', ['category' => [$a->slug, (string) $b->id]]);
+
+    $built = $result['categories']->buildQuery();
+    expect($built['terms']['category_id'])->toBe([$a->id, $b->id]);
+});
+
+test("buildSearchFilters skips the literal 'NaN' category token", function () {
+    $category = Category::factory()->create();
+
+    $result = callBuilder('buildSearchFilters', ['category' => 'NaN,'.$category->slug]);
+
+    $built = $result['categories']->buildQuery();
+    expect($built['terms']['category_id'])->toBe([$category->id]);
+});
+
+test('buildSearchFilters drops an unknown category slug, producing no category filter', function () {
+    // note: a slug that resolves to no Category yields an empty $categoryIds, so
+    // the whole category filter block is skipped (no 'categories' key at all).
+    $result = callBuilder('buildSearchFilters', ['category' => 'does-not-exist']);
+
+    expect($result)->not->toHaveKey('categories');
+    expect($result)->not->toHaveKey('searchedCategories');
+});
+
+test('buildSearchFilters with only a NaN category produces no category filter', function () {
+    $result = callBuilder('buildSearchFilters', ['category' => 'NaN']);
+
+    expect($result)->not->toHaveKey('categories');
+});
+
+// ============================================================
+// buildSearchFilters — tags (genres)
+// ============================================================
+
+test('buildSearchFilters converts a tag slug to its genre id inside a bool/must terms filter', function () {
+    $genre = Genre::factory()->create();
+
+    $result = callBuilder('buildSearchFilters', ['tag' => $genre->slug]);
+
+    expect($result)->toHaveKeys(['searchedTags', 'tags']);
+    $built = $result['tags']->buildQuery();
+    // Shape: { bool: { must: [ { terms: { 'genres.genre_id': [id] } } ] } }
+    expect($built['bool']['must'][0]['terms']['genres.genre_id'])->toBe([$genre->id]);
+});
+
+test('buildSearchFilters accepts a comma-separated list of tag ids and slugs', function () {
+    $a = Genre::factory()->create();
+    $b = Genre::factory()->create();
+
+    $result = callBuilder('buildSearchFilters', ['tag' => (string) $a->id.','.$b->slug]);
+
+    $built = $result['tags']->buildQuery();
+    expect($built['bool']['must'][0]['terms']['genres.genre_id'])->toBe([$a->id, $b->id]);
+});
+
+test("buildSearchFilters skips the literal 'NaN' tag token", function () {
+    $genre = Genre::factory()->create();
+
+    $result = callBuilder('buildSearchFilters', ['tag' => 'NaN,'.$genre->slug]);
+
+    $built = $result['tags']->buildQuery();
+    expect($built['bool']['must'][0]['terms']['genres.genre_id'])->toBe([$genre->id]);
+});
+
+test('buildSearchFilters drops an unknown tag slug, producing no tag filter', function () {
+    $result = callBuilder('buildSearchFilters', ['tag' => 'no-such-genre']);
+
+    expect($result)->not->toHaveKey('tags');
+    expect($result)->not->toHaveKey('searchedTags');
+});
+
+// ============================================================
+// buildSearchFilters — price range
+// ============================================================
+
+test('buildSearchFilters builds a price range with a gte lower bound from price0 only', function () {
+    $result = callBuilder('buildSearchFilters', ['price0' => '15']);
+
+    expect($result)->toHaveKey('prices');
+    $built = $result['prices']->buildQuery();
+    expect($built['range']['priceranges.price'])->toHaveKey('gte');
+    expect($built['range']['priceranges.price']['gte'])->toBe(15.0);
+    // note: with no price1, only the lower bound is added (no upper bound).
+    expect($built['range']['priceranges.price'])->not->toHaveKey('lte');
+});
+
+test('buildSearchFilters adds both gte and lte when price0 and price1 are set', function () {
+    $result = callBuilder('buildSearchFilters', ['price0' => '10', 'price1' => '50']);
+
+    $built = $result['prices']->buildQuery();
+    expect($built['range']['priceranges.price']['gte'])->toBe(10.0);
+    expect($built['range']['priceranges.price']['lte'])->toBe(50.0);
+});
+
+test('buildSearchFilters defaults the lower bound to 0 when only price1 is present', function () {
+    // note: the block is entered when EITHER price0 or price1 is present; with
+    // only price1, $minPrice defaults to the integer literal 0 (not a float),
+    // and an upper bound is still added.
+    $result = callBuilder('buildSearchFilters', ['price1' => '30']);
+
+    $built = $result['prices']->buildQuery();
+    expect($built['range']['priceranges.price']['gte'])->toBe(0);
+    expect($built['range']['priceranges.price']['lte'])->toBe(30.0);
+});
+
+test('buildSearchFilters casts non-numeric price1 to 0.0 via (float) cast', function () {
+    // note: (float) 'NaN' === 0.0 in PHP, so an upper bound of 0 is added. The
+    // helper does no validation on price values; this documents current behavior.
+    $result = callBuilder('buildSearchFilters', ['price0' => '5', 'price1' => 'NaN']);
+
+    $built = $result['prices']->buildQuery();
+    expect($built['range']['priceranges.price']['gte'])->toBe(5.0);
+    expect($built['range']['priceranges.price']['lte'])->toBe(0.0);
+});
+
+// ============================================================
+// buildSearchFilters — date range
+// ============================================================
+
+test('buildSearchFilters builds a should/should date bool when start and end are set', function () {
+    $result = callBuilder('buildSearchFilters', [
+        'start' => '2026-06-01',
+        'end' => '2026-06-30',
+    ]);
+
+    expect($result)->toHaveKey('dates');
+    $built = $result['dates']->buildQuery();
+
+    // Two should clauses: a nested shows.date range and an always-available term.
+    expect($built['bool']['should'])->toHaveCount(2);
+    expect($built['bool']['minimum_should_match'])->toBe(1);
+
+    $nestedRange = $built['bool']['should'][0]['nested']['query']['range']['shows.date'];
+    expect($nestedRange['gte'])->toBe('2026-06-01 00:00:00');
+    // note: the end bound is normalized to endOfDay so same-day-later shows match.
+    expect($nestedRange['lte'])->toBe('2026-06-30 23:59:59');
+    expect($built['bool']['should'][0]['nested']['path'])->toBe('shows');
+
+    $alwaysTerm = $built['bool']['should'][1]['term']['showtype'];
+    expect($alwaysTerm['value'])->toBe('a');
+});
+
+test('buildSearchFilters omits the date filter when only start is given', function () {
+    $result = callBuilder('buildSearchFilters', ['start' => '2026-06-01']);
+
+    expect($result)->not->toHaveKey('dates');
+});
+
+test('buildSearchFilters omits the date filter when only end is given', function () {
+    $result = callBuilder('buildSearchFilters', ['end' => '2026-06-30']);
+
+    expect($result)->not->toHaveKey('dates');
+});
+
+// ============================================================
+// buildSearchFilters — combined
+// ============================================================
+
+test('buildSearchFilters can build category, tag, price and date filters together', function () {
+    $category = Category::factory()->create();
+    $genre = Genre::factory()->create();
+
+    $result = callBuilder('buildSearchFilters', [
+        'category' => $category->slug,
+        'tag' => $genre->slug,
+        'price0' => '0',
+        'price1' => '100',
+        'start' => '2026-07-01',
+        'end' => '2026-07-15',
+    ]);
+
+    expect($result)->toHaveKeys(['categories', 'tags', 'prices', 'dates']);
+    expect($result['categories']->buildQuery()['terms']['category_id'])->toBe([$category->id]);
+    expect($result['tags']->buildQuery()['bool']['must'][0]['terms']['genres.genre_id'])->toBe([$genre->id]);
+});
+
+// ============================================================
+// buildMapBoundaryFilter
+// ============================================================
+
+test('buildMapBoundaryFilter returns null when live is not set', function () {
+    $result = callBuilder('buildMapBoundaryFilter', [
+        'NElat' => '40.9', 'NElng' => '-73.7', 'SWlat' => '40.4', 'SWlng' => '-74.2',
+    ]);
+
+    expect($result)->toBeNull();
+});
+
+test("buildMapBoundaryFilter returns null when live is not exactly the string 'true'", function () {
+    // note: live must be the literal string 'true'; live=1 / live=on do not count.
+    $result = callBuilder('buildMapBoundaryFilter', [
+        'live' => '1',
+        'NElat' => '40.9', 'NElng' => '-73.7', 'SWlat' => '40.4', 'SWlng' => '-74.2',
+    ]);
+
+    expect($result)->toBeNull();
+});
+
+test('buildMapBoundaryFilter builds a geo_bounding_box when live=true and all coords are numeric', function () {
+    $result = callBuilder('buildMapBoundaryFilter', [
+        'live' => 'true',
+        'NElat' => '40.9', 'NElng' => '-73.7', 'SWlat' => '40.4', 'SWlng' => '-74.2',
+    ]);
+
+    expect($result)->not->toBeNull();
+    $built = $result->buildQuery();
+    $box = $built['bool']['filter']['geo_bounding_box']['location_latlon'];
+    expect($box['top_right'])->toBe(['lat' => 40.9, 'lon' => -73.7]);
+    expect($box['bottom_left'])->toBe(['lat' => 40.4, 'lon' => -74.2]);
+});
+
+test('buildMapBoundaryFilter returns null and logs when any boundary coord is non-numeric', function () {
+    $result = callBuilder('buildMapBoundaryFilter', [
+        'live' => 'true',
+        'NElat' => '40.9', 'NElng' => 'NaN', 'SWlat' => '40.4', 'SWlng' => '-74.2',
+    ]);
+
+    expect($result)->toBeNull();
+    Log::shouldHaveReceived('warning')->withArgs(fn ($msg) => str_contains($msg, 'Invalid geo boundary'))->once();
+});
+
+test('buildMapBoundaryFilter returns null and logs when a boundary coord is missing', function () {
+    $result = callBuilder('buildMapBoundaryFilter', [
+        'live' => 'true',
+        'NElat' => '40.9', 'SWlat' => '40.4', 'SWlng' => '-74.2',
+    ]);
+
+    expect($result)->toBeNull();
+    Log::shouldHaveReceived('warning')->once();
+});
+
+// ============================================================
+// SearchActions::nameSearch / eventSearch
+// These shape pure Query objects (no ES client needed) when keywords present,
+// and matchAll() when blank.
+// ============================================================
+
+test('nameSearch returns a match_all query when no keywords supplied', function () {
+    $query = (new SearchActions)->nameSearch(Request::create('/search', 'GET', []));
+
+    // note: match_all serializes to an empty stdClass, so compare structurally
+    // rather than by identity (distinct object instances are never ===).
+    $built = $query->buildQuery();
+    expect($built)->toHaveKey('match_all');
+    expect((array) $built['match_all'])->toBe([]);
+});
+
+test('nameSearch builds a five-clause bool should query for keywords', function () {
+    $query = (new SearchActions)->nameSearch(Request::create('/search', 'GET', ['keywords' => 'haunted house']));
+
+    $built = $query->buildQuery();
+    expect($built['bool']['should'])->toHaveCount(5);
+    expect($built['bool']['minimum_should_match'])->toBe(1);
+
+    // First clause: exact name.raw match boosted 10.
+    // note: boost values come back as floats (10.0) from the query builder.
+    expect($built['bool']['should'][0]['match']['name.raw']['query'])->toBe('haunted house');
+    expect($built['bool']['should'][0]['match']['name.raw']['boost'])->toBe(10.0);
+
+    // Second clause: fuzzy name match.
+    expect($built['bool']['should'][1]['match']['name']['fuzziness'])->toBe('AUTO');
+
+    // Last clause: multi_match bool_prefix over ngram subfields.
+    expect($built['bool']['should'][4]['multi_match']['type'])->toBe('bool_prefix');
+    expect($built['bool']['should'][4]['multi_match']['fields'])->toBe(['name._2gram', 'name._3gram']);
+});
+
+test('eventSearch returns a match_all query when no keywords supplied', function () {
+    $query = (new SearchActions)->eventSearch(Request::create('/search', 'GET', []));
+
+    $built = $query->buildQuery();
+    expect($built)->toHaveKey('match_all');
+    expect((array) $built['match_all'])->toBe([]);
+});
+
+test('eventSearch builds the same five-clause bool should query as nameSearch for keywords', function () {
+    $query = (new SearchActions)->eventSearch(Request::create('/search', 'GET', ['keywords' => 'escape room']));
+
+    $built = $query->buildQuery();
+    expect($built['bool']['should'])->toHaveCount(5);
+    expect($built['bool']['minimum_should_match'])->toBe(1);
+    expect($built['bool']['should'][3]['prefix']['name']['value'])->toBe('escape room');
+});
