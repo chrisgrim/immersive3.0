@@ -3,11 +3,14 @@
 namespace App\Models;
 
 use App\Scopes\RankScope;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 class Category extends Model
 {
+    use HasFactory;
+
     /**
      * What protected variables are allowed to be passed to the database
      *

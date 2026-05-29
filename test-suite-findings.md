@@ -1,0 +1,129 @@
+# Test Suite Findings
+
+Produced while building the comprehensive test suite on **2026-05-28**. Per the agreed approach, every test asserts the app's **current** behavior (so the suite is green); the suspected bugs below were **logged, not fixed**. Each bug has a test asserting today's behavior — when you fix the code, flip the corresponding assertion.
+
+## Suite at a glance
+
+- **Backend (Pest):** 914 tests / 2256 assertions passing (was 183 → **+731 new**), ~20s. New tests live under `tests/Feature/**` and `tests/Unit/**`.
+- **Frontend (Vitest, newly stood up):** 12 files / **194 tests** passing, ~1.7s. `npm run test:js`. Config in `vitest.config.js`, globals mocked in `tests/js/setup.js`.
+- **~14 model factories** added under `database/factories/**`.
+- **50 suspected bugs** logged below (3 high, 20 medium, 27 low).
+
+A recurring theme worth a dedicated cleanup pass: **a lot of implemented controller methods have no route** (dead/unreachable), and **broad `try/catch (\Exception)` blocks swallow `ValidationException` into generic 500s**. Both are called out per-item below.
+
+---
+
+## HIGH severity
+
+### H1 — Public event page 500s when optional related data is missing
+**`resources/views/events/show.blade.php:154` (also `:218`, `:221`), via `EventController::show`**
+The JSON-LD block reads `$event->priceranges[0]->created_at` unconditionally and `$event->advisories['wheelchairReady']` / `['ageRestriction']`. A **published** event with no `PriceRange` row throws `Undefined array key 0` (HTTP 500); a missing `Advisory` null-derefs similarly. Verified: published event with a location + show but no price range → 500; adding one price range + one advisory → 200. Public pages can hard-fail purely from missing optional data. *(test: `tests/Feature/EventControllerTest.php`)*
+
+### H2 — Community approval/rejection emails are sent to nobody
+**`app/Http/Controllers/Admin/AdminCommunityController.php:48` and `:76`**
+Both `approve()` and `reject()` call `Mail::to($community->user)->send(...)`, but `Community` defines no `user()` relation (only `owner()`, FK `user_id`), so `$community->user` is `null`. The mail dispatches with an **empty recipient list** (verified: sent count 1, `$mail->to === []`). The owner never receives approval/rejection email. Fix: use `$community->owner`. (The in-app `Message::notification()` is unaffected — it reads `user_id` directly.) *(test: `tests/Feature/Api/Admin/AdminCommunityControllerTest.php`)*
+
+### H3 — `ei:send-newsletter` is broken (missing mailable class)
+**`app/Console/Commands/NewsletterCommand.php:46`**
+`handle()` calls `new Newsletter($events)` but `App\Mail\Newsletter` does not exist anywhere — only the `use` import references it. Running the command fatals with `Class "App\Mail\Newsletter" not found`, so the newsletter can never send. It's currently not scheduled (only `check-closing-events`, `publish-embargoed`, `archive-clicks` are), which masks the breakage. Fix: create the mailable or remove the command. *(test: `tests/Feature/Commands/ScheduledCommandsTest.php`)*
+
+---
+
+## MEDIUM severity
+
+### Curated
+- **M1 — Empty community name 500s instead of 422.** `app/Http/Requests/StoreCommunityRequest.php:34` + `app/Rules/UniqueSlugRule.php:16`. `ConvertEmptyStringsToNull` makes `name` null, but `$request->has('name')` is still true, so `rules()` builds `new UniqueSlugRule(null, ...)` and the `string $name` constructor type-hint throws a `TypeError` → 500 rather than a clean "name required" 422. Same risk on update. Fix: `filled('name')` or `?string`.
+- **M2 — Ownership transfer drops the original owner from curators.** `app/Http/Controllers/Curated/CommunityController.php:159-171`. `updateOwner()` mutates `$community->user_id` to the new owner *before* the `if (! in_array($community->user_id, $request->curator_ids))` check meant to re-add the old owner — so it checks the *new* owner (already present) and the original owner silently loses curator access. Capture the old owner id before `updateOwner()`.
+- **M3 — `requestNameChange` swallows validation into a 500.** `app/Http/Controllers/Curated/CommunityController.php:431-463`. `$request->validate(...)` is inside a broad `try/catch (\Exception)`; `ValidationException` is caught and re-emitted as a generic `500` JSON instead of a `422` with field errors. Re-throw/exclude `ValidationException` or validate outside the try.
+- **M4 — Logged-out curator-invitation acceptance is dead code.** `routes/curated.php:26` vs `CommunityController.php:353-358`. The `curators.accept` route sits inside the `auth+verified` group, so a logged-out invitee is bounced to `/login` before the controller's "store pending token in session + log in as `<email>`" branch can run. Move the route outside the auth group for the intended resume-after-login flow.
+- **M5 — `PostActions::destroy()` leaves orphaned images.** `app/Actions/Curated/PostActions.php:115` + `app/Models/Curated/Post.php:111`. `destroy()` only calls `$post->delete()` (soft delete); image/card cleanup is wired only into the model's `forceDeleting` hook. So normal deletion soft-deletes the post but its polymorphic `Image` rows (and files) persist.
+- **M6 — Community owner can't manage their own cards unless also a curator.** `app/Policies/CommunityPolicy.php:49` (`update`). `update()` authorizes only `isCurator() || isAdminOrModerator()` — not `isOwner()`. All card routes gate on `can:update,community`, so the creator gets 403 on their own cards unless attached via the curators pivot. `manageCurators()`/`owner()` *do* treat the owner specially, making this look unintentional.
+
+### Public / Organizer
+- **M7 — `OrganizerController::requestNameChange` swallows `ValidationException` into a 500.** `app/Http/Controllers/OrganizerController.php:105-143`. Same broad-try/catch pattern as M3 — missing/over-long `requested_name` returns 500, not 422.
+- **M8 — `OrganizerController::store` accepts a missing description, then 500s on insert.** `OrganizerController.php:66-103` + `StoreOrganizerRequest.php:29`. The description rule only applies when present; omitting it passes validation, then the NOT NULL column rejects the insert and the broad catch masks it as a generic 500. Should be a 422.
+
+### User / Auth
+- **M9 — Profile email-uniqueness ignores the wrong user.** `app/Http/Requests/StoreProfileRequest.php:22`. Rule is `unique:users,email,` . `$this->user()->id` (the *authenticated* user) instead of the *route target* `$this->route('user')->id`. A moderator editing another user who keeps their own email gets "already taken." Self-edits work only by coincidence.
+- **M10 — Profile update silently resets newsletter/silence prefs.** `app/Http/Controllers/User/ProfilesController.php:69-72`. The regular-fields path unconditionally merges `newsletter_type='n'` and `silence='y'`, so a name-only update clobbers the user's saved preferences.
+- **M11 — Password login & self-registration are dead code.** `AuthenticatedSessionController@store` (POST /login) and `RegisteredUserController@store` (POST /register) are fully implemented but **no routes map to them** (only `POST /logout` exists; GET /login & /register render views). The app relies on passwordless email-code + social login. Either wire routes or remove. *(tested via direct controller invocation.)*
+- **M12 — Email-change code is brute-forceable.** `EmailVerificationController` (`sendVerificationCode`/`verifyCode`). No attempt counter / lockout and the cached 6-digit code is **not cleared on a wrong code**, so an authenticated user can brute-force the 1,000,000 space within the 10-minute window. No endpoint rate limiting either.
+
+### Admin
+- **M13 — Interactive advisory without a description fails at the DB.** `app/Http/Controllers/Admin/AdminAdvisoryController.php:114` (`prepareStoreData`). `interactive_levels.description` is NOT NULL with no default, but validation marks description `sometimes` and `prepareStoreData` only adds it when present → SQL constraint failure (500). Should be required for `interactive`.
+- **M14 — Settings models hard-delete and orphan pivots.** `app/Models/Category.php`, `Genre.php`, `Events/*`. None use `SoftDeletes`, so `destroy()` permanently removes rows even though pivots (`event_genre`, `content_advisory_event`, etc.) may still reference the id → orphaned pivot rows.
+- **M15 — `AdminPicksController` is dead/broken.** `app/Http/Controllers/Admin/AdminPicksController.php:7,14,21`. References non-existent `App\Models\PickOfTheWeek` (real model is `App\Models\Admin\StaffPick`) → fatal `Class not found` on execution; also writes `admin_id`/`featured_until` columns that don't exist on `staff_picks`. No routes registered (inert today, would 500 if wired).
+
+### Models / Services / Commands
+- **M16 — `getFirstShowTicketsAttribute` returns the LAST show's tickets, not the first.** `app/Models/Event.php:614`. The accessor does `->orderBy('date','asc')`, but `Show`'s `DateScope` (`asc`) and `Event::shows()`'s own `orderBy('date','DESC')` stack so the effective lead sort is descending. Confirmed for both eager- and lazy-loaded paths. Any UI showing "first show" pricing shows the wrong show.
+- **M17 — Name-change requests never notify admins.** `app/Services/NameChangeRequestService.php:43`. `createNameChangeRequest` loops over admins but the `Mail::to($admin)->send(new NameChangeNotification(...))` line is **commented out**, so pending requests sit unseen. The mailable even has a dedicated admin-subject branch, implying it was meant to fire.
+- **M18 — `processAdminDirectChange` assumes `$model->user` exists.** `NameChangeRequestService.php:81-84`. `Organizer` has `user()` but `Curated\Community` has only `owner()`, so for a Community `$model->user` is null and `Mail::to(null)` throws — swallowed by the surrounding try/catch, so the Community owner is silently not notified on an admin rename.
+- **M19 — `ei:publish-embargoed` never sets `published_at`.** `app/Console/Commands/PublishEventsCommand.php:80-83`. On auto-publish it sets only `status='p'` + `embargo_date=null`, never `published_at`. Since `PublishedScope` orders the public feed by `published_at desc`, embargo-published events keep a null `published_at` and sort/behave inconsistently. (The moderator approve flow *does* set it.)
+
+### Frontend
+- **M20 — `generateRecurringDates` leaks the end date when no requested weekday is in range.** `resources/js/composables/dateUtils.js:188-211`. The "find first occurrence" loop exits when `current === end` (not when it finds the weekday), then the generation loop pushes the end date regardless of its day-of-week. Verified: `generateRecurringDates([0]/*Sun*/, '2025-03-04', '2025-03-06', tz)` returns `['2025-03-06']` (a Thursday) instead of `[]`. *(test asserts current output under a `BUG:` label.)*
+
+---
+
+## LOW severity
+
+### Dead code / missing routes
+- **L1** `CommunityController@destroy` — no DELETE route (`routes/curated.php`). Unreachable over HTTP.
+- **L2** `PostController::paginate()` — no route maps to it (the `/paginate` route resolves to `CommunityController`). `app/Http/Controllers/Curated/PostController.php:108`.
+- **L3** `ProfilesController::show()` is inside the `auth` group despite `makeHidden(...)` implying a public profile — guests are redirected to login. `routes/web.php:56`.
+- **L4** `ProfilesController::destroy()` — no route. `app/Http/Controllers/User/ProfilesController.php:94`.
+- **L5** `MessagesController::checkUnread()`/`markAllRead()` — no routes; the unread-badge endpoints the frontend would call are unreachable. `app/Http/Controllers/User/MessagesController.php:17`.
+- **L6** Apple social login (`redirectToApple`/`handleAppleCallback`) has no `/auth/apple` routes though the methods + provider package exist.
+
+### Validation / typing inconsistencies
+- **L7** `Post::is_hidden` / `Shelf::is_hidden` have no `boolean` cast — read back as int 1/0. `app/Models/Curated/Post.php`, `Shelf.php`.
+- **L8** `Genre`/`ContentAdvisory`/`MobilityAdvisory` `admin` has no boolean cast — serializes as int 1/0 despite boolean validation.
+- **L9** Card row is created **before** image validation runs, so an invalid image upload still persists a card (and order-shifts siblings). `app/Actions/Curated/CardActions.php:22-38`.
+- **L10** Price params are `(float)`-cast with no `is_numeric` guard, so `price1='NaN'` silently becomes `lte=0.0` (excludes all priced events). `ListingsController.php:165-174`.
+- **L11** Mixed numeric type for the price `gte` (int `0` default vs float). `ListingsController.php:165`.
+- **L12** `buildMapBoundaryFilter` only honors the exact string `'true'` for `live`. `ListingsController.php:219`.
+- **L13** `atHome` branch omits the `geoFilter` key the other branches always set — inconsistent return shape. `ListingsController.php:73-84`.
+- **L14** `StoreProfileRequest` derefs `$this->user()->id` / `Auth::user()->can(...)` without a null guard → 500 if it ever reaches `rules()`/`authorize()` unauthenticated. `StoreProfileRequest.php:14-22`.
+- **L15** `StoreEventRequest` defines an `images.*.dimensions` message but the dimensions rule was removed (only `file|mimes|max`), so event images aren't size-constrained as implied. `StoreEventRequest.php:87-92,145`.
+
+### Return-shape / API hygiene
+- **L16** Advisory `update()`/`destroy()` return raw `true`/`false` as the 200 body (vs `{message}`/model elsewhere). `AdminAdvisoryController.php:54,62`.
+- **L17** Unknown advisory `{type}` throws `InvalidArgumentException` → 500 (segment isn't constrained/validated). `AdminAdvisoryController.php:65-74`.
+- **L18** Community `reject()` flips status to `'n'` even on self-reject (before the self-check), and `rejection_reason` is dropped (not a column / not `$fillable`). `AdminCommunityController.php:60-77`.
+- **L19** `favorite()` returns `null` instead of the existing `Favorite` on the already-favorited path (asymmetric return). `app/Traits/Favoritable.php:33`.
+
+### Scraper heuristics
+- **L20** `mergeResults` single-result short-circuit skips `additionalUrls` collection (inconsistent vs the 2+ path). `EventScraperService.php:120-122`.
+- **L21** `getCompletionPercentage` counts `priceMin === 0.0` as a found field (conflates "free" with "extracted"). `ScrapedEventData.php:146`.
+- **L22** `extractImages` small-image filter only inspects the leading dimension and requires the `NxN` literal (e.g. drops `40x800`, misses `w_50`). `GenericAIScraper.php:111`.
+
+### Misc
+- **L23** `CardActions::create` order fallback reads the lazily-cached `$post->cards` collection (can be stale) rather than a fresh `max('order')`. `CardActions.php:30`.
+- **L24** Duplicate `TrackClick` models: `Event::clicks()` uses `App\Models\Admin\TrackClick` (tiny `$fillable` with a **`organzier_id` typo**, missing tracking columns) while `TrackClickFactory` uses `App\Models\TrackClick` (full `$fillable`). Both map to `track_clicks`; a write path using the Admin model would silently drop fields. `app/Models/Admin/TrackClick.php`, `Event.php:250-253`.
+- **L25** `MapStore.boundsUpdate` guards `center?.lat` but not `bounds` itself, so an undefined `bounds` throws a `TypeError` instead of the intended warn-and-skip. `resources/js/Stores/MapStore.vue:22-27`.
+- **L26** Numbered pagination buttons (including the active page) have no click guard, so clicking the current page re-emits `paginate` (prev/next *are* guarded). `resources/js/GlobalComponents/pagination.vue:28`.
+- **L27** *(By-design note, not a bug)* `StoreEventRequest` `status` allow-list (`in:d,0-9,A-D`) deliberately excludes `p/e/r/n` so users can't self-publish. Flagged so reviewers know the corresponding test is asserting a security gate, not an accident. `StoreEventRequest.php:65`.
+
+---
+
+## Intentionally skipped / not covered
+
+- **Elasticsearch execution paths.** `ListingsController::index`/`apiIndex`, `SearchController::nav*`, `Event::searchQuery`, and the `maxPrice` aggregation all execute ES queries; ES is unavailable in tests (`SCOUT_DRIVER=null`). We unit-tested the **pure filter builders** (`buildLocationFilter`/`buildSearchFilters`/`buildMapBoundaryFilter`, `SearchActions` query shape) via reflection and logged the execution paths as out of scope.
+- **Unrouted controller methods** (see L1–L6, M11, M15) were exercised by direct controller invocation where meaningful, not over HTTP, since no route exists.
+- **`ei:check-closing-events`** body is fully commented out; only its "returns success, sends nothing" behavior is asserted.
+- **Image encoder internals** (exact WebP/JPEG dimensions, quality, crop) — verified file existence + path shape on a faked `digitalocean` disk instead of byte-level output.
+- **Live AI / network calls** in `GenericAIScraper` (Anthropic/OpenAI, real page fetches) — faked with `Http::fake`; pure helpers tested via reflection. `SafeUrlValidator` SSRF branches already have dedicated tests.
+- **`StoreEventRequest` `exists:`-based and deeply-nested rules** (category/attendance/level ids, `location.*`, `remotelocations.*`, `videos`/`currentImages` JSON) — lower value; ~14 of the most important StoreEvent rules are covered.
+- **`StoreCommunity` image `dimensions` rule** — needs a real raster + GD; mime/size covered instead.
+- **`formatDateForDisplay`** (frontend) — locale/ICU-dependent under jsdom; all moment-based (timezone-critical) exports are covered.
+- **Heavy Vue components:** Leaflet maps (`show-map`), TipTap editor, image cropper, `show-purchase` (payments) — skipped per plan. Note: `GlobalComponents/Albums/event-horizontal.vue` and `favorite-event.vue` are **empty files (0 lines)** in this codebase; `nav-profile.vue` was substituted as the third F5 component.
+- **Vitest coverage scope** not configured (`coverage.include`) — `npm run test:js` doesn't enable coverage; add `resources/js/**` if wiring into CI.
+
+---
+
+## Notes for review
+
+- **`HasFactory` trait added to 9 models** (inert — only enables `Model::factory()`): `Curated/CuratorInvitation`, `Category`, `Genre`, `Events/Show`, `Events/Location`, `Admin/StaffPick`, `Admin/ReviewEvent`, `Components/Favorite`, `NameChangeRequest`. No runtime behavior change; full suite stays green.
+- **Factory schema corrections** (agents matched the real DB over the spec): `StaffPick` uses `event_id,user_id,rank,start_date,end_date,comments` (no `admin_id`/`featured_until`); `Location` uses `street/city/region/country/postal_code/longitude/latitude/venue`; `Genre.user_id` and `ReviewEvent.organizer_id` are non-nullable FKs so they default to factories.
+- **Pre-existing Pint style issues** remain in 10 legacy files (factories `Community/Event/Organizer`, and tests `AdminUserController/AuthGate/EventAttributes/HostEventController/CommunityPolicy/EventPolicy/WizardStepMapDrift`). These predate this work and were left untouched to keep the diff focused; `tests/Feature/Policies/EventPolicyTest.php` also has a pre-existing nullable-param deprecation (`makeOrgWith`). All **new** files are Pint-clean.
+- **Test DB isolation:** parallel agents used `ei_testing_1..24` (created for this run). The canonical `ei_testing` DB is what the full suite runs against. The extra DBs can be dropped when no longer needed.

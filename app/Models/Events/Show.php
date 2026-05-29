@@ -3,12 +3,15 @@
 namespace App\Models\Events;
 
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Scopes\DateScope;
 use App\Models\Event;
 
 class Show extends Model
 {
+    use HasFactory;
+
     /**
     * What protected variables are allowed to be passed to the database
     *

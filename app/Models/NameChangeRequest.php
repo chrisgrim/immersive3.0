@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class NameChangeRequest extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'current_name',
         'requested_name',
