@@ -49,10 +49,9 @@ trait Favoritable
      */
     public function favorite()
     {
-        $attributes = ['user_id' => auth()->id()];
-        if (! $this->favorites()->where($attributes)->exists()) {
-            return $this->favorites()->create($attributes);
-        }
+        // firstOrCreate keeps it idempotent (no duplicate) AND always returns the
+        // Favorite — the old exists()-then-create returned null on the existing path.
+        return $this->favorites()->firstOrCreate(['user_id' => auth()->id()]);
     }
 
     /**

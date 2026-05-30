@@ -158,13 +158,13 @@ describe('pagination.vue', () => {
             expect(wrapper.emitted('paginate')[0]).toEqual([6]);
         });
 
-        it('still emits when clicking the current page button (no internal guard)', async () => {
+        it('does not emit when clicking the current page button', async () => {
             const wrapper = mountPagination({ current_page: 5, last_page: 10 });
             const current = wrapper
                 .findAll('ul > li button')
                 .find((b) => b.classes().includes('!bg-black'));
             await current.trigger('click');
-            expect(wrapper.emitted('paginate')[0]).toEqual([5]);
+            expect(wrapper.emitted('paginate')).toBeFalsy();
         });
     });
 });

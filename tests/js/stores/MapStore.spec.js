@@ -93,19 +93,20 @@ describe('MapStore — boundsUpdate (invalid input)', () => {
         warnSpy.mockRestore();
     });
 
-    // NOTE: documents an asymmetry in the source. `center` is guarded with optional
-    // chaining (`center?.lat`) but `bounds` is NOT (`bounds._northEast?.lat`), so a
-    // missing/undefined `bounds` throws a TypeError instead of warning + skipping like
-    // every other invalid-input path. See reported bug "boundsUpdate throws on undefined
-    // bounds". If the source is hardened (e.g. `bounds?._northEast`), flip this to assert
-    // a warn + skip instead.
-    it('throws on undefined bounds (no optional-chaining guard on the bounds arg)', () => {
+    it('warns and skips on undefined bounds instead of throwing', () => {
+        // `bounds` is now guarded with optional chaining (`bounds?._northEast`), so an
+        // undefined bounds arg falls through to the NaN warn + skip path like every other
+        // invalid input, rather than throwing a TypeError.
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const before = JSON.parse(JSON.stringify(MapStore.state.value.bounds));
+        const cb = vi.fn();
+        MapStore.subscribe(cb);
 
-        expect(() => MapStore.boundsUpdate(undefined, makeCenter())).toThrow(TypeError);
+        expect(() => MapStore.boundsUpdate(undefined, makeCenter())).not.toThrow();
 
-        // It never reaches the warn/skip branch, so no warning is emitted.
-        expect(warnSpy).not.toHaveBeenCalled();
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(MapStore.state.value.bounds).toEqual(before);
+        expect(cb).not.toHaveBeenCalled();
 
         warnSpy.mockRestore();
     });

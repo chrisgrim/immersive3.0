@@ -38,7 +38,7 @@ test('favorite is idempotent — calling twice creates only one Favorite', funct
     expect(Favorite::count())->toBe(1);
 });
 
-test('favorite returns null when the user already favorited the model', function () {
+test('favorite returns the existing Favorite when the user already favorited the model', function () {
     $event = Event::factory()->create();
 
     $this->actingAs($this->user);
@@ -46,9 +46,9 @@ test('favorite returns null when the user already favorited the model', function
     $second = $event->favorite();
 
     expect($first)->toBeInstanceOf(Favorite::class);
-    // note: favorite() has no explicit return on the "already exists" branch,
-    // so the second call returns null rather than the existing Favorite.
-    expect($second)->toBeNull();
+    // Idempotent: the second call returns the same existing Favorite (not null).
+    expect($second)->toBeInstanceOf(Favorite::class);
+    expect($second->id)->toBe($first->id);
 });
 
 test('different users each get their own Favorite for the same event', function () {

@@ -93,7 +93,7 @@ Both `approve()` and `reject()` call `Mail::to($community->user)->send(...)`, bu
 - **L16** Advisory `update()`/`destroy()` return raw `true`/`false` as the 200 body (vs `{message}`/model elsewhere). `AdminAdvisoryController.php:54,62`.
 - **L17** Unknown advisory `{type}` throws `InvalidArgumentException` → 500 (segment isn't constrained/validated). `AdminAdvisoryController.php:65-74`.
 - **L18** Community `reject()` flips status to `'n'` even on self-reject (before the self-check), and `rejection_reason` is dropped (not a column / not `$fillable`). `AdminCommunityController.php:60-77`.
-- **L19** `favorite()` returns `null` instead of the existing `Favorite` on the already-favorited path (asymmetric return). `app/Traits/Favoritable.php:33`.
+- **L19** ✅ **Fixed** `favorite()` returns `null` instead of the existing `Favorite` on the already-favorited path (asymmetric return). `app/Traits/Favoritable.php:33`. → now uses `firstOrCreate(...)`, so it stays idempotent and always returns the `Favorite`.
 
 ### Scraper heuristics
 - **L20** `mergeResults` single-result short-circuit skips `additionalUrls` collection (inconsistent vs the 2+ path). `EventScraperService.php:120-122`.
@@ -102,9 +102,9 @@ Both `approve()` and `reject()` call `Mail::to($community->user)->send(...)`, bu
 
 ### Misc
 - **L23** `CardActions::create` order fallback reads the lazily-cached `$post->cards` collection (can be stale) rather than a fresh `max('order')`. `CardActions.php:30`.
-- **L24** Duplicate `TrackClick` models: `Event::clicks()` uses `App\Models\Admin\TrackClick` (tiny `$fillable` with a **`organzier_id` typo**, missing tracking columns) while `TrackClickFactory` uses `App\Models\TrackClick` (full `$fillable`). Both map to `track_clicks`; a write path using the Admin model would silently drop fields. `app/Models/Admin/TrackClick.php`, `Event.php:250-253`.
-- **L25** `MapStore.boundsUpdate` guards `center?.lat` but not `bounds` itself, so an undefined `bounds` throws a `TypeError` instead of the intended warn-and-skip. `resources/js/Stores/MapStore.vue:22-27`.
-- **L26** Numbered pagination buttons (including the active page) have no click guard, so clicking the current page re-emits `paginate` (prev/next *are* guarded). `resources/js/GlobalComponents/pagination.vue:28`.
+- **L24** Duplicate `TrackClick` models: `Event::clicks()` uses `App\Models\Admin\TrackClick` (tiny `$fillable` with a **`organzier_id` typo**, missing tracking columns) while `TrackClickFactory` uses `App\Models\TrackClick` (full `$fillable`). Both map to `track_clicks`; a write path using the Admin model would silently drop fields. `app/Models/Admin/TrackClick.php`, `Event.php:250-253`. → ✅ **Fixed** the `organzier_id` typo to `organizer_id` (verified the column is correctly `organizer_id`). The two-models duplication is left as-is (both map to the same table and reads work); only the broken fillable key was corrected.
+- **L25** ✅ **Fixed** `MapStore.boundsUpdate` guards `center?.lat` but not `bounds` itself, so an undefined `bounds` throws a `TypeError` instead of the intended warn-and-skip. `resources/js/Stores/MapStore.vue:22-27`. → added `bounds?.` optional chaining so undefined bounds warn-and-skip like every other invalid input.
+- **L26** ✅ **Fixed** Numbered pagination buttons (including the active page) have no click guard, so clicking the current page re-emits `paginate` (prev/next *are* guarded). `resources/js/GlobalComponents/pagination.vue:28`. → click now no-ops on the current page.
 - **L27** *(By-design note, not a bug)* `StoreEventRequest` `status` allow-list (`in:d,0-9,A-D`) deliberately excludes `p/e/r/n` so users can't self-publish. Flagged so reviewers know the corresponding test is asserting a security gate, not an accident. `StoreEventRequest.php:65`.
 - **L28** *(found 2026-05-29 while fixing H1)* The event detail partials assume `$event->advisories` is always present — `resources/views/events/show/details.blade.php` reads `advisories['audience' | 'sexual' | 'sexualDescription' | 'ageRestriction']` unguarded, so an event with no advisory row 500s. **Not a live bug**: `Event::newEvent()` (`Event.php:410`) and `duplicate()` always create an advisory row, so the invariant holds in production. Left unguarded (it would defend an impossible state); harden only if advisory ever becomes optional.
 
