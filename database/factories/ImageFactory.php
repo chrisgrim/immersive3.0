@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Event;
 use App\Models\Image;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -15,12 +16,13 @@ class ImageFactory extends Factory
     public function definition(): array
     {
         return [
-            // images table columns are imageable_id/imageable_type (polymorphic),
-            // large_image_path, thumb_image_path, rank. The morph columns are
-            // non-nullable in the schema, so set them via ->for()/state when
-            // attaching to a concrete model.
-            'imageable_id' => null,
-            'imageable_type' => null,
+            // images.imageable_id/imageable_type (polymorphic parent) are NOT NULL in the
+            // schema, so a bare create() needs a real parent. Default to an Event; attach to
+            // a different model with ->for($model, 'imageable') or by passing imageable_id +
+            // imageable_type (Organizer, Community, Category, ...) — those override the default
+            // before it is resolved, so no throwaway Event is created.
+            'imageable_id' => Event::factory(),
+            'imageable_type' => Event::class,
             'large_image_path' => '/storage/images/'.$this->faker->uuid().'.webp',
             'thumb_image_path' => '/storage/images/'.$this->faker->uuid().'-thumb.webp',
             'rank' => 0,

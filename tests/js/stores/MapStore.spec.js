@@ -7,11 +7,14 @@
  * It parseFloat's every coordinate; if any is NaN it console.warns and early-returns
  * without mutating state or notifying subscribers.
  *
- * The store is a single exported instance, so its state and subscriber list persist
- * across tests within this file. We reset both in beforeEach.
+ * The store is a single exported instance, so its state ref AND its module-level
+ * subscriber list persist across tests within this file. We get true isolation by
+ * resetting the module registry and re-importing a fresh store in beforeEach.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import MapStore from '@/Stores/MapStore.vue';
+
+// Imported fresh per-test in beforeEach (see below) for module-singleton isolation.
+let MapStore;
 
 // A valid Leaflet-style bounds/center pair.
 function makeBounds(overrides = {}) {
@@ -24,17 +27,12 @@ function makeCenter(overrides = {}) {
     return { lat: 45.5, lng: -122.65, ...overrides };
 }
 
-beforeEach(() => {
-    // Reset reactive state in place.
-    MapStore.state.value = {
-        bounds: {
-            northEast: { lat: null, lng: null },
-            southWest: { lat: null, lng: null },
-            center: [null, null],
-        },
-        zoom: null,
-        lastUpdate: null,
-    };
+beforeEach(async () => {
+    // MapStore keeps BOTH its state ref and its subscribers array at module scope, so a
+    // plain state reset would leak subscribers between tests. Reset the module registry
+    // and re-import to get a fresh store (empty subscribers + pristine default state).
+    vi.resetModules();
+    MapStore = (await import('@/Stores/MapStore.vue')).default;
 });
 
 describe('MapStore — boundsUpdate (valid input)', () => {
@@ -172,5 +170,26 @@ describe('MapStore — subscribe / unsubscribe', () => {
         MapStore.boundsUpdate(makeBounds(), makeCenter());
         expect(a).toHaveBeenCalledTimes(1);
         expect(b).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('MapStore — cross-test isolation', () => {
+    // These two run in order and together prove subscribers don't leak between tests. The
+    // first leaves a subscriber registered (deliberately never unsubscribed). The global
+    // afterEach (tests/js/setup.js) clears mock call history, so the second test starts
+    // with a zeroed `leaked`; with proper module isolation the fresh store has an empty
+    // subscriber list and never calls it (0). Before the beforeEach module-reset, the
+    // shared singleton still held the subscriber and would call it once (1) — failing here.
+    const leaked = vi.fn();
+
+    it('registers a subscriber and intentionally does not clean it up', () => {
+        MapStore.subscribe(leaked);
+        MapStore.boundsUpdate(makeBounds(), makeCenter());
+        expect(leaked).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not carry the previous test subscriber into a fresh store', () => {
+        MapStore.boundsUpdate(makeBounds(), makeCenter());
+        expect(leaked).toHaveBeenCalledTimes(0); // fresh store → never notified the leaked sub
     });
 });

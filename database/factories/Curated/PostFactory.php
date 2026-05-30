@@ -22,7 +22,12 @@ class PostFactory extends Factory
 
         return [
             'community_id' => Community::factory(),
-            'shelf_id' => Shelf::factory(),
+            // The shelf must live in the SAME community as the post. A bare Shelf::factory()
+            // mints its own community, leaving the post's shelf in a different community than
+            // the post itself — an impossible state in the app. Inherit the post's community.
+            'shelf_id' => fn (array $attributes) => Shelf::factory()->create([
+                'community_id' => $attributes['community_id'],
+            ])->id,
             'user_id' => User::factory(),
             'name' => $name,
             // The posts.slug column is unique; community_id makes it distinct per community.
