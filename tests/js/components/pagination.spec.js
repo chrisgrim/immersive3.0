@@ -166,5 +166,16 @@ describe('pagination.vue', () => {
             await current.trigger('click');
             expect(wrapper.emitted('paginate')).toBeFalsy();
         });
+
+        it('does not emit when clicking an ellipsis', async () => {
+            // current 10 of 20 -> pageRange has '...' on both sides
+            const wrapper = mountPagination({ current_page: 10, last_page: 20 });
+            const ellipsis = wrapper
+                .findAll('ul > li button')
+                .find((b) => b.text().trim() === '...');
+            expect(ellipsis).toBeTruthy();
+            await ellipsis.trigger('click');
+            expect(wrapper.emitted('paginate')).toBeFalsy();
+        });
     });
 });

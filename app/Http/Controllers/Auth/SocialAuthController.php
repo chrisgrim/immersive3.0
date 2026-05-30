@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 
 class SocialAuthController extends Controller
@@ -89,15 +91,42 @@ class SocialAuthController extends Controller
 
     public function redirectToApple()
     {
-        return Socialite::driver('apple')
-            ->scopes(['name', 'email'])
-            ->redirect();
+        try {
+            // Apple posts its callback cross-site (form_post response_mode), so our session
+            // cookie isn't sent with it — the usual session-stored OAuth `state` can't bind
+            // the flow, and the provider's own check derives `state` from the signed id_token
+            // (self-confirming). Instead we mint our own single-use, server-side `state`,
+            // store it in the cache, and require it back on the callback. This blocks replayed
+            // or forged callbacks that didn't originate from a redirect we issued.
+            $state = Str::random(40);
+            Cache::put('apple_oauth_state:'.$state, true, now()->addMinutes(10));
+
+            return Socialite::driver('apple')
+                ->stateless()
+                ->scopes(['name', 'email'])
+                ->with(['state' => $state])
+                ->redirect();
+        } catch (\Exception $e) {
+            Log::error('Apple redirect error: '.$e->getMessage());
+
+            return redirect()->route('login')
+                ->withErrors(['error' => 'Apple sign-in is unavailable right now. Please try another method.']);
+        }
     }
 
     public function handleAppleCallback(Request $request)
     {
         try {
-            $appleUser = Socialite::driver('apple')->user();
+            // Verify and consume the single-use `state` we issued in redirectToApple(). Pull
+            // (not get) so a captured callback can't be replayed. See redirectToApple() for why
+            // session-based state can't be used with Apple's cross-site form_post callback.
+            $state = $request->input('state');
+            if (! $state || ! Cache::pull('apple_oauth_state:'.$state)) {
+                return redirect()->route('login')
+                    ->withErrors(['error' => 'Your Apple sign-in could not be verified. Please try again.']);
+            }
+
+            $appleUser = Socialite::driver('apple')->stateless()->user();
 
             // H-S4: Apple only releases an email once they've verified it, but
             // the JWT carries an `email_verified` claim — historically as a

@@ -16,6 +16,11 @@ class SimilarEventsController extends Controller
      */
     public function getSimilar(Event $event)
     {
+        // NOTE: this result is cached for 24h and SHARED across ALL users, so the queries
+        // below must NOT eager-load the per-user `currentUserFavorite` relation — otherwise
+        // the first viewer's favorites get baked into the cache and leak to everyone. The
+        // per-user "favorited?" flag is instead computed per-request via isFavorited()'s
+        // exists() fallback when the relation isn't loaded.
         $cacheKey = "similar_events_{$event->slug}";
 
         // Check for cached results first
@@ -96,7 +101,7 @@ class SimilarEventsController extends Controller
                     $query->where('city', $event->location->city);
                 })
                 ->where('id', '!=', $event->id)
-                ->with(['location', 'currentUserFavorite'])
+                ->with(['location']) // cached path: favorite state computed per-request, see getSimilar()
                 ->take(6)
                 ->get();
         } catch (\Exception $e) {
@@ -119,7 +124,7 @@ class SimilarEventsController extends Controller
                 ->whereRaw('`closingDate` >= CURDATE()')  // Use raw SQL for direct date comparison
                 ->where('id', '!=', $event->id)
                 ->where('category_id', $event->category_id)
-                ->with(['location', 'currentUserFavorite'])
+                ->with(['location']) // cached path: favorite state computed per-request, see getSimilar()
                 ->take($limit)
                 ->get();
         } catch (\Exception $e) {
@@ -143,7 +148,7 @@ class SimilarEventsController extends Controller
                 ->where('id', '!=', $event->id)
                 ->where('hasLocation', false)
                 ->where('category_id', $event->category_id)
-                ->with(['remotelocations', 'category', 'currentUserFavorite'])
+                ->with(['remotelocations', 'category']) // cached path: favorite state computed per-request, see getSimilar()
                 ->take(6)
                 ->get();
 
@@ -159,7 +164,7 @@ class SimilarEventsController extends Controller
                 ->where('hasLocation', false)
                 ->where('category_id', '!=', $event->category_id)
                 ->whereNotIn('id', $sameCategoryEvents->pluck('id'))
-                ->with(['remotelocations', 'category', 'currentUserFavorite'])
+                ->with(['remotelocations', 'category']) // cached path: favorite state computed per-request, see getSimilar()
                 ->take(6 - $sameCategoryEvents->count())
                 ->get();
 

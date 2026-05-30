@@ -309,19 +309,31 @@ test('github redirect issues a redirect response', function () {
 // Apple
 // ----------------------------------------------------------------------------
 // note: Apple's callback is a POST (form_post response mode) and is CSRF-exempt.
-// The controller reads Socialite::driver('apple')->user(); we mock that. The real
-// OAuth handshake needs live Apple credentials (APPLE_CLIENT_ID/SECRET/REDIRECT)
-// and a deployed HTTPS environment, so only the callback logic is covered here.
+// Because that POST is cross-site, the session cookie isn't sent, so the controller
+// uses its own single-use server-side `state`: redirectToApple() mints one into the
+// cache, and handleAppleCallback() requires it back (Cache::pull, single-use) before
+// it will read Socialite::driver('apple')->stateless()->user(). We mock that call and
+// seed a valid cached state. The real OAuth handshake needs live Apple credentials
+// (APPLE_CLIENT_ID/SECRET/REDIRECT) and a deployed HTTPS environment.
 
-test('apple redirect issues a redirect response', function () {
-    Socialite::shouldReceive('driver->scopes->redirect')
+// Seed a single-use Apple state token and return it, mirroring redirectToApple().
+function seedAppleState(string $state = 'apple-test-state'): string
+{
+    cache()->put('apple_oauth_state:'.$state, true, now()->addMinutes(10));
+
+    return $state;
+}
+
+test('apple redirect issues a redirect response and stores a single-use state', function () {
+    Socialite::shouldReceive('driver->stateless->scopes->with->redirect')
         ->andReturn(redirect('https://appleid.apple.com/auth/authorize'));
 
     $this->get('/auth/apple')->assertRedirect('https://appleid.apple.com/auth/authorize');
 });
 
 test('apple callback creates a new user with general defaults and logs them in', function () {
-    Socialite::shouldReceive('driver->user')
+    $state = seedAppleState();
+    Socialite::shouldReceive('driver->stateless->user')
         ->andReturn(fakeSocialiteUser([
             'id' => 'apple-001',
             'name' => 'Tim Appleseed',
@@ -329,7 +341,7 @@ test('apple callback creates a new user with general defaults and logs them in',
             'raw' => ['email_verified' => true],
         ]));
 
-    $this->post('/auth/apple/callback')->assertRedirect('/');
+    $this->post('/auth/apple/callback', ['state' => $state])->assertRedirect('/');
 
     $user = User::where('email', 'newapple@example.com')->first();
     expect($user)->not->toBeNull();
@@ -342,25 +354,27 @@ test('apple callback creates a new user with general defaults and logs them in',
 });
 
 test('apple callback accepts the historical string "true" email_verified claim', function () {
-    Socialite::shouldReceive('driver->user')
+    $state = seedAppleState();
+    Socialite::shouldReceive('driver->stateless->user')
         ->andReturn(fakeSocialiteUser([
             'email' => 'stringclaim@example.com',
             'raw' => ['email_verified' => 'true'],
         ]));
 
-    $this->post('/auth/apple/callback')->assertRedirect('/');
+    $this->post('/auth/apple/callback', ['state' => $state])->assertRedirect('/');
 
     expect(User::where('email', 'stringclaim@example.com')->exists())->toBeTrue();
 });
 
 test('apple callback rejects an unverified apple email', function () {
-    Socialite::shouldReceive('driver->user')
+    $state = seedAppleState();
+    Socialite::shouldReceive('driver->stateless->user')
         ->andReturn(fakeSocialiteUser([
             'email' => 'unverified-apple@example.com',
             'raw' => ['email_verified' => false],
         ]));
 
-    $this->post('/auth/apple/callback')
+    $this->post('/auth/apple/callback', ['state' => $state])
         ->assertRedirect(route('login'))
         ->assertSessionHasErrors('error');
 
@@ -375,17 +389,58 @@ test('apple callback links an existing user and logs them in', function () {
         'provider_id' => null,
     ]);
 
-    Socialite::shouldReceive('driver->user')
+    $state = seedAppleState();
+    Socialite::shouldReceive('driver->stateless->user')
         ->andReturn(fakeSocialiteUser([
             'id' => 'apple-link-1',
             'email' => 'existing-apple@example.com',
             'raw' => ['email_verified' => true],
         ]));
 
-    $this->post('/auth/apple/callback')->assertRedirect('/');
+    $this->post('/auth/apple/callback', ['state' => $state])->assertRedirect('/');
 
     $existing->refresh();
     expect($existing->provider)->toBe('apple');
     expect($existing->provider_id)->toBe('apple-link-1');
     $this->assertAuthenticatedAs($existing);
+});
+
+test('apple callback rejects a missing or forged state without touching socialite', function () {
+    // Never call Socialite if state validation fails — a forged callback must be turned
+    // away before we trust any token. (Mockery would error if the driver were invoked.)
+    Socialite::shouldReceive('driver')->never();
+
+    // No state param at all.
+    $this->post('/auth/apple/callback')
+        ->assertRedirect(route('login'))
+        ->assertSessionHasErrors('error');
+
+    // A state we never issued.
+    $this->post('/auth/apple/callback', ['state' => 'not-a-real-state'])
+        ->assertRedirect(route('login'))
+        ->assertSessionHasErrors('error');
+
+    expect(auth()->check())->toBeFalse();
+    expect(User::count())->toBe(0);
+});
+
+test('apple callback state is single-use and cannot be replayed', function () {
+    $state = seedAppleState('replay-state');
+    Socialite::shouldReceive('driver->stateless->user')
+        ->andReturn(fakeSocialiteUser([
+            'id' => 'apple-replay',
+            'email' => 'replay@example.com',
+            'raw' => ['email_verified' => true],
+        ]));
+
+    // First use succeeds and consumes the state.
+    $this->post('/auth/apple/callback', ['state' => $state])->assertRedirect('/');
+    expect(User::where('email', 'replay@example.com')->exists())->toBeTrue();
+
+    // Replaying the same captured state is rejected (Cache::pull already consumed it).
+    auth()->logout();
+    $this->post('/auth/apple/callback', ['state' => $state])
+        ->assertRedirect(route('login'))
+        ->assertSessionHasErrors('error');
+    expect(auth()->check())->toBeFalse();
 });

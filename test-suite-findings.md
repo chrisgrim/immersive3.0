@@ -110,6 +110,19 @@ Both `approve()` and `reject()` call `Mail::to($community->user)->send(...)`, bu
 
 ---
 
+## Pre-deploy external review (2026-05-30)
+
+A second reviewer surfaced 6 findings during the pre-deploy audit. Three were production-affecting and are now fixed; three were test-only quality issues (folded into a later test-hardening pass). All verified against the code.
+
+- **X1 — HIGH ✅ Fixed** Cross-user favorite leak via the similar-events cache. `SimilarEventsController::getSimilar()` caches its result for 24h under a per-*event* key shared by all users, but the cached query paths (`getEventsByCityQuickly`, `getEventsByCategoryQuickly`, `getRemoteEvents`) eager-loaded the per-*user* `currentUserFavorite` relation — so the first viewer's favorites got baked into the shared cache and the `isFavorited` flag leaked to everyone. → dropped `currentUserFavorite` from the three **cached** paths so the flag is computed per-request via `isFavorited()`'s `exists()` fallback; left it loaded on the two **non-cached** paths (`findEventsInRadius`, `getLatestRemoteEvents` in `getSimilarByLocation`), where the per-request result is returned directly and never cached. *(test: `tests/Feature/Api/SimilarEventsControllerTest.php` — Alice favorites, populates cache; Bob hits the same cache and must see his own `isFavorited=false`.)*
+- **X2 — MED ✅ Fixed (mitigated)** Apple login flow had no usable CSRF/state binding. Apple's callback is a cross-site `form_post`, so the session cookie isn't sent and Laravel's session-stored OAuth `state` can't bind the flow; the provider package's own check derives `state` from the signed id_token nonce (self-confirming, no-op). → `redirectToApple()` now mints a single-use server-side `state` (`Str::random(40)` → cache, 10 min TTL), runs `stateless()`, and passes the state through; `handleAppleCallback()` requires it back via `Cache::pull` (single-use, blocks replay) before reading the user, and `redirectToApple()` got a try/catch. **Partial mitigation:** prevents replayed/forged callbacks but cannot fully browser-bind the flow (infeasible with Apple form_post + `SameSite=lax`). **Still needs manual end-to-end verification on staging HTTPS.** *(tests: forged/missing-state rejection + single-use/replay in `tests/Feature/Auth/SocialAuthControllerTest.php`)*
+- **X3 — LOW ✅ Fixed** Pagination ellipsis (`'...'`) rendered as a live `<button>` that emitted `paginate('...')` on click. → ellipsis is now `:disabled` and the click handler guards against it. *(Related to L26, the current-page guard.)* *(test: "does not emit when clicking an ellipsis" in `tests/js/components/pagination.spec.js`)*
+- **X4 — test-only** `tests/js/stores/MapStore.spec.js` `beforeEach` resets `state` but not the module-level `subscribers` array (comment wrongly claims "both"). Folded into the test-hardening pass.
+- **X5 — test-only** `PostFactory` builds `community_id` and `shelf_id` independently, so the post's shelf can belong to a different community. Folded into the test-hardening pass.
+- **X6 — test-only** `ImageFactory` defaults `imageable_id`/`imageable_type` to `null`; both columns are `NOT NULL`, so a bare `create()` throws (it does **not** silently create invalid rows, as the reviewer phrased it). Folded into the test-hardening pass.
+
+---
+
 ## Intentionally skipped / not covered
 
 - **Elasticsearch execution paths.** `ListingsController::index`/`apiIndex`, `SearchController::nav*`, `Event::searchQuery`, and the `maxPrice` aggregation all execute ES queries; ES is unavailable in tests (`SCOUT_DRIVER=null`). We unit-tested the **pure filter builders** (`buildLocationFilter`/`buildSearchFilters`/`buildMapBoundaryFilter`, `SearchActions` query shape) via reflection and logged the execution paths as out of scope.
