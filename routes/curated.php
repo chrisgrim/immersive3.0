@@ -57,6 +57,9 @@ Route::prefix('communities')->name('communities.')->group(function () {
             // Community management
             Route::GET('/edit', [CommunityController::class, 'edit'])->name('edit')->middleware('can:update,community');
             Route::POST('', [CommunityController::class, 'update'])->name('update')->middleware('can:update,community');
+            // Community deletion is implemented (CommunityController@destroy + CommunityActions::destroy)
+            // but intentionally not exposed yet. Uncomment to enable once communities ships:
+            // Route::DELETE('', [CommunityController::class, 'destroy'])->name('destroy')->middleware('can:update,community');
             Route::GET('/listings', [CommunityController::class, 'listings'])->name('listings')->middleware('can:update,community');
             Route::GET('/paginate', [CommunityController::class, 'paginate'])->name('paginate');
 

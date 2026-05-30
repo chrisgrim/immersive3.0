@@ -71,8 +71,8 @@ Both `approve()` and `reject()` call `Mail::to($community->user)->send(...)`, bu
 ## LOW severity
 
 ### Dead code / missing routes
-- **L1** `CommunityController@destroy` — no DELETE route (`routes/curated.php`). Unreachable over HTTP.
-- **L2** `PostController::paginate()` — no route maps to it (the `/paginate` route resolves to `CommunityController`). `app/Http/Controllers/Curated/PostController.php:108`.
+- **L1** ✅ **Addressed** `CommunityController@destroy` — no DELETE route (`routes/curated.php`). Unreachable over HTTP. → the working `destroy` method is kept, and a `DELETE` route (gated `can:update,community`) was added **commented-out** as a ready-to-enable placeholder for when communities ships (per owner's call — communities isn't public yet).
+- **L2** ✅ **Fixed (removed)** `PostController::paginate()` — no route maps to it (the `/paginate` route resolves to `CommunityController`). `app/Http/Controllers/Curated/PostController.php:108`. → proven unreferenced (no route binds it; both `/paginate` routes belong to Community/Shelf controllers; no frontend/PHP caller) and deleted.
 - **L3** `ProfilesController::show()` is inside the `auth` group despite `makeHidden(...)` implying a public profile — guests are redirected to login. `routes/web.php:56`.
 - **L4** `ProfilesController::destroy()` — no route. `app/Http/Controllers/User/ProfilesController.php:94`.
 - **L5** `MessagesController::checkUnread()`/`markAllRead()` — no routes; the unread-badge endpoints the frontend would call are unreachable. `app/Http/Controllers/User/MessagesController.php:17`.
