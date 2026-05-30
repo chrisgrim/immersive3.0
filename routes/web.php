@@ -55,6 +55,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/{user}/edit', [ProfilesController::class, 'edit'])->name('edit')->middleware('can:update,user');
         Route::get('/{user}', [ProfilesController::class, 'show'])->name('show');
         Route::post('/{user}', [ProfilesController::class, 'update'])->name('update')->middleware('can:update,user');
+        // Self-account deletion is implemented (ProfilesController@destroy detaches the
+        // user's conversations, then deletes them) but intentionally not exposed yet.
+        // Uncomment to enable a "delete my account" action:
+        // Route::delete('/{user}', [ProfilesController::class, 'destroy'])->name('destroy')->middleware('can:update,user');
     });
 
     // Routes requiring email verification
