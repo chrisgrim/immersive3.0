@@ -622,7 +622,9 @@ class Event extends Model
     {
         // First check if shows are already loaded to avoid additional query
         if ($this->relationLoaded('shows')) {
-            $firstShow = $this->shows->first();
+            // shows() orders date DESC, so sort the loaded collection ascending to get
+            // the genuinely earliest-dated ("first") show rather than the last.
+            $firstShow = $this->shows->sortBy('date')->first();
 
             // If the first show exists and tickets are loaded
             if ($firstShow && $firstShow->relationLoaded('tickets')) {
@@ -635,8 +637,9 @@ class Event extends Model
             }
         }
 
-        // Fall back to query if shows aren't loaded
-        $firstShow = $this->shows()->with('tickets')->orderBy('date', 'asc')->first();
+        // Fall back to query if shows aren't loaded. reorder() clears the shows() relation's
+        // DESC ordering so the earliest-dated show is selected.
+        $firstShow = $this->shows()->reorder('date', 'asc')->with('tickets')->first();
 
         return $firstShow ? $firstShow->tickets : collect();
     }

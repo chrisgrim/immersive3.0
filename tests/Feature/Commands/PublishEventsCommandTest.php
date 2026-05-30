@@ -31,10 +31,10 @@ test('publishes an embargoed event whose embargo has passed in its own timezone'
 
     $event->refresh();
     expect($event->status)->toBe('p');
-    // note: the command nulls embargo_date when it publishes; it does NOT set
-    // published_at (unlike the moderator approve flow), so it stays null here.
+    // The command nulls embargo_date and now sets published_at (so embargo-published
+    // events sort correctly in the published_at-ordered feed).
     expect($event->embargo_date)->toBeNull();
-    expect($event->published_at)->toBeNull();
+    expect($event->published_at)->not->toBeNull();
 });
 
 test('leaves an embargoed event whose embargo is still in the future', function () {

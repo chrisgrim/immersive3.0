@@ -198,10 +198,8 @@ test('firstShowTickets returns the tickets of the earliest show when shows are n
 
     $tickets = $fresh->firstShowTickets;
     expect($tickets)->toHaveCount(1);
-    // note: despite the accessor's orderBy('date','asc'), the Show DateScope and the
-    // shows() relation's orderBy('date','DESC') stack so the *latest* show actually wins.
-    // The accessor name ("firstShow") is misleading: it returns the last-dated show's tickets.
-    expect($tickets->first()->name)->toBe('Late');
+    // The accessor now reorders ascending, so it returns the earliest show's tickets.
+    expect($tickets->first()->name)->toBe('Early Bird');
 });
 
 test('firstShowTickets returns the same earliest-show tickets when shows are eager loaded', function () {
@@ -219,10 +217,9 @@ test('firstShowTickets returns the same earliest-show tickets when shows are eag
 
     $tickets = $loaded->firstShowTickets;
     expect($tickets)->toHaveCount(1);
-    // note: with shows eager-loaded, $this->shows->first() returns the first item in the
-    // loaded collection. The shows() relation's orderBy('date','DESC') governs the loaded
-    // order, so the *latest* show is first here too. Same misleading-name quirk as above.
-    expect($tickets->first()->name)->toBe('Second Show Ticket');
+    // With shows eager-loaded the accessor sorts the loaded collection ascending, so it
+    // returns the earliest show's tickets even though shows() loads them DESC.
+    expect($tickets->first()->name)->toBe('First Show Ticket');
 });
 
 test('firstShowTickets returns an empty collection when the event has no shows', function () {
