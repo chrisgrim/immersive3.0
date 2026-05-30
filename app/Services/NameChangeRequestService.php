@@ -2,9 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\NameChangeRequest;
-use App\Models\User;
 use App\Mail\NameChangeNotification;
+use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
@@ -17,7 +16,7 @@ class NameChangeRequestService
             return [
                 'success' => false,
                 'message' => 'You already have a pending name change request',
-                'requiresRefresh' => false
+                'requiresRefresh' => false,
             ];
         }
 
@@ -33,25 +32,25 @@ class NameChangeRequestService
             'requested_name' => $newName,
             'user_id' => auth()->id(),
             'reason' => $reason,
-            'status' => 'pending'
+            'status' => 'pending',
         ]);
 
         // Notify admins
         try {
             $admins = User::where('type', 'a')->get();
             foreach ($admins as $admin) {
-                // Mail::to($admin)->send(new NameChangeNotification($request, true));
+                Mail::to($admin)->send(new NameChangeNotification($request, true));
             }
         } catch (\Exception $e) {
             \Log::error('Failed to send admin notifications:', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
 
         return [
             'success' => true,
             'message' => 'Name change request submitted for review',
-            'requiresRefresh' => false
+            'requiresRefresh' => false,
         ];
     }
 
@@ -64,7 +63,7 @@ class NameChangeRequestService
         // Update name and slug
         $model->update([
             'name' => $newName,
-            'slug' => $newSlug
+            'slug' => $newSlug,
         ]);
 
         // Handle image paths if slug changed
@@ -73,25 +72,30 @@ class NameChangeRequestService
             ImageHandler::moveImagesForNewSlug($model, $oldSlug, $newSlug, $type);
         }
 
-        // Send notification to owner with old and new names
+        // Notify the owner. Resolve via the user_id owner FK (present on both Organizer and
+        // Community) rather than $model->user, since Community has no user() relation —
+        // Mail::to($model->user) would be Mail::to(null) and throw (silently swallowed).
         try {
-            $changeData = (object)[
-                'name' => $newName,
-                'original_name' => $oldName,
-                'user' => $model->user,
-                'type' => class_basename($model)
-            ];
-            Mail::to($model->user)->send(new NameChangeNotification($changeData, false));
+            $owner = User::find($model->user_id);
+            if ($owner) {
+                $changeData = (object) [
+                    'name' => $newName,
+                    'original_name' => $oldName,
+                    'user' => $owner,
+                    'type' => class_basename($model),
+                ];
+                Mail::to($owner)->send(new NameChangeNotification($changeData, false));
+            }
         } catch (\Exception $e) {
             \Log::error('Failed to send user notification:', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
 
         return [
             'success' => true,
             'message' => 'Name updated successfully',
-            'requiresRefresh' => $newSlug !== $oldSlug
+            'requiresRefresh' => $newSlug !== $oldSlug,
         ];
     }
 

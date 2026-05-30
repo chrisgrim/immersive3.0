@@ -37,18 +37,20 @@ test('handleNameChange creates a pending request with correct current and reques
     expect($request->user_id)->toBe($this->user->id);
 });
 
-test('createNameChangeRequest does not send any mail (admin-notify is commented out)', function () {
+test('createNameChangeRequest emails every admin', function () {
     $this->actingAs($this->user);
     $organizer = Organizer::factory()->create(['user_id' => $this->user->id]);
-    // Ensure an admin exists so the (commented-out) admin loop would have a recipient.
-    User::factory()->create(['type' => 'a']);
+    $admin1 = User::factory()->create(['type' => 'a']);
+    $admin2 = User::factory()->create(['type' => 'a']);
+    // A non-admin must not be notified.
+    User::factory()->create(['type' => 'u']);
 
     $this->service->handleNameChange($organizer, 'Some New Name');
 
-    // note: NameChangeRequestService::createNameChangeRequest() iterates admins
-    // but the Mail::to(...)->send(...) line is commented out, so NO mail is sent
-    // when a user submits a name-change request. See bugsFound.
-    Mail::assertNothingSent();
+    // One notification per admin, and none to non-admins.
+    Mail::assertSent(NameChangeNotification::class, User::where('type', 'a')->count());
+    Mail::assertSent(NameChangeNotification::class, fn ($mail) => $mail->hasTo($admin1->email));
+    Mail::assertSent(NameChangeNotification::class, fn ($mail) => $mail->hasTo($admin2->email));
 });
 
 test('handleNameChange records a null reason when none is provided', function () {
@@ -170,4 +172,21 @@ test('processAdminDirectChange does not move images when the model has none', fu
     expect($result['requiresRefresh'])->toBeTrue();
     expect($organizer->images()->count())->toBe(0);
     Mail::assertSent(NameChangeNotification::class);
+});
+
+test('processAdminDirectChange notifies the owner for a Community (resolved via user_id)', function () {
+    $owner = User::factory()->create();
+    $community = \App\Models\Curated\Community::factory()->create([
+        'user_id' => $owner->id,
+        'name' => 'Old Community',
+    ]);
+
+    $result = $this->service->processAdminDirectChange($community, 'New Community');
+
+    expect($result['success'])->toBeTrue();
+    expect($community->fresh()->name)->toBe('New Community');
+
+    // Community has no user() relation (only owner()); resolving the owner via user_id means
+    // it is now correctly notified — previously Mail::to(null) threw and was swallowed.
+    Mail::assertSent(NameChangeNotification::class, fn ($mail) => $mail->hasTo($owner->email));
 });
