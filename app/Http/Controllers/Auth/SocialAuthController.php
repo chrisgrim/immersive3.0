@@ -89,7 +89,7 @@ class SocialAuthController extends Controller
 
     public function redirectToApple()
     {
-        return Socialite::driver('sign-in-with-apple')
+        return Socialite::driver('apple')
             ->scopes(['name', 'email'])
             ->redirect();
     }
@@ -97,7 +97,7 @@ class SocialAuthController extends Controller
     public function handleAppleCallback(Request $request)
     {
         try {
-            $appleUser = Socialite::driver('sign-in-with-apple')->user();
+            $appleUser = Socialite::driver('apple')->user();
 
             // H-S4: Apple only releases an email once they've verified it, but
             // the JWT carries an `email_verified` claim — historically as a

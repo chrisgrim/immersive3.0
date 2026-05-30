@@ -45,6 +45,14 @@ Route::get('/auth/github', [SocialAuthController::class, 'redirectToGithub'])
 
 Route::get('/auth/github/callback', [SocialAuthController::class, 'handleGithubCallback']);
 
+// Social login - Apple. The callback is a POST because requesting name/email scopes
+// makes Apple use response_mode=form_post (it POSTs the result from apple.com), so the
+// callback route is also CSRF-exempt (see bootstrap/app.php).
+Route::get('/auth/apple', [SocialAuthController::class, 'redirectToApple'])
+    ->name('auth.apple');
+
+Route::post('/auth/apple/callback', [SocialAuthController::class, 'handleAppleCallback']);
+
 // Logout
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth')

@@ -304,3 +304,88 @@ test('github redirect issues a redirect response', function () {
 
     $this->get('/auth/github')->assertRedirect('https://github.com/login/oauth/authorize');
 });
+
+// ----------------------------------------------------------------------------
+// Apple
+// ----------------------------------------------------------------------------
+// note: Apple's callback is a POST (form_post response mode) and is CSRF-exempt.
+// The controller reads Socialite::driver('apple')->user(); we mock that. The real
+// OAuth handshake needs live Apple credentials (APPLE_CLIENT_ID/SECRET/REDIRECT)
+// and a deployed HTTPS environment, so only the callback logic is covered here.
+
+test('apple redirect issues a redirect response', function () {
+    Socialite::shouldReceive('driver->scopes->redirect')
+        ->andReturn(redirect('https://appleid.apple.com/auth/authorize'));
+
+    $this->get('/auth/apple')->assertRedirect('https://appleid.apple.com/auth/authorize');
+});
+
+test('apple callback creates a new user with general defaults and logs them in', function () {
+    Socialite::shouldReceive('driver->user')
+        ->andReturn(fakeSocialiteUser([
+            'id' => 'apple-001',
+            'name' => 'Tim Appleseed',
+            'email' => 'newapple@example.com',
+            'raw' => ['email_verified' => true],
+        ]));
+
+    $this->post('/auth/apple/callback')->assertRedirect('/');
+
+    $user = User::where('email', 'newapple@example.com')->first();
+    expect($user)->not->toBeNull();
+    expect($user->provider)->toBe('apple');
+    expect($user->provider_id)->toBe('apple-001');
+    expect($user->type)->toBe('g');
+    expect($user->newsletter_type)->toBe('n');
+    expect($user->email_verified_at)->not->toBeNull();
+    $this->assertAuthenticatedAs($user);
+});
+
+test('apple callback accepts the historical string "true" email_verified claim', function () {
+    Socialite::shouldReceive('driver->user')
+        ->andReturn(fakeSocialiteUser([
+            'email' => 'stringclaim@example.com',
+            'raw' => ['email_verified' => 'true'],
+        ]));
+
+    $this->post('/auth/apple/callback')->assertRedirect('/');
+
+    expect(User::where('email', 'stringclaim@example.com')->exists())->toBeTrue();
+});
+
+test('apple callback rejects an unverified apple email', function () {
+    Socialite::shouldReceive('driver->user')
+        ->andReturn(fakeSocialiteUser([
+            'email' => 'unverified-apple@example.com',
+            'raw' => ['email_verified' => false],
+        ]));
+
+    $this->post('/auth/apple/callback')
+        ->assertRedirect(route('login'))
+        ->assertSessionHasErrors('error');
+
+    expect(auth()->check())->toBeFalse();
+    expect(User::where('email', 'unverified-apple@example.com')->exists())->toBeFalse();
+});
+
+test('apple callback links an existing user and logs them in', function () {
+    $existing = User::factory()->create([
+        'email' => 'existing-apple@example.com',
+        'provider' => null,
+        'provider_id' => null,
+    ]);
+
+    Socialite::shouldReceive('driver->user')
+        ->andReturn(fakeSocialiteUser([
+            'id' => 'apple-link-1',
+            'email' => 'existing-apple@example.com',
+            'raw' => ['email_verified' => true],
+        ]));
+
+    $this->post('/auth/apple/callback')->assertRedirect('/');
+
+    $existing->refresh();
+    expect($existing->provider)->toBe('apple');
+    expect($existing->provider_id)->toBe('apple-link-1');
+    $this->assertAuthenticatedAs($existing);
+});
