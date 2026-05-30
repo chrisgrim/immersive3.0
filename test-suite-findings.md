@@ -81,7 +81,7 @@ Both `approve()` and `reject()` call `Mail::to($community->user)->send(...)`, bu
 ### Validation / typing inconsistencies
 - **L7** `Post::is_hidden` / `Shelf::is_hidden` have no `boolean` cast — read back as int 1/0. `app/Models/Curated/Post.php`, `Shelf.php`.
 - **L8** `Genre`/`ContentAdvisory`/`MobilityAdvisory` `admin` has no boolean cast — serializes as int 1/0 despite boolean validation.
-- **L9** Card row is created **before** image validation runs, so an invalid image upload still persists a card (and order-shifts siblings). `app/Actions/Curated/CardActions.php:22-38`.
+- **L9** ✅ **Fixed** Card row is created **before** image validation runs, so an invalid image upload still persists a card (and order-shifts siblings). `app/Actions/Curated/CardActions.php:22-38`. → image is now validated up front, before the card is created or siblings are shifted.
 - **L10** Price params are `(float)`-cast with no `is_numeric` guard, so `price1='NaN'` silently becomes `lte=0.0` (excludes all priced events). `ListingsController.php:165-174`.
 - **L11** Mixed numeric type for the price `gte` (int `0` default vs float). `ListingsController.php:165`.
 - **L12** `buildMapBoundaryFilter` only honors the exact string `'true'` for `live`. `ListingsController.php:219`.
@@ -91,7 +91,7 @@ Both `approve()` and `reject()` call `Mail::to($community->user)->send(...)`, bu
 
 ### Return-shape / API hygiene
 - **L16** Advisory `update()`/`destroy()` return raw `true`/`false` as the 200 body (vs `{message}`/model elsewhere). `AdminAdvisoryController.php:54,62`.
-- **L17** Unknown advisory `{type}` throws `InvalidArgumentException` → 500 (segment isn't constrained/validated). `AdminAdvisoryController.php:65-74`.
+- **L17** ✅ **Fixed** Unknown advisory `{type}` throws `InvalidArgumentException` → 500 (segment isn't constrained/validated). `AdminAdvisoryController.php:65-74`. → `getModelClass()` now `abort(404)`s for unmapped types.
 - **L18** Community `reject()` flips status to `'n'` even on self-reject (before the self-check), and `rejection_reason` is dropped (not a column / not `$fillable`). `AdminCommunityController.php:60-77`.
 - **L19** ✅ **Fixed** `favorite()` returns `null` instead of the existing `Favorite` on the already-favorited path (asymmetric return). `app/Traits/Favoritable.php:33`. → now uses `firstOrCreate(...)`, so it stays idempotent and always returns the `Favorite`.
 

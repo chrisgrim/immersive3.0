@@ -66,12 +66,11 @@ test('index filters content advisories by admin boolean', function () {
     expect($response->json('data.0.name'))->toBe('Admin One');
 });
 
-test('index returns 500 for an unknown advisory type', function () {
-    // note: getModelClass() throws InvalidArgumentException for unmapped types,
-    // surfacing as a 500 rather than a validated 4xx.
+test('index returns 404 for an unknown advisory type', function () {
+    // getModelClass() now abort(404)s for unmapped types instead of throwing a 500.
     $this->actingAs($this->moderator)
         ->getJson('/api/admin/settings/advisories/bogus')
-        ->assertStatus(500);
+        ->assertStatus(404);
 });
 
 test('index requires moderator', function () {

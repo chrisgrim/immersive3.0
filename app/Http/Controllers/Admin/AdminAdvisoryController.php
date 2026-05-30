@@ -79,7 +79,7 @@ class AdminAdvisoryController extends Controller
             'mobility' => \App\Models\Events\MobilityAdvisory::class,
             'interactive' => \App\Models\Events\InteractiveLevel::class,
             'contact' => \App\Models\Events\ContactLevel::class,
-            default => throw new \InvalidArgumentException('Invalid advisory type')
+            default => abort(404, 'Invalid advisory type'),
         };
     }
 

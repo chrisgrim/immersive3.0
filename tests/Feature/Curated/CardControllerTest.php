@@ -153,10 +153,9 @@ test('store saves an 800x500 image via ImageHandler when a file is provided', fu
 test('store rejects a non-image file when an image field is present', function () {
     Storage::fake('digitalocean');
 
-    // note: image validation only runs inside the hasFile('image') branch, AFTER the
-    // Card row is already created. A bad image therefore 422s but still leaves a card.
-    // We must send Accept: application/json so the ValidationException renders as a
-    // 422 JSON body rather than a redirect-back (post() with files can't use postJson).
+    // Image validation now runs BEFORE the card is created. We must send
+    // Accept: application/json so the ValidationException renders as a 422 JSON body
+    // rather than a redirect-back (post() with files can't use postJson).
     $this->actingAs($this->curator)
         ->post(cardUrl($this->community, $this->post), [
             'name' => 'Bad Image Card',
@@ -167,8 +166,8 @@ test('store rejects a non-image file when an image field is present', function (
         ->assertStatus(422)
         ->assertJsonValidationErrors(['image']);
 
-    // The card was persisted before validation fired.
-    expect(Card::where('post_id', $this->post->id)->where('name', 'Bad Image Card')->exists())->toBeTrue();
+    // No orphaned card is left behind.
+    expect(Card::where('post_id', $this->post->id)->where('name', 'Bad Image Card')->exists())->toBeFalse();
 });
 
 test('store requires authentication', function () {
