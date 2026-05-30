@@ -231,14 +231,11 @@ describe('dateUtils', () => {
             ]);
         });
 
-        it('BUG: emits the end date even when no requested weekday is in the range', () => {
-            // 2025-03-04 (Tue) .. 2025-03-06 (Thu) contains no Sunday (0), so the
-            // correct result is []. But the "find first occurrence" loop stops once
-            // `current` is no longer isBefore(end) — i.e. AT end (Thu 03-06) — and the
-            // generation loop then pushes that end date via isSameOrBefore, even though
-            // it is a Thursday, not a Sunday. This documents the current (buggy) output.
-            // See findings: generateRecurringDates end-date leak.
-            expect(generateRecurringDates([0], '2025-03-04', '2025-03-06', NY)).toEqual(['2025-03-06']);
+        it('returns an empty array when the requested weekday is not in the range', () => {
+            // 2025-03-04 (Tue) .. 2025-03-06 (Thu) contains no Sunday (0), so the correct
+            // result is []. The accessor now checks it actually landed on the requested
+            // weekday before generating, instead of leaking the end date.
+            expect(generateRecurringDates([0], '2025-03-04', '2025-03-06', NY)).toEqual([]);
         });
 
         it('returns an empty array when daysOfWeek is empty', () => {
