@@ -245,9 +245,13 @@ class SocialAuthController extends Controller
                         .'validate. A spike here means browsers are dropping the cookie (Apple login '
                         .'broken for real users), not just isolated login-CSRF attempts.',
                 ]);
+                // error level (not warning) so the project's existing "Error Monitor" picks it
+                // up and its alert notifies us — no separate alert rule needed. It's gated above
+                // to real failures only (state we issued + cookie missing/mismatched), so this
+                // stays low-volume; a single occurrence is already worth a look.
                 \Sentry\captureMessage(
                     'Apple login state-binding failed (dropped cookie or login-CSRF)',
-                    \Sentry\Severity::warning()
+                    \Sentry\Severity::error()
                 );
             });
         } catch (\Throwable $e) {
