@@ -308,15 +308,16 @@ test('github redirect issues a redirect response', function () {
 // ----------------------------------------------------------------------------
 // Apple
 // ----------------------------------------------------------------------------
-// note: Apple's callback is a POST (form_post response mode) and is CSRF-exempt.
-// Because that POST is cross-site, the session cookie isn't sent, so the controller
-// uses its own single-use server-side `state`: redirectToApple() mints one into the
-// cache, and handleAppleCallback() requires it back (Cache::pull, single-use) before
-// it will read Socialite::driver('apple')->stateless()->user(). We mock that call and
-// seed a valid cached state. The real OAuth handshake needs live Apple credentials
-// (APPLE_CLIENT_ID/SECRET/REDIRECT) and a deployed HTTPS environment.
+// note: Apple's callback is a POST (form_post response mode) and is CSRF-exempt. Because that
+// POST is cross-site, the SameSite=lax session cookie isn't sent, so the controller defends the
+// callback two ways: (1) a single-use server-side `state` (redirectToApple() mints it into the
+// cache; handleAppleCallback() consumes it with Cache::pull), and (2) a SameSite=None
+// `apple_oauth_state` binding cookie that must come back and match the posted state — binding the
+// flow to the browser that started it (login-CSRF defense). Tests seed the cache marker via
+// seedAppleState() and present the binding cookie via withCookie(). The real OAuth handshake needs
+// live Apple credentials + a deployed HTTPS environment, so only the callback logic is covered.
 
-// Seed a single-use Apple state token and return it, mirroring redirectToApple().
+// Seed a single-use Apple state token and return it, mirroring redirectToApple()'s cache marker.
 function seedAppleState(string $state = 'apple-test-state'): string
 {
     cache()->put('apple_oauth_state:'.$state, true, now()->addMinutes(10));
@@ -324,11 +325,13 @@ function seedAppleState(string $state = 'apple-test-state'): string
     return $state;
 }
 
-test('apple redirect issues a redirect response and stores a single-use state', function () {
+test('apple redirect issues a redirect response and sets the binding cookie', function () {
     Socialite::shouldReceive('driver->stateless->scopes->with->redirect')
         ->andReturn(redirect('https://appleid.apple.com/auth/authorize'));
 
-    $this->get('/auth/apple')->assertRedirect('https://appleid.apple.com/auth/authorize');
+    $this->get('/auth/apple')
+        ->assertRedirect('https://appleid.apple.com/auth/authorize')
+        ->assertCookie('apple_oauth_state'); // browser-binding cookie is set at redirect time
 });
 
 test('apple callback creates a new user with general defaults and logs them in', function () {
@@ -341,7 +344,9 @@ test('apple callback creates a new user with general defaults and logs them in',
             'raw' => ['email_verified' => true],
         ]));
 
-    $this->post('/auth/apple/callback', ['state' => $state])->assertRedirect('/');
+    $this->withCookie('apple_oauth_state', $state)
+        ->post('/auth/apple/callback', ['state' => $state])
+        ->assertRedirect('/');
 
     $user = User::where('email', 'newapple@example.com')->first();
     expect($user)->not->toBeNull();
@@ -361,7 +366,9 @@ test('apple callback accepts the historical string "true" email_verified claim',
             'raw' => ['email_verified' => 'true'],
         ]));
 
-    $this->post('/auth/apple/callback', ['state' => $state])->assertRedirect('/');
+    $this->withCookie('apple_oauth_state', $state)
+        ->post('/auth/apple/callback', ['state' => $state])
+        ->assertRedirect('/');
 
     expect(User::where('email', 'stringclaim@example.com')->exists())->toBeTrue();
 });
@@ -374,7 +381,8 @@ test('apple callback rejects an unverified apple email', function () {
             'raw' => ['email_verified' => false],
         ]));
 
-    $this->post('/auth/apple/callback', ['state' => $state])
+    $this->withCookie('apple_oauth_state', $state)
+        ->post('/auth/apple/callback', ['state' => $state])
         ->assertRedirect(route('login'))
         ->assertSessionHasErrors('error');
 
@@ -397,7 +405,9 @@ test('apple callback links an existing user and logs them in', function () {
             'raw' => ['email_verified' => true],
         ]));
 
-    $this->post('/auth/apple/callback', ['state' => $state])->assertRedirect('/');
+    $this->withCookie('apple_oauth_state', $state)
+        ->post('/auth/apple/callback', ['state' => $state])
+        ->assertRedirect('/');
 
     $existing->refresh();
     expect($existing->provider)->toBe('apple');
@@ -424,6 +434,36 @@ test('apple callback rejects a missing or forged state without touching socialit
     expect(User::count())->toBe(0);
 });
 
+test('apple callback rejects a state not bound to this browser (login-CSRF defense)', function () {
+    // The core login-CSRF attack: an attacker mints a valid state by starting their OWN flow
+    // (it lands in the shared cache), then lures a victim into POSTing that state + a code.
+    // The victim's browser never received the binding cookie, so the flow is rejected and the
+    // attacker can't log the victim into the attacker's account.
+    $state = seedAppleState('attacker-minted-state');
+    Socialite::shouldReceive('driver')->never();
+
+    // State is present and cached, but NO binding cookie comes back with this browser.
+    $this->post('/auth/apple/callback', ['state' => $state])
+        ->assertRedirect(route('login'))
+        ->assertSessionHasErrors('error');
+
+    expect(auth()->check())->toBeFalse();
+    expect(User::count())->toBe(0);
+});
+
+test('apple callback rejects a binding cookie that does not match the state', function () {
+    // A binding cookie is present but for a different state — also rejected (no token exchange).
+    $state = seedAppleState('the-real-state');
+    Socialite::shouldReceive('driver')->never();
+
+    $this->withCookie('apple_oauth_state', 'a-different-state')
+        ->post('/auth/apple/callback', ['state' => $state])
+        ->assertRedirect(route('login'))
+        ->assertSessionHasErrors('error');
+
+    expect(auth()->check())->toBeFalse();
+});
+
 test('apple callback state is single-use and cannot be replayed', function () {
     $state = seedAppleState('replay-state');
     Socialite::shouldReceive('driver->stateless->user')
@@ -433,13 +473,16 @@ test('apple callback state is single-use and cannot be replayed', function () {
             'raw' => ['email_verified' => true],
         ]));
 
-    // First use succeeds and consumes the state.
-    $this->post('/auth/apple/callback', ['state' => $state])->assertRedirect('/');
+    // First use (state + matching binding cookie) succeeds and consumes the state.
+    $this->withCookie('apple_oauth_state', $state)
+        ->post('/auth/apple/callback', ['state' => $state])
+        ->assertRedirect('/');
     expect(User::where('email', 'replay@example.com')->exists())->toBeTrue();
 
-    // Replaying the same captured state is rejected (Cache::pull already consumed it).
+    // Replaying the same captured state + cookie is rejected (Cache::pull already consumed it).
     auth()->logout();
-    $this->post('/auth/apple/callback', ['state' => $state])
+    $this->withCookie('apple_oauth_state', $state)
+        ->post('/auth/apple/callback', ['state' => $state])
         ->assertRedirect(route('login'))
         ->assertSessionHasErrors('error');
     expect(auth()->check())->toBeFalse();
