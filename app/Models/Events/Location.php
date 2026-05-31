@@ -2,11 +2,14 @@
 
 namespace App\Models\Events;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 class Location extends Model
 {
+    use HasFactory;
+
     /**
     * What protected variables are allowed to be passed to the database
     *

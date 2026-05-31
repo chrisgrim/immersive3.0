@@ -104,16 +104,18 @@ class OrganizerController extends Controller
 
     public function requestNameChange(Request $request, Organizer $organizer)
     {
-        try {
-            ['requested_name' => $requestedName, 'current_name' => $currentName] = $request->validate([
-                'requested_name' => [
-                    'required',
-                    'string',
-                    'max:80',
-                ],
-                'current_name' => 'required|string',
-            ]);
+        // Validate outside the try so a ValidationException surfaces as a 422 with field
+        // errors instead of being swallowed by the catch-all below into a generic 500.
+        ['requested_name' => $requestedName, 'current_name' => $currentName] = $request->validate([
+            'requested_name' => [
+                'required',
+                'string',
+                'max:80',
+            ],
+            'current_name' => 'required|string',
+        ]);
 
+        try {
             $nameChangeService = new NameChangeRequestService;
             $result = $nameChangeService->handleNameChange(
                 $organizer,

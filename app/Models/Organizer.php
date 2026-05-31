@@ -5,12 +5,7 @@ namespace App\Models;
 use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Genre;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use App\Models\NameChangeRequest;
-
 
 class Organizer extends Model
 {
@@ -42,7 +37,7 @@ class Organizer extends Model
 
         // Keep checking until we find a unique slug
         while (static::slugExists($slug, $excludeId)) {
-            $slug = $baseSlug . '-' . $counter;
+            $slug = $baseSlug.'-'.$counter;
             $counter++;
         }
 
@@ -55,16 +50,16 @@ class Organizer extends Model
     protected static function slugExists($slug, $excludeId = null)
     {
         $query = static::where('slug', $slug);
-        
+
         if ($excludeId) {
             $query->where('id', '!=', $excludeId);
         }
-        
+
         return $query->exists();
     }
 
     protected $fillable = [
-    	'user_id','name','website','slug','description','rating','largeImagePath','thumbImagePath','instagramHandle','twitterHandle','facebookHandle', 'email', 'status', 'patreon'
+        'user_id', 'name', 'website', 'slug', 'description', 'rating', 'largeImagePath', 'thumbImagePath', 'instagramHandle', 'twitterHandle', 'facebookHandle', 'email', 'status', 'patreon',
     ];
 
     public function getRouteKeyName()
@@ -75,10 +70,10 @@ class Organizer extends Model
     public function toSearchableArray()
     {
         return [
-            "name" => $this->name ,
-            "email" => $this->email,
+            'name' => $this->name,
+            'email' => $this->email,
             'priority' => 3,
-            "published_at" => $this->published_at ? $this->published_at->format('Y-m-d H:i:s') : null,
+            'published_at' => $this->published_at ? $this->published_at->format('Y-m-d H:i:s') : null,
         ];
     }
 
@@ -87,16 +82,17 @@ class Organizer extends Model
         return $this->status == 'p';
     }
 
-    public function isPublished() {
+    public function isPublished()
+    {
         return $this->status == 'p';
     }
 
-    public function events() 
+    public function events()
     {
         return $this->hasMany(Event::class)->orderByDesc('updated_at');
     }
 
-    public function user() 
+    public function user()
     {
         return $this->belongsTo(User::class);
     }
@@ -106,17 +102,17 @@ class Organizer extends Model
         return $this->morphMany(Image::class, 'imageable');
     }
 
-    public function listedEvents() 
+    public function listedEvents()
     {
         return $this->hasMany(Event::class)->orderByDesc('updated_at')->where('archived', false);
     }
 
-    public function archivedEvents() 
+    public function archivedEvents()
     {
         return $this->hasMany(Event::class)->orderByDesc('updated_at')->where('archived', true);
     }
-    
-    public function owner() 
+
+    public function owner()
     {
         return $this->belongsTo(User::class, 'user_id');
     }
@@ -124,9 +120,9 @@ class Organizer extends Model
     public function users()
     {
         return $this->belongsToMany(User::class)
-                        ->withPivot('role')
-                        ->withTimestamps()
-                        ->as('membership');
+            ->withPivot('role')
+            ->withTimestamps()
+            ->as('membership');
     }
 
     public function allUsers()
@@ -134,7 +130,8 @@ class Organizer extends Model
         return $this->users->merge([$this->owner]);
     }
 
-    public function getHandles(){
+    public function getHandles()
+    {
         $result = [];
         if ($this->instagramHandle) {
             array_push($result, "https://www.instagram.com/{$this->instagramHandle}");
@@ -145,22 +142,27 @@ class Organizer extends Model
         if ($this->twitterHandle) {
             array_push($result, "https://www.twitter.com/{$this->twitterHandle}");
         }
+
         return $result;
     }
 
-    public function deleteOrganizer($organizer) 
+    public function deleteOrganizer($organizer)
     {
-        if ($organizer->users()->exists()) { $organizer->users()->detach(); }
-        foreach ($organizer->events as $event) { $event->delete(); }
+        if ($organizer->users()->exists()) {
+            $organizer->users()->detach();
+        }
+        foreach ($organizer->events as $event) {
+            $event->delete();
+        }
         $organizer->delete();
     }
 
     public function scopeWithPaginatedEvents($query)
     {
-        return $query->with(['events' => function($query) {
+        return $query->with(['events' => function ($query) {
             $query->where('status', 'p')
                 ->where('archived', false)
-                ->with(['category', 'genres', 'favorites']) // Add relationships needed for the listings
+                ->with(['category', 'genres', 'currentUserFavorite']) // Add relationships needed for the listings
                 ->orderBy('created_at', 'desc')
                 ->paginate(10);
         }]);
@@ -168,12 +170,12 @@ class Organizer extends Model
 
     public function scopeWithUserRole($query)
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return $query;
         }
 
         return $query
-            ->addSelect(['user_role' => function($query) {
+            ->addSelect(['user_role' => function ($query) {
                 $query->selectRaw("CASE 
                     WHEN organizers.user_id = ? THEN 'owner'
                     WHEN ? = 'a' THEN 'admin'
@@ -185,18 +187,18 @@ class Organizer extends Model
                         AND user_id = ?
                     )
                     END", [
-                        auth()->id(), 
-                        auth()->user()->type,
-                        auth()->user()->type,
-                        auth()->id()
-                    ]);
+                    auth()->id(),
+                    auth()->user()->type,
+                    auth()->user()->type,
+                    auth()->id(),
+                ]);
             }]);
     }
 
     public function scopeWithDetails($query)
     {
         return $query->withPaginatedEvents()
-                    ->withUserRole();
+            ->withUserRole();
     }
 
     public function nameChangeRequests()

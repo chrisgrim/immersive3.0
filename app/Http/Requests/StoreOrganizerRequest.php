@@ -16,17 +16,19 @@ class StoreOrganizerRequest extends FormRequest
     {
         $rules = [];
 
-        // Only apply name rules if name is being updated
-        if ($this->has('name')) {
+        // On create there is no bound {organizer}, so name + description are required.
+        // On update we only validate the fields actually being changed (partial update).
+        $isCreating = $this->route('organizer') === null;
+
+        if ($isCreating || $this->has('name')) {
             $rules['name'] = [
-                'required', 
-                'string', 
-                'max:80'
+                'required',
+                'string',
+                'max:80',
             ];
         }
 
-        // Only apply description rules if description is being updated
-        if ($this->has('description')) {
+        if ($isCreating || $this->has('description')) {
             $rules['description'] = 'required|string|min:1|max:2000';
         }
 

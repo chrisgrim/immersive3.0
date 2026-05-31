@@ -1,10 +1,10 @@
 <?php
 
+use App\Console\Commands\ArchiveOldClicks;
+use App\Console\Commands\CheckClosingEvents;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use App\Console\Commands\ArchiveOldClicks;
-use App\Console\Commands\CheckClosingEvents;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -25,6 +25,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
             'moderator' => \App\Http\Middleware\ModeratorMiddleware::class,
+        ]);
+
+        // "Sign in with Apple" POSTs its callback cross-site from apple.com (form_post
+        // response mode), so it can't carry a Laravel CSRF token — exempt just that route.
+        $middleware->validateCsrfTokens(except: [
+            'auth/apple/callback',
         ]);
 
         // Configure maintenance mode to only block creation routes

@@ -16,6 +16,7 @@ trait Favoritable
             $model->favorites->each->delete();
         });
     }
+
     /**
      * A reply can be favorited.
      *
@@ -25,6 +26,22 @@ trait Favoritable
     {
         return $this->morphMany(Favorite::class, 'favorited');
     }
+
+    /**
+     * The current user's favorite of this model (0 or 1 rows).
+     *
+     * Eager-load THIS (not `favorites`) on listings: isFavorited only needs to
+     * know whether the current user favorited the row, so pulling the whole
+     * favorites set per row is wasteful on popular events. Keep `favorites`
+     * for anything that needs the full set (e.g. the delete cascade).
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\MorphMany
+     */
+    public function currentUserFavorite()
+    {
+        return $this->favorites()->where('user_id', auth()->id());
+    }
+
     /**
      * Favorite the current reply.
      *
@@ -32,11 +49,11 @@ trait Favoritable
      */
     public function favorite()
     {
-        $attributes = ['user_id' => auth()->id()];
-        if (! $this->favorites()->where($attributes)->exists()) {
-            return $this->favorites()->create($attributes);
-        }
+        // firstOrCreate keeps it idempotent (no duplicate) AND always returns the
+        // Favorite — the old exists()-then-create returned null on the existing path.
+        return $this->favorites()->firstOrCreate(['user_id' => auth()->id()]);
     }
+
     /**
      * Unfavorite the current reply.
      */
@@ -45,10 +62,11 @@ trait Favoritable
         $attributes = ['user_id' => auth()->id()];
         $this->favorites()->where($attributes)->get()->each->delete();
     }
+
     /**
      * Determine if the current reply has been favorited.
      *
-     * @return boolean
+     * @return bool
      */
     public function isFavorited()
     {
@@ -58,8 +76,21 @@ trait Favoritable
             return false;
         }
 
-        return $this->favorites->where('user_id', $userId)->isNotEmpty();
+        // Prefer the current-user-scoped relation when it's been eager-loaded
+        // (the optimized path used by listings). Fall back to a full favorites
+        // collection if that's what was loaded, else a targeted exists() query
+        // rather than hydrating every favorite row.
+        if ($this->relationLoaded('currentUserFavorite')) {
+            return $this->currentUserFavorite->isNotEmpty();
+        }
+
+        if ($this->relationLoaded('favorites')) {
+            return $this->favorites->where('user_id', $userId)->isNotEmpty();
+        }
+
+        return $this->favorites()->where('user_id', $userId)->exists();
     }
+
     /**
      * Fetch the favorited status as a property.
      *
@@ -69,10 +100,11 @@ trait Favoritable
     {
         return $this->isFavorited();
     }
+
     /**
      * Get the number of favorites for the reply.
      *
-     * @return integer
+     * @return int
      */
     public function getFavoritesCountAttribute()
     {

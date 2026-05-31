@@ -2,6 +2,7 @@
 
 namespace App\Models\Admin;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Event;
 use App\Models\User;
@@ -9,6 +10,8 @@ use App\Scopes\CreatedAtScope;
 
 class StaffPick extends Model
 {
+    use HasFactory;
+
      /**
     * What protected variables are allowed to be passed to the database
     *

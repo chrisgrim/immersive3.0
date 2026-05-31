@@ -2,11 +2,14 @@
 
 namespace App\Models\Curated;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\User;
 
 class CuratorInvitation extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'community_id',
         'email',

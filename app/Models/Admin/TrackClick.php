@@ -9,6 +9,5 @@ class TrackClick extends Model
 {
     use HasFactory;
 
-    protected $fillable = [ 'event_id', 'organzier_id', 'user_id' ];
-    
+    protected $fillable = ['event_id', 'organizer_id', 'user_id'];
 }

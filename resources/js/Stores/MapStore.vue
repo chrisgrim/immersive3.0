@@ -19,10 +19,10 @@ const MapStore = {
     
     boundsUpdate(bounds, center) {
         // Validate that all coordinates are valid numbers
-        const neLat = parseFloat(bounds._northEast?.lat);
-        const neLng = parseFloat(bounds._northEast?.lng);
-        const swLat = parseFloat(bounds._southWest?.lat);
-        const swLng = parseFloat(bounds._southWest?.lng);
+        const neLat = parseFloat(bounds?._northEast?.lat);
+        const neLng = parseFloat(bounds?._northEast?.lng);
+        const swLat = parseFloat(bounds?._southWest?.lat);
+        const swLng = parseFloat(bounds?._southWest?.lng);
         const centerLat = parseFloat(center?.lat);
         const centerLng = parseFloat(center?.lng);
         

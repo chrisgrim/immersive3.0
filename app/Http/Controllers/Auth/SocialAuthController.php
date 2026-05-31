@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 
 class SocialAuthController extends Controller
@@ -87,17 +90,78 @@ class SocialAuthController extends Controller
         }
     }
 
+    // How long an in-flight Apple sign-in stays valid (cache marker + binding cookie share
+    // this TTL so a slow flow expires from both at once — no half-expired noise).
+    private const APPLE_STATE_TTL_MINUTES = 10;
+
     public function redirectToApple()
     {
-        return Socialite::driver('sign-in-with-apple')
-            ->scopes(['name', 'email'])
-            ->redirect();
+        try {
+            // Apple posts its callback cross-site (form_post response_mode), so our SameSite=lax
+            // session cookie isn't sent with it — the usual session-stored OAuth `state` can't
+            // bind the flow (and the provider's own check derives `state` from the signed
+            // id_token, which is self-confirming). We defend the callback two ways:
+            //   1. a single-use server-side cache marker  -> blocks replay + states we never issued
+            //   2. a SameSite=None binding cookie         -> binds the state to THIS browser, so an
+            //      attacker who mints a valid state in their own browser can't replay it through a
+            //      victim (login-CSRF). SameSite=None+Secure is required for the cookie to survive
+            //      Apple's cross-site POST.
+            $state = Str::random(40);
+            Cache::put('apple_oauth_state:'.$state, true, now()->addMinutes(self::APPLE_STATE_TTL_MINUTES));
+
+            $bindingCookie = cookie(
+                'apple_oauth_state',
+                $state,
+                self::APPLE_STATE_TTL_MINUTES,
+                null,
+                null,
+                true,  // secure (required for SameSite=None)
+                true,  // httpOnly
+                false, // raw
+                'none' // sameSite — must be None so the cookie rides Apple's cross-site form_post back
+            );
+
+            return Socialite::driver('apple')
+                ->stateless()
+                ->scopes(['name', 'email'])
+                ->with(['state' => $state])
+                ->redirect()
+                ->withCookie($bindingCookie);
+        } catch (\Exception $e) {
+            Log::error('Apple redirect error: '.$e->getMessage());
+
+            return redirect()->route('login')
+                ->withErrors(['error' => 'Apple sign-in is unavailable right now. Please try another method.']);
+        }
     }
 
     public function handleAppleCallback(Request $request)
     {
         try {
-            $appleUser = Socialite::driver('sign-in-with-apple')->user();
+            $state = $request->input('state');
+            $cookieState = $request->cookie('apple_oauth_state');
+
+            // The binding cookie is single-use regardless of outcome.
+            Cookie::queue(Cookie::forget('apple_oauth_state'));
+
+            // (1) Did this state originate from a redirect we issued? pull() consumes it, so a
+            //     captured callback can't be replayed, and a state we never minted is rejected.
+            $issuedByUs = $state && Cache::pull('apple_oauth_state:'.$state);
+
+            // (2) Is the state bound to THIS browser? The SameSite=None cookie set at redirect
+            //     time must come back and match. This is what stops login-CSRF: an attacker can
+            //     mint a valid state in their own browser, but it lives in their cookie, not the
+            //     victim's, so a forged callback through the victim fails here.
+            $boundToBrowser = $state && $cookieState && hash_equals($cookieState, $state);
+
+            if (! $issuedByUs || ! $boundToBrowser) {
+                $this->reportAppleStateFailure($request, $issuedByUs, $boundToBrowser, $cookieState !== null);
+
+                return redirect()->route('login')
+                    ->withErrors(['error' => 'Your Apple sign-in could not be verified. Please try again.']);
+            }
+
+            $appleUser = Socialite::driver('apple')->stateless()->user();
 
             // H-S4: Apple only releases an email once they've verified it, but
             // the JWT carries an `email_verified` claim — historically as a
@@ -141,6 +205,57 @@ class SocialAuthController extends Controller
 
             return redirect()->route('login')
                 ->withErrors(['error' => 'Failed to login with Apple. Please try again.']);
+        }
+    }
+
+    /**
+     * Report a failed Apple state/binding check.
+     *
+     * The signal we most want to watch is "we DID issue this state, but the SameSite=None
+     * binding cookie didn't come back / didn't match". That's the fingerprint of a browser
+     * (most likely Safari) dropping the cookie — which would silently lock real users out of
+     * Apple login — and it also fires on genuine login-CSRF attempts. Either way we want to
+     * know. Junk callbacks with a state we never issued (bots, expired, forged-from-nothing)
+     * are ignored as noise. Sentry is wrapped so a reporting hiccup can never break login.
+     */
+    protected function reportAppleStateFailure(Request $request, bool $issuedByUs, bool $boundToBrowser, bool $hadCookie): void
+    {
+        // Only alert on flows we actually started where the browser binding then failed.
+        if (! $issuedByUs || $boundToBrowser) {
+            return;
+        }
+
+        Log::warning('Apple login binding check failed', [
+            'had_binding_cookie' => $hadCookie,
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        if (! app()->bound('sentry')) {
+            return;
+        }
+
+        try {
+            \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($request, $hadCookie): void {
+                $scope->setTag('auth_provider', 'apple');
+                $scope->setTag('apple_binding_cookie', $hadCookie ? 'present_mismatch' : 'missing');
+                $scope->setContext('apple_login', [
+                    'had_binding_cookie' => $hadCookie,
+                    'user_agent' => $request->userAgent(),
+                    'note' => 'State was issued by us but the SameSite=None binding cookie did not '
+                        .'validate. A spike here means browsers are dropping the cookie (Apple login '
+                        .'broken for real users), not just isolated login-CSRF attempts.',
+                ]);
+                // error level (not warning) so the project's existing "Error Monitor" picks it
+                // up and its alert notifies us — no separate alert rule needed. It's gated above
+                // to real failures only (state we issued + cookie missing/mismatched), so this
+                // stays low-volume; a single occurrence is already worth a look.
+                \Sentry\captureMessage(
+                    'Apple login state-binding failed (dropped cookie or login-CSRF)',
+                    \Sentry\Severity::error()
+                );
+            });
+        } catch (\Throwable $e) {
+            Log::warning('Failed to report Apple binding failure to Sentry: '.$e->getMessage());
         }
     }
 

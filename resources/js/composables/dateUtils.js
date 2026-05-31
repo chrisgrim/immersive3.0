@@ -198,7 +198,14 @@ export const generateRecurringDates = (daysOfWeek, startDate, endDate, timezone)
         while (current.day() !== dayIndex && current.isBefore(end)) {
             current.add(1, 'day');
         }
-        
+
+        // The search loop can stop at the range end without matching (when this weekday
+        // never occurs in the range). Only generate occurrences if we actually landed on
+        // the requested weekday — otherwise emit nothing for it.
+        if (current.day() !== dayIndex) {
+            return;
+        }
+
         // Generate weekly occurrences
         while (current.isSameOrBefore(end)) {
             dates.push(current.format('YYYY-MM-DD'));

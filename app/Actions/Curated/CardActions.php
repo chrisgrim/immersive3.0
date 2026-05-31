@@ -14,6 +14,14 @@ class CardActions
      */
     public function create(Request $request, Post $post)
     {
+        // Validate the image (if any) BEFORE creating the card / shifting orders, so a bad
+        // upload 422s cleanly without leaving an orphaned card or shifted siblings behind.
+        if ($request->hasFile('image')) {
+            $request->validate([
+                'image' => 'image|mimes:jpeg,png,jpg,webp|max:8192',
+            ]);
+        }
+
         // If order is specified, make room for the new card
         if ($request->order !== null) {
             $this->shiftCardsOrder($post, $request->order);
@@ -31,9 +39,6 @@ class CardActions
         ]);
 
         if ($request->hasFile('image')) {
-            $request->validate([
-                'image' => 'image|mimes:jpeg,png,jpg,webp|max:8192',
-            ]);
             ImageHandler::saveImage($request->file('image'), $card, 800, 500, 'card-images');
         }
 

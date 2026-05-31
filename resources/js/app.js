@@ -3,6 +3,25 @@ import '../css/app.css';
 import axios from 'axios';
 import { ClickOutsideDirective } from './Directives/ClickOutsideDirective';
 
+// A new deploy renames hashed asset chunks (e.g. nav-bar-mobile-<hash>.js). A browser tab
+// still running the PREVIOUS build then fails to lazy-load a chunk the new build renamed —
+// surfacing as "dynamic import failed" / "Unable to preload CSS" (Sentry EI-VUE-4, EI-VUE-6).
+// Recover by reloading once to pull the fresh build. Guards prevent a reload loop if an asset
+// is genuinely missing (not just stale): an in-memory flag for multiple chunks failing on the
+// same load, and a sessionStorage timestamp across reloads.
+let preloadReloadTriggered = false;
+window.addEventListener('vite:preloadError', (event) => {
+    if (preloadReloadTriggered) return; // several chunks failed this load — reload only once
+    const KEY = 'vite:preloadError:lastReload';
+    let last = 0;
+    try { last = Number(window.sessionStorage.getItem(KEY) || 0); } catch (e) { /* storage blocked */ }
+    if (Date.now() - last < 10000) return; // reloaded in the last 10s — asset likely gone, don't loop
+    preloadReloadTriggered = true;
+    try { window.sessionStorage.setItem(KEY, String(Date.now())); } catch (e) { /* storage blocked */ }
+    event.preventDefault();
+    window.location.reload();
+});
+
 // Loading component
 const LoadingComponent = {
     template: '<div class="loading-component">Loading...</div>'
@@ -125,20 +144,6 @@ app.config.errorHandler = (err, instance, info) => {
         window.Sentry.captureException(err, { extra: { vueInfo: info } });
     }
 };
-
-// After a deploy, lazy-loaded chunk hashes change. Sessions that loaded the
-// page pre-deploy will 404 on the old chunk name. Vite emits this event when
-// preload fails — reload once to pick up the new build. Guarded with
-// sessionStorage so a misconfigured deploy can't loop reloads forever; at
-// most one auto-reload per browser session.
-window.addEventListener('vite:preloadError', (event) => {
-    if (sessionStorage.getItem('vite_reload_attempted') === '1') {
-        console.error('[vite:preloadError] Already auto-reloaded once this session — not retrying. Manual refresh may be required.', event);
-        return;
-    }
-    sessionStorage.setItem('vite_reload_attempted', '1');
-    window.location.reload();
-});
 
 // Sentry (skip if no DSN configured)
 if (import.meta.env.VITE_SENTRY_DSN) {

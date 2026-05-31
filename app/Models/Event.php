@@ -2,30 +2,41 @@
 
 namespace App\Models;
 
-use App\Models\{Conversation, Genre, Organizer, User, Category, AttendanceType};
-use App\Models\Events\{ Show, ShowChangeLog, PriceRange, Advisory, Location, AgeLimit, InteractiveLevel, RemoteLocation, ContactLevel, ContentAdvisory, MobilityAdvisory};
-use App\Models\Admin\{ ReviewEvent, StaffPick, TrackClick, CuratedEventCheck };
+use App\Models\Admin\CuratedEventCheck;
+use App\Models\Admin\ReviewEvent;
+use App\Models\Admin\StaffPick;
+use App\Models\Admin\TrackClick;
+use App\Models\Events\Advisory;
+use App\Models\Events\AgeLimit;
+use App\Models\Events\ContactLevel;
+use App\Models\Events\ContentAdvisory;
+use App\Models\Events\InteractiveLevel;
+use App\Models\Events\Location;
+use App\Models\Events\MobilityAdvisory;
+use App\Models\Events\PriceRange;
+use App\Models\Events\RemoteLocation;
+use App\Models\Events\Show;
+use App\Models\Events\ShowChangeLog;
 use App\Scopes\PublishedScope;
-use App\Traits\{Favoritable};
+use App\Services\ImageHandler;
+use App\Traits\Favoritable;
+use Carbon\Carbon;
 use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Carbon\Carbon;
-use App\Models\NameChangeRequest;
-use App\Services\ImageHandler;
 
 /**
  * Event Model
- * 
+ *
  * Represents an event in the system with relationships to users, organizers,
  * locations, and various other event-related models.
  */
 class Event extends Model
 {
-    use Favoritable, HasFactory, SoftDeletes, Searchable;
+    use Favoritable, HasFactory, Searchable, SoftDeletes;
 
     protected $casts = [
         'location_latlon' => 'array',
@@ -34,13 +45,12 @@ class Event extends Model
     ];
 
     protected $fillable = [
-        'slug', 'user_id', 'timezone', 'category_id', 'attendance_type_id', 'interactive_level_id','organizer_id','description','name','largeImagePath','thumbImagePath','advisories_id', 'organizer_id', 'location_latlon', 'closingDate','websiteUrl','ticketUrl','show_times','price_range', 'status','tag_line', 'hasLocation', 'showtype', 'showtype_config', 'start_date', 'embargo_date', 'remote_description', 'published_at', 'call_to_action', 'age_limits_id', 'rank', 'archived'
+        'slug', 'user_id', 'timezone', 'category_id', 'attendance_type_id', 'interactive_level_id', 'organizer_id', 'description', 'name', 'largeImagePath', 'thumbImagePath', 'advisories_id', 'organizer_id', 'location_latlon', 'closingDate', 'websiteUrl', 'ticketUrl', 'show_times', 'price_range', 'status', 'tag_line', 'hasLocation', 'showtype', 'showtype_config', 'start_date', 'embargo_date', 'remote_description', 'published_at', 'call_to_action', 'age_limits_id', 'rank', 'archived',
     ];
 
     protected $appends = ['isFavorited', 'isShowing'];
 
-    protected $hidden = ['favorites'];
-
+    protected $hidden = ['favorites', 'currentUserFavorite'];
 
     protected static function booted()
     {
@@ -58,15 +68,15 @@ class Event extends Model
         $location = null;
         $hasValidLocation = false;
 
-        if ($this->location && 
-            $this->location->latitude && 
-            $this->location->longitude && 
-            $this->location->latitude != 0 && 
+        if ($this->location &&
+            $this->location->latitude &&
+            $this->location->longitude &&
+            $this->location->latitude != 0 &&
             $this->location->longitude != 0) {
-            
+
             $location = [
-                'lat' => (float)$this->location->latitude,
-                'lon' => (float)$this->location->longitude
+                'lat' => (float) $this->location->latitude,
+                'lon' => (float) $this->location->longitude,
             ];
             $hasValidLocation = true;
         }
@@ -96,7 +106,7 @@ class Event extends Model
     public function scopeUserEvents($query)
     {
         return $query->where('user_id', auth()->id());
-    } 
+    }
 
     public function showsSelect()
     {
@@ -114,74 +124,76 @@ class Event extends Model
     }
 
     /**
-    * Helpful command to see published events
-    *
-    * @return bool
-    */
-    public function isPublished() {
+     * Helpful command to see published events
+     *
+     * @return bool
+     */
+    public function isPublished()
+    {
         return $this->status == 'p';
     }
 
     /**
-    * Determines which events are published for Laravel Scout
-    *
-    * @return bool
-    */
-    public function inProgress() {
+     * Determines which events are published for Laravel Scout
+     *
+     * @return bool
+     */
+    public function inProgress()
+    {
         return $this->status != 'r' && $this->status != 'p' && $this->status != 'e' && $this->status != 'n';
     }
 
     /**
-    * Determines which events are published
-    *
-    * @return bool
-    */
-    public function getIsPickedAttribute() {
+     * Determines which events are published
+     *
+     * @return bool
+     */
+    public function getIsPickedAttribute()
+    {
         return $this->status == 'p';
     }
 
     /**
-    * Determines if the show is still available
-    *
-    * @return boolean
-    */
+     * Determines if the show is still available
+     *
+     * @return bool
+     */
     public function getIsShowingAttribute()
     {
         return $this->closingDate >= Carbon::now();
     }
-    
+
     /**
-    * Each event belongs to One User
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\belongsTo
-    */
-    public function user() 
+     * Each event belongs to One User
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\belongsTo
+     */
+    public function user()
     {
         return $this->belongsTo(User::class);
     }
 
     /**
-    * Get all users who can manage this event through the organizer
-    *
-    * @return \Illuminate\Database\Eloquent\Collection
-    */
-    public function owners() 
+     * Get all users who can manage this event through the organizer
+     *
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function owners()
     {
         return $this->organizer->allUsers();
     }
 
-
     /**
-    * Each event has a conversation
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\HasOne
-    */
-    public function conversation() 
+     * Each event has a conversation
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasOne
+     */
+    public function conversation()
     {
         return $this->hasOne(Conversation::class);
     }
 
-    public function category() 
+    public function category()
     {
         return $this->belongsTo(Category::class);
     }
@@ -203,7 +215,7 @@ class Event extends Model
 
     /**
      * Get all videos related to this event
-     * 
+     *
      * @return \Illuminate\Database\Eloquent\Relations\MorphMany
      */
     public function videos()
@@ -212,52 +224,52 @@ class Event extends Model
     }
 
     /**
-    * Each event hasOne StaffPick
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\belongsTo
-    */
-    public function staffpick() 
+     * Each event hasOne StaffPick
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\belongsTo
+     */
+    public function staffpick()
     {
         return $this->hasOne(StaffPick::class);
     }
 
     /**
-    * Each event hasOne curanted check
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\belongsTo
-    */
-    public function curatedCheck() 
+     * Each event hasOne curanted check
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\belongsTo
+     */
+    public function curatedCheck()
     {
         return $this->hasOne(CuratedEventCheck::class);
     }
 
     /**
-    * Each event has many event reviews
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\HasMany
-    */
-    public function eventreviews() 
+     * Each event has many event reviews
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function eventreviews()
     {
         return $this->hasMany(ReviewEvent::class)
-                    ->orderBy('rank', 'ASC');
+            ->orderBy('rank', 'ASC');
     }
 
     /**
-    * Each event has many clicks
-    *
-    * @return \Illuminate\Database\Eloquent\Relations\HasMany
-    */
-    public function clicks() 
+     * Each event has many clicks
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function clicks()
     {
         return $this->hasMany(TrackClick::class);
     }
 
     /**
-    * Each event belongs to One Organizer
-    *
-    * @return \Illuminate\Database\Eloquent\Relations/belongsTo
-    */
-    public function organizer() 
+     * Each event belongs to One Organizer
+     *
+     * @return \Illuminate\Database\Eloquent\Relations/belongsTo
+     */
+    public function organizer()
     {
         return $this->belongsTo(Organizer::class);
     }
@@ -267,7 +279,7 @@ class Event extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasOne
      */
-    public function location() 
+    public function location()
     {
         return $this->hasOne(Location::class);
     }
@@ -277,7 +289,7 @@ class Event extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasOne
      */
-    public function advisories() 
+    public function advisories()
     {
         return $this->hasOne(Advisory::class);
     }
@@ -287,7 +299,7 @@ class Event extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
-    public function shows() 
+    public function shows()
     {
         return $this->hasMany(Show::class)->orderBy('date', 'DESC');
     }
@@ -297,7 +309,7 @@ class Event extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
-    public function eventRequest() 
+    public function eventRequest()
     {
         return $this->hasMany(EventRequest::class);
     }
@@ -307,7 +319,7 @@ class Event extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
-    public function priceranges() 
+    public function priceranges()
     {
         return $this->hasMany(PriceRange::class);
     }
@@ -317,7 +329,7 @@ class Event extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\belongsToMany
      */
-    public function genres() 
+    public function genres()
     {
         return $this->belongsToMany(Genre::class);
     }
@@ -327,7 +339,7 @@ class Event extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\belongsToMany
      */
-    public function age_limits() 
+    public function age_limits()
     {
         return $this->belongsTo(AgeLimit::class);
     }
@@ -337,7 +349,7 @@ class Event extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\belongsTo
      */
-    public function interactive_level() 
+    public function interactive_level()
     {
         return $this->belongsTo(InteractiveLevel::class);
     }
@@ -347,7 +359,7 @@ class Event extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\belongsToMany
      */
-    public function remotelocations() 
+    public function remotelocations()
     {
         return $this->belongsToMany(RemoteLocation::class);
     }
@@ -357,7 +369,7 @@ class Event extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\belongsToMany
      */
-    public function contactlevels() 
+    public function contactlevels()
     {
         return $this->belongsToMany(ContactLevel::class);
     }
@@ -367,7 +379,7 @@ class Event extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\belongsToMany
      */
-    public function contentadvisories() 
+    public function contentadvisories()
     {
         return $this->belongsToMany(ContentAdvisory::class);
     }
@@ -377,16 +389,16 @@ class Event extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\belongsToMany
      */
-    public function mobilityadvisories() 
+    public function mobilityadvisories()
     {
         return $this->belongsToMany(MobilityAdvisory::class);
     }
 
     /**
-    * Sets the Route Key to slug instead of ID
-    *
-    * @return Route Key Name
-    */
+     * Sets the Route Key to slug instead of ID
+     *
+     * @return Route Key Name
+     */
     public function getRouteKeyName()
     {
         return 'slug';
@@ -395,35 +407,37 @@ class Event extends Model
     /**
      * Create a new event for the given organizer
      *
-     * @param int $organizerId
+     * @param  int  $organizerId
      * @return \App\Models\Event
      */
     public static function newEvent($organizerId)
     {
         $event = self::create([
             'user_id' => auth()->id(),
-            'slug' => Str::slug('new-event-' . Str::random(6)),
+            'slug' => Str::slug('new-event-'.Str::random(6)),
             'organizer_id' => $organizerId,
             'status' => '0',
         ]);
         $event->location()->create([]);
         $event->advisories()->create([]);
+
         return $event;
     }
 
     /**
-    * Finds all the current live events
-    *
-    * @return a collection of the live events with priceranges attached
-    */
-
+     * Finds all the current live events
+     *
+     * @return a collection of the live events with priceranges attached
+     */
     public static function getMostExpensive()
     {
         return Event::where('status', 'p')
             ->with('priceranges')
-            ->whereDate('closingDate', '>=', date("Y-m-d"))
+            ->whereDate('closingDate', '>=', date('Y-m-d'))
             ->get()
-            ->map(function($event) { return $event->priceranges->pluck('price');})
+            ->map(function ($event) {
+                return $event->priceranges->pluck('price');
+            })
             ->flatten()
             ->max();
     }
@@ -431,44 +445,41 @@ class Event extends Model
     /**
      * Check if an event with the same name already exists
      *
-     * @param Event $event
-     * @param Request $request
+     * @param  Event  $event
+     * @param  Request  $request
      * @return bool
      */
-    public function exists($event, $request) 
+    public function exists($event, $request)
     {
         return Event::where('slug', Str::slug($request->name))
-                   ->where('id', '!=', $event->id)
-                   ->exists();
+            ->where('id', '!=', $event->id)
+            ->exists();
     }
 
     /**
      * Generate a unique slug for the event
-     *
-     * @param Event $event
-     * @return string
      */
-    public static function finalSlug(Event $event): string 
+    public static function finalSlug(Event $event): string
     {
         $baseSlug = Str::slug($event->name);
-        
+
         // If the base slug is available, use it
-        if (!static::slugExists($baseSlug, $event->id)) {
+        if (! static::slugExists($baseSlug, $event->id)) {
             return $baseSlug;
         }
 
         // Try with city if available (e.g., "event-name-london")
         if ($event->location?->city) {
-            $citySlug = $baseSlug . '-' . Str::slug($event->location->city);
-            if (!static::slugExists($citySlug, $event->id)) {
+            $citySlug = $baseSlug.'-'.Str::slug($event->location->city);
+            if (! static::slugExists($citySlug, $event->id)) {
                 return $citySlug;
             }
         }
 
         // Try with organizer name (e.g., "event-name-organizername")
         if ($event->organizer?->name) {
-            $organizerSlug = $baseSlug . '-' . Str::slug($event->organizer->name);
-            if (!static::slugExists($organizerSlug, $event->id)) {
+            $organizerSlug = $baseSlug.'-'.Str::slug($event->organizer->name);
+            if (! static::slugExists($organizerSlug, $event->id)) {
                 return $organizerSlug;
             }
         }
@@ -476,7 +487,7 @@ class Event extends Model
         // If still not unique, add short incremental number
         $count = 2; // Start at 2 since it's more natural in URLs
         do {
-            $newSlug = $baseSlug . '-' . $count;
+            $newSlug = $baseSlug.'-'.$count;
             $count++;
         } while (static::slugExists($newSlug, $event->id) && $count < 100);
 
@@ -485,16 +496,12 @@ class Event extends Model
 
     /**
      * Check if a slug exists for any other event
-     *
-     * @param string $slug
-     * @param int|null $excludeId
-     * @return bool
      */
     private static function slugExists(string $slug, ?int $excludeId = null): bool
     {
         return static::withTrashed()
             ->where('slug', $slug)
-            ->when($excludeId, fn($query) => $query->where('id', '!=', $excludeId))
+            ->when($excludeId, fn ($query) => $query->where('id', '!=', $excludeId))
             ->exists();
     }
 
@@ -525,9 +532,9 @@ class Event extends Model
         return DB::transaction(function () {
             // Create new event with duplicated attributes (excluding location, ticket, and price data)
             $newEvent = $this->replicate(['location_latlon', 'ticketUrl', 'price_range', 'closingDate', 'show_times', 'showtype']);
-            $newEvent->slug = Str::slug('new-event-' . Str::random(6));
+            $newEvent->slug = Str::slug('new-event-'.Str::random(6));
             $newEvent->status = '0'; // Set as draft
-            $newEvent->name = $this->name . ' (Copy)';
+            $newEvent->name = $this->name.' (Copy)';
             $newEvent->published_at = null;
             $newEvent->hasLocation = $this->attendance_type_id === 1; // Set hasLocation based on attendance type (true for in-person, false for remote)
             $newEvent->attendance_type_id = $this->attendance_type_id; // Copy the attendance type (in-person vs remote)
@@ -601,7 +608,7 @@ class Event extends Model
                 // 'priceranges', // Commented out since we're not duplicating price ranges
                 // 'shows.tickets', // Commented out since we're not duplicating shows/tickets
                 'images',
-                'videos'
+                'videos',
             ]);
         });
     }
@@ -615,22 +622,25 @@ class Event extends Model
     {
         // First check if shows are already loaded to avoid additional query
         if ($this->relationLoaded('shows')) {
-            $firstShow = $this->shows->first();
-            
+            // shows() orders date DESC, so sort the loaded collection ascending to get
+            // the genuinely earliest-dated ("first") show rather than the last.
+            $firstShow = $this->shows->sortBy('date')->first();
+
             // If the first show exists and tickets are loaded
             if ($firstShow && $firstShow->relationLoaded('tickets')) {
                 return $firstShow->tickets;
             }
-            
+
             // If the first show exists but tickets aren't loaded
             if ($firstShow) {
                 return $firstShow->tickets()->get();
             }
         }
-        
-        // Fall back to query if shows aren't loaded
-        $firstShow = $this->shows()->with('tickets')->orderBy('date', 'asc')->first();
+
+        // Fall back to query if shows aren't loaded. reorder() clears the shows() relation's
+        // DESC ordering so the earliest-dated show is selected.
+        $firstShow = $this->shows()->reorder('date', 'asc')->with('tickets')->first();
+
         return $firstShow ? $firstShow->tickets : collect();
     }
-
 }

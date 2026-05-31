@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Scopes\AdminScope;
 use Illuminate\Support\Str;
 
 class Genre extends Model
 {
+    use HasFactory;
+
     /**
     * What protected variables are allowed to be passed to the database
     *

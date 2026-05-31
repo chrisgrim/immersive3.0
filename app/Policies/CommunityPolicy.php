@@ -48,7 +48,10 @@ class CommunityPolicy
      */
     public function update(User $user, Community $community): Response
     {
-        return ($this->isCurator($user, $community) || $this->isAdminOrModerator($user))
+        // The owner is normally auto-enrolled as a curator at creation (and can't remove
+        // themselves), so isCurator() usually covers them — but authorize the owner
+        // explicitly so they keep access even if an admin detaches them from the pivot.
+        return ($this->isOwner($user, $community) || $this->isCurator($user, $community) || $this->isAdminOrModerator($user))
             ? Response::allow()
             : Response::deny('You do not have permission to update this community.');
     }
@@ -58,7 +61,9 @@ class CommunityPolicy
      */
     public function preview(?User $user, Community $community): Response
     {
-        if ($community->status === 'p') return Response::allow();
+        if ($community->status === 'p') {
+            return Response::allow();
+        }
 
         return ($user && ($this->isCurator($user, $community) || $this->isAdminOrModerator($user)))
             ? Response::allow()

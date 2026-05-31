@@ -157,15 +157,20 @@ class CommunityController extends Controller
             if ($request->has('curator_ids')) {
                 // Handle ownership transfer first if requested
                 if ($request->has('new_owner_id')) {
+                    // Capture the current owner BEFORE the transfer — updateOwner() mutates
+                    // $community->user_id in place, so reading it afterwards would yield the
+                    // new owner and the outgoing owner would silently lose curator access.
+                    $previousOwnerId = $community->user_id;
+
                     $communityActions->updateOwner(
                         new Request(['id' => $request->new_owner_id]),
                         $community
                     );
 
-                    // Make sure the old owner is included in curator_ids if not already
-                    if (! in_array($community->user_id, $request->curator_ids)) {
+                    // Make sure the previous owner is included in curator_ids if not already
+                    if (! in_array($previousOwnerId, $request->curator_ids)) {
                         $request->merge([
-                            'curator_ids' => array_merge($request->curator_ids, [$community->user_id]),
+                            'curator_ids' => array_merge($request->curator_ids, [$previousOwnerId]),
                         ]);
                     }
                 }
@@ -430,12 +435,14 @@ class CommunityController extends Controller
 
     public function requestNameChange(Request $request, Community $community)
     {
-        try {
-            $request->validate([
-                'requested_name' => 'required|string|max:255',
-                'current_name' => 'required|string',
-            ]);
+        // Validate outside the try so a ValidationException surfaces as a 422 with field
+        // errors instead of being swallowed by the catch-all below into a generic 500.
+        $request->validate([
+            'requested_name' => 'required|string|max:255',
+            'current_name' => 'required|string',
+        ]);
 
+        try {
             $nameChangeService = new NameChangeRequestService;
             $result = $nameChangeService->handleNameChange(
                 $community,

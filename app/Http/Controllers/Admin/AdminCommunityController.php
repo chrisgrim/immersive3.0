@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\Comments;
 use App\Models\Curated\Community;
+use App\Models\Messaging\Message;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\Comments;
-use App\Models\Messaging\Message;
 
 class AdminCommunityController extends Controller
 {
@@ -29,7 +29,7 @@ class AdminCommunityController extends Controller
     public function show(Community $community)
     {
         return response()->json([
-            'community' => $community->load(['owner', 'images', 'curators'])
+            'community' => $community->load(['owner', 'images', 'curators']),
         ]);
     }
 
@@ -40,12 +40,12 @@ class AdminCommunityController extends Controller
         // Send notifications if not self-approving
         if (auth()->id() !== $community->user_id) {
             $message = Message::MESSAGES['COMMUNITY_APPROVED'];
-            
+
             // Send in-app notification
             Message::notification($community, $message, $community->slug);
-            
+
             // Send email notification
-            Mail::to($community->user)->send(new Comments($community, $message, 'approved'));
+            Mail::to($community->owner)->send(new Comments($community, $message, 'approved'));
         }
 
         return response()->json(['message' => 'Community approved successfully']);
@@ -54,37 +54,38 @@ class AdminCommunityController extends Controller
     public function reject(Request $request, Community $community)
     {
         $validated = $request->validate([
-            'reason' => 'required|string|max:1000'
+            'reason' => 'required|string|max:1000',
         ]);
 
         $community->update([
             'status' => 'n',
-            'rejection_reason' => $validated['reason']
+            'rejection_reason' => $validated['reason'],
         ]);
 
         // Create rejection message with reason
         $message = "We've reviewed your community and have some feedback that needs to be addressed.\n\nReason: {$validated['reason']}";
         $inAppMessage = "We've reviewed your community and have some feedback that needs to be addressed.\n\nReason: {$validated['reason']}";
-        
-        if(auth()->id() !== $community->user_id) {
-            $message = Message::MESSAGES['COMMUNITY_REJECTED'] . "\n\nReason: {$validated['reason']}";
-            
+
+        if (auth()->id() !== $community->user_id) {
+            $message = Message::MESSAGES['COMMUNITY_REJECTED']."\n\nReason: {$validated['reason']}";
+
             // Send in-app notification
             Message::notification($community, $inAppMessage, $community->slug);
-            
+
             // Send email notification
-            Mail::to($community->user)->send(new Comments($community, $message, 'rejected'));
+            Mail::to($community->owner)->send(new Comments($community, $message, 'rejected'));
         }
 
         return response()->json([
             'message' => 'Community rejected successfully',
-            'community' => $community->fresh()
+            'community' => $community->fresh(),
         ]);
     }
 
     public function destroy(Community $community)
     {
         $community->delete();
+
         return response()->json(['message' => 'Community deleted successfully']);
     }
-} 
+}

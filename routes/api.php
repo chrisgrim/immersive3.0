@@ -1,35 +1,31 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-
-// Controller Imports - Search
-use App\Http\Controllers\Search\SearchController;
-use App\Http\Controllers\Search\ListingsController;
-use App\Http\Controllers\Search\EventAttributesController;
-
-// Controller Imports - Admin
-use App\Http\Controllers\Admin\AdminEventController;
-use App\Http\Controllers\Admin\AdminUserController;
-use App\Http\Controllers\Admin\AdminOrganizerController;
-use App\Http\Controllers\Admin\AdminCommunityController;
-use App\Http\Controllers\Admin\AdminCategoryController;
-use App\Http\Controllers\Admin\AdminGenreController;
 use App\Http\Controllers\Admin\AdminAdvisoryController;
-use App\Http\Controllers\Admin\AdminReviewController;
-use App\Http\Controllers\Admin\AdminPicksController;
+use App\Http\Controllers\Admin\AdminCategoryController;
+// Controller Imports - Search
+use App\Http\Controllers\Admin\AdminCommunityController;
 use App\Http\Controllers\Admin\AdminDocksController;
+use App\Http\Controllers\Admin\AdminEventController;
+// Controller Imports - Admin
+use App\Http\Controllers\Admin\AdminGenreController;
+use App\Http\Controllers\Admin\AdminOrganizerController;
 use App\Http\Controllers\Admin\AdminRequestsController;
+use App\Http\Controllers\Admin\AdminReviewController;
+use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\DashboardController;
-
+use App\Http\Controllers\Api\EventScraperController;
+use App\Http\Controllers\Api\GeonamesController;
+use App\Http\Controllers\Api\SimilarEventsController;
+use App\Http\Controllers\CachedDataController;
+use App\Http\Controllers\Creation\EventClickController;
 // Controller Imports - Other
 use App\Http\Controllers\Creation\HostEventController;
 use App\Http\Controllers\OrganizerController;
-use App\Http\Controllers\CachedDataController;
-use App\Http\Controllers\Creation\EventClickController;
-use App\Http\Controllers\Api\SimilarEventsController;
-use App\Http\Controllers\Api\EventScraperController;
-use App\Http\Controllers\Api\GeonamesController;
+use App\Http\Controllers\Search\EventAttributesController;
+use App\Http\Controllers\Search\ListingsController;
+use App\Http\Controllers\Search\SearchController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -111,7 +107,7 @@ Route::middleware(['throttle:300,1'])->group(function () {
         Route::GET('/mobilityadvisories', 'mobilityAdvisories');
         Route::GET('/agelimits', 'ageLimits');
     });
-    
+
     // Cached Data Routes
     Route::GET('/categories/active/cached', [CachedDataController::class, 'getActiveCategories']);
     Route::GET('/genres/active/cached', [CachedDataController::class, 'getActiveGenres']);
@@ -134,16 +130,16 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
 // Admin/Moderator routes - High limits for trusted users (600/min = 10/sec)
 Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(function () {
     Route::GET('/user', fn (Request $request) => $request->user());
-    
+
     /*
     |--------------------------------------------------------------------------
     | Admin Routes - High limits for admin operations (600/min = 10/sec)
     |--------------------------------------------------------------------------
     */
-    
+
     Route::prefix('admin')->group(function () {
         Route::GET('/approval-counts', [DashboardController::class, 'getApprovalCounts']);
-        
+
         // Organizers
         Route::controller(AdminOrganizerController::class)->group(function () {
             Route::GET('/organizers/{organizer}', 'show');
@@ -169,14 +165,14 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
                 Route::POST('/events/{event}/approve', 'approve');
                 Route::POST('/events/{event}/reject', 'reject');
             });
-            
+
             // Organizers
             Route::controller(AdminOrganizerController::class)->group(function () {
                 Route::GET('/organizers', 'getPending');
                 Route::POST('/organizers/{organizer}/approve', 'approve');
                 Route::POST('/organizers/{organizer}/reject', 'reject');
             });
-            
+
             // Communities
             Route::controller(AdminCommunityController::class)->group(function () {
                 Route::GET('/communities', 'getPending');
@@ -200,7 +196,7 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
                 Route::PATCH('/users/{user}', 'update');
                 Route::DELETE('/users/{user}', 'destroy');
             });
-            
+
             // Events
             Route::controller(AdminEventController::class)->group(function () {
                 Route::GET('/events', 'index');
@@ -208,7 +204,7 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
                 Route::PATCH('/events/{event}/toggle-check', 'toggleCheck');
                 Route::DELETE('/events/{event}', 'destroy');
             });
-            
+
             // Reviews
             Route::controller(AdminReviewController::class)->group(function () {
                 Route::GET('/reviews', 'index');
@@ -228,12 +224,12 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
                 Route::PATCH('categories/{category}', 'update');
                 Route::DELETE('categories/{category}', 'destroy');
             });
-            
+
             // Attendance Types
-            Route::GET('attendance-types', function() {
+            Route::GET('attendance-types', function () {
                 return \App\Models\AttendanceType::orderBy('rank')->get();
             });
-            
+
             // Genres
             Route::controller(AdminGenreController::class)->group(function () {
                 Route::GET('genres', 'index');
@@ -242,7 +238,7 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
                 Route::PATCH('genres/{genre}', 'update');
                 Route::DELETE('genres/{genre}', 'destroy');
             });
-            
+
             // Advisories
             Route::controller(AdminAdvisoryController::class)->group(function () {
                 Route::GET('advisories/{type}', 'index');
@@ -281,5 +277,3 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
         });
     });
 });
-
-

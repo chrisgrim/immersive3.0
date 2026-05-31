@@ -24,9 +24,10 @@
             </li>
 
             <li v-for="page in pageRange" :key="page">
-                <button 
-                    @click="$emit('paginate', page)"
-                    :class="{ '!bg-black text-white': page === pagination.current_page }"
+                <button
+                    :disabled="page === '...'"
+                    @click="page !== '...' && page !== pagination.current_page && $emit('paginate', page)"
+                    :class="{ '!bg-black text-white': page === pagination.current_page, 'cursor-default': page === '...' }"
                     class="w-12 h-12 rounded-full items-center justify-center inline-flex bg-white border-none font-medium"
                 >
                     {{ page }}

@@ -11,32 +11,36 @@ class SimilarEventsController extends Controller
 {
     /**
      * Get similar events for a specific event
-     * 
-     * @param Event $event
+     *
      * @return array
      */
     public function getSimilar(Event $event)
     {
+        // NOTE: this result is cached for 24h and SHARED across ALL users, so the queries
+        // below must NOT eager-load the per-user `currentUserFavorite` relation — otherwise
+        // the first viewer's favorites get baked into the cache and leak to everyone. The
+        // per-user "favorited?" flag is instead computed per-request via isFavorited()'s
+        // exists() fallback when the relation isn't loaded.
         $cacheKey = "similar_events_{$event->slug}";
-        
+
         // Check for cached results first
         if (Cache::has($cacheKey)) {
             return Cache::get($cacheKey);
         }
-        
+
         try {
             // Set a query timeout to avoid slow queries
             \DB::statement('SET SESSION MAX_EXECUTION_TIME=1000');
-            
+
             $result = [
                 'events' => collect([]),
-                'isSameCity' => false
+                'isSameCity' => false,
             ];
-            
+
             // Event has a location - try to find events in the same city
             if ($event->hasLocation && $event->location) {
                 $cityEvents = $this->getEventsByCityQuickly($event);
-                
+
                 if ($cityEvents->count() > 0) {
                     // Found events in the same city
                     $result['events'] = $cityEvents;
@@ -44,7 +48,7 @@ class SimilarEventsController extends Controller
                 } else {
                     // No events in the same city - prioritize remote events
                     $remoteEvents = $this->getRemoteEvents($event);
-                    
+
                     if ($remoteEvents->count() > 0) {
                         $result['events'] = $remoteEvents;
                     } else {
@@ -55,7 +59,7 @@ class SimilarEventsController extends Controller
             } else {
                 // Event is remote - get other remote events with same category
                 $remoteEvents = $this->getRemoteEvents($event);
-                
+
                 if ($remoteEvents->count() > 0) {
                     $result['events'] = $remoteEvents;
                 } else {
@@ -63,54 +67,54 @@ class SimilarEventsController extends Controller
                     $result['events'] = $this->getEventsByCategoryQuickly($event, 6);
                 }
             }
-            
+
             // Store results in cache for 24 hours
             Cache::put($cacheKey, $result, 60 * 60 * 24);
-            
+
             return $result;
         } catch (\Exception $e) {
-            \Log::error("Error fetching similar events for {$event->id}: " . $e->getMessage());
+            \Log::error("Error fetching similar events for {$event->id}: ".$e->getMessage());
+
             return [
                 'events' => collect([]),
-                'isSameCity' => false
+                'isSameCity' => false,
             ];
         }
     }
-    
+
     /**
      * Get events in the same city as the provided event
-     * 
-     * @param Event $event
+     *
      * @return \Illuminate\Database\Eloquent\Collection
      */
     protected function getEventsByCityQuickly(Event $event)
     {
         try {
             // Make sure the event has a location before proceeding
-            if (!$event->location || !$event->location->city) {
+            if (! $event->location || ! $event->location->city) {
                 return collect([]);
             }
-            
+
             return Event::where('status', 'p')
                 ->whereRaw('`closingDate` >= CURDATE()')  // Use raw SQL for direct date comparison
-                ->whereHas('location', function($query) use ($event) {
+                ->whereHas('location', function ($query) use ($event) {
                     $query->where('city', $event->location->city);
                 })
                 ->where('id', '!=', $event->id)
-                ->with(['location', 'favorites'])
+                ->with(['location']) // cached path: favorite state computed per-request, see getSimilar()
                 ->take(6)
                 ->get();
         } catch (\Exception $e) {
-            \Log::error("Error in getEventsByCityQuickly: " . $e->getMessage());
+            \Log::error('Error in getEventsByCityQuickly: '.$e->getMessage());
+
             return collect([]);
         }
     }
-    
+
     /**
      * Get events in the same category as the provided event
-     * 
-     * @param Event $event
-     * @param int $limit
+     *
+     * @param  int  $limit
      * @return \Illuminate\Database\Eloquent\Collection
      */
     protected function getEventsByCategoryQuickly(Event $event, $limit = 6)
@@ -120,19 +124,19 @@ class SimilarEventsController extends Controller
                 ->whereRaw('`closingDate` >= CURDATE()')  // Use raw SQL for direct date comparison
                 ->where('id', '!=', $event->id)
                 ->where('category_id', $event->category_id)
-                ->with(['location', 'favorites'])
+                ->with(['location']) // cached path: favorite state computed per-request, see getSimilar()
                 ->take($limit)
                 ->get();
         } catch (\Exception $e) {
-            \Log::error("Error in getEventsByCategoryQuickly: " . $e->getMessage());
+            \Log::error('Error in getEventsByCategoryQuickly: '.$e->getMessage());
+
             return collect([]);
         }
     }
-    
+
     /**
      * Get remote events (events without a physical location)
-     * 
-     * @param Event $event
+     *
      * @return \Illuminate\Database\Eloquent\Collection
      */
     protected function getRemoteEvents(Event $event)
@@ -144,7 +148,7 @@ class SimilarEventsController extends Controller
                 ->where('id', '!=', $event->id)
                 ->where('hasLocation', false)
                 ->where('category_id', $event->category_id)
-                ->with(['remotelocations', 'category', 'favorites'])
+                ->with(['remotelocations', 'category']) // cached path: favorite state computed per-request, see getSimilar()
                 ->take(6)
                 ->get();
 
@@ -160,68 +164,69 @@ class SimilarEventsController extends Controller
                 ->where('hasLocation', false)
                 ->where('category_id', '!=', $event->category_id)
                 ->whereNotIn('id', $sameCategoryEvents->pluck('id'))
-                ->with(['remotelocations', 'category', 'favorites'])
+                ->with(['remotelocations', 'category']) // cached path: favorite state computed per-request, see getSimilar()
                 ->take(6 - $sameCategoryEvents->count())
                 ->get();
 
             return $sameCategoryEvents->concat($otherCategoryEvents);
         } catch (\Exception $e) {
-            \Log::error("Error in getRemoteEvents: " . $e->getMessage());
+            \Log::error('Error in getRemoteEvents: '.$e->getMessage());
+
             return collect([]);
         }
     }
 
     /**
      * Get similar events based on location, with fallback to latest remote events
-     * 
-     * @param Request $request
+     *
      * @return array
      */
     public function getSimilarByLocation(Request $request)
     {
         try {
-            $lat = (float)$request->get('lat');
-            $lng = (float)$request->get('lng');
-            $radius = (int)$request->get('radius', 100); // Default 100 mile radius
-            
+            $lat = (float) $request->get('lat');
+            $lng = (float) $request->get('lng');
+            $radius = (int) $request->get('radius', 100); // Default 100 mile radius
+
             // If we have coordinates, get events within radius
             if ($lat && $lng) {
                 $nearbyEvents = $this->findEventsInRadius($lat, $lng, $radius);
-                
+
                 // If we found events nearby, return them
                 if ($nearbyEvents->count() > 0) {
                     return [
                         'events' => $nearbyEvents,
                         'title' => 'Similar Events Near You',
-                        'isRemote' => false
+                        'isRemote' => false,
                     ];
                 }
             }
-            
+
             // If no nearby events or no coordinates, fall back to remote events
             $remoteEvents = $this->getLatestRemoteEvents();
-            
+
             return [
                 'events' => $remoteEvents,
                 'title' => 'Similar Online Events',
-                'isRemote' => true
+                'isRemote' => true,
             ];
         } catch (\Exception $e) {
-            \Log::error("Error in getSimilarByLocation: " . $e->getMessage());
+            \Log::error('Error in getSimilarByLocation: '.$e->getMessage());
+
             return [
                 'events' => collect([]),
                 'title' => 'Similar Events',
-                'isRemote' => true
+                'isRemote' => true,
             ];
         }
     }
-    
+
     /**
      * Find events within a radius from coordinates
-     * 
-     * @param float $lat
-     * @param float $lng
-     * @param int $radius
+     *
+     * @param  float  $lat
+     * @param  float  $lng
+     * @param  int  $radius
      * @return \Illuminate\Database\Eloquent\Collection
      */
     protected function findEventsInRadius($lat, $lng, $radius)
@@ -229,16 +234,16 @@ class SimilarEventsController extends Controller
         // Create a bounding box for the search (quick filter before distance calculation)
         $latDelta = $radius / 69; // Approximate miles per degree latitude
         $lngDelta = $radius / (69 * cos(deg2rad($lat))); // Approximate miles per degree longitude at this latitude
-        
+
         $minLat = $lat - $latDelta;
         $maxLat = $lat + $latDelta;
         $minLng = $lng - $lngDelta;
         $maxLng = $lng + $lngDelta;
-        
+
         return Event::where('status', 'p')
             ->whereRaw('`closingDate` >= CURDATE()')  // Use raw SQL for direct date comparison
             ->where('hasLocation', true)
-            ->whereHas('location', function($query) use ($minLat, $maxLat, $minLng, $maxLng) {
+            ->whereHas('location', function ($query) use ($minLat, $maxLat, $minLng, $maxLng) {
                 $query->whereNotNull('latitude')
                     ->whereNotNull('longitude')
                     ->where('latitude', '>=', $minLat)
@@ -246,14 +251,14 @@ class SimilarEventsController extends Controller
                     ->where('longitude', '>=', $minLng)
                     ->where('longitude', '<=', $maxLng);
             })
-            ->with(['location', 'favorites'])
+            ->with(['location', 'currentUserFavorite'])
             ->take(12)
             ->get();
     }
-    
+
     /**
      * Get latest remote events
-     * 
+     *
      * @return \Illuminate\Database\Eloquent\Collection
      */
     protected function getLatestRemoteEvents()
@@ -262,8 +267,8 @@ class SimilarEventsController extends Controller
             ->whereRaw('`closingDate` >= CURDATE()')  // Use raw SQL for direct date comparison
             ->where('hasLocation', false)
             ->orderBy('created_at', 'desc')
-            ->with(['remotelocations', 'favorites'])
+            ->with(['remotelocations', 'currentUserFavorite'])
             ->take(12)
             ->get();
     }
-} 
+}
