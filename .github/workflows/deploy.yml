@@ -98,6 +98,8 @@ jobs:
             --filter='P public/build/assets/***' \
             --exclude='.git' \
             --exclude='node_modules' \
+            --include='.env.example' \
+            --exclude='.env.*' \
             --exclude='.env' \
             --exclude='public/storage' \
             --exclude='storage' \

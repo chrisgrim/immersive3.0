@@ -1,10 +1,14 @@
 # EI Codebase Audit
 
 **Last fresh audit:** 2026-05-24 (with major session update 2026-05-26 — server migration)
-**Production:** `64.23.181.106` (Ubuntu 24.04 LTS, PHP 8.4.21) as of 2026-05-26. Old droplet `143.198.58.168` (Ubuntu 24.10, PHP 8.3) is in proxy mode forwarding to new box during DNS propagation; will be destroyed once new box is stable (~1-2 weeks).
+**Production:** `64.23.181.106` (Ubuntu 24.04 LTS, PHP 8.4.21).
 **Method:** four specialist sub-agents (security, performance/DB, frontend, backend code-quality + test gaps) ran in parallel against the post-fix codebase. Critical findings were verified against the actual files before being recorded here. The previous audit's "already fixed" content has been pruned — see git history (`git log --oneline -40`) for the resolved items.
 
-This document is the **open work list**. Severity ranking is impact × likelihood × ease of exploitation, not just blast radius. Each finding cites file:line so you can jump straight in.
+This document is the **open work list** — and the single canonical issues doc (the former `KNOWN_ISSUES.md` and root `server-audit.md` were consolidated into it / `docs/` on 2026-05-31). Severity ranking is impact × likelihood × ease of exploitation, not just blast radius. Each finding cites file:line so you can jump straight in.
+
+**2026-05-31 session update:** the `add-comprehensive-test-suite` branch shipped to prod — it added the Pest + Vitest suites and fixed a batch of items below (notably the `$appends` N+1 **H-P1 / H-P1b**, the `NameChangeRequestService` dead admin loop **L7**, several M/L validation/model bugs, plus the similar-events cross-user cache leak and the pagination ellipsis). **Re-verify against code before assuming any item below is still open** — see [test-suite-findings.md](./test-suite-findings.md) and `git log`.
+
+**Open schema issue** (folded in from the former `KNOWN_ISSUES.md`): `locations.hiddenLocation` is `VARCHAR(255)`, so long hidden/virtual-location descriptions get truncated (`SQLSTATE[22001] … Data too long`). Fix = change the column to `TEXT` via migration. (Discovered June 2024; still open.)
 
 ---
 
@@ -29,7 +33,7 @@ Run through this after each production deploy that includes any of the above fix
 
 - [ ] **Set up rclone on new box** — daily 9am cron is installed in `crontab -l` but commented out. Need to: install rclone, copy/recreate `~/.config/rclone/rclone.conf` from old box (Ei_Prod + Ei_Dev DO Spaces remotes), then uncomment the cron line. The classifier blocked auto-copying the config because it contains Spaces credentials.
 - [ ] **Verify Let's Encrypt cert renewal on new box** — current certs were copied from old box; first auto-renewal will happen ~30 days before expiry via `snap.certbot.renew.timer` (already enabled). The 2026-05-26 dry-run for ei failed because DNS was mid-propagation. Re-run `certbot renew --dry-run` in 24h to confirm.
-- [ ] **Destroy old droplet** after ~1-2 weeks of stable operation on new box. Don't rush — old box is currently in nginx-proxy mode forwarding to new box, useful as fallback. Once destroyed, the proxy is gone and any visitor with cached old DNS gets a connection error rather than the proxied content.
+- [x] ~~**Destroy old droplet**~~ — done (deleted 2026-05-31).
 - [ ] **Bump `composer.json` `platform.php`** from `8.3.11` to `8.4.x` once new box has been stable for a week. Then `composer update --with-all-dependencies` to allow PHP 8.4-only deps.
 - [ ] **Plan Ubuntu 26.04 LTS upgrade** for August 2026 (when `26.04.1` releases and the LTS-to-LTS `do-release-upgrade` path opens). In-place upgrade on new box; should be ~30 min.
 
