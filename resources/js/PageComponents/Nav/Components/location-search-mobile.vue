@@ -243,10 +243,16 @@ const selectLocation = async (location) => {
        setPlace(placeResult);
    } catch (error) {
        console.error('Error fetching place details:', error);
-       // Fallback to old method if the new one fails
-       service.getDetails({ placeId: location.place_id }, data => {
-           setPlace(data);
-       });
+       // Fallback to the legacy PlacesService — but ONLY if it actually initialized.
+       // On mobile the `#places` element / PlacesService can be absent, which made the
+       // bare `service.getDetails(...)` call throw "undefined is not an object" (EI-VUE-7).
+       if (service && typeof service.getDetails === 'function') {
+           service.getDetails({ placeId: location.place_id }, data => {
+               if (data) setPlace(data);
+           });
+       } else {
+           window.Sentry?.captureException(error);
+       }
    }
 };
 
