@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Models\Event;
-use App\Models\Organizer;
 use App\Models\Curated\Community;
+use App\Models\Event;
 use App\Models\NameChangeRequest;
+use App\Models\Organizer;
+use App\Models\OwnershipClaim;
 
 class DashboardController extends Controller
 {
@@ -17,7 +17,7 @@ class DashboardController extends Controller
     public function index()
     {
         return view('admin.index', [
-            'user' => auth()->user()
+            'user' => auth()->user(),
         ]);
     }
 
@@ -30,7 +30,9 @@ class DashboardController extends Controller
             'events' => Event::where('status', 'r')->count(),
             'organizers' => Organizer::where('status', 'r')->count(),
             'communities' => Community::where('status', 'r')->count(),
+            // "Requests" is a catch-all queue: name-change requests + ownership claims.
             'requests' => NameChangeRequest::where('status', 'pending')->count()
+                + OwnershipClaim::where('status', 'pending')->count(),
         ]);
     }
 }

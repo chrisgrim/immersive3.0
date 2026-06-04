@@ -204,53 +204,75 @@
                     </div>
                 </div>
 
-                <!-- Duplicate Name Confirmation Modal -->
+                <!-- Duplicate Name / Ownership Claim Modal (claim-first) -->
                 <teleport to="body">
-                    <div v-if="showDuplicateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div class="bg-white rounded-3xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden">
-                            <div class="p-8 border-b border-neutral-200">
-                                <h3 class="text-2xl font-bold text-black mb-2">Organization Name Already Exists</h3>
+                    <div v-if="showDuplicateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div class="bg-white rounded-3xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                            <!-- Header -->
+                            <div class="p-8 pb-5">
+                                <h3 class="text-2xl font-bold text-black mb-2">This may already be on EI</h3>
                                 <p class="text-gray-600">
-                                    We found {{ existingOrganizations.length }} organization{{ existingOrganizations.length > 1 ? 's' : '' }} with the name "{{ team.name }}":
+                                    <template v-if="hasClaimableMatch">
+                                        “{{ team.name }}” is already listed. If it’s yours, request ownership instead of creating a duplicate.
+                                    </template>
+                                    <template v-else>
+                                        We found {{ existingOrganizations.length }} organization{{ existingOrganizations.length > 1 ? 's' : '' }} named “{{ team.name }}”.
+                                    </template>
                                 </p>
                             </div>
-                            
-                            <div class="p-8 max-h-96 overflow-y-auto">
-                                <div v-for="org in existingOrganizations" :key="org.id" class="mb-6 p-4 border border-gray-200 rounded-2xl">
-                                    <h4 class="font-semibold text-lg text-black mb-2">{{ org.name }}</h4>
-                                    <p class="text-gray-600 text-md mb-3 leading-tight">{{ org.description?.substring(0, 150) }}{{ org.description?.length > 150 ? '...' : '' }}</p>
-                                    <a :href="`/organizers/${org.slug}`" 
-                                       target="_blank" 
-                                       class="text-blue-600 hover:text-blue-800 underline text-md">
-                                        View Organization →
-                                    </a>
+
+                            <!-- Matches -->
+                            <div class="px-8 overflow-y-auto flex-1">
+                                <div v-for="org in existingOrganizations" :key="org.id"
+                                     class="py-5 border-t border-neutral-100 first:border-t-0">
+                                    <div class="flex items-start justify-between gap-4">
+                                        <h4 class="font-semibold text-lg text-black">{{ org.name }}</h4>
+                                        <a :href="`/organizers/${org.slug}`" target="_blank"
+                                           class="shrink-0 mt-1 text-blue-600 hover:text-blue-800 text-md whitespace-nowrap">
+                                            View →
+                                        </a>
+                                    </div>
+
+                                    <!-- Claim affordance — primary action, claimable orgs only -->
+                                    <div v-if="org.claimable" class="mt-3">
+                                        <button
+                                            @click="requestOwnership(org)"
+                                            :disabled="claimState(org).status === 'submitting'"
+                                            class="w-full px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 disabled:opacity-50 text-lg font-medium"
+                                        >
+                                            {{ claimState(org).status === 'submitting' ? 'Submitting…' : 'Request ownership' }}
+                                        </button>
+                                        <p v-if="claimState(org).status === 'error'" class="text-red-600 text-md mt-2">
+                                            {{ claimState(org).message }}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                            
-                            <div class="p-8 border-t border-neutral-200 bg-gray-50">
-                                <p class="text-gray-700 mb-6">
-                                    If none of these organizations are yours and you want to create a new organization with the same name, click "Create Anyway" below.
-                                </p>
-                                <div class="flex justify-end space-x-4">
-                                    <button 
-                                        @click="closeDuplicateModal"
-                                        class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl"
-                                    >
+
+                            <!-- Footer: when something is claimable, creating a duplicate is the de-emphasized path -->
+                            <div class="p-8 pt-5 border-t border-neutral-200 bg-gray-50">
+                                <div class="flex items-center justify-between gap-4">
+                                    <button @click="closeDuplicateModal"
+                                            class="text-gray-500 hover:text-gray-800 text-md">
                                         Cancel
                                     </button>
-                                    <button 
-                                        @click="proceedWithSubmission"
-                                        :disabled="isSubmitting"
-                                        class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl"
-                                    >
-                                        {{ isSubmitting ? 'Creating...' : 'Create Anyway' }}
+
+                                    <button v-if="hasClaimableMatch"
+                                            @click="proceedWithSubmission" :disabled="isSubmitting"
+                                            class="text-gray-600 hover:text-black underline text-md disabled:opacity-50">
+                                        {{ isSubmitting ? 'Creating…' : 'Not mine — create a new organization' }}
                                     </button>
-                                                                 </div>
-                             </div>
-                         </div>
-                     </div>
-                 </teleport>
-             </div>
+                                    <button v-else
+                                            @click="proceedWithSubmission" :disabled="isSubmitting"
+                                            class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-lg disabled:opacity-50">
+                                        {{ isSubmitting ? 'Creating…' : 'Create Anyway' }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </teleport>
+            </div>
          </div>
     </div>
 </template>
@@ -685,6 +707,29 @@ const closeDuplicateModal = () => {
 const proceedWithSubmission = async () => {
     showDuplicateModal.value = false;
     await onSubmit();
+};
+
+// Ownership claim state, keyed by organizer id: { status: 'idle'|'submitting'|'submitted'|'error', message }
+const claimStates = reactive({});
+
+const claimState = (org) => claimStates[org.id] || { status: 'idle', message: '' };
+
+// Drives the claim-first framing: true when any matched org can be claimed.
+const hasClaimableMatch = computed(() => existingOrganizations.value.some((org) => org.claimable));
+
+const requestOwnership = async (org) => {
+    claimStates[org.id] = { status: 'submitting', message: '' };
+    try {
+        await axios.post(`/api/organizers/${org.slug}/claim`);
+        // Close the modal and send them to the org page, where a "pending review" banner shows.
+        showDuplicateModal.value = false;
+        window.location.href = `/organizers/${org.slug}`;
+    } catch (error) {
+        claimStates[org.id] = {
+            status: 'error',
+            message: error.response?.data?.message || 'Could not submit your request. Please try again.',
+        };
+    }
 };
 
 </script>

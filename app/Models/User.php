@@ -24,7 +24,7 @@ class User extends Authenticatable
      * @var array
      */
     protected $fillable = [
-        'name', 'email', 'password', 'largeImagePath', 'thumbImagePath', 'provider', 'provider_id', 'gravatar', 'type', 'email_verified_at', 'newsletter_type', 'silence', 'unread', 'reminder', 'current_team_id', 'blurb',
+        'name', 'email', 'password', 'largeImagePath', 'thumbImagePath', 'provider', 'provider_id', 'gravatar', 'type', 'email_verified_at', 'newsletter_type', 'silence', 'unread', 'reminder', 'current_team_id', 'blurb', 'notification_preferences',
     ];
 
     /**
@@ -46,6 +46,7 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'notification_preferences' => 'array',
     ];
 
     /**
@@ -306,6 +307,24 @@ class User extends Authenticatable
     public function isAdmin()
     {
         return $this->type === 'a';
+    }
+
+    /**
+     * Whether this user wants to receive a given admin notification type.
+     * Opt-OUT model: a missing key (or no preferences at all) means subscribed,
+     * so newly-added notification types default to ON without a migration/backfill.
+     */
+    public function wantsNotification(string $key): bool
+    {
+        $prefs = $this->notification_preferences ?? [];
+
+        // Missing key → still subscribed (opt-out default). A present value is normalized
+        // strictly so a stray "false" string from a manual write can't re-enable it.
+        if (! array_key_exists($key, $prefs)) {
+            return true;
+        }
+
+        return filter_var($prefs[$key], FILTER_VALIDATE_BOOLEAN);
     }
 
     /**

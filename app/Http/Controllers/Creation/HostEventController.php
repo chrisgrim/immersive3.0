@@ -364,6 +364,9 @@ class HostEventController extends Controller
         $event->status = 'r';
         $event->save();
 
+        // Notify admins (who haven't opted out) that an event entered the review queue.
+        app(\App\Services\AdminSubmissionNotifier::class)->eventSubmitted($event);
+
         return response()->json([
             'message' => 'Event submitted successfully.',
             'event' => $event,

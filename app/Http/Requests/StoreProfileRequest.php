@@ -26,6 +26,10 @@ class StoreProfileRequest extends FormRequest
             'email' => 'sometimes|string|email|max:255|'.$emailUnique,
             'newsletter_type' => 'sometimes|string|in:a,m,u,n',
             'silence' => 'sometimes|string|in:y,n',
+            // Admin-only notification opt-outs. JSON object of boolean flags keyed by type
+            // (e.g. organizers/events). Harmless if a non-admin sends it.
+            'notification_preferences' => 'sometimes|array',
+            'notification_preferences.*' => 'boolean',
             'image' => [
                 'nullable',
                 'file',

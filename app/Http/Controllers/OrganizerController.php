@@ -36,7 +36,14 @@ class OrganizerController extends Controller
             return redirect('/');
         }
 
-        return view('organizers.show', compact('organizer'));
+        // Surface a "your ownership claim is pending" banner to the requesting user.
+        $hasPendingClaim = auth()->check()
+            && $organizer->ownershipClaims()
+                ->where('user_id', auth()->id())
+                ->where('status', 'pending')
+                ->exists();
+
+        return view('organizers.show', compact('organizer', 'hasPendingClaim'));
     }
 
     public function edit(Organizer $organizer)
@@ -81,6 +88,9 @@ class OrganizerController extends Controller
 
             // Update status for the organizer
             $organizer->update(['status' => 'r']);
+
+            // Notify admins (who haven't opted out) that a new organizer entered the review queue.
+            app(\App\Services\AdminSubmissionNotifier::class)->organizerSubmitted($organizer);
 
             // Check if the user has created organizers before
             $hasPreviousOrganizers = auth()->user()->organizers()->count() > 1;
@@ -250,8 +260,16 @@ class OrganizerController extends Controller
     public function submit(Organizer $organizer)
     {
         try {
+            // Only notify on a genuine new submission, not a no-op re-save of an
+            // already pending/published organizer.
+            $isNewSubmission = ! in_array($organizer->status, ['r', 'p', 'e']);
+
             // Update the organizer status to 'r' (review)
             $organizer->update(['status' => 'r']);
+
+            if ($isNewSubmission) {
+                app(\App\Services\AdminSubmissionNotifier::class)->organizerSubmitted($organizer);
+            }
 
             // Refresh organizer with relationships
             $organizer = Organizer::withUserRole()
@@ -278,10 +296,14 @@ class OrganizerController extends Controller
             'name' => 'required|string|max:80',
         ]);
 
+        // Only authenticated users learn which orgs are claimable — keeps this public
+        // endpoint from becoming an enumeration oracle for staff-entered/unowned orgs.
+        $authed = auth()->check();
+
         $existingOrganizers = Organizer::where('name', 'LIKE', $request->name)
             ->where('status', '!=', 'd') // Exclude deleted/deactivated
-            ->select('name', 'slug') // intentionally narrow — public endpoint, don't leak descriptions
-            ->get();
+            ->when($authed, fn ($query) => $query->with(['owner', 'users']))
+            ->get(['id', 'name', 'slug', 'user_id', 'status']); // intentionally narrow — don't leak descriptions
 
         if ($existingOrganizers->isEmpty()) {
             return response()->json([
@@ -292,7 +314,12 @@ class OrganizerController extends Controller
 
         return response()->json([
             'available' => false,
-            'existing_organizations' => $existingOrganizers,
+            'existing_organizations' => $existingOrganizers->map(fn ($organizer) => [
+                'id' => $organizer->id,
+                'name' => $organizer->name,
+                'slug' => $organizer->slug,
+                'claimable' => $authed ? $organizer->isClaimable() : false,
+            ])->values(),
             'message' => 'One or more organizations with this name already exist.',
         ]);
     }

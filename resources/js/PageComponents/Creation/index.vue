@@ -287,8 +287,7 @@
 							class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100">
 							Edit Event
 						</button>
-						<button 
-							v-if="selectedEvent.status !== 'r'"
+						<button
 							@click="duplicateEvent(selectedEvent)"
 							class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100">
 							Duplicate Event
@@ -646,11 +645,6 @@ const selectFilter = (id) => {
 };
 
 const duplicateEvent = async (event) => {
-	if (event.status === 'r') {
-		alert('This event is under moderator review and cannot be duplicated.');
-		return;
-	}
-	
 	if (confirm('Are you sure you want to duplicate this event?')) {
 		try {
 			const response = await axios.post(`/api/events/${event.slug}/duplicate`);

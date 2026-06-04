@@ -105,6 +105,21 @@
         </div>
     @endif
 
+    @if($hasPendingClaim ?? false)
+        <div class="bg-indigo-50 border-b border-indigo-200">
+            <div class="max-w-screen-xl mx-auto py-3 px-8">
+                <div class="flex items-center gap-2">
+                    <svg style="width: 20px; height: 20px;" class="text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clip-rule="evenodd" />
+                    </svg>
+                    <p class="text-lg font-medium text-indigo-800">
+                        Your request to claim ownership of this organization is pending review. We'll email you once an admin has reviewed it.
+                    </p>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <vue-organizer
         :organizer="{{ $organizer }}"
         :user="user"

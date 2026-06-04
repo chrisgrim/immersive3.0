@@ -27,7 +27,7 @@ class ProfilesController extends Controller
 
         $user->load('images');
         // Make these fields visible for the edit view
-        $user->makeVisible(['newsletter_type', 'silence']);
+        $user->makeVisible(['newsletter_type', 'silence', 'notification_preferences']);
 
         return view('auth.user-edit', [
             'user' => $user,
@@ -61,7 +61,7 @@ class ProfilesController extends Controller
                 // If this is just an image upload, return early
                 if (count($request->allFiles()) === 1 && count($request->all()) === 1) {
                     return $user->fresh(['images'])
-                        ->makeVisible(['newsletter_type', 'silence']);
+                        ->makeVisible(['newsletter_type', 'silence', 'notification_preferences']);
                 }
             }
 
@@ -69,6 +69,13 @@ class ProfilesController extends Controller
             // partial edit (e.g. name only) does not clobber the user's saved
             // newsletter_type / silence preferences.
             $userData = $request->only('name', 'email', 'newsletter_type', 'silence');
+
+            // Admin notification opt-outs are personal to each admin — only persist them when
+            // an admin is editing their OWN account (not a moderator editing someone else, and
+            // not a non-admin pre-seeding opt-outs before a future promotion).
+            if ($request->has('notification_preferences') && $request->user()->is($user) && $user->isAdmin()) {
+                $userData['notification_preferences'] = $request->input('notification_preferences');
+            }
 
             if ($request->filled('email') && $request->email !== $user->email) {
                 $userData['email_verified_at'] = null;
@@ -78,7 +85,7 @@ class ProfilesController extends Controller
                 $user->update($userData);
             }
 
-            $result = $user->fresh(['images'])->makeVisible(['newsletter_type', 'silence']);
+            $result = $user->fresh(['images'])->makeVisible(['newsletter_type', 'silence', 'notification_preferences']);
 
             return $result;
 

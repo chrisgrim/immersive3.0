@@ -56,12 +56,12 @@
                                     </a>
                                 </li>
                                 <li>
-                                    <a @click="handleNavigation('approve-requests')" 
+                                    <a @click="handleNavigation('approve-requests')"
                                        :class="['nav-link', currentView === 'approve-requests' ? 'bg-blue-50 text-blue-600' : '']"
                                     >
                                         <div class="flex items-center justify-between">
                                             <span>Requests</span>
-                                            <span v-if="counts.requests > 0" 
+                                            <span v-if="counts.requests > 0"
                                                   class="bg-red-500 text-white text-sm px-2 py-1 rounded-full">
                                                 {{ counts.requests }}
                                             </span>

@@ -81,7 +81,7 @@
                     </div>
                 </button>
 
-                <!-- Account Settings -->
+                <!-- Notifications -->
                 <button
                     @click="$emit('navigate', 'Account')"
                     :class="[
@@ -92,7 +92,7 @@
                         }
                     ]"
                 >
-                    <h3 class="text-xl font-semibold mb-4">Account Settings</h3>
+                    <h3 class="text-xl font-semibold mb-4">Notifications</h3>
                     <p class="text-2xl text-neutral-600 mb-4 break-words hyphens-auto overflow-hidden">
                         Manage your notifications
                     </p>

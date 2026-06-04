@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\AdminEventController;
 // Controller Imports - Admin
 use App\Http\Controllers\Admin\AdminGenreController;
 use App\Http\Controllers\Admin\AdminOrganizerController;
+use App\Http\Controllers\Admin\AdminOwnershipClaimController;
 use App\Http\Controllers\Admin\AdminRequestsController;
 use App\Http\Controllers\Admin\AdminReviewController;
 use App\Http\Controllers\Admin\AdminUserController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\Creation\EventClickController;
 // Controller Imports - Other
 use App\Http\Controllers\Creation\HostEventController;
 use App\Http\Controllers\OrganizerController;
+use App\Http\Controllers\OwnershipClaimController;
 use App\Http\Controllers\Search\EventAttributesController;
 use App\Http\Controllers\Search\ListingsController;
 use App\Http\Controllers\Search\SearchController;
@@ -83,6 +85,11 @@ Route::middleware(['auth:sanctum', 'throttle:20,1'])->group(function () {
     Route::POST('/events/{event}/duplicate', [HostEventController::class, 'duplicate'])
         ->middleware('can:duplicate,event')
         ->name('event.duplicate');
+
+    // Ownership claims — a logged-in user requests ownership of a pre-entered organizer.
+    // Eligibility is re-validated server-side; no policy needed (any authed user may ask).
+    Route::POST('/organizers/{organizer}/claim', [OwnershipClaimController::class, 'store'])
+        ->name('organizers.claim');
 });
 
 // Navigation Search Routes - Autocomplete (fired on keystroke, very generous 120/min = 2/sec)
@@ -185,6 +192,13 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
                 Route::GET('/requests', 'index');
                 Route::POST('/requests/{request}/approve', 'approve');
                 Route::POST('/requests/{request}/reject', 'reject');
+            });
+
+            // Ownership Claims
+            Route::controller(AdminOwnershipClaimController::class)->group(function () {
+                Route::GET('/claims', 'index');
+                Route::POST('/claims/{claim}/approve', 'approve');
+                Route::POST('/claims/{claim}/reject', 'reject');
             });
         });
 

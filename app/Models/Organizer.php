@@ -11,6 +11,14 @@ class Organizer extends Model
 {
     use HasFactory, Searchable;
 
+    /**
+     * User types considered "EI staff" for ownership-claim eligibility. An organizer
+     * is only claimable if it was entered by staff (or has no owner) and no external
+     * user is attached. NOTE: curators ('c') are intentionally NOT treated as staff —
+     * revisit with Kathryn if EI ever pre-enters orgs under curator accounts.
+     */
+    public const STAFF_TYPES = ['a', 'm'];
+
     protected static function boot()
     {
         parent::boot();
@@ -204,5 +212,37 @@ class Organizer extends Model
     public function nameChangeRequests()
     {
         return $this->morphMany(NameChangeRequest::class, 'requestable');
+    }
+
+    public function ownershipClaims()
+    {
+        return $this->hasMany(OwnershipClaim::class);
+    }
+
+    /**
+     * Whether this organizer can be claimed by an external user. True only when the
+     * record was entered by EI staff (or has no owner) and no external (non-staff)
+     * user is attached — i.e. a pre-entered, externally-unowned organizer.
+     */
+    public function isClaimable(): bool
+    {
+        // Deactivated/deleted organizers are never claimable.
+        if ($this->status === 'd') {
+            return false;
+        }
+
+        // loadMissing keeps this safe to call on a model that wasn't eager-loaded
+        // (and a no-op when it was), avoiding both N+1 surprises and null reads.
+        $this->loadMissing(['owner', 'users']);
+
+        // A real external owner makes it unclaimable; a staff owner or no owner is fine.
+        if ($this->owner && ! in_array($this->owner->type, self::STAFF_TYPES, true)) {
+            return false;
+        }
+
+        // No external (non-staff) member may already be attached.
+        return ! $this->users->contains(
+            fn ($user) => ! in_array($user->type, self::STAFF_TYPES, true)
+        );
     }
 }
