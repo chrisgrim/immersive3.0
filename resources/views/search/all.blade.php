@@ -26,5 +26,7 @@
 @endsection
 
 @section('footer')
-    @include('footer.footer-padded')
+    {{-- Compact footer — this is a full-screen search/map page; the tall marketing
+         footer (footer-padded) collides with the fixed map. --}}
+    @include('footer.footer-full')
 @endsection 
