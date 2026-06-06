@@ -820,8 +820,8 @@ const eventStatusLabel = (status) => {
 const isPublicEvent = (event) => event.status === 'p' || event.status === 'e'
 const eventLink = (event) => {
     if (isPublicEvent(event)) return `/events/${event.slug}`
-    if (event.status === 'r') return `/admin/dashboard?view=approve-events&eventId=${event.id}`
-    return `/admin/dashboard?eventId=${event.id}`
+    if (event.status === 'r') return `/admin/dashboard?view=approve-events&eventSlug=${event.slug}`
+    return `/admin/dashboard?eventSlug=${event.slug}`
 }
 
 const eventStatusClass = (status) => {

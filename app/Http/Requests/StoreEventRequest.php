@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 class StoreEventRequest extends FormRequest
@@ -13,6 +13,7 @@ class StoreEventRequest extends FormRequest
         // This request is only used for event updates
         // Verify user can manage the event
         $event = $this->route('event');
+
         return $event && $this->user() && $this->user()->can('manage', $event);
     }
 
@@ -23,7 +24,7 @@ class StoreEventRequest extends FormRequest
             'attendance_type_id' => 'nullable|exists:attendance_types,id',
             'interactive_level_id' => 'nullable|exists:interactive_levels,id',
             'description' => 'sometimes|string|min:1|max:5000',
-            'name' => 'sometimes|string|max:100',
+            'name' => 'sometimes|string|max:100|regex:/[\p{L}\p{N}]/u',
             'closingDate' => 'nullable|date',
             'websiteUrl' => 'sometimes|url|max:255',
             'ticketUrl' => 'nullable|url|max:255',
@@ -105,7 +106,7 @@ class StoreEventRequest extends FormRequest
             'contactLevel' => 'sometimes|array',
             'contactLevel.id' => 'required_with:contactLevel|exists:contact_levels,id',
             'contactLevel.name' => 'required_with:contactLevel|string|max:255',
-            
+
             'interactiveLevel' => 'sometimes|array',
             'interactiveLevel.id' => 'required_with:interactiveLevel|exists:interactive_levels,id',
             'interactiveLevel.name' => 'required_with:interactiveLevel|string|max:255',
@@ -145,6 +146,7 @@ class StoreEventRequest extends FormRequest
             'images.*.dimensions' => 'Images must be at least 400x400 pixels and no larger than 10000x10000 pixels.',
             'contentAdvisories.max' => 'You can select a maximum of 16 content advisories.',
             'mobilityAdvisories.max' => 'You can select a maximum of 16 mobility advisories.',
+            'name.regex' => 'The name must contain at least one letter or number.',
         ];
     }
 

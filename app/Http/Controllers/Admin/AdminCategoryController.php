@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Services\ImageHandler;
+use App\Support\Slug;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 
 class AdminCategoryController extends Controller
@@ -30,13 +30,14 @@ class AdminCategoryController extends Controller
                 'image.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:8192',
                 'image_index.*' => 'required_with:image.*|integer|in:0,1',
                 'applicable_attendance_types' => 'nullable|array',
-                'applicable_attendance_types.*' => 'integer'
+                'applicable_attendance_types.*' => 'integer',
             ]);
 
-            if (!isset($validated['slug'])) {
-                $validated['slug'] = Str::slug($validated['name']);
-            }
-            
+            // Slug::base() guarantees a non-empty, URL-safe slug. categories.slug
+            // is UNIQUE, so a raw Str::slug() of a CJK/symbol-only name (which
+            // reduces to '') would collide and 500 on the second such category.
+            $validated['slug'] = Slug::base($validated['slug'] ?? $validated['name'], 'category');
+
             // Ensure attendance types are not double-encoded
             if (isset($validated['applicable_attendance_types'])) {
                 // Convert string values to integers
@@ -49,11 +50,11 @@ class AdminCategoryController extends Controller
             if ($request->hasFile('image')) {
                 $images = $request->file('image');
                 $indices = $request->input('image_index', []);
-                
+
                 foreach ($images as $key => $image) {
                     $imageIndex = $indices[$key] ?? 0;
                     $dimensions = $imageIndex === 1 ? 400 : 800;
-                    
+
                     ImageHandler::saveImage(
                         $image,
                         $category,
@@ -70,7 +71,7 @@ class AdminCategoryController extends Controller
             \Log::error('Category creation failed', [
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),
-                'file' => $e->getFile()
+                'file' => $e->getFile(),
             ]);
             throw $e;
         }
@@ -83,29 +84,29 @@ class AdminCategoryController extends Controller
             // Check if it's a string (JSON) or already an array
             if (is_string($request->applicable_attendance_types)) {
                 $validated = $request->validate([
-                    'applicable_attendance_types' => 'nullable|string'
+                    'applicable_attendance_types' => 'nullable|string',
                 ]);
 
                 $attendanceTypes = json_decode($validated['applicable_attendance_types'] ?? '[]', true);
-                
+
                 // Convert string values to integers if they exist
                 if (is_array($attendanceTypes)) {
                     $attendanceTypes = array_map('intval', $attendanceTypes);
                 }
-                
+
                 $category->update([
-                    'applicable_attendance_types' => $attendanceTypes
+                    'applicable_attendance_types' => $attendanceTypes,
                 ]);
             } else {
                 // It's already an array
                 $validated = $request->validate([
                     'applicable_attendance_types' => 'nullable|array',
-                    'applicable_attendance_types.*' => 'integer'
+                    'applicable_attendance_types.*' => 'integer',
                 ]);
-                
+
                 if (isset($validated['applicable_attendance_types'])) {
                     $category->update([
-                        'applicable_attendance_types' => array_map('intval', $validated['applicable_attendance_types'])
+                        'applicable_attendance_types' => array_map('intval', $validated['applicable_attendance_types']),
                     ]);
                 }
             }
@@ -113,7 +114,7 @@ class AdminCategoryController extends Controller
 
         // Handle general field updates
         $validatedFields = $request->validate([
-            'name' => 'sometimes|required|string|unique:categories,name,' . $category->id,
+            'name' => 'sometimes|required|string|unique:categories,name,'.$category->id,
             'description' => 'sometimes|required|string',
             'credit' => 'nullable|string',
             'rank' => 'nullable|integer',
@@ -121,10 +122,14 @@ class AdminCategoryController extends Controller
             'type' => 'sometimes|required|string|in:c,g',
             'slug' => 'nullable|string',
         ]);
-        
+
         // Only apply the validated fields that are actually present in the request
         $updateData = array_intersect_key($validatedFields, $request->all());
-        if (!empty($updateData)) {
+        // Never persist an empty/colliding slug to the UNIQUE categories.slug column.
+        if (array_key_exists('slug', $updateData)) {
+            $updateData['slug'] = Slug::base($updateData['slug'] ?: ($updateData['name'] ?? $category->name), 'category');
+        }
+        if (! empty($updateData)) {
             $category->update($updateData);
         }
 
@@ -137,7 +142,7 @@ class AdminCategoryController extends Controller
         // Handle new image upload
         if ($request->hasFile('image')) {
             $imageIndex = $request->input('image_index', 0); // 0 for main, 1 for icon
-            
+
             // Find existing image with this rank
             $existingImage = $category->images()->where('rank', $imageIndex)->first();
             if ($existingImage) {
@@ -145,7 +150,7 @@ class AdminCategoryController extends Controller
             }
 
             // Set dimensions based on image type
-            $dimensions = $imageIndex === 1 
+            $dimensions = $imageIndex === 1
                 ? 400  // icon size
                 : 800; // main image size
 
@@ -171,7 +176,7 @@ class AdminCategoryController extends Controller
         if ($category->events()->count() > 0) {
             return response()->json([
                 'message' => 'Cannot delete category because it has associated events. Please remove all events from this category first.',
-                'error' => 'CATEGORY_HAS_EVENTS'
+                'error' => 'CATEGORY_HAS_EVENTS',
             ], 422);
         }
 
@@ -179,8 +184,9 @@ class AdminCategoryController extends Controller
         foreach ($category->images as $image) {
             ImageHandler::deleteImage($image);
         }
-        
+
         $category->delete();
+
         return response()->json(['message' => 'Category deleted successfully']);
     }
-} 
+}

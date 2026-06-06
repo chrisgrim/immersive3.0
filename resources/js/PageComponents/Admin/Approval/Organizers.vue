@@ -11,7 +11,7 @@
         </div>
         
         <div v-else>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                 <div 
                     v-for="organizer in organizers" 
                     :key="organizer.id" 
@@ -68,11 +68,25 @@ const handleOrganizerSelect = async (organizer) => {
     
     try {
         loading.value = true        
-        const slug = organizer.slug || organizer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-        const url = `/api/admin/organizers/${slug}`;
+        // Guard: without a real slug the request becomes `/api/admin/organizers/`
+        // (empty path segment) → 302 to the SPA shell → HTML body. That HTML used
+        // to be emitted as if it were an organizer, blanking the review and writing
+        // `organizerId=undefined` into the URL. Require a real slug instead.
+        if (!organizer?.slug) {
+            console.error('Organizer is missing a slug; cannot open review', organizer);
+            return;
+        }
+        const url = `/api/admin/organizers/${organizer.slug}`;
         
         const response = await axios.get(url);
         
+        // Only proceed if we actually got an organizer back. A redirect-to-HTML
+        // resolves 200 with a string body that has no id; emitting it would blank
+        // the review and produce an `organizerId=undefined` URL.
+        if (!response.data?.id) {
+            console.error('Unexpected organizer response (no id); ignoring', response.data);
+            return;
+        }
         emit('select-organizer', response.data);
     } catch (error) {
         console.error('Error details:', {

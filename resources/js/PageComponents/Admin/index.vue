@@ -204,16 +204,16 @@ const handleNavigation = (view) => {
     if (view) {
         const url = new URL(window.location)
         url.searchParams.set('view', view)
-        url.searchParams.delete('eventId')
-        url.searchParams.delete('organizerId')
-        url.searchParams.delete('communityId')
+        url.searchParams.delete('eventSlug')
+        url.searchParams.delete('organizerSlug')
+        url.searchParams.delete('communitySlug')
         window.history.pushState({}, '', url)
     } else {
         const url = new URL(window.location)
         url.searchParams.delete('view')
-        url.searchParams.delete('eventId')
-        url.searchParams.delete('organizerId')
-        url.searchParams.delete('communityId')
+        url.searchParams.delete('eventSlug')
+        url.searchParams.delete('organizerSlug')
+        url.searchParams.delete('communitySlug')
         window.history.pushState({}, '', url)
     }
     currentView.value = view
@@ -224,16 +224,16 @@ const handlePopState = () => {
     const view = urlParams.get('view')
     currentView.value = view || null
     
-    const eventId = urlParams.get('eventId')
-    const organizerId = urlParams.get('organizerId')
-    const communityId = urlParams.get('communityId')
-    
-    if (eventId) {
-        fetchEvent(eventId)
-    } else if (organizerId) {
-        fetchOrganizer(organizerId)
-    } else if (communityId) {
-        fetchCommunity(communityId)
+    const eventSlug = urlParams.get('eventSlug')
+    const organizerSlug = urlParams.get('organizerSlug')
+    const communitySlug = urlParams.get('communitySlug')
+
+    if (eventSlug) {
+        fetchEvent(eventSlug)
+    } else if (organizerSlug) {
+        fetchOrganizer(organizerSlug)
+    } else if (communitySlug) {
+        fetchCommunity(communitySlug)
     } else {
         selectedEvent.value = null
         selectedOrganizer.value = null
@@ -242,71 +242,87 @@ const handlePopState = () => {
 }
 
 const handleEventSelect = (event) => {
+    if (!event?.slug) {
+        console.error('Cannot select event without a slug', event)
+        return
+    }
     selectedEvent.value = event
     const url = new URL(window.location)
-    url.searchParams.set('eventId', event.id)
+    url.searchParams.set('eventSlug', event.slug)
     window.history.pushState({}, '', url)
 }
 
 const handleOrganizerSelect = (organizer) => {
+    // Deep-links are keyed by slug (the admin show routes bind by slug), and a
+    // missing slug is exactly what produced the old `organizerId=undefined` blank
+    // screen — so bail rather than push a URL the dashboard can't recover from.
+    if (!organizer?.slug) {
+        console.error('Cannot select organizer without a slug', organizer)
+        return
+    }
     selectedOrganizer.value = organizer
     const url = new URL(window.location)
-    url.searchParams.set('organizerId', organizer.id)
+    url.searchParams.set('organizerSlug', organizer.slug)
     window.history.pushState({}, '', url)
 }
 
 const handleCommunitySelect = (community) => {
+    if (!community?.slug) {
+        console.error('Cannot select community without a slug', community)
+        return
+    }
     selectedCommunity.value = community
     const url = new URL(window.location)
-    url.searchParams.set('communityId', community.id)
+    url.searchParams.set('communitySlug', community.slug)
     window.history.pushState({}, '', url)
 }
 
 const clearSelectedEvent = () => {
     selectedEvent.value = null
     const url = new URL(window.location)
-    url.searchParams.delete('eventId')
+    url.searchParams.delete('eventSlug')
     window.history.pushState({}, '', url)
 }
 
 const clearSelectedOrganizer = () => {
     selectedOrganizer.value = null
     const url = new URL(window.location)
-    url.searchParams.delete('organizerId')
+    url.searchParams.delete('organizerSlug')
     window.history.pushState({}, '', url)
 }
 
 const clearSelectedCommunity = () => {
     selectedCommunity.value = null
     const url = new URL(window.location)
-    url.searchParams.delete('communityId')
+    url.searchParams.delete('communitySlug')
     window.history.pushState({}, '', url)
 }
 
-const fetchEvent = async (eventId) => {
+const fetchEvent = async (eventSlug) => {
     try {
-        const response = await axios.get(`/api/admin/events/${eventId}`);
-        selectedEvent.value = {
-            ...response.data.event,
-            duplicateEvents: response.data.duplicateEvents
-        };
+        // Route binds by slug; show() returns the event directly, with
+        // duplicateEvents as an attribute on it (not wrapped in { event }).
+        const response = await axios.get(`/api/admin/events/${eventSlug}`);
+        selectedEvent.value = response.data;
     } catch (error) {
         console.error('Error fetching event:', error);
     }
 };
 
-const fetchOrganizer = async (organizerId) => {
+const fetchOrganizer = async (organizerSlug) => {
     try {
-        const response = await axios.get(`/api/admin/organizers/${organizerId}`);
-        selectedOrganizer.value = response.data.organizer;
+        // Route binds by slug; show() returns the organizer directly (not wrapped).
+        const response = await axios.get(`/api/admin/organizers/${organizerSlug}`);
+        selectedOrganizer.value = response.data;
     } catch (error) {
         console.error('Error fetching organizer:', error);
     }
 };
 
-const fetchCommunity = async (communityId) => {
+const fetchCommunity = async (communitySlug) => {
     try {
-        const response = await axios.get(`/api/admin/communities/${communityId}`);
+        // Route binds by slug; show() wraps the payload as { community }.
+        const response = await axios.get(`/api/admin/communities/${communitySlug}`);
         selectedCommunity.value = response.data.community;
     } catch (error) {
         console.error('Error fetching community:', error);
@@ -333,15 +349,15 @@ onMounted(() => {
         currentView.value = view
     }
     
-    const eventId = urlParams.get('eventId')
-    const organizerId = urlParams.get('organizerId')
-    const communityId = urlParams.get('communityId')
-    if (eventId) {
-        fetchEvent(eventId)
-    } else if (organizerId) {
-        fetchOrganizer(organizerId)
-    } else if (communityId) {
-        fetchCommunity(communityId)
+    const eventSlug = urlParams.get('eventSlug')
+    const organizerSlug = urlParams.get('organizerSlug')
+    const communitySlug = urlParams.get('communitySlug')
+    if (eventSlug) {
+        fetchEvent(eventSlug)
+    } else if (organizerSlug) {
+        fetchOrganizer(organizerSlug)
+    } else if (communitySlug) {
+        fetchCommunity(communitySlug)
     }
 
     fetchCounts()

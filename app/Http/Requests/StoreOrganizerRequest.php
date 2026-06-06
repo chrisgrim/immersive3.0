@@ -25,6 +25,10 @@ class StoreOrganizerRequest extends FormRequest
                 'required',
                 'string',
                 'max:80',
+                // Must contain at least one letter or number (Unicode-aware), so
+                // symbol/emoji-only names like "...", "👍" or "!!!" are rejected.
+                // CJK / Cyrillic / Arabic names pass (those are \p{L} letters).
+                'regex:/[\p{L}\p{N}]/u',
             ];
         }
 
@@ -55,6 +59,7 @@ class StoreOrganizerRequest extends FormRequest
         return [
             'name.required' => 'The name is required.',
             'name.max' => 'The name may not be greater than 80 characters.',
+            'name.regex' => 'The name must contain at least one letter or number.',
             'description.required' => 'The description is required.',
             'description.min' => 'The description must be at least 1 character.',
             'description.max' => 'The description may not be greater than 2000 characters.',

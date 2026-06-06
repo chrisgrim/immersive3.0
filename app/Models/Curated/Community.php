@@ -2,50 +2,50 @@
 
 namespace App\Models\Curated;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use App\Models\ImageFile;
-use App\Models\User;
 use App\Models\Featured\Feature;
 use App\Models\Image;
-use App\Models\Featured\Section;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\ImageFile;
 use App\Models\NameChangeRequest;
-use Illuminate\Support\Str;
+use App\Models\User;
+use App\Support\Slug;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class Community extends Model
 {
     use HasFactory;
 
-    protected $fillable = [ 'name', 'user_id', 'slug', 'blurb', 'description', 'thumbImagePath', 'largeImagePath', 'instagramHandle', 'twitterHandle', 'facebookHandle', 'patreon', 'status' ];
+    protected $fillable = ['name', 'user_id', 'slug', 'blurb', 'description', 'thumbImagePath', 'largeImagePath', 'instagramHandle', 'twitterHandle', 'facebookHandle', 'patreon', 'status'];
 
     /**
      * Delete any posts with the community
      */
-    public static function boot() {
+    public static function boot()
+    {
         parent::boot();
-        self::deleting(function($community) { 
-            $community->posts()->each(function($post) {
+        self::deleting(function ($community) {
+            $community->posts()->each(function ($post) {
                 ImageFile::deletePreviousImages($post);
                 $post->delete();
             });
         });
 
         static::creating(function ($community) {
-            $community->slug = Str::slug($community->name);
+            $community->slug = Slug::base($community->name, 'community');
         });
 
         static::updating(function ($community) {
             if ($community->isDirty('name')) {
-                $community->slug = Str::slug($community->name);
+                $community->slug = Slug::base($community->name, 'community');
             }
         });
     }
 
     /**
-    * Sets the Route Key to slug instead of ID
-    *
-    * @return Route Key Name
-    */
+     * Sets the Route Key to slug instead of ID
+     *
+     * @return Route Key Name
+     */
     public function getRouteKeyName()
     {
         return 'slug';
@@ -140,5 +140,4 @@ class Community extends Model
     {
         return $this->morphMany(NameChangeRequest::class, 'requestable');
     }
-
 }

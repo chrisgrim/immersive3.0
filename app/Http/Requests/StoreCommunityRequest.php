@@ -28,10 +28,13 @@ class StoreCommunityRequest extends FormRequest
         // Only apply name/blurb rules if they are being updated
         if ($this->has('name')) {
             $rules['name'] = [
-                'required', 
+                'required',
                 'string',
                 'max:60',
-                new UniqueSlugRule($this->name, Community::class, 'slug', $this->route('community')?->id)
+                // Must contain at least one letter or number (Unicode-aware), so
+                // symbol/emoji-only names like "...", "👍" or "!!!" are rejected.
+                'regex:/[\p{L}\p{N}]/u',
+                new UniqueSlugRule($this->name, Community::class, 'slug', $this->route('community')?->id),
             ];
             // If name is present, blurb is required
             $rules['blurb'] = 'required|string|min:1|max:160';
@@ -49,7 +52,7 @@ class StoreCommunityRequest extends FormRequest
                 'image',
                 'mimes:jpeg,png,webp',
                 'max:10240', // 10MB
-                'dimensions:min_width=800,min_height=450'
+                'dimensions:min_width=800,min_height=450',
             ];
         }
 
@@ -58,8 +61,6 @@ class StoreCommunityRequest extends FormRequest
 
     /**
      * Get custom messages for validator errors.
-     *
-     * @return array
      */
     public function messages(): array
     {
@@ -67,21 +68,22 @@ class StoreCommunityRequest extends FormRequest
             'name.required' => 'A community name is required',
             'name.string' => 'The name must be text',
             'name.max' => 'The community name cannot be longer than 60 characters',
-            
+            'name.regex' => 'The name must contain at least one letter or number',
+
             'blurb.required' => 'A short description is required',
             'blurb.string' => 'The short description must be text',
             'blurb.min' => 'The short description must not be empty',
             'blurb.max' => 'The short description cannot be longer than 160 characters',
-            
+
             'description.required' => 'A description is required',
             'description.string' => 'The description must be text',
             'description.max' => 'The description cannot be longer than 2000 characters',
-            
+
             'image.required' => 'An image file is required',
             'image.image' => 'The file must be an image',
             'image.mimes' => 'The image must be a JPG, PNG, or WebP file',
             'image.max' => 'The image file size cannot be larger than 10MB',
-            'image.dimensions' => 'The image must be at least 800x450 pixels'
+            'image.dimensions' => 'The image must be at least 800x450 pixels',
         ];
     }
 }

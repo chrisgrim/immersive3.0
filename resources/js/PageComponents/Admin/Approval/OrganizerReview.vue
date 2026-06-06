@@ -1,5 +1,5 @@
 <template>
-    <div class="h-[calc(100vh-12rem)] flex flex-col md:h-[calc(100vh-12rem)] max-h-[calc(100vh-10rem)]">
+    <div class="flex flex-col md:h-[calc(100vh-12rem)] md:max-h-[calc(100vh-10rem)]">
         <!-- Fixed Header Section -->
         <div class="flex-none px-8">
             <h2 class="text-2xl font-bold mb-6">Review Organizer</h2>
@@ -65,11 +65,11 @@
             </div>
         </div>
 
-        <!-- Fixed Footer Section -->
-        <div class="flex border-t border-gray-200 bg-white h-32 justify-end items-center">
-            <div class="px-8 py-6 flex gap-4">
+        <!-- Footer Section -->
+        <div class="flex-none flex border-t border-gray-200 bg-white justify-end items-center md:h-32">
+            <div class="w-full px-6 py-6 md:px-8 flex flex-col md:flex-row gap-4 md:justify-end md:items-center">
                 <!-- Edit Button -->
-                <a 
+                <a
                     :href="`/organizers/${props.organizer?.slug}/edit`"
                     target="_blank"
                     :class="{
@@ -77,13 +77,13 @@
                         'bg-white text-black hover:bg-gray-100': true
                     }"
                 >
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center justify-center gap-2">
                         Edit Organizer
                     </div>
                 </a>
 
                 <!-- Reject Button -->
-                <button 
+                <button
                     @click="onReject"
                     :disabled="processing"
                     :class="{
@@ -92,14 +92,14 @@
                         'bg-gray-300 text-gray-500 cursor-not-allowed': processing
                     }"
                 >
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center justify-center gap-2">
                         <LoadingSpinner v-if="processing && isRejecting" />
                         {{ processing && isRejecting ? 'Rejecting...' : 'Reject' }}
                     </div>
                 </button>
 
                 <!-- Approve Button -->
-                <button 
+                <button
                     @click="onApprove"
                     :disabled="processing"
                     :class="{
@@ -108,7 +108,7 @@
                         'bg-gray-300 text-gray-500 cursor-not-allowed': processing
                     }"
                 >
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center justify-center gap-2">
                         <LoadingSpinner v-if="processing && isApproving" />
                         {{ processing && isApproving ? 'Approving...' : 'Approve' }}
                     </div>

@@ -11,7 +11,7 @@
         </div>
         
         <div v-else>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                 <div 
                     v-for="community in communities" 
                     :key="community.id" 

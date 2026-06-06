@@ -4,8 +4,8 @@ namespace App\Services;
 
 use App\Mail\NameChangeNotification;
 use App\Models\User;
+use App\Support\Slug;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 
 class NameChangeRequestService
 {
@@ -58,17 +58,22 @@ class NameChangeRequestService
     {
         $oldName = $model->name;
         $oldSlug = $model->slug;
-        $newSlug = Str::slug($newName);
+        $type = $this->getModelType($model);
 
-        // Update name and slug
+        // Update name and slug. Slug::base() guarantees a non-empty, URL-safe slug
+        // even for CJK / emoji / symbol-only names (which Str::slug() reduces to '').
         $model->update([
             'name' => $newName,
-            'slug' => $newSlug,
+            'slug' => Slug::base($newName, $type),
         ]);
+
+        // Organizer/Community regenerate the slug in their own `updating` hook, so
+        // read the actually-persisted slug — not the value we passed in — before
+        // relocating images, or they'd be moved under a stale/empty-slug path.
+        $newSlug = $model->slug;
 
         // Handle image paths if slug changed
         if ($newSlug !== $oldSlug && $model->images()->exists()) {
-            $type = $this->getModelType($model);
             ImageHandler::moveImagesForNewSlug($model, $oldSlug, $newSlug, $type);
         }
 

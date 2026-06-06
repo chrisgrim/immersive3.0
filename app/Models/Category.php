@@ -3,9 +3,9 @@
 namespace App\Models;
 
 use App\Scopes\RankScope;
+use App\Support\Slug;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
 
 class Category extends Model
 {
@@ -120,7 +120,7 @@ class Category extends Model
      */
     public function updateElements($request, $category)
     {
-        $request->name !== $category->name && ! $request->image ? MakeImage::renameImage($category, Str::slug($request->name), 'category', $request) : '';
+        $request->name !== $category->name && ! $request->image ? MakeImage::renameImage($category, Slug::base($request->name, 'category'), 'category', $request) : '';
         if ($request->image) {
             MakeImage::saveImage($request, $category, 600, 600, 'category');
         } else {
@@ -129,7 +129,7 @@ class Category extends Model
                 'rank' => $request->rank,
                 'description' => $request->description,
                 'name' => $request->name,
-                'slug' => Str::slug($request->name),
+                'slug' => Slug::base($request->name, 'category'),
             ]);
         }
     }

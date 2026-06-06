@@ -43,6 +43,26 @@ test('updating an organizer without changing its name leaves the slug untouched'
     expect($org->fresh()->slug)->toBe($original);
 });
 
+test('a name that Str::slug reduces to empty falls back to a non-empty organizer slug', function () {
+    // CJK and symbol/emoji-only names transliterate to '' under Str::slug.
+    // Without a fallback this produced an empty slug → empty URL path segment.
+    foreach (['你好世界', 'こんにちは', '안녕하세요', '...', '👍', '!!!'] as $name) {
+        $org = Organizer::factory()->create(['name' => $name]);
+
+        expect($org->slug)->not->toBe('')
+            ->and($org->slug)->toStartWith('organizer-');
+    }
+});
+
+test('two organizers with different empty-slug names get distinct non-colliding slugs', function () {
+    $first = Organizer::factory()->create(['name' => '東京']);
+    $second = Organizer::factory()->create(['name' => '大阪']);
+
+    expect($first->slug)->not->toBe('')
+        ->and($second->slug)->not->toBe('')
+        ->and($first->slug)->not->toBe($second->slug);
+});
+
 // ----- allUsers() -----
 
 test('allUsers merges pivot members with the owner', function () {

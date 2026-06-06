@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
+use App\Support\Slug;
 use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
 
 class Organizer extends Model
 {
@@ -39,7 +39,9 @@ class Organizer extends Model
      */
     protected static function generateUniqueSlug($name, $excludeId = null)
     {
-        $baseSlug = Str::slug($name);
+        // Slug::base() guarantees a non-empty base even for CJK / emoji /
+        // symbol-only names, which Str::slug() alone reduces to ''.
+        $baseSlug = Slug::base($name, 'organizer');
         $slug = $baseSlug;
         $counter = 1;
 

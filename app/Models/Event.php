@@ -19,6 +19,7 @@ use App\Models\Events\Show;
 use App\Models\Events\ShowChangeLog;
 use App\Scopes\PublishedScope;
 use App\Services\ImageHandler;
+use App\Support\Slug;
 use App\Traits\Favoritable;
 use Carbon\Carbon;
 use Elastic\ScoutDriverPlus\Searchable;
@@ -461,7 +462,9 @@ class Event extends Model
      */
     public static function finalSlug(Event $event): string
     {
-        $baseSlug = Str::slug($event->name);
+        // Slug::base() guarantees a non-empty base even for CJK / emoji /
+        // symbol-only names, which Str::slug() alone reduces to ''.
+        $baseSlug = Slug::base($event->name, 'event');
 
         // If the base slug is available, use it
         if (! static::slugExists($baseSlug, $event->id)) {

@@ -76,6 +76,32 @@ test('store honors an explicitly provided slug', function () {
         ->assertJsonPath('slug', 'custom-spooky-slug');
 });
 
+test('store never persists an empty slug for CJK / symbol-only names', function () {
+    // '東京' and '...' both reduce to '' under Str::slug. categories.slug is UNIQUE,
+    // so without a non-empty fallback the second insert would collide on '' and 500.
+    $first = $this->actingAs($this->moderator)
+        ->postJson('/api/admin/settings/categories', [
+            'name' => '東京',
+            'description' => 'CJK name',
+            'type' => 'c',
+        ])
+        ->assertCreated()
+        ->json('slug');
+
+    $second = $this->actingAs($this->moderator)
+        ->postJson('/api/admin/settings/categories', [
+            'name' => '...',
+            'description' => 'symbol-only name',
+            'type' => 'c',
+        ])
+        ->assertCreated()
+        ->json('slug');
+
+    expect($first)->not->toBe('')->and($first)->toStartWith('category-');
+    expect($second)->not->toBe('')->and($second)->toStartWith('category-');
+    expect($first)->not->toBe($second);
+});
+
 test('store rejects a duplicate name', function () {
     Category::factory()->create(['name' => 'Theater']);
 

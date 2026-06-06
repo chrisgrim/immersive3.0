@@ -162,6 +162,34 @@ test('processAdminDirectChange moves images to the new slug directory when the s
     Storage::disk('digitalocean')->assertMissing("public/{$oldDir}");
 });
 
+test('processAdminDirectChange moves images using the persisted slug when the new name is CJK', function () {
+    Storage::fake('digitalocean');
+    $owner = User::factory()->create();
+    $organizer = Organizer::factory()->create(['user_id' => $owner->id, 'name' => 'Img Org', 'slug' => 'img-org']);
+
+    $image = ImageHandler::saveImage(
+        \Illuminate\Http\UploadedFile::fake()->image('a.jpg', 800, 600),
+        $organizer,
+        800,
+        600,
+        'organizer-images',
+        0
+    );
+
+    // '東京' reduces to '' under Str::slug; the model hook regenerates a non-empty
+    // 'organizer-{random}' slug, and the image must follow it — NOT be relocated to
+    // an empty-slug path 'organizer-images//...'.
+    $this->service->processAdminDirectChange($organizer, '東京');
+
+    $organizer->refresh();
+    $image->refresh();
+    expect($organizer->slug)->toStartWith('organizer-');
+    $slug = preg_quote($organizer->slug, '#');
+    expect($image->large_image_path)->toMatch("#^organizer-images/{$slug}/{$slug}-[0-9a-f]+\.webp$#")
+        ->and($image->large_image_path)->not->toContain('//');
+    Storage::disk('digitalocean')->assertExists("public/{$image->large_image_path}");
+});
+
 test('processAdminDirectChange does not move images when the model has none', function () {
     Storage::fake('digitalocean');
     $owner = User::factory()->create();
