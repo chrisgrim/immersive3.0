@@ -160,12 +160,11 @@ import L from "leaflet";
 import 'leaflet/dist/leaflet.css'
 import { RiCheckboxBlankLine, RiCheckboxLine } from "@remixicon/vue";
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
+import { importMapsLibrary } from '@/composables/useGoogleMaps';
 
 const event = inject('event');
 const errors = inject('errors');
 
-// In Laravel Mix, environment variables are accessible via window
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
 const DEFAULT_COORDINATES = { lat: 40.7127753, lng: -74.0059728 };
 
 const map = ref(initializeMapObject());
@@ -314,14 +313,9 @@ function initializeMapObject() {
 }
 
 const initGoogleMaps = async () => {
-    if (!window.google?.maps) {
-        errors.value = { location: ['Google Maps failed to load'] };
-        return;
-    }
-    
     try {
-        // Use importLibrary for Places API
-        const { AutocompleteService } = await google.maps.importLibrary("places");
+        // Shared bootstrap loader — loads the API once and guarantees importLibrary.
+        const { AutocompleteService } = await importMapsLibrary("places");
         autoComplete.value = new AutocompleteService();
     } catch (error) {
         console.error('Error initializing Google Maps Places API:', error);
@@ -365,8 +359,8 @@ const onMapReady = () => {
 
 const selectLocation = async (location) => {
     try {
-        // Use the new Place class with importLibrary
-        const { Place } = await google.maps.importLibrary("places");
+        // Use the new Place class via the shared bootstrap loader.
+        const { Place } = await importMapsLibrary("places");
         const placeResult = new Place({ id: location.place_id });
         
         // Fetch the necessary fields with correct field names
@@ -555,51 +549,12 @@ const setTimezoneFromCoordinates = async (lat, lng) => {
 };
 
 onMounted(() => {
-    const loadGoogleMapsApi = () => {
-        return new Promise((resolve, reject) => {
-            if (window.google?.maps) {
-                initGoogleMaps();
-                resolve();
-                return;
-            }
-
-            const script = document.createElement('script');
-            const scriptUrl = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&v=weekly&callback=initMap`;
-            
-            script.src = scriptUrl;
-            script.async = true;
-            script.defer = true;
-            
-            script.onload = async () => {
-                try {
-                    await initGoogleMaps();
-                    resolve();
-                } catch (error) {
-                    console.error('Error during initialization:', error);
-                    errors.value = { location: ['Google Maps Places service failed to load'] };
-                    reject(error);
-                }
-            };
-            
-            script.onerror = (error) => {
-                console.error('Script loading error:', error);
-                errors.value = { location: ['Failed to load map service'] };
-                reject(error);
-            };
-            
-            document.head.appendChild(script);
-        });
-    };
-
-    loadGoogleMapsApi().catch((error) => {
+    // Initialize Google Maps via the shared bootstrap loader (loads once,
+    // guarantees google.maps.importLibrary — no manual <script>/initMap needed).
+    initGoogleMaps().catch((error) => {
         console.error('Failed to initialize location services:', error);
         errors.value = { location: ['Failed to initialize location services'] };
     });
-
-    // Add a global initMap function to ensure callback works
-    window.initMap = function() {
-        // Callback function for Google Maps initialization
-    };
 });
 
 onUnmounted(() => {

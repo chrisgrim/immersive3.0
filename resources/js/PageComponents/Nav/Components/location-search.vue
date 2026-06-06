@@ -110,6 +110,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
+import { importMapsLibrary } from '@/composables/useGoogleMaps';
 
 // Props
 const props = defineProps({
@@ -233,7 +234,7 @@ const updateLocations = async () => {
 
 const selectLocation = async (location) => {
    try {
-       const { Place } = await google.maps.importLibrary("places");
+       const { Place } = await importMapsLibrary("places");
        const placeResult = new Place({ id: location.place_id });
        
        // Fetch the necessary fields
@@ -299,8 +300,8 @@ const setPlace = (place) => {
 
 const initGoogleMaps = async () => {
    try {
-       // Import the places library
-       const { AutocompleteService } = await google.maps.importLibrary("places");
+       // Shared bootstrap loader — guarantees importLibrary exists.
+       const { AutocompleteService } = await importMapsLibrary("places");
        autoComplete = new AutocompleteService();
    } catch (error) {
        console.error('Error initializing Google Maps Places API:', error);
@@ -342,26 +343,9 @@ onMounted(() => {
         }
     }
 
-    // Initialize Google Maps
-    if (typeof google === 'undefined' || !google.maps) {
-        if (!document.getElementById('google-maps-script')) {
-            let script = document.createElement('script');
-            script.id = 'google-maps-script';
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_KEY}&libraries=places&callback=initMap&loading=async`;
-            script.async = true;
-            script.defer = true;
-            document.head.appendChild(script);
-        }
-
-        window.initMap = async () => {
-            if (!window.googleMapsInitialized) {
-                await initGoogleMaps();
-                window.googleMapsInitialized = true;
-            }
-        };
-    } else {
-        initGoogleMaps();
-    }
+    // Initialize Google Maps via the shared bootstrap loader (loads once,
+    // guarantees google.maps.importLibrary — no manual <script>/initMap needed).
+    initGoogleMaps();
 
     // Add a window event listener for popstate to update UI when URL changes
     window.addEventListener('popstate', () => {
@@ -401,12 +385,6 @@ onMounted(() => {
     onUnmounted(() => {
         observer.disconnect();
     });
-});
-
-onUnmounted(() => {
-   if (window.initMap) {
-       delete window.initMap;
-   }
 });
 
 // For the formatted display, use the effective date

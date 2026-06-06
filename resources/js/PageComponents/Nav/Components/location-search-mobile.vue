@@ -156,6 +156,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
 import axios from 'axios';
+import { importMapsLibrary } from '@/composables/useGoogleMaps';
 
 const props = defineProps({
     initialCity: String,
@@ -232,7 +233,7 @@ const updateLocations = async () => {
 
 const selectLocation = async (location) => {
    try {
-       const { Place } = await google.maps.importLibrary("places");
+       const { Place } = await importMapsLibrary("places");
        const placeResult = new Place({ id: location.place_id });
        
        // Fetch the necessary fields
@@ -331,13 +332,8 @@ const setPlace = (place) => {
 
 const initGoogleMaps = async () => {
     try {
-        if (!window.google || !window.google.maps) {
-            console.error('Google Maps API not loaded');
-            return;
-        }
-
-        // Use the new async importLibrary approach
-        const { AutocompleteService, PlacesService } = await google.maps.importLibrary("places");
+        // Shared bootstrap loader — loads the API once and guarantees importLibrary.
+        const { AutocompleteService, PlacesService } = await importMapsLibrary("places");
         autoComplete = new AutocompleteService();
         
         // Still need PlacesService for fallback compatibility
@@ -387,24 +383,9 @@ onMounted(() => {
     places.value = initializePlaces();
     dropdown.value = true;
 
-    // Initialize Google Maps with async loading and new approach
-    if (!window.google || !window.google.maps) {
-        let script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_KEY}&libraries=places&callback=initMap&loading=async`;
-        script.async = true;
-        script.defer = true;
-        
-        window.initMap = async () => {
-            if (!window.googleMapsInitialized) {
-                await initGoogleMaps();
-                window.googleMapsInitialized = true;
-            }
-        };
-        
-        document.head.appendChild(script);
-    } else {
-        initGoogleMaps();
-    }
+    // Initialize Google Maps via the shared bootstrap loader (loads once,
+    // guarantees google.maps.importLibrary — no manual <script>/initMap needed).
+    initGoogleMaps();
 
     // Add search trigger listener
     window.addEventListener('trigger-search', handleSearch);
@@ -421,10 +402,6 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    if (window.initMap) {
-        delete window.initMap;
-    }
-
     // Remove search trigger listener
     window.removeEventListener('trigger-search', handleSearch);
 });
