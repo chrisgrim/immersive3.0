@@ -297,13 +297,39 @@
             </div>
         </section>
 
+        <section class="max-w-screen-5xl relative m-auto px-10 lg-air:px-16 2xl-air:px-32">
+            <div class="my-8 md:mt-16 md:mb-24">
+                <div class="rounded-5xl bg-neutral-100 px-8 py-12 md:px-16 md:py-16">
+                    <div class="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-20 max-w-5xl mx-auto">
+                        <a href="https://www.immersiveexperience.org/understanding-the-immersive-audience"
+                           target="_blank" rel="noopener noreferrer"
+                           class="flex-shrink-0 w-full max-w-[15rem] md:w-60 transition-transform duration-300 hover:scale-[1.03]">
+                            <img src="{{ asset('images/understanding-immersive-audience-cover.png') }}"
+                                 alt="Understanding the Immersive Audience — white paper cover"
+                                 class="w-full h-auto rounded-2xl shadow-xl" />
+                        </a>
+                        <div class="flex flex-col items-center md:items-start text-center md:text-left max-w-2xl">
+                            <h3>Understanding the Immersive Audience</h3>
+                            <p class="mt-4 text-gray-600">A new, free white paper series from the Immersive Experience Institute</p>
+                            <a href="https://www.immersiveexperience.org/understanding-the-immersive-audience"
+                               target="_blank" rel="noopener noreferrer" class="mt-8">
+                                <button class="px-[1.15rem] py-[0.7rem] rounded-full bg-white text-black border-2 border-black hover:bg-black hover:text-white text-[1.2rem] transition-colors duration-200">
+                                    Download now
+                                </button>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section class="max-w-screen-5xl relative h-full m-auto px-10 lg-air:px-16 2xl-air:px-32">
             <div class="my-8 md:mt-16 md:mb-24">
                 <div class="flex flex-col items-center min-h-[26rem] justify-center">
                     <h3>Evolving Immersive: The 2025 Immersive Entertainment & Culture Industry Report</h3>
                     <br>
                     <a target="_blank" href="https://www.gensler.com/gri/immersive-industry-report-2025">
-                        <button class="p-4 rounded-full bg-black border-black text-white hover:text-black hover:bg-white">
+                        <button class="px-[1.15rem] py-[0.7rem] rounded-full bg-white text-black border-2 border-black hover:bg-black hover:text-white text-[1.2rem] transition-colors duration-200">
                             Get your free copy here
                         </button>
                     </a>
