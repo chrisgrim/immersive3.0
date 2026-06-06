@@ -373,7 +373,8 @@
                                     :preview-date="previewDateEndModal"
                                     :multi-calendars="displayedMonthsEndModal"
                                     multi-calendars-solo
-                                    :start-date="effectiveStartDate || new Date()"
+                                    :start-date="previewDateEndModal"
+                                    focus-start-date
                                     :min-date="effectiveStartDate || new Date()"
                                     inline
                                     auto-apply
@@ -545,12 +546,17 @@ const canShowMorePreviousMonthsEnd = computed(() => {
 });
 
 const canShowMoreFutureMonthsEnd = computed(() => {
-    const base = effectiveStartDate.value || new Date();
+    const today = new Date();
     const futureLastVisibleMonth = new Date(previewDateEndModal.value);
     futureLastVisibleMonth.setMonth(futureLastVisibleMonth.getMonth() + displayedMonthsEndModal.value + 3 - 1);
-    const monthsFromBase = (futureLastVisibleMonth.getFullYear() - base.getFullYear()) * 12 +
-                            (futureLastVisibleMonth.getMonth() - base.getMonth());
-    return monthsFromBase <= 18;
+    // End dates sit near the present/future, so cap the forward horizon relative
+    // to TODAY (like the start-date modal) — NOT relative to the start date. A
+    // back-dated start (e.g. an old venue re-dated to 2022) must still be able to
+    // page the end-date calendar forward to a present/future date.
+    const monthsFromToday = (futureLastVisibleMonth.getFullYear() - today.getFullYear()) * 12 +
+                            (futureLastVisibleMonth.getMonth() - today.getMonth());
+    const maxMonthsAhead = isAdmin.value ? 60 : 36;
+    return monthsFromToday <= maxMonthsAhead;
 });
 
 // Embargo state
@@ -788,22 +794,29 @@ const cancelStartDate = () => {
 
 // End date modal methods
 const openLastDateModal = () => {
-    if (endDate.value) {
-        const d = new Date(endDate.value);
-        tempEndDate.value = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
-        // Start preview from the selected end date
-        previewDateEndModal.value = new Date(d.getFullYear(), d.getMonth(), 1);
+    const today = new Date();
+    const existingEnd = endDate.value ? new Date(endDate.value) : null;
+
+    if (existingEnd && existingEnd > today) {
+        // Existing end date is in the future: pre-select it and open there.
+        tempEndDate.value = new Date(existingEnd.getFullYear(), existingEnd.getMonth(), existingEnd.getDate(), 12, 0, 0);
+        previewDateEndModal.value = new Date(existingEnd.getFullYear(), existingEnd.getMonth(), 1);
     } else {
+        // No end date yet, OR an end date in the PAST (e.g. an old/expiring venue
+        // being extended, where the end was seeded from the last past show date).
+        // Open the calendar at today — where the user is extending to — instead of
+        // pages of past months, and don't pre-select a stale past date so the
+        // calendar isn't forced back onto the selected value's month. A future
+        // start still anchors at the start; "Show previous months" pages back.
         tempEndDate.value = null;
-        // Start preview from start date or today
-        const startDate = effectiveStartDate.value || new Date();
-        const previewStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-        previewDateEndModal.value = previewStart;
+        const start = effectiveStartDate.value || today;
+        const anchor = start > today ? start : today;
+        previewDateEndModal.value = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
     }
-    
+
     // Reset calendar to default view
     displayedMonthsEndModal.value = 6;
-    
+
     showLastDateModal.value = true;
 };
 
