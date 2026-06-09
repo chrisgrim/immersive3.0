@@ -297,8 +297,6 @@
             </div>
         </section>
 
-        {{-- Hidden for now — flip to @if (true) to show for the IEI "Understanding the Immersive Audience" launch (Sun ~3pm PT). --}}
-        @if (false)
         <section class="max-w-screen-5xl relative m-auto px-10 lg-air:px-16 2xl-air:px-32">
             <div class="my-8 md:mt-16 md:mb-24">
                 <div class="rounded-5xl bg-neutral-100 px-8 py-12 md:px-16 md:py-16">
@@ -324,7 +322,6 @@
                 </div>
             </div>
         </section>
-        @endif
 
         <section class="max-w-screen-5xl relative h-full m-auto px-10 lg-air:px-16 2xl-air:px-32">
             <div class="my-8 md:mt-16 md:mb-24">
