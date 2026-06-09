@@ -9,6 +9,7 @@ function memberOf(Organizer $organizer, string $type = 'u'): User
 {
     $user = User::factory()->create(['type' => $type]);
     $organizer->users()->attach($user->id, ['role' => 'member']);
+
     return $user->fresh();
 }
 
@@ -289,6 +290,41 @@ test('update returns 409 on duplicate name without acknowledgement', function ()
         ->assertStatus(409);
 
     expect($event->fresh()->name)->toBe('Original');
+});
+
+test('update surfaces the duplicate event\'s organizer as claimable when staff-entered', function () {
+    // The conflicting event sits under a staff-entered, externally-unowned org — claimable.
+    // The event-title collision is the signal that points the creator at that org's claim flow.
+    $staff = User::factory()->create(['type' => 'm']);
+    $staffOrg = Organizer::factory()->create(['user_id' => $staff->id, 'status' => 'p']);
+    Event::factory()->create(['organizer_id' => $staffOrg->id, 'name' => 'Blooming Wonders']);
+
+    // A different team is editing their own draft and lands on the same title.
+    $prOrg = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $prOrg->id, 'name' => 'Original']);
+    $user = memberOf($prOrg);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", ['name' => 'Blooming Wonders'])
+        ->assertStatus(409)
+        ->assertJsonPath('duplicateEvents.0.organizer.slug', $staffOrg->slug)
+        ->assertJsonPath('duplicateEvents.0.organizer.claimable', true);
+});
+
+test('update marks the duplicate organizer not claimable when externally owned', function () {
+    // A legitimately externally-owned event must never be claimable via a title collision.
+    $external = User::factory()->create(['type' => 'u']);
+    $externalOrg = Organizer::factory()->create(['user_id' => $external->id]);
+    Event::factory()->create(['organizer_id' => $externalOrg->id, 'name' => 'Blooming Wonders']);
+
+    $prOrg = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $prOrg->id, 'name' => 'Original']);
+    $user = memberOf($prOrg);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", ['name' => 'Blooming Wonders'])
+        ->assertStatus(409)
+        ->assertJsonPath('duplicateEvents.0.organizer.claimable', false);
 });
 
 // ----- duplicate() — api route POST /api/events/{event}/duplicate -----

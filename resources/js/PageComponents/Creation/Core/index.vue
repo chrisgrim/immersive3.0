@@ -76,8 +76,8 @@
                     :disabled="isSubmitting || !isComponentReady"
                     :class="{
                         'px-6 py-3 rounded-lg transition-colors flex items-center gap-2': true,
-                        'bg-black text-white hover:bg-gray-800': !isSubmitting,
-                        'bg-gray-300 text-gray-500 cursor-not-allowed': isSubmitting
+                        'bg-black text-white hover:bg-gray-800': !isSubmitting && isComponentReady,
+                        'bg-gray-300 text-gray-500 cursor-not-allowed': isSubmitting || !isComponentReady
                     }"
                 >
                     <svg 
@@ -312,6 +312,9 @@ const updateUrl = (step) => {
 
 const setStep = (step) => {
     if (steps.value.includes(step)) {
+        // Each step starts with Next enabled; the step itself re-gates (duplicate warning,
+        // image upload, …) so a greyed-out Next can't leak across steps on Back/Next.
+        isComponentReady.value = true;
         currentStep.value = step;
         updateUrl(step);
     }

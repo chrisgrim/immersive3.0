@@ -12,8 +12,7 @@
                             'text-4xl font-normal border rounded-2xl p-4 w-full mt-8 transition-all duration-200',
                             {
                                 'border-red-500 focus:border-red-500 focus:shadow-focus-error': showNameError || errors?.name,
-                                'border-orange-400 focus:border-orange-400 focus:shadow-focus-warning': duplicateWarning,
-                                'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !showNameError && !errors?.name && !duplicateWarning,
+                                'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !showNameError && !errors?.name,
                                 'bg-neutral-100 text-neutral-500 cursor-not-allowed': hasPendingNameChange
                             }
                         ]"
@@ -36,22 +35,56 @@
                         </span>
                     </div>
 
-                    <!-- Duplicate Name Warning -->
-                    <div v-if="duplicateWarning" class="text-orange-600 text-1xl mt-2 mb-4 px-4 bg-orange-50 p-3 rounded-lg border border-orange-300">
-                        <p class="font-medium">⚠️ Possible duplicate event name found:</p>
-                        <p class="mt-1 mb-2">{{ duplicateWarning }}</p>
-                        <div v-if="duplicateEvents.length > 0" class="mt-2">
-                            <div v-for="duplicate in duplicateEvents" :key="duplicate.id" class="flex items-center justify-between py-1">
-                                <span>{{ duplicate.name }}</span>
-                                <a :href="`/events/${duplicate.slug}`" 
-                                   target="_blank"
-                                   class="text-blue-600 hover:text-blue-800 underline">
-                                    View Event
-                                </a>
+                    <!-- Dismissed state: a small re-openable chip on the left. "This isn't mine" collapses
+                         the full alert to this; clicking it brings the alert back. -->
+                    <button v-if="duplicateWarning && duplicateDismissed"
+                            type="button"
+                            @click="duplicateDismissed = false"
+                            class="mt-2 mb-4 inline-flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xl text-orange-700 hover:bg-orange-100">
+                        ⚠️ Duplicate name accepted — <span class="underline">reopen</span>
+                    </button>
+
+                    <!-- Duplicate Name Warning (full) -->
+                    <div v-if="duplicateWarning && !duplicateDismissed" class="mt-2 mb-4 bg-orange-50 p-5 rounded-2xl border border-orange-300">
+                        <p class="text-3xl font-semibold text-orange-700">⚠️ This event may already be on EI</p>
+
+                        <div v-if="duplicateEvents.length > 0" class="mt-4 space-y-3">
+                            <div v-for="duplicate in duplicateEvents" :key="duplicate.id"
+                                 class="bg-white rounded-xl p-5 border border-orange-200">
+                                <!-- The existing listing -->
+                                <div class="flex items-start justify-between gap-4">
+                                    <div>
+                                        <span class="text-2.5xl font-semibold text-gray-900">{{ duplicate.name }}</span>
+                                        <span v-if="duplicate.organizer" class="block text-2xl text-gray-500 mt-1">
+                                            Added by {{ duplicate.organizer.name }}
+                                        </span>
+                                    </div>
+                                    <a :href="`/events/${duplicate.slug}`"
+                                       target="_blank"
+                                       class="shrink-0 text-2xl text-blue-600 hover:text-blue-800 underline whitespace-nowrap">
+                                        View event
+                                    </a>
+                                </div>
                             </div>
                         </div>
-                        <p class="mt-4 text-gray-600 italic text-lg">
-                            If you feel this is a mistake, please contact us at <a href="mailto:support@everythingimmersive.com" class="text-blue-600 hover:underline">support@everythingimmersive.com</a>
+
+                        <!-- Two deliberate buttons — neither auto-advances the wizard. "Claim" opens a modal;
+                             "This isn't mine" just collapses this alert (you continue with the wizard's Next). -->
+                        <div class="mt-4 flex flex-wrap items-center gap-3">
+                            <button v-if="claimableDuplicate"
+                                    type="button"
+                                    @click="openClaimModal(claimableDuplicate)"
+                                    class="px-5 py-2.5 rounded-xl border border-gray-300 bg-white text-2xl text-gray-800 hover:bg-gray-50">
+                                I believe this is my event and org
+                            </button>
+                            <button type="button"
+                                    @click="dismissDuplicate"
+                                    class="px-5 py-2.5 rounded-xl border border-gray-300 bg-white text-2xl text-gray-800 hover:bg-gray-50">
+                                Accept duplicate name
+                            </button>
+                        </div>
+                        <p class="text-xl text-gray-400 mt-3">
+                            Questions? <a href="mailto:support@everythingimmersive.com" class="text-blue-600 hover:underline">support@everythingimmersive.com</a>
                         </p>
                     </div>
 
@@ -157,11 +190,60 @@
                 </div>
             </div>
         </teleport>
+
+        <!-- Claim-organization modal — opened from the duplicate warning's "Is this your organization?"
+             link. Holds the explanation + the actual Claim action so the inline warning stays light. -->
+        <teleport to="body">
+            <div v-if="claimModalDup"
+                 class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
+                <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
+                    <!-- Header -->
+                    <div class="p-8 pb-6">
+                        <h2 class="text-3xl font-bold mb-2">Claim {{ claimModalDup.organizer.name }}?</h2>
+                    </div>
+
+                    <!-- Content -->
+                    <div class="p-8 pt-0 overflow-y-auto flex-1">
+                        <p class="text-2xl text-gray-600 font-normal leading-relaxed">
+                            Our team already added <span class="font-medium text-gray-900">“{{ claimModalDup.name }}”</span>
+                            to Everything Immersive under <span class="font-medium text-gray-900">{{ claimModalDup.organizer.name }}</span> organization.
+                        </p>
+                        <p class="text-2xl text-gray-600 font-normal leading-relaxed mt-4">
+                            If that's your organization, press <span class="font-medium text-gray-900">“Claim it”</span> to take ownership
+                            and manage the events yourself. Please allow a day or two for our admins to review the request.
+                        </p>
+                        <p v-if="claimState(claimModalDup.organizer).status === 'error'" class="text-red-600 text-2xl mt-4">
+                            {{ claimState(claimModalDup.organizer).message }}
+                        </p>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="p-8 border-t border-neutral-400 bg-white md:rounded-b-2xl">
+                        <div class="flex justify-end space-x-4">
+                            <button
+                                @click="closeClaimModal"
+                                :disabled="claimState(claimModalDup.organizer).status === 'submitting'"
+                                class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                @click="requestOwnership(claimModalDup.organizer)"
+                                :disabled="claimState(claimModalDup.organizer).status === 'submitting'"
+                                class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl disabled:opacity-50"
+                            >
+                                {{ claimState(claimModalDup.organizer).status === 'submitting' ? 'Submitting…' : 'Claim it' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </teleport>
     </main>
 </template>
 
 <script setup>
-import { inject, computed, ref } from 'vue';
+import { inject, computed, ref, reactive } from 'vue';
 import { required, maxLength } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 import axios from 'axios';
@@ -170,11 +252,15 @@ import axios from 'axios';
 const event = inject('event');
 const errors = inject('errors');
 const isSubmitting = inject('isSubmitting');
+// Greys out the wizard's Next button while an unresolved duplicate warning is showing.
+const setComponentReady = inject('setComponentReady', () => {});
 
 // Add state for duplicate names
 const duplicateWarning = ref('');
 const duplicateEvents = ref([]);
 const duplicateAcknowledged = ref(false);
+// Collapses the full alert to the small chip after "This isn't mine" (re-openable).
+const duplicateDismissed = ref(false);
 
 // 2. Validation Rules
 const rules = {
@@ -255,12 +341,64 @@ const handleNameInput = () => {
     duplicateWarning.value = '';
     duplicateEvents.value = [];
     duplicateAcknowledged.value = false;
+    duplicateDismissed.value = false;
+    setComponentReady(true); // editing the name clears the gate
 };
 
 const handleTagLineInput = () => {
     $v.value.event.tag_line.$touch();
     if (event.tag_line?.length > 250) {
         event.tag_line = event.tag_line.slice(0, 250);
+    }
+};
+
+// "This isn't mine" — collapse the alert to the small chip and mark it acknowledged so the
+// wizard's own Next button proceeds (no auto-advance). The user stays put until they choose
+// to move on; re-openable via the chip.
+const dismissDuplicate = () => {
+    duplicateAcknowledged.value = true;
+    duplicateDismissed.value = true;
+    setComponentReady(true); // re-enable Next
+};
+
+// The first duplicate whose organizer can be claimed — drives the "I believe this is my
+// event and org" link and is the org the claim modal targets.
+const claimableDuplicate = computed(() => duplicateEvents.value.find((d) => d.organizer?.claimable) || null);
+
+// Ownership-claim state for the duplicate's organizer, keyed by organizer id:
+// { status: 'idle'|'submitting'|'error', message }
+const claimStates = reactive({});
+const claimState = (org) => claimStates[org.id] || { status: 'idle', message: '' };
+
+// The "Is this your organization?" link opens a focused modal that holds the explanation
+// and the actual Claim action, keeping the inline duplicate warning light.
+const claimModalDup = ref(null);
+const openClaimModal = (dup) => { claimModalDup.value = dup; };
+const closeClaimModal = () => { claimModalDup.value = null; };
+
+// When a duplicate title belongs to a claimable (staff-entered, externally-unowned)
+// organizer, the creator can claim that org instead of filing a duplicate event —
+// reusing the same endpoint as the organizer-creation claim flow (initial.vue).
+const requestOwnership = async (org) => {
+    claimStates[org.id] = { status: 'submitting', message: '' };
+    try {
+        await axios.post(`/api/organizers/${org.slug}/claim`);
+
+        // They've decided this is a duplicate, so discard the in-progress draft they
+        // were creating (best-effort) before sending them to the org page, which shows
+        // a "pending review" banner. The claim is already filed; a stray draft is harmless.
+        try {
+            await axios.delete(`/hosting/event/${event.slug}`);
+        } catch (e) {
+            // Non-fatal — leave the draft if deletion fails.
+        }
+
+        window.location.href = `/organizers/${org.slug}`;
+    } catch (error) {
+        claimStates[org.id] = {
+            status: 'error',
+            message: error.response?.data?.message || 'Could not submit your request. Please try again.',
+        };
     }
 };
 
@@ -298,7 +436,11 @@ defineExpose({
         if (error.response?.status === 409) {
             duplicateWarning.value = error.response.data.warning || 'A similar event name already exists.';
             duplicateEvents.value = error.response.data.duplicateEvents || [];
-            duplicateAcknowledged.value = true;
+            // Don't auto-acknowledge. Next stays gated (the backend keeps 409-ing) until the
+            // user explicitly clicks "This isn't mine" (dismissDuplicate) or claims, so they
+            // can't sail past the warning by mistake.
+            duplicateDismissed.value = false; // a fresh match always shows the full alert
+            setComponentReady(false); // grey out Next until they pick "This isn't mine" or claim
             return true; // Error was handled
         }
         return false; // Error was not handled
