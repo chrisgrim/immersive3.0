@@ -1,7 +1,7 @@
 <template>
-    <div class="relative text-1xl font-medium w-full h-[calc(100vh-8rem)] flex flex-col">
+    <div class="relative text-1xl font-medium w-full min-h-[calc(100vh-8rem)] md:h-[calc(100vh-8rem)] flex flex-col">
         <!-- Main Content Area with separate scrolling -->
-        <div class="flex-1 md:flex h-full">
+        <div class="flex-1 md:flex md:h-full">
             <div class="mx-auto flex flex-1 flex-col md:flex-row">
                 <!-- Navigation Sidebar with own scroll -->
                 <div 
@@ -37,18 +37,21 @@
                         </div>
                     </div>
                     
-                    <!-- Scrollable Component Area -->
-                    <div class="flex-1 overflow-y-auto">
+                    <!-- Scrollable Component Area (desktop scrolls internally; mobile flows with the page) -->
+                    <div class="flex-1 md:overflow-y-auto">
                         <div class="w-full xl:w-2/3 mx-auto"
-                             :class="currentSection ? 'pt-4 md:pt-40 md:pb-40' : 'pt-20 md:pt-40 md:pb-40'">
+                             :class="currentSection ? 'pt-4 pb-72 md:pt-40 md:pb-40' : 'pt-20 md:pt-40 md:pb-40'">
                             <div class="p-8">
                                 <component :is="currentComponent" ref="currentComponentRef" />
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Fixed Footer -->
-                    <div class="flex border-t border-gray-200 bg-white h-32 justify-end items-center">
+                    <!-- Footer: static at the panel bottom on desktop. On mobile it's pinned just
+                         ABOVE the fixed bottom tab bar (nav-bar-mobile is `fixed bottom-0 h-36 z-[400]`),
+                         so bottom-36 clears it and z-[401] keeps the Update button tappable. Keep the
+                         bottom-36 / content pb-72 below in sync with that bar's h-36 if it ever changes. -->
+                    <div class="flex border-t border-gray-200 bg-white h-32 justify-end items-center fixed bottom-36 inset-x-0 z-[401] md:static md:z-auto">
                         <div class="px-8 py-6 flex gap-4">
                             <button 
                                 @click="saveChanges"

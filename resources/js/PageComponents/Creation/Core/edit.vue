@@ -71,7 +71,10 @@
                         </div>
                     </div>
                     
-                    <!-- Fixed Footer -->
+                    <!-- Footer: bottom-0 is correct on mobile. This page's NavBarMobile is v-if="!currentSection",
+                         so the fixed bottom tab bar is never on-screen while this footer (shown only when
+                         currentSection is set) is visible — there's no bar to clear here, unlike the settings
+                         page whose blade renders the bar unconditionally. Do not lift this to bottom-36. -->
                     <div class="fixed md:relative bottom-0 left-0 right-0 w-full flex border-t border-gray-200 bg-white h-32 justify-end items-center z-[400]">
                         <div class="px-8 py-6 flex gap-4 w-full justify-end">
 

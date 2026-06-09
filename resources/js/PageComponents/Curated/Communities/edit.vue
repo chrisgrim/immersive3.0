@@ -1,6 +1,6 @@
 <template>
-    <div class="relative text-1xl font-medium w-full h-[calc(100vh-8rem)] flex flex-col">
-        <div class="flex-1 md:flex h-full">
+    <div class="relative text-1xl font-medium w-full min-h-[calc(100vh-8rem)] md:h-[calc(100vh-8rem)] flex flex-col">
+        <div class="flex-1 md:flex md:h-full">
             <div class="mx-auto flex flex-1 flex-col md:flex-row">
                 <!-- Navigation Sidebar -->
                 <div 
@@ -18,7 +18,7 @@
 
                 <!-- Main Content Column -->
                 <div 
-                    class="md:flex-1 flex-col h-screen md:h-full w-full md:w-auto transition-all duration-300"
+                    class="md:flex-1 flex-col md:h-full w-full md:w-auto transition-all duration-300"
                     :class="currentSection ? 'flex' : 'hidden md:flex'">
                     <!-- Mobile back button -->
                     <div 
@@ -46,19 +46,22 @@
                         </div>
                     </div>
                     
-                    <!-- Scrollable Component Area -->
-                    <div class="flex-1 overflow-y-auto">
-                        <div 
+                    <!-- Scrollable Component Area (desktop scrolls internally; mobile flows with the page) -->
+                    <div class="flex-1 md:overflow-y-auto">
+                        <div
                             class="w-full xl:w-2/3 mx-auto"
-                            :class="currentSection ? 'pt-4 md:pt-40 md:pb-40' : 'pt-20 md:pt-40 md:pb-40'">
+                            :class="currentSection ? 'pt-4 pb-40 md:pt-40 md:pb-40' : 'pt-20 md:pt-40 md:pb-40'">
                             <div class="p-8">
                                 <component :is="currentComponent" ref="currentComponentRef" />
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Fixed Footer -->
-                    <div class="flex border-t border-gray-200 bg-white h-32 justify-end items-center">
+                    <!-- Footer: static at the panel bottom on desktop. On mobile this page's bottom tab
+                         bar (NavBarMobile, v-if="!currentSection") is hidden exactly when a section — and
+                         therefore this footer — is open, so there's no bar to clear: pin the Update button
+                         flush at bottom-0 so it can't fall below the fold / under the browser chrome. -->
+                    <div class="flex border-t border-gray-200 bg-white h-32 justify-end items-center fixed bottom-0 inset-x-0 z-[401] md:static md:z-auto">
                         <div class="px-8 py-6 flex gap-4">
                             <!-- Update button -->
                             <button 
