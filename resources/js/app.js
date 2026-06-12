@@ -155,6 +155,20 @@ if (import.meta.env.VITE_SENTRY_DSN) {
             tracesSampleRate: 0.1,
             replaysSessionSampleRate: 0,
             replaysOnErrorSampleRate: 1.0,
+            // Drop noise that isn't an actionable first-party bug:
+            // DuckDuckGo / in-app WKWebView bridge rejection — emitted by the
+            // browser's native bridge, not our code, no stacktrace (EI-VUE-J).
+            ignoreErrors: [
+                'WKWebView API client did not respond to this postMessage',
+            ],
+            // Errors thrown entirely inside Google Maps' own minified scripts are
+            // not fixable from our code — e.g. the Places attribution renderer
+            // writing into a detached node (EI-VUE-H). Drop anything blamed on
+            // Google's JS API rather than on our bundle.
+            denyUrls: [
+                /maps\.googleapis\.com/,
+                /maps-api-v3/,
+            ],
         });
         window.Sentry = Sentry;
     });

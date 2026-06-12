@@ -62,10 +62,22 @@ function bootstrap() {
 /**
  * Ensure the API is bootstrapped, then import a Maps library
  * (e.g. 'places', 'maps', 'marker'). Always resolves to the library object.
+ *
+ * A single transient script-fetch failure (flaky mobile network, a momentary
+ * blocker) used to surface as "The Google Maps JavaScript API could not load."
+ * (EI-VUE-G). Google's bootstrap loader resets its internal promise on `onerror`,
+ * so a second importLibrary call re-appends a fresh <script> and retries the
+ * fetch. We retry once transparently: a transient blip self-heals silently, while
+ * a genuine outage (bad key, billing, sustained block) still fails and propagates,
+ * preserving the signal for a real maps outage.
  */
 export async function importMapsLibrary(name) {
     bootstrap();
-    return window.google.maps.importLibrary(name);
+    try {
+        return await window.google.maps.importLibrary(name);
+    } catch (e) {
+        return await window.google.maps.importLibrary(name);
+    }
 }
 
 /** Bootstrap the loader without importing a specific library yet. */

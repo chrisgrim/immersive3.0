@@ -335,9 +335,14 @@ const initGoogleMaps = async () => {
         // Shared bootstrap loader — loads the API once and guarantees importLibrary.
         const { AutocompleteService, PlacesService } = await importMapsLibrary("places");
         autoComplete = new AutocompleteService();
-        
-        // Still need PlacesService for fallback compatibility
-        service = new PlacesService(document.getElementById("places"));
+
+        // Still need PlacesService for fallback compatibility. Bind it ONLY to a
+        // real, attached element — a null/detached root makes Google's async
+        // attribution renderer throw "null is not an object (evaluating
+        // 'a.innerHTML')" (EI-VUE-H). When absent, leave `service` null so the
+        // selectLocation fallback's `service &&` guard skips getDetails entirely.
+        const placesEl = document.getElementById("places");
+        service = placesEl ? new PlacesService(placesEl) : null;
         
         // Show initial places immediately after initialization
         places.value = initializePlaces();
