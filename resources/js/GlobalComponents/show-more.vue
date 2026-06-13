@@ -6,7 +6,7 @@
             <div v-if="needsShowMore" v-show="lessButton && !showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer mt-2">Show More</div>
         </blockquote>
         <div v-else class="text-3.5xl md:text-2.5xl leading-normal md:leading-9">
-            <p :class="needsShowMore && showMore ? 'mb-8' : 'mb-0'">
+            <p class="transform-none" :class="needsShowMore && showMore ? 'mb-8' : 'mb-0'">
                 <span :class="[bodyClass]" :style="`white-space: ${whiteSpace};`">{{ adjustedText }}</span>
             </p>
             <div v-if="needsShowMore" v-show="showMore" @click.prevent="toggleShowMore" class="text-2.5xl md:text-xl text-[#008489] font-semibold cursor-pointer mt-2">Show Less</div>
