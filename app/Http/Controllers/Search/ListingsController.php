@@ -291,11 +291,16 @@ class ListingsController extends Controller
             $query->filter($searchFilters['dates']);
         }
 
+        // Clamp the requested page so Elasticsearch's from+size stays within the
+        // default 10,000 result window (perPage * page must be <= 10000). Without
+        // this, crawlers requesting huge page numbers trigger a 400 (EI-LARAVEL-6).
+        $page = min(max((int) $request->input('page', 1), 1), 500);
+
         // Execute search and paginate
         $results = Event::searchQuery($query)
             ->load(['genres', 'category', 'location', 'attendanceType', 'currentUserFavorite'])
             ->sortRaw(['published_at' => 'desc'])
-            ->paginate(20);
+            ->paginate(20, 'page', $page);
 
         // Get max price from current filtered results
         $maxPrice = Event::searchQuery($query)
@@ -377,11 +382,16 @@ class ListingsController extends Controller
                 }
             );
 
+        // Clamp the requested page so Elasticsearch's from+size stays within the
+        // default 10,000 result window (perPage * page must be <= 10000). Without
+        // this, crawlers requesting huge page numbers trigger a 400 (EI-LARAVEL-6).
+        $page = min(max((int) $request->input('page', 1), 1), 500);
+
         // Execute search
         $results = Event::searchQuery($query)
             ->load(['genres', 'category', 'location', 'attendanceType', 'currentUserFavorite'])
             ->sortRaw(['published_at' => 'desc'])
-            ->paginate(20);
+            ->paginate(20, 'page', $page);
 
         // Get max price from CURRENT filtered results only
         $maxPrice = Event::searchQuery($query)
