@@ -144,10 +144,7 @@
                                                 type="text"
                                             >
                                             <button
-                                                @click.stop="() => {
-                                                    clearCategorySearch();
-                                                    isSearchingCategories.value = false;
-                                                }"
+                                                @click.stop="clearCategorySearch"
                                                 class="mr-8 flex-shrink-0"
                                             >
                                                 <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -247,10 +244,7 @@
                                                 type="text"
                                             >
                                             <button
-                                                @click.stop="() => {
-                                                    clearTagSearch();
-                                                    isSearchingTags.value = false;
-                                                }"
+                                                @click.stop="clearTagSearch"
                                                 class="mr-8 flex-shrink-0"
                                             >
                                                 <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
