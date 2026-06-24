@@ -107,6 +107,8 @@
                                 $currencyCode = 'JPY';
                             } elseif ($ticket->currency === 'C$') {
                                 $currencyCode = 'CAD';
+                            } elseif ($ticket->currency === 'MX$') {
+                                $currencyCode = 'MXN';
                             } elseif (strlen($ticket->currency) === 3) {
                                 // If it's already a 3-letter code, use it
                                 $currencyCode = $ticket->currency;

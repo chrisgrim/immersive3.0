@@ -55,12 +55,12 @@
                 </div>
                 <div v-if="state.showCurrencyDropdown" class="absolute mt-2 border border-neutral-300 rounded-lg bg-white shadow-lg z-50">
                     <ul class="flex flex-col m-0">
-                        <li 
-                            v-for="currency in CURRENCY_SYMBOLS" 
-                            :key="currency" 
+                        <li
+                            v-for="currency in CURRENCY_SYMBOLS"
+                            :key="currency"
                             @click="selectCurrency(currency)"
-                            class="w-full p-4 cursor-pointer hover:bg-neutral-50 text-center"
-                        >{{ currency }}</li>
+                            class="w-full p-4 cursor-pointer hover:bg-neutral-50 text-center whitespace-nowrap"
+                        >{{ CURRENCY_LABELS[currency] || currency }}</li>
                     </ul>
                 </div>
             </div>
@@ -283,7 +283,17 @@ import List from '@/GlobalComponents/dropdown-list.vue';
 const MAX_TICKET_PRICE = 99999.99;
 const MAX_DESCRIPTION_LENGTH = 60;
 const MAX_CALL_TO_ACTION_LENGTH = 20;
-const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$'];
+const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$', 'MX$'];
+// Display labels for the currency picker. The stored value is still the short
+// symbol; the label only disambiguates lookalike "$" currencies (USD vs MXN).
+const CURRENCY_LABELS = {
+    '$': '$ — USD',
+    '€': '€ — EUR',
+    '£': '£ — GBP',
+    '¥': '¥ — JPY',
+    'C$': 'C$ — CAD',
+    'MX$': 'MX$ — MXN (Mexican peso)',
+};
 const MAX_URL_LENGTH = 255;
 const TICKET_NAME_OPTIONS = [
   { id: 'general', name: 'General' },
