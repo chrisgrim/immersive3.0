@@ -160,6 +160,12 @@ if (import.meta.env.VITE_SENTRY_DSN) {
             // browser's native bridge, not our code, no stacktrace (EI-VUE-J).
             ignoreErrors: [
                 'WKWebView API client did not respond to this postMessage',
+                // Meta/Facebook in-app browser injects its own LCP tracker
+                // (processLargestContentfulPaintEvent → sendDataToNative) that
+                // calls the iOS WKWebView bridge and throws when
+                // window.webkit.messageHandlers is absent. Injected into the
+                // page, not shipped by us — nothing to fix (EI-VUE-S).
+                'window.webkit.messageHandlers',
             ],
             // Errors thrown entirely inside Google Maps' own minified scripts are
             // not fixable from our code — e.g. the Places attribution renderer
