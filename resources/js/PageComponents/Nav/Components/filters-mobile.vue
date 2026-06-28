@@ -1,11 +1,11 @@
 <template>
     <teleport to="body">
-        <div 
-            class="fixed inset-0 bg-black bg-opacity-50 flex flex-col z-50"
+        <div
+            class="fixed inset-0 bg-black bg-opacity-50 flex flex-col z-[500]"
             @click="handleBackgroundClick"
         >
-            <div 
-                class="bg-white w-full h-[85vh] overflow-hidden flex flex-col fixed inset-x-0 bottom-0 rounded-t-5xl z-50 safe-bottom"
+            <div
+                class="bg-white w-full h-[85vh] overflow-hidden flex flex-col fixed inset-x-0 bottom-0 rounded-t-5xl z-[500] safe-bottom"
                 @click.stop
             >
 
