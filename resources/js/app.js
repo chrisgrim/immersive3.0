@@ -166,6 +166,14 @@ if (import.meta.env.VITE_SENTRY_DSN) {
                 // window.webkit.messageHandlers is absent. Injected into the
                 // page, not shipped by us — nothing to fix (EI-VUE-S).
                 'window.webkit.messageHandlers',
+                // vue-leaflet's LMap debounces its moveend handler and, on
+                // unmount, cancels the debounce by REJECTING any pending
+                // promise with undefined — a floating promise nobody can
+                // catch. Fires when a map view (e.g. the creation wizard's
+                // Location step) unmounts within the ~50ms debounce window
+                // after a pan/zoom. Harmless (component is already gone),
+                // still present in vue-leaflet 0.10.1 (EI-VUE-V).
+                'Non-Error promise rejection captured with value: undefined',
             ],
             // Errors thrown entirely inside Google Maps' own minified scripts are
             // not fixable from our code — e.g. the Places attribution renderer
