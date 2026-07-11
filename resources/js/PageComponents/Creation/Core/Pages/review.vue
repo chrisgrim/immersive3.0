@@ -7,14 +7,13 @@
             <div class="w-full md:w-[61rem] mx-auto pb-24 space-y-8">
                 <!-- Images Section -->
                 <div class="p-8 shadow-custom-1 rounded-3xl">
-                    <div class="grid gap-4 justify-center">
+                    <div class="grid grid-cols-1 gap-4 justify-items-center">
                         <!-- Single Image -->
-                        <div v-if="event.images?.length === 1" 
-                             class="aspect-[3/4] overflow-hidden rounded-xl" style="height: 45rem; width: fit-content;">
+                        <div v-if="event.images?.length === 1"
+                             class="aspect-[3/4] overflow-hidden rounded-xl w-[33.75rem] max-w-full mx-auto">
                             <img :src="imageUrl + event.images[0].large_image_path"
                                  :alt="`${event.name} Immersive Event - Main Image`"
                                  class="w-full h-full object-cover"
-                                 style="height: 45rem;"
                             />
                         </div>
 

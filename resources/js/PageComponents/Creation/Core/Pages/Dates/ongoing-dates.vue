@@ -194,8 +194,8 @@
 
                 <!-- Embargo Calendar Modal -->
                 <div v-if="showEmbargoModal" role="dialog" aria-modal="true" aria-label="Set embargo date" class="c-embargo fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4 overflow-y-auto">
-                    <div class="bg-white rounded-2xl w-[600px] mx-4 max-h-[90vh] my-auto flex flex-col">
-                        <div class="flex items-center justify-between p-8 pb-6 border-b border-gray-200">
+                    <div class="bg-white rounded-2xl w-full max-w-[600px] max-h-[90vh] my-auto flex flex-col">
+                        <div class="flex items-center justify-between p-4 md:p-8 pb-4 md:pb-6 border-b border-gray-200">
                             <h3 class="text-2.5xl font-bold">Select Embargo Date</h3>
                             <button 
                                 @click="cancelEmbargoDate"
@@ -208,7 +208,7 @@
                             </button>
                         </div>
                         
-                        <div class="flex-1 overflow-y-auto p-8 pt-6 pb-0">
+                        <div class="flex-1 overflow-y-auto px-4 md:px-8 pt-4 md:pt-6 pb-0">
                             <div class="max-h-[400px] overflow-y-auto">
                                 <VueDatePicker
                                     v-model="tempEmbargoDate"
@@ -231,7 +231,7 @@
                             </div>
                         </div>
                         
-                        <div class="flex justify-end gap-4 p-8 pt-6 border-t border-gray-200 bg-white rounded-b-2xl">
+                        <div class="flex flex-wrap justify-end gap-4 p-4 md:p-8 pt-4 md:pt-6 border-t border-gray-200 bg-white rounded-b-2xl">
                             <button 
                                 @click="cancelEmbargoDate"
                                 class="px-6 py-2 border rounded-lg hover:bg-gray-100"
@@ -255,9 +255,9 @@
                 </div>
 
                 <!-- Start Date Modal -->
-                <div v-if="showStartDateModal" role="dialog" aria-modal="true" aria-label="Select start date" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[500] p-4 overflow-y-auto">
-                    <div class="bg-white rounded-2xl w-[600px] mx-4 max-h-[90vh] my-auto flex flex-col">
-                        <div class="flex items-center justify-between p-8 pb-6 border-b border-gray-200">
+                <div v-if="showStartDateModal" role="dialog" aria-modal="true" aria-label="Select start date" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4 overflow-y-auto">
+                    <div class="bg-white rounded-2xl w-full max-w-[600px] max-h-[90vh] my-auto flex flex-col">
+                        <div class="flex items-center justify-between p-4 md:p-8 pb-4 md:pb-6 border-b border-gray-200">
                             <h3 class="text-2xl font-bold">Select Start Date</h3>
                             <button 
                                 @click="cancelStartDate"
@@ -270,7 +270,7 @@
                             </button>
                         </div>
                         
-                        <div class="flex-1 overflow-y-auto p-8 pt-6 pb-0">
+                        <div class="flex-1 overflow-y-auto px-4 md:px-8 pt-4 md:pt-6 pb-0">
                             <!-- Show previous months button - hide when we reach 12 months before today -->
                             <div v-if="canShowMorePreviousMonths" class="flex items-center justify-center gap-4 pb-4">
                                 <button 
@@ -313,7 +313,7 @@
                             </div>
                         </div>
                         
-                        <div class="flex justify-end gap-4 p-8 pt-6 border-t border-gray-200 bg-white rounded-b-2xl">
+                        <div class="flex flex-wrap justify-end gap-4 p-4 md:p-8 pt-4 md:pt-6 border-t border-gray-200 bg-white rounded-b-2xl">
                             <button 
                                 @click="cancelStartDate"
                                 class="px-6 py-2 border rounded-lg hover:bg-gray-100"
@@ -337,9 +337,9 @@
                 </div>
 
                 <!-- Last Date Options Modal -->
-                <div v-if="showLastDateModal" role="dialog" aria-modal="true" aria-label="Select last date" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[500] p-4 overflow-y-auto">
-                    <div class="bg-white rounded-2xl w-[600px] mx-4 max-h-[90vh] my-auto flex flex-col">
-                        <div class="flex items-center justify-between p-8 pb-6 border-b border-gray-200">
+                <div v-if="showLastDateModal" role="dialog" aria-modal="true" aria-label="Select last date" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4 overflow-y-auto">
+                    <div class="bg-white rounded-2xl w-full max-w-[600px] max-h-[90vh] my-auto flex flex-col">
+                        <div class="flex items-center justify-between p-4 md:p-8 pb-4 md:pb-6 border-b border-gray-200">
                             <h3 class="text-2xl font-bold">Choose End Date</h3>
                             <button 
                                 @click="showLastDateModal = false"
@@ -352,7 +352,7 @@
                             </button>
                         </div>
                         
-                        <div class="flex-1 overflow-y-auto p-8 pt-6 pb-0">
+                        <div class="flex-1 overflow-y-auto px-4 md:px-8 pt-4 md:pt-6 pb-0">
                             <!-- Show previous months button - hide when we reach 12 months before today -->
                             <div v-if="canShowMorePreviousMonthsEnd" class="flex items-center justify-center gap-4 pb-4">
                                 <button 
@@ -399,8 +399,8 @@
                         </div>
                         
                         <!-- Calendar action buttons -->
-                        <div class="flex justify-between gap-4 p-8 pt-6 border-t border-gray-200 bg-white rounded-b-2xl">
-                            <button 
+                        <div class="flex flex-wrap justify-between gap-4 p-4 md:p-8 pt-4 md:pt-6 border-t border-gray-200 bg-white rounded-b-2xl">
+                            <button
                                 @click="extendToSixMonths(); showLastDateModal = false"
                                 class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all duration-200"
                             >
@@ -1097,6 +1097,14 @@ defineExpose({
     fill: #333 !important;
     width: 1rem !important;
     height: 1rem !important;
+}
+
+/* Let the calendar shrink to fit narrow (mobile) modals instead of overflowing */
+.modal-calendar {
+    --dp-menu-min-width: 0;
+}
+.modal-calendar .dp__menu {
+    min-width: 0 !important;
 }
 
 /* Modal calendar styling for vertical scrolling - only for end date modal */

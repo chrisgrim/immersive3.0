@@ -83,7 +83,8 @@
             </div>
 
 
-            <div class="w-full overflow-hidden rounded-3xl relative" 
+            <!-- z-0 creates a stacking context so leaflet panes/controls stay under the fixed header/footer -->
+            <div class="w-full overflow-hidden rounded-3xl relative z-0"
                 :class="{ 'h-[45rem]': locationSearch, 'h-[30rem]': !locationSearch }">
                 <div 
                     v-if="locationSearch"

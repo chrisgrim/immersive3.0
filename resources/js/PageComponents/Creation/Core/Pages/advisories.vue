@@ -13,7 +13,7 @@
                                 v-for="contact in contactLevelList" 
                                 :key="contact.id" 
                                 @click="selectContactLevel(contact)"
-                                class="relative cursor-pointer items-end flex justify-between p-8 h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
+                                class="relative cursor-pointer items-end flex justify-between p-8 min-h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
                             >
                                 <div class="w-full">
                                     <p class="text-2xl leading-tight break-words hyphens-auto">{{ contact.name }}</p>
@@ -56,7 +56,7 @@
                                 v-for="age in ageLimitList" 
                                 :key="age.id" 
                                 @click="selectAgeLimit(age)"
-                                class="relative cursor-pointer items-end flex justify-between p-8 h-32 md:h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
+                                class="relative cursor-pointer items-end flex justify-between p-8 min-h-32 md:min-h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
                             >
                                 <div class="w-full">
                                     <p class="text-2xl leading-tight break-words hyphens-auto">{{ age.name }}</p>

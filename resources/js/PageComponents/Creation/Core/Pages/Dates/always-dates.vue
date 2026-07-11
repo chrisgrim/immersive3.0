@@ -110,9 +110,9 @@
         </div>
 
         <!-- End Date Modal -->
-        <div v-if="showEndDateModal" role="dialog" aria-modal="true" aria-label="Select end date" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[500] p-4 overflow-y-auto">
-            <div class="bg-white rounded-2xl w-[600px] mx-4 max-h-[90vh] my-auto flex flex-col">
-                <div class="flex items-center justify-between p-8 pb-6 border-b border-gray-200">
+        <div v-if="showEndDateModal" role="dialog" aria-modal="true" aria-label="Select end date" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4 overflow-y-auto">
+            <div class="bg-white rounded-2xl w-full max-w-[600px] max-h-[90vh] my-auto flex flex-col">
+                <div class="flex items-center justify-between p-4 md:p-8 pb-4 md:pb-6 border-b border-gray-200">
                     <h3 class="text-2xl font-bold">Choose End Date</h3>
                     <button 
                         @click="showEndDateModal = false"
@@ -125,7 +125,7 @@
                     </button>
                 </div>
                 
-                <div class="flex-1 overflow-y-auto p-8 pt-6 pb-0">
+                <div class="flex-1 overflow-y-auto px-4 md:px-8 pt-4 md:pt-6 pb-0">
                     <div class="max-h-[400px] overflow-y-auto">
                         <VueDatePicker
                             v-model="tempEndDate"
@@ -149,7 +149,7 @@
                 </div>
                 
                 <!-- Calendar action buttons -->
-                <div class="flex justify-between gap-4 p-8 pt-6 border-t border-gray-200 bg-white rounded-b-2xl">
+                <div class="flex flex-wrap justify-between gap-4 p-4 md:p-8 pt-4 md:pt-6 border-t border-gray-200 bg-white rounded-b-2xl">
                     <button 
                         @click="extendToSixMonths(); showEndDateModal = false"
                         class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all duration-200"

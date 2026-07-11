@@ -52,30 +52,30 @@
             </div>
 
             <!-- Navigation Controls -->
-            <div class="flex justify-between items-center px-16 py-8 mx-auto">
-                <button 
+            <div class="flex justify-between items-center gap-4 px-6 py-6 md:px-16 md:py-8 mx-auto">
+                <button
                     v-if="!isFirstStep && currentStep !== 'EventType'"
                     @click="goToPrevious"
-                    class="px-6 py-3 text-black hover:bg-gray-100 rounded-lg"
+                    class="flex-shrink-0 px-6 py-3 text-black hover:bg-gray-100 rounded-lg"
                 >
                     Back
                 </button>
-                <div v-else class="w-[88px]"></div> <!-- Spacer -->
+                <div v-else class="hidden md:block w-[88px]"></div> <!-- Spacer -->
 
                 <!-- Organization & Event Name (centered) -->
-                <div class="flex-1 text-center">
-                    <p class="font-medium text-gray-500">
+                <div class="flex-1 min-w-0 text-center">
+                    <p class="font-medium text-gray-500 truncate md:whitespace-normal">
                         {{ event?.organizer?.name || 'My Organization' }}
                         <span v-if="event.name" class="mr-4">:</span>
                         <span v-if="event.name" class="font-bold text-gray-700">{{ event.name }}</span>
                     </p>
                 </div>
 
-                <button 
+                <button
                     @click="goToNext"
                     :disabled="isSubmitting || !isComponentReady"
                     :class="{
-                        'px-6 py-3 rounded-lg transition-colors flex items-center gap-2': true,
+                        'flex-shrink-0 px-6 py-3 rounded-lg transition-colors flex items-center gap-2': true,
                         'bg-black text-white hover:bg-gray-800': !isSubmitting && isComponentReady,
                         'bg-gray-300 text-gray-500 cursor-not-allowed': isSubmitting || !isComponentReady
                     }"
