@@ -92,3 +92,17 @@ test('sitemap always includes static pages', function () {
 
     expect($body)->toContain(url('/'));
 });
+
+test('sitemap lastmod reflects real content changes, not request time', function () {
+    $stale = Event::factory()->published()->create(['slug' => 'stale-event-sitemap']);
+    $fresh = Event::factory()->published()->create(['slug' => 'fresh-event-sitemap']);
+    Event::whereKey($stale->id)->update(['updated_at' => now()->subYear()]);
+    Event::whereKey($fresh->id)->update(['updated_at' => now()->subDays(3)]);
+
+    $body = $this->get('/sitemap.xml')->assertOk()->getContent();
+
+    // The home entry's lastmod is the latest event update — not request time
+    preg_match('#<url>\s*<loc>'.preg_quote(url('/'), '#').'</loc>\s*<lastmod>([^<]+)</lastmod>#', $body, $home);
+    expect($home[1])->toBe(now()->subDays(3)->toIso8601String())
+        ->and($body)->toContain(now()->subYear()->toIso8601String());
+});

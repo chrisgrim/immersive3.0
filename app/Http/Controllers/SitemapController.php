@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Curated\Community;
 use App\Models\Event;
 use App\Models\Organizer;
-use App\Models\Curated\Community;
 use Carbon\Carbon;
-use Illuminate\Http\Response;
 
 class SitemapController extends Controller
 {
@@ -23,15 +22,22 @@ class SitemapController extends Controller
             ->whereNotNull('slug')
             ->where('slug', '!=', '')
             ->get();
-        $communities = Community::where('status', 'p')->get();
-        
+        $communities = Community::where('status', 'p')
+            ->withMax('posts', 'updated_at')
+            ->get();
+
+        // Home and search surface event listings, so their real freshness
+        // signal is the most recent event change — never "now", which makes
+        // crawlers distrust lastmod site-wide
+        $latestEventUpdate = $events->max('updated_at') ?? Carbon::now();
+
         $content = view('sitemaps.index', [
             'events' => $events,
             'organizers' => $organizers,
             'communities' => $communities,
-            'lastmod' => Carbon::now()->toIso8601String()
+            'lastmod' => $latestEventUpdate->toIso8601String(),
         ]);
-        
+
         return response($content, 200)
             ->header('Content-Type', 'text/xml; charset=UTF-8');
     }

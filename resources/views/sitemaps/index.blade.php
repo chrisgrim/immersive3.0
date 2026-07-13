@@ -17,22 +17,20 @@
         <priority>0.9</priority>
     </url>
     
-    <!-- Static Pages -->
+    <!-- Static Pages (no lastmod — we can't know when these actually changed,
+         and a false value undermines crawler trust in lastmod everywhere) -->
     <url>
         <loc>{{ route('terms') }}</loc>
-        <lastmod>{{ $lastmod }}</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.3</priority>
     </url>
     <url>
         <loc>{{ route('privacy') }}</loc>
-        <lastmod>{{ $lastmod }}</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.3</priority>
     </url>
     <url>
         <loc>{{ route('sitemap') }}</loc>
-        <lastmod>{{ $lastmod }}</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.5</priority>
     </url>
@@ -57,11 +55,11 @@
     </url>
     @endforeach
     
-    <!-- Communities -->
+    <!-- Communities — fresh when the community itself or any of its posts changed -->
     @foreach ($communities as $community)
     <url>
         <loc>{{ url('/communities/' . $community->slug) }}</loc>
-        <lastmod>{{ $community->updated_at->toIso8601String() }}</lastmod>
+        <lastmod>{{ max($community->updated_at, \Carbon\Carbon::parse($community->posts_max_updated_at ?? $community->updated_at))->toIso8601String() }}</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.7</priority>
     </url>
