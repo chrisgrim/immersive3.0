@@ -40,9 +40,7 @@
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
           gtag('config', '{{Config::get('services.analytics.id')}}', {
-              'anonymize_ip': true,
-              'page_title': document.title,
-              'page_path': window.location.pathname + window.location.search
+              'anonymize_ip': true
           });
         </script>
         
