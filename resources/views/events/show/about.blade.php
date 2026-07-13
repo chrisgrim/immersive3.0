@@ -29,7 +29,11 @@
         </div>
         
         <div class="py-8 md:py-16">
-            <vue-show-more text="{{ $event['description']}}" :limit="70" />
+            {{-- Inner text is discarded as slot content when Vue mounts, but keeps the
+                 description visible to non-JS crawlers (AI assistants don't execute JS) --}}
+            <vue-show-more text="{{ $event['description']}}" :limit="70">
+                <p v-pre class="text-3.5xl md:text-2.5xl leading-normal md:leading-9 whitespace-pre-wrap">{{ $event['description'] }}</p>
+            </vue-show-more>
         </div>
     </div>
     

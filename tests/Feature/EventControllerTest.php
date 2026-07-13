@@ -44,6 +44,24 @@ test('show renders the events.show view for a published event', function () {
         ->assertSee($event->name, false);
 });
 
+test('show emits valid JSON-LD even when text fields contain newlines and quotes', function () {
+    $event = makeShowableEvent([
+        'name' => 'An "Immersive" Show',
+        'tag_line' => "First line\nSecond line with \"quotes\"",
+        'description' => "Multi-line\ndescription",
+    ]);
+
+    $html = $this->get("/events/{$event->slug}")->assertOk()->getContent();
+
+    preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $html, $matches);
+    expect($matches)->not->toBeEmpty();
+
+    $jsonLd = json_decode($matches[1]);
+    expect(json_last_error())->toBe(JSON_ERROR_NONE)
+        ->and($jsonLd->name)->toBe('An "Immersive" Show')
+        ->and($jsonLd->description)->toContain("First line\nSecond line");
+});
+
 test('show appends the first_show_tickets attribute to the event', function () {
     $event = makeShowableEvent();
 

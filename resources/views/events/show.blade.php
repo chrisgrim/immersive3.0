@@ -68,8 +68,8 @@
     {
         "@context": "https://schema.org",
         "@type": "Event",
-        "name": "{{$event->name}}",
-        "description": "{{$event->tag_line ? $event->tag_line : $event->description}}",
+        "name": @json($event->name),
+        "description": @json($event->tag_line ? $event->tag_line : $event->description),
         "startDate": "{{ $event->shows->isEmpty() ? \Carbon\Carbon::parse($event->created_at)->toIso8601String() : \Carbon\Carbon::parse($event->shows[0]->date)->toIso8601String() }}",
         "endDate": "{{ \Carbon\Carbon::parse($event->closingDate)->toIso8601String() }}",
         "eventStatus": "https://schema.org/EventScheduled",
@@ -183,20 +183,20 @@
         },
         "organizer": {
             "@type": "Organization",
-            "name": "{{$event->organizer->name}}",
+            "name": @json($event->organizer->name),
             "url": "{{$event->organizer->website ? $event->organizer->website : Request::root() .'/organizers/' . $event->organizer->slug}}"
         },
         @if($event->hasLocation)
         "location": {
             "@type": "Place",
-            "name": "{{$event->location->venue ? $event->location->venue : $event->name}}",
+            "name": @json($event->location->venue ? $event->location->venue : $event->name),
             "address": {
                 "@type": "PostalAddress",
-                "streetAddress": "{{$event->location->home . ' ' . $event->location->street}}",
-                "addressLocality": "{{$event->location->city}}",
-                "postalCode": "{{$event->location->postal_code}}",
-                "addressRegion": "{{$event->location->region}}",
-                "addressCountry": "{{ $event->location->country_long ?: $event->location->country }}"
+                "streetAddress": @json($event->location->home . ' ' . $event->location->street),
+                "addressLocality": @json($event->location->city),
+                "postalCode": @json($event->location->postal_code),
+                "addressRegion": @json($event->location->region),
+                "addressCountry": @json($event->location->country_long ?: $event->location->country)
             }
         },
         @else
@@ -207,20 +207,14 @@
         @endif
         "performer": {
             "@type": "PerformingGroup",
-            "name": "{{$event->organizer->name}}"
+            "name": @json($event->organizer->name)
         },
-        "keywords": [
-            @if(count($event->genres) > 0)
-                @foreach($event->genres as $index => $genre)
-                    "{{$genre['name']}}"@if($index < count($event->genres) - 1),@endif
-                @endforeach
-            @endif
-        ],
+        "keywords": @json(collect($event->genres)->pluck('name')),
         "isAccessibleForFree": {{ ($hasFreeTicket || (isset($event->priceranges[0]) && $event->priceranges[0]->price == 0)) ? 'true' : 'false' }},
         @if(! ($event->advisories['wheelchairReady'] ?? true))
         "accessibilityHazard": ["NoAccessibleEntrance"],
         @endif
-        "typicalAgeRange": "{{ $event->age_limits ? $event->age_limits['name'] : ($event->advisories['ageRestriction'] ?? '') }}"
+        "typicalAgeRange": @json($event->age_limits ? $event->age_limits['name'] : ($event->advisories['ageRestriction'] ?? ''))
     }
     </script>
 

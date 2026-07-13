@@ -4,7 +4,9 @@
         <h3 class="text-5xl md:text-4xl font-medium text-black mb-8">Audience Role</h3>
         <div class="rounded-2xl border-neutral-200 hover:bg-neutral-50 transition-all duration-200">
             <div>
-                <vue-show-more text="{{ $event->advisories['audience']}}" :limit="80" />
+                <vue-show-more text="{{ $event->advisories['audience']}}" :limit="80">
+                    <p v-pre class="whitespace-pre-wrap">{{ $event->advisories['audience'] }}</p>
+                </vue-show-more>
             </div>
             <div class="mt-4">
                 <p class="font-medium text-2xl text-black">Ages: {{ $event->age_limits ? $event->age_limits['name'] : $event->advisories['ageRestriction'] }}</p>

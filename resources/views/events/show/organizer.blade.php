@@ -79,7 +79,9 @@
                     </h3>
                 </div>
                 <div class="text-3xl mt-8 break-words hyphens-auto">
-                    <vue-show-more text="{{ $event->organizer->description }}" :limit="70" />
+                    <vue-show-more text="{{ $event->organizer->description }}" :limit="70">
+                        <p v-pre class="whitespace-pre-wrap">{{ $event->organizer->description }}</p>
+                    </vue-show-more>
                 </div>
             </div>
         </div>
