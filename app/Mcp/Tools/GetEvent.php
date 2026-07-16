@@ -94,7 +94,7 @@ class GetEvent extends Tool
             'missing' => $missing,
             'next_step' => $missing->isEmpty()
                 ? 'All checks pass. Review the details with the user, then call submit-event-for-review.'
-                : 'Fill in the missing fields with update-event (images require the web UI for now).',
+                : 'Fill in the missing fields with update-event (use attach-event-image for the primary image).',
         ]);
     }
 

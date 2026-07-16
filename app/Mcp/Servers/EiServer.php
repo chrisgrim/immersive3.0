@@ -2,9 +2,14 @@
 
 namespace App\Mcp\Servers;
 
+use App\Mcp\Tools\AttachEventImage;
+use App\Mcp\Tools\CreateEventDraft;
+use App\Mcp\Tools\CreateOrganizer;
 use App\Mcp\Tools\GetEvent;
 use App\Mcp\Tools\ListEventAttributes;
 use App\Mcp\Tools\ListMyEvents;
+use App\Mcp\Tools\SubmitEventForReview;
+use App\Mcp\Tools\UpdateEvent;
 use App\Mcp\Tools\Whoami;
 use Laravel\Mcp\Server;
 
@@ -40,5 +45,10 @@ class EiServer extends Server
         ListEventAttributes::class,
         ListMyEvents::class,
         GetEvent::class,
+        CreateOrganizer::class,
+        CreateEventDraft::class,
+        UpdateEvent::class,
+        AttachEventImage::class,
+        SubmitEventForReview::class,
     ];
 }
