@@ -231,6 +231,31 @@ test('update-event saves location and mirrors location_latlon', function () {
     expect($event->location_latlon['lat'])->toBe(40.7128);
 });
 
+test('update-event persists top-level fields even when location is in the same call', function () {
+    // The shared action skips the top-level mass-assign when `location` is
+    // present (web wizard sends location in its own step); the MCP tool must
+    // split the call so combined payloads lose nothing.
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $category = Category::factory()->create(['remote' => false]);
+
+    $response = EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'description' => 'Combined-call description',
+        'category_id' => $category->id,
+        'attendance_type_id' => 1,
+        'location' => ['venue' => 'Combined Hall', 'latitude' => 41.0, 'longitude' => -73.0],
+    ]);
+
+    $response->assertOk();
+    $event->refresh();
+    expect($event->description)->toBe('Combined-call description');
+    expect($event->category_id)->toBe($category->id);
+    expect((bool) $event->hasLocation)->toBeTrue();
+    expect($event->location->venue)->toBe('Combined Hall');
+    expect($event->location_latlon['lat'])->toEqual(41.0);
+});
+
 test('update-event saves shows and tickets together in the right order', function () {
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);

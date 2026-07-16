@@ -95,11 +95,34 @@ class UpdateEvent extends Tool
             return Response::error('This event has no dates yet. Set showtype and the schedule (dateArray / ongoing_config / always_config) before or together with tickets.');
         }
 
-        $event = app(UpdateEventAction::class)->handle(
-            $event,
-            $validated,
-            $this->syntheticRequest($validated, $user)
-        );
+        // The web wizard computes hasLocation client-side from the attendance
+        // type; mirror that so in-person/remote state stays consistent.
+        if (isset($validated['attendance_type_id']) && ! isset($validated['hasLocation'])) {
+            $validated['hasLocation'] = $validated['attendance_type_id'] == 1;
+        }
+
+        // The shared action mirrors the wizard, where `location` always arrives
+        // in its own step: when location is present it skips the top-level
+        // mass-assign. MCP clients may combine everything in one call, so apply
+        // location separately from the other fields.
+        $location = $validated['location'] ?? null;
+        $rest = collect($validated)->except('location')->all();
+
+        if ($rest !== []) {
+            $event = app(UpdateEventAction::class)->handle(
+                $event,
+                $rest,
+                $this->syntheticRequest($rest, $user)
+            );
+        }
+
+        if ($location !== null) {
+            $event = app(UpdateEventAction::class)->handle(
+                $event,
+                ['location' => $location],
+                $this->syntheticRequest(['location' => $location], $user)
+            );
+        }
 
         $readiness = $this->readiness($event->load([
             'shows.tickets', 'location', 'advisories', 'contentAdvisories', 'mobilityAdvisories',
