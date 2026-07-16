@@ -2,8 +2,8 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\ServiceProvider;
 
 class ScheduleServiceProvider extends ServiceProvider
 {
@@ -21,7 +21,7 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->dailyAt('00:00')
                 ->withoutOverlapping()
                 ->appendOutputTo(storage_path('logs/event-renewals.log'));
-                
+
             $schedule->command('ei:publish-embargoed')
                 ->everyTwoHours()
                 ->withoutOverlapping()
@@ -31,6 +31,11 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->dailyAt('03:30')
                 ->withoutOverlapping()
                 ->appendOutputTo(storage_path('logs/archive-clicks.log'));
+
+            // Delete expired MCP API tokens a week after they expire.
+            $schedule->command('sanctum:prune-expired --hours=168')
+                ->dailyAt('04:00')
+                ->withoutOverlapping();
         });
     }
 }

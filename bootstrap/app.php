@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'moderator' => \App\Http\Middleware\ModeratorMiddleware::class,
             'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
             'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
+            'mcp.tokens' => \App\Http\Middleware\EnsureCanManageApiTokens::class,
         ]);
 
         // "Sign in with Apple" POSTs its callback cross-site from apple.com (form_post

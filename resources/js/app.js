@@ -219,6 +219,7 @@ app.component('vue-similar-events', ShowComponents.SimilarEvents);
 app.component('vue-reset-password', AuthComponents.ResetPassword);
 app.component('vue-user-profile', AuthComponents.UserEdit);
 app.component('vue-user-login', AuthComponents.Login);
+app.component('vue-api-tokens', defineAsyncComponent(() => import('./PageComponents/Settings/api-tokens.vue')));
 
 app.component('vue-inbox', defineAsyncComponent(() => import('./PageComponents/Messaging/inbox.vue')));
 app.component('vue-admin', defineAsyncComponent(() => import('./PageComponents/Admin/index.vue')));

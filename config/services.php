@@ -53,4 +53,10 @@ return [
         'username' => env('GEONAMES_USERNAME'),
     ],
 
+    'mcp' => [
+        // While false, the API-token page is only visible to moderators/admins.
+        // Flip to true (env) when the MCP server opens to the public.
+        'token_ui_public' => env('MCP_TOKEN_UI_PUBLIC', false),
+    ],
+
 ];

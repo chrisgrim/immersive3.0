@@ -1,17 +1,15 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Creation\HostController;
+use App\Http\Controllers\Creation\HostEventController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\IndexController;
 use App\Http\Controllers\OrganizerController;
-use App\Http\Controllers\User\ProfilesController;
-use App\Http\Controllers\User\ConversationsController;
 use App\Http\Controllers\Search\ListingsController;
-use App\Http\Controllers\Creation\HostController;
-use App\Http\Controllers\Creation\HostEventController;
-use App\Http\Controllers\Admin\DashboardController;
-use App\Http\Controllers\Curated\CommunityController;
-use App\Http\Middleware\CheckHostAccess;
+use App\Http\Controllers\User\ConversationsController;
+use App\Http\Controllers\User\ProfilesController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,11 +25,11 @@ Route::GET('/events/{event}', [EventController::class, 'show'])->name('events.sh
 Route::GET('/organizers/{organizer}', [OrganizerController::class, 'show'])->name('organizers.show');
 
 // Redirect singular versions to plural with 301 redirects
-Route::GET('/event/{slug}', function($slug) {
-    return redirect('/events/' . $slug, 301);
+Route::GET('/event/{slug}', function ($slug) {
+    return redirect('/events/'.$slug, 301);
 });
-Route::GET('/organizer/{slug}', function($slug) {
-    return redirect('/organizers/' . $slug, 301);
+Route::GET('/organizer/{slug}', function ($slug) {
+    return redirect('/organizers/'.$slug, 301);
 });
 
 // Legal and Site Information Pages
@@ -50,7 +48,7 @@ Route::get('/sitemap.xml', [App\Http\Controllers\SitemapController::class, 'inde
 Route::middleware(['auth'])->group(function () {
     // Basic auth routes (no email verification needed)
     Route::view('/menu', 'nav.menu-mobile')->name('menu');
-    
+
     Route::prefix('users')->name('users.')->group(function () {
         Route::get('/{user}/edit', [ProfilesController::class, 'edit'])->name('edit')->middleware('can:update,user');
         Route::get('/{user}', [ProfilesController::class, 'show'])->name('show');
@@ -63,6 +61,14 @@ Route::middleware(['auth'])->group(function () {
 
     // Routes requiring email verification
     Route::middleware(['verified'])->group(function () {
+        // API tokens for the MCP server (moderator-only until MCP_TOKEN_UI_PUBLIC)
+        Route::prefix('settings')->middleware('mcp.tokens')->group(function () {
+            Route::get('/api-tokens', [\App\Http\Controllers\User\ApiTokenController::class, 'index'])->name('api-tokens.index');
+            Route::get('/api-tokens/list', [\App\Http\Controllers\User\ApiTokenController::class, 'list'])->name('api-tokens.list');
+            Route::post('/api-tokens', [\App\Http\Controllers\User\ApiTokenController::class, 'store'])->middleware('throttle:10,1')->name('api-tokens.store');
+            Route::delete('/api-tokens/{tokenId}', [\App\Http\Controllers\User\ApiTokenController::class, 'destroy'])->name('api-tokens.destroy');
+        });
+
         // Organizer Management
         Route::prefix('organizers')->name('organizers.')->middleware('can:edit,organizer')->group(function () {
             Route::GET('/{organizer}/edit', [OrganizerController::class, 'edit'])->name('edit');
@@ -79,7 +85,7 @@ Route::middleware(['auth'])->group(function () {
 
         // Team Management
         Route::prefix('teams')->name('teams.')->group(function () {
-            Route::GET('/', [OrganizerController::class, 'teams'])->name('index')->middleware('can:viewAny,App\Models\Organizer');    
+            Route::GET('/', [OrganizerController::class, 'teams'])->name('index')->middleware('can:viewAny,App\Models\Organizer');
             Route::POST('/switch/{organizer}', [OrganizerController::class, 'switchTeam'])->name('switch')->middleware('can:switchTeam,organizer');
         });
 
@@ -107,7 +113,7 @@ Route::middleware(['auth'])->group(function () {
 
         // Messaging System
         Route::prefix('inbox')->name('inbox.')->group(function () {
-            Route::GET('/', [ConversationsController::class, 'index'])->name('index')->middleware('can:viewAny,App\Models\Messaging\Conversation');  
+            Route::GET('/', [ConversationsController::class, 'index'])->name('index')->middleware('can:viewAny,App\Models\Messaging\Conversation');
             Route::GET('/fetch/conversation/{conversation}', [ConversationsController::class, 'show'])->name('conversation.show')->middleware('can:view,conversation');
             Route::POST('/conversation/{conversation}', [ConversationsController::class, 'update'])->name('conversation.update')->middleware('can:update,conversation');
             Route::POST('/fetch/conversations', [ConversationsController::class, 'search'])->name('conversations.search')->middleware('can:viewAny,App\Models\Messaging\Conversation');
@@ -133,7 +139,7 @@ Route::fallback(function () {
     if (app()->environment('production')) {
         return redirect('/');
     }
-    
+
     abort(404);
 });
 
