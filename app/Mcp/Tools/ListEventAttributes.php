@@ -38,8 +38,14 @@ class ListEventAttributes extends Tool
             'interactive_levels' => InteractiveLevel::orderBy('id')->get(['id', 'name', 'description']),
             'age_limits' => AgeLimit::orderBy('id')->get(['id', 'name']),
             'attendance_types' => AttendanceType::orderBy('id')->get(['id', 'name']),
-            'content_advisories' => ContentAdvisory::orderBy('name')->distinct()->pluck('name'),
-            'mobility_advisories' => MobilityAdvisory::orderBy('name')->distinct()->pluck('name'),
+            // Same visibility as the wizard's suggestion dropdowns: curated
+            // (admin) advisories plus ones this user created previously.
+            'content_advisories' => ContentAdvisory::where('admin', true)
+                ->orWhere('user_id', $request->user()->id)
+                ->orderBy('name')->pluck('name'),
+            'mobility_advisories' => MobilityAdvisory::where('admin', true)
+                ->orWhere('user_id', $request->user()->id)
+                ->orderBy('name')->pluck('name'),
         };
 
         return Response::json([

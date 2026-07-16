@@ -59,4 +59,11 @@ return [
         'token_ui_public' => env('MCP_TOKEN_UI_PUBLIC', false),
     ],
 
+    'google_geocoding' => [
+        // Server-side Google Geocoding API key (must NOT be referrer-restricted;
+        // the existing VITE_GOOGLE_MAPS_KEY is browser-only). When absent, the
+        // MCP geocode-address tool falls back to OpenStreetMap Nominatim.
+        'key' => env('GOOGLE_GEOCODING_KEY'),
+    ],
+
 ];

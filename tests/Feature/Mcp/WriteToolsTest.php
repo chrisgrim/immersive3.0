@@ -319,6 +319,106 @@ test('update-event applies category and genres', function () {
     expect($event->genres->pluck('name'))->toContain('Horror');
 });
 
+test('update-event auto-adds the sexual content chip like the wizard does', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'advisories' => ['sexual' => false, 'audience' => 'Watchers'],
+    ])->assertOk();
+
+    expect($event->fresh()->contentAdvisories->pluck('slug'))->toContain('no-sexual-content');
+
+    // Flipping the answer swaps the chip instead of stacking both.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'advisories' => ['sexual' => true, 'sexualDescription' => 'Brief nudity'],
+    ])->assertOk();
+
+    $slugs = $event->fresh()->contentAdvisories->pluck('slug');
+    expect($slugs)->toContain('sexual-content');
+    expect($slugs)->not->toContain('no-sexual-content');
+});
+
+test('update-event auto-adds the wheelchair chip and preserves other advisories', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'mobilityAdvisories' => [['name' => 'Extended standing']],
+    ])->assertOk();
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'wheelchairReady' => true,
+    ])->assertOk();
+
+    $slugs = $event->fresh()->mobilityAdvisories->pluck('slug');
+    expect($slugs)->toContain('wheelchair-accessible');
+    expect($slugs)->toContain('extended-standing');
+});
+
+test('update-event requires sexualDescription when sexual content is true', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    $response = EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'advisories' => ['sexual' => true],
+    ]);
+
+    $response->assertOk()->assertSee('validation_failed')->assertSee('sexualDescription');
+    expect($event->fresh()->advisories->sexual)->toBeNull();
+});
+
+// ── live-edit confirmation ─────────────────────────────────────────────
+
+test('editing a published event returns a diff and applies nothing without confirmation', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user, ['status' => 'p', 'name' => 'Live Show']);
+
+    $response = EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'name' => 'Renamed Live Show',
+        'acknowledge_duplicate' => true,
+    ]);
+
+    $response->assertOk()
+        ->assertSee('confirm_live_edit')
+        ->assertSee('Live Show')
+        ->assertSee('Renamed Live Show');
+    expect($event->fresh()->name)->toBe('Live Show');
+});
+
+test('editing a published event applies with confirm_live_edit', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user, ['status' => 'p', 'name' => 'Live Show']);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'name' => 'Renamed Live Show',
+        'acknowledge_duplicate' => true,
+        'confirm_live_edit' => true,
+    ])->assertOk();
+
+    expect($event->fresh()->name)->toBe('Renamed Live Show');
+    expect($event->fresh()->status)->toBe('p');
+});
+
+test('draft edits never require live-edit confirmation', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'name' => 'Straight Through',
+    ])->assertOk()->assertDontSee('confirm_live_edit');
+
+    expect($event->fresh()->name)->toBe('Straight Through');
+});
+
 // ── submit-event-for-review ────────────────────────────────────────────
 
 function completeDraft(User $user): Event
@@ -329,17 +429,35 @@ function completeDraft(User $user): Event
         ?? \App\Models\Events\ContactLevel::create(['name' => 'None', 'user_id' => $user->id]);
     $interactiveLevel = \App\Models\Events\InteractiveLevel::query()->first()
         ?? \App\Models\Events\InteractiveLevel::create(['name' => 'Passive', 'description' => 'Watch only', 'user_id' => $user->id]);
+    $ageLimit = \App\Models\Events\AgeLimit::query()->first()
+        ?? \App\Models\Events\AgeLimit::forceCreate(['name' => 'All ages', 'age' => 0]);
 
     $event = draftFor($organizer, $user, [
         'name' => 'Complete Event',
+        'tag_line' => 'You will not forget it.',
         'description' => 'Fully filled in.',
         'category_id' => $category->id,
         'hasLocation' => true,
         'largeImagePath' => 'event-images/x/large.webp',
         'interactive_level_id' => $interactiveLevel->id,
+        'age_limits_id' => $ageLimit->id,
+        'ticketUrl' => 'https://example.com/tickets',
+        'call_to_action' => 'Get Tickets',
     ]);
     $event->location->update(['latitude' => 40.0, 'longitude' => -74.0]);
     $event->contactLevels()->sync([$contactLevel->id]);
+    $event->advisories()->update(['sexual' => false, 'wheelchairReady' => true, 'audience' => 'Observers']);
+    $event->contentAdvisories()->sync([
+        \App\Models\Events\ContentAdvisory::firstOrCreate(['slug' => 'no-sexual-content'], ['name' => 'No sexual content', 'user_id' => $user->id])->id,
+        \App\Models\Events\ContentAdvisory::firstOrCreate(['slug' => 'loud-noises'], ['name' => 'Loud noises', 'user_id' => $user->id])->id,
+    ]);
+    $event->mobilityAdvisories()->sync([
+        \App\Models\Events\MobilityAdvisory::firstOrCreate(['slug' => 'wheelchair-accessible'], ['name' => 'Wheelchair accessible', 'user_id' => $user->id])->id,
+        \App\Models\Events\MobilityAdvisory::firstOrCreate(['slug' => 'extended-standing'], ['name' => 'Extended standing', 'user_id' => $user->id])->id,
+    ]);
+    $event->genres()->sync([
+        \App\Models\Genre::firstOrCreate(['slug' => 'horror'], ['name' => 'Horror', 'user_id' => $user->id, 'admin' => false])->id,
+    ]);
     $show = $event->shows()->create(['date' => '2026-10-01 23:00:00']);
     $show->tickets()->create(['name' => 'GA', 'ticket_price' => 20, 'currency' => '$', 'ticket_id' => $show->id, 'ticket_type' => get_class($show), 'description' => '']);
 
@@ -389,6 +507,56 @@ test('submit-event-for-review blocks incomplete drafts with a missing list', fun
 
     $response->assertHasErrors();
     expect($event->fresh()->status)->toBe('0');
+});
+
+test('submit enforces the wizard-parity requirements one by one', function () {
+    $user = writeToolUser();
+
+    // Each override removes exactly one wizard requirement from a complete draft.
+    $cases = [
+        'tag_line' => fn (Event $e) => $e->update(['tag_line' => null]),
+        'ticket_url' => fn (Event $e) => $e->update(['ticketUrl' => null]),
+        'ticket_button_text' => fn (Event $e) => $e->update(['call_to_action' => '']),
+        'genres' => fn (Event $e) => $e->genres()->sync([]),
+        'age_limit' => fn (Event $e) => $e->update(['age_limits_id' => null]),
+        'audience_role' => fn (Event $e) => $e->advisories()->update(['audience' => null]),
+        'sexual_content_answered' => fn (Event $e) => $e->advisories()->update(['sexual' => null]),
+        'wheelchair_answered' => fn (Event $e) => $e->advisories()->update(['wheelchairReady' => null]),
+        // Only the auto chip left => "at least one beyond the chip" fails.
+        'content_advisories' => fn (Event $e) => $e->contentAdvisories()->sync([
+            \App\Models\Events\ContentAdvisory::where('slug', 'no-sexual-content')->first()->id,
+        ]),
+        'mobility_advisories' => fn (Event $e) => $e->mobilityAdvisories()->sync([
+            \App\Models\Events\MobilityAdvisory::where('slug', 'wheelchair-accessible')->first()->id,
+        ]),
+    ];
+
+    foreach ($cases as $expectedMissing => $break) {
+        $event = completeDraft($user);
+        $break($event);
+
+        $response = EiServer::actingAs($user)->tool(SubmitEventForReview::class, [
+            'event_slug' => $event->slug,
+        ]);
+
+        $response->assertHasErrors()->assertSee($expectedMissing);
+        expect($event->fresh()->status)->toBe('0');
+    }
+});
+
+test('a secret location requires an explanation before submit', function () {
+    $user = writeToolUser();
+    $event = completeDraft($user);
+    $event->location->update(['hiddenLocationToggle' => true, 'hiddenLocation' => null]);
+
+    EiServer::actingAs($user)->tool(SubmitEventForReview::class, ['event_slug' => $event->slug])
+        ->assertHasErrors()
+        ->assertSee('secret_location_explained');
+
+    $event->location->update(['hiddenLocation' => 'Address emailed the day before.']);
+
+    EiServer::actingAs($user)->tool(SubmitEventForReview::class, ['event_slug' => $event->slug])
+        ->assertOk();
 });
 
 test('submit-event-for-review blocks already-submitted events', function () {

@@ -5,6 +5,7 @@ namespace App\Mcp\Servers;
 use App\Mcp\Tools\AttachEventImage;
 use App\Mcp\Tools\CreateEventDraft;
 use App\Mcp\Tools\CreateOrganizer;
+use App\Mcp\Tools\GeocodeAddress;
 use App\Mcp\Tools\GetEvent;
 use App\Mcp\Tools\ListEventAttributes;
 use App\Mcp\Tools\ListMyEvents;
@@ -23,21 +24,42 @@ class EiServer extends Server
     Everything Immersive is an event discovery platform for immersive experiences
     (immersive theatre, escape rooms, VR, interactive art, and similar).
 
-    You act on behalf of the authenticated user. Typical workflow:
+    You act on behalf of the authenticated user. Start with `whoami`; if the user
+    has no organizer, `create-organizer` first (it goes to admin review, but you
+    can create event drafts under it immediately). Then `create-event-draft`.
 
-    1. `whoami` — see who you are and which organizers (teams) you belong to.
-    2. If the user has no organizer, create one with `create-organizer` (it goes to
-       admin review, but you can create event drafts under it immediately).
-    3. `create-event-draft` — creates an empty draft under an organizer.
-    4. `update-event` — fill in fields incrementally (partial updates). Use
-       `list-event-attributes` to discover valid category/genre/advisory IDs.
-       Set the schedule (`showtype` + dates) before or together with `tickets`.
-       All dates are UTC in `Y-m-d H:i:s` format.
-    5. `get-event` — check the readiness checklist for anything missing.
-    6. `submit-event-for-review` — sends the event to human admin review.
+    Filling in an event mirrors the website's step-by-step wizard — walk the user
+    through it in this order, asking rather than assuming:
 
-    Events only go live after a human admin approves them; there is no way to
-    publish directly. Ask the user before acknowledging duplicate-name warnings.
+    1. In person or online? (attendance_type_id — decides everything below)
+    2. Name + tagline (both required; duplicate names trigger a warning to
+       confirm with the user)
+    3. Category (fetch valid ones for the attendance type via
+       list-event-attributes), then 1-10 genres
+    4. In person: resolve the address with `geocode-address` and confirm the
+       match with the user — never guess coordinates. Ask if the exact location
+       is a secret; if so it needs an explanation of how attendees learn it.
+       Online: which platforms (remotelocations) + how to join.
+    5. Description (up to 5000 chars)
+    6. Schedule: specific dates, ongoing/recurring, or always available —
+       then tickets (1-5 tiers), the ticket purchase URL, and button text.
+       All datetimes are UTC "Y-m-d H:i:s".
+    7. Primary image via `attach-event-image` (rank 0; gallery = ranks 1-4)
+    8. Advisories — ask each explicitly: contact level, age limit, interaction
+       level, the audience's role, whether there is sexual content (description
+       required if yes), at least one content advisory, wheelchair accessibility
+       (yes/no), and at least one mobility advisory. Prefer the options from
+       list-event-attributes over inventing new ones.
+
+    `get-event` returns a readiness checklist of what's still missing;
+    `submit-event-for-review` enforces it and sends the event to human review.
+
+    Safety rules:
+    - Events only go live after a human admin approves them; you cannot publish.
+    - Editing a PUBLISHED event applies immediately: the first update-event call
+      returns a current-vs-proposed diff — show it to the user and only retry
+      with confirm_live_edit=true after they explicitly approve.
+    - Ask the user before acknowledging duplicate-name warnings.
     MARKDOWN;
 
     protected array $tools = [
@@ -45,6 +67,7 @@ class EiServer extends Server
         ListEventAttributes::class,
         ListMyEvents::class,
         GetEvent::class,
+        GeocodeAddress::class,
         CreateOrganizer::class,
         CreateEventDraft::class,
         UpdateEvent::class,
