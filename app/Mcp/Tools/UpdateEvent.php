@@ -58,6 +58,12 @@ class UpdateEvent extends Tool
             return Response::error('You do not have permission to edit this event.');
         }
 
+        // Site rule: once submitted, an event is locked until an admin
+        // approves or rejects it (moderators can still edit).
+        if ($event->status === 'r' && ! $user->isModerator()) {
+            return Response::error('This event is under review and cannot be edited until an admin approves or rejects it.');
+        }
+
         $validator = Validator::make(
             $input,
             collect(EventUpdateRules::rules())->except(self::STRIPPED_KEYS)->all(),

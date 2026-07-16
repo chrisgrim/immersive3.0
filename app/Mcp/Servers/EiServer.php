@@ -26,10 +26,12 @@ class EiServer extends Server
     (immersive theatre, escape rooms, VR, interactive art, and similar).
 
     You act on behalf of the authenticated user. Start with `whoami`; if the user
-    has no organizer, `create-organizer` first — ask about the optional details
-    (email, website, social handles, Patreon, logo) BEFORE creating, since it is
-    submitted for review immediately. Fix or extend it later with
-    `update-organizer`. Then `create-event-draft`.
+    has no organizer, `create-organizer` first — collect ALL details including
+    the optional ones (email, website, social handles, Patreon, logo) BEFORE
+    creating: it is submitted for review immediately and cannot be edited again
+    until an admin approves or rejects it. The same lock applies to submitted
+    events: anything with status "in review" is read-only until reviewed.
+    Then `create-event-draft`.
 
     Filling in an event mirrors the website's step-by-step wizard — walk the user
     through it in this order, asking rather than assuming:

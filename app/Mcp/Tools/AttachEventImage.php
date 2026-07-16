@@ -41,6 +41,12 @@ class AttachEventImage extends Tool
             return Response::error('You do not have permission to edit this event.');
         }
 
+        // Site rule: once submitted, an event is locked until an admin
+        // approves or rejects it (moderators can still edit).
+        if ($event->status === 'r' && ! $user->isModerator()) {
+            return Response::error('This event is under review and cannot be edited until an admin approves or rejects it.');
+        }
+
         $rank = (int) $validated['rank'];
         $existingAtRank = $event->images()->where('rank', $rank)->first();
 

@@ -161,16 +161,57 @@ test('update-organizer refuses renaming a published organizer', function () {
     expect($organizer->fresh()->name)->not->toBe('Totally Different Name');
 });
 
-test('update-organizer allows renaming while still in review', function () {
+test('update-organizer refuses any edit while the organizer is under review', function () {
     $user = writeToolUser();
     $organizer = Organizer::factory()->create(['user_id' => $user->id, 'status' => 'r']);
 
-    EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+    $response = EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
         'organizer_slug' => $organizer->slug,
-        'name' => 'Corrected Name',
+        'description' => 'Trying to sneak an edit in.',
+    ]);
+
+    $response->assertHasErrors();
+    expect($organizer->fresh()->description)->not->toBe('Trying to sneak an edit in.');
+});
+
+test('moderators can edit an organizer under review', function () {
+    $moderator = writeToolUser('m');
+    $organizer = Organizer::factory()->create(['user_id' => $moderator->id, 'status' => 'r']);
+
+    EiServer::actingAs($moderator)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+        'organizer_slug' => $organizer->slug,
+        'description' => 'Moderator fix during review.',
     ])->assertOk();
 
-    expect($organizer->fresh()->name)->toBe('Corrected Name');
+    expect($organizer->fresh()->description)->toBe('Moderator fix during review.');
+});
+
+test('update-event refuses edits while the event is under review', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user, ['status' => 'r', 'name' => 'Submitted Event']);
+
+    $response = EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'name' => 'Sneaky Rename',
+        'acknowledge_duplicate' => true,
+    ]);
+
+    $response->assertHasErrors();
+    expect($event->fresh()->name)->toBe('Submitted Event');
+});
+
+test('attach-event-image refuses while the event is under review', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user, ['status' => 'r']);
+
+    $response = EiServer::actingAs($user)->tool(\App\Mcp\Tools\AttachEventImage::class, [
+        'event_slug' => $event->slug,
+        'image_url' => 'https://images.example.com/pixel.png',
+        'rank' => 0,
+    ]);
+
+    $response->assertHasErrors();
+    expect($event->images()->count())->toBe(0);
 });
 
 test('update-organizer rejects a non-https website', function () {

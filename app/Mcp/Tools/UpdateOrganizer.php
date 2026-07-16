@@ -13,7 +13,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Update an organizer you belong to: description, contact email, website, social handles, Patreon, or logo. Send only the fields you are changing. Renaming a PUBLISHED organizer is not possible here — that goes through a name-change request on the website.')]
+#[Description('Update an organizer you belong to: description, contact email, website, social handles, Patreon, or logo. Send only the fields you are changing. Not available while the organizer is under admin review (locked until approved or rejected), and renaming a PUBLISHED organizer goes through a name-change request on the website instead.')]
 class UpdateOrganizer extends Tool
 {
     public function handle(Request $request): Response
@@ -32,6 +32,12 @@ class UpdateOrganizer extends Tool
 
         if (! $user->can('edit', $organizer)) {
             return Response::error('You do not have permission to edit this organizer.');
+        }
+
+        // Site rule: once submitted for review, locked until an admin
+        // approves or rejects it (moderators can still edit).
+        if ($organizer->status === 'r' && ! $user->isModerator()) {
+            return Response::error('This organizer is under review and cannot be edited until an admin approves or rejects it.');
         }
 
         // Same rule as the web flow: published organizers rename via the
