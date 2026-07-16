@@ -44,6 +44,10 @@ class RemoteImageIngest
             throw new ImageIngestException('That URL is not allowed: '.$e->getMessage());
         }
 
+        // Abort mid-transfer once the byte cap is exceeded — a hostile server
+        // must not be able to stream an oversized body into worker memory.
+        $tooLarge = false;
+
         try {
             $response = Http::timeout(15)
                 ->withOptions([
@@ -53,12 +57,22 @@ class RemoteImageIngest
                             ($this->urlValidator)((string) $uri);
                         },
                     ],
+                    'progress' => function ($downloadTotal, $downloadedBytes) use ($maxBytes, &$tooLarge) {
+                        if ($downloadTotal > $maxBytes || $downloadedBytes > $maxBytes) {
+                            $tooLarge = true;
+                            throw new ImageIngestException('too large');
+                        }
+                    },
                 ])
                 ->withHeaders(['Accept' => 'image/*'])
                 ->get($url);
         } catch (UnsafeUrlException $e) {
             throw new ImageIngestException('The URL redirected somewhere that is not allowed.');
         } catch (\Throwable $e) {
+            if ($tooLarge) {
+                $maxMb = round($maxBytes / 1048576, 1);
+                throw new ImageIngestException("The image is too large (max {$maxMb} MB).");
+            }
             throw new ImageIngestException('Could not download the image: '.$e->getMessage());
         }
 
@@ -86,6 +100,15 @@ class RemoteImageIngest
         $path = tempnam(sys_get_temp_dir(), 'mcp-img-');
         if ($path === false || file_put_contents($path, $bytes) === false) {
             throw new ImageIngestException('Could not store the downloaded image.');
+        }
+
+        // Verify the file actually decodes before any caller deletes an
+        // existing image to make room for it — finfo only checks the header.
+        try {
+            \Intervention\Image\Laravel\Facades\Image::read($path);
+        } catch (\Throwable $e) {
+            @unlink($path);
+            throw new ImageIngestException('The file looks like an image but could not be decoded (corrupt or truncated).');
         }
 
         $name = Str::of(parse_url($url, PHP_URL_PATH) ?? '')->basename()->whenEmpty(fn () => Str::of('image'));

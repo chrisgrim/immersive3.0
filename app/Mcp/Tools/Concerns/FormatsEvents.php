@@ -57,7 +57,7 @@ trait FormatsEvents
             'location_or_remote' => $locationReady,
             'dates' => $hasShows,
             'tickets' => $hasTickets,
-            'primary_image' => filled($event->largeImagePath) || $event->images->isNotEmpty(),
+            'primary_image' => filled($event->largeImagePath) || $event->images->contains(fn ($image) => (int) $image->rank === 0),
             'contact_level' => $event->contactLevels->isNotEmpty(),
             'interactive_level' => $event->interactive_level_id !== null,
         ];

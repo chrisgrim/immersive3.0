@@ -360,6 +360,25 @@ test('submit-event-for-review submits a complete draft and notifies admins', fun
     Mail::assertSent(\App\Mail\EventSubmittedNotification::class);
 });
 
+test('submit-event-for-review rejects an event whose only image is a gallery image', function () {
+    $user = writeToolUser();
+    $event = completeDraft($user);
+    // Swap the primary-image marker for a gallery-only image (rank 1).
+    $event->update(['largeImagePath' => null]);
+    $event->images()->create([
+        'large_image_path' => "event-images/{$event->slug}/gallery.webp",
+        'thumb_image_path' => "event-images/{$event->slug}/gallery-thumb.webp",
+        'rank' => 1,
+    ]);
+
+    $response = EiServer::actingAs($user)->tool(SubmitEventForReview::class, [
+        'event_slug' => $event->slug,
+    ]);
+
+    $response->assertHasErrors();
+    expect($event->fresh()->status)->toBe('0');
+});
+
 test('submit-event-for-review blocks incomplete drafts with a missing list', function () {
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user, ['description' => null]);

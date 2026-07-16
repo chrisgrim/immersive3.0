@@ -89,6 +89,17 @@ test('remote image ingest accepts a real png and returns an UploadedFile', funct
     @unlink($file->getRealPath());
 });
 
+test('remote image ingest rejects bytes that pass finfo but fail decoding', function () {
+    skipUrlValidation();
+    // A valid PNG signature followed by garbage: finfo says image/png,
+    // Intervention cannot decode it.
+    $corrupt = substr(tinyPng(), 0, 20).str_repeat('x', 50);
+    Http::fake(['images.example.com/*' => Http::response($corrupt, 200)]);
+
+    expect(fn () => app(RemoteImageIngest::class)->fetch('https://images.example.com/corrupt.png', 5 * 1024 * 1024))
+        ->toThrow(ImageIngestException::class, 'could not be decoded');
+});
+
 // ── tool level ─────────────────────────────────────────────────────────
 
 test('attach-event-image rejects unsafe urls with a readable error', function () {
