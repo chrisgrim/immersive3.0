@@ -16,9 +16,21 @@ use Laravel\Mcp\Server\Tool;
 #[Description('Create a new organizer (the group that hosts events) owned by the authenticated user. The organizer goes into admin review, but you can create event drafts under it immediately. If a similarly-named organizer already exists you must confirm with the user and retry with acknowledge_duplicate=true.')]
 class CreateOrganizer extends Tool
 {
+    /**
+     * MCP-only cap: the website naturally limits organizer creation by human
+     * effort, but an AI could flood the admin review queue. Not enforced on
+     * the web flow.
+     */
+    protected const MAX_PENDING_ORGANIZERS = 3;
+
     public function handle(Request $request): Response
     {
         $user = $request->user();
+
+        $pending = $user->organizers()->where('status', 'r')->count();
+        if ($pending >= self::MAX_PENDING_ORGANIZERS && ! $user->isModerator()) {
+            return Response::error("You already have {$pending} organizers awaiting admin review (limit ".self::MAX_PENDING_ORGANIZERS.'). Wait for those to be reviewed before creating another.');
+        }
 
         $validated = $request->validate(
             [

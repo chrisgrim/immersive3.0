@@ -76,6 +76,37 @@ test('create-organizer surfaces duplicates and honors acknowledge_duplicate', fu
     expect(Organizer::where('name', 'Echo Chamber')->count())->toBe(2);
 });
 
+test('create-organizer blocks a fourth pending organizer for non-moderators', function () {
+    $user = writeToolUser();
+    Organizer::factory()->count(3)->create(['user_id' => $user->id, 'status' => 'r']);
+
+    $response = EiServer::actingAs($user)->tool(CreateOrganizer::class, [
+        'name' => 'One Too Many',
+        'description' => 'Should be blocked.',
+    ]);
+
+    $response->assertHasErrors();
+    expect(Organizer::where('name', 'One Too Many')->exists())->toBeFalse();
+
+    // Approved/draft organizers do not count against the pending cap.
+    $other = writeToolUser();
+    Organizer::factory()->count(3)->create(['user_id' => $other->id, 'status' => 'p']);
+    EiServer::actingAs($other)->tool(CreateOrganizer::class, [
+        'name' => 'Fine To Create',
+        'description' => 'Published ones do not count.',
+    ])->assertOk();
+});
+
+test('moderators bypass the pending organizer cap', function () {
+    $moderator = writeToolUser('m');
+    Organizer::factory()->count(3)->create(['user_id' => $moderator->id, 'status' => 'r']);
+
+    EiServer::actingAs($moderator)->tool(CreateOrganizer::class, [
+        'name' => 'Moderator Overflow',
+        'description' => 'Allowed for staff.',
+    ])->assertOk();
+});
+
 test('create-organizer rejects invalid input', function () {
     $response = EiServer::actingAs(writeToolUser())->tool(CreateOrganizer::class, [
         'name' => '!!!',
