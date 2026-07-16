@@ -116,6 +116,73 @@ test('create-organizer rejects invalid input', function () {
     $response->assertHasErrors();
 });
 
+// ── update-organizer ───────────────────────────────────────────────────
+
+test('update-organizer adds contact and social fields after creation', function () {
+    $user = writeToolUser();
+    $organizer = writeToolOrganizer($user);
+
+    $response = EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+        'organizer_slug' => $organizer->slug,
+        'website' => 'https://thelostland.com',
+        'instagramHandle' => 'thelostland',
+        'email' => 'hello@thelostland.com',
+    ]);
+
+    $response->assertOk();
+    $organizer->refresh();
+    expect($organizer->website)->toBe('https://thelostland.com');
+    expect($organizer->instagramHandle)->toBe('thelostland');
+    expect($organizer->email)->toBe('hello@thelostland.com');
+});
+
+test('update-organizer denies non-members', function () {
+    $organizer = writeToolOrganizer(writeToolUser());
+    $stranger = writeToolUser();
+
+    $response = EiServer::actingAs($stranger)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+        'organizer_slug' => $organizer->slug,
+        'description' => 'Hijacked.',
+    ]);
+
+    $response->assertHasErrors();
+});
+
+test('update-organizer refuses renaming a published organizer', function () {
+    $user = writeToolUser();
+    $organizer = writeToolOrganizer($user); // status 'p'
+
+    $response = EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+        'organizer_slug' => $organizer->slug,
+        'name' => 'Totally Different Name',
+    ]);
+
+    $response->assertHasErrors();
+    expect($organizer->fresh()->name)->not->toBe('Totally Different Name');
+});
+
+test('update-organizer allows renaming while still in review', function () {
+    $user = writeToolUser();
+    $organizer = Organizer::factory()->create(['user_id' => $user->id, 'status' => 'r']);
+
+    EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+        'organizer_slug' => $organizer->slug,
+        'name' => 'Corrected Name',
+    ])->assertOk();
+
+    expect($organizer->fresh()->name)->toBe('Corrected Name');
+});
+
+test('update-organizer rejects a non-https website', function () {
+    $user = writeToolUser();
+    $organizer = writeToolOrganizer($user);
+
+    EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+        'organizer_slug' => $organizer->slug,
+        'website' => 'http://insecure.com',
+    ])->assertHasErrors();
+});
+
 // ── create-event-draft ─────────────────────────────────────────────────
 
 test('create-event-draft creates a draft with location and advisories rows', function () {

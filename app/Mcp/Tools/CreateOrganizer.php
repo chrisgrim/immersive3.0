@@ -13,7 +13,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Create a new organizer (the group that hosts events) owned by the authenticated user. The organizer goes into admin review, but you can create event drafts under it immediately. If a similarly-named organizer already exists you must confirm with the user and retry with acknowledge_duplicate=true.')]
+#[Description('Create a new organizer (the group that hosts events) owned by the authenticated user. BEFORE calling this, ask the user whether they want to include the optional details too — contact email, website, Instagram/Twitter/Facebook handles, Patreon, and a logo image URL — since the organizer is submitted for admin review the moment it is created (missed fields can still be added later with update-organizer). If a similarly-named organizer already exists you must confirm with the user and retry with acknowledge_duplicate=true.')]
 class CreateOrganizer extends Tool
 {
     /**

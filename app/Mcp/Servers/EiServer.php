@@ -11,6 +11,7 @@ use App\Mcp\Tools\ListEventAttributes;
 use App\Mcp\Tools\ListMyEvents;
 use App\Mcp\Tools\SubmitEventForReview;
 use App\Mcp\Tools\UpdateEvent;
+use App\Mcp\Tools\UpdateOrganizer;
 use App\Mcp\Tools\Whoami;
 use Laravel\Mcp\Server;
 
@@ -25,8 +26,10 @@ class EiServer extends Server
     (immersive theatre, escape rooms, VR, interactive art, and similar).
 
     You act on behalf of the authenticated user. Start with `whoami`; if the user
-    has no organizer, `create-organizer` first (it goes to admin review, but you
-    can create event drafts under it immediately). Then `create-event-draft`.
+    has no organizer, `create-organizer` first — ask about the optional details
+    (email, website, social handles, Patreon, logo) BEFORE creating, since it is
+    submitted for review immediately. Fix or extend it later with
+    `update-organizer`. Then `create-event-draft`.
 
     Filling in an event mirrors the website's step-by-step wizard — walk the user
     through it in this order, asking rather than assuming:
@@ -69,6 +72,7 @@ class EiServer extends Server
         GetEvent::class,
         GeocodeAddress::class,
         CreateOrganizer::class,
+        UpdateOrganizer::class,
         CreateEventDraft::class,
         UpdateEvent::class,
         AttachEventImage::class,
