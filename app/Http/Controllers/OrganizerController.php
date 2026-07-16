@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Organizers\CreateOrganizerAction;
 use App\Http\Requests\StoreOrganizerRequest;
 use App\Models\Event;
 use App\Models\Organizer;
@@ -70,27 +71,14 @@ class OrganizerController extends Controller
         return redirect('/hosting/events')->with('success', 'Team switched successfully.');
     }
 
-    public function store(StoreOrganizerRequest $request)
+    public function store(StoreOrganizerRequest $request, CreateOrganizerAction $createOrganizer)
     {
         try {
-            // Create the organizer with user_id
-            $organizer = auth()->user()->organizers()->create($request->validated());
-
-            // Also attach the creating user as owner in pivot table
-            $organizer->users()->attach(auth()->id(), ['role' => 'owner']);
-
-            if ($request->hasFile('image')) {
-                ImageHandler::saveImage($request->file('image'), $organizer, 800, 800, 'organizer-images');
-            }
-
-            // Update current_team_id for the user
-            auth()->user()->update(['current_team_id' => $organizer->id]);
-
-            // Update status for the organizer
-            $organizer->update(['status' => 'r']);
-
-            // Notify admins (who haven't opted out) that a new organizer entered the review queue.
-            app(\App\Services\AdminSubmissionNotifier::class)->organizerSubmitted($organizer);
+            $organizer = $createOrganizer->handle(
+                auth()->user(),
+                $request->validated(),
+                $request->hasFile('image') ? $request->file('image') : null
+            );
 
             // Check if the user has created organizers before
             $hasPreviousOrganizers = auth()->user()->organizers()->count() > 1;
