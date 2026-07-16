@@ -114,8 +114,26 @@ const createToken = async () => {
 };
 
 const copyToken = async () => {
-    await navigator.clipboard.writeText(freshToken.value);
-    copied.value = true;
+    try {
+        // navigator.clipboard only exists in secure contexts (https/localhost);
+        // fall back to a hidden textarea on plain-http dev domains like ei.test.
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(freshToken.value);
+        } else {
+            const textarea = document.createElement('textarea');
+            textarea.value = freshToken.value;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+        copied.value = true;
+    } catch (error) {
+        // Leave the token visible for manual selection.
+        copied.value = false;
+    }
 };
 
 const revokeToken = async (token) => {
