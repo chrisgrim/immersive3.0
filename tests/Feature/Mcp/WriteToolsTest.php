@@ -7,8 +7,10 @@ use App\Mcp\Tools\SubmitEventForReview;
 use App\Mcp\Tools\UpdateEvent;
 use App\Models\Category;
 use App\Models\Event;
+use App\Models\NameChangeRequest;
 use App\Models\Organizer;
 use App\Models\User;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 
 function writeToolUser(string $type = 'u'): User
@@ -148,17 +150,119 @@ test('update-organizer denies non-members', function () {
     $response->assertHasErrors();
 });
 
-test('update-organizer refuses renaming a published organizer', function () {
+test('update-organizer files a name-change request when renaming a published organizer', function () {
     $user = writeToolUser();
     $organizer = writeToolOrganizer($user); // status 'p'
+    $originalName = $organizer->name;
 
     $response = EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
         'organizer_slug' => $organizer->slug,
-        'name' => 'Totally Different Name',
+        'name' => 'The Lost Island',
+    ]);
+
+    $response->assertOk()->assertSee('submitted for admin review');
+
+    // The live name is untouched — it only changes once an admin approves.
+    expect($organizer->fresh()->name)->toBe($originalName);
+
+    // A pending request was filed the same way the website files it.
+    $req = NameChangeRequest::where('requestable_type', Organizer::class)
+        ->where('requestable_id', $organizer->id)
+        ->first();
+    expect($req)->not->toBeNull();
+    expect($req->status)->toBe('pending');
+    expect($req->current_name)->toBe($originalName);
+    expect($req->requested_name)->toBe('The Lost Island');
+    expect($req->user_id)->toBe($user->id);
+});
+
+test('update-organizer applies other fields but refuses a second pending name change', function () {
+    $user = writeToolUser();
+    $organizer = writeToolOrganizer($user); // status 'p'
+    $originalName = $organizer->name;
+
+    // First rename files a pending request.
+    EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+        'organizer_slug' => $organizer->slug,
+        'name' => 'First Requested Name',
+    ])->assertOk();
+
+    // Second attempt bundles a real field change: the website applies, but the
+    // duplicate rename is rejected without touching the existing request.
+    $response = EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+        'organizer_slug' => $organizer->slug,
+        'name' => 'Second Requested Name',
+        'website' => 'https://thelostisland.example.com',
+    ]);
+
+    $response->assertOk()->assertSee('already have a pending name change');
+
+    $organizer->refresh();
+    expect($organizer->website)->toBe('https://thelostisland.example.com');
+    expect($organizer->name)->toBe($originalName);
+
+    $pending = NameChangeRequest::where('requestable_type', Organizer::class)
+        ->where('requestable_id', $organizer->id)
+        ->where('status', 'pending')->get();
+    expect($pending)->toHaveCount(1);
+    expect($pending->first()->requested_name)->toBe('First Requested Name');
+});
+
+test('update-organizer renames a draft organizer directly without a request', function () {
+    $user = writeToolUser();
+    $organizer = Organizer::factory()->create(['user_id' => $user->id, 'status' => 'd']);
+
+    EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+        'organizer_slug' => $organizer->slug,
+        'name' => 'Renamed Draft',
+    ])->assertOk();
+
+    expect($organizer->fresh()->name)->toBe('Renamed Draft');
+    expect(NameChangeRequest::where('requestable_type', Organizer::class)
+        ->where('requestable_id', $organizer->id)->exists())->toBeFalse();
+});
+
+test('update-organizer files no name-change request when the name is unchanged', function () {
+    $user = writeToolUser();
+    $organizer = writeToolOrganizer($user); // status 'p'
+
+    EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+        'organizer_slug' => $organizer->slug,
+        'name' => $organizer->name, // same name — must not file a request
+        'description' => 'A fresh blurb.',
+    ])->assertOk();
+
+    expect(NameChangeRequest::where('requestable_type', Organizer::class)
+        ->where('requestable_id', $organizer->id)->exists())->toBeFalse();
+    expect($organizer->fresh()->description)->toBe('A fresh blurb.');
+});
+
+test('update-organizer does not orphan a name-change request when the image download fails', function () {
+    $user = writeToolUser();
+    $organizer = writeToolOrganizer($user); // status 'p'
+    // Skip DNS-based URL validation so Http::fake can answer the request.
+    app()->bind(\App\Services\RemoteImageIngest::class, fn () => new \App\Services\RemoteImageIngest(fn () => true));
+    Http::fake(['images.example.com/*' => Http::response('', 404)]);
+
+    // A published rename bundled with a logo whose download fails: the whole
+    // call errors, and crucially no pending name-change request is left behind.
+    $response = EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+        'organizer_slug' => $organizer->slug,
+        'name' => 'Renamed Via Failed Call',
+        'image_url' => 'https://images.example.com/logo.png',
     ]);
 
     $response->assertHasErrors();
-    expect($organizer->fresh()->name)->not->toBe('Totally Different Name');
+    expect(NameChangeRequest::where('requestable_type', Organizer::class)
+        ->where('requestable_id', $organizer->id)->exists())->toBeFalse();
+
+    // The rename can still be filed on a clean retry (the guard is not tripped).
+    EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+        'organizer_slug' => $organizer->slug,
+        'name' => 'Renamed Via Failed Call',
+    ])->assertOk();
+    expect(NameChangeRequest::where('requestable_type', Organizer::class)
+        ->where('requestable_id', $organizer->id)->where('status', 'pending')->count())->toBe(1);
 });
 
 test('update-organizer refuses any edit while the organizer is under review', function () {
@@ -556,6 +660,116 @@ test('draft edits never require live-edit confirmation', function () {
     ])->assertOk()->assertDontSee('confirm_live_edit');
 
     expect($event->fresh()->name)->toBe('Straight Through');
+});
+
+test('update-event advances the wizard step marker to the first unfinished step', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user); // status '0', attendance null
+
+    // Steps 1-2 done (event type + name + tagline); Category (step 3) is the gap.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'attendance_type_id' => 1,
+        'name' => 'Marker Test',
+        'tag_line' => 'A tagline worth reading.',
+        'acknowledge_duplicate' => true,
+    ])->assertOk()->assertSee('web_wizard_resumes_at')->assertSee('Category');
+    expect($event->fresh()->status)->toBe('2');
+
+    // Description (step 6) set while Category/Genres/Location are still missing:
+    // the contiguous marker must NOT leap past the gap.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'description' => 'A complete-enough description of the odyssey.',
+    ])->assertOk();
+    expect($event->fresh()->status)->toBe('2');
+
+    // Close steps 3-5; now 1-6 are contiguous and Dates (step 7) is the gap.
+    $category = Category::factory()->create(['remote' => false]);
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'category_id' => $category->id,
+        'genres' => [['name' => 'Immersive']],
+        'location' => ['city' => 'Petaluma', 'latitude' => 38.24, 'longitude' => -122.63],
+    ])->assertOk();
+    expect($event->fresh()->status)->toBe('6');
+});
+
+test('update-event never turns a published status into a step marker', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user, ['status' => 'p', 'name' => 'Live Show']);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'attendance_type_id' => 1,
+        'tag_line' => 'Now with a tagline.',
+        'confirm_live_edit' => true,
+    ])->assertOk();
+
+    expect($event->fresh()->status)->toBe('p');
+});
+
+test('update-event never overwrites a needs-revision status with a step marker', function () {
+    $user = writeToolUser();
+    // 'n' is not behind the r-lock or the live-edit confirmation, so it reaches
+    // syncWizardStep directly — the guard must still leave the lifecycle status.
+    $event = draftFor(writeToolOrganizer($user), $user, ['status' => 'n', 'name' => 'Rejected Show']);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'attendance_type_id' => 1,
+        'tag_line' => 'Revised tagline.',
+    ])->assertOk();
+
+    expect($event->fresh()->status)->toBe('n');
+});
+
+test('update-event marks a fully complete draft at Mobility and resumes at Review', function () {
+    $user = writeToolUser();
+    $event = completeDraft($user); // every readiness item satisfied, status '0'
+
+    // completeDraft never set the event type; one call closes step 1, and every
+    // later step is already complete, so the marker reaches the last data step.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'attendance_type_id' => 1,
+    ])->assertOk()->assertSee('Review');
+
+    expect($event->fresh()->status)->toBe('C');
+});
+
+test('update-event reports Remote (not Location) as the resume step for a remote event', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $category = Category::factory()->create(['remote' => true]);
+
+    // Steps 1-4 done for a remote event; step 5 (Remote platforms) is the gap.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'attendance_type_id' => 2,
+        'name' => 'Remote Odyssey',
+        'tag_line' => 'Joined from anywhere.',
+        'category_id' => $category->id,
+        'genres' => [['name' => 'Immersive']],
+        'acknowledge_duplicate' => true,
+    ])->assertOk()->assertSee('Remote');
+
+    expect($event->fresh()->status)->toBe('4');
+});
+
+test('update-event does not regress the wizard step marker', function () {
+    $user = writeToolUser();
+    // Artificially parked at a high marker with little underlying data (its
+    // event type was never set, so the contiguous target is far lower).
+    $event = draftFor(writeToolOrganizer($user), $user, ['status' => '9']);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'tag_line' => 'A late tagline.',
+    ])->assertOk();
+
+    // The monotonic high-water mark must never drop below where it already was.
+    expect($event->fresh()->status)->toBe('9');
 });
 
 // ── submit-event-for-review ────────────────────────────────────────────

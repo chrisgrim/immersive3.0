@@ -89,4 +89,111 @@ trait FormatsEvents
                 ->reject(fn ($a) => in_array($a->slug, self::WHEELCHAIR_CHIP_SLUGS))->isNotEmpty(),
         ];
     }
+
+    /**
+     * Wizard step markers in order, low → high. The website's creation wizard
+     * packs the current step into the overloaded `status` column ('1'-'9',
+     * 'A'-'D'); '0'/'d' mean "before step 1". Keep in sync with STEP_MAP in
+     * resources/js/PageComponents/Creation/Core/index.vue.
+     */
+    protected const STEP_MARKERS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D'];
+
+    protected const STEP_NAMES = [
+        '1' => 'EventType', '2' => 'Name', '3' => 'Category', '4' => 'Genres',
+        '5' => 'Location', '6' => 'Description', '7' => 'Dates', '8' => 'Tickets',
+        '9' => 'Images', 'A' => 'Advisories', 'B' => 'Content', 'C' => 'Mobility',
+        'D' => 'Review',
+    ];
+
+    /**
+     * The furthest CONTIGUOUSLY-complete wizard step, as a status marker.
+     * The step→data grouping mirrors the wizard's per-step page components
+     * (Core/Pages/*), so a draft resumes on the first unfinished step exactly
+     * like a human-built one. Returns '0' when not even the event type is set.
+     */
+    protected function wizardStepMarker(Event $event, array $r): string
+    {
+        // [marker, complete?] pairs — marker kept as a VALUE, not an array key,
+        // because PHP coerces numeric-string keys ('1'..'9') to integers, which
+        // would corrupt the string markers on the way out.
+        $steps = [
+            ['1', $event->attendance_type_id !== null],
+            ['2', $r['name'] && $r['tag_line']],
+            ['3', $r['category']],
+            ['4', $r['genres']],
+            ['5', $r['location_or_remote'] && $r['secret_location_explained']],
+            ['6', $r['description']],
+            ['7', $r['dates']],
+            ['8', $r['tickets'] && $r['ticket_url'] && $r['ticket_button_text']],
+            ['9', $r['primary_image']],
+            ['A', $r['contact_level'] && $r['age_limit'] && $r['interactive_level'] && $r['audience_role']],
+            ['B', $r['sexual_content_answered'] && $r['content_advisories']],
+            ['C', $r['wheelchair_answered'] && $r['mobility_advisories']],
+        ];
+
+        $marker = '0';
+        foreach ($steps as [$char, $done]) {
+            if (! $done) {
+                break;
+            }
+            $marker = $char;
+        }
+
+        return $marker;
+    }
+
+    /**
+     * Advance a draft's wizard step marker (stored in `status`) to the furthest
+     * contiguously-complete step, monotonically — the same "furthest step
+     * reached" high-water mark the website maintains as the user clicks Next.
+     * No-op unless the event is still a draft/in-progress ('d' or a step
+     * marker): lifecycle states (published, embargoed, in-review, needs-
+     * revision) are never overwritten.
+     */
+    protected function syncWizardStep(Event $event, array $readiness): void
+    {
+        $current = $event->status === 'd' ? '0' : (string) $event->status;
+
+        if ($current !== '0' && ! in_array($current, self::STEP_MARKERS, true)) {
+            return; // p/e/r/n — not a draft; leave the lifecycle status alone.
+        }
+
+        $rank = fn (string $m): int => $m === '0' ? -1 : (int) array_search($m, self::STEP_MARKERS, true);
+        $target = $this->wizardStepMarker($event, $readiness);
+
+        if ($rank($target) > $rank($current)) {
+            $event->status = $target;
+            $event->save();
+        }
+    }
+
+    /**
+     * The step the website's creation wizard opens on for a status marker: it
+     * resumes at the step AFTER the furthest completed one (Review once
+     * everything through Mobility is done). '0'/'d'/unknown → the first step.
+     */
+    protected function webResumeStep(?string $status, bool $isRemote = false): ?string
+    {
+        $status = (string) $status;
+
+        // Fresh draft, before any step is complete → the first wizard step.
+        if ($status === '0' || $status === 'd') {
+            return self::STEP_NAMES['1'];
+        }
+
+        // Position via STEP_MARKERS (a list — string values, no key coercion).
+        $i = array_search($status, self::STEP_MARKERS, true);
+
+        // A lifecycle status (p/e/r/n) is not a resumable wizard state.
+        if ($i === false) {
+            return null;
+        }
+
+        // Resume at the step after the furthest saved one (or stay on the last).
+        $next = self::STEP_MARKERS[$i + 1] ?? self::STEP_MARKERS[$i];
+        $name = self::STEP_NAMES[$next];
+
+        // The wizard shows 'Remote' (not 'Location') at step 5 for remote events.
+        return ($name === 'Location' && $isRemote) ? 'Remote' : $name;
+    }
 }

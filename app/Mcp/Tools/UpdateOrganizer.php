@@ -5,6 +5,7 @@ namespace App\Mcp\Tools;
 use App\Models\Organizer;
 use App\Services\ImageHandler;
 use App\Services\ImageIngestException;
+use App\Services\NameChangeRequestService;
 use App\Services\RemoteImageIngest;
 use App\Support\Validation\OrganizerRules;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -13,7 +14,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Update an organizer you belong to: description, contact email, website, social handles, Patreon, or logo. Send only the fields you are changing. Not available while the organizer is under admin review (locked until approved or rejected), and renaming a PUBLISHED organizer goes through a name-change request on the website instead.')]
+#[Description('Update an organizer you belong to: description, contact email, website, social handles, Patreon, or logo. Send only the fields you are changing. Not available while the organizer is under admin review (locked until approved or rejected). Renaming a PUBLISHED organizer does not apply immediately: it files a name-change request for admin review (the current name stays live until approved), while any other fields in the same call still update right away.')]
 class UpdateOrganizer extends Tool
 {
     public function handle(Request $request): Response
@@ -40,10 +41,16 @@ class UpdateOrganizer extends Tool
             return Response::error('This organizer is under review and cannot be edited until an admin approves or rejects it.');
         }
 
-        // Same rule as the web flow: published organizers rename via the
-        // name-change request system, not a direct edit.
-        if ($organizer->status === 'p' && isset($validated['name']) && $validated['name'] !== $organizer->name) {
-            return Response::error('This organizer is published, so its name can only be changed through a name-change request on the website. Other fields can still be updated here.');
+        // Fetch the new logo FIRST: it is the only network-fallible step, and a
+        // failure here must not leave a partial update behind — neither a filed
+        // name-change request nor persisted field writes with an error returned.
+        $image = null;
+        if (! empty($validated['image_url'])) {
+            try {
+                $image = app(RemoteImageIngest::class)->fetch($validated['image_url'], 8 * 1024 * 1024);
+            } catch (ImageIngestException $e) {
+                return Response::error('Image download failed: '.$e->getMessage());
+            }
         }
 
         $data = collect($validated)->only([
@@ -51,13 +58,13 @@ class UpdateOrganizer extends Tool
             'instagramHandle', 'twitterHandle', 'facebookHandle', 'patreon',
         ])->all();
 
-        if (! empty($validated['image_url'])) {
-            try {
-                $image = app(RemoteImageIngest::class)->fetch($validated['image_url'], 8 * 1024 * 1024);
-            } catch (ImageIngestException $e) {
-                return Response::error('Image download failed: '.$e->getMessage());
-            }
+        // Never write a published organizer's name directly — once published,
+        // the name changes only through the name-change request filed below.
+        if ($organizer->status === 'p') {
+            unset($data['name']);
+        }
 
+        if ($image !== null) {
             try {
                 foreach ($organizer->images as $existing) {
                     ImageHandler::deleteImage($existing);
@@ -76,9 +83,24 @@ class UpdateOrganizer extends Tool
             $organizer->update($data);
         }
 
+        // File the name-change request LAST — same path as the web flow, but
+        // only after every other mutation has succeeded, so a failure above can
+        // never orphan a pending request. The service self-guards against a
+        // second pending request; drafts and in-review orgs are renamed
+        // directly via $data above.
+        $nameChange = null;
+        if ($organizer->status === 'p' && isset($validated['name']) && $validated['name'] !== $organizer->name) {
+            $nameChange = app(NameChangeRequestService::class)
+                ->handleNameChange($organizer, $validated['name']);
+        }
+
         $organizer->refresh();
 
-        return Response::json([
+        $otherFieldsChanged = $data !== []
+            || ! empty($validated['image_url'])
+            || ! empty($validated['remove_image']);
+
+        $payload = [
             'message' => 'Organizer updated.',
             'organizer' => [
                 'id' => $organizer->id,
@@ -94,7 +116,28 @@ class UpdateOrganizer extends Tool
                 'patreon' => $organizer->patreon,
                 'has_logo' => filled($organizer->largeImagePath) || $organizer->images()->exists(),
             ],
-        ]);
+        ];
+
+        if ($nameChange !== null) {
+            $payload['name_change'] = [
+                'requested_name' => $validated['name'],
+                'submitted' => $nameChange['success'],
+                'detail' => $nameChange['message'],
+            ];
+
+            if ($nameChange['success']) {
+                $payload['message'] = $otherFieldsChanged
+                    ? 'Organizer updated. The name change was submitted for admin review — the current name stays live until an admin approves it.'
+                    : 'Name change submitted for admin review — the current name stays live until an admin approves it.';
+            } else {
+                // e.g. a pending name-change request already exists.
+                $payload['message'] = $otherFieldsChanged
+                    ? 'Organizer updated, but the name change was not submitted: '.$nameChange['message'].'.'
+                    : 'Name change not submitted: '.$nameChange['message'].'.';
+            }
+        }
+
+        return Response::json($payload);
     }
 
     /**
@@ -104,7 +147,7 @@ class UpdateOrganizer extends Tool
     {
         return [
             'organizer_slug' => $schema->string()->description('The organizer slug (see whoami).')->required(),
-            'name' => $schema->string()->description('New name, max 80 chars. Only works while the organizer is not yet published.'),
+            'name' => $schema->string()->description('New name, max 80 chars. Applied directly while the organizer is a draft or in review; once published it files a name-change request for admin approval instead (the current name stays live until approved).'),
             'description' => $schema->string()->description('What this organizer does (1-2000 chars).'),
             'email' => $schema->string()->description('Public contact email.'),
             'website' => $schema->string()->description('Website URL, must start with https://.'),

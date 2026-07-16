@@ -151,13 +151,28 @@ class UpdateEvent extends Tool
             'contactLevels', 'interactive_level', 'category', 'genres', 'remotelocations', 'images', 'organizer',
         ]));
 
-        return Response::json([
+        // Keep the wizard step marker (packed into `status`) in sync so the
+        // draft opens on the first unfinished step when viewed on the website.
+        $this->syncWizardStep($event, $readiness);
+
+        $payload = [
             'message' => 'Event updated.',
             'event' => $this->eventSummary($event),
             'updated_fields' => array_keys($validated),
             'readiness' => $readiness,
             'missing' => collect($readiness)->reject(fn ($ok) => $ok)->keys()->values(),
-        ]);
+        ];
+
+        // Where the website's wizard will resume this draft (null for a
+        // published/in-review event, which does not reopen in the wizard). The
+        // wizard treats an event as remote unless it is in-person or already
+        // has a location — mirror that so step 5 reports Remote vs Location.
+        $isRemote = ! ($event->attendance_type_id === 1 || $event->hasLocation);
+        if (($resumeAt = $this->webResumeStep($event->status, $isRemote)) !== null) {
+            $payload['web_wizard_resumes_at'] = $resumeAt;
+        }
+
+        return Response::json($payload);
     }
 
     /**
