@@ -28,6 +28,16 @@ class RemoteImageIngest
     ];
 
     /**
+     * Many image CDNs reject requests that lack a browser-like User-Agent
+     * (hotlink protection), answering 403. Users routinely paste URLs from
+     * exactly those hosts, so we present a normal browser UA. This does not
+     * weaken any defense: SafeUrlValidator still runs on the initial URL and
+     * every redirect hop, the byte cap still applies, and the bytes are still
+     * finfo-sniffed rather than trusted.
+     */
+    protected const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+    /**
      * @param  (callable(string): void)|null  $urlValidator  Overridable so tests
      *                                                       can skip real DNS resolution; production always uses SafeUrlValidator.
      */
@@ -64,7 +74,10 @@ class RemoteImageIngest
                         }
                     },
                 ])
-                ->withHeaders(['Accept' => 'image/*'])
+                ->withHeaders([
+                    'Accept' => 'image/*',
+                    'User-Agent' => self::USER_AGENT,
+                ])
                 ->get($url);
         } catch (UnsafeUrlException $e) {
             throw new ImageIngestException('The URL redirected somewhere that is not allowed.');

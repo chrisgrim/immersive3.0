@@ -89,6 +89,15 @@ test('remote image ingest accepts a real png and returns an UploadedFile', funct
     @unlink($file->getRealPath());
 });
 
+test('remote image ingest sends a browser User-Agent so hotlink-protected CDNs do not 403', function () {
+    skipUrlValidation();
+    Http::fake(['images.example.com/*' => Http::response(tinyPng(), 200)]);
+
+    app(RemoteImageIngest::class)->fetch('https://images.example.com/pixel.png', 5 * 1024 * 1024);
+
+    Http::assertSent(fn ($request) => str_contains($request->header('User-Agent')[0] ?? '', 'Mozilla/5.0'));
+});
+
 test('remote image ingest rejects bytes that pass finfo but fail decoding', function () {
     skipUrlValidation();
     // A valid PNG signature followed by garbage: finfo says image/png,
