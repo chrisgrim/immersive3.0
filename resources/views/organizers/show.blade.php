@@ -27,7 +27,7 @@
     <title>{{$organizer->name}}</title>
     <script type="application/ld+json">
     {
-        "@context": "http://schema.org",
+        "@@context": "http://schema.org",
         "@type": "Organization",
         "description": "{{$organizer->description}}",
         "name": "{{$organizer->name}}",

@@ -66,7 +66,7 @@
     {{-- Enhanced Structured Data for Better AI and Search Engine Discovery --}}
     <script type="application/ld+json">
     {
-        "@context": "https://schema.org",
+        "@@context": "https://schema.org",
         "@type": "Event",
         "name": @json($event->name),
         "description": @json($event->tag_line ? $event->tag_line : $event->description),

@@ -58,7 +58,7 @@
     {{-- Schema.org JSON-LD --}}
     <script type="application/ld+json">
     {
-        "@context": "https://schema.org",
+        "@@context": "https://schema.org",
         "@type": "Article",
         "headline": "{{ $post->name }}",
         "description": "{{ Str::limit(strip_tags($post->blurb ?? ''), 160) }}",

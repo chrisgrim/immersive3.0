@@ -110,7 +110,7 @@
 
     <script type="application/ld+json">
     {
-        "@context": "http://schema.org",
+        "@@context": "http://schema.org",
         "@type": "Organization",
         "name": "Everything Immersive",
         "url": "https://everythingimmersive.com",
