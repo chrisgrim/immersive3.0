@@ -97,6 +97,25 @@
                         Manage your notifications
                     </p>
                 </button>
+
+                <!-- API Keys — MCP access tokens. Moderator/admin only, matching
+                     the /settings/api-tokens gate (EnsureCanManageApiTokens). -->
+                <button
+                    v-if="user.isModerator"
+                    @click="$emit('navigate', 'ApiKeys')"
+                    :class="[
+                        'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
+                        {
+                            'border-[#222222] shadow-focus-black bg-neutral-50': currentStep === 'ApiKeys',
+                            'border border-neutral-200': currentStep !== 'ApiKeys'
+                        }
+                    ]"
+                >
+                    <h3 class="text-xl font-semibold mb-4">API Keys</h3>
+                    <p class="text-2xl text-neutral-600 mb-4 break-words hyphens-auto overflow-hidden">
+                        Generate keys for AI assistants (MCP)
+                    </p>
+                </button>
             </div>
         </div>
     </nav>

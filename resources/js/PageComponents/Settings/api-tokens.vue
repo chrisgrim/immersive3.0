@@ -1,5 +1,5 @@
 <template>
-    <div class="px-8 md:px-32 w-full mt-20 md:mt-12 max-w-5xl mx-auto">
+    <div :class="embedded ? 'w-full' : 'px-8 md:px-32 w-full mt-20 md:mt-12 max-w-5xl mx-auto'">
         <div class="w-full flex items-center justify-between mb-4">
             <h2 class="font-medium">API Tokens</h2>
         </div>
@@ -78,6 +78,12 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
+
+// `embedded` = rendered inside the profile panel (which already centers/pads);
+// standalone /settings/api-tokens leaves it false and keeps the page padding.
+defineProps({
+    embedded: { type: Boolean, default: false },
+});
 
 const tokens = ref([]);
 const loaded = ref(false);
