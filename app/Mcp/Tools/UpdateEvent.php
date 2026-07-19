@@ -35,7 +35,7 @@ class UpdateEvent extends Tool
         $user = $request->user();
 
         $input = collect($request->all())
-            ->except(array_merge(self::STRIPPED_KEYS, ['event_slug', 'acknowledge_duplicate', 'confirm_live_edit']))
+            ->except(array_merge(self::STRIPPED_KEYS, ['event_slug', 'acknowledge_duplicate', 'confirm_live_edit', 'confirm_schedule_replace']))
             ->all();
 
         // The videos array is accepted as a real array here; the shared action
@@ -64,6 +64,20 @@ class UpdateEvent extends Tool
             return Response::error('This event is under review and cannot be edited until an admin approves or rejects it.');
         }
 
+        // A specific-dates or ongoing event must keep at least one show — the web
+        // wizard enforces this too. "Remove all the dates" (an empty dateArray)
+        // would otherwise fail with an opaque validation error; return an
+        // actionable one so the client asks what should replace the old dates.
+        if (array_key_exists('dateArray', $input)
+            && is_array($input['dateArray'])
+            && count($input['dateArray']) === 0
+            && in_array($input['showtype'] ?? $event->showtype, ['s', 'o'], true)) {
+            return Response::json([
+                'error' => 'empty_schedule',
+                'message' => 'An event needs at least one date — it cannot have an empty schedule. Ask the user which dates should replace the current ones, then send those.',
+            ]);
+        }
+
         $validator = Validator::make(
             $input,
             collect(EventUpdateRules::rules())->except(self::STRIPPED_KEYS)->all(),
@@ -82,6 +96,78 @@ class UpdateEvent extends Tool
 
         if (empty($validated)) {
             return Response::error('No updatable fields were provided.');
+        }
+
+        // A schedule change only takes effect alongside `showtype` — that is what
+        // drives the shared save-shows path. A client that sends dates but omits
+        // showtype (common once the event already has one) would otherwise get a
+        // silent no-op while the tool still reports success. Default to the
+        // event's current showtype so the change actually applies.
+        $changesSchedule = isset($validated['dateArray'])
+            || isset($validated['ongoing_config'])
+            || isset($validated['always_config']);
+        if ($changesSchedule && ! isset($validated['showtype']) && $event->showtype !== null) {
+            $validated['showtype'] = $event->showtype;
+        }
+
+        // One show per calendar day: the web wizard's date picker can't select a
+        // day twice, so collapse any datetimes that land on the same day (in the
+        // event's timezone) to a single show. The time-of-day belongs in the
+        // free-text show_times field, not in duplicate shows.
+        if (isset($validated['dateArray']) && is_array($validated['dateArray'])) {
+            $tz = $validated['timezone'] ?? $event->timezone ?? 'UTC';
+            $validated['dateArray'] = $this->collapseToOneShowPerDay($validated['dateArray'], $tz);
+        }
+
+        // Past-date guard: the web calendar can't select a day before today, so
+        // mirror that here. A NEW date in the past (in the event timezone) is
+        // almost always a mistake — a misresolved relative date ("this Friday")
+        // or the wrong year. Existing shows on a past day are preserved (a running
+        // event legitimately has past occurrences); only newly-added past days
+        // are rejected, with the offenders named so the caller can correct them.
+        if (! empty($validated['dateArray']) && is_array($validated['dateArray'])) {
+            $tz = $validated['timezone'] ?? $event->timezone ?? 'UTC';
+            $today = \Illuminate\Support\Carbon::now($tz)->toDateString();
+            $existing = $event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
+            $newPast = [];
+            foreach ($validated['dateArray'] as $datetime) {
+                if (in_array($datetime, $existing, true)) {
+                    continue; // already-saved show — leave it be
+                }
+                try {
+                    $day = \Illuminate\Support\Carbon::parse($datetime, 'UTC')->setTimezone($tz)->toDateString();
+                } catch (\Throwable $e) {
+                    continue; // malformed values are handled by field validation
+                }
+                if ($day < $today) {
+                    $newPast[] = $day;
+                }
+            }
+            if (! empty($newPast)) {
+                $newPast = array_values(array_unique($newPast));
+                sort($newPast);
+
+                return Response::json([
+                    'error' => 'past_dates',
+                    'message' => 'These dates are in the past ('.$tz.'): '.implode(', ', $newPast).'. Events can only be scheduled for today or later. Check the year and any relative dates, correct them with the user, and try again.',
+                    'past_dates' => $newPast,
+                ]);
+            }
+        }
+
+        // Destructive-replace guard: deleting existing shows (a showtype switch,
+        // or a dateArray that drops dates) is irreversible — shows are hard-
+        // deleted. Require an explicit confirmation first so a client can never
+        // silently wipe a schedule.
+        $showsRemoved = $this->showsThatWouldBeRemoved($event, $validated);
+        if ($showsRemoved > 0 && ! $request->get('confirm_schedule_replace')) {
+            return Response::json([
+                'action_required' => 'confirm_schedule_replace',
+                'message' => "This change deletes {$showsRemoved} existing show(s), which cannot be undone. Show the user exactly what will be removed, get their explicit confirmation, then call this tool again with the same arguments plus confirm_schedule_replace=true.",
+                'event' => $this->eventSummary($event),
+                'existing_shows' => $event->shows()->count(),
+                'shows_to_remove' => $showsRemoved,
+            ]);
         }
 
         // Duplicate-name guard, same as the web flow.
@@ -173,6 +259,68 @@ class UpdateEvent extends Tool
         }
 
         return Response::json($payload);
+    }
+
+    /**
+     * Collapse a UTC datetime list to one entry per calendar day (in the given
+     * timezone), keeping the first occurrence of each day. A show on EI
+     * represents a day — the wizard's calendar cannot select the same day twice
+     * and the time-of-day lives in the free-text show_times field — so multiple
+     * datetimes on one day must not create multiple shows.
+     *
+     * @param  array<int, mixed>  $dateArray
+     * @return array<int, mixed>
+     */
+    protected function collapseToOneShowPerDay(array $dateArray, string $timezone): array
+    {
+        $seen = [];
+        $result = [];
+
+        foreach ($dateArray as $datetime) {
+            try {
+                $day = \Illuminate\Support\Carbon::parse($datetime, 'UTC')->setTimezone($timezone)->toDateString();
+            } catch (\Throwable $e) {
+                // Leave a malformed value in place; validation rejects it upstream.
+                $result[] = $datetime;
+
+                continue;
+            }
+
+            if (! isset($seen[$day])) {
+                $seen[$day] = true;
+                $result[] = $datetime;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * How many existing shows a schedule change would delete. A showtype switch
+     * wipes every show; a same-type dateArray drops shows whose datetime is not
+     * in the new list. Shows are hard-deleted, so this gates irreversible
+     * replacements behind a confirmation.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    protected function showsThatWouldBeRemoved(Event $event, array $validated): int
+    {
+        if ($event->shows()->count() === 0) {
+            return 0;
+        }
+
+        // Switching show type wipes all shows (and their tickets).
+        if (isset($validated['showtype']) && $validated['showtype'] !== $event->showtype) {
+            return $event->shows()->count();
+        }
+
+        // Same specific/ongoing type with a new date list: shows not in it drop.
+        $showtype = $validated['showtype'] ?? $event->showtype;
+        if (isset($validated['dateArray']) && in_array($showtype, ['s', 'o'], true)) {
+            return $event->shows()->whereNotIn('date', $validated['dateArray'])->count();
+        }
+
+        return 0;
     }
 
     /**
@@ -279,6 +427,7 @@ class UpdateEvent extends Tool
             'videos' => $schema->array()->description('Optional, up to 4: [{"platform": "youtube"|"tiktok", "url": "...", "id": "platform video id", "rank": 0}]. Instagram is not supported.'),
             'acknowledge_duplicate' => $schema->boolean()->description('Set true only after the user confirms a duplicate-name warning.'),
             'confirm_live_edit' => $schema->boolean()->description('Required when editing a PUBLISHED or EMBARGOED event: the first call returns a current-vs-proposed diff instead of applying. Show the user the diff, get their explicit confirmation, then retry with this set to true.'),
+            'confirm_schedule_replace' => $schema->boolean()->description('Required when a schedule change would DELETE existing shows (a showtype switch, or a dateArray that drops dates): the first call returns action_required=confirm_schedule_replace with the count. Shows are hard-deleted with no undo — tell the user how many will be removed, get their explicit confirmation, then retry with this set to true.'),
         ];
     }
 }

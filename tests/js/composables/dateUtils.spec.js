@@ -3,6 +3,7 @@ import moment from 'moment-timezone';
 import {
     normalizeDateToTimezone,
     createDateAtNoon,
+    utcDateTimeToLocalDate,
     formatDateForAPI,
     parseDateString,
     addMonths,
@@ -100,6 +101,51 @@ describe('dateUtils', () => {
             // 2025-03-09 is the spring-forward day in NY; noon is well clear of the
             // 02:00->03:00 gap, so it is unambiguously EDT (UTC-4) -> 16:00 UTC.
             expect(formatDateForAPI('2025-03-09', NY)).toBe('2025-03-09 16:00:00');
+        });
+    });
+
+    describe('utcDateTimeToLocalDate', () => {
+        const PT = 'America/Los_Angeles';
+        const TOKYO = 'Asia/Tokyo';
+
+        it('returns null for falsy input', () => {
+            expect(utcDateTimeToLocalDate(null, PT)).toBeNull();
+            expect(utcDateTimeToLocalDate('', UTC)).toBeNull();
+        });
+
+        it('resolves an evening western-timezone show to the correct local day (the reported bug)', () => {
+            // 8:00 PM Fri Oct 2 in Los Angeles is stored as 03:00 UTC on Oct 3.
+            // Truncating the UTC string reads "Oct 3" (Sat); the correct local
+            // day is Oct 2 (Fri). This is the exact bug being fixed.
+            expect(utcDateTimeToLocalDate('2026-10-03 03:00:00', PT)).toBe('2026-10-02');
+            expect(utcDateTimeToLocalDate('2026-10-04 03:00:00', PT)).toBe('2026-10-03');
+        });
+
+        it('resolves an early-morning eastern-timezone show to the correct local day', () => {
+            // 6:00 AM Mar 16 in Tokyo (UTC+9) is stored as 21:00 UTC on Mar 15.
+            expect(utcDateTimeToLocalDate('2025-03-15 21:00:00', TOKYO)).toBe('2025-03-16');
+        });
+
+        it('leaves a midday show on the same calendar day', () => {
+            expect(utcDateTimeToLocalDate('2026-10-02 19:00:00', PT)).toBe('2026-10-02'); // noon PDT
+        });
+
+        it('round-trips with formatDateForAPI (write local -> UTC, then read UTC -> local)', () => {
+            const cases = [[PT, '2026-10-02'], [NY, '2025-01-15'], [NY, '2025-07-15'], [UTC, '2025-07-15']];
+            for (const [tz, date] of cases) {
+                expect(utcDateTimeToLocalDate(formatDateForAPI(date, tz), tz)).toBe(date);
+            }
+        });
+
+        it('accepts a Date instance (treated as a UTC instant)', () => {
+            expect(utcDateTimeToLocalDate(new Date('2026-10-03T03:00:00Z'), PT)).toBe('2026-10-02');
+        });
+
+        it('falls back to UTC for an invalid timezone (and warns)', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            expect(utcDateTimeToLocalDate('2026-10-03 03:00:00', 'Not/AZone')).toBe('2026-10-03');
+            expect(warn).toHaveBeenCalled();
+            warn.mockRestore();
         });
     });
 
@@ -305,5 +351,33 @@ describe('dateUtils', () => {
             expect(result.getTime()).toBeGreaterThanOrEqual(before - 1000);
             expect(result.getTime()).toBeLessThanOrEqual(after + 1000);
         });
+    });
+});
+
+// Guards the "32 Nights" fix: when an ongoing event is reopened without a stored
+// end_date, the calendar reconstructs its range. It must bound regeneration to the
+// LAST SAVED SHOW (what ongoing-dates.vue now does) instead of event.closingDate,
+// which defaults to +6 months and balloons the schedule far past what was saved.
+describe('ongoing reconstruction bounds regeneration to the last saved show', () => {
+    const tz = 'America/Los_Angeles';
+    // Six saved Friday shows, in the YYYY-MM-DD form the reconstruction receives.
+    const savedFridays = ['2026-08-07', '2026-08-14', '2026-08-21', '2026-08-28', '2026-09-04', '2026-09-11'];
+    const fridays = [5];
+
+    it('regenerates exactly the saved dates when the end is the last saved show', () => {
+        const start = createDateAtNoon(savedFridays[0], tz);
+        const end = createDateAtNoon(savedFridays[savedFridays.length - 1], tz);
+
+        expect(generateRecurringDates(fridays, start, end, tz)).toEqual(savedFridays);
+    });
+
+    it('would have ballooned under the old +6-month fallback (regression contrast)', () => {
+        const start = createDateAtNoon(savedFridays[0], tz);
+        const balloonedEnd = addMonths(start, 6, tz); // the old event.closingDate default
+
+        const bloated = generateRecurringDates(fridays, start, balloonedEnd, tz);
+        expect(bloated.length).toBeGreaterThan(savedFridays.length);
+        // The saved dates are a strict prefix of the bloated set — same start, runaway end.
+        expect(bloated.slice(0, savedFridays.length)).toEqual(savedFridays);
     });
 });

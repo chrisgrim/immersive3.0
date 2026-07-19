@@ -31,9 +31,39 @@ export const normalizeDateToTimezone = (date, timezone) => {
 };
 
 /**
+ * Convert a UTC datetime string (as stored in the DB, "YYYY-MM-DD HH:mm:ss")
+ * into the calendar date (YYYY-MM-DD) as it falls in the given timezone.
+ *
+ * This is the READ counterpart to formatDateForAPI (which writes local -> UTC).
+ * Unlike parseDateString / createDateAtNoon, it parses the value as UTC FIRST
+ * and then converts — so an evening show whose UTC instant rolls over to the
+ * next calendar day (e.g. 8 PM America/Los_Angeles = 03:00 UTC next day) still
+ * resolves to the correct LOCAL day. Truncating the UTC string to its date part
+ * before applying the timezone (the old bug) shifts the day by one.
+ *
+ * @param {string|Date} dateTime - UTC datetime, e.g. "2026-10-03 03:00:00"
+ * @param {string} timezone - IANA timezone (e.g. 'America/Los_Angeles')
+ * @returns {string|null} Local calendar date in YYYY-MM-DD, or null
+ */
+export const utcDateTimeToLocalDate = (dateTime, timezone) => {
+    if (!dateTime) return null;
+
+    if (timezone && !isValidTimezone(timezone)) {
+        console.warn(`[dateUtils] Invalid timezone "${timezone}" — falling back to UTC.`);
+        timezone = 'UTC';
+    }
+
+    const m = dateTime instanceof Date
+        ? moment.utc(dateTime)
+        : moment.utc(dateTime, 'YYYY-MM-DD HH:mm:ss');
+
+    return m.tz(timezone || 'UTC').format('YYYY-MM-DD');
+};
+
+/**
  * Create a Date object at noon in the specified timezone
  * Used for date picker compatibility while avoiding timezone issues
- * 
+ *
  * @param {string} dateString - Date in YYYY-MM-DD format
  * @param {string} timezone - IANA timezone
  * @returns {Date} Date object set to noon in the specified timezone

@@ -99,7 +99,7 @@
 
             <!-- Specific Dates Component -->
             <div v-else class="w-full h-full">
-                <SpecificDates 
+                <SpecificDates
                     ref="specificDatesRef"
                     :selected-timezone="selectedTimezone"
                     :parent-container-width="parentContainerWidth"
@@ -109,6 +109,9 @@
                 />
             </div>
         </div>
+
+        <!-- Admin-only AI scheduling assistant (self-gates on user.isAdmin) -->
+        <ScheduleAssistant @schedule-updated="onScheduleUpdated" />
     </main>
 </template>
 
@@ -120,10 +123,12 @@ import useVuelidate from '@vuelidate/core';
 import OngoingDates from './Dates/ongoing-dates.vue';
 import SpecificDates from './Dates/specific-dates.vue';
 import AlwaysDates from './Dates/always-dates.vue';
-import { 
-    parseDateString, 
-    formatDateForAPI, 
-    getBrowserTimezone 
+import ScheduleAssistant from './Dates/schedule-assistant.vue';
+import {
+    parseDateString,
+    formatDateForAPI,
+    getBrowserTimezone,
+    utcDateTimeToLocalDate
 } from '@/composables/dateUtils';
 
 const emit = defineEmits(['toggle-sidebar']);
@@ -411,38 +416,40 @@ defineExpose({
     }
 });
 
-// 10. Lifecycle Hooks
-onMounted(() => {
+// 10. Re-hydration from the event (used on mount and after the AI assistant edits)
+const hydrateFromEvent = () => {
     // Clear any existing dates first
     date.value = [];
     selectedDates.value = [];
-    
+
     // If event has a timezone set (from location), use it
     if (event.timezone) {
         selectedTimezone.value = event.timezone;
     }
-    
+
     // Only set dates if we have shows and we're in specific dates mode (s), live mode (l), ongoing mode (o), or always mode (a)
     if (event.shows?.length > 0 && (event.showtype === 's' || event.showtype === 'l' || event.showtype === 'o' || event.showtype === 'a')) {
         // Convert legacy 'l' type to 's' for editing purposes
         if (event.showtype === 'l') {
             event.showtype = 's';
         }
-        
-        // Parse dates from database (stored in UTC) back to display timezone
-        const showDates = event.shows.map(show => {
-            // show.date is in UTC from database, parse it in the event's timezone
-            return parseDateString(show.date.split(' ')[0], selectedTimezone.value);
-        });
-        
-        date.value = showDates;
-        selectedDates.value = event.shows.map(show => show.date.split(' ')[0]);
-        
+
+        // show.date is a full UTC datetime; convert it THROUGH the event
+        // timezone before taking the calendar day. Truncating the UTC string to
+        // its date part first (the old bug) shifts evening shows a day late
+        // (8 PM Pacific is 03:00 UTC the next day).
+        const localShowDates = event.shows.map(show =>
+            utcDateTimeToLocalDate(show.date, selectedTimezone.value)
+        );
+
+        date.value = localShowDates.map(dateStr => parseDateString(dateStr, selectedTimezone.value));
+        selectedDates.value = localShowDates;
+
         // Initialize state for specific dates mode
         if (event.showtype === 's') {
             specificDatesState.value = [...selectedDates.value];
         }
-        
+
         // Initialize state for always dates mode
         if (event.showtype === 'a') {
             alwaysDatesState.value = {
@@ -451,7 +458,7 @@ onMounted(() => {
                 timezone: event.timezone || selectedTimezone.value
             };
         }
-        
+
         // Set the dates in the appropriate component when it's ready
         setTimeout(() => {
             if (event.showtype === 's' && specificDatesRef.value) {
@@ -465,5 +472,31 @@ onMounted(() => {
             }
         }, 100);
     }
+};
+
+// After the AI assistant changes the schedule server-side, sync the injected
+// event and re-run hydration so the calendar reflects the new dates.
+const onScheduleUpdated = (schedule) => {
+    event.showtype = schedule.showtype ?? event.showtype;
+    if (schedule.timezone) {
+        event.timezone = schedule.timezone;
+        selectedTimezone.value = schedule.timezone;
+    }
+    event.shows = (schedule.show_dates || []).map(d => ({ date: d }));
+    event.show_times = schedule.show_times ?? event.show_times;
+    event.embargo_date = schedule.embargo_date ?? null;
+    if (schedule.closing_date !== undefined) {
+        event.closingDate = schedule.closing_date;
+    }
+
+    // Reset preserved per-mode state so hydration rebuilds cleanly.
+    specificDatesState.value = [];
+
+    hydrateFromEvent();
+};
+
+// 11. Lifecycle Hooks
+onMounted(() => {
+    hydrateFromEvent();
 });
 </script>

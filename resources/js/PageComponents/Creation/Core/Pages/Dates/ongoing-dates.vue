@@ -448,6 +448,7 @@ import {
     addMonths,
     parseDateString,
     createDateAtNoon,
+    utcDateTimeToLocalDate,
     getBrowserTimezone,
     daysBetween
 } from '@/composables/dateUtils';
@@ -995,12 +996,20 @@ defineExpose({
         if (config && Array.isArray(config.days_of_week) && config.days_of_week.length > 0) {
             selectedDays.value = [...config.days_of_week].sort();
             if (config.start_date) {
-                customStartDate.value = createDateAtNoon(config.start_date, selectedTimezone.value);
+                // start_date/end_date are UTC datetimes; convert through the
+                // timezone before taking the calendar day (see utcDateTimeToLocalDate).
+                customStartDate.value = createDateAtNoon(utcDateTimeToLocalDate(config.start_date, selectedTimezone.value), selectedTimezone.value);
             } else if (storedStartDate) {
                 customStartDate.value = new Date(storedStartDate);
             }
             if (config.end_date) {
-                endDate.value = createDateAtNoon(config.end_date, selectedTimezone.value);
+                endDate.value = createDateAtNoon(utcDateTimeToLocalDate(config.end_date, selectedTimezone.value), selectedTimezone.value);
+            } else if (dates && dates.length > 0) {
+                // No stored end_date: bound the range to the last actually-saved
+                // show, NOT event.closingDate (which defaults to +6 months when no
+                // ongoing end was persisted, regenerating far more dates than were
+                // saved — the "32 Nights" bloat bug).
+                endDate.value = createDateAtNoon([...dates].sort().pop(), selectedTimezone.value);
             } else if (event.closingDate) {
                 endDate.value = new Date(event.closingDate);
             }
@@ -1041,9 +1050,10 @@ defineExpose({
                 customStartDate.value = new Date(parsedDates[0]);
             }
 
-            if (event.closingDate) {
-                endDate.value = new Date(event.closingDate);
-            }
+            // Bound the end to the last actually-saved show, NOT event.closingDate
+            // (which defaults to +6 months and regenerates far more dates than were
+            // saved — the "32 Nights" bloat). parsedDates is sorted ascending.
+            endDate.value = new Date(parsedDates[parsedDates.length - 1]);
             resetEndDateIfBeforeStart();
         }
     }

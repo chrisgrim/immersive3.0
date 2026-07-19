@@ -66,4 +66,11 @@ return [
         'key' => env('GOOGLE_GEOCODING_KEY'),
     ],
 
+    'anthropic' => [
+        // Anthropic Claude API key. A config entry (not a bare env() call) so it
+        // still resolves after `config:cache` on the server. Powers the
+        // event-scheduling AI assistant and the event-scraper's Claude path.
+        'api_key' => env('ANTHROPIC_API_KEY'),
+    ],
+
 ];

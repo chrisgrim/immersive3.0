@@ -772,6 +772,150 @@ test('update-event does not regress the wizard step marker', function () {
     expect($event->fresh()->status)->toBe('9');
 });
 
+test('update-event collapses multiple datetimes on the same day to one show', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => [
+            '2026-10-08 19:00:00', // Oct 8, noon Pacific
+            '2026-10-09 02:00:00', // Oct 8, 7 PM Pacific (rolls to next UTC day) — SAME local day
+            '2026-10-11 19:00:00', // Oct 11, noon Pacific
+        ],
+    ])->assertOk();
+
+    // The two Oct-8 (Pacific) datetimes collapse to one show; Oct 11 is its own.
+    expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('update-event applies a dateArray change even when showtype is omitted', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => ['2026-08-01 19:00:00', '2026-08-02 19:00:00', '2026-08-03 19:00:00'],
+    ])->assertOk();
+    expect($event->fresh()->shows()->count())->toBe(3);
+
+    // Replace the dates WITHOUT re-sending showtype: must still apply (default
+    // to the current showtype), not silently no-op leaving the old shows.
+    // (confirm_schedule_replace because this drops the original three.)
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => ['2026-08-08 19:00:00', '2026-08-09 19:00:00'],
+        'confirm_schedule_replace' => true,
+    ])->assertOk();
+    expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('update-event confirms before deleting existing shows', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => ['2026-08-01 19:00:00', '2026-08-02 19:00:00', '2026-08-03 19:00:00'],
+    ])->assertOk();
+    expect($event->fresh()->shows()->count())->toBe(3);
+
+    // A replace that drops shows returns a confirmation instead of applying.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => ['2026-08-08 19:00:00'],
+    ])->assertOk()->assertSee('confirm_schedule_replace')->assertSee('shows_to_remove');
+    expect($event->fresh()->shows()->count())->toBe(3); // untouched until confirmed
+
+    // With the confirmation it applies.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => ['2026-08-08 19:00:00'],
+        'confirm_schedule_replace' => true,
+    ])->assertOk();
+    expect($event->fresh()->shows()->count())->toBe(1);
+});
+
+test('update-event does not confirm when only adding shows', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => ['2026-08-01 19:00:00', '2026-08-02 19:00:00'],
+    ])->assertOk();
+
+    // Adding a date while keeping the existing two removes nothing — applies
+    // straight through with no confirmation gate.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => ['2026-08-01 19:00:00', '2026-08-02 19:00:00', '2026-08-03 19:00:00'],
+    ])->assertOk();
+    expect($event->fresh()->shows()->count())->toBe(3);
+});
+
+test('update-event rejects a new show scheduled in the past', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    // 2020 is well before today — the web calendar could never pick it.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => ['2020-01-01 20:00:00', '2026-08-01 19:00:00'],
+    ])->assertOk()->assertSee('past_dates')->assertSee('2020-01-01');
+    expect($event->fresh()->shows()->count())->toBe(0); // nothing saved
+});
+
+test('update-event preserves an existing past show when re-saving', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $event->update(['showtype' => 's']);
+    $event->shows()->create(['date' => '2020-01-01 12:00:00']); // a show that already happened
+    $event->shows()->create(['date' => '2026-08-01 19:00:00']);
+
+    // Re-sending the current dates (including the past one) must NOT be rejected —
+    // the guard only blocks NEW past dates, not existing occurrences.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => ['2020-01-01 12:00:00', '2026-08-01 19:00:00'],
+    ])->assertOk();
+    expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('update-event refuses to empty a schedule', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $event->update(['showtype' => 's']);
+    $event->shows()->create(['date' => '2026-08-01 19:00:00']);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => [],
+    ])->assertOk()->assertSee('empty_schedule');
+    expect($event->fresh()->shows()->count())->toBe(1); // untouched
+});
+
 // ── submit-event-for-review ────────────────────────────────────────────
 
 function completeDraft(User $user): Event
