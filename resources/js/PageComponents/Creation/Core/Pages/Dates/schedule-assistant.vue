@@ -131,7 +131,13 @@ const send = async () => {
     try {
         const { data } = await window.axios.post(
             `/api/hosting/event/${event.slug}/schedule-assistant`,
-            { message: text, history }
+            { message: text, history },
+            // Override the global 30s axios default: an Opus turn (extended
+            // thinking + tool-use loop + expanding a long recurring dateArray)
+            // routinely runs longer than 30s. At 30s the browser aborted the
+            // request (nginx logged 499) while the server kept working — the user
+            // saw "Something went wrong" even though the change sometimes applied.
+            { timeout: 180000 }
         );
 
         messages.value.push({ role: 'assistant', text: data.reply || 'Done.' });

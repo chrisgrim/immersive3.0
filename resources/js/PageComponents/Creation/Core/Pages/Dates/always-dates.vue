@@ -134,7 +134,7 @@
                             :timezone="localTimezone"
                             :start-date="new Date()"
                             focus-start-date
-                            :multi-calendars="6"
+                            :multi-calendars="displayedMonths"
                             multi-calendars-solo
                             inline
                             auto-apply
@@ -263,9 +263,24 @@ const showTimesError = computed(() => {
 
 const daysUntilEnd = computed(() => {
     if (!endDate.value) return 0;
-    
+
     const days = daysBetween(new Date(), endDate.value, localTimezone.value);
     return Math.max(0, days); // Don't show negative days
+});
+
+// Number of month grids to render in the end-date calendar. The calendar starts
+// at the current month and has no nav arrows (hidden by design), so it must show
+// enough months to reach the selected end date — otherwise that date falls off
+// the bottom and can't be seen or changed. The default / "Extend to 6 months"
+// value is addMonths(now, 6), which lands in the 7th grid, so never show fewer
+// than 7. Add a month of headroom past the current end date for edit mode.
+const displayedMonths = computed(() => {
+    const target = endDate.value;
+    if (!target) return 7;
+    const now = new Date();
+    const monthsAhead = (target.getFullYear() - now.getFullYear()) * 12 +
+                        (target.getMonth() - now.getMonth());
+    return Math.max(7, monthsAhead + 2);
 });
 
 // Methods

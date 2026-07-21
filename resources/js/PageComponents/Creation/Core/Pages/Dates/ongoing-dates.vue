@@ -1150,8 +1150,26 @@ defineExpose({
     font-size: 1.5rem !important;
 }
 
-.modal-calendar .dp--arrow-btn-nav {
+/* Hide the month-nav arrows on the start/end date calendars — they page via the
+   "Show more months" button instead — but NOT on the embargo calendar, which has
+   no such button and needs the arrows to reach a scheduled-publish date beyond
+   the ~6 rendered months. Without the :not() exclusion the embargo picker
+   dead-ended at ~6 months out. Mirrors specific-dates.vue, whose hide rule
+   likewise excludes embargo. The :not() also lifts specificity to (0,3,0) so it
+   deterministically beats the .start/.end-date-calendar show rules above. */
+.modal-calendar:not(.embargo-calendar) .dp--arrow-btn-nav {
     display: none !important;
+}
+
+/* Match both classes on the calendar root (specificity 0,3,0) so this beats any
+   blanket ".modal-calendar .dp--arrow-btn-nav {display:none}" (0,2,0) — including
+   the copy that leaks in globally from always-dates.vue's unscoped <style>. A
+   plain ".embargo-calendar" selector ties that on specificity and loses on
+   source order. */
+.embargo-calendar.modal-calendar .dp--arrow-btn-nav {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 /* Both start and end date calendars use the same modal styling */

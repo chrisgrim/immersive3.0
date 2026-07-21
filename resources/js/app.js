@@ -140,6 +140,11 @@ const app = createApp({
 // dev/no-DSN builds still log instead of failing silently.
 app.config.errorHandler = (err, instance, info) => {
     console.error('[Vue]', info, err);
+    // Dynamic-import fetch failures are already owned by the vite:preloadError
+    // reload path above (app.js:13). Anything reaching here has already reloaded
+    // once and re-failed within 10s — a transient client-network tail (flaky
+    // connection, in-app browser), not a first-party bug. Don't report (EI-VUE-2).
+    if (/Failed to fetch dynamically imported module|Unable to preload/.test(err?.message)) return;
     if (window.Sentry?.captureException) {
         window.Sentry.captureException(err, { extra: { vueInfo: info } });
     }
