@@ -2,22 +2,26 @@
 
 namespace App\Models\Events;
 
+use App\Models\Event;
+use App\Scopes\DateScope;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Scopes\DateScope;
-use App\Models\Event;
+use Illuminate\Support\Facades\DB;
 
 class Show extends Model
 {
     use HasFactory;
 
+    /** Rows per bulk insert — keeps any single statement well under the DB's bind-parameter limit. */
+    private const INSERT_CHUNK = 500;
+
     /**
-    * What protected variables are allowed to be passed to the database
-    *
-    * @var array
-    */
-	protected $fillable = ['date','event_id'];
+     * What protected variables are allowed to be passed to the database
+     *
+     * @var array
+     */
+    protected $fillable = ['date', 'event_id'];
 
     /**
      * The "booted" method of the model.
@@ -29,84 +33,105 @@ class Show extends Model
         static::addGlobalScope(new DateScope);
     }
 
-	/**
+    /**
      * Show Model belongs to the Event Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\belongsTo
      */
-    public function event() 
+    public function event()
     {
         return $this->belongsTo(Event::class);
     }
-    
+
     /**
-     * Each Show has many tickets 
+     * Each Show has many tickets
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
-    public function tickets() 
+    public function tickets()
     {
         return $this->morphMany(Ticket::class, 'ticket');
     }
 
-    
     public static function saveShows($request, $event)
     {
         // Capture current show dates before any changes (for change logging)
         $oldDates = $event->shows()->pluck('date')
-            ->map(fn($d) => Carbon::parse($d)->format('Y-m-d'))
+            ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
             ->sort()->values()->toArray();
 
-        // Check if tickets exist for this show and save them as $old_tickets
+        // Capture the event's ticket tiers before any deletes so they can be
+        // re-applied to newly created shows (tickets are uniform across shows).
         $firstShow = $event->shows()->first();
-        $old_tickets = $firstShow && $firstShow->tickets()->exists() ? $firstShow->tickets()->get() : null;
+        $oldTickets = $firstShow && $firstShow->tickets()->exists() ? $firstShow->tickets()->get() : null;
 
-        // Always delete all existing shows when changing showtype
-        if ($request->showtype !== $event->showtype) {
-            $event->shows()->each(function ($show) {
-                $show->tickets()->delete();
-                $show->delete();
-            });
-        } else {
-            // Only delete shows not in the new date array if staying on same showtype
-            $showsToDelete = $event->shows();
-            if ($request->showtype === 's' || $request->showtype === 'o') {
-                // For specific and ongoing dates, only delete shows not in the new date array
-                $showsToDelete = $showsToDelete->whereNotIn('date', $request->dateArray);
+        // The exact set of show datetimes this save should end with, normalised
+        // to UTC "Y-m-d H:i:s" so they compare byte-for-byte with stored dates.
+        $targetDates = self::targetDatesFor($request);
+        $showtypeChanged = $request->showtype !== $event->showtype;
+
+        // Defence-in-depth: a specific/ongoing event must never be left with zero
+        // shows. If the resolved target set is empty — a caller that echoed
+        // showtype without real schedule data, or an upstream guard miss — skip
+        // the save entirely rather than letting `whereNotIn('date', [])` (which
+        // matches EVERY row) wipe the schedule. The MCP tool and web wizard both
+        // reject an empty s/o schedule upstream; this is the last line of defence.
+        if (empty($targetDates) && in_array($request->showtype, ['s', 'o'], true)) {
+            return;
+        }
+
+        DB::transaction(function () use ($request, $event, $targetDates, $showtypeChanged, $oldDates, $oldTickets) {
+            // --- Remove obsolete shows in ONE pass. This was an N+1 (a delete
+            //     per show plus a delete per show's tickets), which made saving a
+            //     large recurring schedule crawl. A show-type switch wipes all;
+            //     otherwise only shows whose date left the target set are dropped. ---
+            $idsToDelete = $showtypeChanged
+                ? $event->shows()->pluck('id')
+                : $event->shows()->whereNotIn('date', $targetDates)->pluck('id');
+            self::deleteShowsByIds($idsToDelete);
+
+            // --- Create the missing shows in bulk (was an updateOrCreate per
+            //     date). Only dates without a surviving show are inserted, so
+            //     re-saving an unchanged schedule writes nothing. Chunked so an
+            //     enormous list can never exceed the DB's bind-parameter limit. ---
+            $survivingDates = $event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
+            $datesToCreate = collect($targetDates)
+                ->reject(fn ($d) => in_array($d, $survivingDates, true))
+                ->values();
+
+            if ($datesToCreate->isNotEmpty()) {
+                $now = now();
+                $datesToCreate
+                    ->map(fn ($d) => [
+                        'event_id' => $event->id,
+                        'date' => $d,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ])
+                    ->chunk(self::INSERT_CHUNK)
+                    ->each(fn ($chunk) => self::insert($chunk->values()->all()));
+
+                // Copy the ticket tiers onto the freshly created shows in bulk.
+                if ($oldTickets && $oldTickets->isNotEmpty()) {
+                    $newShowIds = self::withoutGlobalScope(DateScope::class)
+                        ->where('event_id', $event->id)
+                        ->whereIn('date', $datesToCreate->all())
+                        ->pluck('id');
+                    self::copyTicketsToShows($oldTickets, $newShowIds);
+                }
             }
-            $showsToDelete->get()->each(function ($show) {
-                $show->tickets()->delete();
-                $show->delete();
-            });
-        }
 
-        // Handle show creation based on showtype
-        if ($request->showtype === 's' || $request->showtype === 'o') {
-            // For specific dates ('s') and ongoing dates ('o'), create individual shows
-            foreach ($request->dateArray as $date) {
-                self::createOrUpdateShow($date, $event->id, $old_tickets);
+            // Log date changes only for published events
+            if ($event->status === 'p') {
+                self::logDateChanges($event, $oldDates);
             }
-        } elseif ($request->showtype === 'a') {
-            // For 'always available' shows, use custom end date if provided
-            $endDate = isset($request->always_config) && $request->always_config['endDate']
-                ? Carbon::parse($request->always_config['endDate'])->format('Y-m-d H:i:s')
-                : Carbon::now()->addMonths(6)->format('Y-m-d H:i:s');
-            self::createOrUpdateShow($endDate, $event->id, $old_tickets);
-        } elseif ($request->showtype === 'l') {
-            // For 'limited availability' shows
-            $sixMonthsFromNow = Carbon::now()->addMonths(6)->format('Y-m-d H:i:s');
-            self::createOrUpdateShow($sixMonthsFromNow, $event->id, $old_tickets);
-        }
 
-        // Log date changes only for published events
-        if ($event->status === 'p') {
-            self::logDateChanges($event, $oldDates);
-        }
+            // Update the event's showtype to the new value
+            $event->update(['showtype' => $request->showtype]);
+        });
 
-        // Update the event's showtype to the new value
-        $event->update(['showtype' => $request->showtype]);
-
-        // Force reindex the event in Elasticsearch
+        // Reindex in Elasticsearch AFTER the transaction commits — an external
+        // side effect must not run inside the DB transaction.
         if ($event->shouldBeSearchable()) {
             $event->searchable();
         }
@@ -115,14 +140,14 @@ class Show extends Model
     private static function logDateChanges($event, array $oldDates): void
     {
         $newDates = $event->shows()->pluck('date')
-            ->map(fn($d) => Carbon::parse($d)->format('Y-m-d'))
+            ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
             ->sort()->values()->toArray();
 
         $added = array_values(array_diff($newDates, $oldDates));
         $removed = array_values(array_diff($oldDates, $newDates));
         $userId = auth()->id();
 
-        if (!empty($added)) {
+        if (! empty($added)) {
             ShowChangeLog::create([
                 'event_id' => $event->id,
                 'user_id' => $userId,
@@ -131,7 +156,7 @@ class Show extends Model
             ]);
         }
 
-        if (!empty($removed)) {
+        if (! empty($removed)) {
             ShowChangeLog::create([
                 'event_id' => $event->id,
                 'user_id' => $userId,
@@ -141,32 +166,82 @@ class Show extends Model
         }
     }
 
-    private static function createOrUpdateShow($date, $eventId, $oldTickets)
+    /**
+     * The normalised set of show datetimes a save should end with, as UTC
+     * "Y-m-d H:i:s". Specific ('s') and ongoing ('o') events use the supplied
+     * date list; always ('a') and limited ('l') collapse to one sentinel show.
+     *
+     * @return array<int, string>
+     */
+    private static function targetDatesFor($request): array
     {
-        // Date arrives from frontend as UTC timestamp in 'Y-m-d H:i:s' format
-        // Parse it as UTC to preserve the exact date selected by the user
-        $formattedDate = \Carbon\Carbon::parse($date, 'UTC')->format('Y-m-d H:i:s');
-
-        $show = self::updateOrCreate([
-            'date' => $formattedDate,
-            'event_id' => $eventId
-        ]);
-
-        // If tickets were already entered, add them to the new dates
-        if ($oldTickets) {
-            foreach ($oldTickets as $ticket) {
-                $show->tickets()->updateOrCreate([
-                    'name' => $ticket['name'],
-                ], [
-                    'description' => $ticket['description'],
-                    'currency' => $ticket['currency'],
-                    'ticket_price' => $ticket['ticket_price'],
-                    'type' => $ticket['type']
-                ]);
-            }
+        if ($request->showtype === 's' || $request->showtype === 'o') {
+            return collect($request->dateArray ?? [])
+                ->map(fn ($d) => Carbon::parse($d, 'UTC')->format('Y-m-d H:i:s'))
+                ->unique()
+                ->values()
+                ->all();
         }
+
+        if ($request->showtype === 'a') {
+            $end = isset($request->always_config) && $request->always_config['endDate']
+                ? Carbon::parse($request->always_config['endDate'])->format('Y-m-d H:i:s')
+                : Carbon::now()->addMonths(6)->format('Y-m-d H:i:s');
+
+            return [$end];
+        }
+
+        if ($request->showtype === 'l') {
+            return [Carbon::now()->addMonths(6)->format('Y-m-d H:i:s')];
+        }
+
+        return [];
     }
 
+    /**
+     * Hard-delete the given shows and their (polymorphic) tickets in two
+     * queries instead of iterating row by row. No-op on an empty set.
+     */
+    private static function deleteShowsByIds($ids): void
+    {
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        Ticket::where('ticket_type', self::class)->whereIn('ticket_id', $ids)->delete();
+        self::withoutGlobalScope(DateScope::class)->whereIn('id', $ids)->delete();
+    }
+
+    /**
+     * Bulk-insert a copy of each ticket tier onto each newly created show. The
+     * new shows have no tickets yet, so a plain insert is safe (no upsert or
+     * duplicate handling needed).
+     */
+    private static function copyTicketsToShows($oldTickets, $showIds): void
+    {
+        $now = now();
+        $rows = [];
+
+        foreach ($showIds as $showId) {
+            foreach ($oldTickets as $ticket) {
+                $rows[] = [
+                    'ticket_type' => self::class,
+                    'ticket_id' => $showId,
+                    'name' => $ticket->name,
+                    'description' => $ticket->description,
+                    'currency' => $ticket->currency,
+                    'ticket_price' => $ticket->ticket_price,
+                    'type' => $ticket->type,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+        }
+
+        collect($rows)
+            ->chunk(self::INSERT_CHUNK)
+            ->each(fn ($chunk) => Ticket::insert($chunk->values()->all()));
+    }
 
     /**
      * Get the showtimes and price range to update the event model
@@ -175,36 +250,49 @@ class Show extends Model
      */
     public static function updateEvent($request, Event $event)
     {
-        // Determine show type and last date
+        // Determine show type
         $type = self::determineShowType($request);
-        $lastDate = self::calculateLastDate($event, $type, $request);
 
         // Prepare update data
         $updateData = [
             'show_times' => $request->show_times,
             'embargo_date' => $request->embargo_date,
-            'closingDate' => $lastDate,
             'showtype' => $type,
         ];
-        
+
         // Include timezone if provided
         if ($request->timezone) {
             $updateData['timezone'] = $request->timezone;
         }
-        
-        // Store start date for ongoing events
-        if ($type === 'o' && isset($request->ongoing_config) && isset($request->ongoing_config['startDate'])) {
-            $updateData['start_date'] = $request->ongoing_config['startDate'];
-        } else {
-            $updateData['start_date'] = null;
+
+        // Only (re)compute the schedule metadata — closingDate, start_date, and
+        // the stored recurrence rule — when the caller actually supplied schedule
+        // data or changed the show type. A bare showtype echo (e.g. a
+        // show_times-only edit that still includes showtype) must NOT recompute
+        // them: doing so would null the saved recurrence rule and reset
+        // closingDate to a default six months out even though the schedule is
+        // unchanged, silently corrupting the event.
+        $scheduleProvided = isset($request->ongoing_config)
+            || isset($request->always_config)
+            || isset($request->dateArray);
+
+        if ($scheduleProvided || $type !== $event->showtype) {
+            $updateData['closingDate'] = self::calculateLastDate($event, $type, $request);
+
+            // Store start date for ongoing events.
+            if ($type === 'o' && isset($request->ongoing_config) && isset($request->ongoing_config['startDate'])) {
+                $updateData['start_date'] = $request->ongoing_config['startDate'];
+            } else {
+                $updateData['start_date'] = null;
+            }
+
+            // Persist the rule that generated the shows (M11) so we can read it
+            // back verbatim on edit instead of reverse-engineering from shows.
+            $updateData['showtype_config'] = self::buildShowtypeConfig($type, $request);
         }
 
-        // Persist the rule that generated the shows (M11) so we can read it back
-        // verbatim on edit instead of reverse-engineering from the shows table.
-        $updateData['showtype_config'] = self::buildShowtypeConfig($type, $request);
-
         // Handle embargo status changes
-        if ($event->status === 'e' && !$request->embargo_date) {
+        if ($event->status === 'e' && ! $request->embargo_date) {
             $updateData['status'] = 'p';
         } elseif ($event->status === 'p' && $request->embargo_date) {
             $updateData['status'] = 'e';
@@ -213,7 +301,7 @@ class Show extends Model
 
         // Update the event
         $event->update($updateData);
-        
+
         // Force reindex the event in Elasticsearch
         if ($event->shouldBeSearchable()) {
             $event->searchable();
@@ -236,6 +324,7 @@ class Show extends Model
     {
         if ($type === 'o' && isset($request->ongoing_config)) {
             $cfg = $request->ongoing_config;
+
             return array_filter([
                 'type' => 'ongoing',
                 'days_of_week' => isset($cfg['daysOfWeek']) ? array_values(array_map('intval', $cfg['daysOfWeek'])) : null,
@@ -258,44 +347,44 @@ class Show extends Model
     {
         // Get the event's timezone, default to UTC
         $timezone = $request->timezone ?? $event->timezone ?? 'UTC';
-        
+
         if ($type === 'a') {
             // For 'always available' shows, check if there's a specific end date in the configuration
             if ($request && isset($request->always_config) && $request->always_config['endDate']) {
                 // Parse in UTC (frontend already converted)
                 return Carbon::parse($request->always_config['endDate'], 'UTC')->endOfDay()->format('Y-m-d H:i:s');
             }
-            
+
             // Default for always shows: 6 months from now in the event's timezone
             return Carbon::now($timezone)->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
         }
-        
+
         if ($type === 'l') {
             // For 'limited availability' shows
             return Carbon::now($timezone)->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
         }
-        
+
         if ($type === 'o') {
             // For ongoing shows, check if there's a specific end date in the configuration
             if ($request && isset($request->ongoing_config) && $request->ongoing_config['endDate']) {
                 // Parse in UTC (frontend already converted)
                 return Carbon::parse($request->ongoing_config['endDate'], 'UTC')->endOfDay()->format('Y-m-d H:i:s');
             }
-            
+
             // Default for ongoing shows: 6 months from now in the event's timezone
             return Carbon::now($timezone)->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
         }
-        
+
         // For single shows, get the last date from shows
         $lastShow = $event->shows()
             ->orderBy('date', 'DESC')
             ->first();
-        
+
         // If we have a last show, use end of day for that date; otherwise use current date
         if ($lastShow) {
             return Carbon::parse($lastShow->date, 'UTC')->endOfDay()->format('Y-m-d H:i:s');
         }
-        
+
         return Carbon::now($timezone)->endOfDay()->format('Y-m-d H:i:s');
     }
 }

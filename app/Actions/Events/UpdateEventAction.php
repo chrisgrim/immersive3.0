@@ -34,6 +34,21 @@ class UpdateEventAction
         $oldStatus = $event->status;  // Store original status
         $oldCategoryId = $event->category_id;
 
+        // Guard the showtype/shows invariant: switching INTO a specific/ongoing
+        // type with no dates would flip showtype (mass-assigned below) while the
+        // old shows survive, leaving type and shows describing different
+        // schedules. Drop the showtype in that case so it is neither mass-assigned
+        // nor applied via saveShows/updateEvent. A same-type echo is left alone
+        // (a legitimate no-op, e.g. a show_times-only edit). The MCP tool already
+        // rejects this with an error; this protects any other caller of the shared
+        // save path, such as a direct form POST.
+        if (isset($validatedData['showtype'])
+            && in_array($validatedData['showtype'], ['s', 'o'], true)
+            && empty($validatedData['dateArray'] ?? [])
+            && $validatedData['showtype'] !== $event->showtype) {
+            unset($validatedData['showtype']);
+        }
+
         // Handle attendance type changes (using either hasLocation or attendance_type_id)
         if (isset($validatedData['attendance_type_id']) && $event->category) {
             // Check if category is compatible with the attendance type

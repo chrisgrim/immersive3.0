@@ -294,15 +294,20 @@ class EventScheduleAssistant
 
         Show types:
         - "s" specific dates: pass every show day as a noon-anchored UTC datetime in dateArray.
-        - "o" ongoing/recurring (weekly): pass ongoing_config {startDate, endDate,
-          daysOfWeek:[0-6, 0=Sunday]} AND expand the concrete occurrence days into dateArray too.
+        - "o" ongoing/recurring (weekly): pass ongoing_config {startDate, endDate (noon in the
+          event timezone, as UTC), daysOfWeek:[0-6, 0=Sunday]} and the server expands the
+          weekly occurrences for you. Do NOT enumerate the dates in dateArray — send
+          ongoing_config alone. If the run has exceptions (e.g. skip a holiday week), send
+          dateArray with the FULL list of dates you want instead — an explicit dateArray
+          replaces the whole schedule, it does not subtract from the recurrence.
         - "a" always available: pass always_config {endDate}.
         Patterns that are not weekly (e.g. "every third day") do NOT fit ongoing mode — use
         specific dates ("s") and expand the full list yourself.
 
         Rules:
-        - ALWAYS include showtype in update_schedule whenever you change the dates (even if the
-          showtype is not changing). dateArray only takes effect together with showtype.
+        - ALWAYS include showtype in update_schedule whenever you change the schedule — the
+          concrete dates OR an ongoing recurrence — even if the showtype is not changing. The
+          schedule change only applies alongside showtype.
         - Removing or replacing existing shows is IRREVERSIBLE — there is no undo. If your
           update would delete existing shows (switching show type, or a dateArray that drops
           dates), update_schedule returns action_required=confirm_schedule_replace with the
@@ -310,11 +315,15 @@ class EventScheduleAssistant
           will be removed, get their explicit "yes", then call again with the same arguments
           plus confirm_schedule_replace=true. Never confirm on the user's behalf. (Adding
           dates without dropping any needs no confirmation.)
-        - NEVER schedule a show in the past. Every date must be today or later in the event's
-          timezone. If a date you computed lands before the current UTC time above, you got the
-          year or a relative date ("this Friday") wrong — recheck it. The tool rejects past
-          dates (error=past_dates); if that happens, fix the dates with the user, don't retry
-          blindly.
+        - Past dates ARE allowed here: this is an admin tool and admins routinely backfill
+          HISTORICAL events. Do NOT refuse a date for being in the past. But a past date is
+          often a wrong year or a misresolved relative date ("this Friday"), so whenever any
+          date lands before today (see the current UTC time above), briefly CONFIRM THE YEAR
+          with the user before applying — e.g. "That's June 18 – Nov 29, 2026, which is in the
+          past; scheduling it as a historical run, right?" — then apply it once they confirm.
+          Do not re-ask about the past dates after they have confirmed. The tool only rejects
+          dates more than ~10 years back (error=past_dates), which really is a wrong year — fix
+          those with the user.
         - An event must always keep at least one date; it cannot have an empty schedule. If the
           user says "remove all the dates" or "clear the schedule", do NOT send an empty
           dateArray — ask which dates should replace the current ones, then send those.
@@ -364,11 +373,11 @@ class EventScheduleAssistant
                         'dateArray' => [
                             'type' => 'array',
                             'items' => ['type' => 'string'],
-                            'description' => 'Concrete show datetimes in UTC "Y-m-d H:i:s". Required for showtype s and o (expand recurring occurrences yourself).',
+                            'description' => 'Show datetimes in UTC "Y-m-d H:i:s". Required for showtype s. For showtype o you normally OMIT this and send ongoing_config instead — the server expands the recurrence. Only include it for an ongoing run with exceptions, and then send the FULL list of dates you want (it replaces the whole schedule, it does not subtract from the recurrence).',
                         ],
                         'ongoing_config' => [
                             'type' => 'object',
-                            'description' => 'For showtype o. {startDate, endDate as UTC "Y-m-d H:i:s"; daysOfWeek: array of 0-6 with 0=Sunday}.',
+                            'description' => 'For showtype o. {startDate, endDate as UTC "Y-m-d H:i:s" (noon in the event timezone); daysOfWeek: array of 0-6 with 0=Sunday}. The server generates the occurrence dates from this — send it ALONE, without dateArray, for a normal weekly run.',
                             'properties' => [
                                 'startDate' => ['type' => 'string'],
                                 'endDate' => ['type' => 'string'],

@@ -10,6 +10,9 @@ use App\Models\Event;
 use App\Models\NameChangeRequest;
 use App\Models\Organizer;
 use App\Models\User;
+use App\Support\RecurringDates;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 
@@ -35,6 +38,24 @@ function draftFor(Organizer $organizer, User $user, array $overrides = []): Even
     $event->advisories()->create(['audience' => '', 'advisories' => '']);
 
     return $event;
+}
+
+/** A UTC "Y-m-d H:i:s" at noon in $tz, $days from today (negative = past). */
+function scheduleDay(int $days, string $tz = 'America/Toronto'): string
+{
+    return now($tz)->addDays($days)->setTime(12, 0, 0)->utc()->format('Y-m-d H:i:s');
+}
+
+/** Number of DB queries run while $fn executes. */
+function queriesDuring(callable $fn): int
+{
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $fn();
+    $count = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    return $count;
 }
 
 beforeEach(fn () => Mail::fake());
@@ -899,6 +920,422 @@ test('update-event preserves an existing past show when re-saving', function () 
         'dateArray' => ['2020-01-01 12:00:00', '2026-08-01 19:00:00'],
     ])->assertOk();
     expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('update-event lets an admin backfill a recent historical date', function () {
+    $admin = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($admin), $admin);
+
+    // Admins may backfill HISTORICAL shows (mirrors the web calendar's 10-year
+    // admin lookback). A past date within that window saves rather than being
+    // rejected as it would be for a regular user.
+    $recentPast = now('America/Los_Angeles')->subMonths(2)->format('Y-m-d').' 19:00:00';
+    $future = now('America/Los_Angeles')->addMonths(2)->format('Y-m-d').' 19:00:00';
+
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => [$recentPast, $future],
+    ])->assertOk()->assertDontSee('past_dates');
+    expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('update-event still blocks an admin date more than a decade back', function () {
+    $admin = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($admin), $admin);
+
+    // Beyond the 10-year window is almost always a wrong year — rejected even
+    // for an admin, with the offending day named.
+    $farPastDay = now('America/Los_Angeles')->subYears(11)->format('Y-m-d');
+    $future = now('America/Los_Angeles')->addMonths(2)->format('Y-m-d').' 19:00:00';
+
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => [$farPastDay.' 19:00:00', $future],
+    ])->assertOk()->assertSee('past_dates')->assertSee($farPastDay);
+    expect($event->fresh()->shows()->count())->toBe(0);
+});
+
+// ── ongoing recurrence: server-side expansion + batched saving ──────────
+
+test('update-event expands ongoing_config into shows without an explicit dateArray', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $tz = 'America/Toronto';
+    $days = [3, 4, 5, 6];
+    $start = scheduleDay(8, $tz);   // all future, so a regular user passes the past-date guard
+    $end = scheduleDay(40, $tz);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 'o',
+        'timezone' => $tz,
+        'ongoing_config' => ['startDate' => $start, 'endDate' => $end, 'daysOfWeek' => $days],
+    ])->assertOk();
+
+    // The stored shows match the deterministic expansion exactly — no dateArray sent.
+    $expected = RecurringDates::expand($days, $start, $end, $tz);
+    expect($expected)->not->toBeEmpty();
+
+    $stored = $event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->sort()->values()->all();
+    expect($stored)->toBe($expected);
+});
+
+test('an explicit dateArray overrides ongoing_config expansion (exception handling)', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $tz = 'America/Toronto';
+
+    // Two hand-picked dates PLUS a recipe that would expand to ~50 — the explicit
+    // list must win so a caller can drop exception days.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 'o',
+        'timezone' => $tz,
+        'dateArray' => [scheduleDay(10, $tz), scheduleDay(11, $tz)],
+        'ongoing_config' => ['startDate' => scheduleDay(8, $tz), 'endDate' => scheduleDay(60, $tz), 'daysOfWeek' => [0, 1, 2, 3, 4, 5, 6]],
+    ])->assertOk();
+
+    expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('an ongoing_config that expands to nothing returns empty_schedule and saves no shows', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    // start after end → the recurrence yields zero dates.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 'o',
+        'timezone' => 'UTC',
+        'ongoing_config' => ['startDate' => scheduleDay(40), 'endDate' => scheduleDay(8), 'daysOfWeek' => [1, 2, 3]],
+    ])->assertOk()->assertSee('empty_schedule');
+
+    expect($event->fresh()->shows()->count())->toBe(0);
+});
+
+test('an admin can backfill a historical recurring run via ongoing_config', function () {
+    $admin = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($admin), $admin);
+    $tz = 'America/Toronto';
+    $days = [4, 5, 6, 0, 1]; // Thu–Mon
+    $start = scheduleDay(-60, $tz); // starts in the past …
+    $end = scheduleDay(20, $tz);    // … runs into the future
+
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 'o',
+        'timezone' => $tz,
+        'ongoing_config' => ['startDate' => $start, 'endDate' => $end, 'daysOfWeek' => $days],
+    ])->assertOk()->assertDontSee('past_dates');
+
+    $expected = RecurringDates::expand($days, $start, $end, $tz);
+    expect(count($expected))->toBeGreaterThan(20);
+    expect($event->fresh()->shows()->count())->toBe(count($expected));
+});
+
+test('saving a large recurring schedule does not scale queries with date count (no N+1)', function () {
+    $admin = writeToolUser('a');
+    $tz = 'America/Toronto';
+    $all = [0, 1, 2, 3, 4, 5, 6];
+
+    $small = draftFor(writeToolOrganizer($admin), $admin);
+    $qSmall = queriesDuring(fn () => EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $small->slug, 'showtype' => 'o', 'timezone' => $tz,
+        'ongoing_config' => ['startDate' => scheduleDay(8, $tz), 'endDate' => scheduleDay(21, $tz), 'daysOfWeek' => $all],
+    ])->assertOk());
+
+    $large = draftFor(writeToolOrganizer($admin), $admin);
+    $qLarge = queriesDuring(fn () => EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $large->slug, 'showtype' => 'o', 'timezone' => $tz,
+        'ongoing_config' => ['startDate' => scheduleDay(8, $tz), 'endDate' => scheduleDay(98, $tz), 'daysOfWeek' => $all],
+    ])->assertOk());
+
+    // ~14 shows vs ~90 shows. The old updateOrCreate-per-date path added roughly
+    // 4 queries per extra show (~300 more here); batched, the count barely moves.
+    expect($large->fresh()->shows()->count())->toBeGreaterThan(70);
+    expect($qLarge - $qSmall)->toBeLessThanOrEqual(5);
+});
+
+test('re-saving an identical recurring schedule creates no new show rows', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $tz = 'America/Toronto';
+    $payload = [
+        'event_slug' => $event->slug, 'showtype' => 'o', 'timezone' => $tz,
+        'ongoing_config' => ['startDate' => scheduleDay(8, $tz), 'endDate' => scheduleDay(40, $tz), 'daysOfWeek' => [3, 4, 5, 6]],
+    ];
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, $payload)->assertOk();
+    $firstIds = $event->fresh()->shows()->pluck('id')->sort()->values()->all();
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, $payload)->assertOk();
+    $secondIds = $event->fresh()->shows()->pluck('id')->sort()->values()->all();
+
+    // Batched save preserves surviving rows — identical re-save is a no-op.
+    expect($secondIds)->toBe($firstIds);
+});
+
+test('a partial schedule change keeps surviving shows, drops removed ones, and adds new ones', function () {
+    $admin = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($admin), $admin);
+    $tz = 'America/Toronto';
+    $a = scheduleDay(10, $tz);
+    $b = scheduleDay(11, $tz);
+    $c = scheduleDay(12, $tz);
+    $d = scheduleDay(13, $tz);
+    $norm = fn ($x) => Carbon::parse($x, 'UTC')->format('Y-m-d H:i:s');
+
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => $tz, 'dateArray' => [$a, $b, $c],
+    ])->assertOk();
+    $keptId = $event->fresh()->shows()->where('date', $norm($b))->first()->id;
+
+    // Drop $a, keep $b/$c, add $d. Dropping a show requires the replace confirmation.
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => $tz,
+        'dateArray' => [$b, $c, $d], 'confirm_schedule_replace' => true,
+    ])->assertOk();
+
+    $final = $event->fresh()->shows()->pluck('date')->map(fn ($x) => (string) $x)->sort()->values()->all();
+    expect($final)->toBe(collect([$b, $c, $d])->map($norm)->sort()->values()->all());
+
+    // The kept show ($b) retained its original row rather than being re-created.
+    expect($event->fresh()->shows()->where('date', $norm($b))->first()->id)->toBe($keptId);
+});
+
+test('extending a ticketed schedule copies the ticket tiers onto the newly added shows', function () {
+    $admin = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($admin), $admin);
+    $tz = 'America/Toronto';
+
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => $tz,
+        'dateArray' => [scheduleDay(10, $tz), scheduleDay(11, $tz)],
+    ])->assertOk();
+
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'tickets' => [['name' => 'GA', 'ticket_price' => 25, 'currency' => '$', 'description' => '']],
+    ])->assertOk();
+
+    // Add a third date — the new show should inherit the GA tier via the batched copy.
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => $tz,
+        'dateArray' => [scheduleDay(10, $tz), scheduleDay(11, $tz), scheduleDay(12, $tz)],
+    ])->assertOk();
+
+    $shows = $event->fresh()->shows;
+    expect($shows)->toHaveCount(3);
+    $shows->each(fn ($s) => expect($s->tickets()->where('name', 'GA')->exists())->toBeTrue());
+});
+
+test('switching show type wipes every existing show and its tickets', function () {
+    $admin = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($admin), $admin);
+    $tz = 'America/Toronto';
+
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => $tz,
+        'dateArray' => [scheduleDay(10, $tz), scheduleDay(11, $tz)],
+    ])->assertOk();
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'tickets' => [['name' => 'GA', 'ticket_price' => 25, 'currency' => '$', 'description' => '']],
+    ])->assertOk();
+
+    $oldShowIds = $event->fresh()->shows()->pluck('id')->all();
+
+    // Switch to always-available — this deletes the old shows and recreates one.
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 'a', 'timezone' => $tz, 'confirm_schedule_replace' => true,
+    ])->assertOk();
+
+    expect($event->fresh()->shows()->count())->toBe(1);
+    expect(\App\Models\Events\Ticket::where('ticket_type', \App\Models\Events\Show::class)->whereIn('ticket_id', $oldShowIds)->count())->toBe(0);
+});
+
+// ── regression guards: never silently wipe / never over-expand (review findings) ──
+
+test('echoing showtype on an ongoing event without schedule data leaves the shows intact', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $tz = 'America/Toronto';
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 'o', 'timezone' => $tz,
+        'ongoing_config' => ['startDate' => scheduleDay(8, $tz), 'endDate' => scheduleDay(40, $tz), 'daysOfWeek' => [3, 4, 5, 6]],
+    ])->assertOk();
+    $before = $event->fresh()->shows()->count();
+    expect($before)->toBeGreaterThan(0);
+
+    // A bare showtype echo (e.g. alongside a show_times change) must NOT wipe the
+    // schedule via whereNotIn([]) — the show_times still applies, the shows stay.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 'o', 'show_times' => 'Doors 7pm',
+    ])->assertOk();
+
+    expect($event->fresh()->shows()->count())->toBe($before);
+    expect($event->fresh()->show_times)->toBe('Doors 7pm');
+});
+
+test('an incomplete ongoing_config errors with empty_schedule and does not wipe the schedule', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $tz = 'America/Toronto';
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 'o', 'timezone' => $tz,
+        'ongoing_config' => ['startDate' => scheduleDay(8, $tz), 'endDate' => scheduleDay(40, $tz), 'daysOfWeek' => [3, 4, 5, 6]],
+    ])->assertOk();
+    $before = $event->fresh()->shows()->count();
+
+    // Missing endDate + daysOfWeek — the recurrence can't be built. Must error,
+    // NOT fall through to a wipe.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 'o', 'timezone' => $tz,
+        'ongoing_config' => ['startDate' => scheduleDay(8, $tz)],
+    ])->assertOk()->assertSee('empty_schedule');
+
+    expect($event->fresh()->shows()->count())->toBe($before);
+});
+
+test('an over-long recurring span is rejected instead of expanded', function () {
+    $admin = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($admin), $admin);
+
+    // A far-future end year would expand to millions of rows without the cap.
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 'o', 'timezone' => 'UTC',
+        'ongoing_config' => ['startDate' => scheduleDay(8, 'UTC'), 'endDate' => '9999-12-31 12:00:00', 'daysOfWeek' => [0, 1, 2, 3, 4, 5, 6]],
+    ])->assertOk()->assertSee('schedule_too_long');
+
+    expect($event->fresh()->shows()->count())->toBe(0);
+});
+
+test('an empty dateArray alongside a valid ongoing_config still expands the recurrence', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $tz = 'America/Toronto';
+    $days = [3, 4, 5, 6];
+    $start = scheduleDay(8, $tz);
+    $end = scheduleDay(40, $tz);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 'o', 'timezone' => $tz,
+        'dateArray' => [], // present but empty — must NOT be rejected when a recipe is given
+        'ongoing_config' => ['startDate' => $start, 'endDate' => $end, 'daysOfWeek' => $days],
+    ])->assertOk()->assertDontSee('empty_schedule');
+
+    expect($event->fresh()->shows()->count())->toBe(count(RecurringDates::expand($days, $start, $end, $tz)));
+});
+
+test('saveShows refuses to wipe an existing schedule when handed an empty target set', function () {
+    $user = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($user), $user, ['showtype' => 's']);
+    $event->shows()->create(['date' => scheduleDay(10)]);
+    $event->shows()->create(['date' => scheduleDay(11)]);
+
+    // Directly exercise the shared save path (as the web wizard reaches it) with
+    // an empty target — it must be a no-op, never a whereNotIn([]) wipe.
+    $request = (object) ['showtype' => 's', 'dateArray' => [], 'timezone' => 'UTC'];
+    \App\Models\Events\Show::saveShows($request, $event->fresh());
+
+    expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('a bare showtype echo preserves the stored recurrence rule, start date and closing date', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $tz = 'America/Toronto';
+    $days = [3, 4, 5, 6];
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 'o', 'timezone' => $tz,
+        'ongoing_config' => ['startDate' => scheduleDay(8, $tz), 'endDate' => scheduleDay(40, $tz), 'daysOfWeek' => $days],
+    ])->assertOk();
+    $before = $event->fresh();
+    expect($before->showtype_config)->not->toBeNull();
+
+    // A show_times-only edit that still echoes showtype must NOT recompute (and
+    // thereby null) the saved recurrence metadata.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 'o', 'show_times' => 'Doors 7pm',
+    ])->assertOk();
+    $after = $event->fresh();
+
+    expect($after->show_times)->toBe('Doors 7pm')
+        ->and($after->showtype_config)->toEqual($before->showtype_config)
+        ->and((string) $after->start_date)->toBe((string) $before->start_date)
+        ->and((string) $after->closingDate)->toBe((string) $before->closingDate);
+});
+
+test('a recurrence spanning multiple insert chunks saves every show', function () {
+    $admin = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($admin), $admin);
+    $tz = 'UTC';
+    $days = [0, 1, 2, 3, 4, 5, 6];
+    $start = scheduleDay(8, $tz);
+    $end = scheduleDay(608, $tz); // ~600 daily shows — crosses the 500-row INSERT_CHUNK boundary
+
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 'o', 'timezone' => $tz,
+        'ongoing_config' => ['startDate' => $start, 'endDate' => $end, 'daysOfWeek' => $days],
+    ])->assertOk();
+
+    $expected = RecurringDates::expand($days, $start, $end, $tz);
+    expect(count($expected))->toBeGreaterThan(500); // proves we actually cross a chunk boundary
+
+    $stored = $event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->sort()->values()->all();
+    expect($stored)->toBe($expected);
+});
+
+test('an invalid timezone returns a validation error instead of a 500', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 'o', 'timezone' => 'America/Los_Angles', // typo
+        'ongoing_config' => ['startDate' => scheduleDay(8, 'UTC'), 'endDate' => scheduleDay(40, 'UTC'), 'daysOfWeek' => [3, 4, 5, 6]],
+    ])->assertOk()->assertSee('validation_failed');
+
+    expect($event->fresh()->shows()->count())->toBe(0);
+});
+
+test('switching a specific-date event to ongoing with no dates is rejected, keeping type and shows consistent', function () {
+    $admin = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($admin), $admin, ['showtype' => 's']);
+    $event->shows()->create(['date' => scheduleDay(10)]);
+
+    // Switch to ongoing but supply no dates and no recipe, even with the replace
+    // confirmation. This must be rejected — never leave an 'o' event backed by
+    // the old 's' shows (or with zero shows).
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 'o', 'confirm_schedule_replace' => true,
+    ])->assertOk()->assertSee('empty_schedule');
+
+    $fresh = $event->fresh();
+    expect($fresh->showtype)->toBe('s')            // type unchanged
+        ->and($fresh->shows()->count())->toBe(1);  // the original show survived
+});
+
+test('the shared save path skips an invalid empty show-type switch instead of corrupting the event', function () {
+    // Exercise UpdateEventAction directly (as the web POST path does) to prove
+    // the backstop: an s->o switch with no dates must not flip showtype while the
+    // old shows survive.
+    $admin = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($admin), $admin, ['showtype' => 's']);
+    $event->shows()->create(['date' => scheduleDay(10)]);
+
+    $request = new \Illuminate\Http\Request(['showtype' => 'o']);
+    app(\App\Actions\Events\UpdateEventAction::class)->handle($event->fresh(), ['showtype' => 'o'], $request);
+
+    $fresh = $event->fresh();
+    expect($fresh->showtype)->toBe('s')
+        ->and($fresh->shows()->count())->toBe(1);
 });
 
 test('update-event refuses to empty a schedule', function () {

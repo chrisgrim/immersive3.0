@@ -8,6 +8,7 @@ use App\Mcp\Tools\Concerns\BuildsSyntheticRequests;
 use App\Mcp\Tools\Concerns\FormatsEvents;
 use App\Models\Event;
 use App\Scopes\PublishedScope;
+use App\Support\RecurringDates;
 use App\Support\Validation\EventUpdateRules;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\Validator;
@@ -68,10 +69,16 @@ class UpdateEvent extends Tool
         // wizard enforces this too. "Remove all the dates" (an empty dateArray)
         // would otherwise fail with an opaque validation error; return an
         // actionable one so the client asks what should replace the old dates.
+        // Exception: an ongoing event sending an (empty) dateArray alongside a
+        // real ongoing_config is fine — the recurrence expands into the dates
+        // below, so let it through rather than rejecting a valid recipe.
+        $resolvedShowtypeRaw = $input['showtype'] ?? $event->showtype;
+        $hasOngoingRecipe = $resolvedShowtypeRaw === 'o' && ! empty($input['ongoing_config']);
         if (array_key_exists('dateArray', $input)
             && is_array($input['dateArray'])
             && count($input['dateArray']) === 0
-            && in_array($input['showtype'] ?? $event->showtype, ['s', 'o'], true)) {
+            && in_array($resolvedShowtypeRaw, ['s', 'o'], true)
+            && ! $hasOngoingRecipe) {
             return Response::json([
                 'error' => 'empty_schedule',
                 'message' => 'An event needs at least one date — it cannot have an empty schedule. Ask the user which dates should replace the current ones, then send those.',
@@ -98,6 +105,22 @@ class UpdateEvent extends Tool
             return Response::error('No updatable fields were provided.');
         }
 
+        // A malformed timezone would otherwise throw uncaught deep in Carbon
+        // (recurrence expansion, the past-date guard, day collapsing) and 500.
+        // Reject it here as a clean validation error. DateTimeZone accepts exactly
+        // the identifiers Carbon can parse, so this rejects only genuinely-bad
+        // values, not BC aliases.
+        if (isset($validated['timezone'])) {
+            try {
+                new \DateTimeZone($validated['timezone']);
+            } catch (\Exception $e) {
+                return Response::json([
+                    'error' => 'validation_failed',
+                    'errors' => ['timezone' => ['That is not a recognized timezone. Use an IANA name like "America/New_York".']],
+                ]);
+            }
+        }
+
         // A schedule change only takes effect alongside `showtype` — that is what
         // drives the shared save-shows path. A client that sends dates but omits
         // showtype (common once the event already has one) would otherwise get a
@@ -110,6 +133,49 @@ class UpdateEvent extends Tool
             $validated['showtype'] = $event->showtype;
         }
 
+        // Server-side recurrence expansion: for an ongoing ('o') event the caller
+        // may send just the ongoing_config recipe (startDate/endDate/daysOfWeek)
+        // and let us materialise the concrete show days — deterministic date math
+        // instead of the model enumerating (and miscounting) every occurrence. An
+        // explicit dateArray still wins, so a caller can hand-pick dates or carve
+        // out exceptions by sending the full list instead.
+        $resolvedShowtype = $validated['showtype'] ?? $event->showtype;
+        if ($resolvedShowtype === 'o'
+            && empty($validated['dateArray'])
+            && isset($validated['ongoing_config'])) {
+            $cfg = $validated['ongoing_config'];
+            if (! empty($cfg['startDate']) && ! empty($cfg['endDate']) && ! empty($cfg['daysOfWeek'])) {
+                $tz = $validated['timezone'] ?? $event->timezone ?? 'UTC';
+
+                try {
+                    $validated['dateArray'] = RecurringDates::expand($cfg['daysOfWeek'], $cfg['startDate'], $cfg['endDate'], $tz);
+                } catch (\RangeException $e) {
+                    return Response::json([
+                        'error' => 'schedule_too_long',
+                        'message' => 'That recurrence would create more than '.RecurringDates::MAX_OCCURRENCES.' shows — almost always a wrong end year. Check the end date with the user and try again.',
+                    ]);
+                }
+            }
+        }
+
+        // A specific/ongoing schedule must resolve to at least one show. Reject an
+        // empty schedule when the caller is actually setting it — either a
+        // recurrence that came out empty (ongoing_config given), or a switch INTO
+        // s/o with no dates (which would flip showtype while the old shows survive,
+        // leaving type and shows describing different schedules). A bare showtype
+        // echo on the SAME type is left alone: saveShows treats it as a harmless
+        // no-op and preserves the existing shows and recurrence rule. (A show-less
+        // draft that stays its current type with no dates is a normal work-in-
+        // progress, caught later at submit — not corruption — so it is allowed.)
+        $scheduleEmpty = in_array($resolvedShowtype, ['s', 'o'], true) && empty($validated['dateArray']);
+        $showtypeChanging = isset($validated['showtype']) && $validated['showtype'] !== $event->showtype;
+        if ($scheduleEmpty && (isset($validated['ongoing_config']) || $showtypeChanging)) {
+            return Response::json([
+                'error' => 'empty_schedule',
+                'message' => 'A specific-date or ongoing event needs at least one date. Provide the dates — or, for an ongoing run, a complete ongoing_config (startDate, endDate, daysOfWeek) the server can expand — and try again.',
+            ]);
+        }
+
         // One show per calendar day: the web wizard's date picker can't select a
         // day twice, so collapse any datetimes that land on the same day (in the
         // event's timezone) to a single show. The time-of-day belongs in the
@@ -119,17 +185,21 @@ class UpdateEvent extends Tool
             $validated['dateArray'] = $this->collapseToOneShowPerDay($validated['dateArray'], $tz);
         }
 
-        // Past-date guard: the web calendar can't select a day before today, so
-        // mirror that here. A NEW date in the past (in the event timezone) is
-        // almost always a mistake — a misresolved relative date ("this Friday")
-        // or the wrong year. Existing shows on a past day are preserved (a running
-        // event legitimately has past occurrences); only newly-added past days
-        // are rejected, with the offenders named so the caller can correct them.
+        // Past-date guard, mirroring the web calendar's lookback policy: admins
+        // may backfill HISTORICAL shows (the web date picker lets them pick up to
+        // 10 years back), while everyone else is limited to today or later. Only
+        // NEW dates before that floor are rejected — for a regular user any past
+        // day, for an admin only a day more than a decade back, which is almost
+        // always a wrong year rather than an intended historical date. Existing
+        // shows on a past day are always preserved (a running event legitimately
+        // has past occurrences); offenders are named so the caller can correct them.
         if (! empty($validated['dateArray']) && is_array($validated['dateArray'])) {
             $tz = $validated['timezone'] ?? $event->timezone ?? 'UTC';
-            $today = \Illuminate\Support\Carbon::now($tz)->toDateString();
+            $floor = $user->isAdmin()
+                ? \Illuminate\Support\Carbon::now($tz)->subYears(10)->toDateString()
+                : \Illuminate\Support\Carbon::now($tz)->toDateString();
             $existing = $event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
-            $newPast = [];
+            $tooFarBack = [];
             foreach ($validated['dateArray'] as $datetime) {
                 if (in_array($datetime, $existing, true)) {
                     continue; // already-saved show — leave it be
@@ -139,18 +209,22 @@ class UpdateEvent extends Tool
                 } catch (\Throwable $e) {
                     continue; // malformed values are handled by field validation
                 }
-                if ($day < $today) {
-                    $newPast[] = $day;
+                if ($day < $floor) {
+                    $tooFarBack[] = $day;
                 }
             }
-            if (! empty($newPast)) {
-                $newPast = array_values(array_unique($newPast));
-                sort($newPast);
+            if (! empty($tooFarBack)) {
+                $tooFarBack = array_values(array_unique($tooFarBack));
+                sort($tooFarBack);
+
+                $limit = $user->isAdmin()
+                    ? 'more than 10 years in the past'
+                    : 'in the past';
 
                 return Response::json([
                     'error' => 'past_dates',
-                    'message' => 'These dates are in the past ('.$tz.'): '.implode(', ', $newPast).'. Events can only be scheduled for today or later. Check the year and any relative dates, correct them with the user, and try again.',
-                    'past_dates' => $newPast,
+                    'message' => 'These dates are '.$limit.' ('.$tz.'): '.implode(', ', $tooFarBack).'. That is almost always a wrong year or a misresolved relative date — check it with the user and try again.',
+                    'past_dates' => $tooFarBack,
                 ]);
             }
         }
@@ -408,8 +482,8 @@ class UpdateEvent extends Tool
             'remote_description' => $schema->string()->description('For remote events: how attendees join, max 3000 chars.'),
             'timezone' => $schema->string()->description('IANA timezone of the event, e.g. "America/New_York". geocode-address results include coordinates you can infer it from.'),
             'showtype' => $schema->string()->enum(['s', 'o', 'a'])->description('s = specific dates, o = ongoing/recurring, a = always available. WARNING: changing this wipes and recreates all shows and tickets. Switching to "a" clears any embargo_date.'),
-            'dateArray' => $schema->array()->description('For showtype=s AND o: every show datetime in UTC "Y-m-d H:i:s". For ongoing events you must generate the concrete occurrence dates yourself from the daysOfWeek between startDate and endDate, and send them here alongside ongoing_config.'),
-            'ongoing_config' => $schema->object()->description('For showtype=o: {startDate, endDate (UTC "Y-m-d H:i:s"), daysOfWeek: [0-6, Sunday=0]}. Send together with the generated dateArray.'),
+            'dateArray' => $schema->array()->description('Show datetimes in UTC "Y-m-d H:i:s". REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it.'),
+            'ongoing_config' => $schema->object()->description('For showtype=o: {startDate, endDate (UTC "Y-m-d H:i:s", anchored at noon in the event timezone), daysOfWeek: [0-6, Sunday=0]}. The server generates the concrete occurrence dates from this rule — send it alone, WITHOUT dateArray, for a normal weekly run.'),
             'always_config' => $schema->object()->description('For showtype=a: {endDate (UTC "Y-m-d H:i:s")} — when the listing should close. Defaults to 6 months out if omitted.'),
             'show_times' => $schema->string()->description('Human-readable showtimes text, max 500 chars, e.g. "Fridays 8pm, Saturdays 6pm & 9pm".'),
             'tickets' => $schema->array()->description('1-5 ticket tiers applied to every show: [{"name": "General", "ticket_price": 25.00, "currency": "$", "description": ""}]. Names must be unique; name "Free" requires price 0; name "PWYC" = pay-what-you-can; description shows truncated around 60 chars. Currencies: $ € £ ¥ C$ MX$. Requires dates to exist first.'),
