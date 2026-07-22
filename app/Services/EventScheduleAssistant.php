@@ -289,8 +289,10 @@ class EventScheduleAssistant
           describe both times in show_times, do NOT add the date twice.
         - Build each dateArray entry as 12:00 (noon) in the event's timezone, converted to UTC.
           Do NOT encode the real show time in the date.
-        - Put the real show time(s) in show_times, e.g. "Fridays 7:30 PM" or "Matinee 2 PM,
-          evening 8 PM". State the times back to the user to confirm.
+        - show_times is OPTIONAL free text that is routinely left empty, and nothing requires
+          it to publish. If the user gives you times, put them there (e.g. "Fridays 7:30 PM"
+          or "Matinee 2 PM, evening 8 PM") and state them back to confirm. If they don't
+          mention times, leave show_times as it is and do NOT ask for them.
 
         Show types:
         - "s" specific dates: pass every show day as a noon-anchored UTC datetime in dateArray.
