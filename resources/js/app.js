@@ -179,6 +179,11 @@ if (import.meta.env.VITE_SENTRY_DSN) {
                 // after a pan/zoom. Harmless (component is already gone),
                 // still present in vue-leaflet 0.10.1 (EI-VUE-V).
                 'Non-Error promise rejection captured with value: undefined',
+                // Microsoft Outlook SafeLinks / Office link-scanner instrumentation
+                // injected into the page rejects with this string when its own
+                // stale object ids miss. Third-party, no stacktrace, universally
+                // ignored per Sentry docs (EI-VUE-Y).
+                'Object Not Found Matching Id:',
             ],
             // Errors thrown entirely inside Google Maps' own minified scripts are
             // not fixable from our code — e.g. the Places attribution renderer
