@@ -79,9 +79,9 @@
                         {{ card.category.name }}
                     </button>
 
-                    <h3 class="mt-2 mb-4 text-3.5xl text-black font-medium"
+                    <h3 class="mt-2 mb-4 text-2.5xl sm:text-3.5xl text-black font-medium"
                         :class="{ 'opacity-60': !card.isShowing }">
-                        <span class="line-clamp-2 block">{{ card.name }}</span>
+                        <span class="line-clamp-2 break-words">{{ card.name }}</span>
                     </h3>
                     
                     <!-- <p v-if="card.tag_line" class="mb-3 text-1xl leading-normal text-gray-600 line-clamp-2">
