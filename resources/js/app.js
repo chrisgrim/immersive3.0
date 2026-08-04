@@ -2,7 +2,7 @@ import { createApp, defineAsyncComponent } from 'vue';
 import '../css/app.css';
 import axios from 'axios';
 import { ClickOutsideDirective } from './Directives/ClickOutsideDirective';
-import { installPreloadErrorReload, isReloadingAfterPreloadError } from './preloadReload';
+import { installPreloadErrorReload, shouldSuppressErrorReports } from './preloadReload';
 
 installPreloadErrorReload();
 
@@ -128,7 +128,7 @@ app.config.errorHandler = (err, instance, info) => {
     // now resolve to undefined, so anything thrown here is collateral from a page
     // that is on its way out — e.g. vue-leaflet reading .default off an undefined
     // icon module (EI-VUE-10). Don't report it.
-    if (isReloadingAfterPreloadError()) return;
+    if (shouldSuppressErrorReports()) return;
     // Dynamic-import fetch failures are already owned by the vite:preloadError
     // reload path (preloadReload.js). Anything reaching here has already reloaded
     // once and re-failed within 10s — a transient client-network tail (flaky
@@ -152,7 +152,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
             // Same reasoning as the Vue errorHandler above, for errors that never
             // reach it (plain listeners, unhandled rejections): once we're reloading
             // for a stale chunk, everything after is collateral (EI-VUE-10).
-            beforeSend: (event) => (isReloadingAfterPreloadError() ? null : event),
+            beforeSend: (event) => (shouldSuppressErrorReports() ? null : event),
             // Drop noise that isn't an actionable first-party bug:
             // DuckDuckGo / in-app WKWebView bridge rejection — emitted by the
             // browser's native bridge, not our code, no stacktrace (EI-VUE-J).

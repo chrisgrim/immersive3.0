@@ -21,14 +21,26 @@ const RELOAD_KEY = 'vite:preloadError:lastReload';
 /** Don't reload again within this window — the asset is likely gone, not stale. */
 const RELOAD_WINDOW_MS = 10000;
 
+/**
+ * How long the collateral errors are worth suppressing. The throws we're hiding
+ * land within a tick or two of the swallowed import; this only needs to cover
+ * teardown. Bounded on purpose: if the reload stalls or something cancels the
+ * navigation, this document keeps running and must not stay silent forever.
+ */
+const SUPPRESS_WINDOW_MS = 5000;
+
+/** Latched for the life of the document — one reload per load, no loops. */
 let reloading = false;
 
+/** Time-boxed, unlike the reload latch. */
+let suppressing = false;
+
 /**
- * True once we've committed to reloading the page for a stale chunk. Every error
- * raised after this point is a side effect of the swallowed import, not a real bug.
+ * True while errors are collateral from a swallowed import rather than real bugs.
+ * See the preventDefault() note above.
  */
-export function isReloadingAfterPreloadError() {
-    return reloading;
+export function shouldSuppressErrorReports() {
+    return suppressing;
 }
 
 export function installPreloadErrorReload(win = window) {
@@ -41,6 +53,9 @@ export function installPreloadErrorReload(win = window) {
         if (Date.now() - last < RELOAD_WINDOW_MS) return;
 
         reloading = true;
+        suppressing = true;
+        setTimeout(() => { suppressing = false; }, SUPPRESS_WINDOW_MS);
+
         try { win.sessionStorage.setItem(RELOAD_KEY, String(Date.now())); } catch (e) { /* storage blocked */ }
         event.preventDefault();
         win.location.reload();

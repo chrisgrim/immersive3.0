@@ -50,7 +50,7 @@ describe('preload error reload', () => {
 
         expect(event.preventDefault).toHaveBeenCalled();
         expect(win.location.reload).toHaveBeenCalledTimes(1);
-        expect(mod.isReloadingAfterPreloadError()).toBe(true);
+        expect(mod.shouldSuppressErrorReports()).toBe(true);
     });
 
     it('reloads only once when several chunks fail on the same load', async () => {
@@ -75,7 +75,7 @@ describe('preload error reload', () => {
         // Crucially it does NOT preventDefault, so the real error still surfaces
         // instead of the import silently resolving undefined.
         expect(event.preventDefault).not.toHaveBeenCalled();
-        expect(mod.isReloadingAfterPreloadError()).toBe(false);
+        expect(mod.shouldSuppressErrorReports()).toBe(false);
     });
 
     it('reloads again once the window has passed', async () => {
@@ -103,9 +103,45 @@ describe('preload error reload', () => {
         expect(event.preventDefault).toHaveBeenCalled();
     });
 
-    it('reports as not-reloading before any failure, so normal errors are unaffected', async () => {
+    it('does not suppress anything before a failure, so normal errors still report', async () => {
         const { mod } = await freshInstall();
 
-        expect(mod.isReloadingAfterPreloadError()).toBe(false);
+        expect(mod.shouldSuppressErrorReports()).toBe(false);
+    });
+
+    it('stops suppressing once the window passes, so a stalled reload cannot silence the page', async () => {
+        vi.useFakeTimers();
+        try {
+            const { mod, firePreloadError } = await freshInstall();
+            firePreloadError();
+            expect(mod.shouldSuppressErrorReports()).toBe(true);
+
+            // Still within the window — the collateral throws land here.
+            vi.advanceTimersByTime(4_900);
+            expect(mod.shouldSuppressErrorReports()).toBe(true);
+
+            // The navigation never happened; reporting must come back.
+            vi.advanceTimersByTime(200);
+            expect(mod.shouldSuppressErrorReports()).toBe(false);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('keeps the reload latch after suppression expires, so it still cannot loop', async () => {
+        vi.useFakeTimers();
+        try {
+            const { win, firePreloadError } = await freshInstall();
+            firePreloadError();
+            vi.advanceTimersByTime(10_000);
+
+            // Suppression is time-boxed; the one-reload-per-load guard is not.
+            const later = firePreloadError();
+
+            expect(win.location.reload).toHaveBeenCalledTimes(1);
+            expect(later.preventDefault).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

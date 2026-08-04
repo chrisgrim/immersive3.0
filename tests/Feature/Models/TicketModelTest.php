@@ -167,6 +167,32 @@ test('handleTickets with an explicitly empty list removes every tier and range',
 
     expect(Ticket::where('ticket_type', Show::class)->count())->toBe(0);
     expect($this->event->priceranges()->count())->toBe(0);
+
+    // Documenting existing behaviour, not endorsing it: with no tiers left,
+    // getPriceRange's `$lowestPrice == 0` branch matches last([]) === false and
+    // the event advertises itself as Free. Predates the batching rewrite.
+    expect($this->event->fresh()->price_range)->toBe('Free');
+});
+
+test('handleTickets updates the searchable event outside the transaction', function () {
+    showsFor($this->event, 2);
+
+    // Event is Scout-Searchable and scout.after_commit is false, so saving it
+    // pushes to Elasticsearch there and then. Inside the transaction, a rollback
+    // would leave the index describing rows that no longer exist.
+    // RefreshDatabase already holds a transaction open, so compare against that
+    // baseline rather than 0 — the regression is one level DEEPER than it.
+    $baseline = DB::transactionLevel();
+
+    $levels = [];
+    Event::saved(function () use (&$levels) {
+        $levels[] = DB::transactionLevel();
+    });
+
+    Ticket::handleTickets(ticketRequest([gaTier()]), $this->event);
+
+    expect($levels)->not->toBeEmpty();
+    expect(max($levels))->toBe($baseline);
 });
 
 test('handleTickets ignores a request with no tickets field rather than wiping them', function () {
