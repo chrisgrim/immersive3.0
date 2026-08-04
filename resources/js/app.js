@@ -2,25 +2,9 @@ import { createApp, defineAsyncComponent } from 'vue';
 import '../css/app.css';
 import axios from 'axios';
 import { ClickOutsideDirective } from './Directives/ClickOutsideDirective';
+import { installPreloadErrorReload, isReloadingAfterPreloadError } from './preloadReload';
 
-// A new deploy renames hashed asset chunks (e.g. nav-bar-mobile-<hash>.js). A browser tab
-// still running the PREVIOUS build then fails to lazy-load a chunk the new build renamed —
-// surfacing as "dynamic import failed" / "Unable to preload CSS" (Sentry EI-VUE-4, EI-VUE-6).
-// Recover by reloading once to pull the fresh build. Guards prevent a reload loop if an asset
-// is genuinely missing (not just stale): an in-memory flag for multiple chunks failing on the
-// same load, and a sessionStorage timestamp across reloads.
-let preloadReloadTriggered = false;
-window.addEventListener('vite:preloadError', (event) => {
-    if (preloadReloadTriggered) return; // several chunks failed this load — reload only once
-    const KEY = 'vite:preloadError:lastReload';
-    let last = 0;
-    try { last = Number(window.sessionStorage.getItem(KEY) || 0); } catch (e) { /* storage blocked */ }
-    if (Date.now() - last < 10000) return; // reloaded in the last 10s — asset likely gone, don't loop
-    preloadReloadTriggered = true;
-    try { window.sessionStorage.setItem(KEY, String(Date.now())); } catch (e) { /* storage blocked */ }
-    event.preventDefault();
-    window.location.reload();
-});
+installPreloadErrorReload();
 
 // Loading component
 const LoadingComponent = {
@@ -140,8 +124,13 @@ const app = createApp({
 // dev/no-DSN builds still log instead of failing silently.
 app.config.errorHandler = (err, instance, info) => {
     console.error('[Vue]', info, err);
+    // We've already committed to reloading for a stale chunk. Swallowed imports
+    // now resolve to undefined, so anything thrown here is collateral from a page
+    // that is on its way out — e.g. vue-leaflet reading .default off an undefined
+    // icon module (EI-VUE-10). Don't report it.
+    if (isReloadingAfterPreloadError()) return;
     // Dynamic-import fetch failures are already owned by the vite:preloadError
-    // reload path above (app.js:13). Anything reaching here has already reloaded
+    // reload path (preloadReload.js). Anything reaching here has already reloaded
     // once and re-failed within 10s — a transient client-network tail (flaky
     // connection, in-app browser), not a first-party bug. Don't report (EI-VUE-2).
     if (/Failed to fetch dynamically imported module|Unable to preload/.test(err?.message)) return;
@@ -160,6 +149,10 @@ if (import.meta.env.VITE_SENTRY_DSN) {
             tracesSampleRate: 0.1,
             replaysSessionSampleRate: 0,
             replaysOnErrorSampleRate: 1.0,
+            // Same reasoning as the Vue errorHandler above, for errors that never
+            // reach it (plain listeners, unhandled rejections): once we're reloading
+            // for a stale chunk, everything after is collateral (EI-VUE-10).
+            beforeSend: (event) => (isReloadingAfterPreloadError() ? null : event),
             // Drop noise that isn't an actionable first-party bug:
             // DuckDuckGo / in-app WKWebView bridge rejection — emitted by the
             // browser's native bridge, not our code, no stacktrace (EI-VUE-J).
