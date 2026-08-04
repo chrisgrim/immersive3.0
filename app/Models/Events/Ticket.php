@@ -4,17 +4,21 @@ namespace App\Models\Events;
 
 use App\Models\Event;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Ticket extends Model
 {
+    /** Rows per bulk insert — keeps any single statement well under the DB's bind-parameter limit. */
+    private const INSERT_CHUNK = 500;
+
     /**
-    * What protected variables are allowed to be passed to the database
-    *
-    * @var array
-    */
-	protected $fillable = ['name','ticket_price','ticket_id', 'ticket_type', 'description','type', 'currency'];
-    
-	/**
+     * What protected variables are allowed to be passed to the database
+     *
+     * @var array
+     */
+    protected $fillable = ['name', 'ticket_price', 'ticket_id', 'ticket_type', 'description', 'type', 'currency'];
+
+    /**
      * Ticket Belongs to the Show Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\belongsTo
@@ -25,54 +29,110 @@ class Ticket extends Model
     }
 
     public static function handleTickets(\Illuminate\Http\Request $request, Event $event)
-{
-    foreach ($event->shows as $show) {
-        $submittedTicketNames = collect($request->tickets)->pluck('name')->all();
+    {
+        // Tiers are uniform across an event's shows, so a name identifies a tier.
+        // keyBy keeps the last of any duplicate name, matching the old
+        // updateOrCreate loop where a repeated name simply overwrote itself.
+        $tiers = collect($request->tickets)->keyBy('name');
+        $submittedNames = $tiers->keys()->all();
 
-        $show->tickets()->whereNotIn('name', $submittedTicketNames)->delete();
+        // Read the show ids fresh: saveShows runs before this and may have just
+        // created rows an already-loaded $event->shows relation knows nothing of.
+        $showIds = $event->shows()->pluck('id');
 
-        foreach ($request->tickets as $ticketData) {
-            $show->tickets()->updateOrCreate(
-                ['name' => $ticketData['name']],
-                [
-                    'description' => $ticketData['description'],
-                    'currency' => $ticketData['currency'],
-                    'ticket_price' => $ticketData['ticket_price'],
-                    'ticket_id' => $show->id,
-                    'ticket_type' => get_class($show),
-                ]
-            );
-        }
+        DB::transaction(function () use ($event, $tiers, $submittedNames, $showIds) {
+            if ($showIds->isNotEmpty()) {
+                // --- Drop removed tiers across every show in ONE delete. This
+                //     whole block used to run a delete plus a select and a write
+                //     per tier per show — 3 queries a show, which crawls now that
+                //     recurrence expansion can produce hundreds of shows. ---
+                self::where('ticket_type', Show::class)
+                    ->whereIn('ticket_id', $showIds)
+                    ->whereNotIn('name', $submittedNames)
+                    ->delete();
+
+                $existingByName = self::where('ticket_type', Show::class)
+                    ->whereIn('ticket_id', $showIds)
+                    ->get(['id', 'ticket_id', 'name'])
+                    ->groupBy('name');
+
+                $now = now();
+                $rowsToInsert = [];
+
+                foreach ($tiers as $name => $ticketData) {
+                    $existing = $existingByName->get($name, collect());
+
+                    // Every surviving row for this tier takes the same values,
+                    // so one UPDATE covers all of them.
+                    if ($existing->isNotEmpty()) {
+                        self::whereIn('id', $existing->pluck('id'))->update([
+                            'description' => $ticketData['description'],
+                            'currency' => $ticketData['currency'],
+                            'ticket_price' => $ticketData['ticket_price'],
+                            'updated_at' => $now,
+                        ]);
+                    }
+
+                    // Shows that don't have this tier yet get it in one bulk insert.
+                    foreach ($showIds->diff($existing->pluck('ticket_id')) as $showId) {
+                        $rowsToInsert[] = [
+                            'ticket_type' => Show::class,
+                            'ticket_id' => $showId,
+                            'name' => $name,
+                            'description' => $ticketData['description'],
+                            'currency' => $ticketData['currency'],
+                            'ticket_price' => $ticketData['ticket_price'],
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    }
+                }
+
+                // Chunked so an enormous schedule can never exceed the DB's
+                // bind-parameter limit.
+                collect($rowsToInsert)
+                    ->chunk(self::INSERT_CHUNK)
+                    ->each(fn ($chunk) => self::insert($chunk->values()->all()));
+            }
+
+            $event->priceranges()->delete();
+
+            $prices = [];
+            $names = [];
+            $currency = '';
+
+            foreach ($tiers as $name => $ticketData) {
+                $prices[] = $ticketData['ticket_price'];
+                $names[] = $name;
+                $currency = $ticketData['currency'];
+            }
+
+            // Was a create() per tier; one insert instead.
+            if ($prices) {
+                $now = now();
+                $event->priceranges()->insert(array_map(fn ($price) => [
+                    'event_id' => $event->id,
+                    'price' => $price,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ], $prices));
+            }
+
+            $event->update([
+                'price_range' => self::getPriceRange($prices, $currency, $names),
+            ]);
+        });
+
+        // Reindex AFTER the transaction commits — an external side effect must
+        // not run inside the DB transaction.
+        $event->fresh()->searchable();
     }
-
-    $event->priceranges()->delete();
-
-    $prices = [];
-    $names = [];
-    $currency = '';
-
-    foreach ($request->tickets as $ticketData) {
-        $event->priceranges()->create(['price' => $ticketData['ticket_price']]);
-        $prices[] = $ticketData['ticket_price'];
-        $names[] = $ticketData['name'];
-        $currency = $ticketData['currency'];
-    }
-
-    $priceRange = self::getPriceRange($prices, $currency, $names);
-
-    $event->update([
-        'price_range' => $priceRange,
-    ]);
-
-    $event = $event->fresh();
-    $event->searchable();
-}
 
     public static function getPriceRange($prices, $currency, $names = [])
     {
         rsort($prices);
         $lowestPrice = last($prices);
-        
+
         // Check if any ticket name is "PWYC" (case insensitive)
         $hasPWYC = false;
         foreach ($names as $name) {
@@ -84,28 +144,26 @@ class Ticket extends Model
 
         if ($hasPWYC) {
             $first = 'PWYC';
-        } else if ($lowestPrice == 0) {
+        } elseif ($lowestPrice == 0) {
             $first = 'Free';
         } else {
             $formattedLowestPrice = number_format($lowestPrice, 2);
             $formattedLowestPrice = preg_replace('/\.00$/', '', $formattedLowestPrice);
-            $first = $currency . $formattedLowestPrice;
+            $first = $currency.$formattedLowestPrice;
         }
 
-        if (sizeof($prices) > 1) {
+        if (count($prices) > 1) {
             $formattedHighestPrice = number_format($prices[0], 2);
             $formattedHighestPrice = preg_replace('/\.00$/', '', $formattedHighestPrice);
-            
+
             // If lowest price is PWYC but there are higher prices, show the range
             if ($hasPWYC) {
-                return $pricerange = 'PWYC - ' . $currency . $formattedHighestPrice;
+                return $pricerange = 'PWYC - '.$currency.$formattedHighestPrice;
             } else {
-                return $pricerange = $first . ' - ' . $currency . $formattedHighestPrice;
+                return $pricerange = $first.' - '.$currency.$formattedHighestPrice;
             }
         } else {
             return $pricerange = $first;
         }
     }
-
-
 }

@@ -184,6 +184,15 @@ if (import.meta.env.VITE_SENTRY_DSN) {
                 // stale object ids miss. Third-party, no stacktrace, universally
                 // ignored per Sentry docs (EI-VUE-Y).
                 'Object Not Found Matching Id:',
+                // The Android half of EI-VUE-S: the same injected Meta in-app
+                // browser tracker, but calling the Android JS bridge instead of
+                // the iOS one. Throws when the native object it was bound to has
+                // been collected — i.e. the user navigated away (EI-VUE-Z).
+                'Error invoking postMessage: Java object is gone',
+                // A browser extension messaging a tab that has already closed.
+                // Comes from extension code running in the page, never ours
+                // (EI-VUE-M).
+                'Invalid call to runtime.sendMessage(). Tab not found.',
             ],
             // Errors thrown entirely inside Google Maps' own minified scripts are
             // not fixable from our code — e.g. the Places attribution renderer
@@ -192,6 +201,10 @@ if (import.meta.env.VITE_SENTRY_DSN) {
             denyUrls: [
                 /maps\.googleapis\.com/,
                 /maps-api-v3/,
+                // Everything the Meta in-app browser injects is served from its
+                // own iabjs:// scheme. Catches future variants of EI-VUE-S/Z
+                // without needing a new message string for each one.
+                /^iabjs:\/\//,
             ],
         });
         window.Sentry = Sentry;
