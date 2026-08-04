@@ -125,6 +125,69 @@ test('handleTickets keeps the last of a duplicated tier name without inserting t
         expect($ticket->ticket_price)->toEqual(40);
         expect($ticket->description)->toBe('second');
     });
+
+    // The price range describes the tier that actually exists. The old
+    // implementation logged both prices here and rendered "$25 - $40" even
+    // though no ticket row was ever priced 25.
+    expect($this->event->priceranges()->pluck('price')->all())->toBe(['40']);
+    expect($this->event->fresh()->price_range)->toBe('$40');
+});
+
+test('handleTickets leaves other events tickets alone', function () {
+    showsFor($this->event, 2);
+
+    $other = Event::factory()->create([
+        'organizer_id' => Organizer::factory()->create()->id,
+        'user_id' => $this->user->id,
+    ]);
+    showsFor($other, 2);
+    // Same tier names, so a delete missing its event scope would take these too.
+    Ticket::handleTickets(ticketRequest([gaTier(99, 'other event')]), $other);
+    $otherIds = $other->shows()->first()->tickets()->pluck('id');
+
+    Ticket::handleTickets(ticketRequest([
+        ['name' => 'VIP', 'ticket_price' => 80, 'currency' => '$', 'description' => 'Front row'],
+    ]), $this->event);
+
+    $otherTickets = Ticket::whereIn('id', $otherIds)->get();
+    expect($otherTickets)->toHaveCount($otherIds->count());
+    $otherTickets->each(function ($ticket) {
+        expect($ticket->name)->toBe('GA');
+        expect($ticket->ticket_price)->toEqual(99);
+    });
+    expect($other->fresh()->price_range)->toBe('$99');
+});
+
+test('handleTickets with an explicitly empty list removes every tier and range', function () {
+    showsFor($this->event, 2);
+    Ticket::handleTickets(ticketRequest([gaTier()]), $this->event);
+    expect(Ticket::where('ticket_type', Show::class)->count())->toBe(2);
+
+    Ticket::handleTickets(ticketRequest([]), $this->event);
+
+    expect(Ticket::where('ticket_type', Show::class)->count())->toBe(0);
+    expect($this->event->priceranges()->count())->toBe(0);
+});
+
+test('handleTickets ignores a request with no tickets field rather than wiping them', function () {
+    showsFor($this->event, 2);
+    Ticket::handleTickets(ticketRequest([gaTier()]), $this->event);
+    $before = $this->event->fresh()->price_range;
+
+    // A malformed/partial request must not be read as "remove every tier".
+    Ticket::handleTickets(Request::create('/', 'POST'), $this->event);
+
+    expect(Ticket::where('ticket_type', Show::class)->count())->toBe(2);
+    expect($this->event->priceranges()->count())->toBe(1);
+    expect($this->event->fresh()->price_range)->toBe($before);
+});
+
+test('handleTickets on an event with no shows still records the price range', function () {
+    Ticket::handleTickets(ticketRequest([gaTier(15)]), $this->event);
+
+    expect(Ticket::where('ticket_type', Show::class)->count())->toBe(0);
+    expect($this->event->priceranges()->pluck('price')->all())->toBe(['15']);
+    expect($this->event->fresh()->price_range)->toBe('$15');
 });
 
 test('handleTickets rebuilds the price ranges and the event price range', function () {

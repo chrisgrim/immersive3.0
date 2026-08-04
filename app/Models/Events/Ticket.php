@@ -30,9 +30,22 @@ class Ticket extends Model
 
     public static function handleTickets(\Illuminate\Http\Request $request, Event $event)
     {
+        // Defence-in-depth: an omitted `tickets` field means "don't touch tickets",
+        // but every path below treats an empty list as "the user removed every
+        // tier" and deletes accordingly. Callers guard with isset(), so only a
+        // malformed request reaches here with a non-array — bail rather than wipe.
+        // An explicitly empty array still falls through, which is the real
+        // "remove all tiers" instruction.
+        if (! is_array($request->tickets)) {
+            return;
+        }
+
         // Tiers are uniform across an event's shows, so a name identifies a tier.
         // keyBy keeps the last of any duplicate name, matching the old
         // updateOrCreate loop where a repeated name simply overwrote itself.
+        // Unlike the old loop, the collapsed list also drives the price ranges, so
+        // a duplicated name contributes one price instead of one per submission —
+        // the range now always describes tiers that actually exist.
         $tiers = collect($request->tickets)->keyBy('name');
         $submittedNames = $tiers->keys()->all();
 
@@ -40,7 +53,17 @@ class Ticket extends Model
         // created rows an already-loaded $event->shows relation knows nothing of.
         $showIds = $event->shows()->pluck('id');
 
-        DB::transaction(function () use ($event, $tiers, $submittedNames, $showIds) {
+        $prices = [];
+        $names = [];
+        $currency = '';
+
+        foreach ($tiers as $name => $ticketData) {
+            $prices[] = $ticketData['ticket_price'];
+            $names[] = $name;
+            $currency = $ticketData['currency'];
+        }
+
+        DB::transaction(function () use ($event, $tiers, $submittedNames, $showIds, $prices) {
             if ($showIds->isNotEmpty()) {
                 // --- Drop removed tiers across every show in ONE delete. This
                 //     whole block used to run a delete plus a select and a write
@@ -97,16 +120,6 @@ class Ticket extends Model
 
             $event->priceranges()->delete();
 
-            $prices = [];
-            $names = [];
-            $currency = '';
-
-            foreach ($tiers as $name => $ticketData) {
-                $prices[] = $ticketData['ticket_price'];
-                $names[] = $name;
-                $currency = $ticketData['currency'];
-            }
-
             // Was a create() per tier; one insert instead.
             if ($prices) {
                 $now = now();
@@ -117,14 +130,16 @@ class Ticket extends Model
                     'updated_at' => $now,
                 ], $prices));
             }
-
-            $event->update([
-                'price_range' => self::getPriceRange($prices, $currency, $names),
-            ]);
         });
 
-        // Reindex AFTER the transaction commits — an external side effect must
-        // not run inside the DB transaction.
+        // Deliberately OUTSIDE the transaction: Event is Scout-Searchable and
+        // scout.after_commit is false, so saving it indexes to Elasticsearch
+        // immediately. Inside the transaction a later rollback would leave the
+        // index describing rows that no longer exist.
+        $event->update([
+            'price_range' => self::getPriceRange($prices, $currency, $names),
+        ]);
+
         $event->fresh()->searchable();
     }
 
