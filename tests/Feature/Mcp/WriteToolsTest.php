@@ -40,10 +40,16 @@ function draftFor(Organizer $organizer, User $user, array $overrides = []): Even
     return $event;
 }
 
+/** A UTC "Y-m-d H:i:s" at $hour local in $tz, $days from today (negative = past). */
+function scheduleDayAt(int $days, int $hour, string $tz = 'America/Toronto'): string
+{
+    return now($tz)->addDays($days)->setTime($hour, 0, 0)->utc()->format('Y-m-d H:i:s');
+}
+
 /** A UTC "Y-m-d H:i:s" at noon in $tz, $days from today (negative = past). */
 function scheduleDay(int $days, string $tz = 'America/Toronto'): string
 {
-    return now($tz)->addDays($days)->setTime(12, 0, 0)->utc()->format('Y-m-d H:i:s');
+    return scheduleDayAt($days, 12, $tz);
 }
 
 /** Number of DB queries run while $fn executes. */
@@ -528,7 +534,7 @@ test('update-event saves shows and tickets together in the right order', functio
         'event_slug' => $event->slug,
         'timezone' => 'America/New_York',
         'showtype' => 's',
-        'dateArray' => ['2026-09-04 23:00:00', '2026-09-05 23:00:00'],
+        'dateArray' => [scheduleDay(30, 'America/New_York'), scheduleDay(31, 'America/New_York')],
         'tickets' => [
             ['name' => 'General', 'ticket_price' => 35.00, 'currency' => '$', 'description' => 'Standard entry'],
         ],
@@ -802,25 +808,30 @@ test('update-event collapses multiple datetimes on the same day to one show', fu
         'showtype' => 's',
         'timezone' => 'America/Los_Angeles',
         'dateArray' => [
-            '2026-10-08 19:00:00', // Oct 8, noon Pacific
-            '2026-10-09 02:00:00', // Oct 8, 7 PM Pacific (rolls to next UTC day) — SAME local day
-            '2026-10-11 19:00:00', // Oct 11, noon Pacific
+            scheduleDayAt(10, 12, 'America/Los_Angeles'), // noon Pacific
+            // 7 PM Pacific is 02:00/03:00 the NEXT UTC day whether it's PDT or
+            // PST, so this keeps testing the UTC-rollover case year-round.
+            scheduleDayAt(10, 19, 'America/Los_Angeles'), // SAME local day
+            scheduleDayAt(13, 12, 'America/Los_Angeles'), // a different local day
         ],
     ])->assertOk();
 
-    // The two Oct-8 (Pacific) datetimes collapse to one show; Oct 11 is its own.
+    // The two same-local-day datetimes collapse to one show; the third is its own.
     expect($event->fresh()->shows()->count())->toBe(2);
 });
 
 test('update-event applies a dateArray change even when showtype is omitted', function () {
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);
+    $tz = 'America/Los_Angeles';
+    $original = [scheduleDay(1, $tz), scheduleDay(2, $tz), scheduleDay(3, $tz)];
+    $replacement = [scheduleDay(8, $tz), scheduleDay(9, $tz)];
 
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
         'showtype' => 's',
-        'timezone' => 'America/Los_Angeles',
-        'dateArray' => ['2026-08-01 19:00:00', '2026-08-02 19:00:00', '2026-08-03 19:00:00'],
+        'timezone' => $tz,
+        'dateArray' => $original,
     ])->assertOk();
     expect($event->fresh()->shows()->count())->toBe(3);
 
@@ -829,8 +840,8 @@ test('update-event applies a dateArray change even when showtype is omitted', fu
     // (confirm_schedule_replace because this drops the original three.)
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
-        'timezone' => 'America/Los_Angeles',
-        'dateArray' => ['2026-08-08 19:00:00', '2026-08-09 19:00:00'],
+        'timezone' => $tz,
+        'dateArray' => $replacement,
         'confirm_schedule_replace' => true,
     ])->assertOk();
     expect($event->fresh()->shows()->count())->toBe(2);
@@ -839,12 +850,15 @@ test('update-event applies a dateArray change even when showtype is omitted', fu
 test('update-event confirms before deleting existing shows', function () {
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);
+    $tz = 'America/Los_Angeles';
+    $original = [scheduleDay(1, $tz), scheduleDay(2, $tz), scheduleDay(3, $tz)];
+    $replacement = [scheduleDay(8, $tz)];
 
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
         'showtype' => 's',
-        'timezone' => 'America/Los_Angeles',
-        'dateArray' => ['2026-08-01 19:00:00', '2026-08-02 19:00:00', '2026-08-03 19:00:00'],
+        'timezone' => $tz,
+        'dateArray' => $original,
     ])->assertOk();
     expect($event->fresh()->shows()->count())->toBe(3);
 
@@ -852,8 +866,8 @@ test('update-event confirms before deleting existing shows', function () {
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
         'showtype' => 's',
-        'timezone' => 'America/Los_Angeles',
-        'dateArray' => ['2026-08-08 19:00:00'],
+        'timezone' => $tz,
+        'dateArray' => $replacement,
     ])->assertOk()->assertSee('confirm_schedule_replace')->assertSee('shows_to_remove');
     expect($event->fresh()->shows()->count())->toBe(3); // untouched until confirmed
 
@@ -861,8 +875,8 @@ test('update-event confirms before deleting existing shows', function () {
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
         'showtype' => 's',
-        'timezone' => 'America/Los_Angeles',
-        'dateArray' => ['2026-08-08 19:00:00'],
+        'timezone' => $tz,
+        'dateArray' => $replacement,
         'confirm_schedule_replace' => true,
     ])->assertOk();
     expect($event->fresh()->shows()->count())->toBe(1);
@@ -871,12 +885,16 @@ test('update-event confirms before deleting existing shows', function () {
 test('update-event does not confirm when only adding shows', function () {
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);
+    $tz = 'America/Los_Angeles';
+    $original = [scheduleDay(1, $tz), scheduleDay(2, $tz)];
+    // Same two dates plus one more, so nothing is dropped.
+    $extended = [...$original, scheduleDay(3, $tz)];
 
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
         'showtype' => 's',
-        'timezone' => 'America/Los_Angeles',
-        'dateArray' => ['2026-08-01 19:00:00', '2026-08-02 19:00:00'],
+        'timezone' => $tz,
+        'dateArray' => $original,
     ])->assertOk();
 
     // Adding a date while keeping the existing two removes nothing — applies
@@ -884,8 +902,8 @@ test('update-event does not confirm when only adding shows', function () {
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
         'showtype' => 's',
-        'timezone' => 'America/Los_Angeles',
-        'dateArray' => ['2026-08-01 19:00:00', '2026-08-02 19:00:00', '2026-08-03 19:00:00'],
+        'timezone' => $tz,
+        'dateArray' => $extended,
     ])->assertOk();
     expect($event->fresh()->shows()->count())->toBe(3);
 });
@@ -894,12 +912,13 @@ test('update-event rejects a new show scheduled in the past', function () {
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);
 
-    // 2020 is well before today — the web calendar could never pick it.
+    // 2020 is well before today — the web calendar could never pick it. Left
+    // hardcoded on purpose: this date must stay in the past forever.
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
         'showtype' => 's',
         'timezone' => 'America/Los_Angeles',
-        'dateArray' => ['2020-01-01 20:00:00', '2026-08-01 19:00:00'],
+        'dateArray' => ['2020-01-01 20:00:00', scheduleDay(1, 'America/Los_Angeles')],
     ])->assertOk()->assertSee('past_dates')->assertSee('2020-01-01');
     expect($event->fresh()->shows()->count())->toBe(0); // nothing saved
 });
@@ -908,16 +927,18 @@ test('update-event preserves an existing past show when re-saving', function () 
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);
     $event->update(['showtype' => 's']);
+    $tz = 'America/Los_Angeles';
+    $upcoming = scheduleDay(1, $tz);
     $event->shows()->create(['date' => '2020-01-01 12:00:00']); // a show that already happened
-    $event->shows()->create(['date' => '2026-08-01 19:00:00']);
+    $event->shows()->create(['date' => $upcoming]);
 
     // Re-sending the current dates (including the past one) must NOT be rejected —
     // the guard only blocks NEW past dates, not existing occurrences.
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
         'showtype' => 's',
-        'timezone' => 'America/Los_Angeles',
-        'dateArray' => ['2020-01-01 12:00:00', '2026-08-01 19:00:00'],
+        'timezone' => $tz,
+        'dateArray' => ['2020-01-01 12:00:00', $upcoming],
     ])->assertOk();
     expect($event->fresh()->shows()->count())->toBe(2);
 });
@@ -1342,7 +1363,7 @@ test('update-event refuses to empty a schedule', function () {
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);
     $event->update(['showtype' => 's']);
-    $event->shows()->create(['date' => '2026-08-01 19:00:00']);
+    $event->shows()->create(['date' => scheduleDay(1, 'America/Los_Angeles')]);
 
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
@@ -1392,7 +1413,7 @@ function completeDraft(User $user): Event
     $event->genres()->sync([
         \App\Models\Genre::firstOrCreate(['slug' => 'horror'], ['name' => 'Horror', 'user_id' => $user->id, 'admin' => false])->id,
     ]);
-    $show = $event->shows()->create(['date' => '2026-10-01 23:00:00']);
+    $show = $event->shows()->create(['date' => scheduleDay(30)]);
     $show->tickets()->create(['name' => 'GA', 'ticket_price' => 20, 'currency' => '$', 'ticket_id' => $show->id, 'ticket_type' => get_class($show), 'description' => '']);
 
     return $event;
