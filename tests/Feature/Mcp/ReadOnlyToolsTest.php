@@ -143,3 +143,18 @@ test('get-event exposes hiddenLocation so a client can see what clears secret_lo
         ->assertSee('secret_location_explained')
         ->assertSee('hiddenLocation');
 });
+
+test('whoami tells a moderator they can use any organizer id', function () {
+    $moderator = mcpUser('m');
+    organizerFor($moderator);
+
+    // is_moderator alone did not tell clients that the membership check in
+    // create-event-draft exempts them, so they stopped at an unclaimable org.
+    EiServer::actingAs($moderator)->tool(Whoami::class)
+        ->assertOk()
+        ->assertSee('NOT limited to the organizers listed here');
+
+    EiServer::actingAs(mcpUser())->tool(Whoami::class)
+        ->assertOk()
+        ->assertDontSee('NOT limited to the organizers listed here');
+});

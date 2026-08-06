@@ -1608,3 +1608,36 @@ test('update-event saves a secret-location explanation through the tool', functi
     expect((bool) $location->hiddenLocationToggle)->toBeTrue();
     expect($location->hiddenLocation)->toBe('Address emailed after booking.');
 });
+
+test('a moderator can draft an event under an organizer they do not belong to', function () {
+    $stranger = writeToolOrganizer(writeToolUser());
+    $moderator = writeToolUser('m');
+
+    $response = EiServer::actingAs($moderator)->tool(CreateEventDraft::class, [
+        'organizer_id' => $stranger->id,
+        'name' => 'Public Broadcast Immersive',
+    ]);
+
+    $response->assertOk();
+    expect(Event::where('organizer_id', $stranger->id)->exists())->toBeTrue();
+});
+
+test('the duplicate-organizer warning points moderators at the existing id', function () {
+    $owner = writeToolUser();
+    $existing = writeToolOrganizer($owner);
+
+    // `claimable: false` describes the website claim flow only — a moderator can
+    // just use the id, and the message has to say so or clients give up here.
+    EiServer::actingAs(writeToolUser('m'))->tool(CreateOrganizer::class, [
+        'name' => $existing->name,
+        'description' => str_repeat('A public media organization. ', 5),
+    ])->assertOk()->assertSee([
+        'duplicate_name',
+        'passing its id to create-event-draft',
+    ]);
+
+    EiServer::actingAs(writeToolUser())->tool(CreateOrganizer::class, [
+        'name' => $existing->name,
+        'description' => str_repeat('A public media organization. ', 5),
+    ])->assertOk()->assertSee('claim it on its page on the website');
+});

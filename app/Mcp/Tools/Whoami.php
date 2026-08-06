@@ -34,6 +34,17 @@ class Whoami extends Tool
             ];
         });
 
+        // Moderators and admins are exempt from the membership check in
+        // create-event-draft (and from `host`, even with no teams at all), but
+        // nothing else in this payload said so. A client that found an existing
+        // organizer it could not "claim" had no way to learn it could simply
+        // pass that organizer's id, so it stopped rather than creating the event.
+        $hint = $user->isModerator()
+            ? 'As a moderator/admin you are NOT limited to the organizers listed here: pass ANY existing organizer id to create-event-draft, even one you do not belong to. Prefer an existing organizer over creating a duplicate — search by name first and use its id.'
+            : ($organizers->isEmpty()
+                ? 'This user has no organizer yet. Create one with create-organizer before creating events.'
+                : 'Pass an organizer id to create-event-draft to create an event under that organizer.');
+
         return Response::json([
             'user' => [
                 'id' => $user->id,
@@ -43,9 +54,7 @@ class Whoami extends Tool
                 'email_verified' => $user->email_verified_at !== null,
             ],
             'organizers' => $organizers,
-            'hint' => $organizers->isEmpty()
-                ? 'This user has no organizer yet. Create one with create-organizer before creating events.'
-                : 'Pass an organizer id to create-event-draft to create an event under that organizer.',
+            'hint' => $hint,
         ]);
     }
 }

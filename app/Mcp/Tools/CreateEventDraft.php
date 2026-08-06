@@ -14,7 +14,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Create an empty event draft under one of your organizers. Returns the event slug used by update-event / get-event / submit-event-for-review. Each organizer can hold at most 5 unpublished events (drafts count). If the name matches an existing event you must confirm with the user and retry with acknowledge_duplicate=true.')]
+#[Description('Create an empty event draft under an organizer — one of your own, or (for moderators/admins) any existing organizer, including ones you do not belong to. Returns the event slug used by update-event / get-event / submit-event-for-review. Each organizer can hold at most 5 unpublished events (drafts count; admins exempt). If the name matches an existing event you must confirm with the user and retry with acknowledge_duplicate=true.')]
 class CreateEventDraft extends Tool
 {
     use BuildsSyntheticRequests;

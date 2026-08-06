@@ -49,9 +49,18 @@ class CreateOrganizer extends Tool
                 ->get(['id', 'name', 'slug', 'user_id', 'status']);
 
             if ($existing->isNotEmpty()) {
+                // `claimable: false` only describes the website's claim flow. A
+                // moderator/admin does not need to claim anything — create-event-draft
+                // exempts them from the membership check — but saying only "they may
+                // be able to claim it" led clients to stop here instead of just using
+                // the existing organizer's id.
+                $message = $user->isModerator()
+                    ? 'One or more organizations with this name already exist. Ask the user whether this is really a new organization. You are a moderator/admin: you can create events under any of these directly by passing its id to create-event-draft — `claimable` is about the website claim flow and does not restrict you. Only call this tool again with acknowledge_duplicate=true if the user confirms it is genuinely a different organization.'
+                    : 'One or more organizations with this name already exist. Ask the user whether this is really a new organization. If one of these is theirs, they may be able to claim it on its page on the website instead. To proceed anyway, call this tool again with acknowledge_duplicate=true.';
+
                 return Response::json([
                     'error' => 'duplicate_name',
-                    'message' => 'One or more organizations with this name already exist. Ask the user whether this is really a new organization. If one of these is theirs, they may be able to claim it on its page on the website instead. To proceed anyway, call this tool again with acknowledge_duplicate=true.',
+                    'message' => $message,
                     'existing_organizations' => $existing->map(fn ($organizer) => [
                         'id' => $organizer->id,
                         'name' => $organizer->name,
