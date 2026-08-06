@@ -129,3 +129,17 @@ test('get-event lets a moderator view any event', function () {
 
     $response->assertOk();
 });
+
+test('get-event exposes hiddenLocation so a client can see what clears secret_location_explained', function () {
+    $user = mcpUser();
+    $event = Event::factory()->create(['organizer_id' => organizerFor($user)->id, 'status' => '0']);
+    $event->location()->create(['hiddenLocationToggle' => true, 'hiddenLocation' => null]);
+    $event->advisories()->create(['audience' => '', 'advisories' => '']);
+
+    // The flag is unmet and the field that satisfies it must be visible in the
+    // same payload — without it clients guessed at remote_description instead.
+    EiServer::actingAs($user)->tool(GetEvent::class, ['event_slug' => $event->slug])
+        ->assertOk()
+        ->assertSee('secret_location_explained')
+        ->assertSee('hiddenLocation');
+});

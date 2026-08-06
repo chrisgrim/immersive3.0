@@ -73,10 +73,16 @@ class EventUpdateRules
             'always_config.endDate' => 'sometimes|nullable|date_format:Y-m-d H:i:s',
             // Add validation for tickets
             'tickets' => 'nullable|array',
+            // `sometimes` here used to mean an omitted price or currency passed
+            // validation and then blew up in Ticket::handleTickets, which reads
+            // both keys unconditionally. The web wizard always sends all four
+            // (it normalizes missing values to ''), so only API/MCP clients can
+            // send a partial tier — they get a field error now instead of an
+            // "Undefined array key" 500.
             'tickets.*.name' => 'required_with:tickets|string|max:40',
-            'tickets.*.ticket_price' => 'sometimes|required|numeric|min:0|max:99999.99',
+            'tickets.*.ticket_price' => 'required_with:tickets|numeric|min:0|max:99999.99',
             'tickets.*.description' => 'sometimes|nullable|string|max:200',
-            'tickets.*.currency' => 'sometimes|required|string|max:3',
+            'tickets.*.currency' => 'required_with:tickets|string|max:3',
             // Relaxed validation for images
             'images' => 'nullable|array',
             'images.*' => [

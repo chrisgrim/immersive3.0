@@ -1538,3 +1538,73 @@ test('a rejected event can be resubmitted', function () {
     $response->assertOk();
     expect($event->fresh()->status)->toBe('r');
 });
+
+test('update-event accepts a ticket tier with no description', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    // description is the only optional ticket key. Reading it unconditionally in
+    // Ticket::handleTickets turned an omitted description into an "Undefined
+    // array key" error — the web wizard always sends '' so only API/MCP clients
+    // could hit it.
+    $response = EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => 'America/New_York',
+        'showtype' => 's',
+        'dateArray' => [scheduleDay(30, 'America/New_York')],
+        'tickets' => [['name' => 'General Admission', 'ticket_price' => 31.00, 'currency' => '$']],
+    ]);
+
+    $response->assertOk();
+
+    $event->refresh();
+    $ticket = $event->shows->first()->tickets->first();
+    expect($ticket->name)->toBe('General Admission');
+    expect((float) $ticket->ticket_price)->toBe(31.00);
+    expect($ticket->description)->toBe('');
+    expect($event->price_range)->toContain('31');
+});
+
+test('update-event reports a field error for a tier missing price or currency', function () {
+    $user = writeToolUser();
+
+    foreach (['ticket_price', 'currency'] as $omitted) {
+        $event = draftFor(writeToolOrganizer($user), $user);
+        $tier = array_diff_key(
+            ['name' => 'General', 'ticket_price' => 25.00, 'currency' => '$'],
+            [$omitted => null]
+        );
+
+        EiServer::actingAs($user)->tool(UpdateEvent::class, [
+            'event_slug' => $event->slug,
+            'timezone' => 'America/New_York',
+            'showtype' => 's',
+            'dateArray' => [scheduleDay(30, 'America/New_York')],
+            'tickets' => [$tier],
+        ])->assertOk()->assertSee(['validation_failed', "tickets.0.{$omitted}"]);
+
+        expect($event->fresh()->shows->first()?->tickets ?? collect())->toHaveCount(0);
+    }
+});
+
+test('update-event saves a secret-location explanation through the tool', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'attendance_type_id' => 1,
+        'location' => [
+            'venue' => 'Secret Warehouse',
+            'city' => 'Brooklyn',
+            'latitude' => 40.7,
+            'longitude' => -73.9,
+            'hiddenLocationToggle' => true,
+            'hiddenLocation' => 'Address emailed after booking.',
+        ],
+    ])->assertOk();
+
+    $location = $event->fresh()->location;
+    expect((bool) $location->hiddenLocationToggle)->toBeTrue();
+    expect($location->hiddenLocation)->toBe('Address emailed after booking.');
+});

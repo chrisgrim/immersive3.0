@@ -57,10 +57,16 @@ class Ticket extends Model
         $names = [];
         $currency = '';
 
+        // Validation (EventUpdateRules) is the real guard: name, ticket_price and
+        // currency are all required_with:tickets, and description is optional.
+        // These fallbacks only keep a partial tier from fataling on an undefined
+        // key if some future caller reaches here unvalidated — they mirror the
+        // web wizard's own normalization ('' description) and the column default
+        // for currency.
         foreach ($tiers as $name => $ticketData) {
-            $prices[] = $ticketData['ticket_price'];
+            $prices[] = $ticketData['ticket_price'] ?? 0;
             $names[] = $name;
-            $currency = $ticketData['currency'];
+            $currency = $ticketData['currency'] ?? '$';
         }
 
         DB::transaction(function () use ($event, $tiers, $submittedNames, $showIds, $prices) {
@@ -89,9 +95,9 @@ class Ticket extends Model
                     // so one UPDATE covers all of them.
                     if ($existing->isNotEmpty()) {
                         self::whereIn('id', $existing->pluck('id'))->update([
-                            'description' => $ticketData['description'],
-                            'currency' => $ticketData['currency'],
-                            'ticket_price' => $ticketData['ticket_price'],
+                            'description' => $ticketData['description'] ?? '',
+                            'currency' => $ticketData['currency'] ?? '$',
+                            'ticket_price' => $ticketData['ticket_price'] ?? 0,
                             'updated_at' => $now,
                         ]);
                     }
@@ -102,9 +108,9 @@ class Ticket extends Model
                             'ticket_type' => Show::class,
                             'ticket_id' => $showId,
                             'name' => $name,
-                            'description' => $ticketData['description'],
-                            'currency' => $ticketData['currency'],
-                            'ticket_price' => $ticketData['ticket_price'],
+                            'description' => $ticketData['description'] ?? '',
+                            'currency' => $ticketData['currency'] ?? '$',
+                            'ticket_price' => $ticketData['ticket_price'] ?? 0,
                             'created_at' => $now,
                             'updated_at' => $now,
                         ];

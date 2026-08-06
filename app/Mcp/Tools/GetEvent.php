@@ -63,8 +63,13 @@ class GetEvent extends Tool
                 'category' => $event->category?->only(['id', 'name']),
                 'attendance_type_id' => $event->attendance_type_id,
                 'hasLocation' => (bool) $event->hasLocation,
+                // hiddenLocation belongs here next to its toggle: the readiness
+                // check `secret_location_explained` is what this field satisfies,
+                // and leaving it out left clients able to see the flag was unmet
+                // but not the field that clears it — they guessed at
+                // remote_description (visible below) instead.
                 'location' => $event->location?->only([
-                    'venue', 'home', 'street', 'city', 'region', 'country', 'postal_code', 'latitude', 'longitude', 'hiddenLocationToggle',
+                    'venue', 'home', 'street', 'city', 'region', 'country', 'postal_code', 'latitude', 'longitude', 'hiddenLocationToggle', 'hiddenLocation',
                 ]),
                 'remote_locations' => $event->remotelocations->pluck('name'),
                 'remote_description' => $event->remote_description,
