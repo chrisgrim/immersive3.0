@@ -309,3 +309,57 @@ test('web update advisories and wheelchair status persist on the advisories row'
     expect($advisories->audience)->toBe('Adults only');
     expect((bool) $advisories->wheelchairReady)->toBeTrue();
 });
+
+// ── show_times on the shared write path ────────────────────────────────
+
+test('web update clears show_times when the wizard sends it empty', function () {
+    $user = extractionUser();
+    $event = extractionEvent($user, ['showtype' => 's', 'show_times' => 'Fridays 8pm']);
+    $event->shows()->create(['date' => now()->addDays(10)->format('Y-m-d H:i:s')]);
+
+    // Show::updateEvent only writes show_times when the request carries the key,
+    // so that partial API/MCP edits stop blanking it. The wizard's Dates step
+    // always sends the key (dates.vue), so clearing from the website must still
+    // work — this is the guard on that.
+    $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'showtype' => 's',
+        'dateArray' => [now()->addDays(10)->format('Y-m-d H:i:s')],
+        'show_times' => null,
+    ])->assertStatus(200);
+
+    expect($event->fresh()->show_times)->toBeNull();
+});
+
+test('web update rewrites show_times when the wizard sends a new value', function () {
+    $user = extractionUser();
+    $event = extractionEvent($user, ['showtype' => 's', 'show_times' => 'Fridays 8pm']);
+    $event->shows()->create(['date' => now()->addDays(10)->format('Y-m-d H:i:s')]);
+
+    $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'showtype' => 's',
+        'dateArray' => [now()->addDays(10)->format('Y-m-d H:i:s')],
+        'show_times' => 'Saturdays 2pm & 8pm',
+    ])->assertStatus(200);
+
+    expect($event->fresh()->show_times)->toBe('Saturdays 2pm & 8pm');
+});
+
+test('a schedule edit that omits show_times leaves it standing', function () {
+    $user = extractionUser();
+    $event = extractionEvent($user, ['showtype' => 's', 'show_times' => 'Fridays 8pm']);
+    $event->shows()->create(['date' => now()->addDays(10)->format('Y-m-d H:i:s')]);
+
+    // The regression this whole change exists for: an absent key used to read as
+    // null and blank the showtimes text.
+    $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'showtype' => 's',
+        'dateArray' => [
+            now()->addDays(10)->format('Y-m-d H:i:s'),
+            now()->addDays(17)->format('Y-m-d H:i:s'),
+        ],
+    ])->assertStatus(200);
+
+    $after = $event->fresh();
+    expect($after->show_times)->toBe('Fridays 8pm')
+        ->and($after->shows()->count())->toBe(2);
+});
