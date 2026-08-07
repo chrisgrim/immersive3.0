@@ -33,6 +33,10 @@ class UpdateEventAction
         $wasPublished = in_array($event->status, ['p', 'e']);
         $oldStatus = $event->status;  // Store original status
         $oldCategoryId = $event->category_id;
+        // Both the mass-assign below and Show::saveShows write the new show type
+        // onto $event, so the only place the previous one still exists is here.
+        // Show::updateEvent needs it to tell a real type switch from a bare echo.
+        $oldShowtype = $event->showtype;
 
         // Guard the showtype/shows invariant: switching INTO a specific/ongoing
         // type with no dates would flip showtype (mass-assigned below) while the
@@ -104,7 +108,7 @@ class UpdateEventAction
 
         if (isset($validatedData['showtype'])) {
             Show::saveShows($request, $event);
-            Show::updateEvent($request, $event);
+            Show::updateEvent($request, $event, $oldShowtype);
         }
 
         // Handle all advisory-related updates

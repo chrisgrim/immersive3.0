@@ -24,6 +24,22 @@ trait FormatsEvents
         };
     }
 
+    /**
+     * Human-readable label for an event showtype char. 'l' is a retired type
+     * that still exists on older rows: the website rewrites it to 's' when the
+     * wizard opens one, and the MCP tools make the caller convert it explicitly.
+     */
+    protected function showtypeLabel(?string $showtype): string
+    {
+        return match ($showtype) {
+            's' => 'specific dates',
+            'o' => 'ongoing/recurring',
+            'a' => 'always available',
+            'l' => 'limited (retired type — set an explicit showtype to edit the schedule)',
+            default => 'not set',
+        };
+    }
+
     protected function eventSummary(Event $event): array
     {
         return [

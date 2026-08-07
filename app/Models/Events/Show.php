@@ -248,17 +248,35 @@ class Show extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\belongsTo
      */
-    public static function updateEvent($request, Event $event)
+    public static function updateEvent($request, Event $event, ?string $previousShowtype = null)
     {
         // Determine show type
         $type = self::determineShowType($request);
 
+        // saveShows() runs first and already wrote the new type onto $event, so
+        // comparing against $event->showtype here can only ever say "unchanged".
+        // Callers that know the type they started with pass it in; anyone else
+        // falls back to the (post-save) value, matching the old behaviour.
+        $previousShowtype = func_num_args() >= 3 ? $previousShowtype : $event->showtype;
+
         // Prepare update data
         $updateData = [
-            'show_times' => $request->show_times,
-            'embargo_date' => $request->embargo_date,
             'showtype' => $type,
         ];
+
+        // show_times and embargo_date are plain event fields, not schedule data,
+        // so carry them over only when the caller actually sent them. Reading
+        // them unconditionally meant every PARTIAL schedule edit (the MCP tools
+        // send just the fields being changed) blanked the event's showtimes text,
+        // because an absent key reads as null. The web wizard's Dates step always
+        // sends both, so clearing them from the wizard still works.
+        if (self::requestHas($request, 'show_times')) {
+            $updateData['show_times'] = $request->show_times;
+        }
+
+        if (self::requestHas($request, 'embargo_date')) {
+            $updateData['embargo_date'] = $request->embargo_date;
+        }
 
         // Include timezone if provided
         if ($request->timezone) {
@@ -271,12 +289,16 @@ class Show extends Model
         // show_times-only edit that still includes showtype) must NOT recompute
         // them: doing so would null the saved recurrence rule and reset
         // closingDate to a default six months out even though the schedule is
-        // unchanged, silently corrupting the event.
-        $scheduleProvided = isset($request->ongoing_config)
-            || isset($request->always_config)
-            || isset($request->dateArray);
+        // unchanged, silently corrupting the event. Each recipe only counts for
+        // its own show type, too — buildShowtypeConfig and calculateLastDate below
+        // read ongoing_config only for 'o' and always_config only for 'a', so
+        // treating a mismatched one as "schedule supplied" recomputed closingDate
+        // and nulled the recurrence rule for a schedule nobody had changed.
+        $scheduleProvided = isset($request->dateArray)
+            || ($type === 'o' && isset($request->ongoing_config))
+            || ($type === 'a' && isset($request->always_config));
 
-        if ($scheduleProvided || $type !== $event->showtype) {
+        if ($scheduleProvided || $type !== $previousShowtype) {
             $updateData['closingDate'] = self::calculateLastDate($event, $type, $request);
 
             // Store start date for ongoing events.
@@ -291,12 +313,18 @@ class Show extends Model
             $updateData['showtype_config'] = self::buildShowtypeConfig($type, $request);
         }
 
-        // Handle embargo status changes
-        if ($event->status === 'e' && ! $request->embargo_date) {
-            $updateData['status'] = 'p';
-        } elseif ($event->status === 'p' && $request->embargo_date) {
-            $updateData['status'] = 'e';
-            $event->unsearchable();
+        // Handle embargo status changes — only when the caller actually supplied
+        // an embargo_date. Inferring "no embargo" from an absent key published an
+        // embargoed event immediately (and dropped its embargo date) on any
+        // unrelated partial edit that happened to touch the schedule. Clearing
+        // stays an explicit act: send embargo_date=null.
+        if (self::requestHas($request, 'embargo_date')) {
+            if ($event->status === 'e' && ! $request->embargo_date) {
+                $updateData['status'] = 'p';
+            } elseif ($event->status === 'p' && $request->embargo_date) {
+                $updateData['status'] = 'e';
+                $event->unsearchable();
+            }
         }
 
         // Update the event
@@ -311,6 +339,19 @@ class Show extends Model
     private static function determineShowType($request): string
     {
         return $request->showtype ?? 's';
+    }
+
+    /**
+     * Whether the caller actually supplied a field, as opposed to it merely
+     * reading as null. Distinguishing the two is what keeps a partial update
+     * from blanking fields it never mentioned. Tolerates the plain objects some
+     * callers hand the static save helpers alongside real Requests.
+     */
+    private static function requestHas($request, string $key): bool
+    {
+        return $request instanceof \Illuminate\Http\Request
+            ? $request->has($key)
+            : property_exists($request, $key);
     }
 
     /**

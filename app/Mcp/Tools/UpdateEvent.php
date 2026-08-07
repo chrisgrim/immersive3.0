@@ -17,7 +17,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Partially update one of your event drafts: send only the fields you are changing. Uses the same validation as the website. All dates are UTC "Y-m-d H:i:s". Set showtype + dates before or together with tickets. Publishing is impossible from here — use submit-event-for-review when the draft is complete.')]
+#[Description('Partially update an event: send only the fields you are changing. Works on any event you can manage — for moderators and admins that is EVERY event on the platform, not just your own organizers (find slugs with list-all-events). Uses the same validation as the website. All dates are UTC "Y-m-d H:i:s". Set showtype + dates before or together with tickets. Publishing is impossible from here — use submit-event-for-review when the draft is complete.')]
 class UpdateEvent extends Tool
 {
     use BuildsSyntheticRequests;
@@ -129,8 +129,61 @@ class UpdateEvent extends Tool
         $changesSchedule = isset($validated['dateArray'])
             || isset($validated['ongoing_config'])
             || isset($validated['always_config']);
-        if ($changesSchedule && ! isset($validated['showtype']) && $event->showtype !== null) {
+
+        // ...but only a show type this tool understands can be defaulted in.
+        // An event with no showtype yet has nothing to default to (the old
+        // `!== null` check just skipped the assignment, so the schedule was
+        // dropped and the tool still said "Event updated"). A legacy 'l'
+        // (limited) event is worse: 'l' would reach Show::saveShows, whose 'l'
+        // branch throws away the supplied dates and collapses the schedule to a
+        // single sentinel show six months out. The website silently rewrites 'l'
+        // to 's' when the wizard opens one; make the caller choose explicitly
+        // instead, because here it is a live event being rewritten.
+        if ($changesSchedule
+            && ! isset($validated['showtype'])
+            && ! in_array($event->showtype, ['s', 'o', 'a'], true)) {
+            return Response::json([
+                'error' => 'showtype_required',
+                'message' => $event->showtype === null
+                    ? 'This event has no show type yet, so a schedule cannot be saved. Send showtype ("s" for a list of specific dates, "o" for a recurring run, "a" for always available) together with the dates.'
+                    : 'This event still uses the retired "'.$event->showtype.'" (limited) show type, which has no schedule editor — sending dates without a showtype would silently discard them. Send an explicit showtype ("s" for a list of specific dates, "o" for a recurring run, "a" for always available) together with the schedule. The website performs the same conversion when one of these events is opened in the wizard. Note that setting showtype replaces the existing shows, so include every date you want to keep.',
+                'current_showtype' => $event->showtype,
+            ]);
+        }
+
+        if ($changesSchedule && ! isset($validated['showtype'])) {
             $validated['showtype'] = $event->showtype;
+        }
+
+        $resolvedShowtype = $validated['showtype'] ?? $event->showtype;
+
+        // A schedule recipe only applies to its own show type: Show::updateEvent
+        // reads ongoing_config only for 'o' and always_config only for 'a'. A
+        // mismatched config used to be accepted and then quietly dropped — the
+        // tool answered "Event updated." with the field listed in updated_fields
+        // while the schedule was untouched, and for an always-available event it
+        // also reset closingDate to a default six months out. Name the field that
+        // actually applies instead.
+        [$sentConfig, $configType] = match (true) {
+            isset($validated['ongoing_config']) && $resolvedShowtype !== 'o' => ['ongoing_config', 'o'],
+            isset($validated['always_config']) && $resolvedShowtype !== 'a' => ['always_config', 'a'],
+            default => [null, null],
+        };
+
+        if ($sentConfig !== null) {
+            $field = match ($resolvedShowtype) {
+                's' => 'dateArray (the full list of show dates)',
+                'o' => 'ongoing_config',
+                'a' => 'always_config',
+                default => 'dateArray',
+            };
+
+            return Response::json([
+                'error' => 'showtype_mismatch',
+                'message' => "This event's show type is \"{$resolvedShowtype}\" (".$this->showtypeLabel($resolvedShowtype)."), and {$sentConfig} only applies to show type \"{$configType}\". To change this event's schedule, send {$field}. To convert the event to \"{$configType}\" instead, send showtype=\"{$configType}\" in the same call — that REPLACES the existing shows, so confirm it with the user first.",
+                'current_showtype' => $resolvedShowtype,
+                'use_field' => $field,
+            ]);
         }
 
         // Server-side recurrence expansion: for an ongoing ('o') event the caller
@@ -139,7 +192,6 @@ class UpdateEvent extends Tool
         // instead of the model enumerating (and miscounting) every occurrence. An
         // explicit dateArray still wins, so a caller can hand-pick dates or carve
         // out exceptions by sending the full list instead.
-        $resolvedShowtype = $validated['showtype'] ?? $event->showtype;
         if ($resolvedShowtype === 'o'
             && empty($validated['dateArray'])
             && isset($validated['ongoing_config'])) {
@@ -388,8 +440,19 @@ class UpdateEvent extends Tool
             return $event->shows()->count();
         }
 
-        // Same specific/ongoing type with a new date list: shows not in it drop.
         $showtype = $validated['showtype'] ?? $event->showtype;
+
+        // The sentinel types — 'a' (always available) and the retired 'l' — keep
+        // exactly ONE show standing in for the closing date, so re-saving swaps
+        // that sentinel for a new one and loses nothing. But an event of these
+        // types that still carries a real multi-show schedule (legacy data)
+        // collapses down to that single show, and this used to report 0 and skip
+        // the confirmation entirely.
+        if (in_array($showtype, ['a', 'l'], true)) {
+            return max(0, $event->shows()->count() - 1);
+        }
+
+        // Same specific/ongoing type with a new date list: shows not in it drop.
         if (isset($validated['dateArray']) && in_array($showtype, ['s', 'o'], true)) {
             return $event->shows()->whereNotIn('date', $validated['dateArray'])->count();
         }
@@ -481,7 +544,7 @@ class UpdateEvent extends Tool
             'remotelocations' => $schema->array()->description('For remote events, 1-10 platforms, at least 1 required before submission: [{"name": "Zoom"}].'),
             'remote_description' => $schema->string()->description('For remote events: how attendees join, max 3000 chars.'),
             'timezone' => $schema->string()->description('IANA timezone of the event, e.g. "America/New_York". geocode-address results include coordinates you can infer it from.'),
-            'showtype' => $schema->string()->enum(['s', 'o', 'a'])->description('s = specific dates, o = ongoing/recurring, a = always available. WARNING: changing this wipes and recreates all shows and tickets. Switching to "a" clears any embargo_date.'),
+            'showtype' => $schema->string()->enum(['s', 'o', 'a'])->description('s = specific dates, o = ongoing/recurring, a = always available. WARNING: changing this wipes and recreates all shows and tickets. Always-available events have no embargo on the website, so clear it explicitly with embargo_date=null when switching to "a".'),
             'dateArray' => $schema->array()->description('Show datetimes in UTC "Y-m-d H:i:s". REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it.'),
             'ongoing_config' => $schema->object()->description('For showtype=o: {startDate, endDate (UTC "Y-m-d H:i:s", anchored at noon in the event timezone), daysOfWeek: [0-6, Sunday=0]}. The server generates the concrete occurrence dates from this rule — send it alone, WITHOUT dateArray, for a normal weekly run.'),
             'always_config' => $schema->object()->description('For showtype=a: {endDate (UTC "Y-m-d H:i:s")} — when the listing should close. Defaults to 6 months out if omitted.'),
@@ -497,7 +560,7 @@ class UpdateEvent extends Tool
             'contentAdvisories' => $schema->array()->description('Content warnings: [{"name": "Loud noises"}]. At least 1 beyond the automatic sexual-content chip is required before submission, max 16 total. Offer the user the options from list-event-attributes first; free-form names are allowed but prefer existing ones.'),
             'mobilityAdvisories' => $schema->array()->description('Mobility/accessibility notes: [{"name": "Extended standing"}]. At least 1 beyond the automatic wheelchair chip is required before submission, max 16 total. Offer options from list-event-attributes first.'),
             'wheelchairReady' => $schema->boolean()->description('ALWAYS ask the user whether the event is wheelchair accessible — an explicit yes/no is required before submission. Answering automatically adds the matching "Wheelchair Accessible"/"Not Wheelchair Accessible" mobility chip.'),
-            'embargo_date' => $schema->string()->description('Optional UTC "Y-m-d H:i:s" in the future: if set, the event stays hidden until this date after approval. Cleared automatically when switching showtype to "a".'),
+            'embargo_date' => $schema->string()->description('Optional UTC "Y-m-d H:i:s" in the future: if set, the event stays hidden until this date after approval. Send null to lift an embargo and publish immediately. Omitting it leaves any existing embargo untouched.'),
             'videos' => $schema->array()->description('Optional, up to 4: [{"platform": "youtube"|"tiktok", "url": "...", "id": "platform video id", "rank": 0}]. Instagram is not supported.'),
             'acknowledge_duplicate' => $schema->boolean()->description('Set true only after the user confirms a duplicate-name warning.'),
             'confirm_live_edit' => $schema->boolean()->description('Required when editing a PUBLISHED or EMBARGOED event: the first call returns a current-vs-proposed diff instead of applying. Show the user the diff, get their explicit confirmation, then retry with this set to true.'),

@@ -12,7 +12,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Submit a completed event draft for human admin review. The event goes live only after an admin approves it. Rejected events ("needs revision") can be edited and resubmitted. Confirm with the user before submitting.')]
+#[Description('Submit a completed event draft for human admin review. Works on any event you can manage — for moderators and admins that is any event on the platform. The event goes live only after an admin approves it. Rejected events ("needs revision") can be edited and resubmitted. Confirm with the user before submitting.')]
 class SubmitEventForReview extends Tool
 {
     use FormatsEvents;

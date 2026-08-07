@@ -13,7 +13,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[IsReadOnly]
-#[Description('List the events belonging to the organizers the authenticated user is a member of, including drafts. Use this to resume work on an existing draft instead of creating a duplicate.')]
+#[Description('List the events belonging to the organizers the authenticated user is a member of, including drafts. Use this to resume work on an existing draft instead of creating a duplicate. This is deliberately scoped to your own teams even for moderators and admins — to reach events under organizers you do not belong to, use list-all-events.')]
 class ListMyEvents extends Tool
 {
     use FormatsEvents;

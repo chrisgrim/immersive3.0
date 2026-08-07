@@ -39,8 +39,11 @@ class Whoami extends Tool
         // nothing else in this payload said so. A client that found an existing
         // organizer it could not "claim" had no way to learn it could simply
         // pass that organizer's id, so it stopped rather than creating the event.
+        // The same blind spot then showed up on the read side: a client that
+        // could only see this list concluded events under other organizers were
+        // invisible to the API, when in fact every tool below reaches them.
         $hint = $user->isModerator()
-            ? 'As a moderator/admin you are NOT limited to the organizers listed here: pass ANY existing organizer id to create-event-draft, even one you do not belong to. Prefer an existing organizer over creating a duplicate — search by name first and use its id.'
+            ? 'As a moderator/admin you are NOT limited to the organizers listed here. Use list-all-events to search every event on the platform in any status, then get-event / update-event / attach-event-image / submit-event-for-review on any of them, and update-organizer on any organizer. Pass ANY existing organizer id to create-event-draft, even one you do not belong to — prefer an existing organizer over creating a duplicate.'
             : ($organizers->isEmpty()
                 ? 'This user has no organizer yet. Create one with create-organizer before creating events.'
                 : 'Pass an organizer id to create-event-draft to create an event under that organizer.');

@@ -14,7 +14,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Attach an image to one of your events by downloading it from a public URL (jpeg/png/webp, max 5 MB, max 5 images per event). Rank 0 is the primary portrait image (cropped 900x1200); ranks 1-4 are gallery landscape images (cropped 1200x800). An existing image at the same rank is replaced.')]
+#[Description('Attach an image to an event you can manage — for moderators and admins that is any event on the platform — by downloading it from a public URL (jpeg/png/webp, max 5 MB, max 5 images per event). Rank 0 is the primary portrait image (cropped 900x1200); ranks 1-4 are gallery landscape images (cropped 1200x800). An existing image at the same rank is replaced.')]
 class AttachEventImage extends Tool
 {
     use FormatsEvents;

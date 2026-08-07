@@ -13,7 +13,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[IsReadOnly]
-#[Description('Get the full editable state of one of your events by slug, including a readiness checklist showing what still needs to be filled in before submit-event-for-review.')]
+#[Description('Get the full editable state of an event by slug, including a readiness checklist showing what still needs to be filled in before submit-event-for-review. Works on any event you can manage — for moderators and admins that is EVERY event on the platform, not just your own organizers. Find slugs with list-all-events.')]
 class GetEvent extends Tool
 {
     use FormatsEvents;

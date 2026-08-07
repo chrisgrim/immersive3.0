@@ -14,7 +14,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Update an organizer you belong to: description, contact email, website, social handles, Patreon, or logo. Send only the fields you are changing. Not available while the organizer is under admin review (locked until approved or rejected). Renaming a PUBLISHED organizer does not apply immediately: it files a name-change request for admin review (the current name stays live until approved), while any other fields in the same call still update right away.')]
+#[Description('Update an organizer: description, contact email, website, social handles, Patreon, or logo. Works on organizers you belong to — and for moderators and admins, on ANY organizer, including ones you are not a member of. Send only the fields you are changing. Not available while the organizer is under admin review (locked until approved or rejected). Renaming a PUBLISHED organizer does not apply immediately: it files a name-change request for admin review (the current name stays live until approved), while any other fields in the same call still update right away.')]
 class UpdateOrganizer extends Tool
 {
     public function handle(Request $request): Response

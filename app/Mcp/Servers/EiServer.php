@@ -7,6 +7,7 @@ use App\Mcp\Tools\CreateEventDraft;
 use App\Mcp\Tools\CreateOrganizer;
 use App\Mcp\Tools\GeocodeAddress;
 use App\Mcp\Tools\GetEvent;
+use App\Mcp\Tools\ListAllEvents;
 use App\Mcp\Tools\ListEventAttributes;
 use App\Mcp\Tools\ListMyEvents;
 use App\Mcp\Tools\SubmitEventForReview;
@@ -59,6 +60,21 @@ class EiServer extends Server
     `get-event` returns a readiness checklist of what's still missing;
     `submit-event-for-review` enforces it and sends the event to human review.
 
+    Finding an existing event: `list-my-events` covers only the organizers the
+    user belongs to. `list-all-events` searches the whole platform — use it
+    whenever an event might live under someone else's organizer, or to sweep for
+    work (e.g. `closing_before` finds runs about to expire). Moderators and
+    admins can edit ANY event they find there with `update-event`; the "your
+    events" framing in these tools is about ownership, not about what you are
+    allowed to reach.
+
+    Editing a schedule: send the field that matches the event's showtype —
+    `dateArray` for "s", `ongoing_config` for "o", `always_config` for "a".
+    Sending the wrong one is rejected rather than silently ignored. `dateArray`
+    REPLACES the whole schedule, so include the past dates you want to keep;
+    `ongoing_config` regenerates the run from its recipe. Fields you do not send
+    are left alone.
+
     Safety rules:
     - Events only go live after a human admin approves them; you cannot publish.
     - Editing a PUBLISHED event applies immediately: the first update-event call
@@ -71,6 +87,7 @@ class EiServer extends Server
         Whoami::class,
         ListEventAttributes::class,
         ListMyEvents::class,
+        ListAllEvents::class,
         GetEvent::class,
         GeocodeAddress::class,
         CreateOrganizer::class,

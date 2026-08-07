@@ -1641,3 +1641,264 @@ test('the duplicate-organizer warning points moderators at the existing id', fun
         'description' => str_repeat('A public media organization. ', 5),
     ])->assertOk()->assertSee('claim it on its page on the website');
 });
+
+// ── schedule edits on LIVE events (reported from the field) ────────────
+
+/** A published event with a real schedule already on it. */
+function liveEvent(User $user, string $showtype, array $dates, array $overrides = []): Event
+{
+    $event = draftFor(writeToolOrganizer($user), $user, array_merge([
+        'status' => 'p', 'showtype' => $showtype, 'timezone' => 'America/Toronto',
+    ], $overrides));
+
+    foreach ($dates as $date) {
+        $event->shows()->create(['date' => $date]);
+    }
+
+    return $event->fresh();
+}
+
+test('ongoing_config sent to an always-available event is refused, not silently dropped', function () {
+    $user = writeToolUser();
+    $tz = 'America/Toronto';
+    $event = liveEvent($user, 'a', [scheduleDay(20, $tz)], ['closingDate' => scheduleDay(20, $tz)]);
+    $closingBefore = (string) $event->closingDate;
+
+    // Show::updateEvent only reads ongoing_config for showtype 'o'. This used to
+    // answer "Event updated." with ongoing_config in updated_fields while the
+    // schedule was untouched — AND reset closingDate to a default six months out.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'ongoing_config' => ['startDate' => scheduleDay(1, $tz), 'endDate' => scheduleDay(120, $tz), 'daysOfWeek' => [5, 6]],
+        'confirm_live_edit' => true,
+        'confirm_schedule_replace' => true,
+    ])->assertOk()
+        ->assertSee(['showtype_mismatch', 'always_config'])
+        ->assertDontSee('Event updated.');
+
+    $after = $event->fresh();
+    expect((string) $after->closingDate)->toBe($closingBefore)
+        ->and($after->shows()->count())->toBe(1);
+});
+
+test('always_config sent to a specific-dates event is refused with the field that applies', function () {
+    $user = writeToolUser();
+    $tz = 'America/Toronto';
+    $event = liveEvent($user, 's', [scheduleDay(5, $tz), scheduleDay(9, $tz)]);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'always_config' => ['endDate' => scheduleDay(120, $tz)],
+        'confirm_live_edit' => true,
+    ])->assertOk()->assertSee(['showtype_mismatch', 'dateArray']);
+
+    expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('always_config extends an always-available run — the supported path', function () {
+    $user = writeToolUser();
+    $tz = 'America/Toronto';
+    $event = liveEvent($user, 'a', [scheduleDay(20, $tz)], ['closingDate' => scheduleDay(20, $tz)]);
+    $newEnd = scheduleDay(200, $tz);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'always_config' => ['endDate' => $newEnd],
+        'confirm_live_edit' => true,
+    ])->assertOk()->assertSee('Event updated.')->assertDontSee('confirm_schedule_replace');
+
+    $after = $event->fresh();
+    expect(substr((string) $after->closingDate, 0, 10))->toBe(Carbon::parse($newEnd, 'UTC')->format('Y-m-d'))
+        ->and($after->shows()->count())->toBe(1);
+});
+
+test('a legacy limited-type event refuses a schedule edit instead of collapsing it', function () {
+    $user = writeToolUser();
+    $tz = 'America/Toronto';
+    $event = liveEvent($user, 'l', [scheduleDay(-10, $tz), scheduleDay(5, $tz), scheduleDay(12, $tz)]);
+
+    // 'l' would flow into Show::saveShows, whose 'l' branch discards the supplied
+    // dates and replaces the whole schedule with one sentinel show six months out
+    // — and showsThatWouldBeRemoved reported 0, so nothing asked first.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'dateArray' => [scheduleDay(5, $tz), scheduleDay(12, $tz), scheduleDay(19, $tz)],
+        'confirm_live_edit' => true,
+        'confirm_schedule_replace' => true,
+    ])->assertOk()->assertSee(['showtype_required', 'retired']);
+
+    expect($event->fresh()->shows()->count())->toBe(3);
+});
+
+test('a legacy limited-type event converts when the caller names a showtype', function () {
+    $user = writeToolUser('a');
+    $tz = 'America/Toronto';
+    $event = liveEvent($user, 'l', [scheduleDay(-10, $tz), scheduleDay(5, $tz)]);
+    $dates = [scheduleDay(-10, $tz), scheduleDay(5, $tz), scheduleDay(19, $tz)];
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'dateArray' => $dates,
+        'confirm_live_edit' => true,
+        'confirm_schedule_replace' => true,
+    ])->assertOk()->assertSee('Event updated.');
+
+    $after = $event->fresh();
+    expect($after->showtype)->toBe('s')
+        ->and($after->shows()->pluck('date')->map(fn ($d) => (string) $d)->sort()->values()->all())
+        ->toBe(collect($dates)->sort()->values()->all());
+});
+
+test('a schedule edit with no showtype anywhere is refused rather than dropped', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user, ['showtype' => null]);
+
+    // The old guard skipped the showtype default when the event had none, so
+    // saveShows never ran and the tool still reported success.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'dateArray' => [scheduleDay(10)],
+    ])->assertOk()->assertSee('showtype_required')->assertDontSee('Event updated.');
+
+    expect($event->fresh()->shows()->count())->toBe(0);
+});
+
+test('collapsing a multi-show always-available event still asks before deleting', function () {
+    $user = writeToolUser();
+    $tz = 'America/Toronto';
+    // Legacy shape: an 'a' event that somehow carries a full schedule. Saving it
+    // keeps one sentinel and hard-deletes the rest, which used to count as 0.
+    $event = liveEvent($user, 'a', [scheduleDay(5, $tz), scheduleDay(9, $tz), scheduleDay(14, $tz)]);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'always_config' => ['endDate' => scheduleDay(120, $tz)],
+        'confirm_live_edit' => true,
+    ])->assertOk()->assertSee(['confirm_schedule_replace', '"shows_to_remove":2']);
+
+    expect($event->fresh()->shows()->count())->toBe(3);
+});
+
+test('extending a published ongoing run keeps its showtimes text and past shows', function () {
+    $user = writeToolUser();
+    $tz = 'America/Toronto';
+    $days = [5, 6];
+    $start = scheduleDay(-30, $tz);
+    $event = liveEvent($user, 'o', RecurringDates::expand($days, $start, scheduleDay(10, $tz), $tz), [
+        'show_times' => 'Fridays 8pm, Saturdays 6pm & 9pm',
+    ]);
+    $before = $event->shows()->count();
+
+    // A partial update sends only what is changing. Show::updateEvent used to read
+    // show_times off the request unconditionally, so an absent key blanked it.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'ongoing_config' => ['startDate' => $start, 'endDate' => scheduleDay(90, $tz), 'daysOfWeek' => $days],
+        'confirm_live_edit' => true,
+    ])->assertOk()->assertSee('Event updated.');
+
+    $after = $event->fresh();
+    expect($after->show_times)->toBe('Fridays 8pm, Saturdays 6pm & 9pm')
+        ->and($after->shows()->count())->toBeGreaterThan($before)
+        ->and($after->shows()->where('date', '<', now()->format('Y-m-d H:i:s'))->count())->toBeGreaterThan(0);
+});
+
+test('a partial edit does not publish an embargoed event early', function () {
+    $user = writeToolUser();
+    $embargo = now()->addDays(20)->format('Y-m-d H:i:s');
+    $event = liveEvent($user, 's', [scheduleDay(30)], ['status' => 'e', 'embargo_date' => $embargo]);
+
+    // Absent embargo_date used to read as null, which the embargo branch took as
+    // "the user removed the embargo" and published the event immediately.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'dateArray' => [scheduleDay(30), scheduleDay(40)],
+        'confirm_live_edit' => true,
+    ])->assertOk()->assertSee('Event updated.');
+
+    $after = $event->fresh();
+    expect($after->status)->toBe('e')
+        ->and((string) $after->embargo_date)->toBe($embargo)
+        ->and($after->shows()->count())->toBe(2);
+});
+
+test('an explicit embargo_date still lifts and applies an embargo', function () {
+    $user = writeToolUser();
+    $event = liveEvent($user, 's', [scheduleDay(30)], [
+        'status' => 'e', 'embargo_date' => now()->addDays(20)->format('Y-m-d H:i:s'),
+    ]);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'embargo_date' => null,
+        'dateArray' => [scheduleDay(30), scheduleDay(40)],
+        'confirm_live_edit' => true,
+    ])->assertOk();
+
+    expect($event->fresh()->status)->toBe('p');
+});
+
+test('an always-available switch leaves an embargo alone unless it is cleared explicitly', function () {
+    $user = writeToolUser('a');
+    $tz = 'America/Toronto';
+    $embargo = now()->addDays(20)->format('Y-m-d H:i:s');
+    $event = liveEvent($user, 's', [scheduleDay(30, $tz)], ['status' => 'e', 'embargo_date' => $embargo]);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 'a',
+        'always_config' => ['endDate' => scheduleDay(200, $tz)],
+        'confirm_live_edit' => true,
+        'confirm_schedule_replace' => true,
+    ])->assertOk()->assertSee('Event updated.');
+
+    $after = $event->fresh();
+    expect($after->status)->toBe('e')->and((string) $after->embargo_date)->toBe($embargo);
+
+    // Lifting it is an explicit act, not a side effect of the schedule change.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'embargo_date' => null,
+        'showtype' => 'a',
+        'always_config' => ['endDate' => scheduleDay(200, $tz)],
+        'confirm_live_edit' => true,
+    ])->assertOk();
+
+    expect($event->fresh()->status)->toBe('p');
+});
+
+test('switching show type refreshes the closing date and clears the old recurrence rule', function () {
+    $user = writeToolUser('a');
+    $tz = 'America/Toronto';
+    $event = draftFor(writeToolOrganizer($user), $user, [
+        'showtype' => 'o', 'timezone' => $tz,
+        'closingDate' => scheduleDay(20, $tz),
+        'start_date' => scheduleDay(-30, $tz),
+        'showtype_config' => ['type' => 'ongoing', 'days_of_week' => [5, 6], 'start_date' => scheduleDay(-30, $tz)],
+    ]);
+    $event->shows()->create(['date' => scheduleDay(5, $tz)]);
+    $event->shows()->create(['date' => scheduleDay(12, $tz)]);
+
+    // Switch to always-available WITHOUT always_config — supported: the schedule
+    // defaults to six months out. Show::saveShows writes the new showtype onto
+    // the event before Show::updateEvent reads it, so the "did the type change?"
+    // check always said no and the metadata block was skipped: the event became
+    // always-available while keeping the ongoing run's closingDate (so it still
+    // expired) and its ongoing recurrence rule.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 'a',
+        'confirm_schedule_replace' => true,
+    ])->assertOk();
+
+    $after = $event->fresh();
+    $sentinel = (string) $after->shows()->first()->date;
+
+    expect($after->showtype)->toBe('a')
+        ->and($after->shows()->count())->toBe(1)
+        // closingDate now tracks the new sentinel show rather than the old run.
+        ->and(substr((string) $after->closingDate, 0, 10))->toBe(substr($sentinel, 0, 10))
+        ->and($after->showtype_config)->toBeNull()
+        ->and($after->start_date)->toBeNull();
+});
