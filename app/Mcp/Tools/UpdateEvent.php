@@ -31,9 +31,33 @@ class UpdateEvent extends Tool
         'status', 'images', 'ranks', 'currentImages', 'deletedImages', 'archived', 'closingDate', 'published_at', 'rank', 'slug',
     ];
 
+    /**
+     * What to do instead, per stripped key. Dropping these silently is what made
+     * a rejected call look like the platform losing the edit: a caller trying to
+     * extend a run by setting closingDate had its only field removed before
+     * validation and got the bare "No updatable fields were provided".
+     */
+    protected const STRIPPED_KEY_ALTERNATIVES = [
+        'closingDate' => 'closingDate is derived from the schedule — change the shows instead (dateArray for showtype "s", ongoing_config for "o", always_config for "a") and the closing date follows',
+        'status' => 'status changes go through submit-event-for-review; an admin approves or rejects from there',
+        'images' => 'use attach-event-image to add or replace an image',
+        'ranks' => 'use attach-event-image, which takes the rank directly',
+        'currentImages' => 'use attach-event-image to add or replace an image',
+        'deletedImages' => 'use attach-event-image to replace the image at a rank',
+        'archived' => 'archiving is not available from here',
+        'published_at' => 'publishing is not available from here — use submit-event-for-review',
+        'rank' => 'rank is set by admins on the website',
+        'slug' => 'the slug is fixed once the event is created',
+    ];
+
     public function handle(Request $request): Response
     {
         $user = $request->user();
+
+        $stripped = array_values(array_intersect(
+            array_keys($request->all()),
+            self::STRIPPED_KEYS
+        ));
 
         $input = collect($request->all())
             ->except(array_merge(self::STRIPPED_KEYS, ['event_slug', 'acknowledge_duplicate', 'confirm_live_edit', 'confirm_schedule_replace']))
@@ -114,6 +138,20 @@ class UpdateEvent extends Tool
         $validated = $validator->validated();
 
         if (empty($validated)) {
+            // Say which fields were dropped and what replaces them, rather than
+            // implying nothing was sent — the caller did send something.
+            if ($stripped !== []) {
+                return Response::json([
+                    'error' => 'fields_not_editable_here',
+                    'message' => 'None of the fields you sent can be set through this tool: '.implode(', ', $stripped).'. '
+                        .implode('. ', array_map(
+                            fn ($key) => ucfirst(self::STRIPPED_KEY_ALTERNATIVES[$key] ?? $key.' is not editable here'),
+                            $stripped
+                        )).'.',
+                    'rejected_fields' => $stripped,
+                ]);
+            }
+
             return Response::error('No updatable fields were provided.');
         }
 
@@ -383,6 +421,9 @@ class UpdateEvent extends Tool
             'message' => 'Event updated.',
             'event' => $this->eventSummary($event),
             'updated_fields' => array_keys($validated),
+            // The rest of the call applied, but these were dropped — saying so
+            // beats letting the caller assume everything it sent took effect.
+            ...($stripped === [] ? [] : ['ignored_fields' => $stripped]),
             'readiness' => $readiness,
             'missing' => collect($readiness)->reject(fn ($ok) => $ok)->keys()->values(),
         ];
@@ -552,7 +593,7 @@ class UpdateEvent extends Tool
             'attendance_type_id' => $schema->integer()->description('1 = In Person, 2 = Remote/online. Ask this FIRST — it decides whether the event needs a location or remote platforms, and which categories are valid.'),
             'category_id' => $schema->integer()->description('Category id from list-event-attributes (pass attendance_type_id there to see only compatible categories; an incompatible category gets dissociated).'),
             'genres' => $schema->array()->description('1-10 genre objects, at least 1 required before submission: [{"id": 1, "name": "Horror"}]. Ids from list-event-attributes; a new name without an id creates a user genre — prefer existing ones.'),
-            'location' => $schema->object()->description('For in-person events: {venue (display name, keep under 80 chars), home (street number), street, city, region, region_long, country, country_long, postal_code, latitude, longitude, hiddenLocationToggle (bool), hiddenLocation}. Use geocode-address to resolve the exact fields from a human address and confirm the match with the user. If the location is a secret (hiddenLocationToggle=true), hiddenLocation must explain how attendees learn the address.'),
+            'location' => $schema->object()->description('For in-person events: {venue (display name, max 80 chars — longer is rejected), home (street number), street, city, region, region_long, country, country_long, postal_code, latitude, longitude, hiddenLocationToggle (bool), hiddenLocation}. Use geocode-address to resolve the exact fields from a human address and confirm the match with the user. If the location is a secret (hiddenLocationToggle=true), hiddenLocation must explain how attendees learn the address.'),
             'remotelocations' => $schema->array()->description('For remote events, 1-10 platforms, at least 1 required before submission: [{"name": "Zoom"}].'),
             'remote_description' => $schema->string()->description('For remote events: how attendees join, max 3000 chars.'),
             'timezone' => $schema->string()->description('IANA timezone of the event, e.g. "America/New_York". geocode-address results include coordinates you can infer it from.'),

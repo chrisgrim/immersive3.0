@@ -563,6 +563,22 @@ test('StoreEvent requires sexualDescription when advisories.sexual is true', fun
     expect($validator->errors()->has('advisories.sexualDescription'))->toBeTrue();
 });
 
+test('StoreEvent caps location venue at the 80 chars the wizard input allows', function () {
+    // The wizard's venue input is maxlength=80 and its Location step refuses to
+    // advance past a longer value, so anything the server let through above 80
+    // became an unexplained dead Next button. Only non-browser callers can send
+    // one. Longest venue on record is 65 chars.
+    $data = ['location' => ['venue' => str_repeat('a', 81)]];
+    $request = makeRequest(StoreEventRequest::class, $data);
+
+    $validator = validateWith($request, $data);
+    expect($validator->errors()->has('location.venue'))->toBeTrue();
+
+    $ok = ['location' => ['venue' => str_repeat('a', 80)]];
+    $okValidator = validateWith(makeRequest(StoreEventRequest::class, $ok), $ok);
+    expect($okValidator->errors()->has('location.venue'))->toBeFalse();
+});
+
 test('StoreEvent rejects an ISO currency code in favour of the symbol', function () {
     // The currency is rendered verbatim next to the price, so "USD" would show
     // on the live listing as "USD17.00". The old max:3 rule let it through.

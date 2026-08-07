@@ -1987,3 +1987,58 @@ test('a symbol the picker offers is stored untouched', function () {
         expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe($symbol);
     }
 });
+
+// ── fields this tool refuses to set ────────────────────────────────────
+
+test('a closingDate-only edit names the field and points at the schedule', function () {
+    $user = writeToolUser();
+    $tz = 'America/Toronto';
+    $event = liveEvent($user, 'o', [scheduleDay(5, $tz), scheduleDay(12, $tz)]);
+
+    // closingDate is stripped before validation, which left nothing to validate
+    // and produced "No updatable fields were provided" — reading, to the caller,
+    // as the platform silently dropping the edit.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'closingDate' => scheduleDay(400, $tz),
+        'confirm_live_edit' => true,
+    ])->assertOk()
+        ->assertSee(['fields_not_editable_here', 'closingDate', 'ongoing_config'])
+        ->assertDontSee('No updatable fields were provided');
+
+    expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('a status-only edit points at the submit tool', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'status' => 'p',
+    ])->assertOk()->assertSee(['fields_not_editable_here', 'submit-event-for-review']);
+});
+
+test('a stripped field alongside a real one applies the edit and reports the drop', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'description' => 'A description long enough to be worth saving.',
+        'closingDate' => scheduleDay(400),
+    ])->assertOk()
+        ->assertSee(['Event updated.', 'ignored_fields', 'closingDate']);
+
+    expect($event->fresh()->description)->toBe('A description long enough to be worth saving.');
+});
+
+test('a normal edit reports no ignored fields', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'description' => 'Nothing here should be dropped.',
+    ])->assertOk()->assertDontSee('ignored_fields');
+});

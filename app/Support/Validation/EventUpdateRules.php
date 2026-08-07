@@ -91,7 +91,11 @@ class EventUpdateRules
             'location.postal_code' => 'sometimes|nullable|string|max:20',
             'location.hiddenLocation' => 'nullable|string|max:255',
             'location.hiddenLocationToggle' => 'sometimes|boolean',
-            'location.venue' => 'nullable|string|max:255',
+            // 80, not 255: the wizard's venue input is maxlength=80 and its
+            // Location step refuses to advance past a longer one, so a value the
+            // server accepted but the form could not was a Next button that did
+            // nothing. The longest venue on record is 65 characters.
+            'location.venue' => 'nullable|string|max:80',
             // Add validation for remotelocations
             'remotelocations' => 'nullable|array',
             'remotelocations.*.name' => 'required_with:remotelocations|string|max:255',
