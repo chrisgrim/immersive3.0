@@ -398,16 +398,22 @@ test('create-event-draft refuses users with no teams', function () {
     $response->assertHasErrors();
 });
 
-test('create-event-draft enforces the 5 unpublished cap for non-admins', function () {
+test('create-event-draft enforces the unpublished cap for non-admins', function () {
     $user = writeToolUser();
     $organizer = writeToolOrganizer($user);
-    Event::factory()->count(5)->create(['organizer_id' => $organizer->id, 'status' => '0']);
 
-    $response = EiServer::actingAs($user)->tool(CreateEventDraft::class, [
+    // One below the cap still goes through...
+    Event::factory()->count(Event::MAX_UNPUBLISHED_EVENTS - 1)
+        ->create(['organizer_id' => $organizer->id, 'status' => '0']);
+
+    EiServer::actingAs($user)->tool(CreateEventDraft::class, [
         'organizer_id' => $organizer->id,
-    ]);
+    ])->assertOk()->assertSee('Draft created.');
 
-    $response->assertHasErrors();
+    // ...and that draft puts the organizer at the cap, so the next one stops.
+    EiServer::actingAs($user)->tool(CreateEventDraft::class, [
+        'organizer_id' => $organizer->id,
+    ])->assertHasErrors();
 });
 
 test('create-event-draft duplicate names require acknowledgement', function () {

@@ -115,9 +115,9 @@ class HostEventController extends Controller
         // Check unpublished events count (bypass for admins)
         $unpublishedCount = Event::countUnpublishedEvents($organizerId);
 
-        if ($unpublishedCount >= 5 && ! auth()->user()->isAdmin()) {
+        if ($unpublishedCount >= Event::MAX_UNPUBLISHED_EVENTS && ! auth()->user()->isAdmin()) {
             return response()->json([
-                'message' => 'You can only have 5 unpublished events at a time.',
+                'message' => 'You can only have '.Event::MAX_UNPUBLISHED_EVENTS.' unpublished events at a time.',
             ], 422);
         }
 
@@ -248,9 +248,9 @@ class HostEventController extends Controller
         // Check unpublished events count (bypass for admins)
         $unpublishedCount = Event::countUnpublishedEvents($event->organizer_id);
 
-        if ($unpublishedCount >= 5 && ! auth()->user()->isAdmin()) {
+        if ($unpublishedCount >= Event::MAX_UNPUBLISHED_EVENTS && ! auth()->user()->isAdmin()) {
             return response()->json([
-                'message' => 'You can only have 5 unpublished events at a time.',
+                'message' => 'You can only have '.Event::MAX_UNPUBLISHED_EVENTS.' unpublished events at a time.',
             ], 422);
         }
 

@@ -10,7 +10,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[IsReadOnly]
-#[Description('Get the authenticated user and the organizers (teams) they belong to. Call this first: event drafts are created under an organizer, and each organizer can hold at most 5 unpublished events at a time.')]
+#[Description('Get the authenticated user and the organizers (teams) they belong to. Call this first: event drafts are created under an organizer, and each organizer can hold at most 10 unpublished events at a time.')]
 class Whoami extends Tool
 {
     public function handle(Request $request): Response
@@ -30,7 +30,7 @@ class Whoami extends Tool
                 },
                 'your_role' => $organizer->membership->role ?? null,
                 'unpublished_events' => Event::countUnpublishedEvents($organizer->id),
-                'unpublished_events_limit' => 5,
+                'unpublished_events_limit' => Event::MAX_UNPUBLISHED_EVENTS,
             ];
         });
 

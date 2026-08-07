@@ -508,6 +508,15 @@ class Event extends Model
             ->exists();
     }
 
+    /**
+     * How many unpublished events (drafts, in-review, rejected) one organizer
+     * may hold at once. Admins are exempt everywhere this is enforced: the web
+     * create/duplicate endpoints, the MCP create-event-draft tool, and the
+     * client-side pre-check in resources/js/PageComponents/Creation/index.vue
+     * (which must be kept in step with this value).
+     */
+    public const MAX_UNPUBLISHED_EVENTS = 10;
+
     public static function countUnpublishedEvents($organizerId)
     {
         return self::where('organizer_id', $organizerId)

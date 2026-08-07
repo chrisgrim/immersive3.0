@@ -133,11 +133,25 @@ test('create accepts a duplicate name when acknowledge_duplicate=1', function ()
         ->assertStatus(201);
 });
 
-test('create blocks non-admins at 5 unpublished events', function () {
+test('create allows non-admins up to the unpublished cap', function () {
     $organizer = Organizer::factory()->create();
     $user = memberOf($organizer);
 
-    Event::factory()->count(5)->create([
+    Event::factory()->count(Event::MAX_UNPUBLISHED_EVENTS - 1)->create([
+        'organizer_id' => $organizer->id,
+        'status' => 'd',
+    ]);
+
+    $this->actingAs($user)
+        ->postJson(route('hosting.event.create'), ['organizer_id' => $organizer->id])
+        ->assertStatus(201);
+});
+
+test('create blocks non-admins at the unpublished cap', function () {
+    $organizer = Organizer::factory()->create();
+    $user = memberOf($organizer);
+
+    Event::factory()->count(Event::MAX_UNPUBLISHED_EVENTS)->create([
         'organizer_id' => $organizer->id,
         'status' => 'd',
     ]);
@@ -147,11 +161,11 @@ test('create blocks non-admins at 5 unpublished events', function () {
         ->assertStatus(422);
 });
 
-test('admins bypass the 5-unpublished limit', function () {
+test('admins bypass the unpublished cap', function () {
     $organizer = Organizer::factory()->create();
     $admin = memberOf($organizer, 'a');
 
-    Event::factory()->count(5)->create([
+    Event::factory()->count(Event::MAX_UNPUBLISHED_EVENTS)->create([
         'organizer_id' => $organizer->id,
         'status' => 'd',
     ]);

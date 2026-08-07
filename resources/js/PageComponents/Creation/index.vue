@@ -391,7 +391,9 @@ const props = defineProps({
 
 const emit = defineEmits(['eventDeleted']);
 
-const MAX_UNPUBLISHED_EVENTS = 5;
+// Keep in step with Event::MAX_UNPUBLISHED_EVENTS (app/Models/Event.php) — this
+// is only a pre-check for a nicer message; the server enforces the real cap.
+const MAX_UNPUBLISHED_EVENTS = 10;
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const selectedEvent = ref(null);
 const showSubmissionModal = ref(false);
@@ -521,13 +523,13 @@ const closeSubmissionModal = () => {
 
 
 const createNewEvent = async () => {
-	// Check if organizer has 5 or more unpublished events (bypass for admins)
+	// Check if organizer is at the unpublished-events cap (bypass for admins)
 	const unpublishedCount = props.organizer.events.filter(
 		event => !['p', 'e'].includes(event.status) && !event.is_deleted
 	).length;
 
 	if (unpublishedCount >= MAX_UNPUBLISHED_EVENTS && !props.user.isAdmin) {
-		alert('You can only have 5 unpublished events at a time. Please publish or delete existing events before creating new ones.');
+		alert(`You can only have ${MAX_UNPUBLISHED_EVENTS} unpublished events at a time. Please publish or delete existing events before creating new ones.`);
 		return;
 	}
 

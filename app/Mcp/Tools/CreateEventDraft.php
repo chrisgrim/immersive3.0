@@ -14,7 +14,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Create an empty event draft under an organizer — one of your own, or (for moderators/admins) any existing organizer, including ones you do not belong to. Returns the event slug used by update-event / get-event / submit-event-for-review. Each organizer can hold at most 5 unpublished events (drafts count; admins exempt). If the name matches an existing event you must confirm with the user and retry with acknowledge_duplicate=true.')]
+#[Description('Create an empty event draft under an organizer — one of your own, or (for moderators/admins) any existing organizer, including ones you do not belong to. Returns the event slug used by update-event / get-event / submit-event-for-review. Each organizer can hold at most 10 unpublished events (drafts count; admins exempt). If the name matches an existing event you must confirm with the user and retry with acknowledge_duplicate=true.')]
 class CreateEventDraft extends Tool
 {
     use BuildsSyntheticRequests;
@@ -43,10 +43,10 @@ class CreateEventDraft extends Tool
             return Response::error("You are not a member of \"{$organizer->name}\". Call whoami to see your organizers.");
         }
 
-        // 5-unpublished-events cap, admins exempt (same as the web flow).
+        // Unpublished-events cap, admins exempt (same as the web flow).
         $unpublishedCount = Event::countUnpublishedEvents($organizer->id);
-        if ($unpublishedCount >= 5 && ! $user->isAdmin()) {
-            return Response::error("\"{$organizer->name}\" already has {$unpublishedCount} unpublished events (limit 5). Submit or delete one first (see list-my-events).");
+        if ($unpublishedCount >= Event::MAX_UNPUBLISHED_EVENTS && ! $user->isAdmin()) {
+            return Response::error("\"{$organizer->name}\" already has {$unpublishedCount} unpublished events (limit ".Event::MAX_UNPUBLISHED_EVENTS.'). Submit or delete one first (see list-my-events).');
         }
 
         // Duplicate-name guard, same as the web flow.
