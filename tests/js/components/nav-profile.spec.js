@@ -186,4 +186,25 @@ describe('nav-profile.vue', () => {
             expect(wrapper.find('ul').exists()).toBe(false);
         });
     });
+    describe('logout separation', () => {
+        it('puts a divider directly above Logout so it is not flush with the nav items', async () => {
+            const wrapper = makeWrapper(baseUser);
+            await wrapper.find('.cursor-pointer').trigger('click');
+
+            const items = Array.from(wrapper.find('ul').element.children);
+            const logoutIndex = items.findIndex((el) => el.textContent.trim() === 'Logout');
+            expect(logoutIndex).toBeGreaterThan(0);
+
+            const divider = items[logoutIndex - 1];
+            expect(divider.className).toContain('border-t');
+            expect(divider.textContent.trim()).toBe('');
+        });
+
+        it('does not add a divider to the single-item guest menu', async () => {
+            const wrapper = makeWrapper(null);
+            await wrapper.find('.cursor-pointer').trigger('click');
+
+            expect(wrapper.find('ul').element.querySelector('.border-t')).toBeNull();
+        });
+    });
 });

@@ -111,7 +111,11 @@
                             href="/admin/dashboard">
                             Admin Dashboard
                         </a>
-                        <div 
+                        <!-- Logout sat flush against the navigation items above it, so
+                             overshooting Admin Dashboard by one row logged you out. Give it
+                             its own section. -->
+                        <div class="my-4 border-t border-neutral-200"></div>
+                        <div
                             class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
                             @click="logout">
                             Logout
