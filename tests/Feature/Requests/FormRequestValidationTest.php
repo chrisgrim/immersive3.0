@@ -563,6 +563,30 @@ test('StoreEvent requires sexualDescription when advisories.sexual is true', fun
     expect($validator->errors()->has('advisories.sexualDescription'))->toBeTrue();
 });
 
+test('StoreEvent rejects an ISO currency code in favour of the symbol', function () {
+    // The currency is rendered verbatim next to the price, so "USD" would show
+    // on the live listing as "USD17.00". The old max:3 rule let it through.
+    $data = ['tickets' => [['name' => 'General', 'ticket_price' => 17.00, 'currency' => 'USD']]];
+    $request = makeRequest(StoreEventRequest::class, $data);
+
+    $validator = validateWith($request, $data);
+    expect($validator->fails())->toBeTrue();
+    // NB: validateWith() above builds a bare Validator without the request's
+    // custom messages, so the wording is asserted in the MCP suite instead,
+    // which passes EventUpdateRules::messages() the way StoreEventRequest does.
+    expect($validator->errors()->has('tickets.0.currency'))->toBeTrue();
+});
+
+test('StoreEvent accepts every currency symbol the wizard picker offers', function () {
+    foreach (\App\Support\Validation\EventUpdateRules::CURRENCIES as $symbol) {
+        $data = ['tickets' => [['name' => 'General', 'ticket_price' => 17.00, 'currency' => $symbol]]];
+        $request = makeRequest(StoreEventRequest::class, $data);
+
+        $validator = validateWith($request, $data);
+        expect($validator->errors()->has('tickets.0.currency'))->toBeFalse();
+    }
+});
+
 test('StoreEvent ongoing_config daysOfWeek values must be between 0 and 6', function () {
     $data = [
         'ongoing_config' => [

@@ -11,6 +11,54 @@ namespace App\Support\Validation;
  */
 class EventUpdateRules
 {
+    /**
+     * The only currencies a ticket may be stored in — exactly the symbols the
+     * wizard's picker offers (CURRENCY_SYMBOLS in tickets.vue). The value is
+     * rendered verbatim next to the price, so anything else shows up on the
+     * live listing as-is: an API client sending the ISO code "USD" produced
+     * "USD17.00" where "$17.00" was meant. `max:3` accepted it because the code
+     * is three characters long.
+     *
+     * @var array<int, string>
+     */
+    public const CURRENCIES = ['$', '€', '£', '¥', 'C$', 'MX$'];
+
+    /**
+     * Ticket currencies an API/MCP client is likely to send instead of the
+     * symbol we store, mapped to that symbol. The wizard can only emit the
+     * symbols above, so this exists for non-browser callers — normalising an
+     * unambiguous ISO code beats rejecting it and making the client guess.
+     *
+     * @var array<string, string>
+     */
+    public const CURRENCY_ALIASES = [
+        'USD' => '$', 'US$' => '$', 'DOLLAR' => '$', 'DOLLARS' => '$',
+        'EUR' => '€', 'EURO' => '€', 'EUROS' => '€',
+        'GBP' => '£', 'POUND' => '£', 'POUNDS' => '£', 'QUID' => '£',
+        'JPY' => '¥', 'YEN' => '¥',
+        'CAD' => 'C$', 'CA$' => 'C$', 'CAD$' => 'C$', 'C' => 'C$',
+        'MXN' => 'MX$', 'MXN$' => 'MX$', 'MX' => 'MX$', 'PESO' => 'MX$', 'PESOS' => 'MX$',
+    ];
+
+    /**
+     * Resolve a caller-supplied currency to the symbol we store, or return it
+     * unchanged so validation can reject it with the list of valid options.
+     */
+    public static function normalizeCurrency(mixed $currency): mixed
+    {
+        if (! is_string($currency)) {
+            return $currency;
+        }
+
+        $trimmed = trim($currency);
+
+        if (in_array($trimmed, self::CURRENCIES, true)) {
+            return $trimmed;
+        }
+
+        return self::CURRENCY_ALIASES[mb_strtoupper($trimmed)] ?? $currency;
+    }
+
     public static function rules(): array
     {
         return [
@@ -82,7 +130,7 @@ class EventUpdateRules
             'tickets.*.name' => 'required_with:tickets|string|max:40',
             'tickets.*.ticket_price' => 'required_with:tickets|numeric|min:0|max:99999.99',
             'tickets.*.description' => 'sometimes|nullable|string|max:200',
-            'tickets.*.currency' => 'required_with:tickets|string|max:3',
+            'tickets.*.currency' => 'required_with:tickets|string|in:'.implode(',', self::CURRENCIES),
             // Relaxed validation for images
             'images' => 'nullable|array',
             'images.*' => [
@@ -147,6 +195,7 @@ class EventUpdateRules
             'contentAdvisories.max' => 'You can select a maximum of 16 content advisories.',
             'mobilityAdvisories.max' => 'You can select a maximum of 16 mobility advisories.',
             'name.regex' => 'The name must contain at least one letter or number.',
+            'tickets.*.currency.in' => 'Ticket prices must use one of these currency symbols: '.implode(' ', self::CURRENCIES).'. Use the symbol, not the ISO code — "$", not "USD".',
         ];
     }
 }

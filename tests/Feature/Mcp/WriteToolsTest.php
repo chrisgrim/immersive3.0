@@ -11,6 +11,7 @@ use App\Models\NameChangeRequest;
 use App\Models\Organizer;
 use App\Models\User;
 use App\Support\RecurringDates;
+use App\Support\Validation\EventUpdateRules;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -1907,4 +1908,82 @@ test('switching show type refreshes the closing date and clears the old recurren
         ->and(substr((string) $after->closingDate, 0, 10))->toBe(substr($sentinel, 0, 10))
         ->and($after->showtype_config)->toBeNull()
         ->and($after->start_date)->toBeNull();
+});
+
+// ── ticket currency ────────────────────────────────────────────────────
+
+/** Give an event a schedule so tickets have shows to attach to. */
+function eventReadyForTickets(User $user): Event
+{
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => 'America/New_York',
+        'showtype' => 's',
+        'dateArray' => [scheduleDay(30, 'America/New_York')],
+    ])->assertOk();
+
+    return $event->fresh();
+}
+
+test('an ISO currency code is normalized to the symbol the site renders', function () {
+    $user = writeToolUser();
+    $event = eventReadyForTickets($user);
+
+    // "USD" is 3 chars, so the old max:3 rule accepted it — and the symbol is
+    // printed verbatim beside the price, so the listing read "USD17.00".
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'tickets' => [['name' => 'General', 'ticket_price' => 17.00, 'currency' => 'USD']],
+    ])->assertOk()->assertSee('Event updated.');
+
+    expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe('$');
+});
+
+test('the other unambiguous currency codes normalize too', function () {
+    $user = writeToolUser();
+
+    foreach (['EUR' => '€', 'gbp' => '£', 'JPY' => '¥', 'CAD' => 'C$', 'MXN' => 'MX$', ' usd ' => '$'] as $sent => $stored) {
+        $event = eventReadyForTickets($user);
+
+        EiServer::actingAs($user)->tool(UpdateEvent::class, [
+            'event_slug' => $event->slug,
+            'tickets' => [['name' => 'General', 'ticket_price' => 20, 'currency' => $sent]],
+        ])->assertOk();
+
+        expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe($stored);
+    }
+});
+
+test('an unrecognised currency is refused with the list of valid symbols', function () {
+    $user = writeToolUser();
+    $event = eventReadyForTickets($user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'tickets' => [['name' => 'General', 'ticket_price' => 17.00, 'currency' => 'BTC']],
+    ])->assertOk()->assertSee([
+        'validation_failed',
+        'tickets.0.currency',
+        // The message has to name the valid options, or the client just guesses again.
+        'not the ISO code',
+    ]);
+
+    expect($event->fresh()->shows->first()->tickets)->toHaveCount(0);
+});
+
+test('a symbol the picker offers is stored untouched', function () {
+    $user = writeToolUser();
+
+    foreach (EventUpdateRules::CURRENCIES as $symbol) {
+        $event = eventReadyForTickets($user);
+
+        EiServer::actingAs($user)->tool(UpdateEvent::class, [
+            'event_slug' => $event->slug,
+            'tickets' => [['name' => 'General', 'ticket_price' => 20, 'currency' => $symbol]],
+        ])->assertOk();
+
+        expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe($symbol);
+    }
 });
