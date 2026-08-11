@@ -1244,6 +1244,33 @@ test('an over-long recurring span is rejected instead of expanded', function () 
     expect($event->fresh()->shows()->count())->toBe(0);
 });
 
+test('a multi-year run past the old 1000-show cap expands end to end', function () {
+    // Regression: the cap was 1000, stricter than the web wizard (which caps
+    // nothing), so a real listing — Faulty Towers London, Thursday through
+    // Sunday over five years — was rejected via MCP but buildable by hand.
+    // Admin, because the run starts in the past and only admins may backfill.
+    $admin = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($admin), $admin);
+    $tz = 'Europe/London';
+
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 'o', 'timezone' => $tz,
+        'ongoing_config' => [
+            'startDate' => scheduleDay(-365 * 4, $tz),
+            'endDate' => scheduleDay(365, $tz),
+            'daysOfWeek' => [4, 5, 6, 0], // Thu, Fri, Sat, Sun
+        ],
+    ])->assertOk()->assertSee('Event updated.');
+
+    // Five years of four-day weeks is ~1,040 shows — over the old cap, and every
+    // one of them persisted (the bulk insert chunks, so none are dropped).
+    $shows = $event->fresh()->shows()->withoutGlobalScopes()->count();
+    expect($shows)->toBeGreaterThan(1000)
+        ->and($shows)->toBe(count(RecurringDates::expand(
+            [4, 5, 6, 0], scheduleDay(-365 * 4, $tz), scheduleDay(365, $tz), $tz
+        )));
+});
+
 test('an empty dateArray alongside a valid ongoing_config still expands the recurrence', function () {
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);

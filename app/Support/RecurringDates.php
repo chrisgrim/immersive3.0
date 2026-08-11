@@ -27,12 +27,23 @@ class RecurringDates
      * Hard ceiling on the number of shows a single recurrence may produce, so a
      * tiny recipe can never amplify into an unbounded schedule. It is enforced
      * inside the build loop, so a far-future (or wrong-year) endDate like
-     * "9999-12-31" is rejected after ~1000 iterations rather than spinning
-     * millions of times and exhausting memory. 1000 shows comfortably covers any
-     * realistic run — a weekly show for ~19 years, a 4-day-a-week run for ~5
-     * years, or a daily run for ~2.7 years — while firmly rejecting the absurd.
+     * "9999-12-31" is rejected after a few thousand iterations rather than
+     * spinning millions of times and exhausting memory.
+     *
+     * This is a runaway guard, NOT a policy limit on how long a run may be — the
+     * web wizard applies no occurrence cap at all, and an MCP caller that
+     * enumerates dateArray by hand isn't capped either. So it is sized to sit
+     * ABOVE anything the wizard's own date picker can build: an admin there can
+     * reach 60 months back and 60 months ahead (ongoing-dates.vue), and a
+     * 7-day-a-week run across that 10-year window is ~3,653 shows. 4,000 clears
+     * that with headroom while still rejecting the absurd.
+     *
+     * It was 1,000, which was stricter than the UI and rejected real runs — a
+     * Thursday–Sunday London show from Jan 2022 to Apr 2027 is 1,101 shows. At
+     * 4,000 the same recipe expands; a weekly show now fits ~76 years, a
+     * 4-day-a-week run ~19 years, and a daily run ~11 years.
      */
-    public const MAX_OCCURRENCES = 1000;
+    public const MAX_OCCURRENCES = 4000;
 
     /**
      * Expand a weekly recurrence into its concrete show datetimes.

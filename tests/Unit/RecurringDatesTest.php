@@ -102,15 +102,30 @@ it('returns a sorted, de-duplicated list even with duplicate/unsorted weekdays',
 });
 
 it('rejects a recurrence that would exceed the occurrence cap', function () {
-    // Daily for ~4 years is ~1460 shows — over the 1000-show cap.
-    expect(fn () => RecurringDates::expand([0, 1, 2, 3, 4, 5, 6], '2026-01-01 12:00:00', '2030-01-01 12:00:00', 'UTC'))
+    // A wrong end YEAR is what the cap actually defends against — this would
+    // otherwise expand to millions of rows.
+    expect(fn () => RecurringDates::expand([0, 1, 2, 3, 4, 5, 6], '2026-01-01 12:00:00', '9999-12-31 12:00:00', 'UTC'))
         ->toThrow(RangeException::class);
 });
 
+it('allows a run longer than the old 1000-show cap', function () {
+    // Regression: the cap used to be 1000, which is stricter than the web
+    // wizard (no occurrence cap at all) and rejected real schedules. Faulty
+    // Towers London — Thursday through Sunday, Jan 2022 to Apr 2027 — is 1,101
+    // shows and must expand.
+    $dates = RecurringDates::expand([4, 5, 6, 0], '2022-01-21 12:00:00', '2027-04-30 12:00:00', 'Europe/London');
+
+    expect($dates)->toHaveCount(1101)
+        ->and($dates[0])->toStartWith('2022-01-21')
+        ->and(end($dates))->toStartWith('2027-04-30');
+});
+
 it('allows a large recurrence up to the cap and stays bounded', function () {
-    // Daily for two years is ~730 shows — under the cap, no throw.
-    $dates = RecurringDates::expand([0, 1, 2, 3, 4, 5, 6], '2026-01-01 12:00:00', '2027-12-31 12:00:00', 'UTC');
-    expect(count($dates))->toBeGreaterThan(700)
+    // Daily across the widest window the wizard's admin date picker can build
+    // (60 months back + 60 months ahead) is ~3,653 shows — under the cap, so
+    // the server never rejects a schedule a human could assemble by hand.
+    $dates = RecurringDates::expand([0, 1, 2, 3, 4, 5, 6], '2021-01-01 12:00:00', '2030-12-31 12:00:00', 'UTC');
+    expect(count($dates))->toBeGreaterThan(3600)
         ->and(count($dates))->toBeLessThanOrEqual(RecurringDates::MAX_OCCURRENCES);
 });
 
