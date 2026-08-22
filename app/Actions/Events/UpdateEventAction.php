@@ -9,9 +9,11 @@ use App\Models\Events\RemoteLocation;
 use App\Models\Events\Show;
 use App\Models\Events\Ticket;
 use App\Models\Genre;
+use App\Services\EventNotificationDispatcher;
 use App\Services\ImageHandler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -107,8 +109,24 @@ class UpdateEventAction
         }
 
         if (isset($validatedData['showtype'])) {
-            Show::saveShows($request, $event);
-            Show::updateEvent($request, $event, $oldShowtype);
+            DB::transaction(function () use ($event, $request, $oldShowtype) {
+                // Serializes concurrent editors of the same event's
+                // schedule — without this, two near-simultaneous saves
+                // (double submit, two editors) could both read the same
+                // "before" snapshot below and both decide the same new
+                // dates were just added, double-notifying every favoriter.
+                // See notifyIfNewDatesAdded's docblock.
+                Event::whereKey($event->id)->lockForUpdate()->first();
+
+                // Captured before the write so it reflects the schedule
+                // favoriters actually saved the event under, not the new one.
+                $datesBeforeUpdate = $event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
+
+                Show::saveShows($request, $event);
+                Show::updateEvent($request, $event, $oldShowtype);
+
+                $this->notifyIfNewDatesAdded($event, $datesBeforeUpdate);
+            });
         }
 
         // Handle all advisory-related updates
@@ -287,6 +305,12 @@ class UpdateEventAction
         if ($oldStatus === 'e' && $event->status === 'p') {
             Cache::forget('active-categories');
             Cache::forget('active-genres');
+
+            // Third hook point for the followed-organizer trigger (the other
+            // two are the embargo cron and admin approval) — an edit that
+            // lifts the embargo directly (e.g. removing the embargo date)
+            // makes the event live outside either of those paths.
+            app(EventNotificationDispatcher::class)->newEventFromFollowedOrganizer($event);
         }
 
         return $event;
@@ -334,5 +358,26 @@ class UpdateEventAction
         })->toArray())->get();
 
         $event->remotelocations()->sync($newSync);
+    }
+
+    /**
+     * Only published events can have favoriters in the first place (the
+     * favorite UI only ever appears on a published event), so a draft/
+     * embargoed event's date changes never need to notify anyone here.
+     */
+    private function notifyIfNewDatesAdded(Event $event, array $datesBeforeUpdate): void
+    {
+        if ($event->status !== 'p') {
+            return;
+        }
+
+        $datesAfterUpdate = $event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
+        $addedDates = array_diff($datesAfterUpdate, $datesBeforeUpdate);
+
+        if (empty($addedDates)) {
+            return;
+        }
+
+        app(EventNotificationDispatcher::class)->newDatesForSavedEvent($event);
     }
 }

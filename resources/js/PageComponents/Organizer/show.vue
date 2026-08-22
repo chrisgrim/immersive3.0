@@ -4,67 +4,8 @@
             <!-- Left Column -->
             <div class="md:w-[36rem] space-y-14 mb-16 md:mb-20">
                 <!-- Profile Card -->
-                <div class="flex flex-row shadow-custom-6 w-full p-8 py-16 rounded-3xl gap-8">
-                    <!-- Left Column - Image and Name -->
-                    <div class="flex flex-col items-center w-2/3">
-                        <!-- Profile Image -->
-                        <div class="w-44 flex-shrink-0">
-                            <div class="relative w-full">
-                                <div class="relative w-full aspect-square">
-                                    <div class="w-full h-full rounded-full overflow-hidden shadow-sm">
-                                        <picture v-if="organizerImage">
-                                            <source 
-                                                type="image/webp" 
-                                                :srcset="`${organizerImage}`"
-                                            > 
-                                            <img 
-                                                class="w-full h-full object-cover"
-                                                :src="`${organizerImage}`"
-                                                :alt="`${organizer.name} organizer`"
-                                            >
-                                        </picture>
-                                        <div v-else class="w-full h-full bg-gray-200 flex items-center justify-center">
-                                            <span class="text-6xl font-bold text-gray-400">
-                                                {{ organizer.name?.charAt(0).toUpperCase() || '?' }}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Name -->
-                        <div class="w-full flex justify-center px-4">
-                            <h1 class="text-3xl text-black font-medium leading-tight mt-8 text-center break-words hyphens-auto md:max-w-[25rem] overflow-hidden">
-                                {{ organizer.name }}
-                            </h1>
-                        </div>
-                    </div>
-
-                    <!-- Right Column - Info -->
-                    <div class="flex-1 flex flex-col space-y-8 m-auto">
-                        <!-- Stats -->
-                        <div class="flex flex-col items-start">
-                                                    <p class="text-5xl font-semibold text-gray-900">
-                            {{ organizer.events_count || organizer.events?.length || 0 }}
-                        </p>
-                            <p class="text-md font-bold text-gray-600">
-                                Events
-                            </p>
-                        </div>
-                        
-                        <div class="w-24 h-px bg-gray-200"></div>
-                        
-                        <div class="flex flex-col items-start">
-                            <p class="text-5xl font-semibold text-gray-900">
-                                {{ calculateYearsOnEI }}
-                            </p>
-                            <p class="text-md font-bold text-gray-600">
-                                Years on EI
-                            </p>
-                        </div>
-                    </div>
-                </div>
+                <h1 class="sr-only">{{ organizer.name }}</h1>
+                <organizer-profile-card :organizer="organizer" />
 
                 <!-- Social Links -->
                 <div v-if="hasSocialLinks" class="w-full border border-neutral-200 rounded-3xl p-8">
@@ -242,6 +183,7 @@ import {
 } from '@remixicon/vue';
 import EventListings from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
+import OrganizerProfileCard from '@/GlobalComponents/organizer-profile-card.vue'
 import axios from 'axios'
 
 const props = defineProps({
@@ -269,8 +211,6 @@ const paginatedEvents = ref({
     to: 0,
     per_page: 10
 });
-
-const imageUrl = computed(() => import.meta.env.VITE_IMAGE_URL);
 
 // Methods
 const loadEvents = async (page = 1) => {
@@ -305,20 +245,6 @@ onMounted(() => {
     }
 });
 
-const calculateYearsOnEI = computed(() => {
-    const joinDate = new Date(props.organizer.created_at);
-    const now = new Date();
-    const years = now.getFullYear() - joinDate.getFullYear();
-    
-    if (
-        now.getMonth() < joinDate.getMonth() ||
-        (now.getMonth() === joinDate.getMonth() && now.getDate() < joinDate.getDate())
-    ) {
-        return years - 1;
-    }
-    return years;
-});
-
 const hasSocialLinks = computed(() => {
     return Boolean(
         props.organizer.website ||
@@ -328,21 +254,6 @@ const hasSocialLinks = computed(() => {
         props.organizer.facebookHandle ||
         props.organizer.patreon
     );
-});
-
-const organizerImage = computed(() => {
-    // First check for images array
-    const firstImage = props.organizer.images?.[0];
-    if (firstImage) {
-        return `${imageUrl.value}${firstImage.large_image_path}`;
-    }
-    
-    // Then check for thumbImagePath
-    if (props.organizer.thumbImagePath) {
-        return `${imageUrl.value}${props.organizer.thumbImagePath}`;
-    }
-    
-    return null;
 });
 
 const canEdit = computed(() => {

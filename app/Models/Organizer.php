@@ -6,6 +6,7 @@ use App\Support\Slug;
 use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Organizer extends Model
 {
@@ -140,6 +141,54 @@ class Organizer extends Model
         return $this->users->merge([$this->owner]);
     }
 
+    /**
+     * Public followers (distinct from users()'s team-membership pivot above).
+     * The table name must be explicit — Laravel's default alphabetical-join
+     * convention would otherwise also resolve to 'organizer_user', colliding
+     * with the team-membership pivot.
+     */
+    public function followers()
+    {
+        return $this->belongsToMany(User::class, 'organizer_followers')->withTimestamps();
+    }
+
+    /**
+     * Follow this organizer for the current user. Idempotent even under a
+     * concurrent double-request (e.g. two tabs) — insertOrIgnore is an atomic
+     * DB-level "insert if not present", unlike syncWithoutDetaching's
+     * check-then-insert, which can lose a race to the unique constraint and
+     * throw instead of quietly no-op'ing.
+     */
+    public function follow(): void
+    {
+        DB::table('organizer_followers')->insertOrIgnore([
+            'organizer_id' => $this->id,
+            'user_id' => auth()->id(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    /**
+     * Unfollow this organizer for the current user. Idempotent — detach() is a
+     * no-op, not an error, when nothing exists to remove.
+     */
+    public function unfollow(): void
+    {
+        $this->followers()->detach(auth()->id());
+    }
+
+    public function isFollowed(): bool
+    {
+        $userId = auth()->id();
+
+        if (! $userId) {
+            return false;
+        }
+
+        return $this->followers()->where('organizer_followers.user_id', $userId)->exists();
+    }
+
     public function getHandles()
     {
         $result = [];
@@ -161,6 +210,7 @@ class Organizer extends Model
         if ($organizer->users()->exists()) {
             $organizer->users()->detach();
         }
+        $organizer->followers()->detach();
         foreach ($organizer->events as $event) {
             $event->delete();
         }

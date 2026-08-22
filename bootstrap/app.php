@@ -21,6 +21,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // Add our custom middleware to block edit routes during maintenance
         $middleware->prepend(\App\Http\Middleware\BlockEditDuringMaintenance::class);
 
+        // Records one row per session on its first authenticated request —
+        // powers Account Settings' Login & Security device history. Web-only:
+        // Sanctum SPA API requests share the same session cookie/id, so
+        // recording it again there would be redundant, not additive.
+        $middleware->web(append: [
+            \App\Http\Middleware\RecordLoginHistory::class,
+        ]);
+
         $middleware->alias([
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'admin' => \App\Http\Middleware\AdminMiddleware::class,

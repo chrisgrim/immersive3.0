@@ -2,9 +2,9 @@
     <div class="event-search relative min-h-[calc(100vh-7rem)]">
         <div class="w-full flex">
             <!-- Events List Section -->
-            <section 
+            <section
                 :class="{ 'w-0 hidden' : isFullMap }"
-                class="z-10 relative inline-block w-[59%] min-h-[calc(100vh-8rem)]"
+                class="z-10 relative inline-block w-[59%] max-[1200px]:w-[50%] min-h-[calc(100vh-8rem)]"
             >
                 <div class="px-8 pt-16">
                     <!-- Active Filters -->
@@ -20,7 +20,7 @@
                         v-if="hasEvents"
                         :items="events.data"
                         :user="user"
-                        :columns="4"
+                        :columns="gridColumns"
                     />
                     <Pagination 
                         v-if="events && hasEvents"
@@ -29,11 +29,11 @@
                         @paginate="handlePageChange"
                     />
                     
-                    <SimilarResults 
+                    <SimilarResults
                         v-if="!hasEvents"
                         :event="{id: 0, slug: 'placeholder'}"
                         :user="user"
-                        :columns="4"
+                        :columns="gridColumns"
                         :noResultsMode="true"
                         class="mt-12 mb-10"
                     />
@@ -85,6 +85,14 @@ const events = ref({
 })
 const unsubscribe = ref(null)
 let pageRequestController = null
+
+// Below ~1200px the list column narrows (see the matching max-[1200px]:w-[50%]
+// on this section and on Map.vue) to make room for the map, which no longer
+// leaves enough width for 4 event cards per row — drop to 3 in lockstep so
+// the two changes always land at the same breakpoint.
+const windowWidth = ref(window.innerWidth)
+const updateWindowWidth = () => { windowWidth.value = window.innerWidth }
+const gridColumns = computed(() => windowWidth.value <= 1200 ? 3 : 4)
 
 // Computed
 const hasEvents = computed(() => events.value.data && events.value.data.length)
@@ -155,11 +163,13 @@ onMounted(() => {
     unsubscribe.value = SearchStore.subscribe(state => {
         events.value = state.events;
     });
+    window.addEventListener('resize', updateWindowWidth)
 })
 
 onUnmounted(() => {
     if (unsubscribe.value) {
         unsubscribe.value();
     }
+    window.removeEventListener('resize', updateWindowWidth)
 })
 </script>

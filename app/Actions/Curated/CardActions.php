@@ -6,6 +6,7 @@ use App\Models\Curated\Card;
 use App\Models\Curated\Post;
 use App\Services\ImageHandler;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CardActions
 {
@@ -92,9 +93,37 @@ class CardActions
      */
     public function reorder(Request $request)
     {
-        foreach ($request->all() as $card) {
-            Card::find($card['id'])->update(['order' => $card['order']]);
+        // Card::find()->update() per row cost 2 queries plus Card's $with
+        // (event, images) eager load on every find — one drag-and-drop reorder
+        // of N cards was 3-4N queries (EI-LARAVEL-S: 160 queries for 40 cards).
+        // A single CASE-WHEN UPDATE does it in one query. (Not Card::upsert():
+        // its INSERT branch needs every NOT NULL column — post_id included —
+        // even though the row always already exists.) Ids/orders are cast to
+        // int before going into the raw CASE string, so nothing user-supplied
+        // reaches the query unescaped.
+        //
+        // A row missing id/order is dropped rather than fataling on an
+        // undefined array key — the old loop had the same exposure, this just
+        // doesn't repeat it. keyBy('id') also makes a duplicate id last-wins,
+        // matching the old loop's overwrite order (SQL's CASE otherwise
+        // resolves duplicate WHENs first-match).
+        $cards = collect($request->all())
+            ->filter(fn ($card) => is_array($card) && isset($card['id'], $card['order']))
+            ->keyBy(fn ($card) => (int) $card['id']);
+
+        if ($cards->isEmpty()) {
+            return;
         }
+
+        $cases = $cards
+            ->map(fn ($card) => sprintf('WHEN %d THEN %d', (int) $card['id'], (int) $card['order']))
+            ->implode(' ');
+
+        Card::whereIn('id', $cards->keys())
+            ->update([
+                'order' => DB::raw("CASE id {$cases} END"),
+                'updated_at' => now(),
+            ]);
     }
 
     private function shiftCardsOrder(Post $post, int $position, int $shift = 1)

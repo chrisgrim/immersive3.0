@@ -64,8 +64,14 @@ class EmailVerificationController extends Controller
             return response()->json(['message' => 'Invalid verification code'], 422);
         }
 
-        // Update the user's email
-        auth()->user()->update(['email' => $request->email]);
+        // Receiving and confirming this code at the new address IS proof of
+        // ownership, so the change also marks the email verified — otherwise a
+        // user who verifies their new address here would incorrectly show as
+        // "not verified" until some unrelated future re-verification.
+        auth()->user()->update([
+            'email' => $request->email,
+            'email_verified_at' => now(),
+        ]);
 
         // Clear the verification code + attempt counter
         Cache::forget($key);

@@ -132,6 +132,8 @@ test('deleteOrganizer soft-deletes its events detaches users and removes the org
     $org = Organizer::factory()->create(['user_id' => $this->owner->id]);
     $member = User::factory()->create();
     $org->users()->attach($member->id, ['role' => 'member']);
+    $follower = User::factory()->create();
+    $org->followers()->attach($follower->id);
 
     $event = Event::factory()->create(['organizer_id' => $org->id]);
 
@@ -144,6 +146,7 @@ test('deleteOrganizer soft-deletes its events detaches users and removes the org
     expect(Event::withTrashed()->find($event->id))->not->toBeNull();
     // pivot rows detached
     expect(\Illuminate\Support\Facades\DB::table('organizer_user')->where('organizer_id', $org->id)->count())->toBe(0);
+    expect(\Illuminate\Support\Facades\DB::table('organizer_followers')->where('organizer_id', $org->id)->count())->toBe(0);
 });
 
 // ----- scopeWithUserRole() -----

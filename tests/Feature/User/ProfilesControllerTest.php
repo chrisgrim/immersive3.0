@@ -47,6 +47,66 @@ test('show hides sensitive fields in the array form', function () {
     expect($array)->not->toHaveKey('stripe_id');
 });
 
+test('show never leaks legal name or phone to any viewer', function () {
+    // Regression guard: these columns were added for Account Settings and
+    // must stay off any generic User serialization (User::$hidden), since
+    // the profile page renders `{{ $user }}` straight into a Vue prop for
+    // ANY logged-in viewer, not just the profile owner.
+    $owner = User::factory()->create([
+        'legal_first_name' => 'Secret',
+        'legal_last_name' => 'Identity',
+        'phone' => '555-0000',
+    ]);
+
+    $response = $this->actingAs($this->user)->get("/users/{$owner->id}");
+    $response->assertOk();
+
+    $array = $response->viewData('user')->toArray();
+    expect($array)->not->toHaveKey('legal_first_name');
+    expect($array)->not->toHaveKey('legal_last_name');
+    expect($array)->not->toHaveKey('phone');
+    $response->assertDontSee('Secret');
+    $response->assertDontSee('555-0000');
+});
+
+test('show never leaks notification/privacy preferences or role flags to any viewer', function () {
+    // Regression guard: this page's `:user="{{ $user }}"` prop is public
+    // (guests can view it too — see the guest test below), so anything not
+    // hidden here leaks to literally anyone. notification_preferences and
+    // privacy_preferences are this user's own settings; isAdmin/isModerator/
+    // isCurator/isUser are $appends (included by default, unlike the raw
+    // `type` column, which the test above already confirms IS hidden) — a
+    // separate leak of the same information through a different attribute.
+    $owner = User::factory()->create([
+        'type' => 'a',
+        'notification_preferences' => ['saved_event_new_dates' => true],
+        'privacy_preferences' => ['followed_organizers' => false],
+    ]);
+
+    $response = $this->actingAs($this->user)->get("/users/{$owner->id}");
+    $response->assertOk();
+
+    $array = $response->viewData('user')->toArray();
+    expect($array)->not->toHaveKey('notification_preferences');
+    expect($array)->not->toHaveKey('privacy_preferences');
+    expect($array)->not->toHaveKey('isAdmin');
+    expect($array)->not->toHaveKey('isModerator');
+    expect($array)->not->toHaveKey('isCurator');
+    expect($array)->not->toHaveKey('isUser');
+});
+
+test('show computes isOwner correctly for the owner vs another viewer', function () {
+    $owner = User::factory()->create();
+
+    $this->actingAs($owner)->get("/users/{$owner->id}")
+        ->assertOk()
+        ->assertViewHas('isOwner', true);
+
+    $this->actingAs($this->user)->get("/users/{$owner->id}")
+        ->assertOk()
+        ->assertViewHas('isOwner', false);
+});
+
 test('show sets the image attribute from the first image', function () {
     $owner = User::factory()->create(['type' => 'u']);
     $image = Image::factory()->create([
@@ -60,11 +120,12 @@ test('show sets the image attribute from the first image', function () {
     expect($response->viewData('user')->image->id)->toBe($image->id);
 });
 
-test('show requires authentication', function () {
+test('show is public — a guest can view a profile, with isOwner false', function () {
     $owner = User::factory()->create(['type' => 'u']);
 
-    // note: show() is inside the auth-middleware group, so it is not actually public.
-    $this->get("/users/{$owner->id}")->assertRedirect();
+    $this->get("/users/{$owner->id}")
+        ->assertOk()
+        ->assertViewHas('isOwner', false);
 });
 
 // ----- edit() -----
@@ -340,7 +401,8 @@ test('destroy detaches conversations and deletes the user', function () {
     $owner->conversations()->attach($conversation->id);
 
     $this->actingAs($owner);
-    app(\App\Http\Controllers\User\ProfilesController::class)->destroy($owner);
+    app(\App\Http\Controllers\User\ProfilesController::class)
+        ->destroy($owner, app(\App\Services\UserDeletionService::class));
 
     expect(User::find($owner->id))->toBeNull();
     expect(\Illuminate\Support\Facades\DB::table('conversation_user')
@@ -355,7 +417,8 @@ test('destroy is denied to a different non-moderator user via policy authorize',
 
     $this->actingAs($other);
 
-    expect(fn () => app(\App\Http\Controllers\User\ProfilesController::class)->destroy($owner))
+    expect(fn () => app(\App\Http\Controllers\User\ProfilesController::class)
+        ->destroy($owner, app(\App\Services\UserDeletionService::class)))
         ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
 
     expect(User::find($owner->id))->not->toBeNull();

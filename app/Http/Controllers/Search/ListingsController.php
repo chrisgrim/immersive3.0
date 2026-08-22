@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Search;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Event;
+use App\Models\Events\RemoteLocation;
 use App\Models\Genre;
 use Elastic\ScoutDriverPlus\Support\Query;
 use Illuminate\Http\Request;
@@ -160,6 +161,23 @@ class ListingsController extends Controller
             }
         }
 
+        // At Home remote-location-type filter (e.g. "Zoom", "Telephone") —
+        // accepts either a numeric id or a slug, matching the pattern above.
+        // Gated on searchType === 'atHome': a stray remoteLocation param left
+        // over from switching tabs (see nav-search.vue's handleLocationSearch)
+        // must not silently filter an in-person search down to zero results —
+        // in-person events have no remote_location_ids at all.
+        if ($request->remoteLocation && $request->searchType === 'atHome') {
+            $remoteLocation = is_numeric($request->remoteLocation)
+                ? RemoteLocation::find((int) $request->remoteLocation)
+                : RemoteLocation::where('slug', $request->remoteLocation)->first();
+
+            if ($remoteLocation) {
+                $filters['searchedRemoteLocation'] = $remoteLocation;
+                $filters['remoteLocation'] = Query::terms()->field('remote_location_ids')->values([$remoteLocation->id]);
+            }
+        }
+
         // Price filters
         if ($request->has('price0') || $request->has('price1')) {
             $minPrice = $request->has('price0') ? (float) $request->price0 : 0;
@@ -248,47 +266,81 @@ class ListingsController extends Controller
         ]);
     }
 
-    public function index(Request $request)
+    /**
+     * Every filter EXCEPT price — shared by the actual results query and the
+     * max-price aggregation below, which must never include the current
+     * price filter itself. Aggregating max price over an already
+     * price-filtered query is self-referential (the ceiling can never
+     * exceed whatever was just searched for), which made the price
+     * slider's own upper bound shrink to match the last-applied filter,
+     * permanently capping it there.
+     *
+     * $applyGeoFilter is passed in rather than derived here because index()
+     * and apiIndex() gate it on subtly different conditions — apiIndex()'s
+     * map search also applies it when searchType is empty/'null' (a bare
+     * map view with no explicit mode chosen yet), which index() never needs
+     * to since its two view templates only render with an explicit
+     * searchType. Filter clause order doesn't affect which documents an ES
+     * bool query matches, so both callers sharing this one method (each
+     * passing their own condition) is behavior-identical to their previous
+     * separately-maintained filter lists.
+     */
+    private function applyNonPriceFilters($query, array $searchFilters, array $locationFilters, $boundaryFilter, Request $request, bool $applyGeoFilter)
     {
-        $locationFilters = $this->buildLocationFilter($request);
-        $searchFilters = $this->buildSearchFilters($request);
-        $boundaryFilter = $this->buildMapBoundaryFilter($request);
-
-        // Build query step by step
-        $query = Query::bool()
-            ->filter(Query::range()->field('closingDate')->gte('now/d'));
-
-        // Add location filter
         if ($locationFilters['attendanceType'] ?? null) {
             $query->filter($locationFilters['attendanceType']);
         }
 
-        // Add price filter
-        if ($searchFilters['prices'] ?? null) {
-            $query->filter($searchFilters['prices']);
-        }
-
-        // Add category filter
         if ($searchFilters['categories'] ?? null) {
             $query->filter($searchFilters['categories']);
         }
 
-        // Add tag filter
         if ($searchFilters['tags'] ?? null) {
             $query->filter($searchFilters['tags']);
         }
 
-        // Add geo filter if needed
-        if ($request->searchType === 'inPerson' && isset($request->live)) {
+        if ($searchFilters['remoteLocation'] ?? null) {
+            $query->filter($searchFilters['remoteLocation']);
+        }
+
+        if ($applyGeoFilter) {
             $geoFilter = $request->live === 'true' ? $boundaryFilter : $locationFilters['geoFilter'];
             if ($geoFilter !== null) {
                 $query->filter($geoFilter);
             }
         }
 
-        // Add date filter
         if ($searchFilters['dates'] ?? null) {
             $query->filter($searchFilters['dates']);
+        }
+
+        return $query;
+    }
+
+    private function maxPriceQuery(array $searchFilters, array $locationFilters, $boundaryFilter, Request $request, bool $applyGeoFilter)
+    {
+        $query = Query::bool()->filter(Query::range()->field('closingDate')->gte('now/d'));
+
+        return $this->applyNonPriceFilters($query, $searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
+    }
+
+    public function index(Request $request)
+    {
+        $locationFilters = $this->buildLocationFilter($request);
+        $searchFilters = $this->buildSearchFilters($request);
+        $boundaryFilter = $this->buildMapBoundaryFilter($request);
+
+        $applyGeoFilter = $request->searchType === 'inPerson' && isset($request->live);
+
+        // Build query step by step
+        $query = Query::bool()
+            ->filter(Query::range()->field('closingDate')->gte('now/d'));
+
+        $this->applyNonPriceFilters($query, $searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
+
+        // Add price filter
+        if ($searchFilters['prices'] ?? null) {
+            $query->filter($searchFilters['prices']);
         }
 
         // Clamp the requested page so Elasticsearch's from+size stays within the
@@ -298,12 +350,13 @@ class ListingsController extends Controller
 
         // Execute search and paginate
         $results = Event::searchQuery($query)
-            ->load(['genres', 'category', 'location', 'attendanceType', 'currentUserFavorite'])
+            ->load(['genres', 'category', 'location', 'attendanceType', 'currentUserFavorite', 'remotelocations'])
             ->sortRaw(['published_at' => 'desc'])
             ->paginate(20, 'page', $page);
 
-        // Get max price from current filtered results
-        $maxPrice = Event::searchQuery($query)
+        // Get max price from the current filtered results, EXCLUDING the
+        // price filter itself (see applyNonPriceFilters/maxPriceQuery).
+        $maxPrice = Event::searchQuery($this->maxPriceQuery($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter))
             ->aggregate('max_price', [
                 'max' => [
                     'field' => 'priceranges.price',
@@ -345,6 +398,7 @@ class ListingsController extends Controller
             'searchedEvents' => $searchedEvents,
             'searchedCategories' => $searchFilters['searchedCategories'] ?? [],
             'searchedTags' => $searchFilters['searchedTags'] ?? [],
+            'searchedRemoteLocation' => $searchFilters['searchedRemoteLocation'] ?? null,
         ];
 
         $viewData = array_merge($viewData, $locationFilters);
@@ -365,22 +419,18 @@ class ListingsController extends Controller
         // Build map boundary filter if needed
         $boundaryFilter = $this->buildMapBoundaryFilter($request);
 
-        // Build the main query
-        $query = Query::bool()
-            ->filter(Query::range()->field('closingDate')->gte('now/d'))
-            ->when($locationFilters['attendanceType'] ?? null, fn ($q) => $q->filter($locationFilters['attendanceType']))
-            ->when($searchFilters['prices'] ?? null, fn ($q) => $q->filter($searchFilters['prices']))
-            ->when($searchFilters['categories'] ?? null, fn ($q) => $q->filter($searchFilters['categories']))
-            ->when($searchFilters['dates'] ?? null, fn ($q) => $q->filter($searchFilters['dates']))
-            ->when($searchFilters['tags'] ?? null, fn ($q) => $q->filter($searchFilters['tags']))
-            ->when(
-                ($request->searchType === 'inPerson' || ! $request->searchType || $request->searchType === 'null') && isset($request->live),
-                function ($q) use ($request, $boundaryFilter, $locationFilters) {
-                    $geoFilter = $request->live === 'true' ? $boundaryFilter : $locationFilters['geoFilter'];
+        // Broader than index()'s own geo condition — this endpoint's map
+        // search also applies it when searchType is empty/'null' (a bare map
+        // view with no explicit mode chosen yet).
+        $applyGeoFilter = ($request->searchType === 'inPerson' || ! $request->searchType || $request->searchType === 'null') && isset($request->live);
 
-                    return $geoFilter !== null ? $q->filter($geoFilter) : $q;
-                }
-            );
+        // Build the main query
+        $query = Query::bool()->filter(Query::range()->field('closingDate')->gte('now/d'));
+        $this->applyNonPriceFilters($query, $searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
+
+        if ($searchFilters['prices'] ?? null) {
+            $query->filter($searchFilters['prices']);
+        }
 
         // Clamp the requested page so Elasticsearch's from+size stays within the
         // default 10,000 result window (perPage * page must be <= 10000). Without
@@ -389,12 +439,13 @@ class ListingsController extends Controller
 
         // Execute search
         $results = Event::searchQuery($query)
-            ->load(['genres', 'category', 'location', 'attendanceType', 'currentUserFavorite'])
+            ->load(['genres', 'category', 'location', 'attendanceType', 'currentUserFavorite', 'remotelocations'])
             ->sortRaw(['published_at' => 'desc'])
             ->paginate(20, 'page', $page);
 
-        // Get max price from CURRENT filtered results only
-        $maxPrice = Event::searchQuery($query)
+        // Get max price from the current filtered results, EXCLUDING the
+        // price filter itself (see applyNonPriceFilters/maxPriceQuery).
+        $maxPrice = Event::searchQuery($this->maxPriceQuery($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter))
             ->aggregate('max_price', [
                 'max' => [
                     'field' => 'priceranges.price',

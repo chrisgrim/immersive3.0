@@ -239,6 +239,9 @@ app.component('vue-api-tokens', defineAsyncComponent(() => import('./PageCompone
 
 app.component('vue-inbox', defineAsyncComponent(() => import('./PageComponents/Messaging/inbox.vue')));
 app.component('vue-admin', defineAsyncComponent(() => import('./PageComponents/Admin/index.vue')));
+app.component('vue-account-settings-index', defineAsyncComponent(() => import('./PageComponents/AccountSettings/index.vue')));
+app.component('vue-notifications-index', defineAsyncComponent(() => import('./PageComponents/Notifications/index.vue')));
+app.component('vue-profile-index', defineAsyncComponent(() => import('./PageComponents/Profile/index.vue')));
 
 app.component('vue-organizer', OrganizerComponents.Show);
 app.component('vue-organizer-edit', OrganizerComponents.Edit);

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Event;
+use App\Services\EventNotificationDispatcher;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -80,6 +81,8 @@ class PublishEventsCommand extends Command
                     'embargo_date' => null,
                     'published_at' => $now,
                 ]);
+
+                app(EventNotificationDispatcher::class)->newEventFromFollowedOrganizer($event);
 
                 $publishedCount++;
             }

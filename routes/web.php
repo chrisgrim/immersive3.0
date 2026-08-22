@@ -1,10 +1,12 @@
 <?php
 
+use App\Http\Controllers\AccountSettingsController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Creation\HostController;
 use App\Http\Controllers\Creation\HostEventController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\IndexController;
+use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\OrganizerController;
 use App\Http\Controllers\Search\ListingsController;
 use App\Http\Controllers\User\ConversationsController;
@@ -36,6 +38,26 @@ Route::GET('/organizer/{slug}', function ($slug) {
 Route::view('/terms', 'terms')->name('terms');
 Route::view('/privacy', 'privacy')->name('privacy');
 Route::view('/sitemap', 'sitemap')->name('sitemap');
+Route::view('/help', 'help')->name('help');
+
+// Public profile viewing — ProfilesController::show() is already guest-aware
+// ($isOwner is false for a guest/other viewer, and the Blade view guards
+// every owner-only bit behind auth()->check()), and there's a dedicated
+// unauthenticated API route group for a viewed-by-someone-else profile's
+// public extras (routes/api.php, the "profile.*" group without auth:sanctum).
+// This was the one piece still gating the page itself behind login.
+//
+// The optional /{tab?}/{itemKey?} segments are the Dashboard-into-Profile
+// consolidation's URL scheme (Liked Events / Saved Searches move under here
+// as more owner-only sidebar sections) — same tab|itemKey shape the old
+// /dashboard/{tab?}/{itemKey?} route used. Constrained the same way so a
+// malformed URL 404s instead of silently mis-parsing as a profile lookup.
+Route::prefix('users')->name('users.')->group(function () {
+    Route::get('/{user}/{tab?}/{itemKey?}', [ProfilesController::class, 'show'])
+        ->where('tab', 'events|search-preferences')
+        ->where('itemKey', '[a-zA-Z0-9-]+')
+        ->name('show');
+});
 
 // XML Sitemap for SEO
 Route::get('/sitemap.xml', [App\Http\Controllers\SitemapController::class, 'index'])->name('sitemap.xml');
@@ -49,9 +71,37 @@ Route::middleware(['auth'])->group(function () {
     // Basic auth routes (no email verification needed)
     Route::view('/menu', 'nav.menu-mobile')->name('menu');
 
+    // Dashboard is retired — Liked Events / Saved Searches now live on
+    // Profile (see users.show above). Old links/bookmarks still work via a
+    // permanent redirect to the equivalent /users/{id}/... URL, same
+    // pattern as the /event/{slug} -> /events/{slug} redirect near the top
+    // of this file.
+    Route::get('/dashboard/{tab?}/{itemKey?}', function (\Illuminate\Http\Request $request, $tab = null, $itemKey = null) {
+        $path = '/users/'.$request->user()->id;
+        if ($tab) {
+            $path .= '/'.$tab;
+            if ($itemKey) {
+                $path .= '/'.$itemKey;
+            }
+        }
+
+        return redirect($path, 301);
+    })
+        ->where('tab', 'events|search-preferences')
+        ->where('itemKey', '[a-zA-Z0-9-]+')
+        ->name('hub.index');
+
+    // Account Settings shell — Personal info / Login & security / Privacy / Notifications.
+    // Same tab-in-path pattern as the Hub above.
+    Route::get('/account-settings/{tab?}', [AccountSettingsController::class, 'index'])
+        ->where('tab', 'personal-info|login-security|privacy|notifications')
+        ->name('account-settings.index');
+
+    Route::get('/notifications', [NotificationsController::class, 'index'])
+        ->name('notifications.index');
+
     Route::prefix('users')->name('users.')->group(function () {
         Route::get('/{user}/edit', [ProfilesController::class, 'edit'])->name('edit')->middleware('can:update,user');
-        Route::get('/{user}', [ProfilesController::class, 'show'])->name('show');
         Route::post('/{user}', [ProfilesController::class, 'update'])->name('update')->middleware('can:update,user');
         // Self-account deletion is implemented (ProfilesController@destroy detaches the
         // user's conversations, then deletes them) but intentionally not exposed yet.

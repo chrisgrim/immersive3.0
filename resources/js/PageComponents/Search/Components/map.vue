@@ -1,10 +1,10 @@
 <template>
-    <section 
-        :class="[ isFullMap ? 'w-full overflow-hidden mt-32' : 'w-[41%]' ]"
-        class="fixed h-[calc(100vh-8rem)] right-0 top-0">
-        <div 
+    <section
+        :class="[ isFullMap ? 'w-full overflow-hidden mt-32 pl-20' : 'w-[41%] max-[1200px]:w-[50%] pl-12' ]"
+        class="fixed h-[calc(100vh-8rem)] right-0 top-0 py-20 pr-20">
+        <div
             :class="[ isFullMap ? 'relative' : 'sticky top-32' ]"
-            class="search__map overflow-hidden w-full h-full">
+            class="search__map overflow-hidden rounded-3xl w-full h-full">
             <!-- Loading Spinner -->
             <div 
                 v-show="isLoading"
@@ -87,6 +87,19 @@ let markers = [];
 const params = new URLSearchParams(window.location.search);
 const lat = parseFloat(params.get('lat'));
 const lng = parseFloat(params.get('lng'));
+
+// A "custom map search" (see BuildSearchUrlAction/ListingsController::
+// buildMapBoundaryFilter) carries the exact rectangle the user drew, not
+// just its center — landing here with only `zoom: 12` centered on that
+// center point showed a different, un-saved view (usually much more zoomed
+// out or in than what was actually saved). fitBounds() below restores it.
+const NElat = parseFloat(params.get('NElat'));
+const NElng = parseFloat(params.get('NElng'));
+const SWlat = parseFloat(params.get('SWlat'));
+const SWlng = parseFloat(params.get('SWlng'));
+const savedBounds = [NElat, NElng, SWlat, SWlng].every((n) => Number.isFinite(n))
+    ? [[SWlat, SWlng], [NElat, NElng]]
+    : null;
 
 const mapConfig = {
     zoom: 12,
@@ -284,7 +297,22 @@ const initMap = () => {
             });
         }, 50);
     });
-    
+
+        // Fit the exact rectangle a "custom map search" was saved with. The
+        // server already rendered results for these exact bounds, so the
+        // moveend listener is detached for just this one call (animate:
+        // false makes fitBounds's own moveend fire synchronously, so
+        // there's no race re-attaching the listener too early) — otherwise
+        // this doubles the search API/Elasticsearch hit on every load of a
+        // saved/shared map-boundary link, and produces a visible
+        // loading-state flicker immediately after initial paint for a
+        // re-fetch that returns the same results the page already has.
+        if (savedBounds) {
+            map.off('moveend', onMapMoved);
+            map.fitBounds(savedBounds, { animate: false });
+            map.on('moveend', onMapMoved);
+        }
+
         // Create markers
         createMarkers(props.events);
     } catch (err) {

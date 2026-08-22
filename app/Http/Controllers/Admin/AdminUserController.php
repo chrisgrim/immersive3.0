@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\UserDeletionService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\DB;
 
 class AdminUserController extends Controller
 {
@@ -15,10 +15,10 @@ class AdminUserController extends Controller
         $query = User::query()->with(['teams']);
 
         if ($search = $request->input('search')) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('id', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('id', 'like', "%{$search}%");
             });
         }
 
@@ -48,7 +48,7 @@ class AdminUserController extends Controller
                 Rule::unique('users')->ignore($user->id),
             ],
             'type' => ['sometimes', 'required', 'string', Rule::in(['a', 'm', 'c', 'g'])],
-            'verified' => 'sometimes|boolean'
+            'verified' => 'sometimes|boolean',
         ]);
 
         // Privilege-escalation guard: the route is moderator-gated so moderators
@@ -76,35 +76,41 @@ class AdminUserController extends Controller
         return response()->json($user->fresh());
     }
 
-    public function destroy(User $user)
+    public function destroy(User $user, UserDeletionService $deletions)
     {
         if ($user->id === auth()->id()) {
             return response()->json([
-                'message' => 'You cannot delete your own account'
+                'message' => 'You cannot delete your own account',
             ], 403);
         }
 
         if ($user->type === 'a' && auth()->user()->type !== 'a') {
             return response()->json([
-                'message' => 'You do not have permission to delete admin users'
+                'message' => 'You do not have permission to delete admin users',
             ], 403);
         }
 
+        // Same ownership-safety guard and cleanup as self-service deletion
+        // (AccountDeletionController) — this used to only detach
+        // conversation_user before a raw delete(), with no check at all for
+        // Organizer/Event/Community ownership, silently orphaning any of
+        // those if a moderator deleted a user who owned one.
+        if ($reason = $deletions->blockingReason($user)) {
+            return response()->json(['message' => $reason], 422);
+        }
+
         try {
-            DB::transaction(function() use ($user) {
-                // Delete related records first
-                DB::table('conversation_user')->where('user_id', $user->id)->delete();
-                
-                $user->delete();
-            });
-            
+            $deletions->delete($user);
+
             return response()->json([
-                'message' => 'User deleted successfully'
+                'message' => 'User deleted successfully',
             ]);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Failed to delete user. They may have associated records that need to be handled first.'
+                'message' => 'Failed to delete user. They may have associated records that need to be handled first.',
             ], 500);
         }
     }
-} 
+}

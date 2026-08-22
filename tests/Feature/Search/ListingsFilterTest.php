@@ -3,7 +3,9 @@
 use App\Actions\Search\SearchActions;
 use App\Http\Controllers\Search\ListingsController;
 use App\Models\Category;
+use App\Models\Events\RemoteLocation;
 use App\Models\Genre;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -18,18 +20,26 @@ use Illuminate\Support\Facades\Log;
 // ----- helpers -----
 
 /**
- * Invoke a protected build* method on a fresh ListingsController with a Request
- * carrying the given query parameters.
+ * Invoke a protected/private method on a fresh ListingsController, passing
+ * whatever positional args that method needs.
  */
-function callBuilder(string $method, array $query)
+function invokeControllerMethod(string $method, array $args)
 {
     $controller = new ListingsController;
-    $request = Request::create('/search', 'GET', $query);
 
     $ref = new ReflectionMethod(ListingsController::class, $method);
     $ref->setAccessible(true);
 
-    return $ref->invoke($controller, $request);
+    return $ref->invoke($controller, ...$args);
+}
+
+/**
+ * Invoke a protected build* method with a Request carrying the given query
+ * parameters — every build* method takes just that one argument.
+ */
+function callBuilder(string $method, array $query)
+{
+    return invokeControllerMethod($method, [Request::create('/search', 'GET', $query)]);
 }
 
 beforeEach(function () {
@@ -294,6 +304,50 @@ test('buildSearchFilters drops an unknown tag slug, producing no tag filter', fu
 });
 
 // ============================================================
+// buildSearchFilters — remoteLocation (At Home search-by-type)
+// ============================================================
+
+test('buildSearchFilters converts a remote location slug to a terms filter by id', function () {
+    $zoom = RemoteLocation::create(['name' => 'Zoom', 'slug' => 'zoom', 'admin' => true, 'rank' => 0, 'user_id' => User::factory()->create()->id]);
+
+    $result = callBuilder('buildSearchFilters', ['remoteLocation' => $zoom->slug, 'searchType' => 'atHome']);
+
+    expect($result)->toHaveKeys(['searchedRemoteLocation', 'remoteLocation']);
+    expect($result['searchedRemoteLocation']->id)->toBe($zoom->id);
+    $built = $result['remoteLocation']->buildQuery();
+    expect($built['terms']['remote_location_ids'])->toBe([$zoom->id]);
+});
+
+test('buildSearchFilters accepts a numeric remote location id directly', function () {
+    $telephone = RemoteLocation::create(['name' => 'Telephone', 'slug' => 'telephone', 'admin' => true, 'rank' => 0, 'user_id' => User::factory()->create()->id]);
+
+    $result = callBuilder('buildSearchFilters', ['remoteLocation' => (string) $telephone->id, 'searchType' => 'atHome']);
+
+    $built = $result['remoteLocation']->buildQuery();
+    expect($built['terms']['remote_location_ids'])->toBe([$telephone->id]);
+});
+
+test('buildSearchFilters drops an unknown remote location slug, producing no filter', function () {
+    $result = callBuilder('buildSearchFilters', ['remoteLocation' => 'does-not-exist', 'searchType' => 'atHome']);
+
+    expect($result)->not->toHaveKey('remoteLocation');
+    expect($result)->not->toHaveKey('searchedRemoteLocation');
+});
+
+test('buildSearchFilters ignores a remoteLocation param when searchType is not atHome', function () {
+    // A stray remoteLocation left over from switching tabs (see
+    // nav-search.vue's handleLocationSearch) must not silently filter an
+    // in-person search down to zero results — in-person events have no
+    // remote_location_ids at all.
+    $zoom = RemoteLocation::create(['name' => 'Zoom', 'slug' => 'zoom', 'admin' => true, 'rank' => 0, 'user_id' => User::factory()->create()->id]);
+
+    $result = callBuilder('buildSearchFilters', ['remoteLocation' => $zoom->slug, 'searchType' => 'inPerson']);
+
+    expect($result)->not->toHaveKey('remoteLocation');
+    expect($result)->not->toHaveKey('searchedRemoteLocation');
+});
+
+// ============================================================
 // buildSearchFilters — price range
 // ============================================================
 
@@ -504,4 +558,51 @@ test('eventSearch builds the same five-clause bool should query as nameSearch fo
     expect($built['bool']['should'])->toHaveCount(5);
     expect($built['bool']['minimum_should_match'])->toBe(1);
     expect($built['bool']['should'][3]['prefix']['name']['value'])->toBe('escape room');
+});
+
+// ============================================================
+// maxPriceQuery — must never include the current price filter
+// ============================================================
+
+test('maxPriceQuery excludes the price filter even when price0/price1 are set', function () {
+    // Regression test: the price slider's own upper bound is computed by
+    // aggregating max price over this query. If it included the CURRENT
+    // price filter, the aggregation would be self-referential — the ceiling
+    // could never exceed whatever price range was already applied, which
+    // permanently capped the slider at the last-selected value the moment
+    // any upper bound was set (reported live: setting price to $45 in a
+    // saved search made the results page's own slider unable to go above
+    // $45 ever again).
+    $requestParams = ['price0' => 10, 'price1' => 45];
+
+    $locationFilters = callBuilder('buildLocationFilter', $requestParams);
+    $searchFilters = callBuilder('buildSearchFilters', $requestParams);
+    $boundaryFilter = callBuilder('buildMapBoundaryFilter', $requestParams);
+
+    // Sanity check: the price filter really was built, so its absence below
+    // is a meaningful exclusion, not a no-op.
+    expect($searchFilters['prices'])->not->toBeNull();
+    expect(json_encode($searchFilters['prices']->buildQuery()))->toContain('priceranges.price');
+
+    $request = Request::create('/search', 'GET', $requestParams);
+    // No live/searchType params here, so $applyGeoFilter is irrelevant to
+    // what this test asserts (price exclusion) — false either way.
+    $maxPriceQuery = invokeControllerMethod('maxPriceQuery', [$searchFilters, $locationFilters, $boundaryFilter, $request, false]);
+
+    expect(json_encode($maxPriceQuery->buildQuery()))->not->toContain('priceranges.price');
+});
+
+test('maxPriceQuery still includes the other active filters (category)', function () {
+    $requestParams = ['price0' => 10, 'price1' => 45, 'category' => '3,5'];
+
+    $locationFilters = callBuilder('buildLocationFilter', $requestParams);
+    $searchFilters = callBuilder('buildSearchFilters', $requestParams);
+    $boundaryFilter = callBuilder('buildMapBoundaryFilter', $requestParams);
+
+    $request = Request::create('/search', 'GET', $requestParams);
+    $maxPriceQuery = invokeControllerMethod('maxPriceQuery', [$searchFilters, $locationFilters, $boundaryFilter, $request, false]);
+
+    $built = json_encode($maxPriceQuery->buildQuery());
+    expect($built)->not->toContain('priceranges.price');
+    expect($built)->toContain('category_id');
 });

@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Controllers\AccountSettings\AccountDeletionController;
+use App\Http\Controllers\AccountSettings\LoginSecurityController;
+use App\Http\Controllers\AccountSettings\PersonalInformationController;
+use App\Http\Controllers\AccountSettings\PrivacyController;
 use App\Http\Controllers\Admin\AdminAdvisoryController;
 use App\Http\Controllers\Admin\AdminCategoryController;
 // Controller Imports - Search
@@ -21,8 +25,14 @@ use App\Http\Controllers\CachedDataController;
 use App\Http\Controllers\Creation\EventClickController;
 // Controller Imports - Other
 use App\Http\Controllers\Creation\HostEventController;
+use App\Http\Controllers\FavoriteController;
+use App\Http\Controllers\FollowController;
+use App\Http\Controllers\NotificationFeedController;
+use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\OrganizerController;
 use App\Http\Controllers\OwnershipClaimController;
+use App\Http\Controllers\Profile\ProfileExtrasController;
+use App\Http\Controllers\SavedSearchController;
 use App\Http\Controllers\Search\EventAttributesController;
 use App\Http\Controllers\Search\ListingsController;
 use App\Http\Controllers\Search\SearchController;
@@ -48,6 +58,9 @@ Route::middleware(['throttle:180,1'])->group(function () {
         ->name('events.similar');
     Route::GET('/events/similar-by-location', [SimilarEventsController::class, 'getSimilarByLocation'])
         ->name('events.similar-by-location');
+    // The non-location results page's (all.vue) empty-state fallback.
+    Route::GET('/events/latest-remote', [SimilarEventsController::class, 'getLatestRemote'])
+        ->name('events.latest-remote');
 });
 
 // Validation endpoints - Generous for real-time typing (60/min = 1/sec)
@@ -100,6 +113,129 @@ Route::middleware(['auth:sanctum', 'throttle:20,1'])->group(function () {
         ->name('organizers.claim');
 });
 
+// Favoriting — lightweight, frequently-clicked toggle; generous like other real-time
+// interaction endpoints (60/min = 1/sec). No policy needed — self-scoped to auth()->id().
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
+    Route::POST('/events/{event}/favorite', [FavoriteController::class, 'store'])
+        ->name('event.favorite');
+    Route::DELETE('/events/{event}/favorite', [FavoriteController::class, 'destroy'])
+        ->name('event.unfavorite');
+});
+
+// Following an organizer — same lightweight-toggle tier as favoriting.
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
+    Route::POST('/organizers/{organizer}/follow', [FollowController::class, 'store'])
+        ->name('organizer.follow');
+    Route::DELETE('/organizers/{organizer}/follow', [FollowController::class, 'destroy'])
+        ->name('organizer.unfollow');
+});
+
+// /api/hub/* — Profile's Liked Events / Saved Searches tabs, and (the
+// saved-searches and notification-preferences endpoints) reused by the nav
+// search bar and Account Settings' Notifications tab. Kept the /hub/*
+// namespace despite the page itself moving to Profile, to avoid churning an
+// API contract for no user-facing benefit.
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
+    Route::GET('/hub/events', [FavoriteController::class, 'index'])
+        ->name('hub.events');
+    // Backs deep-linking a single saved event (/users/{id}/events/{slug}) —
+    // see FavoriteController::show().
+    Route::GET('/hub/events/{event}', [FavoriteController::class, 'show'])
+        ->name('hub.events.show');
+    // Per-event/organizer "Get updates" override — distinct from the two
+    // routes below, which are the account-wide default those overrides fall
+    // back to when unset. See FavoriteController::updateNotify().
+    Route::PATCH('/hub/events/{event}/notify-updates', [FavoriteController::class, 'updateNotify'])
+        ->name('hub.events.notify-updates');
+    Route::GET('/hub/notification-preferences', [NotificationPreferenceController::class, 'show'])
+        ->name('hub.notification-preferences.show');
+    Route::PATCH('/hub/notification-preferences', [NotificationPreferenceController::class, 'update'])
+        ->name('hub.notification-preferences.update');
+    // Backs the Hub's "Saved Search Preferences" tab. Auto-saved from
+    // nav-search.vue's handleLocationSearch/handleAtHomeSearch on every
+    // Location/At Home search (see SaveSearchAction for the overwrite-in-
+    // place behavior that keeps this from piling up).
+    Route::GET('/hub/saved-searches', [SavedSearchController::class, 'index'])
+        ->name('hub.saved-searches.index');
+    Route::POST('/hub/saved-searches', [SavedSearchController::class, 'store'])
+        ->name('hub.saved-searches.store');
+    // Deliberate edit of one exact row from the Hub's editor — distinct from
+    // the passive auto-save POST above (see UpdateSavedSearchAction).
+    Route::PATCH('/hub/saved-searches/{savedSearch}', [SavedSearchController::class, 'update'])
+        ->name('hub.saved-searches.update');
+    Route::DELETE('/hub/saved-searches/{savedSearch}', [SavedSearchController::class, 'destroy'])
+        ->name('hub.saved-searches.destroy');
+    Route::PATCH('/hub/saved-searches/{savedSearch}/pin', [SavedSearchController::class, 'togglePin'])
+        ->name('hub.saved-searches.pin');
+});
+
+// Account Settings — Personal Information rows, each saved independently.
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->prefix('account-settings')->name('account-settings.')->group(function () {
+    Route::GET('/personal-info', [PersonalInformationController::class, 'show'])
+        ->name('personal-info.show');
+    Route::PATCH('/personal-info/legal-name', [PersonalInformationController::class, 'updateLegalName'])
+        ->name('personal-info.legal-name');
+    Route::PATCH('/personal-info/preferred-name', [PersonalInformationController::class, 'updatePreferredName'])
+        ->name('personal-info.preferred-name');
+    Route::PATCH('/personal-info/location', [PersonalInformationController::class, 'updateLocation'])
+        ->name('personal-info.location');
+
+    Route::GET('/login-security', [LoginSecurityController::class, 'show'])
+        ->name('login-security.show');
+    Route::DELETE('/login-security/devices/{device}', [LoginSecurityController::class, 'destroy'])
+        ->name('login-security.devices.destroy');
+
+    Route::GET('/privacy', [PrivacyController::class, 'show'])
+        ->name('privacy.show');
+    Route::PATCH('/privacy', [PrivacyController::class, 'update'])
+        ->name('privacy.update');
+    // Sends a pair of emails (user + legal) per call — tighter than the
+    // group's default 60/min so it can't be used to spam either inbox.
+    Route::POST('/privacy/data-request', [PrivacyController::class, 'requestData'])
+        ->middleware('throttle:5,60')
+        ->name('privacy.data-request');
+
+    Route::DELETE('/', [AccountDeletionController::class, 'destroy'])
+        ->name('destroy');
+});
+
+// Profile page extras. stats/followed-organizers/bio are scoped to the
+// authenticated viewer's own profile, so those stay behind auth:sanctum.
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->prefix('profile')->name('profile.')->group(function () {
+    Route::GET('/stats', [ProfileExtrasController::class, 'stats'])
+        ->name('stats');
+    Route::GET('/followed-organizers', [ProfileExtrasController::class, 'followedOrganizers'])
+        ->name('followed-organizers');
+    Route::PATCH('/bio', [ProfileExtrasController::class, 'updateBio'])
+        ->name('bio');
+});
+
+// {user}/public-extras is the one exception — it's for viewing SOMEONE
+// ELSE'S profile (the profile page itself, ProfilesController::show, has no
+// auth requirement either), gated by that user's own Privacy toggles (see
+// User::showsPublicly()), not the viewer's. Requiring auth:sanctum here
+// would 401 for exactly the logged-out visitors a public profile is for.
+Route::middleware('throttle:60,1')->prefix('profile')->name('profile.')->group(function () {
+    Route::GET('/{user}/public-extras', [ProfileExtrasController::class, 'publicExtras'])
+        ->name('public-extras');
+});
+
+// In-app notification feed — every notification a trigger creates lands here
+// regardless of the recipient's mail preference (mail is a separate,
+// independently-gated channel — see each Notification class's via()). Named
+// "api.notifications.*" (not just "notifications.*") because the page-shell
+// route in web.php already claims that name — a duplicate route name is
+// silently last-registration-wins in Laravel, so route('notifications.index')
+// would resolve to whichever of the two happened to load last.
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->prefix('notifications')->name('api.notifications.')->group(function () {
+    Route::GET('/', [NotificationFeedController::class, 'index'])
+        ->name('index');
+    Route::POST('/read-all', [NotificationFeedController::class, 'markAllRead'])
+        ->name('read-all');
+    Route::POST('/{notification}/read', [NotificationFeedController::class, 'markRead'])
+        ->name('read');
+});
+
 // Navigation Search Routes - Autocomplete (fired on keystroke, very generous 120/min = 2/sec)
 Route::middleware(['throttle:120,1'])->group(function () {
     Route::controller(SearchController::class)->group(function () {
@@ -116,6 +252,7 @@ Route::middleware(['throttle:300,1'])->group(function () {
         Route::GET('/categories', 'categories');
         Route::GET('/genres', 'genres');
         Route::GET('/remotelocations', 'remoteLocations');
+        Route::GET('/remotelocations/public', 'publicRemoteLocations');
         Route::GET('/contactlevels', 'contactLevels');
         Route::GET('/interactivelevels', 'interactiveLevels');
         Route::GET('/contentadvisories', 'contentAdvisories');

@@ -53,7 +53,7 @@
     @if (Browser::isMobile())
         <vue-nav-bar-mobile :user="user"></vue-nav-bar-mobile>
     @else
-        @include('nav.nav-limited-search')
+        @include('nav.nav-limited-search', ['scrollAway' => true])
     @endif
     
 @endsection

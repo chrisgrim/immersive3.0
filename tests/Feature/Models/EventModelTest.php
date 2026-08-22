@@ -2,11 +2,13 @@
 
 use App\Models\Event;
 use App\Models\Events\Location;
+use App\Models\Events\RemoteLocation;
 use App\Models\Events\Show;
 use App\Models\Genre;
 use App\Models\Image;
 use App\Models\Organizer;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -319,4 +321,85 @@ test('duplicate copies image records through ImageHandler when source files exis
     expect($newImage->large_image_path)->toContain('event-images/'.$copy->slug);
     // rank-0 primary image also updates the model's own image columns
     expect($copy->largeImagePath)->toBe($newImage->large_image_path);
+});
+
+// ----- toSearchableArray() -----
+
+test('toSearchableArray reflects a show added after showsSelect was already loaded once', function () {
+    // Regression test for the exact bug commit 2647957 fixed: without an
+    // explicit reload scoped to showsSelect, a show added later in the same
+    // request — after something earlier already lazy-loaded showsSelect —
+    // would read back stale cached relation data here instead of the real
+    // current set.
+    $event = Event::factory()->published()->create();
+    $event->shows()->create(['date' => now()->addWeek()]);
+
+    $event->load('showsSelect'); // simulates something else in the request having already touched it
+    expect($event->showsSelect)->toHaveCount(1);
+
+    $event->shows()->create(['date' => now()->addWeeks(2)]); // added AFTER that load
+
+    $array = $event->toSearchableArray();
+
+    expect($array['shows'])->toHaveCount(2);
+});
+
+test('toSearchableArray returns the ids of every attached remote location', function () {
+    $event = Event::factory()->published()->create();
+    $zoom = RemoteLocation::create(['name' => 'Zoom', 'slug' => 'zoom', 'admin' => true, 'rank' => 0, 'user_id' => $this->user->id]);
+    $telephone = RemoteLocation::create(['name' => 'Telephone', 'slug' => 'telephone', 'admin' => true, 'rank' => 0, 'user_id' => $this->user->id]);
+    $event->remotelocations()->attach([$zoom->id, $telephone->id]);
+
+    $array = $event->fresh()->toSearchableArray();
+
+    expect($array['remote_location_ids'])->toEqualCanonicalizing([$zoom->id, $telephone->id]);
+});
+
+test('searchableWith declares every relation toSearchableArray reads, except showsSelect', function () {
+    // showsSelect is deliberately excluded — see its own explicit load() in
+    // toSearchableArray and the staleness test above for why a loadMissing()
+    // (which skips an already-loaded relation) isn't safe for it specifically.
+    $event = Event::factory()->published()->create();
+
+    expect($event->searchableWith())->toEqualCanonicalizing(['location', 'pricerangesSelect', 'genreSelect', 'remotelocations']);
+});
+
+test('toSearchableArray does not issue extra queries for relations already eager-loaded via searchableWith', function () {
+    // This is what DocumentFactory::makeFromModels() does for every
+    // searchable operation (bulk reindex and single-model sync alike) — see
+    // Elastic\ScoutDriverPlus\Searchable::registerSearchableMacros() and
+    // Event::searchableWith(). Proves the eager-loading actually gets used
+    // (property access, not a fresh method-chained query) rather than just
+    // being declared and ignored.
+    $event = Event::factory()->published()->create();
+    $genre = Genre::factory()->create();
+    $event->genres()->attach($genre->id);
+    $event->priceranges()->create(['price' => '25']);
+    $zoom = RemoteLocation::create(['name' => 'Zoom', 'slug' => 'zoom', 'admin' => true, 'rank' => 0, 'user_id' => $this->user->id]);
+    $event->remotelocations()->attach($zoom->id);
+
+    $preloaded = Event::with($event->searchableWith())->findOrFail($event->id);
+    // showsSelect is loaded explicitly by toSearchableArray itself regardless.
+    $preloaded->load('showsSelect');
+
+    DB::enableQueryLog();
+    $array = $preloaded->toSearchableArray();
+    $queries = DB::getQueryLog();
+    DB::disableQueryLog();
+
+    // Only showsSelect's own explicit (always-fresh) reload should query —
+    // location/pricerangesSelect/genreSelect/remotelocations were already
+    // loaded above and must not be queried again.
+    expect($queries)->toHaveCount(1);
+    expect($queries[0]['query'])->toContain('shows');
+
+    // Not just "no extra queries" — the eager-loaded data has to actually
+    // come through correctly too. A hasMany relation with a partial
+    // select() (pricerangesSelect, showsSelect) silently returns EMPTY
+    // results when eager-loaded unless its own foreign key is in that
+    // select list, since Eloquent needs it to match rows back to the
+    // parent — a real bug this same fix caught and corrected.
+    expect(collect($array['priceranges'])->pluck('price')->all())->toBe(['25']);
+    expect(collect($array['genres'])->pluck('genre_id')->all())->toBe([$genre->id]);
+    expect($array['remote_location_ids'])->toBe([$zoom->id]);
 });

@@ -1,24 +1,30 @@
 <template>
-    <div style="width:100%" v-click-outside="() => dropdown = false">
-        <div 
+    <div class="relative w-full max-w-[52rem]" v-click-outside="() => dropdown = false">
+        <div
             ref="search"
             class="w-full z-50">
-            <div class="w-full m-auto">
-                <svg class="absolute top-8 left-8 w-8 h-8 fill-black z-50">
-                    <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
-                </svg>
-                <input 
-                    class="relative rounded-full p-7 pl-24 border border-neutral-300 w-full font-normal z-40 focus:border-none focus:rounded-full focus:shadow-custom-7"
-                    v-model="searchInput"
-                    placeholder="Event and Organizer Search"
-                    @input="debounce"
-                    @focus="dropdown=true"
-                    autocomplete="off"
-                    onfocus="value = ''" 
-                    type="text">
+            <div class="flex items-center w-full border border-neutral-300 rounded-full shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
+                <div class="relative flex-1">
+                    <svg class="absolute top-1/2 -translate-y-1/2 left-8 w-8 h-8 fill-black z-50">
+                        <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
+                    </svg>
+                    <input
+                        class="relative rounded-full p-7 pl-24 bg-transparent w-full font-normal z-40"
+                        v-model="searchInput"
+                        placeholder="Event and Organizer Search"
+                        @input="debounce"
+                        @focus="dropdown=true"
+                        autocomplete="off"
+                        onfocus="value = ''"
+                        type="text">
+                </div>
+                <SearchFilterButton
+                    :has-active-filters="hasActiveFilters"
+                    @open="$emit('open-filters')"
+                />
             </div>
-            <ul 
-                class="bg-white relative w-full m-auto overflow-hidden mt-8 p-8 list-none rounded-5xl shadow-custom-7"
+            <ul
+                class="absolute bg-white w-full mx-0 overflow-hidden mt-8 p-8 list-none rounded-5xl shadow-custom-7"
                 v-if="dropdown">
                 <li 
                     class="flex items-center gap-8 hover:bg-neutral-100 p-2" 
@@ -52,12 +58,42 @@
                     </div>
                 </li>
             </ul>
+
+            <!-- Same positioning language as the results dropdown above —
+                 nested here (bubbles up to the root `position: relative`
+                 div, which is also the whole bar's max-w-[52rem] bounds) so
+                 `width: 100%` matches the bar's own real rendered width. -->
+            <Filters
+                v-if="showFilters"
+                :model-value="filtersState"
+                :show-price="isSearchPage"
+                @close="$emit('close-filters')"
+                @filter-change="$emit('filters-changed', $event)"
+            />
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import SearchFilterButton from './search-filter-button.vue';
+import Filters from './filters.vue';
+import SearchStore from '@/Stores/SearchStore.vue';
+
+defineProps({
+    hasActiveFilters: {
+        type: Boolean,
+        default: false
+    },
+    showFilters: {
+        type: Boolean,
+        default: false
+    }
+});
+defineEmits(['open-filters', 'close-filters', 'filters-changed']);
+
+const filtersState = computed(() => SearchStore.state.filters);
+const isSearchPage = computed(() => window.location.pathname.includes('/search'));
 
 const searchInput = ref('');
 const searchOptions = ref([]);

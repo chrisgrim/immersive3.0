@@ -153,7 +153,7 @@
                 If you have any questions about these Terms, please contact us at:
             </p>
             <p class="mt-4">
-                <strong>Email:</strong> legal@everythingimmersive.com<br>
+                <strong>Email:</strong> support@everythingimmersive.com<br>
                 <strong>Address:</strong> 123 Experience Way, San Francisco, CA 94103
             </p>
         </section>

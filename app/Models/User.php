@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Models\Admin\Dock;
+use App\Models\Admin\StaffPick;
+use App\Models\Components\Favorite;
 use App\Models\Curated\Community;
 use App\Models\Curated\Post;
 use App\Models\Messaging\Conversation;
@@ -26,7 +28,7 @@ class User extends Authenticatable
      * @var array
      */
     protected $fillable = [
-        'name', 'email', 'password', 'largeImagePath', 'thumbImagePath', 'provider', 'provider_id', 'gravatar', 'type', 'email_verified_at', 'newsletter_type', 'silence', 'unread', 'reminder', 'current_team_id', 'blurb', 'notification_preferences',
+        'name', 'email', 'password', 'largeImagePath', 'thumbImagePath', 'provider', 'provider_id', 'gravatar', 'type', 'email_verified_at', 'newsletter_type', 'silence', 'unread', 'reminder', 'current_team_id', 'blurb', 'notification_preferences', 'legal_first_name', 'legal_last_name', 'phone', 'privacy_preferences',
     ];
 
     /**
@@ -39,6 +41,13 @@ class User extends Authenticatable
         'remember_token',
         'two_factor_recovery_codes',
         'two_factor_secret',
+        // Account Settings' Personal Information reads these as plain PHP
+        // properties (hidden only affects serialization, not access) — but a
+        // generic `{{ $user }}`/toJson() anywhere else (e.g. the profile page)
+        // must never leak them to a viewer who isn't the account owner.
+        'legal_first_name',
+        'legal_last_name',
+        'phone',
     ];
 
     /**
@@ -49,6 +58,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'notification_preferences' => 'array',
+        'privacy_preferences' => 'array',
     ];
 
     /**
@@ -288,7 +298,17 @@ class User extends Authenticatable
 
     public function favouritedEvents()
     {
-        return $this->morphedByMany(Event::class, 'favorited', 'favorites');
+        return $this->morphedByMany(Event::class, 'favorited', 'favorites')->withTimestamps();
+    }
+
+    public function followedOrganizers()
+    {
+        return $this->belongsToMany(Organizer::class, 'organizer_followers')->withTimestamps();
+    }
+
+    public function savedSearches()
+    {
+        return $this->hasMany(SavedSearch::class);
     }
 
     /**
@@ -316,12 +336,31 @@ class User extends Authenticatable
      * Opt-OUT model: a missing key (or no preferences at all) means subscribed,
      * so newly-added notification types default to ON without a migration/backfill.
      */
-    public function wantsNotification(string $key): bool
+    public function wantsNotification(string $key, bool $default = true): bool
     {
         $prefs = $this->notification_preferences ?? [];
 
-        // Missing key → still subscribed (opt-out default). A present value is normalized
-        // strictly so a stray "false" string from a manual write can't re-enable it.
+        // Missing key → $default (true = opt-out, existing admin-alert keys; false = opt-in,
+        // for newer user-facing keys). A present value is normalized strictly so a stray
+        // "false" string from a manual write can't re-enable it.
+        if (! array_key_exists($key, $prefs)) {
+            return $default;
+        }
+
+        return filter_var($prefs[$key], FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * Whether this user has opted a given piece of profile content into
+     * public visibility (e.g. followed organizers, saved-events count) —
+     * opt-OUT model: a missing key defaults to ON/public, so a user who's
+     * never touched their Privacy settings shows both by default and has
+     * to explicitly turn each one off to hide it.
+     */
+    public function showsPublicly(string $key): bool
+    {
+        $prefs = $this->privacy_preferences ?? [];
+
         if (! array_key_exists($key, $prefs)) {
             return true;
         }

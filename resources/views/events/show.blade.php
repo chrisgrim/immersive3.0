@@ -354,9 +354,9 @@
 @section('nav')
 
     @if (Browser::isMobile())
-       
+
     @else
-        @include('nav.nav-limited-search')
+        @include('nav.nav-limited-search', ['scrollAway' => true])
     @endif
     
 @endsection

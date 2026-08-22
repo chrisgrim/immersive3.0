@@ -21,7 +21,12 @@ class SearchStore {
                 price: [0, null],
                 maxPrice: null,
                 searchingByPrice: false,
-                atHome: false
+                atHome: false,
+                // null, a raw slug string (hydrated from the URL, not yet
+                // resolved to a display name), or { slug, name } once
+                // resolved — see at-home-search.vue's onMounted() and
+                // nav-search.vue's handleAtHomeSearch().
+                remoteLocation: null
             },
             location: {
                 city: null,
@@ -78,10 +83,27 @@ class SearchStore {
                 ],
                 maxPrice: maxPrice || null,
                 searchingByPrice: params.has('price0') || params.has('price1'),
-                atHome: params.get('searchType') === 'atHome'
+                atHome: params.get('searchType') === 'atHome',
+                // Raw slug by default — at-home-search.vue's onMounted()
+                // resolves it to { slug, name } once it has the display
+                // name. But nav-search.vue's own onMounted (which calls this)
+                // fires AFTER its child at-home-search.vue's onMounted (Vue
+                // mounts children before their parent), so if that child
+                // already resolved it — e.g. synchronously from a
+                // server-provided initial-remote-location prop — this must
+                // not clobber that object back down to the raw string, or
+                // active-filters.vue's label falls back to the generic
+                // "Remote Events" right after briefly showing the real name.
+                remoteLocation: (() => {
+                    const slug = params.get('remoteLocation') || null;
+                    const current = this.state.filters.remoteLocation;
+                    return (current && typeof current === 'object' && current.slug === slug)
+                        ? current
+                        : slug;
+                })()
             },
         };
-        
+
         this.updateState(initialState);
         return initialState;
     }

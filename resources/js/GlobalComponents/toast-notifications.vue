@@ -7,25 +7,20 @@
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
-        <div 
+        <div
             v-if="show"
-            class="fixed top-4 right-4 z-50 bg-white rounded-xl shadow-custom-6 p-4 max-w-sm border"
+            class="fixed bottom-[10%] left-1/2 -translate-x-1/2 z-50 bg-white rounded-xl shadow-custom-6 py-4 px-8 border"
         >
-            <div class="flex items-center gap-3">
-                <svg 
-                    class="w-6 h-6 text-green-500 flex-shrink-0" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
+            <div class="flex items-center gap-8">
+                <p class="text-lg text-gray-600">{{ message }}</p>
+                <button
+                    v-if="actionLabel"
+                    type="button"
+                    class="text-lg font-semibold border border-black rounded-[2rem] py-2 px-4 hover:bg-black hover:text-white transition-colors flex-shrink-0"
+                    @click="$emit('action')"
                 >
-                    <path 
-                        stroke-linecap="round" 
-                        stroke-linejoin="round" 
-                        stroke-width="2" 
-                        d="M5 13l4 4L19 7"
-                    />
-                </svg>
-                <p class="text-gray-600">{{ message }}</p>
+                    {{ actionLabel }}
+                </button>
             </div>
         </div>
     </Transition>
@@ -46,10 +41,14 @@ const props = defineProps({
     duration: {
         type: Number,
         default: 3000
+    },
+    actionLabel: {
+        type: String,
+        default: null
     }
 });
 
-const emit = defineEmits(['update:show']);
+const emit = defineEmits(['update:show', 'action']);
 
 // Auto-hide timer
 watch(() => props.show, (newValue) => {

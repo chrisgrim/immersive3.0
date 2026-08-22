@@ -82,9 +82,32 @@ class Event extends Model
             $hasValidLocation = true;
         }
 
-        // Explicitly refresh the shows relationship to ensure we have the latest data
-        $this->refresh();
-        $shows = $this->shows()->select('date')->get();
+        // Explicitly reload JUST the shows relationship (not the whole model
+        // via refresh() — see searchableWith() below for why that would
+        // undo the eager-loading it sets up) — a show added earlier in the
+        // same request, after showsSelect was already lazy-loaded once
+        // elsewhere, would otherwise still read back the stale cached
+        // relation here (confirmed by git history: 2647957 fixed exactly
+        // this staleness bug for shows specifically).
+        //
+        // KNOWN TRADEOFF: because this is an unconditional load() (not
+        // loadMissing()), it fires once per model even during a batch
+        // scout:import/MakeSearchableJob run, regardless of searchableWith()
+        // already having batch-loaded the other 4 relations for the whole
+        // chunk — so a full reindex still does 1 shows query per event
+        // instead of 1 per chunk. Switching this to loadMissing() would
+        // close that, but would also silently skip the reload in exactly
+        // the single-model staleness scenario above, reopening 2647957 —
+        // Scout's own searchableWith() hook has no way to signal "this call
+        // is part of a trusted-fresh batch load" vs. "this instance may
+        // already carry stale state," so there's no way to have both
+        // guarantees at once without deeper changes to how Scout syncs.
+        // Accepted as-is: still strictly fewer queries than the pre-existing
+        // refresh()-per-model baseline (which reloaded the whole model, not
+        // just this one relation), just not the full fix a batch reindex
+        // could theoretically get.
+        $this->load('showsSelect');
+        $shows = $this->showsSelect;
 
         return [
             'name' => $this->name,
@@ -100,8 +123,27 @@ class Event extends Model
             'closingDate' => $this->closingDate ? Carbon::parse($this->closingDate)->format('Y-m-d H:i:s') : null,
             'priceranges' => $this->pricerangesSelect,
             'genres' => $this->genreSelect,
+            'remote_location_ids' => $this->remotelocations->pluck('id')->toArray(),
             'priority' => 5,
         ];
+    }
+
+    /**
+     * Elastic Scout Driver Plus's own eager-loading hook (Searchable trait)
+     * — DocumentFactory::makeFromModels() calls $models->withSearchableRelations()
+     * on the whole batch before building documents, which loadMissing()s
+     * whatever this returns, for BOTH a bulk scout:import and an ordinary
+     * single-model save-triggered sync. Without this, every relation this
+     * method reads (location, pricerangesSelect, genreSelect, remotelocations)
+     * was a separate per-model lazy-load query — a real N+1 on a full
+     * reindex. showsSelect is deliberately NOT here: it gets its own
+     * explicit load() above on every call, not a loadMissing() that would
+     * silently skip the refresh if some earlier code in the same request
+     * already loaded it stale.
+     */
+    public function searchableWith()
+    {
+        return ['location', 'pricerangesSelect', 'genreSelect', 'remotelocations'];
     }
 
     public function scopeUserEvents($query)
@@ -109,9 +151,22 @@ class Event extends Model
         return $query->where('user_id', auth()->id());
     }
 
+    /**
+     * event_id has to be in the select alongside date — a hasMany relation
+     * needs its own foreign key present in the result set to match rows
+     * back to their parent during EAGER loading (with()/load()/loadMissing()
+     * on a collection); a bare property access when nothing's preloaded
+     * (the lazy-load path) doesn't need it, since there's only one parent
+     * in scope and the WHERE clause alone already scopes correctly — which
+     * is why this went unnoticed: nothing eager-loaded this relation before
+     * searchableWith() below started doing so. Same reasoning applies to
+     * pricerangesSelect(); genreSelect() (belongsToMany) doesn't have this
+     * problem — Laravel always appends the pivot's own linking columns
+     * regardless of an explicit select().
+     */
     public function showsSelect()
     {
-        return $this->hasMany(Show::class)->select('date');
+        return $this->hasMany(Show::class)->select('date', 'event_id');
     }
 
     public function genreSelect()
@@ -121,7 +176,7 @@ class Event extends Model
 
     public function pricerangesSelect()
     {
-        return $this->hasMany(PriceRange::class)->select('price');
+        return $this->hasMany(PriceRange::class)->select('price', 'event_id');
     }
 
     /**
@@ -524,6 +579,28 @@ class Event extends Model
             ->count();
     }
 
+    /**
+     * Bulk form of countUnpublishedEvents for a caller building counts for
+     * several organizers at once (e.g. whoami listing a user's teams) — one
+     * grouped query instead of one count query per organizer (EI-LARAVEL-W).
+     * Organizers with zero unpublished events are simply absent from the map.
+     *
+     * @param  array<int>  $organizerIds
+     * @return \Illuminate\Support\Collection<int, int> organizer_id => count
+     */
+    public static function countUnpublishedEventsForOrganizers(array $organizerIds)
+    {
+        // PublishedScope's global orderBy('published_at') isn't in the GROUP BY
+        // below, which MySQL's ONLY_FULL_GROUP_BY mode rejects. Irrelevant to a
+        // count anyway, so drop it rather than add it to the grouping.
+        return self::withoutGlobalScope(PublishedScope::class)
+            ->whereIn('organizer_id', $organizerIds)
+            ->whereNotIn('status', ['p', 'e'])
+            ->selectRaw('organizer_id, count(*) as aggregate')
+            ->groupBy('organizer_id')
+            ->pluck('aggregate', 'organizer_id');
+    }
+
     public function nameChangeRequests()
     {
         return $this->morphMany(NameChangeRequest::class, 'requestable');
@@ -630,6 +707,107 @@ class Event extends Model
      *
      * @return \Illuminate\Database\Eloquent\Collection
      */
+    /**
+     * How much longer this event is bookable, in words. Reads the aggregate
+     * `remaining_shows_count`/`next_show_date` columns a caller must select onto
+     * the model via withCount()/withMin() (see FavoriteController::index) — this
+     * is deliberately NOT an $appends accessor that queries per-row, to avoid the
+     * N+1 pattern already logged in project memory for this exact model.
+     *
+     * 'showtype' a (always available) and l (limited) each resolve to a single
+     * sentinel Show row rather than real discrete dates (see Show::targetDatesFor),
+     * so a raw count/date for those would misleadingly read as "1 date left".
+     */
+    public function remainingSummary(): array
+    {
+        if (in_array($this->showtype, ['a', 'l'], true)) {
+            return [
+                'type' => 'ongoing',
+                'label' => $this->showtype === 'a' ? 'Always available' : 'Ongoing',
+            ];
+        }
+
+        $count = (int) ($this->remaining_shows_count ?? 0);
+
+        if ($count === 0) {
+            return ['type' => 'ended', 'label' => 'Run has ended', 'count' => 0];
+        }
+
+        // Show.date is stored as a true UTC instant (see Show::targetDatesFor), so
+        // the future/past comparison itself is timezone-agnostic — only display
+        // needs converting back to the event's own local timezone.
+        $nextDate = $this->next_show_date
+            ? Carbon::parse($this->next_show_date, 'UTC')->setTimezone($this->timezone ?? 'Etc/UTC')->format('M j')
+            : null;
+
+        $label = match (true) {
+            $count === 1 && $nextDate !== null => "Last date: {$nextDate}",
+            $count === 1 => '1 date left',
+            $nextDate !== null => "{$count} dates left, next {$nextDate}",
+            default => "{$count} dates left",
+        };
+
+        return ['type' => 'dated', 'label' => $label, 'count' => $count];
+    }
+
+    /**
+     * The event's overall run — first show through last show — as a display
+     * string, for a "run dates" line (e.g. the Liked Events pages) rather than
+     * remainingSummary()'s forward-looking "N dates left" framing. Reads the
+     * aggregate `first_show_date`/`last_show_date` columns a caller selects via
+     * withMin()/withMax() (same N+1-avoidance convention as remainingSummary()
+     * — see that method's doc comment). Returns null for showtype 'a'/'l',
+     * which have no real discrete range; callers should fall back to
+     * remainingSummary()'s label for those.
+     */
+    public function dateRangeLabel(): ?string
+    {
+        if (in_array($this->showtype, ['a', 'l'], true)) {
+            return null;
+        }
+
+        if (! $this->first_show_date) {
+            return null;
+        }
+
+        $tz = $this->timezone ?? 'Etc/UTC';
+        $first = Carbon::parse($this->first_show_date, 'UTC')->setTimezone($tz);
+        $last = $this->last_show_date
+            ? Carbon::parse($this->last_show_date, 'UTC')->setTimezone($tz)
+            : $first;
+
+        if ($first->isSameDay($last)) {
+            return $first->format('M j, Y');
+        }
+
+        return $first->format('M j, Y').' - '.$last->format('M j, Y');
+    }
+
+    /**
+     * First/last run dates broken into day-abbreviation + day-number pieces
+     * (e.g. ['day' => 'Sat', 'date' => 21]) for the Liked Events detail page's
+     * check-in/checkout-style timeline. Same timezone handling as
+     * dateRangeLabel() — the event's own timezone, not the viewer's — so the
+     * day-of-week shown can't drift from what dateRangeLabel() already prints.
+     */
+    public function runDateParts(): ?array
+    {
+        if (in_array($this->showtype, ['a', 'l'], true) || ! $this->first_show_date) {
+            return null;
+        }
+
+        $tz = $this->timezone ?? 'Etc/UTC';
+        $first = Carbon::parse($this->first_show_date, 'UTC')->setTimezone($tz);
+        $last = $this->last_show_date
+            ? Carbon::parse($this->last_show_date, 'UTC')->setTimezone($tz)
+            : $first;
+
+        return [
+            'first' => ['day' => $first->format('D'), 'date' => $first->day, 'label' => $first->format('M j, Y')],
+            'last' => ['day' => $last->format('D'), 'date' => $last->day, 'label' => $last->format('M j, Y')],
+        ];
+    }
+
     public function getFirstShowTicketsAttribute()
     {
         // First check if shows are already loaded to avoid additional query

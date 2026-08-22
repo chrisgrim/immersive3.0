@@ -103,4 +103,9 @@ return [
 
     'admin_email' => env('MAIL_ADMIN_EMAIL', 'chgrim@email.com'),
 
+    // There is no legal@ inbox — support@ is the only mailbox that actually
+    // exists, so it's the fallback (and the address used in Terms/Help/
+    // Privacy copy) even though the config key is still named legal_email.
+    'legal_email' => env('MAIL_LEGAL_EMAIL', 'support@everythingimmersive.com'),
+
 ];

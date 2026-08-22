@@ -6,6 +6,7 @@ use App\Models\Curated\Post;
 use App\Models\Event;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 // All card routes live behind ['auth', 'verified'] + can:update,community and use
@@ -367,6 +368,74 @@ test('order bulk reorders cards', function () {
     expect($a->fresh()->order)->toBe(2);
     expect($b->fresh()->order)->toBe(0);
     expect($c->fresh()->order)->toBe(1);
+});
+
+test('order query count stays flat as the number of cards grows (EI-LARAVEL-S)', function () {
+    $this->actingAs($this->curator);
+
+    // Warm up the session first — the first authenticated request of a
+    // session costs a handful of fixed extra queries unrelated to this
+    // endpoint (e.g. RecordLoginHistory's device-history bookkeeping), which
+    // would otherwise land on whichever of the two measured requests below
+    // happens to go first and make them look unequal for a reason that has
+    // nothing to do with card count.
+    $this->get('/');
+
+    $reorderQueryCount = function (int $cardCount) {
+        $post = Post::factory()->create(['community_id' => $this->community->id]);
+        $cards = Card::factory()->count($cardCount)->create(['post_id' => $post->id]);
+        $payload = $cards->map(fn ($card, $i) => ['id' => $card->id, 'order' => $cardCount - 1 - $i])->values()->all();
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->putJson(cardUrl($this->community, $post, null, '/order'), $payload)->assertOk();
+        $count = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        return [$count, $cards];
+    };
+
+    // Was 3-4 queries per card (Card::find()'s $with eager load + update);
+    // a single CASE-WHEN update keeps this flat regardless of card count —
+    // asserted here by comparing a small batch against a large one instead
+    // of a fixed ceiling, so the test doesn't need to know (or keep pace
+    // with) however much unrelated fixed per-request overhead exists at any
+    // given time.
+    [$smallCount] = $reorderQueryCount(3);
+    [$largeCount, $largeCards] = $reorderQueryCount(40);
+
+    expect($largeCount)->toBe($smallCount);
+    expect($largeCards->first()->fresh()->order)->toBe(39);
+    expect($largeCards->last()->fresh()->order)->toBe(0);
+});
+
+test('order drops rows missing id or order instead of fataling', function () {
+    $a = Card::factory()->create(['post_id' => $this->post->id, 'order' => 0]);
+    $b = Card::factory()->create(['post_id' => $this->post->id, 'order' => 1]);
+
+    $this->actingAs($this->curator)
+        ->putJson(cardUrl($this->community, $this->post, null, '/order'), [
+            ['id' => $a->id, 'order' => 5],
+            ['id' => $b->id], // missing 'order'
+            ['order' => 9], // missing 'id'
+        ])
+        ->assertOk();
+
+    expect($a->fresh()->order)->toBe(5);
+    expect($b->fresh()->order)->toBe(1); // untouched, not fatal
+});
+
+test('order keeps the last occurrence of a duplicated id', function () {
+    $a = Card::factory()->create(['post_id' => $this->post->id, 'order' => 0]);
+
+    $this->actingAs($this->curator)
+        ->putJson(cardUrl($this->community, $this->post, null, '/order'), [
+            ['id' => $a->id, 'order' => 1],
+            ['id' => $a->id, 'order' => 7],
+        ])
+        ->assertOk();
+
+    expect($a->fresh()->order)->toBe(7);
 });
 
 test('order is denied to a non-curator', function () {

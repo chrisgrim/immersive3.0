@@ -158,6 +158,41 @@ test('show 404s for an unknown slug', function () {
         ->assertNotFound();
 });
 
+test('show renders the events.show-deleted view for a soft-deleted event, not a 404', function () {
+    // Regression: implicit route-model binding's default query excludes
+    // soft-deleted rows, so a link to an event that's since been deleted
+    // (e.g. an old notification — see SavedEventNewDatesNotification::
+    // toDatabase(), which stores the slug at notify time) 404'd outright
+    // with no explanation. events.show-deleted already existed fully built
+    // for exactly this, just was never wired to a route.
+    $event = makeShowableEvent();
+    $event->delete();
+
+    $response = $this->get("/events/{$event->slug}")
+        ->assertOk()
+        ->assertViewIs('events.show-deleted');
+
+    expect($response->viewData('event')->id)->toBe($event->id);
+});
+
+test('show 404s for a soft-deleted event that was never published, instead of rendering show-deleted', function () {
+    // Regression: HostEventController::destroy() lets an organizer delete an
+    // event in ANY status, not just published ones — a deleted draft/rejected
+    // event never had a public page, so the "this event was removed" page
+    // (with its name/image) must not render for it either. published_at is
+    // only ever set on approval/embargo-publish and never cleared, so it's
+    // the signal that distinguishes this from the case above.
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'status' => 'd',
+        'published_at' => null,
+    ]);
+    $event->delete();
+
+    $this->get("/events/{$event->slug}")->assertNotFound();
+});
+
 // ----- getOrganizerPaginatedEvents() -----
 
 test('getOrganizerPaginatedEvents returns only published, non-archived events for the organizer', function () {

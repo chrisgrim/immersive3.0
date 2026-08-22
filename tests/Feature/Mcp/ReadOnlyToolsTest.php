@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Event;
 use App\Models\Organizer;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 function mcpUser(string $type = 'u'): User
 {
@@ -38,6 +39,29 @@ test('whoami hints when the user has no organizer', function () {
     $response = EiServer::actingAs(mcpUser())->tool(Whoami::class);
 
     $response->assertOk()->assertSee('create-organizer');
+});
+
+test('whoami query count stays flat as the number of organizers grows (EI-LARAVEL-W)', function () {
+    $user = mcpUser();
+    $organizers = collect(range(1, 5))->map(fn () => organizerFor($user));
+
+    // Non-zero, non-uniform counts on two organizers to prove the batched
+    // query actually attributes rows to the right organizer_id.
+    Event::factory()->count(2)->create(['organizer_id' => $organizers[0]->id, 'status' => 'd']);
+    Event::factory()->create(['organizer_id' => $organizers[1]->id, 'status' => 'd']);
+
+    DB::enableQueryLog();
+    $response = EiServer::actingAs($user)->tool(Whoami::class)->assertOk();
+    $queryCount = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    // Was one count query per organizer plus the teams query — 6 with 5
+    // organizers. The batched version is flat at 2 (teams + one grouped
+    // count) no matter how many organizers there are. Threshold sits
+    // between the two, confirmed against the actual old code, not guessed.
+    expect($queryCount)->toBeLessThan(5);
+
+    $response->assertSee(['"unpublished_events":2', '"unpublished_events":1', '"unpublished_events":0']);
 });
 
 // ── list-event-attributes ──────────────────────────────────────────────

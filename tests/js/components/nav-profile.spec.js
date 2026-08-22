@@ -98,14 +98,14 @@ describe('nav-profile.vue', () => {
             expect(avatar.attributes('style')).toContain('rgb(171, 205, 239)');
         });
 
-        it('menu shows User Settings linked to the user id and a "List Your Event" option', async () => {
+        it('menu shows Profile linked to the user id and a "List Your Event" option', async () => {
             await wrapper.find('.cursor-pointer').trigger('click');
             const menu = wrapper.find('ul');
-            expect(menu.find('a[href="/users/42/edit"]').exists()).toBe(true);
+            expect(menu.find('a[href="/users/42"]').exists()).toBe(true);
             expect(menu.text()).toContain('List Your Event');
             // not an organizer -> no Organizations link
             expect(menu.find('a[href="/teams"]').exists()).toBe(false);
-            expect(menu.text()).toContain('Logout');
+            expect(menu.text()).toContain('Log out');
         });
 
         it('does not show the Admin Dashboard link for a non-curator', async () => {
@@ -192,7 +192,7 @@ describe('nav-profile.vue', () => {
             await wrapper.find('.cursor-pointer').trigger('click');
 
             const items = Array.from(wrapper.find('ul').element.children);
-            const logoutIndex = items.findIndex((el) => el.textContent.trim() === 'Logout');
+            const logoutIndex = items.findIndex((el) => el.textContent.trim() === 'Log out');
             expect(logoutIndex).toBeGreaterThan(0);
 
             const divider = items[logoutIndex - 1];

@@ -21,6 +21,12 @@
             <!-- Map Container -->
             <div class="w-full h-full relative">
                 <div id="leaflet-map-mobile" class="w-full h-full absolute inset-0"></div>
+                <div
+                    v-if="mapError"
+                    class="absolute inset-0 z-[600] flex flex-col items-center justify-center bg-neutral-100 text-neutral-700 p-12 text-center">
+                    <p class="text-2xl font-bold mb-2">Map couldn't load</p>
+                    <p class="text-lg">Try refreshing the page or switching to the list view.</p>
+                </div>
             </div>
         </div>
 
@@ -65,6 +71,7 @@ const emit = defineEmits(['update:modelValue']);
 const selectedMarker = ref(null);
 const selectedEvent = ref(null);
 const isLoading = ref(false);
+const mapError = ref(false);
 const isFullMap = computed(() => props.modelValue);
 
 // Leaflet objects
@@ -76,6 +83,17 @@ let markers = [];
 const params = new URLSearchParams(window.location.search);
 const lat = parseFloat(params.get('lat'));
 const lng = parseFloat(params.get('lng'));
+
+// See map.vue's identical note — a "custom map search" carries the exact
+// rectangle the user drew, not just its center; fitBounds() below restores
+// that view instead of a fixed zoom centered on the center point.
+const NElat = parseFloat(params.get('NElat'));
+const NElng = parseFloat(params.get('NElng'));
+const SWlat = parseFloat(params.get('SWlat'));
+const SWlng = parseFloat(params.get('SWlng'));
+const savedBounds = [NElat, NElng, SWlat, SWlng].every((n) => Number.isFinite(n))
+    ? [[SWlat, SWlng], [NElat, NElng]]
+    : null;
 
 const mapConfig = {
     zoom: 13,
@@ -174,7 +192,16 @@ const createClusterIcon = (cluster) => {
 // Create the map
 const initMap = () => {
     startLoading();
-    
+    mapError.value = false;
+
+    // Matches map.vue's desktop try/catch — without it, a throw here (e.g.
+    // Leaflet's fitBounds choking on a malformed savedBounds like an
+    // Infinity value that isNaN() doesn't catch) leaves moveend permanently
+    // detached (map.off() ran, map.on() below never reached) and the
+    // spinner stuck forever, since stopLoading() only runs inside
+    // createMarkers(), which is never reached after a throw.
+    try {
+
     // Create the map instance with mobile-specific options
     map = L.map('leaflet-map-mobile', {
         center: mapConfig.center,
@@ -245,9 +272,26 @@ const initMap = () => {
             });
         }, 50);
     });
-    
+
+    // Fit the exact rectangle a "custom map search" was saved with — see
+    // map.vue's identical fix for why the listener is detached for just
+    // this one call.
+    if (savedBounds) {
+        map.off('moveend', mapMoved);
+        map.fitBounds(savedBounds, { animate: false });
+        map.on('moveend', mapMoved);
+    }
+
     // Create markers
     createMarkers(props.events);
+    } catch (err) {
+        console.error('Map init failed:', err);
+        mapError.value = true;
+        isLoading.value = false;
+        if (window.Sentry?.captureException) {
+            window.Sentry.captureException(err);
+        }
+    }
 };
 
 // Create markers for events

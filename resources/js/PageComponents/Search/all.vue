@@ -1,18 +1,38 @@
 <template>
     <div class="max-w-screen-5xl mx-auto px-10 md:px-32 py-16">
         <!-- Active Filters -->
-        <active-filters class="mb-8" />
-        
+        <active-filters class="mb-8" :initial-remote-location="searchedRemoteLocation" />
+
         <!-- Main Content -->
-        <event-grid 
+        <event-grid
+            v-if="hasEvents"
             :items="events.data"
             :columns="6"
             :show-location="true"
         />
 
+        <!-- Empty state — this page has no map to fall back to (unlike
+             location.vue's SimilarResults), so "here's what's out there
+             instead" is just the latest remote/At-Home events, unfiltered
+             by whatever this search's own filters were. -->
+        <div v-else class="py-8">
+            <h2 class="text-2.5xl text-black font-medium">No events match your filters</h2>
+            <p class="text-xl text-gray-700 mt-2 leading-tight">
+                Try changing or removing some of your filters — here are some other events you might like:
+            </p>
+
+            <event-grid
+                v-if="fallbackEvents.length"
+                :items="fallbackEvents"
+                :columns="6"
+                :show-location="true"
+                class="mt-8"
+            />
+        </div>
+
         <!-- Pagination -->
         <div v-if="events.last_page > 1" class="mt-12">
-            <Pagination 
+            <Pagination
                 v-if="events"
                 class="mt-6"
                 :pagination="events"
@@ -23,7 +43,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import axios from 'axios'
 import EventGrid from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
@@ -35,6 +55,14 @@ const props = defineProps({
     searchedEvents: {
         type: Object,
         required: true
+    },
+    // Server-resolved { id, name, slug } for the URL's remoteLocation slug
+    // (see ListingsController::buildSearchFilters) — passed straight through
+    // to active-filters.vue so it can skip its own resolution fetch. See
+    // that component for the full reasoning.
+    searchedRemoteLocation: {
+        type: Object,
+        default: null
     }
 })
 
@@ -51,10 +79,35 @@ const events = ref({
 
 const unsubscribe = ref(null)
 let pageRequestController = null
+const fallbackEvents = ref([])
 
 // Computed
 const hasEvents = computed(() => events.value.data && events.value.data.length > 0)
 const imageUrl = computed(() => import.meta.env.VITE_IMAGE_URL)
+
+// Empty-state fallback — "no events match your filters, here's what's out
+// there instead." watch (not a one-off onMounted check) so this also covers
+// a filter change or page change that lands on zero results after the
+// initial load, not just a cold visit that started empty. Fetched once per
+// empty spell (guarded so switching between two different empty results —
+// e.g. paginating — doesn't refetch the exact same fallback list).
+let fallbackFetched = false
+watch(hasEvents, (has) => {
+    if (has) {
+        fallbackFetched = false
+        return
+    }
+    if (fallbackFetched) return
+    fallbackFetched = true
+
+    axios.get('/api/events/latest-remote')
+        .then((response) => {
+            fallbackEvents.value = response.data?.events || []
+        })
+        .catch((error) => {
+            console.error('[search] failed to load fallback events', error)
+        })
+}, { immediate: true })
 
 // Methods
 const handlePageChange = async (page) => {

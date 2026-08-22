@@ -50,3 +50,55 @@ test('similar-events favorite state is per-user and does not leak through the sh
     expect($bobSimilar)->not->toBeNull();
     expect($bobSimilar['isFavorited'])->toBeFalse();
 });
+
+// ----- getLatestRemote() -----
+// The non-location search results page's (all.vue) empty-state fallback —
+// reuses getLatestRemoteEvents(), already exercised indirectly via
+// getSimilarByLocation's own remote fallback, so these tests focus on what's
+// new: the route/response shape, not re-proving the underlying query.
+
+test('latest-remote returns published, currently-open, remote events only', function () {
+    $remote = Event::factory()->published()->create([
+        'hasLocation' => false,
+        'closingDate' => now()->addDays(10),
+    ]);
+    $inPerson = Event::factory()->published()->create([
+        'hasLocation' => true,
+        'closingDate' => now()->addDays(10),
+    ]);
+    $closedRemote = Event::factory()->published()->create([
+        'hasLocation' => false,
+        'closingDate' => now()->subDays(1),
+    ]);
+    $draftRemote = Event::factory()->create([
+        'status' => 'd',
+        'hasLocation' => false,
+        'closingDate' => now()->addDays(10),
+    ]);
+
+    $response = $this->getJson('/api/events/latest-remote')->assertOk();
+
+    $ids = collect($response->json('events'))->pluck('id');
+    expect($ids)->toContain($remote->id);
+    expect($ids)->not->toContain($inPerson->id, $closedRemote->id, $draftRemote->id);
+});
+
+test('latest-remote does not require authentication', function () {
+    Event::factory()->published()->create(['hasLocation' => false, 'closingDate' => now()->addDays(10)]);
+
+    $this->getJson('/api/events/latest-remote')->assertOk();
+});
+
+test('latest-remote caps at 12 events, most recently created first', function () {
+    $events = collect(range(1, 14))->map(fn ($i) => Event::factory()->published()->create([
+        'hasLocation' => false,
+        'closingDate' => now()->addDays(10),
+        'created_at' => now()->subMinutes(14 - $i),
+    ]));
+
+    $response = $this->getJson('/api/events/latest-remote')->assertOk();
+
+    $ids = collect($response->json('events'))->pluck('id');
+    expect($ids)->toHaveCount(12);
+    expect($ids->first())->toBe($events->last()->id);
+});

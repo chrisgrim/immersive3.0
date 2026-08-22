@@ -13,15 +13,17 @@
 @else
     @include('nav.index-desktop', [
         'searchedEvents' => $searchedEvents,
-        'maxprice' => $maxprice
+        'maxprice' => $maxprice,
+        'searchedRemoteLocation' => $searchedRemoteLocation ?? null
     ])
 @endif
 @endsection
 
 @section('content')
-    <vue-search-all 
+    <vue-search-all
         :searched-events='@json($searchedEvents)'
         :max-price="{{ $maxprice }}"
+        :searched-remote-location='@json($searchedRemoteLocation ?? null)'
     ></vue-search-all>
 @endsection
 

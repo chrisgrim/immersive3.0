@@ -4,6 +4,7 @@ namespace App\Traits;
 
 use App\Models\Components\Favorite;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 trait Favoritable
 {
@@ -49,9 +50,23 @@ trait Favoritable
      */
     public function favorite()
     {
-        // firstOrCreate keeps it idempotent (no duplicate) AND always returns the
-        // Favorite — the old exists()-then-create returned null on the existing path.
-        return $this->favorites()->firstOrCreate(['user_id' => auth()->id()]);
+        $userId = auth()->id();
+
+        // insertOrIgnore is an atomic DB-level "insert if not present" —
+        // unlike the old firstOrCreate's check-then-insert, which could
+        // lose a race under a concurrent double-tap (two tabs/devices) to
+        // the (user_id, favorited_id, favorited_type) unique constraint and
+        // throw instead of quietly no-op'ing. Same fix Organizer::follow()
+        // already has.
+        DB::table('favorites')->insertOrIgnore([
+            'user_id' => $userId,
+            'favorited_id' => $this->getKey(),
+            'favorited_type' => $this->getMorphClass(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $this->favorites()->where('user_id', $userId)->first();
     }
 
     /**

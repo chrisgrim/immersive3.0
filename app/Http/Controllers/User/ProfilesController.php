@@ -6,19 +6,41 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreProfileRequest;
 use App\Models\User;
 use App\Services\ImageHandler;
+use App\Services\UserDeletionService;
 
 class ProfilesController extends Controller
 {
-    public function show(User $user)
+    /**
+     * $tab/$itemKey are unused here (same as HubController::index() and
+     * AccountSettingsController::index()) — they only exist so the route's
+     * optional /{tab?}/{itemKey?} segments bind; the Vue shell reads them
+     * from window.location.pathname client-side so a hard refresh or a cold
+     * visit to e.g. /users/1/events/some-slug still lands correctly.
+     */
+    public function show(User $user, $tab = null, $itemKey = null)
     {
         $user->load('images');
         $user->makeHidden([
             'newsletter_type', 'type', 'hasMessages', 'hasCreatedOrganizers',
             'current_team_id', 'card_brand', 'card_last_four', 'email', 'stripe_id',
+            // notification_preferences/privacy_preferences are this user's own
+            // settings (mail opt-ins, profile-visibility toggles) — Account
+            // Settings' Privacy/Notifications tabs fetch them from their own
+            // dedicated endpoints, nothing on the Profile page reads them off
+            // this blob, so there's no reason for them to ride along here even
+            // for the owner. isAdmin/isModerator/isCurator/isUser are $appends
+            // (included in every serialization by default, unlike `type`
+            // above, which only hides the raw role code, not these derived
+            // booleans) — same leak class as the fields above, just via a
+            // different attribute.
+            'notification_preferences', 'privacy_preferences',
+            'isAdmin', 'isModerator', 'isCurator', 'isUser',
         ]);
         $user->image = $user->images->first();
 
-        return view('auth.user-profile', compact('user'));
+        $isOwner = auth()->check() && auth()->id() === $user->id;
+
+        return view('auth.user-profile', compact('user', 'isOwner'));
     }
 
     public function edit(User $user)
@@ -74,7 +96,13 @@ class ProfilesController extends Controller
             // an admin is editing their OWN account (not a moderator editing someone else, and
             // not a non-admin pre-seeding opt-outs before a future promotion).
             if ($request->has('notification_preferences') && $request->user()->is($user) && $user->isAdmin()) {
-                $userData['notification_preferences'] = $request->input('notification_preferences');
+                // Merge, don't replace — this column also holds keys this endpoint never
+                // sees (e.g. the Hub's saved_event_new_dates/followed_organizer_new_event),
+                // and a plain assignment here would silently wipe them on every profile save.
+                $userData['notification_preferences'] = array_merge(
+                    $user->notification_preferences ?? [],
+                    $request->input('notification_preferences')
+                );
             }
 
             if ($request->filled('email') && $request->email !== $user->email) {
@@ -99,10 +127,22 @@ class ProfilesController extends Controller
         }
     }
 
-    public function destroy(User $user)
+    /**
+     * Dormant — its route is intentionally commented out in web.php pending
+     * a real "delete my account" UI (see AccountSettings\AccountDeletionController,
+     * which is that UI's actual endpoint). Kept safe via UserDeletionService
+     * regardless, so re-enabling this route later can't reintroduce the
+     * unguarded-deletion bug that method used to have (no check at all for
+     * Organizer/Event/Community ownership before a raw delete()).
+     */
+    public function destroy(User $user, UserDeletionService $deletions)
     {
         $this->authorize('update', $user);
-        $user->conversations()->detach();
-        $user->delete();
+
+        if ($reason = $deletions->blockingReason($user)) {
+            return response()->json(['message' => $reason], 422);
+        }
+
+        $deletions->delete($user);
     }
 }

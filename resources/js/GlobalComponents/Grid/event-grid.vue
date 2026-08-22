@@ -7,12 +7,13 @@
             'md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5': columns === 5,
             'md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6': columns === 6
          }">
-        <div 
-            v-for="card in items" 
+        <div
+            v-for="card in items"
             :key="card.id"
-            class="flex flex-col group w-full min-w-0">
-            <a 
-                :href="getUrl(card)" 
+            class="relative flex flex-col group w-full min-w-0">
+            <favorite-event :user="user" :event="card" />
+            <a
+                :href="getUrl(card)"
                 class="block h-full flex flex-col"
                 @click="(e) => hasClickListener && handleClick(e, card)"
             >
@@ -97,6 +98,7 @@
 
 <script setup>
 import { defineProps, defineEmits, computed } from 'vue'
+import FavoriteEvent from '@/GlobalComponents/favorite-event.vue'
 
 const props = defineProps({
     items: {

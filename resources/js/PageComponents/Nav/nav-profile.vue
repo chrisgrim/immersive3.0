@@ -3,15 +3,15 @@
         <div class="flex justify-end relative z-30 items-center">
             <!-- If user is logged in -->
             <template v-if="user">
-                <div 
-                    class="relative ml-8" 
+                <div
+                    class="relative ml-8"
                     v-if="!user.organizer">
                     <a href="/hosting/getting-started">
                         <span class="text-xl font-medium hover:text-black hover:font-semibold">Submit Your Experience</span>
                     </a>
                 </div>
-                <div 
-                    class="relative ml-8" 
+                <div
+                    class="relative ml-8"
                     v-if="user.organizer">
                     <a href="/hosting/events">
                         <span class="text-xl font-medium hover:text-black hover:font-semibold truncate block max-w-[200px]">
@@ -31,30 +31,30 @@
             </template>
             <div class="relative ml-8" v-click-outside="closeDropdown">
                 <div class="w-12 h-12">
-                    <div 
-                        :style="{ background: userColor }" 
-                        @click="onToggle" 
+                    <div
+                        :style="{ background: userColor }"
+                        @click="onToggle"
                         :class="{ 'shadow-custom-2': dropdown }"
                         class="cursor-pointer overflow-hidden flex justify-center items-center w-12 h-12 rounded-full hover:shadow-custom-2">
                         <!-- If user is logged in -->
                         <template v-if="user">
-                            <div 
+                            <div
                                 class="rounded-full bg-default-red w-6 h-6 absolute top-[-0.5rem] right-[-0.5rem] border border-white"
                                 v-if="user.unread"></div>
                             <template v-if="user.thumbImagePath">
                                 <picture>
-                                    <source 
-                                        type="image/webp" 
-                                        :srcset="`${imageUrl}${user.thumbImagePath}`"> 
-                                    <img 
+                                    <source
+                                        type="image/webp"
+                                        :srcset="`${imageUrl}${user.thumbImagePath}`">
+                                    <img
                                         class="w-full h-full"
-                                        :src="`${imageUrl}${user.thumbImagePath.slice(0, -4)}jpg?timestamp=${new Date().getTime()}`" 
+                                        :src="`${imageUrl}${user.thumbImagePath.slice(0, -4)}jpg?timestamp=${new Date().getTime()}`"
                                         :alt="user.name + `'s account`">
                                 </picture>
                             </template>
                             <template v-else-if="user.gravatar">
-                                <img 
-                                    :src="user.gravatar" 
+                                <img
+                                    :src="user.gravatar"
                                     class="w-12 h-12"
                                     :alt="`${user.name}’s account`">
                             </template>
@@ -72,59 +72,86 @@
                         </template>
                     </div>
                 </div>
-                <ul 
+                <ul
                     v-if="dropdown"
-                    class="z-10 mt-8 min-w-[24rem] rounded-3xl overflow-hidden block shadow-custom-1 absolute right-0 top-full bg-white py-4">
+                    class="z-[1100] mt-8 min-w-[26rem] rounded-2xl overflow-hidden block shadow-custom-1 absolute right-0 top-full bg-white py-2">
                     <template v-if="user">
-                        <a 
+                        <a
                             v-if="user.hasMessages"
-                            class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
+                            class="font-medium text-xl px-6 py-4 cursor-pointer flex gap-x-4 items-center whitespace-nowrap w-full hover:bg-neutral-100"
                             href="/inbox">
-                            Inbox
-                            <div v-if="user.unread" class="ml-2 rounded-full bg-red-500 w-3 h-3 top-[-1rem] right-0"></div>
+                            <component :is="RiMessage3Line" class="w-6 h-6 text-neutral-700 flex-shrink-0" />
+                            Messages
+                            <div v-if="user.unread" class="ml-auto rounded-full bg-red-500 w-3 h-3 flex-shrink-0"></div>
                         </a>
                         <a
-                            class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
-                            href="/communities">
-                            Communities
+                            class="font-medium text-xl px-6 py-4 cursor-pointer flex gap-x-4 items-center whitespace-nowrap w-full hover:bg-neutral-100"
+                            :href="`/users/${user.id}`">
+                            <component :is="RiUserLine" class="w-6 h-6 text-neutral-700 flex-shrink-0" />
+                            Profile
                         </a>
-                        <a 
-                            class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
-                            :href="`/users/${user.id}/edit`">
-                            User Settings
+
+                        <div class="my-2 border-t border-neutral-200"></div>
+
+                        <a
+                            class="font-medium text-xl px-6 py-4 cursor-pointer flex gap-x-4 items-center whitespace-nowrap w-full hover:bg-neutral-100"
+                            href="/notifications">
+                            <component :is="RiNotification3Line" class="w-6 h-6 text-neutral-700 flex-shrink-0" />
+                            Notifications
                         </a>
-                        <a 
+                        <a
+                            class="font-medium text-xl px-6 py-4 cursor-pointer flex gap-x-4 items-center whitespace-nowrap w-full hover:bg-neutral-100"
+                            href="/account-settings">
+                            <component :is="RiSettings3Line" class="w-6 h-6 text-neutral-700 flex-shrink-0" />
+                            Account settings
+                        </a>
+
+                        <div class="my-2 border-t border-neutral-200"></div>
+
+                        <a
                             v-if="!user.organizer"
-                            class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
+                            class="font-medium text-xl px-6 py-4 cursor-pointer flex gap-x-4 items-center whitespace-nowrap w-full hover:bg-neutral-100"
                             href="/hosting/getting-started">
+                            <component :is="RiHome4Line" class="w-6 h-6 text-neutral-700 flex-shrink-0" />
                             List Your Event
                         </a>
-                        <a 
+                        <a
                             v-else
-                            class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
+                            class="font-medium text-xl px-6 py-4 cursor-pointer flex gap-x-4 items-center whitespace-nowrap w-full hover:bg-neutral-100"
                             href="/teams">
+                            <component :is="RiHome4Line" class="w-6 h-6 text-neutral-700 flex-shrink-0" />
                             Organizations
                         </a>
-                        <a 
+                        <a
+                            class="font-medium text-xl px-6 py-4 cursor-pointer flex gap-x-4 items-center whitespace-nowrap w-full hover:bg-neutral-100"
+                            href="/communities">
+                            <component :is="RiTeamLine" class="w-6 h-6 text-neutral-700 flex-shrink-0" />
+                            Communities
+                        </a>
+                        <a
                             v-if="user.isCurator"
-                            class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
+                            class="font-medium text-xl px-6 py-4 cursor-pointer flex gap-x-4 items-center whitespace-nowrap w-full hover:bg-neutral-100"
                             href="/admin/dashboard">
+                            <component :is="RiShieldCheckLine" class="w-6 h-6 text-neutral-700 flex-shrink-0" />
                             Admin Dashboard
                         </a>
+
                         <!-- Logout sat flush against the navigation items above it, so
                              overshooting Admin Dashboard by one row logged you out. Give it
                              its own section. -->
-                        <div class="my-4 border-t border-neutral-200"></div>
+                        <div class="my-2 border-t border-neutral-200"></div>
                         <div
-                            class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
+                            class="font-medium text-xl px-6 py-4 cursor-pointer flex gap-x-4 items-center whitespace-nowrap w-full hover:bg-neutral-100"
                             @click="logout">
-                            Logout
+                            <component :is="RiLogoutBoxRLine" class="w-6 h-6 text-neutral-700 flex-shrink-0" />
+                            Log out
                         </div>
                     </template>
                     <template v-else>
-                        <div 
-                            class="font-semibold p-6 cursor-pointer flex whitespace-nowrap w-full items-center hover:bg-slate-100"
+                        <div
+                            class="font-medium text-xl px-6 py-4 cursor-pointer flex gap-x-4 items-center whitespace-nowrap w-full hover:bg-neutral-100"
                             @click.prevent="onLogin">
+                            <component :is="RiUserLine" class="w-6 h-6 text-neutral-700 flex-shrink-0" />
                             Login / Sign Up
                         </div>
                     </template>
@@ -149,11 +176,11 @@
                     <!-- Modal panel -->
                     <div class="fixed inset-0 z-[100] overflow-y-auto">
                         <div class="flex min-h-full items-center justify-center p-4">
-                            <div 
+                            <div
                                 class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all sm:my-8 w-full max-w-[40rem]"
                             >
                                 <!-- Close button - made larger and more visible -->
-                                <button 
+                                <button
                                     @click="showLogin = false"
                                     class="absolute right-6 top-6 rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-500 z-10 p-2"
                                 >
@@ -175,10 +202,20 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Teleport, Transition } from 'vue';
 import Login from '../../Auth/login.vue';
 import { ClickOutsideDirective } from '@/Directives/ClickOutsideDirective';
+import {
+    RiMessage3Line,
+    RiUserLine,
+    RiNotification3Line,
+    RiSettings3Line,
+    RiTeamLine,
+    RiHome4Line,
+    RiShieldCheckLine,
+    RiLogoutBoxRLine,
+} from '@remixicon/vue';
 
 const props = defineProps(['user']);
 const emit = defineEmits(['close']);
@@ -190,6 +227,17 @@ const userColor = computed(() => {
 
 const dropdown = ref(false);
 const showLogin = ref(false);
+
+// Lets any component (e.g. favorite-event.vue) request the login modal without
+// a shared store — mirrors show-gallery.vue's own CustomEvent pattern. Named +
+// removed on unmount so remounts (SPA nav, HMR) don't stack duplicate listeners.
+const openLoginModal = () => {
+    showLogin.value = true;
+};
+window.addEventListener('open-login-modal', openLoginModal);
+onUnmounted(() => {
+    window.removeEventListener('open-login-modal', openLoginModal);
+});
 
 const logout = async () => {
     await axios.post('/logout');

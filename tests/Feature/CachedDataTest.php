@@ -204,3 +204,54 @@ test('getActiveGenres caches independently from active-categories', function () 
     expect(Cache::has('active-genres'))->toBeTrue();
     expect(Cache::has('active-categories'))->toBeFalse();
 });
+
+// ----- getMaxPrice() (GET /api/price/max/cached) -----
+
+test('getMaxPrice returns the ceil of the highest price among qualifying events', function () {
+    $event = Event::factory()->published()->create(['closingDate' => now()->addMonth()]);
+    $event->priceranges()->create(['price' => 42.10]);
+
+    $response = $this->getJson('/api/price/max/cached')->assertOk();
+
+    expect($response->json('maxPrice'))->toBe(43);
+});
+
+test('getMaxPrice returns 0 when there are no qualifying events', function () {
+    $response = $this->getJson('/api/price/max/cached')->assertOk();
+
+    expect($response->json('maxPrice'))->toBe(0);
+});
+
+test('getMaxPrice ignores a draft event\'s price', function () {
+    $draft = Event::factory()->draft()->create(['closingDate' => now()->addMonth()]);
+    $draft->priceranges()->create(['price' => 999]);
+
+    $response = $this->getJson('/api/price/max/cached')->assertOk();
+
+    expect($response->json('maxPrice'))->toBe(0);
+});
+
+test('getMaxPrice caches under the max-price key', function () {
+    $event = Event::factory()->published()->create(['closingDate' => now()->addMonth()]);
+    $event->priceranges()->create(['price' => 20]);
+
+    expect(Cache::has('max-price'))->toBeFalse();
+
+    $this->getJson('/api/price/max/cached')->assertOk();
+
+    expect(Cache::has('max-price'))->toBeTrue();
+});
+
+test('getMaxPrice serves the cached value on a second request', function () {
+    $event = Event::factory()->published()->create(['closingDate' => now()->addMonth()]);
+    $event->priceranges()->create(['price' => 20]);
+
+    $first = $this->getJson('/api/price/max/cached')->assertOk();
+    expect($first->json('maxPrice'))->toBe(20);
+
+    $pricier = Event::factory()->published()->create(['closingDate' => now()->addMonth()]);
+    $pricier->priceranges()->create(['price' => 500]);
+
+    $second = $this->getJson('/api/price/max/cached')->assertOk();
+    expect($second->json('maxPrice'))->toBe(20);
+});

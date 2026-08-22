@@ -40,7 +40,7 @@
                         v-model="searchInput"
                         placeholder="Search by City"
                         @input="updateLocations"
-                        @focus="dropdown=true"
+                        @focus="dropdown = true; hasTypedSinceFocus = false"
                         @click="clearSearchInput"
                         @keydown.backspace="handleBackspace"
                         autocomplete="off"
@@ -48,12 +48,25 @@
                 </div>
                 
                 <!-- Location Dropdown -->
-                <ul 
-                    class="bg-white w-full mx-0 overflow-hidden py-8 list-none" 
+                <ul
+                    class="bg-white w-full mx-0 overflow-hidden py-8 list-none"
                     v-if="dropdown"
                     @click.stop>
-                    <li 
-                        class="text-2xl font-mediumm pb-2 flex items-center gap-8 hover:bg-neutral-100" 
+                    <!-- Same Recent Searches idea as the desktop location pill
+                         (location-search.vue) — logged-in users with saved
+                         searches see them above the default city list, gone
+                         once they start typing. This was missing on mobile
+                         entirely until now; see recent-searches-list.vue for
+                         the shared row markup (pin/edit/select). -->
+                    <li v-if="showRecentSearches" class="pt-4 pb-2 text-lg font-semibold text-neutral-500">
+                        Recent searches
+                    </li>
+                    <RecentSearchesList v-if="showRecentSearches" :searches="recentSearches" />
+                    <li v-if="showSuggestedHeader" class="pt-4 pb-2 text-lg font-semibold text-neutral-500" :class="{ 'border-t border-neutral-100 mt-4': showRecentSearches }">
+                        Suggested destinations
+                    </li>
+                    <li
+                        class="text-2xl font-mediumm pb-2 flex items-center gap-8 hover:bg-neutral-100"
                         v-for="place in places"
                         :key="place.place_id"
                         @click.stop="selectLocation(place)">
@@ -157,6 +170,7 @@ import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
 import axios from 'axios';
 import { importMapsLibrary } from '@/composables/useGoogleMaps';
+import RecentSearchesList from './recent-searches-list.vue';
 
 const props = defineProps({
     initialCity: String,
@@ -209,17 +223,43 @@ function initializePlaces() {
     ];
 }
 
+// Recent Searches — same idea as location-search.vue's identical fields:
+// fetched once for logged-in users, shown above the default city list at
+// rest (see showRecentSearches), gone once the user actually types
+// something (see hasTypedSinceFocus).
+const recentSearches = ref([]);
+const hasTypedSinceFocus = ref(false);
+const showRecentSearches = computed(() => !hasTypedSinceFocus.value && recentSearches.value.length > 0);
+const showSuggestedHeader = computed(() => !hasTypedSinceFocus.value && places.value.length > 0);
+
+// One combined cap across Recent Searches + the default city list, same as
+// desktop — a pinned search list topped up with default cities, not both
+// lists shown in full stacked on top of each other.
+const DROPDOWN_TOTAL_LIMIT = 6;
+const defaultPlacesList = () => initializePlaces().slice(0, Math.max(0, DROPDOWN_TOTAL_LIMIT - recentSearches.value.length));
+
+const fetchRecentSearches = async () => {
+    if (!window.Laravel?.user?.id) return;
+    try {
+        const { data } = await axios.get('/api/hub/saved-searches');
+        recentSearches.value = (data.searches || []).slice(0, DROPDOWN_TOTAL_LIMIT);
+    } catch (error) {
+        console.error('[recent-searches] failed to load', error);
+    }
+};
+
 const updateLocations = async () => {
     if (!autoComplete) {
         console.error('Autocomplete service not available');
         return;
     }
-    
+
     if (searchInput.value) {
+        hasTypedSinceFocus.value = true;
         try {
-            const response = await autoComplete.getPlacePredictions({ 
-                input: searchInput.value, 
-                types: ['(cities)'] 
+            const response = await autoComplete.getPlacePredictions({
+                input: searchInput.value,
+                types: ['(cities)']
             });
             places.value = response?.predictions || initializePlaces();
         } catch (error) {
@@ -227,7 +267,8 @@ const updateLocations = async () => {
             places.value = initializePlaces();
         }
     } else {
-        places.value = initializePlaces();
+        hasTypedSinceFocus.value = false;
+        places.value = defaultPlacesList();
     }
 };
 
@@ -345,12 +386,12 @@ const initGoogleMaps = async () => {
         service = placesEl ? new PlacesService(placesEl) : null;
         
         // Show initial places immediately after initialization
-        places.value = initializePlaces();
+        places.value = defaultPlacesList();
         dropdown.value = true;
     } catch (error) {
         console.error('Error initializing Google Maps:', error);
         // Fallback to initial places if Google Maps fails
-        places.value = initializePlaces();
+        places.value = defaultPlacesList();
         dropdown.value = true;
     }
 };
@@ -385,7 +426,8 @@ onMounted(() => {
     }
     
     // Show initial places immediately
-    places.value = initializePlaces();
+    fetchRecentSearches();
+    places.value = defaultPlacesList();
     dropdown.value = true;
 
     // Initialize Google Maps via the shared bootstrap loader (loads once,
@@ -401,8 +443,9 @@ onMounted(() => {
         selectedPlace.value = null;
         date.value = null;
         isVisible.value = 'location';
+        hasTypedSinceFocus.value = false;
         dropdown.value = true;
-        places.value = initializePlaces();
+        places.value = defaultPlacesList();
     });
 });
 
@@ -617,7 +660,8 @@ watch(isVisible, (newValue) => {
         dropdown.value = true;
         // If there's no search input, show initial places
         if (!searchInput.value) {
-            places.value = initializePlaces();
+            hasTypedSinceFocus.value = false;
+            places.value = defaultPlacesList();
         } else {
             // If there is search input, update locations
             updateLocations();
@@ -632,8 +676,9 @@ const showLocationSection = () => {
     // Clear the input field but preserve the selectedPlace
     // This allows for new searches while keeping the previous selection
     searchInput.value = '';
+    hasTypedSinceFocus.value = false;
     dropdown.value = true;
-    places.value = initializePlaces();
+    places.value = defaultPlacesList();
 };
 
 const showDatesSection = () => {
@@ -678,8 +723,9 @@ const clearState = (isClearAll = false) => {
     }
     
     isVisible.value = 'location';
+    hasTypedSinceFocus.value = false;
     dropdown.value = true;
-    places.value = initializePlaces();
+    places.value = defaultPlacesList();
 };
 
 // Add the handleClearAll method
@@ -700,9 +746,10 @@ const handleClearAll = () => {
     
     // Reset the UI state
     isVisible.value = 'location';
+    hasTypedSinceFocus.value = false;
     dropdown.value = true;
-    places.value = initializePlaces();
-    
+    places.value = defaultPlacesList();
+
     // Also emit clear event for parent components
     emit('clear');
 };
@@ -715,8 +762,9 @@ const clearSearchInput = () => {
     // Clear the input but preserve the selectedPlace data
     // This is for when the user clicks the input to start a new search
     searchInput.value = '';
+    hasTypedSinceFocus.value = false;
     dropdown.value = true;
-    places.value = initializePlaces();
+    places.value = defaultPlacesList();
 };
 
 // Update cancel search method
@@ -737,9 +785,10 @@ const handleBackspace = (event) => {
     if (event.target.selectionStart === event.target.value.length && 
         searchInput.value === selectedPlace.value?.name) {
         searchInput.value = '';
+        hasTypedSinceFocus.value = false;
         dropdown.value = true;
-        places.value = initializePlaces();
-        
+        places.value = defaultPlacesList();
+
         // Prevent the default backspace behavior since we've cleared the field
         event.preventDefault();
     }

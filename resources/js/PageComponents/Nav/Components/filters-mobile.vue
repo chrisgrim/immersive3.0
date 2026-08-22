@@ -201,7 +201,10 @@
                             @click="toggleSection('tags')"
                             class="flex items-center justify-between cursor-pointer flex-shrink-0 py-8"
                         >
-                            <p v-if="!isSearchingTags" class="text-4xl font-semibold">Tags</p>
+                            <!-- "Genres" — "tags" is only the backend/criteria.tags field
+                                 name, never a user-facing label (matches search-filter-fields.vue,
+                                 SavedSearchesEdit.vue, and the saved-search card summary). -->
+                            <p v-if="!isSearchingTags" class="text-4xl font-semibold">Genres</p>
                             <div class="flex items-center gap-4" :class="{'w-full': isSearchingTags}">
                                 <div v-if="activeSection === 'tags'" class="flex items-center gap-4" :class="{'w-full': isSearchingTags}">
                                     <div v-if="!isSearchingTags">
@@ -222,7 +225,7 @@
                                             ref="tagSearchInput"
                                             v-model="tagSearchQuery"
                                             class="relative text-4xl p-2 w-full z-40 bg-transparent focus:border-none focus:outline-none placeholder-slate-400 touch-manipulation"
-                                            placeholder="Search tags"
+                                            placeholder="Search genres"
                                             @click.stop
                                             autocomplete="off"
                                             type="text"

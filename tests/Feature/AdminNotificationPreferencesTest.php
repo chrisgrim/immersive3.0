@@ -77,6 +77,30 @@ test('a non-admin editing self does not persist admin notification preferences',
     expect($user->fresh()->notification_preferences)->toBeNull();
 });
 
+test('saving admin notification preferences via the profile endpoint does not clobber Hub keys', function () {
+    // Regression test for a real bug: this endpoint used to *replace* the whole
+    // notification_preferences column with just {organizers, events}, silently
+    // wiping any other keys (e.g. the Hub's saved_event_new_dates) set elsewhere.
+    $admin = User::factory()->create([
+        'type' => 'a',
+        'notification_preferences' => ['saved_event_new_dates' => true, 'followed_organizer_new_event' => true],
+    ]);
+
+    $this->actingAs($admin)
+        ->postJson("/users/{$admin->id}", [
+            'notification_preferences' => ['organizers' => false, 'events' => true],
+        ])
+        ->assertOk();
+
+    $fresh = $admin->fresh()->notification_preferences;
+    expect($fresh)->toMatchArray([
+        'organizers' => false,
+        'events' => true,
+        'saved_event_new_dates' => true,
+        'followed_organizer_new_event' => true,
+    ]);
+});
+
 // ---------------------------------------------------------------------------
 // Existing admin emails respect the 'organizers' opt-out
 // ---------------------------------------------------------------------------

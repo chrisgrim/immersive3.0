@@ -7,6 +7,7 @@ use App\Mail\Comments;
 use App\Models\Event;
 use App\Models\Messaging\Message;
 use App\Scopes\PublishedScope;
+use App\Services\EventNotificationDispatcher;
 use App\Services\ImageHandler;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -203,6 +204,14 @@ class AdminEventController extends Controller
             // Clear caches since we're publishing a new event
             Cache::forget('active-categories');
             Cache::forget('active-genres');
+
+            // Only when actually live now — an embargoed approval ('e') isn't
+            // publicly visible yet, so followers shouldn't hear about it until
+            // it really publishes (either the embargo cron, or a later edit
+            // that lifts the embargo — see UpdateEventAction).
+            if ($status === 'p') {
+                app(EventNotificationDispatcher::class)->newEventFromFollowedOrganizer($event);
+            }
 
             // Send notifications if not self-approving
             if (auth()->id() !== $event->user->id) {

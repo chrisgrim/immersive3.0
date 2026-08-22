@@ -257,6 +257,19 @@ class SimilarEventsController extends Controller
     }
 
     /**
+     * The non-location search results page's (all.vue) empty-state fallback
+     * — "no events match your filters, here's what's out there" — mirrors
+     * how the map/location page already falls back to nearby-then-remote
+     * events in getSimilarByLocation() above, minus the location half,
+     * which doesn't apply to an At Home/Name search with no coordinates.
+     * Reuses getLatestRemoteEvents() as-is rather than duplicating it.
+     */
+    public function getLatestRemote()
+    {
+        return ['events' => $this->getLatestRemoteEvents()];
+    }
+
+    /**
      * Get latest remote events
      *
      * @return \Illuminate\Database\Eloquent\Collection

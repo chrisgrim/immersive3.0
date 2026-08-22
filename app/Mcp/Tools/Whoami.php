@@ -17,7 +17,13 @@ class Whoami extends Tool
     {
         $user = $request->user();
 
-        $organizers = $user->teams()->get()->map(function ($organizer) {
+        $teams = $user->teams()->get();
+
+        // One grouped query for every team's unpublished count instead of one
+        // count query per organizer in the map() below (EI-LARAVEL-W).
+        $unpublishedCounts = Event::countUnpublishedEventsForOrganizers($teams->pluck('id')->all());
+
+        $organizers = $teams->map(function ($organizer) use ($unpublishedCounts) {
             return [
                 'id' => $organizer->id,
                 'name' => $organizer->name,
@@ -29,7 +35,7 @@ class Whoami extends Tool
                     default => 'draft/inactive',
                 },
                 'your_role' => $organizer->membership->role ?? null,
-                'unpublished_events' => Event::countUnpublishedEvents($organizer->id),
+                'unpublished_events' => $unpublishedCounts->get($organizer->id, 0),
                 'unpublished_events_limit' => Event::MAX_UNPUBLISHED_EVENTS,
             ];
         });

@@ -84,6 +84,13 @@ test('sendVerificationCode requires authentication', function () {
 test('the email-verification endpoints are rate limited', function () {
     // throttle:6,1 caps requests per minute, blocking the brute-force / DoS vector
     // (each verify guess would otherwise be an unthrottled DB-cache round-trip).
+    // Flushed first: phpunit.xml's CACHE_STORE=array is silently ignored
+    // (config/cache.php still reads the legacy CACHE_DRIVER key), so this
+    // throttle actually hits real local Redis — without flushing, its
+    // counter can carry over from an earlier test/run within the same
+    // rate-limit window and make this test flake.
+    Cache::flush();
+
     for ($i = 0; $i < 6; $i++) {
         $this->actingAs($this->user)
             ->postJson('/users/email/verify', ['email' => 'new@example.com'])
@@ -115,6 +122,28 @@ test('verifyCode with the correct cached code updates the email and clears the c
 
     expect($this->user->fresh()->email)->toBe('changed@example.com');
     expect(Cache::get(verificationKey($this->user)))->toBeNull();
+});
+
+test('verifyCode marks the email verified, since receiving the code there is proof of ownership', function () {
+    // Regression test: this previously updated the email without touching
+    // email_verified_at, so a never-verified (or previously verified, now
+    // stale) user would show as "not verified" despite having just proven
+    // ownership of the new address via the code.
+    $this->user->update(['email_verified_at' => null]);
+
+    Cache::put(verificationKey($this->user), [
+        'code' => '123456',
+        'email' => 'changed@example.com',
+    ], now()->addMinutes(10));
+
+    $this->actingAs($this->user)
+        ->postJson('/users/email/confirm', [
+            'email' => 'changed@example.com',
+            'code' => '123456',
+        ])
+        ->assertOk();
+
+    expect($this->user->fresh()->email_verified_at)->not->toBeNull();
 });
 
 test('verifyCode with a wrong code returns 422 and leaves the email unchanged', function () {
