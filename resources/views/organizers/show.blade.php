@@ -5,7 +5,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:description" content="{{$organizer->description}}" />
     <meta name="twitter:title" content="{{$organizer->name}}" />
-    @if ($organizer->twitterHandle) 
+    @if ($organizer->twitterHandle)
         <meta name="twitter:site" content="{{ '@' . $organizer->twitterHandle }}" />
         <meta name="twitter:creator" content="{{ '@' . $organizer->twitterHandle }}" />
     @endif

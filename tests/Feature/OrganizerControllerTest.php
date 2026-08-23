@@ -214,6 +214,29 @@ test('update changes social fields on a draft organizer', function () {
     expect($organizer->website)->toBe('https://example.com');
 });
 
+test('update strips a leading @ from twitter/instagram handles', function () {
+    // Regression: every display site (organizer page, admin review, the
+    // organizer's own settings sidebar) prepends its own "@" — a stored
+    // value that already starts with "@" rendered as "@@handle" and broke
+    // the profile link URLs built from the raw value.
+    $owner = User::factory()->create(['type' => 'u']);
+    $organizer = Organizer::factory()->create([
+        'user_id' => $owner->id,
+        'status' => 'd',
+    ]);
+
+    $this->actingAs($owner)
+        ->postJson("/organizers/{$organizer->slug}", [
+            'instagramHandle' => '@myinsta',
+            'twitterHandle' => '@mytwitter',
+        ])
+        ->assertOk();
+
+    $organizer->refresh();
+    expect($organizer->instagramHandle)->toBe('myinsta');
+    expect($organizer->twitterHandle)->toBe('mytwitter');
+});
+
 test('update on a draft organizer changes the name directly', function () {
     $owner = User::factory()->create(['type' => 'u']);
     $organizer = Organizer::factory()->create([

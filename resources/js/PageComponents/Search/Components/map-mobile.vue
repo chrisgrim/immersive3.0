@@ -99,7 +99,10 @@ const mapConfig = {
     zoom: 13,
     center: (!isNaN(lat) && !isNaN(lng)) ? [lat, lng] : [34.0549076, -118.242643],
     maxZoom: 20,
-    minZoom: 8,
+    // See map.vue's identical fix — 4 matches the saved-search picker's own
+    // starting zoom, so a saved search drawn at that scale isn't clamped
+    // back in on replay.
+    minZoom: 4,
     tileUrl: "https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=5Pwt4rF8iefMU4hIcRqZJ0GXPqWi5l4NVjEn4owEBKOdGyuJVARXbYTBDO2or3cU",
     attribution: '<a href="http://jawg.io" title="Tiles Courtesy of Jawg Maps" target="_blank">&copy; <b>Jawg</b>Maps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 };

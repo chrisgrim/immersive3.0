@@ -77,10 +77,16 @@ class Show extends Model
         // matches EVERY row) wipe the schedule. The MCP tool and web wizard both
         // reject an empty s/o schedule upstream; this is the last line of defence.
         if (empty($targetDates) && in_array($request->showtype, ['s', 'o'], true)) {
-            return;
+            return [];
         }
 
-        DB::transaction(function () use ($request, $event, $targetDates, $showtypeChanged, $oldDates, $oldTickets) {
+        // Populated inside the transaction below if any already-past show
+        // the caller asked to remove was kept instead — the caller uses
+        // this to tell a non-staff editor why their save didn't fully match
+        // what they asked for, rather than silently reporting success.
+        $preservedPastDates = [];
+
+        DB::transaction(function () use ($request, $event, $targetDates, $showtypeChanged, $oldDates, $oldTickets, &$preservedPastDates) {
             // --- Remove obsolete shows in ONE pass. This was an N+1 (a delete
             //     per show plus a delete per show's tickets), which made saving a
             //     large recurring schedule crawl. A show-type switch wipes all;
@@ -88,6 +94,28 @@ class Show extends Model
             $idsToDelete = $showtypeChanged
                 ? $event->shows()->pluck('id')
                 : $event->shows()->whereNotIn('date', $targetDates)->pluck('id');
+
+            // A show that's already happened is a historical record, not a
+            // schedule entry to be edited away — only staff can remove one
+            // (matches isModerator()'s use everywhere else in event-editing
+            // permissions, e.g. EventPolicy::manage()). auth()->user() is
+            // safe here: this always runs within the same authenticated
+            // request as the web wizard's or MCP's own call, never a queued
+            // job or console context.
+            if (! auth()->user()?->isModerator()) {
+                $pastShows = $event->shows()->where('date', '<', now())->get(['id', 'date']);
+                $protectedIds = $idsToDelete->intersect($pastShows->pluck('id'));
+
+                if ($protectedIds->isNotEmpty()) {
+                    $preservedPastDates = $pastShows->whereIn('id', $protectedIds)
+                        ->pluck('date')
+                        ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
+                        ->sort()->values()->all();
+                }
+
+                $idsToDelete = $idsToDelete->diff($protectedIds);
+            }
+
             self::deleteShowsByIds($idsToDelete);
 
             // --- Create the missing shows in bulk (was an updateOrCreate per
@@ -135,6 +163,8 @@ class Show extends Model
         if ($event->shouldBeSearchable()) {
             $event->searchable();
         }
+
+        return $preservedPastDates;
     }
 
     private static function logDateChanges($event, array $oldDates): void

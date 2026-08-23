@@ -58,6 +58,14 @@ class UpdateOrganizer extends Tool
             'instagramHandle', 'twitterHandle', 'facebookHandle', 'patreon',
         ])->all();
 
+        // See OrganizerRules::normalizeHandle() — strips a leading "@" an
+        // LLM caller may pass despite the schema saying "without @".
+        foreach (['instagramHandle', 'twitterHandle'] as $field) {
+            if (array_key_exists($field, $data)) {
+                $data[$field] = OrganizerRules::normalizeHandle($data[$field]);
+            }
+        }
+
         // Never write a published organizer's name directly — once published,
         // the name changes only through the name-change request filed below.
         if ($organizer->status === 'p') {

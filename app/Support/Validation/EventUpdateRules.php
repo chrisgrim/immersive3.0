@@ -19,9 +19,14 @@ class EventUpdateRules
      * "USD17.00" where "$17.00" was meant. `max:3` accepted it because the code
      * is three characters long.
      *
+     * 'CN¥' (not bare '¥') for yuan — CNY and JPY share the same glyph, and
+     * '¥' was already live for JPY, so yuan gets the disambiguating prefix
+     * instead of touching JPY's existing stored value, same precedent as
+     * 'MX$' getting the prefix rather than USD's already-live '$'.
+     *
      * @var array<int, string>
      */
-    public const CURRENCIES = ['$', '€', '£', '¥', 'C$', 'MX$'];
+    public const CURRENCIES = ['$', '€', '£', '¥', 'C$', 'MX$', 'CN¥', '₩'];
 
     /**
      * Ticket currencies an API/MCP client is likely to send instead of the
@@ -38,6 +43,8 @@ class EventUpdateRules
         'JPY' => '¥', 'YEN' => '¥',
         'CAD' => 'C$', 'CA$' => 'C$', 'CAD$' => 'C$', 'C' => 'C$',
         'MXN' => 'MX$', 'MXN$' => 'MX$', 'MX' => 'MX$', 'PESO' => 'MX$', 'PESOS' => 'MX$',
+        'CNY' => 'CN¥', 'RMB' => 'CN¥', 'YUAN' => 'CN¥',
+        'KRW' => '₩', 'WON' => '₩',
     ];
 
     /**

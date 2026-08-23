@@ -14,16 +14,36 @@
          pane would make this three panes at once instead of two — tried
          that, it read as three windows, not one page with two states. -->
     <div class="relative text-1xl font-normal w-full h-[calc(100vh-8rem)] flex flex-col">
+        <!-- Mobile-only heading — sits above the hero-card/nav stack below so it
+             stays put regardless of the order-2/order-1 flip those two go through
+             on mobile (see their own comment). Desktop keeps its own copy inline
+             with the sidebar (129px inset, matches Airbnb's own measurement),
+             hidden here via md:hidden so it isn't rendered twice. -->
+        <h1 v-if="isOwner && currentTab === 'about'" class="md:hidden px-6 pt-16 pb-6 text-5xl font-semibold">Profile</h1>
         <div class="flex-1 md:flex h-full">
             <div class="mx-auto flex flex-1 flex-col md:flex-row w-full max-w-screen-4xl">
                 <!-- Navigation Sidebar — same shell as Account Settings. Its
                      content is the flat nav on About me, or the current
                      tab's list (with a back arrow to return to the nav) on
                      Liked events/Saved searches. Same fixed width either way
-                     so switching tabs doesn't jump the layout. -->
-                <div v-if="isOwner" class="flex-shrink-0 overflow-y-auto w-full md:w-[572px] md:block">
-                    <div v-if="currentTab === 'about'" class="px-6 md:px-[129px] pt-16 md:pt-20">
-                        <h1 class="text-5xl font-semibold mb-10">Profile</h1>
+                     so switching tabs doesn't jump the layout.
+
+                     order-2 md:order-1 (with the content column's matching
+                     order-1 md:order-2 below): on mobile, Airbnb's own profile
+                     screen leads with the hero card, not its own nav list — the
+                     nav reads as a secondary "jump elsewhere" list underneath,
+                     not the first thing on the page. Desktop is unaffected
+                     (order resets to normal document order at md, sidebar left/
+                     content right, already pixel-matched to Airbnb's desktop
+                     layout). -->
+                <div v-if="isOwner" class="flex-shrink-0 overflow-y-auto w-full md:w-[572px] md:block order-2 md:order-1">
+                    <!-- pb-36 md:pb-0 below: the nav list is now the last thing on
+                         the mobile page (see the order-2 flip above), and the
+                         bottom tab bar (nav-bar-mobile.vue, h-36) is fixed over
+                         it — without this, "Saved searches" would render behind
+                         the bar rather than above it. -->
+                    <div v-if="currentTab === 'about'" class="px-6 md:px-[129px] pt-0 md:pt-20 pb-36 md:pb-0">
+                        <h1 class="hidden md:block text-5xl font-semibold mb-10">Profile</h1>
                         <NavSidebar :current-tab="currentTab" @navigate="handleNavigation" />
                     </div>
                     <template v-else>
@@ -100,10 +120,10 @@
                      narrow for the max-width to bind. Airbnb's own profile
                      page uses this exact fixed-padding pattern, not
                      centering. -->
-                <div class="flex-1 flex-col h-full w-full md:w-auto flex" :class="{ 'border-l border-neutral-200': isOwner }">
+                <div class="flex-1 flex-col h-full w-full md:w-auto flex order-1 md:order-2" :class="{ 'border-l border-neutral-200': isOwner }">
                     <!-- About me: single card, single pane (unchanged from before this tab was added) -->
                     <div v-if="currentTab === 'about'" class="flex-1 md:overflow-y-auto">
-                        <div class="w-full pt-20 md:pt-20 md:pb-40">
+                        <div class="w-full pt-0 md:pt-20 md:pb-40">
                             <div class="px-6 py-8 md:px-[128px] max-w-[940px]">
                                 <AboutMe :user="user" :is-owner="isOwner" />
                             </div>
@@ -357,6 +377,16 @@ watch(currentTab, (tab) => {
     }
 });
 
+// nav-bar-mobile.vue is a separate root component — see its own comment on
+// the matching listener for why a window event, not a prop, ties the two
+// together. A drilled-into event/search's mobile screen already has its own
+// back button up top (see the header above), so the bottom tab bar is
+// redundant chrome there, same reasoning as the search overlay in
+// nav-search-mobile.vue.
+watch([selectedEvent, selectedSearch], ([event, search]) => {
+    window.dispatchEvent(new CustomEvent('profile-detail-toggle', { detail: { open: !!(event || search) } }));
+}, { immediate: true });
+
 // Liked Events' data lives here (not inside Events.vue) because both the
 // list and the map need the same data at the same time — they're two views
 // onto one tab, not two independent components.
@@ -463,14 +493,18 @@ const selectSearchById = (id) => {
 // Resolves a possibly-absent id from the URL to a selection — shared by the
 // tab-entry watcher (first visit / re-visit within the SPA session) and
 // onPopState (browser back/forward). No id (the normal way in, via the nav)
-// falls straight to the first search.
+// auto-selects the first search ONLY on the desktop two-pane layout, where
+// leaving the editor pane empty looks broken. Below that breakpoint,
+// selecting a search is a full-screen drill-down (see handleBack's own
+// comment) — auto-selecting here would skip straight past the list the user
+// just tapped "Saved searches" to see.
 const selectSearchFromId = (id) => {
     if (id) {
         selectSearchById(id);
         return;
     }
 
-    if (searches.value.length) {
+    if (searches.value.length && window.innerWidth >= DESKTOP_LAYOUT_BREAKPOINT) {
         selectSearch(searches.value[0]);
     } else {
         selectedSearch.value = null;

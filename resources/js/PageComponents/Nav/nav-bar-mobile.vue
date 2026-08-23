@@ -1,8 +1,8 @@
 <template>
-    <div 
+    <div
         class="fixed bottom-0 left-0 right-0 h-36 bg-white border-t border-neutral-200 z-[400]"
         :style="{
-            transform: `translateY(${isHidden ? '100%' : '0'})`,
+            transform: `translateY(${isHidden || isSearchOpen || isDetailOpen ? '100%' : '0'})`,
             transition: 'transform 0.3s ease-in-out'
         }">
         <div class="h-full flex justify-between items-center px-16">
@@ -53,6 +53,20 @@ const props = defineProps({
 });
 
 const isHidden = ref(false);
+// nav-search-mobile.vue is a separate root component — see its own comment
+// on the matching dispatch for why a window event is what ties the two
+// together, instead of a prop.
+const isSearchOpen = ref(false);
+const handleSearchToggle = (event) => {
+    isSearchOpen.value = !!event.detail?.open;
+};
+// Same idea, from Profile/index.vue — a drilled-into saved search's editor
+// or a liked event's detail already has its own back button up top, so the
+// bottom bar is redundant chrome on that sub-screen, not a real nav choice.
+const isDetailOpen = ref(false);
+const handleDetailToggle = (event) => {
+    isDetailOpen.value = !!event.detail?.open;
+};
 const isHome = ref(window.location.pathname === '/');
 const isEvents = ref(window.location.pathname === '/hosting/events' || window.location.pathname === '/hosting/getting-started');
 const isInbox = ref(window.location.pathname === '/inbox');
@@ -109,9 +123,13 @@ const debouncedScroll = () => {
 
 onMounted(() => {
     window.addEventListener('scroll', debouncedScroll);
+    window.addEventListener('mobile-search-toggle', handleSearchToggle);
+    window.addEventListener('profile-detail-toggle', handleDetailToggle);
 });
 
 onUnmounted(() => {
     window.removeEventListener('scroll', debouncedScroll);
+    window.removeEventListener('mobile-search-toggle', handleSearchToggle);
+    window.removeEventListener('profile-detail-toggle', handleDetailToggle);
 });
 </script>

@@ -4,51 +4,61 @@
         </div>
         <template v-if="search">
             <div class="search-container fixed inset-0 z-20 bg-[#f4f3f3] flex flex-col">
-                <div class="w-full h-32 min-h-32 flex justify-center items-center p-4">
-                    <button 
+                <div class="w-full h-32 min-h-32 flex justify-center items-center gap-1 px-[7.5rem] py-4">
+                    <button
                         @click.stop="hideSearch"
                         class="absolute top-6 z-20 left-8 items-center justify-center rounded-full p-0 w-20 h-20 flex bg-white">
                         <svg class="w-12 h-12 text-red-500">
                             <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
                         </svg>
                     </button>
-                    <button 
+                    <button
                         @click="search='l'"
                         :class="[
-                            'text-gray-500 relative border-none p-4 text-4xl rounded-full transition-all duration-200',
+                            'text-gray-500 relative border-none px-3 py-2 text-xl rounded-full transition-all duration-200 whitespace-nowrap',
                             search === 'l' ? 'font-bold' : 'font-normal',
                             'hover:bg-gray-100'
                         ]">
                         <span class="block font-bold invisible h-0">Location</span>
                         <span class="block" :class="{ 'font-bold text-black': search === 'l' }">Location</span>
                     </button>
-                    <button 
+                    <button
                         @click="search='e'"
                         :class="[
-                            'text-gray-500 relative border-none p-4 text-4xl rounded-full transition-all duration-200',
+                            'text-gray-500 relative border-none px-3 py-2 text-xl rounded-full transition-all duration-200 whitespace-nowrap',
                             search === 'e' ? 'font-bold' : 'font-normal',
                             'hover:bg-gray-100'
                         ]">
                         <span class="block font-bold invisible h-0">Name</span>
                         <span class="block" :class="{ 'font-bold text-black': search === 'e' }">Name</span>
                     </button>
-                    <button 
+                    <button
+                        @click="search='a'"
+                        :class="[
+                            'text-gray-500 relative border-none px-3 py-2 text-xl rounded-full transition-all duration-200 whitespace-nowrap',
+                            search === 'a' ? 'font-bold' : 'font-normal',
+                            'hover:bg-gray-100'
+                        ]">
+                        <span class="block font-bold invisible h-0">At Home</span>
+                        <span class="block" :class="{ 'font-bold text-black': search === 'a' }">At Home</span>
+                    </button>
+                    <button
                         @click="openFilters"
                         class="absolute top-6 z-20 right-8 bg-white w-20 h-20 flex-shrink-0 flex items-center justify-center rounded-full shadow-custom-3 transition-colors"
                         :class="[
-                            hasActiveFilters 
-                                ? 'bg-black hover:bg-gray-800' 
+                            hasActiveFilters
+                                ? 'bg-black hover:bg-gray-800'
                                 : 'hover:bg-gray-200'
                         ]"
                     >
-                        <svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            viewBox="0 0 32 32" 
-                            aria-hidden="true" 
-                            role="presentation" 
-                            focusable="false" 
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 32 32"
+                            aria-hidden="true"
+                            role="presentation"
+                            focusable="false"
                             style="display: block; fill: none; height: 18px; width: 18px; stroke-width: 2.5; overflow: visible;"
-                            :style="{ stroke: hasActiveFilters ? 'white' : 'currentcolor' }"
+                            :style="{ stroke: hasActiveFilters ? 'white' : 'black' }"
                         >
                             <path fill="none" d="M7 16H3m26 0H15M29 6h-4m-8 0H3m26 20h-4M7 16a4 4 0 1 0 8 0 4 4 0 0 0-8 0zM17 6a4 4 0 1 0 8 0 4 4 0 0 0-8 0zm0 20a4 4 0 1 0 8 0 4 4 0 0 0-8 0zm0 0H3"></path>
                         </svg>
@@ -70,6 +80,12 @@
                                     @search="handleSearch"
                                 />
                                 <SearchEvent v-if="search==='e'" class="h-full"/>
+                                <SearchAtHome
+                                    v-if="search==='a'"
+                                    :initial-start-date="state.dates.start"
+                                    :initial-end-date="state.dates.end"
+                                    @search="handleAtHomeSearch"
+                                />
                             </div>
                         </Transition>
                     </div>
@@ -143,7 +159,7 @@
                         role="presentation" 
                         focusable="false" 
                         style="display: block; fill: none; height: 16px; width: 16px; stroke-width: 2.5; overflow: visible;"
-                        :style="{ stroke: hasActiveFilters ? 'white' : 'currentcolor' }"
+                        :style="{ stroke: hasActiveFilters ? 'white' : 'black' }"
                     >
                         <path fill="none" d="M7 16H3m26 0H15M29 6h-4m-8 0H3m26 20h-4M7 16a4 4 0 1 0 8 0 4 4 0 0 0-8 0zM17 6a4 4 0 1 0 8 0 4 4 0 0 0-8 0zm0 20a4 4 0 1 0 8 0 4 4 0 0 0-8 0zm0 0H3"></path>
                     </svg>
@@ -162,9 +178,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import SearchLocation from './Components/location-search-mobile.vue';
 import SearchEvent from './Components/events-search-mobile.vue';
+import SearchAtHome from './Components/at-home-search-mobile.vue';
 import Filters from './Components/filters-mobile.vue';
 import SearchStore from '@/Stores/SearchStore.vue';
 import MapStore from '@/Stores/MapStore.vue';
@@ -432,6 +449,45 @@ const handleSearch = () => {
     window.location.href = `/index/search?${params.toString()}`;
 };
 
+const handleAtHomeSearch = (searchData) => {
+    SearchStore.updateState({
+        dates: {
+            start: searchData.dates.start,
+            end: searchData.dates.end
+        },
+        filters: {
+            ...state.value.filters,
+            atHome: true,
+            remoteLocation: searchData.remoteLocation
+                ? { slug: searchData.remoteLocation, name: searchData.remoteLocationName }
+                : null
+        }
+    });
+
+    const params = new URLSearchParams();
+    params.set('searchType', 'atHome');
+
+    if (searchData.remoteLocation) {
+        params.set('remoteLocation', searchData.remoteLocation);
+    }
+
+    if (searchData.dates.start) {
+        params.set('start', searchData.dates.start);
+        params.set('end', searchData.dates.end || searchData.dates.start);
+    }
+
+    if (state.value.filters.categories.length) {
+        params.set('category', state.value.filters.categories.join(','));
+    }
+    if (state.value.filters.tags.length) {
+        params.set('tag', state.value.filters.tags.join(','));
+    }
+
+    // Auto-save happens in at-home-search.vue's own handleSearch.
+    hideSearch();
+    window.location.href = `/index/search?${params.toString()}`;
+};
+
 const handleClearAll = () => {
     // Clear location and dates in the store
     SearchStore.updateState({
@@ -626,6 +682,16 @@ const subscribeToMapStore = () => {
         fetchResults(params.toString());
     });
 };
+
+// nav-bar-mobile.vue is a separate root component, not a parent/child of this
+// one — a window event is how the two coordinate. The full-screen search
+// overlay below is `fixed inset-0`, but the bottom nav is `fixed` too with a
+// higher z-index, so without this it renders on top of the overlay's own
+// content (e.g. covering the "When"/Search row) instead of getting out of
+// the way while the search is open.
+watch(search, (value) => {
+    window.dispatchEvent(new CustomEvent('mobile-search-toggle', { detail: { open: value !== null } }));
+});
 
 // Lifecycle hooks
 onMounted(() => {

@@ -146,12 +146,12 @@
                                     />
                                 </div>
                                 
-                                <textarea 
-                                    :placeholder="media.placeholder" 
-                                    v-model="team[media.model]" 
+                                <textarea
+                                    :placeholder="media.placeholder"
+                                    v-model="team[media.model]"
                                     @blur="handleInputBlur(media.name)"
                                     @focus="handleDivClick(media.name)"
-                                    @input="media.inputHandler && media.inputHandler($event)"
+                                    @input="media.inputHandler && media.inputHandler($event); stripLeadingAt(media)"
                                     rows="2"
                                     class="p-2 mt-2 border-none rounded-md w-full text-lg resize-none"
                                     @click.stop
@@ -604,6 +604,19 @@ const handleDescriptionInput = (event) => {
 const handleSocialInput = (media) => {
     if (!media?.model) return;
     $v.value.team[media.model]?.$touch();
+};
+
+// Every display site prepends its own "@" to instagramHandle/twitterHandle
+// (organizer page, admin review, the settings sidebar's identical fix in
+// social.vue) — stripped here, at entry, so a doubled "@@" is never even
+// briefly typeable. See OrganizerRules::normalizeHandle() for why this
+// can't be the ONLY place this is enforced: MCP/API callers never go
+// through this input at all.
+const stripLeadingAt = (media) => {
+    if (media.name !== 'instagramHandle' && media.name !== 'twitterHandle') return;
+    if (team[media.model]) {
+        team[media.model] = team[media.model].replace(/^@+/, '');
+    }
 };
 
 // Update socialMediaList with maxLength and inputHandler

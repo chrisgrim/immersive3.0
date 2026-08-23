@@ -2,7 +2,9 @@
 
 use App\Models\Event;
 use App\Models\Events\Location;
+use App\Models\Events\MobilityAdvisory;
 use App\Models\Events\Show;
+use App\Models\Image;
 use App\Models\Organizer;
 
 /**
@@ -100,6 +102,102 @@ test('show returns the first show tickets in the appended attribute', function (
     $viewEvent = $response->viewData('event');
     expect($viewEvent->first_show_tickets)->toHaveCount(1);
     expect($viewEvent->first_show_tickets->first()->name)->toBe('General');
+});
+
+test('show formats a zero-decimal currency price without cents', function () {
+    // Regression: the CTA price was unconditionally number_format(...,2),
+    // so a KRW/JPY/CNY event (none of which have a minor unit) rendered
+    // "₩25.00" instead of the correct "₩25". The CTA's displayed price
+    // comes from priceranges (makeShowableEvent() seeds one at 25), while
+    // the currency symbol comes from the first show's ticket — two
+    // separate sources this template already combines, unrelated to this
+    // fix.
+    //
+    // Exactly one image is required: this Blade CTA only renders in the
+    // events.show "single image" layout branch (totalMediaCount === 1) —
+    // 0 or 2+ images render pricing via the show-purchase.vue Vue
+    // component instead, which a plain HTTP test can't observe since it
+    // never executes client-side JS.
+    $event = makeShowableEvent();
+    Image::factory()->create(['imageable_id' => $event->id, 'imageable_type' => Event::class]);
+    $firstShow = $event->shows()->orderBy('date', 'asc')->first();
+    $firstShow->tickets()->create([
+        'name' => 'General',
+        'ticket_price' => '25.00',
+        'currency' => '₩',
+        'type' => 's',
+    ]);
+
+    $response = $this->get("/events/{$event->slug}")->assertOk();
+
+    $response->assertSeeText('₩25', escape: false);
+    $response->assertDontSeeText('₩25.00', escape: false);
+});
+
+test('show still shows two decimal places for a currency with a minor unit', function () {
+    $event = makeShowableEvent();
+    Image::factory()->create(['imageable_id' => $event->id, 'imageable_type' => Event::class]);
+    $firstShow = $event->shows()->orderBy('date', 'asc')->first();
+    $firstShow->tickets()->create([
+        'name' => 'General',
+        'ticket_price' => '25.00',
+        'currency' => '$',
+        'type' => 's',
+    ]);
+
+    $this->get("/events/{$event->slug}")
+        ->assertOk()
+        ->assertSeeText('$25.00', escape: false);
+});
+
+test('show does not duplicate the wheelchair-accessible line when advisory id 22 is also attached', function () {
+    // Regression: MobilityAdvisory id 22, "Event is wheelchair accessible.",
+    // duplicates the hardcoded wheelchairReady line whenever an organizer
+    // also selects it as an advisory — both used to render, saying the same
+    // thing twice.
+    $event = makeShowableEvent();
+    // updateOrCreate()/create() silently drop 'id' — it's not in the
+    // model's $fillable — so this forces the specific id the Blade fix
+    // filters on, rather than whatever id autoincrement would assign.
+    (new MobilityAdvisory())->forceFill([
+        'id' => 22,
+        'name' => 'Event is wheelchair accessible.',
+        'user_id' => $event->user_id,
+        'slug' => 'event-is-wheelchair-accessible',
+    ])->save();
+    $event->mobilityAdvisories()->attach(22);
+
+    $response = $this->get("/events/{$event->slug}")->assertOk();
+    $content = $response->getContent();
+
+    // Scoped to just the visible "Mobility Advisories" list — the raw
+    // $event JSON serialized elsewhere on the page (for vue-show-purchase,
+    // vue-show-map, etc.) also carries the full, unfiltered
+    // mobilityAdvisories collection, so a whole-page string search would
+    // find "Event is wheelchair accessible." there regardless of whether
+    // this fix works.
+    $start = strpos($content, 'Mobility Advisories');
+    $section = substr($content, $start, strpos($content, 'Tags</h3>', $start) - $start);
+
+    // The hardcoded line (advisories.wheelchairReady) — distinct from the
+    // advisory row's own rendering (plain text, trailing period, no nested
+    // empty <span>) by its literal "Event is <span></span> wheelchair
+    // accessible" markup.
+    expect($section)->toContain('Event is <span></span> wheelchair accessible');
+    // The advisory row's distinct text (with its trailing period) must not
+    // appear at all — that's the second, now-filtered occurrence.
+    expect($section)->not->toContain('Event is wheelchair accessible.');
+});
+
+test('show renders a fallback message when no interaction advisories are set', function () {
+    // Regression: zero contact levels rendered a bare "Interaction
+    // Advisories" header with nothing underneath — no fallback, unlike
+    // every other advisory section on the page.
+    $event = makeShowableEvent();
+
+    $this->get("/events/{$event->slug}")
+        ->assertOk()
+        ->assertSeeText('No interaction advisories listed', escape: false);
 });
 
 test('show renders even when the event has no price range', function () {

@@ -30,6 +30,18 @@ use Illuminate\Support\Str;
  */
 class UpdateEventAction
 {
+    /**
+     * Populated by handle() if a non-staff caller's schedule change would
+     * have removed a show that's already happened — Show::saveShows() kept
+     * it instead. Callers (HostEventController::update(), the MCP
+     * UpdateEvent tool) read this after calling handle() to tell the editor
+     * why the saved schedule doesn't exactly match what they submitted,
+     * rather than reporting a silent, unqualified success.
+     *
+     * @var array<int, string>
+     */
+    public array $preservedPastDates = [];
+
     public function handle(Event $event, array $validatedData, Request $request): Event
     {
         $wasPublished = in_array($event->status, ['p', 'e']);
@@ -122,7 +134,7 @@ class UpdateEventAction
                 // favoriters actually saved the event under, not the new one.
                 $datesBeforeUpdate = $event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
 
-                Show::saveShows($request, $event);
+                $this->preservedPastDates = Show::saveShows($request, $event);
                 Show::updateEvent($request, $event, $oldShowtype);
 
                 $this->notifyIfNewDatesAdded($event, $datesBeforeUpdate);

@@ -86,6 +86,21 @@ test('create-organizer creates a review-status organizer with owner pivot', func
     expect($user->fresh()->current_team_id)->toBe($organizer->id);
 });
 
+test('create-organizer strips a leading @ from twitter/instagram handles', function () {
+    $user = writeToolUser();
+
+    EiServer::actingAs($user)->tool(CreateOrganizer::class, [
+        'name' => 'Doubled At Co',
+        'description' => 'We make immersive things.',
+        'instagramHandle' => '@doubledat',
+        'twitterHandle' => '@doubledat',
+    ])->assertOk();
+
+    $organizer = Organizer::where('name', 'Doubled At Co')->first();
+    expect($organizer->instagramHandle)->toBe('doubledat');
+    expect($organizer->twitterHandle)->toBe('doubledat');
+});
+
 test('create-organizer surfaces duplicates and honors acknowledge_duplicate', function () {
     $user = writeToolUser();
     Organizer::factory()->create(['name' => 'Echo Chamber', 'status' => 'p', 'user_id' => writeToolUser()->id]);
@@ -164,6 +179,22 @@ test('update-organizer adds contact and social fields after creation', function 
     expect($organizer->website)->toBe('https://thelostland.com');
     expect($organizer->instagramHandle)->toBe('thelostland');
     expect($organizer->email)->toBe('hello@thelostland.com');
+});
+
+test('update-organizer strips a leading @ from twitter/instagram handles', function () {
+    $user = writeToolUser();
+    $organizer = writeToolOrganizer($user);
+
+    $response = EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateOrganizer::class, [
+        'organizer_slug' => $organizer->slug,
+        'instagramHandle' => '@thelostland',
+        'twitterHandle' => '@thelostland',
+    ]);
+
+    $response->assertOk();
+    $organizer->refresh();
+    expect($organizer->instagramHandle)->toBe('thelostland');
+    expect($organizer->twitterHandle)->toBe('thelostland');
 });
 
 test('update-organizer denies non-members', function () {
@@ -948,6 +979,55 @@ test('update-event preserves an existing past show when re-saving', function () 
         'dateArray' => ['2020-01-01 12:00:00', $upcoming],
     ])->assertOk();
     expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('update-event preserves a past show a non-staff user tries to remove, and reports it', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $event->update(['showtype' => 's']);
+    $tz = 'America/Los_Angeles';
+    $past = '2020-01-01 12:00:00';
+    $future = scheduleDay(5, $tz);
+    $event->shows()->create(['date' => $past]);
+    $event->shows()->create(['date' => $future]);
+
+    // A regular user sends a schedule that drops the past show — Show::saveShows()
+    // must keep it instead of deleting it, and the tool must say so rather than
+    // implying the requested schedule was applied exactly as sent.
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => $tz,
+        'dateArray' => [$future],
+        'confirm_schedule_replace' => true,
+    ])->assertOk()->assertSee('preserved_past_dates')->assertSee('2020-01-01');
+
+    $event->refresh();
+    expect($event->shows()->count())->toBe(2);
+    expect($event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toContain($past);
+});
+
+test('update-event lets a moderator remove a past show with no preserved-dates notice', function () {
+    $moderator = writeToolUser('m');
+    $event = draftFor(writeToolOrganizer($moderator), $moderator);
+    $event->update(['showtype' => 's']);
+    $tz = 'America/Los_Angeles';
+    $past = '2020-01-01 12:00:00';
+    $future = scheduleDay(5, $tz);
+    $event->shows()->create(['date' => $past]);
+    $event->shows()->create(['date' => $future]);
+
+    EiServer::actingAs($moderator)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => $tz,
+        'dateArray' => [$future],
+        'confirm_schedule_replace' => true,
+    ])->assertOk()->assertDontSee('preserved_past_dates');
+
+    $event->refresh();
+    expect($event->shows()->count())->toBe(1);
+    expect($event->shows()->first()->date)->not->toBe($past);
 });
 
 test('update-event lets an admin backfill a recent historical date', function () {

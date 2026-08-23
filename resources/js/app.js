@@ -49,7 +49,8 @@ const ShowComponents = {
     ShowMap: defineAsyncComponent(() => import('./PageComponents/EventShow/show-map.vue')),
     ShowGallery: defineAsyncComponent(() => import('./PageComponents/EventShow/show-gallery.vue')),
     ShowCalendarMobile: defineAsyncComponent(() => import('./PageComponents/EventShow/show-calendar-mobile.vue')),
-    SimilarEvents: defineAsyncComponent(() => import('./PageComponents/EventShow/similar-events.vue'))
+    SimilarEvents: defineAsyncComponent(() => import('./PageComponents/EventShow/similar-events.vue')),
+    EventActions: defineAsyncComponent(() => import('./PageComponents/EventShow/event-actions.vue'))
 };
 
 // Auth Components
@@ -231,6 +232,7 @@ app.component('vue-show-map', ShowComponents.ShowMap);
 app.component('vue-show-gallery', ShowComponents.ShowGallery);
 app.component('vue-show-calendar-mobile', ShowComponents.ShowCalendarMobile);
 app.component('vue-similar-events', ShowComponents.SimilarEvents);
+app.component('vue-event-actions', ShowComponents.EventActions);
 
 app.component('vue-reset-password', AuthComponents.ResetPassword);
 app.component('vue-user-profile', AuthComponents.UserEdit);

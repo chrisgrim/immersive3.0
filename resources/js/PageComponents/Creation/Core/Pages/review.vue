@@ -222,7 +222,7 @@
                              class="flex flex-col border border-neutral-300 rounded-2xl">
                             <p class="px-4 pt-4 text-1xl font-semibold break-words hyphens-auto">{{ ticket.name }}</p>
                             <div class="flex-grow flex flex-col justify-end px-4 pb-4">
-                                <p class="text-1xl font-semibold mt-14 leading-tight">${{ ticket.ticket_price }}</p>
+                                <p class="text-1xl font-semibold mt-14 leading-tight">{{ formatTicketPrice(ticket) }}</p>
                                 <p v-if="ticket.description" class="text-lg text-gray-600 leading-tight break-words hyphens-auto">
                                     {{ ticket.description }}
                                 </p>
@@ -319,6 +319,19 @@ const formatDateRange = (shows) => {
 
 const formatEmbargoDate = (date) => {
     return moment(date).format('MMM D, YYYY');
+};
+
+// Regression: this used to hardcode a literal "$" regardless of the
+// ticket's actual currency — same bug, same fix, as the admin approval
+// queue's EventReview.vue (this is the wizard's own final-review step,
+// so an organizer pricing in a non-USD currency saw the wrong symbol
+// right before submitting, not just admins reviewing it after).
+const ZERO_DECIMAL_CURRENCIES = ['¥', 'CN¥', '₩'];
+const formatTicketPrice = (ticket) => {
+    const currency = ticket.currency || '$';
+    const decimals = ZERO_DECIMAL_CURRENCIES.includes(currency) ? 0 : 2;
+
+    return `${currency}${Number(ticket.ticket_price).toFixed(decimals)}`;
 };
 
 // Map configuration

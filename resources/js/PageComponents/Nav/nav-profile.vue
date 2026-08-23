@@ -240,7 +240,16 @@ onUnmounted(() => {
 });
 
 const logout = async () => {
-    await axios.post('/logout');
+    // A session that's already expired/invalidated server-side (idle
+    // timeout, logged out in another tab, session row pruned) makes this
+    // POST 401 — the user is already logged out from the server's
+    // perspective, so that's not a failure worth surfacing. Reload either
+    // way to drop the stale client-side "logged in" UI.
+    try {
+        await axios.post('/logout');
+    } catch (error) {
+        console.error('Error logging out:', error);
+    }
     location.reload();
 };
 

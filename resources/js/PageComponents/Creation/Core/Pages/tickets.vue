@@ -53,7 +53,11 @@
                         Please enter a valid price.
                     </span>
                 </div>
-                <div v-if="state.showCurrencyDropdown" class="absolute mt-2 border border-neutral-300 rounded-lg bg-white shadow-lg z-50">
+                <div
+                    v-if="state.showCurrencyDropdown"
+                    v-click-outside="closeCurrencyDropdown"
+                    class="absolute mt-2 border border-neutral-300 rounded-lg bg-white shadow-lg z-50"
+                >
                     <ul class="flex flex-col m-0">
                         <li
                             v-for="currency in CURRENCY_SYMBOLS"
@@ -283,9 +287,11 @@ import List from '@/GlobalComponents/dropdown-list.vue';
 const MAX_TICKET_PRICE = 99999.99;
 const MAX_DESCRIPTION_LENGTH = 60;
 const MAX_CALL_TO_ACTION_LENGTH = 20;
-const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$', 'MX$'];
+const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$', 'MX$', 'CN¥', '₩'];
 // Display labels for the currency picker. The stored value is still the short
-// symbol; the label only disambiguates lookalike "$" currencies (USD vs MXN).
+// symbol; the label only disambiguates lookalike "$" currencies (USD vs MXN)
+// and lookalike "¥" currencies (JPY vs CNY — see EventUpdateRules::CURRENCIES
+// for why yuan gets the "CN¥" prefix instead of bare "¥").
 const CURRENCY_LABELS = {
     '$': '$ — USD',
     '€': '€ — EUR',
@@ -293,6 +299,8 @@ const CURRENCY_LABELS = {
     '¥': '¥ — JPY',
     'C$': 'C$ — CAD',
     'MX$': 'MX$ — MXN (Mexican peso)',
+    'CN¥': 'CN¥ — CNY (Chinese yuan)',
+    '₩': '₩ — KRW',
 };
 const MAX_URL_LENGTH = 255;
 const TICKET_NAME_OPTIONS = [
@@ -616,6 +624,10 @@ const toggleAdditionalDetails = () => {
 
 const toggleCurrencyDropdown = () => {
     state.value.showCurrencyDropdown = !state.value.showCurrencyDropdown;
+};
+
+const closeCurrencyDropdown = () => {
+    state.value.showCurrencyDropdown = false;
 };
 
 const selectCurrency = (currency) => {

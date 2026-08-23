@@ -95,6 +95,15 @@ class UpdateEvent extends Tool
             return Response::error('You do not have permission to edit this event.');
         }
 
+        // Same rule as HostEventController::assertEditable() (the web
+        // wizard's equivalent) — an event whose run has already fully ended
+        // can't be edited unless you're staff. Moderators/admins stay
+        // exempt for legitimate historical corrections. A null closingDate
+        // means no schedule has been set yet, not "already happened".
+        if ($event->closingDate !== null && ! $event->isShowing && ! $user->isModerator()) {
+            return Response::error('This event has already happened and can no longer be edited. Please create a new event instead.');
+        }
+
         // Site rule: once submitted, an event is locked until an admin
         // approves or rejects it (moderators can still edit).
         if ($event->status === 'r' && ! $user->isModerator()) {
@@ -391,13 +400,16 @@ class UpdateEvent extends Tool
         // location separately from the other fields.
         $location = $validated['location'] ?? null;
         $rest = collect($validated)->except('location')->all();
+        $preservedPastDates = [];
 
         if ($rest !== []) {
-            $event = app(UpdateEventAction::class)->handle(
+            $updateAction = app(UpdateEventAction::class);
+            $event = $updateAction->handle(
                 $event,
                 $rest,
                 $this->syntheticRequest($rest, $user)
             );
+            $preservedPastDates = $updateAction->preservedPastDates;
         }
 
         if ($location !== null) {
@@ -424,6 +436,11 @@ class UpdateEvent extends Tool
             // The rest of the call applied, but these were dropped — saying so
             // beats letting the caller assume everything it sent took effect.
             ...($stripped === [] ? [] : ['ignored_fields' => $stripped]),
+            // Only staff can remove a show that's already happened — Show::
+            // saveShows() kept these instead of deleting them. Same reasoning
+            // as ignored_fields: don't let the caller assume its requested
+            // schedule was applied exactly as sent.
+            ...($preservedPastDates === [] ? [] : ['preserved_past_dates' => $preservedPastDates]),
             'readiness' => $readiness,
             'missing' => collect($readiness)->reject(fn ($ok) => $ok)->keys()->values(),
         ];

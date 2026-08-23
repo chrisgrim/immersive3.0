@@ -217,9 +217,15 @@
         </Teleport>
 
         <!-- Mobile Bottom Navigation - Only show on mobile when sidebar is visible -->
-        <NavBarMobile 
-            v-if="isMobile && !currentSection" 
-            :user="user" 
+        <NavBarMobile
+            v-if="isMobile && !currentSection"
+            :user="user"
+        />
+
+        <ToastNotifications
+            v-model:show="toastVisible"
+            :message="toastMessage"
+            :duration="6000"
         />
     </div>
 </template>
@@ -242,6 +248,7 @@ import Content from './Pages/Advisories/content.vue';
 import Mobility from './Pages/Advisories/mobility.vue';
 import Review from './Pages/review.vue';
 import NavBarMobile from '../../Nav/nav-bar-mobile.vue';
+import ToastNotifications from '@/GlobalComponents/toast-notifications.vue';
 
 const props = defineProps({
     event: {
@@ -314,6 +321,16 @@ const goToPrevious = () => {
 
 const showSuccessModal = ref(false);
 const showConfirmModal = ref(false);
+const toastVisible = ref(false);
+const toastMessage = ref('');
+
+const showToast = (message) => {
+    toastVisible.value = false; // force show=false->true so the auto-dismiss timer restarts
+    nextTick(() => {
+        toastMessage.value = message;
+        toastVisible.value = true;
+    });
+};
 
 const saveChanges = async () => {
     try {
@@ -343,6 +360,14 @@ const saveChanges = async () => {
             setTimeout(() => {
                 showSuccessModal.value = false;
             }, 3000);
+
+            // See UpdateEventAction::$preservedPastDates — a non-staff
+            // editor's schedule change can't remove a show that's already
+            // happened; the save still succeeds, but this tells them why
+            // what they see doesn't exactly match what they submitted.
+            if (response.data.warning) {
+                showToast(response.data.warning);
+            }
         }
     } catch (error) {
         console.error('Error:', error);

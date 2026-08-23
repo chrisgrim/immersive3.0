@@ -12,8 +12,12 @@
             <h1 class="text-9xl font-bold text-[#ff385c] mb-4">403</h1>
             <h2 class="text-3xl font-semibold text-gray-800 mb-6">Access Denied</h2>
             <p class="text-xl text-gray-600 mb-8 max-w-lg mx-auto">
-                Oops! You don't have permission to access this area.
-                Moderator access is required.
+                @if(isset($exception) && $exception->getMessage())
+                    {{ $exception->getMessage() }}
+                @else
+                    Oops! You don't have permission to access this area.
+                    Moderator access is required.
+                @endif
             </p>
             <div class="space-x-4">
                 <a href="{{ url('/') }}" 

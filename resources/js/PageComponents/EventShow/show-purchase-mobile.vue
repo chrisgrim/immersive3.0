@@ -189,6 +189,9 @@ const getDates = () => {
     }
 };
 
+// ¥/CN¥/₩ (JPY/CNY/KRW) have no minor unit — same list/reasoning as
+// show-purchase.vue's identical fix.
+const ZERO_DECIMAL_CURRENCIES = ['¥', 'CN¥', '₩'];
 const formatTicketPrice = (ticket) => {
     // Check if ticket name is PWYC (case insensitive)
     if (ticket.name && ticket.name.toUpperCase().trim() === 'PWYC') {
@@ -196,6 +199,10 @@ const formatTicketPrice = (ticket) => {
     }
     if (ticket.type === 'f') return 'Free';
     if (ticket.type === 'p') return 'Pay what you can';
-    return ticket.ticket_price == 0.00 ? 'Free' : `${ticket.currency} ${ticket.ticket_price}`;
+    if (ticket.ticket_price == 0.00) return 'Free';
+
+    const decimals = ZERO_DECIMAL_CURRENCIES.includes(ticket.currency) ? 0 : 2;
+
+    return `${ticket.currency} ${Number(ticket.ticket_price).toFixed(decimals)}`;
 };
 </script>

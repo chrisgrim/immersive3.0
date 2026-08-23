@@ -23,9 +23,9 @@ describe('Profile/Pages/navSidebar.vue', () => {
         const wrapper = mount(ProfileNavSidebar, { props: { currentTab: 'events' } });
         const buttons = wrapper.findAll('button');
 
-        expect(buttons[0].classes()).not.toContain('bg-neutral-100');
-        expect(buttons[1].classes()).toContain('bg-neutral-100');
-        expect(buttons[2].classes()).not.toContain('bg-neutral-100');
+        expect(buttons[0].classes()).not.toContain('md:bg-neutral-100');
+        expect(buttons[1].classes()).toContain('md:bg-neutral-100');
+        expect(buttons[2].classes()).not.toContain('md:bg-neutral-100');
     });
 
     it('emits navigate with the clicked item\'s tab key', async () => {
@@ -39,6 +39,15 @@ describe('Profile/Pages/navSidebar.vue', () => {
     it('defaults currentTab to "about" when the prop is omitted', () => {
         const wrapper = mount(ProfileNavSidebar);
 
-        expect(wrapper.findAll('button')[0].classes()).toContain('bg-neutral-100');
+        expect(wrapper.findAll('button')[0].classes()).toContain('md:bg-neutral-100');
+    });
+
+    it('hides the "about" row on mobile — it just navigates back to the current screen there', () => {
+        const wrapper = mount(ProfileNavSidebar, { props: { currentTab: 'events' } });
+        const buttons = wrapper.findAll('button');
+
+        expect(buttons[0].classes()).toContain('hidden');
+        expect(buttons[1].classes()).not.toContain('hidden');
+        expect(buttons[2].classes()).not.toContain('hidden');
     });
 });

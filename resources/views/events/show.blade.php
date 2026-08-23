@@ -4,6 +4,30 @@
     // Calculate total media count - include videos if gallery mode is enabled
     $videoCount = ($event->video === 'gallery' && $event->videos && count($event->videos) > 0) ? count($event->videos) : 0;
     $totalMediaCount = count($event->images) + $videoCount;
+
+    // The "City, State"/remote-location text at the top of every layout
+    // looks like a link but wasn't one — this is what all 3 occurrences of
+    // it link to now, same URL shape the nav search bar itself produces for
+    // a location pick (city+lat+lng) or an At Home pick (remoteLocation slug).
+    if (! $event->hasLocation) {
+        $remoteLocation = $event->remotelocations->first();
+        $locationSearchUrl = $remoteLocation
+            ? '/index/search?remoteLocation=' . $remoteLocation->slug . '&searchType=atHome'
+            : null;
+    } elseif ($event->location) {
+        $locationSearchUrl = '/index/search?city=' . urlencode($event->location->city . ', ' . ($event->location->region ?: $event->location->country))
+            . '&lat=' . $event->location->latitude
+            . '&lng=' . $event->location->longitude
+            . '&searchType=inPerson&live=false';
+    } else {
+        $locationSearchUrl = null;
+    }
+
+    // "Primary genre" for the About facts grid — no explicit flag marks one
+    // genre as primary, so this follows the same convention the Tags
+    // section itself uses to decide which genres are even clickable/
+    // "real" tags (admin === true), picking the highest-rank one of those.
+    $primaryGenre = $event->genres->where('admin', 1)->sortByDesc('rank')->first();
 @endphp
 
 @section('meta')
@@ -109,6 +133,10 @@
                                 $currencyCode = 'CAD';
                             } elseif ($ticket->currency === 'MX$') {
                                 $currencyCode = 'MXN';
+                            } elseif ($ticket->currency === 'CN¥') {
+                                $currencyCode = 'CNY';
+                            } elseif ($ticket->currency === '₩') {
+                                $currencyCode = 'KRW';
                             } elseif (strlen($ticket->currency) === 3) {
                                 // If it's already a 3-letter code, use it
                                 $currencyCode = $ticket->currency;
@@ -377,14 +405,14 @@
                                         
                                         {{-- Location Row --}}
                                         <div class="mb-4">
-                                            <p class="text-lg text-neutral-600 flex items-center gap-2">
-                                                <svg 
-                                                    xmlns="http://www.w3.org/2000/svg" 
-                                                    viewBox="0 0 24 24" 
-                                                    fill="none" 
-                                                    stroke="currentColor" 
-                                                    stroke-width="2" 
-                                                    stroke-linecap="round" 
+                                            <a href="{{ $locationSearchUrl ?? '#' }}" class="text-lg text-neutral-600 flex items-center gap-2 hover:underline w-fit">
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                    stroke-linecap="round"
                                                     stroke-linejoin="round"
                                                     style="width: 14px; height: 14px;"
                                                 >
@@ -400,7 +428,7 @@
                                                         {{ ucfirst($event->location->city) }}, {{ $event->location->country_long ?: $event->location->country }}
                                                     @endif
                                                 @endif
-                                            </p>
+                                            </a>
                                         </div>
 
                                         {{-- Event Title --}}
@@ -414,25 +442,11 @@
                                     </div>
                                     
                                     <div class="flex items-center gap-8 mt-4">
-                                        <button 
-                                            onclick="toggleShareModal()" 
-                                            class="p-3 rounded-full border border-neutral-200 hover:bg-neutral-50 transition-colors"
-                                        >
-                                            <svg 
-                                                xmlns="http://www.w3.org/2000/svg" 
-                                                viewBox="0 0 24 24" 
-                                                fill="none" 
-                                                stroke="currentColor" 
-                                                stroke-width="2" 
-                                                stroke-linecap="round" 
-                                                stroke-linejoin="round"
-                                                style="width: 20px; height: 20px;"
-                                            >
-                                                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-                                                <polyline points="16 6 12 2 8 6"/>
-                                                <line x1="12" y1="2" x2="12" y2="15"/>
-                                            </svg>
-                                        </button>
+                                        <vue-event-actions
+                                            :event="{{ $event }}"
+                                            :user="user"
+                                            @share="toggleShareModal()"
+                                        ></vue-event-actions>
                                     </div>
                                 </div>
                             </div>
@@ -464,6 +478,16 @@
                         {{-- Single image layout --}}
                         
                         <div class="relative w-full m-auto px-10 mt-12 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
+                            {{-- Share/Save row — its own row above title+image, same as the
+                                 0-images and multiple-images layouts, not an overlay on top of
+                                 the photo (which covers actual photo content on a busy image). --}}
+                            <div class="flex justify-end mt-4">
+                                <vue-event-actions
+                                    :event="{{ $event }}"
+                                    :user="user"
+                                    @share="toggleShareModal()"
+                                ></vue-event-actions>
+                            </div>
                             {{-- Top section with title and image --}}
                             <div class="md:flex md:gap-40">
                                 <div class="flex-grow">
@@ -472,14 +496,14 @@
                                         <div class="flex flex-col bg-white h-full justify-center">
                                             {{-- Location Row --}}
                                             <div class="mb-4">
-                                                <p class="text-lg text-neutral-600 flex items-center gap-2">
-                                                    <svg 
-                                                        xmlns="http://www.w3.org/2000/svg" 
-                                                        viewBox="0 0 24 24" 
-                                                        fill="none" 
-                                                        stroke="currentColor" 
-                                                        stroke-width="2" 
-                                                        stroke-linecap="round" 
+                                                <a href="{{ $locationSearchUrl ?? '#' }}" class="text-lg text-neutral-600 flex items-center gap-2 hover:underline w-fit">
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        stroke-width="2"
+                                                        stroke-linecap="round"
                                                         stroke-linejoin="round"
                                                         style="width: 14px; height: 14px;"
                                                     >
@@ -495,7 +519,7 @@
                                                             {{ ucfirst($event->location->city) }}, {{ $event->location->country_long ?: $event->location->country }}
                                                         @endif
                                                     @endif
-                                                </p>
+                                                </a>
                                             </div>
 
                                             {{-- Event Title --}}
@@ -561,17 +585,21 @@
                                                                                 isset($event->priceranges[0]) && 
                                                                                 $event->priceranges[0]->price > 0;
                                                                         $currency = isset($event->first_show_tickets[0]->currency) ? $event->first_show_tickets[0]->currency : '$';
+                                                                        // ¥/CN¥/₩ (JPY/CNY/KRW) have no minor unit — "¥1234.00"
+                                                                        // reads as wrong to anyone used to those currencies.
+                                                                        $decimals = in_array($currency, ['¥', 'CN¥', '₩']) ? 0 : 2;
                                                                     @endphp
-                                                                    {{ $event->call_to_action }} {{ $showPrice ? 'from ' . $currency . number_format($event->priceranges->min('price'), 2) : '' }}
+                                                                    {{ $event->call_to_action }} {{ $showPrice ? 'from ' . $currency . number_format($event->priceranges->min('price'), $decimals) : '' }}
                                                                 @else
                                                                     @php
                                                                         $currency = isset($event->first_show_tickets[0]->currency) ? $event->first_show_tickets[0]->currency : '$';
                                                                         $minPrice = $event->priceranges->min('price');
+                                                                        $decimals = in_array($currency, ['¥', 'CN¥', '₩']) ? 0 : 2;
                                                                     @endphp
                                                                     @if($minPrice == 0)
                                                                         Free Tickets Available
                                                                     @else
-                                                                        Get Tickets from {{ $currency }}{{ number_format($minPrice, 2) }}
+                                                                        Get Tickets from {{ $currency }}{{ number_format($minPrice, $decimals) }}
                                                                     @endif
                                                                 @endif
                                                             @elseif(isset($event->call_to_action) && !empty($event->call_to_action))
@@ -589,7 +617,7 @@
                                     </div>
                                 </div>
                                 
-                                <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem] pt-16">
+                                <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem] p-8">
                                     @include('events.show.header')
                                 </div>
                             </div>
@@ -624,14 +652,14 @@
                                         
                                         {{-- Location Row --}}
                                         <div class="mb-4">
-                                            <p class="text-lg text-neutral-600 flex items-center gap-2">
-                                                <svg 
-                                                    xmlns="http://www.w3.org/2000/svg" 
-                                                    viewBox="0 0 24 24" 
-                                                    fill="none" 
-                                                    stroke="currentColor" 
-                                                    stroke-width="2" 
-                                                    stroke-linecap="round" 
+                                            <a href="{{ $locationSearchUrl ?? '#' }}" class="text-lg text-neutral-600 flex items-center gap-2 hover:underline w-fit">
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                    stroke-linecap="round"
                                                     stroke-linejoin="round"
                                                     style="width: 14px; height: 14px;"
                                                 >
@@ -647,7 +675,7 @@
                                                         {{ ucfirst($event->location->city) }}, {{ $event->location->country_long ?: $event->location->country }}
                                                     @endif
                                                 @endif
-                                            </p>
+                                            </a>
                                         </div>
 
                                         {{-- Event Title --}}
@@ -661,25 +689,11 @@
                                     </div>
                                     
                                     <div class="flex items-center gap-8 mt-4">
-                                        <button 
-                                            onclick="toggleShareModal()" 
-                                            class="p-3 rounded-full border border-neutral-200 hover:bg-neutral-50 transition-colors"
-                                        >
-                                            <svg 
-                                                xmlns="http://www.w3.org/2000/svg" 
-                                                viewBox="0 0 24 24" 
-                                                fill="none" 
-                                                stroke="currentColor" 
-                                                stroke-width="2" 
-                                                stroke-linecap="round" 
-                                                stroke-linejoin="round"
-                                                style="width: 20px; height: 20px;"
-                                            >
-                                                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-                                                <polyline points="16 6 12 2 8 6"/>
-                                                <line x1="12" y1="2" x2="12" y2="15"/>
-                                            </svg>
-                                        </button>
+                                        <vue-event-actions
+                                            :event="{{ $event }}"
+                                            :user="user"
+                                            @share="toggleShareModal()"
+                                        ></vue-event-actions>
                                     </div>
                                 </div>
                             </div>

@@ -243,6 +243,18 @@ const fetchRecentSearches = async () => {
     try {
         const { data } = await axios.get('/api/hub/saved-searches');
         recentSearches.value = (data.searches || []).slice(0, DROPDOWN_TOTAL_LIMIT);
+        // defaultPlacesList() splits DROPDOWN_TOTAL_LIMIT between recent
+        // searches and default cities — it already ran once in onMounted
+        // before this fetch resolved (recentSearches was still empty then),
+        // so it needs to re-run now to give back the slots recent searches
+        // actually claimed. But only while still on the resting (untyped)
+        // view — if the user has since typed a query, places.value already
+        // holds live Google predictions for whatever they typed, and this
+        // fetch resolving late must not stomp on those with the generic
+        // default city list.
+        if (!hasTypedSinceFocus.value) {
+            places.value = defaultPlacesList();
+        }
     } catch (error) {
         console.error('[recent-searches] failed to load', error);
     }

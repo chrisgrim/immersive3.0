@@ -105,7 +105,14 @@ const mapConfig = {
     zoom: 12,
     center: (!isNaN(lat) && !isNaN(lng)) ? [lat, lng] : [34.0549076, -118.242643],
     maxZoom: 20,
-    minZoom: 8,
+    // 4, not 8 — matches saved-search-location-picker.vue's own starting
+    // zoom (continental US scale). A saved search drawn zoomed out that far
+    // used to get clamped back in here on replay, since this was capped
+    // tighter than what the picker actually allowed selecting. Marker
+    // clustering (below) is what keeps a wide, marker-dense view fast, not
+    // this limit — pagination (20 events/page) already bounds the data
+    // itself regardless of how far zoomed out the view is.
+    minZoom: 4,
     tileUrl: "https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=5Pwt4rF8iefMU4hIcRqZJ0GXPqWi5l4NVjEn4owEBKOdGyuJVARXbYTBDO2or3cU",
     attribution: '<a href="http://jawg.io" title="Tiles Courtesy of Jawg Maps" target="_blank">&copy; <b>Jawg</b>Maps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 };

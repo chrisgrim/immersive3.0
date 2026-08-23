@@ -202,6 +202,114 @@ test('update is denied to non-members (403)', function () {
         ->assertStatus(403);
 });
 
+test('update rejects editing an event whose run has already fully ended', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'closingDate' => now()->subMonth(),
+        'description' => 'Original.',
+    ]);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", ['description' => 'Rewriting history.'])
+        ->assertStatus(403);
+
+    expect($event->fresh()->description)->toBe('Original.');
+});
+
+test('update allows a moderator to edit an event whose run has already fully ended', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'closingDate' => now()->subMonth(),
+        'description' => 'Original.',
+    ]);
+    $moderator = User::factory()->create(['type' => 'm']);
+
+    $this->actingAs($moderator)
+        ->postJson("/api/hosting/event/{$event->slug}", ['description' => 'Historical correction.'])
+        ->assertOk();
+
+    expect($event->fresh()->description)->toBe('Historical correction.');
+});
+
+test('edit GET rejects loading the edit form for an event whose run has already ended', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'closingDate' => now()->subMonth(),
+    ]);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->get("/hosting/event/{$event->slug}/edit")
+        ->assertStatus(403);
+});
+
+test('update still allows editing a draft event with no closingDate set yet', function () {
+    // A brand-new draft mid-creation has no schedule yet — closingDate is
+    // null, which must not be mistaken for "already happened".
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'closingDate' => null,
+        'description' => 'Original.',
+    ]);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", ['description' => 'Still drafting.'])
+        ->assertOk();
+
+    expect($event->fresh()->description)->toBe('Still drafting.');
+});
+
+test('update preserves a past show date a non-staff user tries to remove, and warns', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'showtype' => 's']);
+    $user = memberOf($organizer);
+    $tz = 'America/Los_Angeles';
+    $past = '2020-01-01 12:00:00';
+    $future = now($tz)->addDays(5)->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $past]);
+    $event->shows()->create(['date' => $future]);
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => $tz,
+            'dateArray' => [$future],
+        ])
+        ->assertOk()
+        ->assertJsonStructure(['warning']);
+
+    expect($response->json('warning'))->toContain('2020-01-01');
+    expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('update lets a moderator remove a past show date with no warning', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'showtype' => 's']);
+    $moderator = User::factory()->create(['type' => 'm']);
+    $tz = 'America/Los_Angeles';
+    $past = '2020-01-01 12:00:00';
+    $future = now($tz)->addDays(5)->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $past]);
+    $event->shows()->create(['date' => $future]);
+
+    $this->actingAs($moderator)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => $tz,
+            'dateArray' => [$future],
+        ])
+        ->assertOk()
+        ->assertJsonMissing(['warning']);
+
+    expect($event->fresh()->shows()->count())->toBe(1);
+});
+
 test('update with ongoing showtype persists showtype_config (M11)', function () {
     $organizer = Organizer::factory()->create();
     $event = Event::factory()->create(['organizer_id' => $organizer->id]);

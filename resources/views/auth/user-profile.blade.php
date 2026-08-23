@@ -13,9 +13,26 @@
      results). nav-limited-search made this page's header both the wrong
      width and needlessly tall. No separate mobile nav here either, matching
      those siblings — the page's own two-column shell handles small screens
-     via Tailwind breakpoints, not a server-side nav swap. --}}
+     via Tailwind breakpoints, not a server-side nav swap.
+
+     hidden md:block below — Profile's own mobile layout (see profile-index.vue)
+     already has its own "Profile" heading up top, matching Airbnb's mobile
+     profile screen having no persistent site header at all above it. This
+     wrapper is local to this page, not a change to nav.nav-limited itself,
+     which several other pages (Account Settings, Creation, Notifications,
+     Communities) still render normally on mobile.
+
+     vue-nav-bar-mobile below (md:hidden) is the same bottom tab bar the
+     homepage/search/etc. show on mobile (see nav.index-mobile) — Airbnb's
+     own mobile profile screen keeps its bottom tab bar visible too, it's not
+     something only full-screen pages get. --}}
 @section('nav')
-    @include('nav.nav-limited')
+    <div class="hidden md:block">
+        @include('nav.nav-limited')
+    </div>
+    <div class="md:hidden">
+        <vue-nav-bar-mobile :user="user"></vue-nav-bar-mobile>
+    </div>
 @endsection
 
 @section('content')

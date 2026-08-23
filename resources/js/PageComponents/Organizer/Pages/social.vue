@@ -28,9 +28,10 @@
                                 />
                             </div>
                             <div v-if="currentMedia === media.name" class="w-full">
-                                <textarea 
-                                    :placeholder="media.placeholder" 
-                                    v-model="organizer[media.model]" 
+                                <textarea
+                                    :placeholder="media.placeholder"
+                                    v-model="organizer[media.model]"
+                                    @input="stripLeadingAt(media)"
                                     @blur="handleInputBlur(media.name)"
                                     rows="2"
                                     class="p-2 mt-2 border-none focus:border-black focus:ring-black rounded-md focus:shadow-lg w-full text-lg resize-none"
@@ -137,6 +138,23 @@ const handleDivClick = async (mediaName) => {
     await nextTick();
     if (inputRefs.value[mediaName]) {
         inputRefs.value[mediaName].focus();
+    }
+};
+
+// Instagram/Twitter handles are displayed with "@" prepended everywhere
+// (organizer page, admin review, this same settings sidebar elsewhere) — if
+// the stored value already starts with "@" that renders as "@@handle" and
+// breaks the profile link URL built from it (instagram.com/@handle is
+// invalid). Stripped here, at the point of entry, rather than only cleaning
+// it up after the fact server-side (see OrganizerRules::normalizeHandle(),
+// which stays as the actual persistence-layer guarantee — MCP/API callers
+// never go through this input at all, so this alone can't be the only
+// place this is enforced, but it means a human filling out this form never
+// sees the doubled "@" in the first place).
+const stripLeadingAt = (media) => {
+    if (media.name !== 'instagram' && media.name !== 'twitter') return;
+    if (organizer[media.model]) {
+        organizer[media.model] = organizer[media.model].replace(/^@+/, '');
     }
 };
 

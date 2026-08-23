@@ -344,7 +344,12 @@ const isDark = ref(false);
 // Computed properties
 const isDesktop = computed(() => windowWidth.value >= 768);
 const initialMonthsToShow = computed(() => isDesktop.value ? 6 : 3);
-const isAdmin = computed(() => user && (user.isAdmin || false));
+// Matches the backend guard (Show::saveShows(), isModerator() — covers both
+// 'm' and 'a' user types) — was admin-only here, which let a moderator's
+// past-date removal get silently dropped server-side after the UI let them
+// attempt it. See minDate's own comment: this also gates how far back
+// the picker allows selecting a date at all.
+const isAdmin = computed(() => user && (user.isAdmin || user.isModerator || false));
 const selectedDatesCount = computed(() => selectedDates.value.length);
 const selectedTimezone = computed(() => props.selectedTimezone);
 

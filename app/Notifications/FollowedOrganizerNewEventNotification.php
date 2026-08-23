@@ -2,10 +2,10 @@
 
 namespace App\Notifications;
 
+use App\Mail\FollowedOrganizerNewEventMail;
 use App\Models\Event;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class FollowedOrganizerNewEventNotification extends Notification implements ShouldQueue
@@ -47,15 +47,17 @@ class FollowedOrganizerNewEventNotification extends Notification implements Shou
         return $channels;
     }
 
-    public function toMail($notifiable): MailMessage
+    /**
+     * A full Mailable, not a MailMessage — matches the app's own branded
+     * email look (logo, red heading, event image, CTA button; see
+     * emails/closing-soon.blade.php and its siblings) instead of Laravel's
+     * generic notification template. MailChannel doesn't auto-address a
+     * Mailable return value the way it does a MailMessage, so it's addressed
+     * here.
+     */
+    public function toMail($notifiable): FollowedOrganizerNewEventMail
     {
-        $organizerName = $this->event->organizer->name ?? 'An organizer you follow';
-
-        return (new MailMessage)
-            ->subject("New event from {$organizerName}")
-            ->line("{$organizerName}, who you follow, just posted a new event: \"{$this->event->name}\".")
-            ->action('View event', url("/events/{$this->event->slug}"))
-            ->line("You're getting this because you follow this organizer and opted into new-event emails.");
+        return (new FollowedOrganizerNewEventMail($this->event))->to($notifiable->email);
     }
 
     public function toDatabase($notifiable): array

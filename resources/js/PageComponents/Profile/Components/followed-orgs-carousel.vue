@@ -11,7 +11,7 @@
                 :href="`/organizers/${organizer.slug}`"
                 class="flex-shrink-0 w-44 snap-start snap-always group"
             >
-                <div class="w-44 aspect-[4/5] rounded-2xl overflow-hidden bg-neutral-100 mb-3 group-hover:opacity-90 transition-opacity">
+                <div class="w-44 aspect-square rounded-full overflow-hidden bg-neutral-100 mb-3 group-hover:opacity-90 transition-opacity">
                     <template v-if="organizer.thumbImagePath">
                         <picture>
                             <source type="image/webp" :srcset="`${imageUrl}${organizer.thumbImagePath}`">

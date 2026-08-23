@@ -41,12 +41,17 @@
             {{-- Interaction Advisories --}}
             <div class="hover:bg-neutral-50 transition-all duration-200 mb-8">
                 <div class="flex flex-col gap-2">
-                    @foreach($event->contactLevels as $item)
+                    @forelse($event->contactLevels as $item)
                         <div class="flex">
                             <span class="text-3xl md:text-2xl mr-2">•</span>
                             <span class="text-3xl md:text-2xl">{{ $item['name'] }}</span>
                         </div>
-                    @endforeach
+                    @empty
+                        <div class="flex">
+                            <span class="text-3xl md:text-2xl mr-2">•</span>
+                            <span class="text-3xl md:text-2xl">No interaction advisories listed</span>
+                        </div>
+                    @endforelse
                 </div>
             </div>
 
@@ -60,7 +65,12 @@
                             Event is <span>@if(!$event->advisories['wheelchairReady']) not @endif</span> wheelchair accessible
                         </span>
                     </div>
-                    @foreach($event->mobilityAdvisories as $item)
+                    {{-- Excluded here — each one restates the hardcoded wheelchairReady
+                         line above in different words, duplicating it whenever an
+                         organizer also selects it as an advisory: id 22 "Event is
+                         wheelchair accessible.", id 262 "Wheelchair accessible",
+                         id 263 "Not wheelchair accessible". --}}
+                    @foreach($event->mobilityAdvisories->whereNotIn('id', [22, 262, 263]) as $item)
                         <div class="flex">
                             <span class="text-2xl md:text-1xl mr-2">•</span>
                             <span class="text-2xl md:text-1xl">{{ $item['name'] }}</span>

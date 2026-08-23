@@ -1,7 +1,15 @@
 <template>
-    <div class="border border-neutral-200 rounded-3xl p-10">
-        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-8 mb-8">
-            <div class="flex flex-col sm:flex-row sm:items-center gap-6">
+    <!-- shadow-[...] md:shadow-none md:border below: Airbnb's own mobile
+         profile card sits on the page as an elevated card (soft shadow, no
+         visible outline) — the border-only treatment stays for md+, where
+         it's already pixel-matched to Airbnb's desktop card. -->
+    <div class="border-0 md:border md:border-neutral-200 shadow-[0_2px_16px_rgba(0,0,0,0.08)] md:shadow-none rounded-3xl p-10">
+        <!-- flex-row (not flex-col below sm) below: Airbnb's mobile card is a
+             two-column layout the whole way down — avatar/name on the left,
+             stats stacked on the right — not stats dropping below the avatar
+             on narrow screens. -->
+        <div class="flex flex-row justify-between items-start gap-4 sm:gap-8 mb-8">
+            <div class="flex-1 flex flex-col items-center sm:flex-row sm:items-center gap-4 sm:gap-6 min-w-0">
                 <div class="relative flex-shrink-0">
                     <div class="w-[104px] h-[104px] rounded-full overflow-hidden bg-neutral-100">
                         <template v-if="isAbsoluteAvatar">
@@ -35,14 +43,14 @@
                     </template>
                 </div>
 
-                <div>
-                    <h1 class="text-4.5xl font-semibold">{{ user.name }}</h1>
+                <div class="min-w-0 text-center sm:text-left">
+                    <h1 class="text-3xl sm:text-4.5xl font-semibold">{{ user.name }}</h1>
                     <p v-if="avatarError" class="text-red-600 text-lg mt-2">{{ avatarError }}</p>
                 </div>
             </div>
 
-            <div class="flex items-start gap-8">
-                <div class="flex flex-col divide-y divide-neutral-200 w-[140px] flex-shrink-0">
+            <div class="flex items-start gap-4 sm:gap-8 flex-shrink-0">
+                <div class="flex flex-col divide-y divide-neutral-200 w-[96px] flex-shrink-0">
                     <div class="py-3 first:pt-0 last:pb-0">
                         <p class="text-4xl font-semibold">{{ yearsOnEi }}</p>
                         <p class="text-md text-neutral-500 font-medium">Years on EI</p>
@@ -65,7 +73,11 @@
                     </div>
                 </div>
 
-                <a v-if="isOwner" href="/account-settings" class="flex-shrink-0 px-5 py-2.5 rounded-full border border-black text-1xl font-medium hover:bg-neutral-100 transition-colors">
+                <!-- Hidden below sm: "Account settings" is now one of the mobile
+                     nav rows below this card (see navSidebar.vue's chevron
+                     rows), same destination as this button — redundant on a
+                     screen already this width-constrained. -->
+                <a v-if="isOwner" href="/account-settings" class="hidden sm:inline-flex flex-shrink-0 px-5 py-2.5 rounded-full border border-black text-1xl font-medium hover:bg-neutral-100 transition-colors">
                     Edit profile
                 </a>
             </div>

@@ -70,7 +70,7 @@ class ProfileExtrasController extends Controller
             // FollowController::destroy) but shouldn't keep appearing here.
             ->where('status', 'p')
             ->orderBy('organizer_followers.created_at', 'desc')
-            ->limit(12)
+            ->limit(5)
             ->get()
             ->map(fn ($organizer) => [
                 'id' => $organizer->id,

@@ -44,6 +44,24 @@ class OrganizerRules
         ];
     }
 
+    /**
+     * Every display site (organizer page, org's own settings sidebar, admin
+     * review) prepends its own "@" to instagramHandle/twitterHandle — a
+     * stored value that already starts with "@" (someone typed "@handle"
+     * instead of "handle") renders as "@@handle" there, and silently breaks
+     * the profile link URLs built from the raw value
+     * (instagram.com/@handle is invalid). facebookHandle/patreon are never
+     * "@"-prefixed on display, so this is deliberately Instagram/Twitter-only.
+     */
+    public static function normalizeHandle(?string $handle): ?string
+    {
+        if ($handle === null) {
+            return null;
+        }
+
+        return ltrim(trim($handle), '@') ?: null;
+    }
+
     public static function messages(): array
     {
         return [

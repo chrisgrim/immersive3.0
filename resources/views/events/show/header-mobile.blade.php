@@ -125,6 +125,27 @@
 @endphp
 
 <div class="relative">
+    {{-- Navigation bar — normal flow above the photo (not absolute over it),
+         so it never covers photo content; the photo is pushed down by the
+         bar's own height instead. --}}
+    <div class="w-full bg-white px-4 py-3 flex justify-between items-center">
+        <button
+            onclick="if (window.history.length > 1) { window.history.back(); } else { window.location.href = '/'; }"
+            class="w-16 h-16 flex items-center justify-center rounded-full hover:bg-neutral-100"
+            aria-label="Go back"
+        >
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+        </button>
+
+        <vue-event-actions
+            :event="{{ $event }}"
+            :user="user"
+            @share="handleShare()"
+        ></vue-event-actions>
+    </div>
+
     {{-- No Images or Videos Case --}}
     @if($totalMediaCount === 0)
         <div class="w-full aspect-[4/3] hero-image">
@@ -247,28 +268,6 @@
         </div>
     @endif
 
-    {{-- Navigation Icons --}}
-    <div class="absolute top-4 left-4 right-4 flex justify-between">
-        <button 
-            onclick="if (window.history.length > 1) { window.history.back(); } else { window.location.href = '/'; }"
-            class="w-20 h-20 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg"
-            aria-label="Go back"
-        >
-            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-            </svg>
-        </button>
-
-        <button 
-            onclick="handleShare()"
-            class="w-20 h-20 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg"
-            aria-label="Share"
-        >
-            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4 4m4-4v12"/>
-            </svg>
-        </button>
-    </div>
 </div>
 
 <script>

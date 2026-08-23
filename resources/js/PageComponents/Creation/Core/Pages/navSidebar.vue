@@ -441,16 +441,20 @@ const ticketCount = computed(() => {
     return props.event.shows?.[0]?.tickets?.length || 0;
 });
 
+// ¥/CN¥/₩ (JPY/CNY/KRW) have no minor unit — same list/reasoning as
+// show-purchase.vue's identical fix.
+const ZERO_DECIMAL_CURRENCIES = ['¥', 'CN¥', '₩'];
 const ticketPriceRange = computed(() => {
     const tickets = props.event.shows?.[0]?.tickets || [];
     if (!tickets.length) return 'No tickets set';
-    
+
     const prices = tickets.map(t => parseFloat(t.ticket_price));
     const min = Math.min(...prices);
     const max = Math.max(...prices);
-    
-    if (min === max) return `${tickets[0].currency}${min.toFixed(2)}`;
-    return `${tickets[0].currency}${min.toFixed(2)} - ${tickets[0].currency}${max.toFixed(2)}`;
+    const decimals = ZERO_DECIMAL_CURRENCIES.includes(tickets[0].currency) ? 0 : 2;
+
+    if (min === max) return `${tickets[0].currency}${min.toFixed(decimals)}`;
+    return `${tickets[0].currency}${min.toFixed(decimals)} - ${tickets[0].currency}${max.toFixed(decimals)}`;
 });
 
 const imageCount = computed(() => {

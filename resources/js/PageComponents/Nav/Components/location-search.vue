@@ -321,6 +321,16 @@ const showDatesNudge = computed(() => (
 
 watch(() => props.compact, (isCompact) => {
     if (isCompact) {
+        // The input stays mounted (v-show, not v-if) across collapse, so if
+        // it was focused when the pill shrank, it silently KEEPS that focus
+        // — nothing else here ever blurs it. The dropdown only ever reopens
+        // via the input's 'focus' event (see onInputFocus), which the
+        // browser won't refire for an element that's already focused. Left
+        // unblurred, scrolling back to the top (auto re-expanding without a
+        // click — see nav-search.vue's handleScroll) leaves the input
+        // showing a cursor but the dropdown closed, and clicking it again
+        // does nothing: no new focus event, so onInputFocus never reruns.
+        loc.value?.blur();
         dateDropdown.value = false;
         dropdown.value = false;
         if (searchInput.value !== committedSearchInput.value) {

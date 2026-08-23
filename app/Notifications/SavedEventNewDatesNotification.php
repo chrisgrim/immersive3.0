@@ -2,10 +2,10 @@
 
 namespace App\Notifications;
 
+use App\Mail\SavedEventNewDatesMail;
 use App\Models\Event;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class SavedEventNewDatesNotification extends Notification implements ShouldQueue
@@ -65,13 +65,13 @@ class SavedEventNewDatesNotification extends Notification implements ShouldQueue
         return $channels;
     }
 
-    public function toMail($notifiable): MailMessage
+    /**
+     * A full Mailable, not a MailMessage — see the matching comment on
+     * FollowedOrganizerNewEventNotification::toMail() for why.
+     */
+    public function toMail($notifiable): SavedEventNewDatesMail
     {
-        return (new MailMessage)
-            ->subject("New dates added: {$this->event->name}")
-            ->line("An event you saved, \"{$this->event->name}\", just added new dates.")
-            ->action('View event', url("/events/{$this->event->slug}"))
-            ->line("You're getting this because you saved this event and opted into date-update emails.");
+        return (new SavedEventNewDatesMail($this->event))->to($notifiable->email);
     }
 
     public function toDatabase($notifiable): array

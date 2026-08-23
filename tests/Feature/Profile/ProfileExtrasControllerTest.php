@@ -3,6 +3,7 @@
 use App\Models\Event;
 use App\Models\Organizer;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 // ---------------------------------------------------------------------------
 // GET /api/profile/stats
@@ -87,6 +88,37 @@ test('followed organizers excludes an organizer that was deactivated after the u
         ->assertOk();
 
     expect($response->json('organizers'))->toBeEmpty();
+});
+
+test('followed organizers caps at 5, most recently followed first', function () {
+    $user = User::factory()->create();
+    $organizers = Organizer::factory()->count(6)->sequence(
+        ['status' => 'p', 'name' => 'Org 1'],
+        ['status' => 'p', 'name' => 'Org 2'],
+        ['status' => 'p', 'name' => 'Org 3'],
+        ['status' => 'p', 'name' => 'Org 4'],
+        ['status' => 'p', 'name' => 'Org 5'],
+        ['status' => 'p', 'name' => 'Org 6'],
+    )->create();
+    // Explicit, strictly-increasing timestamps — follow()'s own now() calls
+    // in a tight loop can land in the same second, which would make the
+    // "most recently followed first" ordering this test checks nondeterministic.
+    foreach ($organizers as $i => $organizer) {
+        DB::table('organizer_followers')->insert([
+            'organizer_id' => $organizer->id,
+            'user_id' => $user->id,
+            'created_at' => now()->addSeconds($i),
+            'updated_at' => now()->addSeconds($i),
+        ]);
+    }
+
+    $response = $this->actingAs($user)
+        ->getJson('/api/profile/followed-organizers')
+        ->assertOk();
+
+    $names = collect($response->json('organizers'))->pluck('name');
+    // Org 1 was followed first, so it's the one bumped off by the cap.
+    expect($names->all())->toBe(['Org 6', 'Org 5', 'Org 4', 'Org 3', 'Org 2']);
 });
 
 test('followed organizers response never leaks sensitive organizer fields', function () {

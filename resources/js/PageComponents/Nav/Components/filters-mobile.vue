@@ -30,21 +30,6 @@
 
                 <!-- Content when loaded -->
                 <div v-else class="flex-1 overflow-y-auto px-10">
-                    <!-- Remote Toggle Section -->
-                    <div class="transition-all duration-300 ease-in-out bg-white border-b flex flex-col py-8">
-                        <div class="flex items-center justify-between">
-                            <p class="text-4xl font-semibold">Remote Events</p>
-                            <div class="pr-4">
-                                <toggle-switch
-                                    v-model="selectedFilters.atHome"
-                                    left-label="All"
-                                    right-label="Remote"
-                                    text-size="sm"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Price Range Section - Always visible -->
                     <div v-if="showPrice" class="border-b border-neutral-200 py-8">
                         <div class="flex items-center justify-between mb-4">
@@ -324,7 +309,6 @@ import { ref, computed, onMounted, nextTick, onBeforeUnmount, watch } from 'vue'
 import VueSlider from 'vue-slider-component'
 import 'vue-slider-component/theme/antd.css'
 import axios from 'axios'
-import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue'
 
 const props = defineProps({
     modelValue: {
@@ -515,8 +499,16 @@ const clearAll = () => {
         tags: [],
         price: [0, selectedFilters.value.maxPrice],
         searchingByPrice: false,  // Reset the searching by price flag
-        atHome: false,  // Reset atHome to false
-        maxPrice: selectedFilters.value.maxPrice  // Preserve maxPrice
+        maxPrice: selectedFilters.value.maxPrice,  // Preserve maxPrice
+        // Preserve, don't reset — atHome reflects which search tab the user
+        // is on (see the removed Remote Events toggle), not a filter this
+        // panel controls. Resetting it to false would silently switch a
+        // user out of an At Home search just for tapping "Clear all".
+        atHome: selectedFilters.value.atHome,
+        // Same reasoning — the specific remote-location type isn't
+        // something this panel controls either now, so it shouldn't be
+        // dropped just because this object is being rebuilt from scratch.
+        remoteLocation: selectedFilters.value.remoteLocation
     };
     
     // Clear any search queries
@@ -623,12 +615,14 @@ watch(() => selectedFilters.value.atHome, (newValue) => {
 
 // Add a computed property for hasActiveFilters
 const hasActiveFilters = computed(() => {
-    // Check for categories, tags and atHome
-    const hasActiveFilter = 
-        selectedFilters.value.categories?.length > 0 || 
-        selectedFilters.value.tags?.length > 0 || 
-        selectedFilters.value.atHome === true;
-    
+    // atHome isn't a discretionary filter anymore (no toggle to set it here
+    // — see the removed Remote Events section) — it just reflects which
+    // search tab the user is on, so it shouldn't make the filter button
+    // read as "active" on its own.
+    const hasActiveFilter =
+        selectedFilters.value.categories?.length > 0 ||
+        selectedFilters.value.tags?.length > 0;
+
     // Check price filters
     const hasPriceFilter = selectedFilters.value.price[0] !== 0 || 
                           selectedFilters.value.price[1] !== selectedFilters.value.maxPrice;

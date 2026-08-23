@@ -8,6 +8,7 @@ use App\Models\Event;
 use App\Models\Organizer;
 use App\Services\ImageHandler;
 use App\Services\NameChangeRequestService;
+use App\Support\Validation\OrganizerRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -146,6 +147,15 @@ class OrganizerController extends Controller
     {
         try {
             $data = $request->validated();
+
+            // See OrganizerRules::normalizeHandle() — strips a leading "@"
+            // a user may have typed/pasted, since every display site
+            // prepends its own.
+            foreach (['instagramHandle', 'twitterHandle'] as $field) {
+                if (array_key_exists($field, $data)) {
+                    $data[$field] = OrganizerRules::normalizeHandle($data[$field]);
+                }
+            }
 
             // Only remove name from update if status is 'p' and name is different
             if ($organizer->status === 'p' && isset($data['name']) && $data['name'] !== $organizer->name) {

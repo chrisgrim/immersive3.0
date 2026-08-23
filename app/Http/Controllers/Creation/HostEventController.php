@@ -20,8 +20,32 @@ class HostEventController extends Controller
         $this->nameChangeService = $nameChangeService;
     }
 
+    /**
+     * Events whose run has already fully ended can't be edited (unless
+     * you're staff) — editing a historical record and creating a new event
+     * are different intents, and rewriting a past event's dates/details
+     * would misrepresent what actually happened. Moderators/admins stay
+     * exempt: they use this same edit path for legitimate historical
+     * corrections (e.g. backfilling old records), which the MCP tools also
+     * already allow them to do on any event regardless of status.
+     *
+     * A null closingDate is NOT "already happened" — it means no schedule
+     * has been set yet (a draft still mid-creation), which is exactly the
+     * normal, must-stay-editable state every new event starts in.
+     */
+    private function assertEditable(Event $event): void
+    {
+        abort_if(
+            $event->closingDate !== null && ! $event->isShowing && ! auth()->user()->isModerator(),
+            403,
+            'This event has already happened and can no longer be edited. Please create a new event instead.'
+        );
+    }
+
     public function edit(Event $event)
     {
+        $this->assertEditable($event);
+
         $event->load([
             'shows.tickets',
             'location',
@@ -48,6 +72,8 @@ class HostEventController extends Controller
 
     public function update(StoreEventRequest $request, Event $event, UpdateEventAction $updateEvent)
     {
+        $this->assertEditable($event);
+
         $validatedData = $request->validated();
 
         // Check for duplicate event names if name is being updated (skip if user acknowledged)
@@ -64,10 +90,21 @@ class HostEventController extends Controller
 
         $event = $updateEvent->handle($event, $validatedData, $request);
 
-        return response()->json([
+        $response = [
             'message' => 'Event updated successfully.',
             'event' => $event->load(UpdateEventAction::editorRelations()),
-        ], 200);
+        ];
+
+        // See UpdateEventAction::$preservedPastDates — normally unreachable
+        // through the wizard's own calendar UI (past dates aren't
+        // selectable there), but a direct API call could still attempt it.
+        if (! empty($updateEvent->preservedPastDates)) {
+            $response['warning'] = 'Dates that have already passed ('
+                .implode(', ', $updateEvent->preservedPastDates)
+                .') were kept and not removed. Only admins and moderators can remove past dates.';
+        }
+
+        return response()->json($response, 200);
     }
 
     public function submit(Event $event)

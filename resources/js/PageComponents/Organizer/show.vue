@@ -37,7 +37,7 @@
                         </a>
 
                         <!-- Twitter -->
-                        <a v-if="organizer.twitterHandle" 
+                        <a v-if="organizer.twitterHandle"
                            :href="`https://twitter.com/${organizer.twitterHandle}`"
                            target="_blank"
                            rel="nofollow noopener noreferrer"
@@ -51,7 +51,7 @@
                         </a>
 
                         <!-- Instagram -->
-                        <a v-if="organizer.instagramHandle" 
+                        <a v-if="organizer.instagramHandle"
                            :href="`https://instagram.com/${organizer.instagramHandle}`"
                            target="_blank"
                            rel="nofollow noopener noreferrer"

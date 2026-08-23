@@ -182,7 +182,7 @@
                                 </a>
 
                                 <!-- Twitter -->
-                                <a v-if="props.event?.organizer?.twitterHandle" 
+                                <a v-if="props.event?.organizer?.twitterHandle"
                                    :href="`https://twitter.com/${props.event.organizer.twitterHandle}`"
                                    target="_blank"
                                    rel="noopener noreferrer"
@@ -194,7 +194,7 @@
                                 </a>
 
                                 <!-- Instagram -->
-                                <a v-if="props.event?.organizer?.instagramHandle" 
+                                <a v-if="props.event?.organizer?.instagramHandle"
                                    :href="`https://instagram.com/${props.event.organizer.instagramHandle}`"
                                    target="_blank"
                                    rel="noopener noreferrer"
@@ -344,7 +344,7 @@
                                  class="flex flex-col border border-neutral-300 rounded-2xl">
                                 <p class="px-4 pt-4 text-1xl font-semibold break-words hyphens-auto">{{ ticket.name }}</p>
                                 <div class="flex-grow flex flex-col justify-end px-4 pb-4">
-                                    <p class="text-1xl font-semibold mt-14 leading-tight">${{ ticket.ticket_price }}</p>
+                                    <p class="text-1xl font-semibold mt-14 leading-tight">{{ formatTicketPrice(ticket) }}</p>
                                     <p v-if="ticket.description" class="text-lg text-gray-600 leading-tight break-words hyphens-auto">
                                         {{ ticket.description }}
                                     </p>
@@ -584,6 +584,19 @@ const formatDateRange = (shows) => {
 
 const formatEmbargoDate = (date) => {
     return moment(date).format('MMM D, YYYY');
+};
+
+// Regression: this used to hardcode a literal "$" regardless of the
+// ticket's actual currency, so every non-USD event's price showed the
+// wrong symbol here even though the data was already loaded correctly.
+// ¥/CN¥/₩ (JPY/CNY/KRW) have no minor unit — same reasoning as
+// events/show.blade.php's identical price formatting.
+const ZERO_DECIMAL_CURRENCIES = ['¥', 'CN¥', '₩'];
+const formatTicketPrice = (ticket) => {
+    const currency = ticket.currency || '$';
+    const decimals = ZERO_DECIMAL_CURRENCIES.includes(currency) ? 0 : 2;
+
+    return `${currency}${Number(ticket.ticket_price).toFixed(decimals)}`;
 };
 
 const categoryImagePath = computed(() => {
