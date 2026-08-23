@@ -91,16 +91,17 @@ class FavoriteController extends Controller
     {
         $followedOrganizer = $event->organizer ? $followedOrganizers->get($event->organizer->id) : null;
 
-        // Effective per-item "Get updates" state: an explicit true/false
-        // on this favorite/follow row always wins; null (never touched
-        // the toggle) falls back to the user's global default for that
-        // trigger. One combined toggle covers both event-date updates
-        // and organizer-new-event updates, so both must be on for it to
-        // read as "on" — matches how toggling it sets both together.
-        $notifyEvent = $event->pivot->notify_new_dates
-            ?? $user->wantsNotification('saved_event_new_dates', false);
+        // Effective per-item "Get updates" state: an explicit true/false on
+        // this favorite/follow row always wins; null (never touched the
+        // toggle) defaults to true — saving an event or following an
+        // organizer implies wanting to hear about it, same default
+        // *Notification::via() uses. One combined toggle covers both
+        // event-date updates and organizer-new-event updates, so both must
+        // be on for it to read as "on" — matches how toggling it sets both
+        // together.
+        $notifyEvent = $event->pivot->notify_new_dates ?? true;
         $notifyOrganizer = $event->organizer
-            ? ($followedOrganizer->pivot->notify_new_events ?? $user->wantsNotification('followed_organizer_new_event', false))
+            ? ($followedOrganizer->pivot->notify_new_events ?? true)
             : null;
 
         return [

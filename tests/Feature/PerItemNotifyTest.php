@@ -22,6 +22,9 @@ test('turning on updates for one saved event does not affect another', function 
     $eventA->favorite();
     $eventB->favorite();
 
+    // eventB explicitly muted beforehand, to prove toggling eventA doesn't leak into it.
+    $this->actingAs($user)->patchJson("/api/hub/events/{$eventB->slug}/notify-updates", ['enabled' => false])->assertOk();
+
     $this->actingAs($user)
         ->patchJson("/api/hub/events/{$eventA->slug}/notify-updates", ['enabled' => true])
         ->assertOk()
@@ -90,10 +93,8 @@ test('a guest cannot toggle notify updates', function () {
         ->assertStatus(401);
 });
 
-test('an untouched favorite falls back to the account-wide default', function () {
-    $user = User::factory()->create([
-        'notification_preferences' => ['saved_event_new_dates' => true, 'followed_organizer_new_event' => true],
-    ]);
+test('an untouched favorite defaults to notifying', function () {
+    $user = User::factory()->create();
     $organizer = Organizer::factory()->create(['status' => 'p']);
     $event = Event::factory()->published()->create(['organizer_id' => $organizer->id]);
 
@@ -107,10 +108,8 @@ test('an untouched favorite falls back to the account-wide default', function ()
     expect($data['notifyUpdates'])->toBeTrue();
 });
 
-test('an explicit per-item override wins over a different account-wide default', function () {
-    $user = User::factory()->create([
-        'notification_preferences' => ['saved_event_new_dates' => true, 'followed_organizer_new_event' => true],
-    ]);
+test('an explicit per-item override wins over the default', function () {
+    $user = User::factory()->create();
     $organizer = Organizer::factory()->create(['status' => 'p']);
     $event = Event::factory()->published()->create(['organizer_id' => $organizer->id]);
 

@@ -19,28 +19,21 @@ class FollowedOrganizerNewEventNotification extends Notification implements Shou
      * here. Deliberately a single value, not the full recipient map — this
      * notification is ShouldQueue, so each recipient gets their own queued
      * job/serialized payload; embedding the whole map here would mean every
-     * job carries every OTHER recipient's override too. Null (the default)
-     * means "no override" — via() then treats it as true (no mute), subject
-     * to the account-wide gate below.
+     * job carries every OTHER recipient's override too. Null (the default,
+     * meaning the user has never touched this follow's own "Get updates"
+     * toggle) means "notify" — following an organizer implies wanting to
+     * hear about it. There is no separate account-wide switch layered on
+     * top of this; Account Settings' "Clear all notifications" is a one-time
+     * bulk action that sets every existing row's override to false, not a
+     * persistent flag checked here (see ClearAllNotificationsAction).
      */
     public function __construct(public Event $event, private ?bool $notifyOverride = null) {}
 
-    /**
-     * The account-wide followed_organizer_new_event setting is a master
-     * switch: off means no mail for this type at all, full stop — a
-     * per-follow notify_new_events override can never punch a hole through
-     * that. When the account-wide setting is on, the per-follow override
-     * (if set) still lets a user mute mail for one specific followed
-     * organizer while leaving the rest on.
-     */
     public function via($notifiable): array
     {
         $channels = ['database'];
 
-        $globalOptIn = $notifiable->wantsNotification('followed_organizer_new_event', false);
-        $wantsMail = $globalOptIn && ($this->notifyOverride ?? true);
-
-        if ($wantsMail) {
+        if ($this->notifyOverride ?? true) {
             $channels[] = 'mail';
         }
 

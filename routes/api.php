@@ -142,15 +142,19 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     // see FavoriteController::show().
     Route::GET('/hub/events/{event}', [FavoriteController::class, 'show'])
         ->name('hub.events.show');
-    // Per-event/organizer "Get updates" override — distinct from the two
-    // routes below, which are the account-wide default those overrides fall
-    // back to when unset. See FavoriteController::updateNotify().
+    // Per-event/organizer "Get updates" override. See FavoriteController::updateNotify().
     Route::PATCH('/hub/events/{event}/notify-updates', [FavoriteController::class, 'updateNotify'])
         ->name('hub.events.notify-updates');
-    Route::GET('/hub/notification-preferences', [NotificationPreferenceController::class, 'show'])
-        ->name('hub.notification-preferences.show');
-    Route::PATCH('/hub/notification-preferences', [NotificationPreferenceController::class, 'update'])
-        ->name('hub.notification-preferences.update');
+    // Account Settings' Notifications tab — how many currently-notifying
+    // saved events/followed organizers exist, and the "Clear all
+    // notifications" button, a one-time bulk action on every existing
+    // per-item override above, not a persistent setting. See
+    // NotificationPreferenceController::notifyingCounts() and
+    // ClearAllNotificationsAction.
+    Route::GET('/hub/notification-preferences/counts', [NotificationPreferenceController::class, 'counts'])
+        ->name('hub.notification-preferences.counts');
+    Route::POST('/hub/notification-preferences/clear-all', [NotificationPreferenceController::class, 'clearAll'])
+        ->name('hub.notification-preferences.clear-all');
     // Backs the Hub's "Saved Search Preferences" tab. Auto-saved from
     // nav-search.vue's handleLocationSearch/handleAtHomeSearch on every
     // Location/At Home search (see SaveSearchAction for the overwrite-in-

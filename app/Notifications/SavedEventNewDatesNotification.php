@@ -19,11 +19,14 @@ class SavedEventNewDatesNotification extends Notification implements ShouldQueue
      * here. Deliberately a single value, not the full recipient map — this
      * notification is ShouldQueue, so each recipient gets their own queued
      * job/serialized payload; embedding the whole map here would mean every
-     * job carries every OTHER recipient's override too. Null (the default)
-     * means "no override" — via() then treats it as true (no mute), subject
-     * to the account-wide gate below.
-     */
-    /**
+     * job carries every OTHER recipient's override too. Null (the default,
+     * meaning the user has never touched this favorite's own "Get updates"
+     * toggle) means "notify" — saving an event implies wanting to hear about
+     * it. There is no separate account-wide switch layered on top of this;
+     * Account Settings' "Clear all notifications" is a one-time bulk action
+     * that sets every existing row's override to false, not a persistent
+     * flag checked here (see ClearAllNotificationsAction).
+     *
      * $mailAllowed is EventNotificationDispatcher's per-event mail-frequency
      * throttle (see newDatesForSavedEvent) — one shared value for every
      * recipient of a given dispatch, unlike $notifyOverride which is
@@ -40,25 +43,16 @@ class SavedEventNewDatesNotification extends Notification implements ShouldQueue
     /**
      * Always lands in the in-app feed (database) regardless of mail
      * preference OR the mail-frequency throttle — only the mail channel is
-     * gated by either (Chris's explicit requirement).
-     *
-     * The account-wide saved_event_new_dates setting is a master switch: off
-     * means no mail for this type at all, full stop — a per-favorite
-     * notify_new_dates override can never punch a hole through that. When
-     * the account-wide setting is on, the per-favorite override (if set)
-     * still lets a user mute mail for one specific saved event while
-     * leaving the rest on. $mailAllowed then applies on top of both: an
-     * event that already emailed everyone about new dates within the
-     * cooldown window skips mail again even for a fully opted-in recipient.
+     * gated by either (Chris's explicit requirement). $mailAllowed applies
+     * on top of the per-favorite override: an event that already emailed
+     * everyone about new dates within the cooldown window skips mail again
+     * even for a recipient who wants updates.
      */
     public function via($notifiable): array
     {
         $channels = ['database'];
 
-        $globalOptIn = $notifiable->wantsNotification('saved_event_new_dates', false);
-        $wantsMail = $globalOptIn && ($this->notifyOverride ?? true) && $this->mailAllowed;
-
-        if ($wantsMail) {
+        if (($this->notifyOverride ?? true) && $this->mailAllowed) {
             $channels[] = 'mail';
         }
 

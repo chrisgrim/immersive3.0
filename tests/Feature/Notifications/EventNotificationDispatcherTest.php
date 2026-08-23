@@ -54,9 +54,9 @@ test('newDatesForSavedEvent notifies each favoriter only once', function () {
     Notification::assertSentToTimes($user, SavedEventNewDatesNotification::class, 1);
 });
 
-test('newDatesForSavedEvent only mails the favoriters whose per-item override is on, given the global setting is on', function () {
-    $optedIn = User::factory()->create(['notification_preferences' => ['saved_event_new_dates' => true]]);
-    $optedOut = User::factory()->create(['notification_preferences' => ['saved_event_new_dates' => true]]);
+test('newDatesForSavedEvent only mails favoriters whose per-item override is on', function () {
+    $optedIn = User::factory()->create();
+    $optedOut = User::factory()->create();
     $event = Event::factory()->published()->create();
 
     $this->actingAs($optedIn);
@@ -75,32 +75,16 @@ test('newDatesForSavedEvent only mails the favoriters whose per-item override is
     Notification::assertSentTo($optedOut, SavedEventNewDatesNotification::class, fn ($n, $channels) => ! in_array('mail', $channels));
 });
 
-test('newDatesForSavedEvent falls back to the account-wide default when the favorite has no override', function () {
-    $user = User::factory()->create(['notification_preferences' => ['saved_event_new_dates' => true]]);
+test('newDatesForSavedEvent defaults to mailing when the favorite has no override', function () {
+    $user = User::factory()->create();
     $event = Event::factory()->published()->create();
 
     $this->actingAs($user);
-    $event->favorite(); // notify_new_dates left null — never touched the per-item toggle
+    $event->favorite(); // notify_new_dates left null — never touched the per-item toggle, or cleared via "Clear all notifications"
 
     (new EventNotificationDispatcher)->newDatesForSavedEvent($event);
 
     Notification::assertSentTo($user, SavedEventNewDatesNotification::class, fn ($n, $channels) => in_array('mail', $channels));
-});
-
-test('newDatesForSavedEvent never mails when the global setting is off, even with the per-item override explicitly on', function () {
-    // The master-switch behavior Chris asked for: the account-wide toggle
-    // in Account Settings overrides every per-event "Get updates" toggle —
-    // it can't be circumvented by opting one specific event back in.
-    $user = User::factory()->create(['notification_preferences' => ['saved_event_new_dates' => false]]);
-    $event = Event::factory()->published()->create();
-
-    $this->actingAs($user);
-    $event->favorite();
-    $event->favorites()->where('user_id', $user->id)->update(['notify_new_dates' => true]);
-
-    (new EventNotificationDispatcher)->newDatesForSavedEvent($event);
-
-    Notification::assertSentTo($user, SavedEventNewDatesNotification::class, fn ($n, $channels) => ! in_array('mail', $channels));
 });
 
 test('newDatesForSavedEvent only mails once within the cooldown window, even across several separate dispatches', function () {
@@ -108,7 +92,7 @@ test('newDatesForSavedEvent only mails once within the cooldown window, even acr
     // (each edit calling this method independently, the way
     // UpdateEventAction does per save) should collapse into one email, not
     // one per edit — the in-app feed still records every occurrence.
-    $user = User::factory()->create(['notification_preferences' => ['saved_event_new_dates' => true]]);
+    $user = User::factory()->create();
     $event = Event::factory()->published()->create();
     $this->actingAs($user);
     $event->favorite();
@@ -125,7 +109,7 @@ test('newDatesForSavedEvent only mails once within the cooldown window, even acr
 });
 
 test('newDatesForSavedEvent mails again once the cooldown window has passed', function () {
-    $user = User::factory()->create(['notification_preferences' => ['saved_event_new_dates' => true]]);
+    $user = User::factory()->create();
     $event = Event::factory()->published()->create(['notified_new_dates_at' => now()->subHours(25)]);
     $this->actingAs($user);
     $event->favorite();
@@ -199,9 +183,9 @@ test('newEventFromFollowedOrganizer only notifies once even when called twice fo
     expect($event->fresh()->organizer_notified_at)->not->toBeNull();
 });
 
-test('newEventFromFollowedOrganizer only mails the followers whose per-item override is on, given the global setting is on', function () {
-    $optedIn = User::factory()->create(['notification_preferences' => ['followed_organizer_new_event' => true]]);
-    $optedOut = User::factory()->create(['notification_preferences' => ['followed_organizer_new_event' => true]]);
+test('newEventFromFollowedOrganizer only mails followers whose per-item override is on', function () {
+    $optedIn = User::factory()->create();
+    $optedOut = User::factory()->create();
     $organizer = Organizer::factory()->create(['status' => 'p']);
     $event = Event::factory()->published()->create(['organizer_id' => $organizer->id]);
 
@@ -223,32 +207,15 @@ test('newEventFromFollowedOrganizer only mails the followers whose per-item over
     Notification::assertSentTo($optedOut, FollowedOrganizerNewEventNotification::class, fn ($n, $channels) => ! in_array('mail', $channels));
 });
 
-test('newEventFromFollowedOrganizer falls back to the account-wide default when the follow has no override', function () {
-    $user = User::factory()->create(['notification_preferences' => ['followed_organizer_new_event' => true]]);
+test('newEventFromFollowedOrganizer defaults to mailing when the follow has no override', function () {
+    $user = User::factory()->create();
     $organizer = Organizer::factory()->create(['status' => 'p']);
     $event = Event::factory()->published()->create(['organizer_id' => $organizer->id]);
 
     $this->actingAs($user);
-    $organizer->follow(); // notify_new_events left null — never touched the per-item toggle
+    $organizer->follow(); // notify_new_events left null — never touched the per-item toggle, or cleared via "Clear all notifications"
 
     (new EventNotificationDispatcher)->newEventFromFollowedOrganizer($event);
 
     Notification::assertSentTo($user, FollowedOrganizerNewEventNotification::class, fn ($n, $channels) => in_array('mail', $channels));
-});
-
-test('newEventFromFollowedOrganizer never mails when the global setting is off, even with the per-item override explicitly on', function () {
-    // Same master-switch behavior as the saved-events side.
-    $user = User::factory()->create(['notification_preferences' => ['followed_organizer_new_event' => false]]);
-    $organizer = Organizer::factory()->create(['status' => 'p']);
-    $event = Event::factory()->published()->create(['organizer_id' => $organizer->id]);
-
-    $this->actingAs($user);
-    $organizer->follow();
-    DB::table('organizer_followers')
-        ->where('organizer_id', $organizer->id)->where('user_id', $user->id)
-        ->update(['notify_new_events' => true]);
-
-    (new EventNotificationDispatcher)->newEventFromFollowedOrganizer($event);
-
-    Notification::assertSentTo($user, FollowedOrganizerNewEventNotification::class, fn ($n, $channels) => ! in_array('mail', $channels));
 });

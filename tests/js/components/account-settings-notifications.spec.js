@@ -2,39 +2,37 @@
  * Specs for PageComponents/AccountSettings/Pages/Notifications.vue
  *
  * Covers:
- *  - Fetch-on-mount populates preferences and clears loading.
+ *  - Fetch-on-mount loads counts from the notification-preferences counts
+ *    endpoint and clears loading.
  *  - Load-error state + retry.
- *  - The `checked` binding is the INVERSE of the stored preference value —
- *    this is exactly the class of bug that shipped earlier this session
- *    (the toggle showed the opposite of what the label said) and was only
- *    caught by live browser testing, not any automated test.
- *  - Toggling PATCHes the full two-key state with the clicked key flipped.
- *  - `saving` disables both toggles while a PATCH is in flight.
- *  - A rejected PATCH reverts the optimistic change and shows an error.
+ *  - Counts render with correct singular/plural wording.
+ *  - Clicking "Clear all notifications" POSTs to the clear-all endpoint,
+ *    disables the button while in flight, and shows a confirmation.
+ *  - A failed clear shows an error and doesn't touch the displayed counts.
  */
 import { mount, flushPromises } from '@vue/test-utils';
 import Notifications from '@/PageComponents/AccountSettings/Pages/Notifications.vue';
 
-function mockGet(prefs = { saved_event_new_dates: false, followed_organizer_new_event: false }) {
-    window.axios.get.mockResolvedValue({ data: { notification_preferences: prefs } });
+function mockGet(counts = { saved_events_count: 3, followed_organizers_count: 2 }) {
+    window.axios.get.mockResolvedValue({ data: counts });
 }
 
-async function mountLoaded(prefs) {
-    mockGet(prefs);
+async function mountLoaded(counts) {
+    mockGet(counts);
     const wrapper = mount(Notifications);
     await flushPromises();
     return wrapper;
 }
 
 describe('AccountSettings Notifications.vue', () => {
-    it('fetches preferences on mount and clears the loading state', async () => {
+    it('fetches counts on mount and clears the loading state', async () => {
         mockGet();
         const wrapper = mount(Notifications);
         expect(wrapper.text()).toContain('Loading');
 
         await flushPromises();
 
-        expect(window.axios.get).toHaveBeenCalledWith('/api/hub/notification-preferences');
+        expect(window.axios.get).toHaveBeenCalledWith('/api/hub/notification-preferences/counts');
         expect(wrapper.text()).not.toContain('Loading');
     });
 
@@ -53,62 +51,58 @@ describe('AccountSettings Notifications.vue', () => {
         expect(window.axios.get).toHaveBeenCalledTimes(2);
     });
 
-    it('shows both toggles as ON when the preference is false (mail is off, so "Turn off X" is true)', async () => {
-        const wrapper = await mountLoaded({ saved_event_new_dates: false, followed_organizer_new_event: false });
+    it('renders the saved-events and followed-organizers counts', async () => {
+        const wrapper = await mountLoaded({ saved_events_count: 5, followed_organizers_count: 1 });
 
-        const checkboxes = wrapper.findAll('input[type="checkbox"]');
-        expect(checkboxes).toHaveLength(2);
-        expect(checkboxes[0].element.checked).toBe(true);
-        expect(checkboxes[1].element.checked).toBe(true);
+        expect(wrapper.text()).toContain('notifications on');
+        expect(wrapper.text()).toContain('1');
+        expect(wrapper.text()).toContain('organizer');
+        expect(wrapper.text()).toContain('5');
+        expect(wrapper.text()).toContain('saved events');
     });
 
-    it('shows a toggle as OFF when the preference is true (mail is on, so "Turn off X" is false)', async () => {
-        const wrapper = await mountLoaded({ saved_event_new_dates: true, followed_organizer_new_event: false });
-
-        const checkboxes = wrapper.findAll('input[type="checkbox"]');
-        expect(checkboxes[0].element.checked).toBe(false);
-        expect(checkboxes[1].element.checked).toBe(true);
-    });
-
-    it('PATCHes the full two-key state with the clicked key flipped', async () => {
-        const wrapper = await mountLoaded({ saved_event_new_dates: false, followed_organizer_new_event: false });
-        window.axios.patch.mockResolvedValue({ data: {} });
-
-        await wrapper.findAll('input[type="checkbox"]')[0].trigger('change');
-        await flushPromises();
-
-        expect(window.axios.patch).toHaveBeenCalledWith('/api/hub/notification-preferences', {
-            saved_event_new_dates: true,
-            followed_organizer_new_event: false,
-        });
-    });
-
-    it('disables both toggles while a save is in flight', async () => {
+    it('links the counts to the callers Liked Events page', async () => {
         const wrapper = await mountLoaded();
-        let resolvePatch;
-        window.axios.patch.mockReturnValue(new Promise((resolve) => { resolvePatch = resolve; }));
 
-        await wrapper.findAll('input[type="checkbox"]')[0].trigger('change');
-        await flushPromises();
-
-        const checkboxes = wrapper.findAll('input[type="checkbox"]');
-        expect(checkboxes[0].element.disabled).toBe(true);
-        expect(checkboxes[1].element.disabled).toBe(true);
-
-        resolvePatch({ data: {} });
-        await flushPromises();
-        expect(wrapper.findAll('input[type="checkbox"]')[0].element.disabled).toBe(false);
+        expect(wrapper.find('a').attributes('href')).toBe(`/users/${window.Laravel.user.id}/events`);
     });
 
-    it('reverts the optimistic toggle and shows an error when the PATCH fails', async () => {
-        const wrapper = await mountLoaded({ saved_event_new_dates: false, followed_organizer_new_event: false });
-        window.axios.patch.mockRejectedValue(new Error('boom'));
+    it('POSTs to the clear-all endpoint and shows a confirmation', async () => {
+        const wrapper = await mountLoaded();
+        window.axios.post.mockResolvedValue({ data: { saved_events_count: 0, followed_organizers_count: 0 } });
 
-        await wrapper.findAll('input[type="checkbox"]')[0].trigger('change');
+        await wrapper.find('button').trigger('click');
         await flushPromises();
 
-        // Reverted back to checked=true (preference still false).
-        expect(wrapper.findAll('input[type="checkbox"]')[0].element.checked).toBe(true);
-        expect(wrapper.text()).toContain('Could not save that change');
+        expect(window.axios.post).toHaveBeenCalledWith('/api/hub/notification-preferences/clear-all');
+        expect(wrapper.text()).toContain('cleared');
+    });
+
+    it('disables the button while a clear is in flight', async () => {
+        const wrapper = await mountLoaded();
+        let resolvePost;
+        window.axios.post.mockReturnValue(new Promise((resolve) => { resolvePost = resolve; }));
+
+        await wrapper.find('button').trigger('click');
+        await flushPromises();
+
+        expect(wrapper.find('button').element.disabled).toBe(true);
+        expect(wrapper.text()).toContain('Clearing');
+
+        resolvePost({ data: { saved_events_count: 0, followed_organizers_count: 0 } });
+        await flushPromises();
+        expect(wrapper.find('button').element.disabled).toBe(false);
+    });
+
+    it('shows an error and leaves the counts unchanged when clearing fails', async () => {
+        const wrapper = await mountLoaded({ saved_events_count: 3, followed_organizers_count: 2 });
+        window.axios.post.mockRejectedValue(new Error('boom'));
+
+        await wrapper.find('button').trigger('click');
+        await flushPromises();
+
+        expect(wrapper.text()).toContain('Could not clear notifications');
+        expect(wrapper.text()).toContain('3');
+        expect(wrapper.text()).toContain('2');
     });
 });

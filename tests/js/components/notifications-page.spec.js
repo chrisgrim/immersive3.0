@@ -11,6 +11,7 @@
  *  - "Mark all as read" button only shows when something is unread.
  *  - Load more: appends the next page and stops offering once
  *    next_page_url is null.
+ *  - The header's settings link points at the mail-preferences page.
  */
 import { mount, flushPromises } from '@vue/test-utils';
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -46,8 +47,15 @@ describe('Notifications/index.vue', () => {
         const wrapper = await mountLoaded([notification({ id: 1 }), notification({ id: 2 })]);
 
         expect(window.axios.get).toHaveBeenCalledWith('/api/notifications');
-        expect(wrapper.findAll('a').length).toBe(2);
+        expect(wrapper.findAll('.divide-y a').length).toBe(2);
         expect(wrapper.text()).not.toContain('Loading');
+    });
+
+    it('links to the notification-settings page', async () => {
+        const wrapper = await mountLoaded([]);
+
+        const settingsLink = wrapper.find('a[href="/account-settings/notifications"]');
+        expect(settingsLink.exists()).toBe(true);
     });
 
     it('shows the empty state when there are no notifications', async () => {
@@ -84,7 +92,7 @@ describe('Notifications/index.vue', () => {
         const wrapper = await mountLoaded([notification({ id: 42, read_at: null })]);
         window.axios.post.mockResolvedValue({ data: {} });
 
-        await wrapper.find('a').trigger('click');
+        await wrapper.find('.divide-y a').trigger('click');
 
         expect(window.axios.post).toHaveBeenCalledWith('/api/notifications/42/read');
         // The unread dot should be gone now that read_at is optimistically set.
@@ -95,7 +103,7 @@ describe('Notifications/index.vue', () => {
         const wrapper = await mountLoaded([notification({ id: 42, read_at: null })]);
         window.axios.post.mockRejectedValue(new Error('failed'));
 
-        await wrapper.find('a').trigger('click');
+        await wrapper.find('.divide-y a').trigger('click');
         await flushPromises();
 
         expect(wrapper.find('.bg-blue-600').exists()).toBe(true);
@@ -104,7 +112,7 @@ describe('Notifications/index.vue', () => {
     it('does not re-post for an already-read notification', async () => {
         const wrapper = await mountLoaded([notification({ id: 42, read_at: new Date().toISOString() })]);
 
-        await wrapper.find('a').trigger('click');
+        await wrapper.find('.divide-y a').trigger('click');
 
         expect(window.axios.post).not.toHaveBeenCalled();
     });
@@ -138,7 +146,7 @@ describe('Notifications/index.vue', () => {
         await flushPromises();
 
         expect(window.axios.get).toHaveBeenCalledWith('/api/notifications?page=2');
-        expect(wrapper.findAll('a').length).toBe(2);
+        expect(wrapper.findAll('.divide-y a').length).toBe(2);
         expect(wrapper.text()).not.toContain('Load more');
     });
 });

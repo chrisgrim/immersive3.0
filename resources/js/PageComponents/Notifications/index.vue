@@ -2,14 +2,23 @@
     <div class="mx-auto w-full max-w-screen-md px-8 pt-20 pb-40">
         <div class="flex items-center justify-between mb-10">
             <h1 class="text-4xl font-semibold">Notifications</h1>
-            <button
-                v-if="hasUnread"
-                type="button"
-                class="text-sm font-semibold underline hover:no-underline"
-                @click="markAllRead"
-            >
-                Mark all as read
-            </button>
+            <div class="flex items-center gap-4">
+                <button
+                    v-if="hasUnread"
+                    type="button"
+                    class="text-sm font-semibold underline hover:no-underline"
+                    @click="markAllRead"
+                >
+                    Mark all as read
+                </button>
+                <a
+                    href="/account-settings/notifications"
+                    aria-label="Notification settings"
+                    class="w-20 h-20 rounded-full flex items-center justify-center hover:bg-neutral-100 transition-colors flex-shrink-0"
+                >
+                    <component :is="RiSettings3Line" class="w-10 h-10 text-neutral-700" />
+                </a>
+            </div>
         </div>
 
         <div v-if="loading" class="py-32 text-center text-neutral-500">Loading…</div>
@@ -76,7 +85,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { RiNotification3Line } from '@remixicon/vue';
+import { RiNotification3Line, RiSettings3Line } from '@remixicon/vue';
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 

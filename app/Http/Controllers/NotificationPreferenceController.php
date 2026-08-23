@@ -2,57 +2,59 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Notifications\ClearAllNotificationsAction;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class NotificationPreferenceController extends Controller
 {
     /**
-     * The two account-wide notification defaults — used whenever a specific
-     * saved event/followed organizer has no per-item override (see
-     * favorites.notify_new_dates / organizer_followers.notify_new_events,
-     * and FavoriteController::updateNotify()). Both keys are opt-in (default
-     * false), unlike the admin-alert keys elsewhere on this same JSON
-     * column, which default true — see User::wantsNotification().
+     * Account Settings' Notifications tab. Counts, not the raw
+     * saved-events/followed-organizers totals (that's ProfileExtrasController
+     * ::stats()) — specifically how many currently have notifications ON
+     * (no per-item override, or an explicit true), i.e. what "Clear all
+     * notifications" would actually change. Showing the raw totals here read
+     * as broken: clicking the button doesn't unsave or unfollow anything, so
+     * those numbers never move, and it looked like nothing happened.
      */
-    public function show(Request $request)
+    public function counts(Request $request)
     {
-        $user = $request->user();
-
-        return response()->json([
-            'notification_preferences' => [
-                'saved_event_new_dates' => $user->wantsNotification('saved_event_new_dates', false),
-                'followed_organizer_new_event' => $user->wantsNotification('followed_organizer_new_event', false),
-            ],
-        ]);
+        return response()->json($this->notifyingCounts($request->user()->id));
     }
 
     /**
-     * Both keys are required, not "sometimes" — the frontend always submits the
-     * complete two-key state (with whichever one was just toggled), never a
-     * lone key. Combined with the frontend disabling both switches during any
-     * in-flight save, this closes the race between the two toggles in THIS
-     * component. It does NOT close the read-modify-write race against
-     * ProfilesController::update(), which writes this same column via a
-     * separate, independent request (e.g. the admin Account Settings page
-     * open in another tab) — a save from each within the same instant could
-     * still lose one side's change. Fixing that fully would mean adding
-     * row-level locking to both write paths, including retrofitting it into
-     * ProfilesController::update()'s larger, more complex method (image
-     * uploads, email-change branches). Accepted as a known, narrow risk for
-     * now rather than restructuring that shared method for it.
+     * See ClearAllNotificationsAction for what this actually does (a
+     * one-time bulk write, not a persistent switch). Returns the same
+     * notifying counts as above — after this runs they're both 0, which is
+     * the visible confirmation that the button worked.
      */
-    public function update(Request $request)
+    public function clearAll(Request $request, ClearAllNotificationsAction $action)
     {
-        $validated = $request->validate([
-            'saved_event_new_dates' => 'required|boolean',
-            'followed_organizer_new_event' => 'required|boolean',
-        ]);
+        $userId = $request->user()->id;
+        $action->handle($userId);
 
-        $user = $request->user();
-        $user->update([
-            'notification_preferences' => array_merge($user->notification_preferences ?? [], $validated),
-        ]);
+        return response()->json($this->notifyingCounts($userId));
+    }
 
-        return response()->json(['notification_preferences' => $validated]);
+    private function notifyingCounts(int $userId): array
+    {
+        $savedEventsCount = DB::table('favorites')
+            ->where('user_id', $userId)
+            ->where(function ($query) {
+                $query->whereNull('notify_new_dates')->orWhere('notify_new_dates', true);
+            })
+            ->count();
+
+        $followedOrganizersCount = DB::table('organizer_followers')
+            ->where('user_id', $userId)
+            ->where(function ($query) {
+                $query->whereNull('notify_new_events')->orWhere('notify_new_events', true);
+            })
+            ->count();
+
+        return [
+            'saved_events_count' => $savedEventsCount,
+            'followed_organizers_count' => $followedOrganizersCount,
+        ];
     }
 }

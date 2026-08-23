@@ -1,131 +1,162 @@
 <?php
 
+use App\Models\Event;
+use App\Models\Organizer;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 // ---------------------------------------------------------------------------
-// wantsNotification() — new opt-in default, backward-compat with opt-out default
+// GET /api/hub/notification-preferences/counts
 // ---------------------------------------------------------------------------
 
-test('wantsNotification defaults a missing key to false when passed default false', function () {
-    $user = User::factory()->create(['notification_preferences' => null]);
-
-    expect($user->wantsNotification('saved_event_new_dates', false))->toBeFalse();
-    expect($user->wantsNotification('followed_organizer_new_event', false))->toBeFalse();
+test('a guest cannot read notification counts', function () {
+    $this->getJson('/api/hub/notification-preferences/counts')->assertStatus(401);
 });
 
-test('wantsNotification still defaults a missing key to true when no default is passed', function () {
-    $user = User::factory()->create(['type' => 'a', 'notification_preferences' => null]);
+test('counts only include favorites/follows currently notifying, not the raw totals', function () {
+    $user = User::factory()->create();
+    $notifying = Event::factory()->published()->create();
+    $silenced = Event::factory()->published()->create();
+    $this->actingAs($user);
+    $notifying->favorite();
+    $silenced->favorite();
+    $silenced->favorites()->where('user_id', $user->id)->update(['notify_new_dates' => false]);
 
-    expect($user->wantsNotification('organizers'))->toBeTrue();
-});
+    $orgNotifying = Organizer::factory()->create(['status' => 'p']);
+    $orgSilenced = Organizer::factory()->create(['status' => 'p']);
+    $orgNotifying->follow();
+    $orgSilenced->follow();
+    DB::table('organizer_followers')->where(['organizer_id' => $orgSilenced->id, 'user_id' => $user->id])->update(['notify_new_events' => false]);
 
-test('an explicit true value wins over an opt-in false default', function () {
-    $user = User::factory()->create(['notification_preferences' => ['saved_event_new_dates' => true]]);
+    $response = $this->actingAs($user)->getJson('/api/hub/notification-preferences/counts')->assertOk();
 
-    expect($user->wantsNotification('saved_event_new_dates', false))->toBeTrue();
-});
-
-// ---------------------------------------------------------------------------
-// GET /api/hub/notification-preferences
-// ---------------------------------------------------------------------------
-
-test('a user with no saved preferences sees both new toggles default off', function () {
-    $user = User::factory()->create(['notification_preferences' => null]);
-
-    $this->actingAs($user)
-        ->getJson('/api/hub/notification-preferences')
-        ->assertOk()
-        ->assertExactJson(['notification_preferences' => [
-            'saved_event_new_dates' => false,
-            'followed_organizer_new_event' => false,
-        ]]);
-});
-
-test('the response never includes unrelated admin keys', function () {
-    $user = User::factory()->create([
-        'type' => 'a',
-        'notification_preferences' => ['organizers' => false, 'events' => true],
-    ]);
-
-    $response = $this->actingAs($user)->getJson('/api/hub/notification-preferences')->assertOk();
-
-    expect($response->json('notification_preferences'))->toHaveKeys([
-        'saved_event_new_dates', 'followed_organizer_new_event',
-    ])->not->toHaveKeys(['organizers', 'events']);
-});
-
-test('a guest cannot read notification preferences', function () {
-    $this->getJson('/api/hub/notification-preferences')->assertStatus(401);
-});
-
-// ---------------------------------------------------------------------------
-// PATCH /api/hub/notification-preferences
-// ---------------------------------------------------------------------------
-
-test('an authenticated user can turn both toggles on', function () {
-    $user = User::factory()->create(['notification_preferences' => null]);
-
-    $this->actingAs($user)
-        ->patchJson('/api/hub/notification-preferences', [
-            'saved_event_new_dates' => true,
-            'followed_organizer_new_event' => true,
-        ])
-        ->assertOk()
-        ->assertExactJson(['notification_preferences' => [
-            'saved_event_new_dates' => true,
-            'followed_organizer_new_event' => true,
-        ]]);
-
-    expect($user->fresh()->notification_preferences)->toMatchArray([
-        'saved_event_new_dates' => true,
-        'followed_organizer_new_event' => true,
+    // 2 saved/2 followed total, but only 1 of each still notifies.
+    expect($response->json())->toBe([
+        'saved_events_count' => 1,
+        'followed_organizers_count' => 1,
     ]);
 });
 
-test('updating the two new keys does not clobber pre-existing admin keys', function () {
-    $admin = User::factory()->create([
-        'type' => 'a',
-        'notification_preferences' => ['organizers' => false, 'events' => true],
-    ]);
+test('an untouched favorite/follow (no override yet) counts as notifying', function () {
+    $user = User::factory()->create();
+    $event = Event::factory()->published()->create();
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $this->actingAs($user);
+    $event->favorite();
+    $organizer->follow();
 
-    $this->actingAs($admin)
-        ->patchJson('/api/hub/notification-preferences', [
-            'saved_event_new_dates' => true,
-            'followed_organizer_new_event' => false,
-        ])
-        ->assertOk();
+    $response = $this->actingAs($user)->getJson('/api/hub/notification-preferences/counts')->assertOk();
 
-    $fresh = $admin->fresh()->notification_preferences;
-    expect($fresh)->toMatchArray([
-        'organizers' => false,
-        'events' => true,
-        'saved_event_new_dates' => true,
-        'followed_organizer_new_event' => false,
+    expect($response->json())->toBe([
+        'saved_events_count' => 1,
+        'followed_organizers_count' => 1,
     ]);
 });
 
-test('a guest cannot update notification preferences', function () {
-    $this->patchJson('/api/hub/notification-preferences', [
-        'saved_event_new_dates' => true,
-        'followed_organizer_new_event' => true,
-    ])->assertStatus(401);
+test('counts do not include another users favorites or follows', function () {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $this->actingAs($other);
+    Event::factory()->published()->create()->favorite();
+    Organizer::factory()->create(['status' => 'p'])->follow();
+
+    $response = $this->actingAs($user)->getJson('/api/hub/notification-preferences/counts')->assertOk();
+
+    expect($response->json())->toBe(['saved_events_count' => 0, 'followed_organizers_count' => 0]);
 });
 
-test('a missing key is rejected', function () {
+// ---------------------------------------------------------------------------
+// POST /api/hub/notification-preferences/clear-all
+// ---------------------------------------------------------------------------
+
+test('a guest cannot clear all notifications', function () {
+    $this->postJson('/api/hub/notification-preferences/clear-all')->assertStatus(401);
+});
+
+test('clearing sets notify_new_dates false on every one of the users favorites', function () {
+    $user = User::factory()->create();
+    $eventA = Event::factory()->published()->create();
+    $eventB = Event::factory()->published()->create();
+    $this->actingAs($user);
+    $eventA->favorite();
+    $eventB->favorite();
+
+    $this->actingAs($user)->postJson('/api/hub/notification-preferences/clear-all')->assertOk();
+
+    expect($eventA->favorites()->where('user_id', $user->id)->value('notify_new_dates'))->toBe(0);
+    expect($eventB->favorites()->where('user_id', $user->id)->value('notify_new_dates'))->toBe(0);
+});
+
+test('clearing sets notify_new_events false on every one of the users followed organizers', function () {
+    $user = User::factory()->create();
+    $orgA = Organizer::factory()->create(['status' => 'p']);
+    $orgB = Organizer::factory()->create(['status' => 'p']);
+    $this->actingAs($user);
+    $orgA->follow();
+    $orgB->follow();
+
+    $this->actingAs($user)->postJson('/api/hub/notification-preferences/clear-all')->assertOk();
+
+    expect(DB::table('organizer_followers')->where(['organizer_id' => $orgA->id, 'user_id' => $user->id])->value('notify_new_events'))->toBe(0);
+    expect(DB::table('organizer_followers')->where(['organizer_id' => $orgB->id, 'user_id' => $user->id])->value('notify_new_events'))->toBe(0);
+});
+
+test('clearing does not unsave events or unfollow organizers, only silences them', function () {
+    $user = User::factory()->create();
+    $event = Event::factory()->published()->create();
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $this->actingAs($user);
+    $event->favorite();
+    $organizer->follow();
+
+    $this->actingAs($user)->postJson('/api/hub/notification-preferences/clear-all')->assertOk();
+
+    expect($user->fresh()->favouritedEvents()->count())->toBe(1);
+    expect($user->fresh()->followedOrganizers()->count())->toBe(1);
+});
+
+test('clearing does not touch another users favorites or follows', function () {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $event = Event::factory()->published()->create();
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+
+    $this->actingAs($other);
+    $event->favorite();
+    $organizer->follow();
+    $event->favorites()->where('user_id', $other->id)->update(['notify_new_dates' => true]);
+    DB::table('organizer_followers')->where(['organizer_id' => $organizer->id, 'user_id' => $other->id])->update(['notify_new_events' => true]);
+
+    $this->actingAs($user)->postJson('/api/hub/notification-preferences/clear-all')->assertOk();
+
+    expect($event->favorites()->where('user_id', $other->id)->value('notify_new_dates'))->toBe(1);
+    expect(DB::table('organizer_followers')->where(['organizer_id' => $organizer->id, 'user_id' => $other->id])->value('notify_new_events'))->toBe(1);
+});
+
+test('clearing returns the callers post-clear notifying counts, both zero', function () {
+    $user = User::factory()->create();
+    $events = Event::factory()->published()->count(3)->create();
+    $this->actingAs($user);
+    foreach ($events as $event) {
+        $event->favorite();
+    }
+    Organizer::factory()->create(['status' => 'p'])->follow();
+
+    $response = $this->actingAs($user)->postJson('/api/hub/notification-preferences/clear-all')->assertOk();
+
+    // Raw totals are 3 saved / 1 followed, but nothing notifies anymore —
+    // this is what tells the page's "Clear all" button visibly worked.
+    expect($response->json())->toBe([
+        'saved_events_count' => 0,
+        'followed_organizers_count' => 0,
+    ]);
+});
+
+test('clearing with nothing saved or followed does not error', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->patchJson('/api/hub/notification-preferences', ['saved_event_new_dates' => true])
-        ->assertStatus(422);
-});
-
-test('a non-boolean value is rejected', function () {
-    $user = User::factory()->create();
-
-    $this->actingAs($user)
-        ->patchJson('/api/hub/notification-preferences', [
-            'saved_event_new_dates' => 'not-a-bool',
-            'followed_organizer_new_event' => true,
-        ])
-        ->assertStatus(422);
+        ->postJson('/api/hub/notification-preferences/clear-all')
+        ->assertOk()
+        ->assertJson(['saved_events_count' => 0, 'followed_organizers_count' => 0]);
 });
