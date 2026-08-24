@@ -125,10 +125,19 @@
 @endphp
 
 <div class="relative">
-    {{-- Navigation bar — normal flow above the photo (not absolute over it),
-         so it never covers photo content; the photo is pushed down by the
-         bar's own height instead. --}}
-    <div class="w-full bg-white px-4 py-3 flex justify-between items-center">
+    {{-- Navigation bar — fixed, not sticky: this element's `relative`
+         ancestor only wraps the header + hero image/gallery, not the rest
+         of the page below (description, dates, etc.), and `position:
+         sticky` can only stay stuck while its scroll position is within
+         that ancestor's own box — once the ancestor (header+image) scrolls
+         fully past the viewport top, the sticky bar's containing block is
+         gone too, so it scrolls away with it instead of staying pinned
+         (live report: bar disappears partway down the page). `fixed`
+         anchors to the viewport itself regardless of any ancestor's
+         height, so it stays for the whole page. Taking it out of flow
+         means the content below needs the spacer below in its place, so
+         nothing jumps up underneath it. --}}
+    <div class="fixed top-0 left-0 right-0 z-40 w-full bg-white px-4 py-3 flex justify-between items-center">
         <button
             onclick="if (window.history.length > 1) { window.history.back(); } else { window.location.href = '/'; }"
             class="w-16 h-16 flex items-center justify-center rounded-full hover:bg-neutral-100"
@@ -145,6 +154,11 @@
             @share="handleShare()"
         ></vue-event-actions>
     </div>
+    {{-- Spacer matching the fixed bar's own rendered height (measured, not
+         guessed from its padding/button size — vue-event-actions' icons
+         end up shorter than the 64px back button) so it doesn't overlap
+         the hero image/gallery right below it. --}}
+    <div class="h-[55px]" aria-hidden="true"></div>
 
     {{-- No Images or Videos Case --}}
     @if($totalMediaCount === 0)

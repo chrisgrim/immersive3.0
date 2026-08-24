@@ -71,7 +71,20 @@ const isHidden = ref(false);
 // back arrow for the whole visit. The listener below still handles every
 // LATER change correctly (e.g. opening the search overlay while already on
 // the home page) — this only fixes the unreliable initial value.
-const isSearchOpen = ref(window.location.pathname !== '/');
+//
+// That pathname guess assumed every non-home page has nav-search-mobile.vue
+// mounted to correct it via the event below — true for the search/home
+// pages it was written for, but nav-search-mobile.vue only actually renders
+// on pages that @include nav.index-mobile (see that partial). Pages that
+// mount this bar WITHOUT it — Profile, Menu, Account Settings, etc. — have
+// nothing to ever dispatch the correction, so the guess of "open" stuck
+// forever and permanently hid the bar there (caught from a live report:
+// the bottom nav was silently missing on /users/{id} and /menu). Checking
+// for that element's presence in the server-rendered HTML (synchronous,
+// same timing guarantee as the pathname check) keeps the original fix for
+// search/home intact while no longer mis-firing on every other page.
+const hasSearchMobile = !!document.querySelector('vue-nav-search-mobile');
+const isSearchOpen = ref(hasSearchMobile && window.location.pathname !== '/');
 const handleSearchToggle = (event) => {
     isSearchOpen.value = !!event.detail?.open;
 };

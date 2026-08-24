@@ -5,7 +5,7 @@
 @endsection
 
 @section('content')
-<div class="min-h-screen bg-white px-8">
+<div class="min-h-screen bg-white px-8 pb-36">
     <div class="flex items-center justify-between mb-12 mt-20">
         <h1 class="text-5xl font-medium">Menu</h1>
     </div>

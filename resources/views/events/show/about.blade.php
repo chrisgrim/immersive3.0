@@ -72,7 +72,7 @@
                         <use xlink:href="/storage/website-files/icons.svg#ri-price-tag-3-line" />
                     </svg>
                     <div>
-                        <p class="text-2xl md:text-1xl leading-tight font-semibold">Genre</p>
+                        <p class="text-2xl md:text-1xl leading-tight font-semibold">Tag</p>
                         <a href="/index/search?tag={{ $primaryGenre->id }}&searchType=allEvents" class="text-xl font-medium text-neutral-500 hover:text-black">
                             {{ $primaryGenre->name }}
                         </a>

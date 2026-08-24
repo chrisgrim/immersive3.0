@@ -259,121 +259,133 @@
 
     @if (Browser::isMobile())
         <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                // Photo Gallery Functions
-                window.showPhotoGallery = function() {
+            // Assigned immediately, NOT gated behind DOMContentLoaded — Vite's
+            // module scripts (which mount the Vue app, including the Share
+            // button in header-mobile.blade.php) run BEFORE DOMContentLoaded
+            // fires per spec, so gating this here left a real window where
+            // the button was already tappable but window.handleShare wasn't
+            // defined yet (Sentry EI-VUE-12: "handleShare is not a
+            // function", hit by a fast tap right after page load). Safe to
+            // assign eagerly since every function below only touches the DOM
+            // when actually called, never at definition time.
+
+            // Photo Gallery Functions
+            window.showPhotoGallery = function() {
+                document.body.style.overflow = 'hidden';
+                const galleryContainer = document.createElement('div');
+                galleryContainer.id = 'photoGallery';
+                galleryContainer.innerHTML = `@include('events.show.mobile-photo-gallery')`;
+                document.body.appendChild(galleryContainer);
+            };
+
+            window.closePhotoGallery = function() {
+                document.body.style.overflow = 'auto';
+                const gallery = document.getElementById('photoGallery');
+                if (gallery) gallery.remove();
+            };
+
+            // Share Modal Functions
+            window.handleShare = function() {
+                document.getElementById('shareModal').classList.remove('hidden');
+            };
+
+            window.closeShareModal = function() {
+                document.getElementById('shareModal').classList.add('hidden');
+            };
+
+            window.toggleShareModal = function() {
+                const modal = document.getElementById('shareModal');
+                if (modal.classList.contains('hidden')) {
+                    modal.classList.remove('hidden');
                     document.body.style.overflow = 'hidden';
-                    const galleryContainer = document.createElement('div');
-                    galleryContainer.id = 'photoGallery';
-                    galleryContainer.innerHTML = `@include('events.show.mobile-photo-gallery')`;
-                    document.body.appendChild(galleryContainer);
-                };
-
-                window.closePhotoGallery = function() {
+                } else {
+                    modal.classList.add('hidden');
                     document.body.style.overflow = 'auto';
-                    const gallery = document.getElementById('photoGallery');
-                    if (gallery) gallery.remove();
-                };
+                }
+            };
 
-                // Share Modal Functions
-                window.handleShare = function() {
-                    document.getElementById('shareModal').classList.remove('hidden');
-                };
-
-                window.closeShareModal = function() {
-                    document.getElementById('shareModal').classList.add('hidden');
-                };
-
-                window.toggleShareModal = function() {
-                    const modal = document.getElementById('shareModal');
-                    if (modal.classList.contains('hidden')) {
-                        modal.classList.remove('hidden');
-                        document.body.style.overflow = 'hidden';
-                    } else {
-                        modal.classList.add('hidden');
-                        document.body.style.overflow = 'auto';
-                    }
-                };
-
-                window.copyLink = function() {
-                    const tempInput = document.createElement('input');
-                    tempInput.value = window.location.href;
-                    document.body.appendChild(tempInput);
-                    tempInput.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(tempInput);
-                    alert('Link copied to clipboard!');
-                    closeShareModal();
-                };
-            });
+            window.copyLink = function() {
+                const tempInput = document.createElement('input');
+                tempInput.value = window.location.href;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempInput);
+                alert('Link copied to clipboard!');
+                closeShareModal();
+            };
         </script>
     @else
         <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                // Share Modal Functions
-                window.toggleShareModal = function() {
-                    const modal = document.getElementById('shareModal');
-                    if (modal.classList.contains('hidden')) {
-                        modal.classList.remove('hidden');
-                        document.body.style.overflow = 'hidden';
-                    } else {
-                        modal.classList.add('hidden');
-                        document.body.style.overflow = 'auto';
+            // Assigned immediately, not gated behind DOMContentLoaded — same
+            // race as the mobile branch above (Sentry EI-VUE-12); every
+            // function here only touches the DOM when actually called.
+            // Share Modal Functions
+            window.toggleShareModal = function() {
+                const modal = document.getElementById('shareModal');
+                if (modal.classList.contains('hidden')) {
+                    modal.classList.remove('hidden');
+                    document.body.style.overflow = 'hidden';
+                } else {
+                    modal.classList.add('hidden');
+                    document.body.style.overflow = 'auto';
+                }
+            };
+
+            // Photo Gallery Functions for Multiple Images
+            @if($totalMediaCount > 1)
+                window.addEventListener('showAllPhotos', function(e) {
+                    const headerContent = document.getElementById('headerContent');
+                    headerContent.innerHTML = `@include('events.show.photo-gallery')`;
+                    setTimeout(checkScrollPosition, 0);
+                });
+
+                window.closePhotoGallery = function() {
+                    const headerContent = document.getElementById('headerContent');
+                    headerContent.innerHTML = `@include('events.show.header-multiple')`;
+                };
+
+                window.checkScrollPosition = function() {
+                    const container = document.getElementById('photo-scroll-container');
+                    const leftArrow = document.getElementById('leftArrow');
+                    const rightArrow = document.getElementById('rightArrow');
+
+                    if (container) {
+                        leftArrow.classList.toggle('hidden', container.scrollLeft <= 0);
+                        const canScrollRight = container.scrollWidth > (container.scrollLeft + container.clientWidth + 50);
+                        rightArrow.classList.toggle('hidden', !canScrollRight);
                     }
                 };
 
-                // Photo Gallery Functions for Multiple Images
-                @if($totalMediaCount > 1)
-                    window.addEventListener('showAllPhotos', function(e) {
-                        const headerContent = document.getElementById('headerContent');
-                        headerContent.innerHTML = `@include('events.show.photo-gallery')`;
-                        setTimeout(checkScrollPosition, 0);
-                    });
+                window.scrollPhotoLeft = function() {
+                    const container = document.getElementById('photo-scroll-container');
+                    if (container) {
+                        container.scrollBy({
+                            left: -container.offsetWidth,
+                            behavior: 'smooth'
+                        });
+                    }
+                };
 
-                    window.closePhotoGallery = function() {
-                        const headerContent = document.getElementById('headerContent');
-                        headerContent.innerHTML = `@include('events.show.header-multiple')`;
-                    };
+                window.scrollPhotoRight = function() {
+                    const container = document.getElementById('photo-scroll-container');
+                    if (container) {
+                        container.scrollBy({
+                            left: container.offsetWidth,
+                            behavior: 'smooth'
+                        });
+                    }
+                };
 
-                    window.checkScrollPosition = function() {
-                        const container = document.getElementById('photo-scroll-container');
-                        const leftArrow = document.getElementById('leftArrow');
-                        const rightArrow = document.getElementById('rightArrow');
-
-                        if (container) {
-                            leftArrow.classList.toggle('hidden', container.scrollLeft <= 0);
-                            const canScrollRight = container.scrollWidth > (container.scrollLeft + container.clientWidth + 50);
-                            rightArrow.classList.toggle('hidden', !canScrollRight);
-                        }
-                    };
-
-                    window.scrollPhotoLeft = function() {
-                        const container = document.getElementById('photo-scroll-container');
-                        if (container) {
-                            container.scrollBy({
-                                left: -container.offsetWidth,
-                                behavior: 'smooth'
-                            });
-                        }
-                    };
-
-                    window.scrollPhotoRight = function() {
-                        const container = document.getElementById('photo-scroll-container');
-                        if (container) {
-                            container.scrollBy({
-                                left: container.offsetWidth,
-                                behavior: 'smooth'
-                            });
-                        }
-                    };
-
-                    // Initialize scroll position checks
-                    document.addEventListener('DOMContentLoaded', function() {
-                        checkScrollPosition();
-                        window.addEventListener('resize', checkScrollPosition);
-                    });
-                @endif
-            });
+                // This one DOES need to wait — unlike the assignments above,
+                // it actually calls checkScrollPosition() immediately, which
+                // reads real layout (scrollLeft/scrollWidth) that isn't
+                // meaningful until the DOM is ready.
+                document.addEventListener('DOMContentLoaded', function() {
+                    checkScrollPosition();
+                    window.addEventListener('resize', checkScrollPosition);
+                });
+            @endif
         </script>
     @endif
 @endsection

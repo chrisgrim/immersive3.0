@@ -19,7 +19,7 @@
              mobile-only (this component sits full-bleed there — see
              Hub/index.vue — so it needs its own inset); lg: and up it's
              already inset by the right column's own padding. -->
-        <div class="mx-auto w-full xl:w-2/3 flex flex-col gap-12 pb-6 px-6 lg:px-0">
+        <div class="mx-auto w-full xl:w-2/3 flex flex-col gap-12 pb-32 lg:pb-6 px-6 lg:px-0">
             <!-- Each part is its own plain section — no shared card, no border
                  box, no divider lines between them. -->
             <div>
@@ -70,17 +70,30 @@
 
             <div>
                 <p class="text-2xl font-semibold mb-4">Price range</p>
-                <vue-slider
-                    v-model="priceModel"
-                    :min="0"
-                    :max="maxPrice"
-                    :tooltip="'none'"
-                    :enable-cross="false"
-                    :process-style="{ backgroundColor: '#000' }"
-                    :rail-style="{ backgroundColor: '#e5e5e5' }"
-                    :dot-style="{ border: '2px solid black', backgroundColor: 'white', width: '24px', height: '24px', marginTop: '-.5rem' }"
-                    class="w-full mb-6"
-                />
+                <!-- px-3 = half the 24px dot below: vue-slider-component positions
+                     a dot's CENTER at the rail's 0%/100% points, so at full width
+                     its 24px circle overhangs the rail (and this whole column's
+                     shared edge, every other field here — the map, the price
+                     bubbles, Categories — respects) by 12px on each side. That
+                     doesn't create real horizontal scroll (the overhang is still
+                     inside this component's own outer px-6), which is why it
+                     didn't show up in a scrollWidth check, only by eye against
+                     its neighbors (live report, mobile). Insetting the rail by
+                     the dot's own radius keeps its OUTER edge flush with them
+                     instead. -->
+                <div class="px-7">
+                    <vue-slider
+                        v-model="priceModel"
+                        :min="0"
+                        :max="maxPrice"
+                        :tooltip="'none'"
+                        :enable-cross="false"
+                        :process-style="{ backgroundColor: '#000' }"
+                        :rail-style="{ backgroundColor: '#e5e5e5' }"
+                        :dot-style="{ border: '2px solid black', backgroundColor: 'white', width: '24px', height: '24px', marginTop: '-.5rem' }"
+                        class="w-full mb-6"
+                    />
+                </div>
                 <div class="flex justify-between">
                     <div class="space-y-2">
                         <div class="text-base font-medium text-neutral-600">Minimum</div>
@@ -142,8 +155,19 @@
              full pane edge-to-edge like a real sticky bar rather than
              floating short of the border/edge on both sides. Mobile isn't
              wrapped in that padding (this component sits full-bleed there
-             already — see the px-6 above), so this only applies at lg:. -->
-        <div class="flex-shrink-0 border-t border-neutral-200 bg-white flex items-center justify-end gap-4 px-6 py-3 lg:-mx-20 lg:-mb-20">
+             already — see the px-6 above), so this only applies at lg:.
+
+             Mobile-only fixed bottom-0: below lg, this outer wrapper has no
+             h-full (see the comment at the top of this file), so without
+             this the footer just sat in normal flow at the end of the form
+             — scrolled away with the content instead of staying reachable,
+             and its tap target (py-3) was cramped (live report: hard to hit
+             the Save button). py-6 makes the BAR taller, not the button
+             itself — the button keeps its own px-6 py-3 unchanged, just
+             gets more breathing room around it. pb-32 on the content div
+             above compensates for this now being pulled out of flow. lg:
+             reverts both to the original desktop-pane behavior. -->
+        <div class="flex-shrink-0 border-t border-neutral-200 bg-white flex items-center justify-end gap-4 px-6 py-6 fixed bottom-0 left-0 right-0 z-40 lg:static lg:py-3 lg:-mx-20 lg:-mb-20">
             <p v-if="error" class="text-red-600 mr-auto">{{ error }}</p>
             <p v-else-if="locationMissing" class="text-red-600 mr-auto">Pick a location to save this search.</p>
             <button
