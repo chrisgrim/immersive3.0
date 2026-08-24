@@ -202,7 +202,7 @@ const DROPDOWN_TOTAL_LIMIT = 6;
 // by searching with nothing picked. slug: null is already what
 // handleSearch()/nav-search-mobile.vue's handleAtHomeSearch treat as "no
 // platform filter", so nothing else needs to special-case it.
-const ALL_TYPES_OPTION = { id: 'all', name: 'All', slug: null };
+const ALL_TYPES_OPTION = { id: 'all', name: 'All At Home', slug: null };
 
 let fetchTypesToken = 0;
 const fetchTypes = async (search) => {

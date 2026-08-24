@@ -295,7 +295,7 @@ const DROPDOWN_TOTAL_LIMIT = 6;
 // the v-for's :key unique. Only shown in the resting (untyped) list, not
 // mixed into live-typed results — it doesn't fuzzy-match what was typed the
 // way the other entries do.
-const ALL_TYPES_OPTION = { id: 'all', name: 'All', slug: null };
+const ALL_TYPES_OPTION = { id: 'all', name: 'All At Home', slug: null };
 
 const fetchTypes = async (search) => {
     const token = ++fetchTypesToken;

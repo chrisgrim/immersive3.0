@@ -57,11 +57,14 @@ test('category order does not affect the fingerprint', function () {
     $this->assertDatabaseCount('saved_searches', 1);
 });
 
-test('saving different criteria creates a separate row, up to the cap — recent searches is a real history', function () {
-    // Regression: this used to collapse every ordinary search into a single
-    // rotating "recent" slot, so the dropdown only ever showed the latest
-    // one. A user can have up to MAX_SAVED_SEARCHES total, so under the cap
-    // each distinct search should get its own row.
+test('saving different criteria overwrites the existing scratch row instead of creating a new one', function () {
+    // Casual, undirected browsing (search NY, then LA, never touching the
+    // editor) must never pile up rows on the Saved Search Preferences page
+    // — only what the user deliberately keeps (pinned, or edited-and-saved)
+    // should accumulate there. Spelled out directly by the user, with a
+    // worked example, after an earlier version of this class let every
+    // distinct search create its own row up to the cap — exactly the
+    // piling-up this test now guards against.
     $user = User::factory()->create();
 
     $first = $this->actingAs($user)->postJson('/api/hub/saved-searches', [
@@ -72,40 +75,80 @@ test('saving different criteria creates a separate row, up to the cap — recent
         'name' => 'Los Angeles, CA', 'criteria' => ['city' => 'Los Angeles, CA'],
     ])->assertCreated()->json('search');
 
-    $this->assertDatabaseCount('saved_searches', 2);
-    expect($second['id'])->not->toBe($first['id']);
-    $this->assertDatabaseHas('saved_searches', ['id' => $first['id'], 'name' => 'New York, NY']);
-    $this->assertDatabaseHas('saved_searches', ['id' => $second['id'], 'name' => 'Los Angeles, CA']);
+    $this->assertDatabaseCount('saved_searches', 1);
+    expect($second['id'])->toBe($first['id']);
+    expect($second['name'])->toBe('Los Angeles, CA');
+    $this->assertDatabaseHas('saved_searches', ['id' => $first['id'], 'name' => 'Los Angeles, CA']);
 });
 
-test('once at the cap, a new distinct search evicts the least-recently-touched scratch row', function () {
+test('several ordinary searches in a row still only ever occupy the single scratch slot', function () {
     $user = User::factory()->create();
 
-    $oldest = $this->actingAs($user)->postJson('/api/hub/saved-searches', [
+    $first = $this->actingAs($user)->postJson('/api/hub/saved-searches', [
         'name' => 'Search A', 'criteria' => ['city' => 'City A'],
     ])->assertCreated()->json('search');
 
-    for ($i = 1; $i <= 4; $i++) {
+    foreach (['B', 'C', 'D', 'E'] as $letter) {
         $this->actingAs($user)->postJson('/api/hub/saved-searches', [
-            'name' => "Search {$i}", 'criteria' => ['city' => "City {$i}"],
+            'name' => "Search {$letter}", 'criteria' => ['city' => "City {$letter}"],
         ])->assertCreated();
     }
 
-    $newest = $this->actingAs($user)->postJson('/api/hub/saved-searches', [
-        'name' => 'Search E', 'criteria' => ['city' => 'City E'],
+    $this->assertDatabaseCount('saved_searches', 1);
+    $this->assertDatabaseHas('saved_searches', ['id' => $first['id'], 'name' => 'Search E']);
+});
+
+test('a stray extra scratch row (leftover from before this revert) is cleaned up by the next ordinary search', function () {
+    // Self-healing regression test: an earlier version of SaveSearchAction
+    // briefly let several is_scratch rows accumulate per user before this
+    // was reverted back to a single slot. Rather than needing a manual
+    // one-off data cleanup, the very next ordinary search a user does
+    // should consolidate back down to one on its own.
+    $user = User::factory()->create();
+    $stale1 = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Stale A', 'is_scratch' => true]);
+    $this->travel(1)->minutes();
+    $stale2 = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Stale B', 'is_scratch' => true]);
+    $protected = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Kept', 'pinned' => true]);
+
+    $this->assertDatabaseCount('saved_searches', 3);
+
+    $this->actingAs($user)->postJson('/api/hub/saved-searches', [
+        'name' => 'Denver, CO', 'criteria' => ['city' => 'Denver, CO'],
+    ])->assertCreated();
+
+    // Down to 2: the protected row, untouched, plus the single scratch
+    // slot — reused from the most-recently-touched stray (Stale B), not a
+    // brand new row, with the other stray (Stale A) deleted outright.
+    $this->assertDatabaseCount('saved_searches', 2);
+    $this->assertDatabaseHas('saved_searches', ['id' => $protected->id, 'name' => 'Kept']);
+    $this->assertDatabaseHas('saved_searches', ['id' => $stale2->id, 'name' => 'Denver, CO']);
+    $this->assertDatabaseMissing('saved_searches', ['id' => $stale1->id]);
+});
+
+test('a stray scratch row is cleaned up even when the new search exactly matches a different stray row', function () {
+    // Regression test for the exact-match branch (fingerprint already
+    // matches an existing row) skipping cleanup — it returned early before
+    // the reuse branch's consolidation ever ran, so repeating an old search
+    // left other stray rows stranded forever instead of self-healing on the
+    // user's very next ordinary search (caught in codex review).
+    $user = User::factory()->create();
+
+    $first = $this->actingAs($user)->postJson('/api/hub/saved-searches', [
+        'name' => 'Denver, CO', 'criteria' => ['city' => 'Denver, CO'],
     ])->assertCreated()->json('search');
 
-    $this->assertDatabaseCount('saved_searches', App\Actions\Search\SaveSearchAction::MAX_SAVED_SEARCHES);
+    $this->travel(1)->minutes();
+    $stray = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Stray', 'is_scratch' => true]);
 
-    // The 7th distinct search evicts "Search A" (the oldest, least-recently
-    // touched row) rather than any of the more recently created ones.
-    $seventh = $this->actingAs($user)->postJson('/api/hub/saved-searches', [
-        'name' => 'Search F', 'criteria' => ['city' => 'City F'],
-    ])->assertCreated()->json('search');
+    $this->assertDatabaseCount('saved_searches', 2);
 
-    expect($seventh['id'])->toBe($oldest['id']);
-    $this->assertDatabaseHas('saved_searches', ['id' => $oldest['id'], 'name' => 'Search F']);
-    $this->assertDatabaseHas('saved_searches', ['id' => $newest['id'], 'name' => 'Search E']);
+    $this->actingAs($user)->postJson('/api/hub/saved-searches', [
+        'name' => 'Denver, CO', 'criteria' => ['city' => 'Denver, CO'],
+    ])->assertCreated();
+
+    $this->assertDatabaseCount('saved_searches', 1);
+    $this->assertDatabaseHas('saved_searches', ['id' => $first['id']]);
+    $this->assertDatabaseMissing('saved_searches', ['id' => $stray['id']]);
 });
 
 test('pinning the current row protects it, and the next save creates a fresh unpinned row', function () {
@@ -187,10 +230,12 @@ test('toggling pin flips the flag and is idempotent to call again', function () 
         ->assertOk()->assertJsonPath('search.pinned', false);
 });
 
-test('unpinning a row never deletes another unpinned row — a genuine multi-row history, not a single slot', function () {
-    // SaveSearchAction keeps up to MAX_SAVED_SEARCHES distinct recent
-    // searches, not one rotating slot — unpinning one of them must not
-    // wipe out an unrelated, legitimately distinct recent search.
+test('unpinning a row never deletes another unpinned row — protected rows are not the scratch slot', function () {
+    // is_scratch, not pinned, is what decides which single row is the
+    // rotating "current search" slot — a row that's already protected
+    // (pinned, or edited-and-saved) is never a candidate for that slot, so
+    // unpinning one row must never touch a genuinely separate, already-
+    // protected-but-unpinned row.
     $user = User::factory()->create();
     $alreadyUnpinned = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Boston, MA', 'pinned' => false]);
     $toUnpin = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Los Angeles, CA', 'pinned' => true]);

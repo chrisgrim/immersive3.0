@@ -11,18 +11,24 @@ use Illuminate\Support\Facades\Cache;
  * user submits a search on the Location/At Home tabs (see nav-search.vue's
  * handleLocationSearch/handleAtHomeSearch). It normalizes the criteria into
  * the canonical shape SavedSearch rows store (see the saved_searches
- * migration), fingerprints it, and writes a distinct "recent search" row
- * for each genuinely different search — this is meant to be a real, if
- * short, history (the dropdown is literally labeled "Recent searches",
- * plural), not a single slot that only ever shows the latest one. Bounded
- * by MAX_SAVED_SEARCHES: once a user is at the cap, the least-recently-
- * touched scratch row is evicted (its name/criteria overwritten in place)
- * to make room, rather than growing the row count further.
- * A row stops being evictable the moment a person deliberately touches it:
- * pinning it (SavedSearchController::togglePin) or editing it
- * (UpdateSavedSearchAction) both clear `is_scratch` permanently (see that
- * column's migration — pinned alone isn't enough, since unpinning a
- * deliberately-edited row must not throw it back into this eviction pool).
+ * migration), fingerprints it, and writes it to the user's SINGLE scratch
+ * "current search" slot — overwriting whatever was there before, not
+ * adding a new row. Casual, undirected browsing (search NY, then LA, then
+ * SF, never touching the editor) should never pile up rows on the Saved
+ * Search Preferences page — only what the user deliberately keeps should
+ * show up there (spelled out directly by the user, with a worked example,
+ * after an earlier multi-row-history version of this class did exactly the
+ * piling-up it shouldn't).
+ * A row stops being reclaimable the moment a person deliberately touches
+ * it: pinning it (SavedSearchController::togglePin) or editing-and-saving
+ * it (UpdateSavedSearchAction) both clear `is_scratch` permanently (see
+ * that column's migration — pinned alone isn't enough, since unpinning a
+ * deliberately-edited row must not throw it back into this reclaim pool).
+ * From that point on it's a real, kept search, not the rotating slot —
+ * the next ordinary search creates a fresh scratch row instead of touching
+ * it. MAX_SAVED_SEARCHES caps how many rows can exist in total (protected
+ * rows plus the one scratch slot), not how many casual searches get
+ * tracked — undirected browsing only ever occupies that one slot.
  */
 class SaveSearchAction
 {
@@ -36,7 +42,7 @@ class SaveSearchAction
 
     /**
      * Null return means "at the cap and every row is pinned/protected" —
-     * no scratch row left to evict, and this criteria doesn't match any
+     * no scratch row left to reuse, and this criteria doesn't match any
      * existing row.
      */
     public function handle(int $userId, string $name, array $criteria): ?SavedSearch
@@ -84,55 +90,74 @@ class SaveSearchAction
 
         if ($existing) {
             if ($existing->is_scratch) {
+                // Self-heal here too, not just in the reuse branch below —
+                // otherwise repeating a search that happens to match one of
+                // several stray scratch rows would return early and leave
+                // the others stranded indefinitely instead of consolidating
+                // on this user's very next ordinary search (caught in
+                // review).
+                $this->deleteOtherScratchRows($userId, $existing->id);
                 $existing->touch();
             }
 
             return $existing;
         }
 
-        // Under the cap: every genuinely new search gets its own row, so the
-        // "Recent searches" dropdown actually shows a short history instead
-        // of collapsing to whatever was searched last.
-        if (SavedSearch::where('user_id', $userId)->count() < self::MAX_SAVED_SEARCHES) {
-            try {
-                return SavedSearch::create([
-                    'user_id' => $userId,
-                    'name' => $name,
-                    'criteria' => $normalized,
-                    'fingerprint' => $fingerprint,
-                    'pinned' => false,
-                    'is_scratch' => true,
-                ]);
-            } catch (QueryException $e) {
-                return $this->resolveDuplicateInsertRace($e, $userId, $fingerprint);
-            }
+        // Reuse the user's single current scratch row, if one exists —
+        // this IS the "casual browsing" tracking: whatever was searched
+        // last gets overwritten in place, never accumulating. A protected
+        // row (pinned or deliberately edited-and-saved) is never a
+        // candidate here, so it's never at risk of this overwrite.
+        // ->latest('updated_at'), not an unordered first() — this also
+        // self-heals: any OTHER stray is_scratch row for this user (there
+        // should only ever be one; a prior version of this class briefly
+        // let several accumulate before this revert) gets deleted below the
+        // moment this user's very next ordinary search runs, with no manual
+        // cleanup needed anywhere this touches.
+        $current = SavedSearch::where('user_id', $userId)->where('is_scratch', true)
+            ->latest('updated_at')->first();
+
+        if ($current) {
+            $this->deleteOtherScratchRows($userId, $current->id);
+
+            $current->update([
+                'name' => $name,
+                'criteria' => $normalized,
+                'fingerprint' => $fingerprint,
+            ]);
+
+            return $current;
         }
 
-        // At the cap — evict the least-recently-touched scratch row (true
-        // LRU: the one that's gone longest without being re-searched or
-        // re-matched) rather than growing past the dropdown's fixed slots.
-        // Only reachable once this criteria doesn't match any existing
-        // fingerprint (the check above already returned) — checked here,
-        // not as an upfront gate in the controller, so a re-search that
-        // matches an existing row still succeeds even at the cap. Tiebreak
-        // on id: `updated_at` has only second precision, so several rows
-        // created/touched within the same second would otherwise leave the
-        // real oldest-first order to the DB's whim.
-        $oldest = SavedSearch::where('user_id', $userId)->where('is_scratch', true)
-            ->oldest('updated_at')->oldest('id')->first();
-
-        if (! $oldest) {
-            // Every row is pinned/protected — genuinely no room left.
+        // Only reachable once every existing row is protected (no scratch
+        // slot above to reuse) AND this criteria doesn't match any existing
+        // fingerprint — i.e. this specific call would actually grow the row
+        // count. Checked here, not as an upfront count() gate in the
+        // controller, so a re-search that matches an existing/protected row
+        // (or that would just overwrite the scratch slot) still succeeds
+        // even when the user is already at the cap.
+        if (SavedSearch::where('user_id', $userId)->count() >= self::MAX_SAVED_SEARCHES) {
             return null;
         }
 
-        $oldest->update([
-            'name' => $name,
-            'criteria' => $normalized,
-            'fingerprint' => $fingerprint,
-        ]);
+        try {
+            return SavedSearch::create([
+                'user_id' => $userId,
+                'name' => $name,
+                'criteria' => $normalized,
+                'fingerprint' => $fingerprint,
+                'pinned' => false,
+                'is_scratch' => true,
+            ]);
+        } catch (QueryException $e) {
+            return $this->resolveDuplicateInsertRace($e, $userId, $fingerprint);
+        }
+    }
 
-        return $oldest;
+    private function deleteOtherScratchRows(int $userId, int $keepId): void
+    {
+        SavedSearch::where('user_id', $userId)->where('is_scratch', true)
+            ->where('id', '!=', $keepId)->delete();
     }
 
     private function resolveDuplicateInsertRace(QueryException $e, int $userId, string $fingerprint): SavedSearch
