@@ -196,6 +196,14 @@ const showRecentSearches = computed(() => !hasTypedSinceFocus.value && recentSea
 const showSuggestedHeader = computed(() => !hasTypedSinceFocus.value && types.value.length > 0);
 const DROPDOWN_TOTAL_LIMIT = 6;
 
+// See at-home-search.vue's (desktop) identical constant — a synthetic,
+// non-database entry so a user can browse every At Home event regardless of
+// platform, as an explicit choice in the list rather than only discoverable
+// by searching with nothing picked. slug: null is already what
+// handleSearch()/nav-search-mobile.vue's handleAtHomeSearch treat as "no
+// platform filter", so nothing else needs to special-case it.
+const ALL_TYPES_OPTION = { id: 'all', name: 'All', slug: null };
+
 let fetchTypesToken = 0;
 const fetchTypes = async (search) => {
     const token = ++fetchTypesToken;
@@ -205,13 +213,16 @@ const fetchTypes = async (search) => {
         });
         if (token !== fetchTypesToken) return;
         const results = data || [];
-        types.value = search
-            ? results
-            : results.slice(0, Math.max(0, DROPDOWN_TOTAL_LIMIT - recentSearches.value.length));
+        if (search) {
+            types.value = results;
+            return;
+        }
+        const sliced = results.slice(0, Math.max(0, DROPDOWN_TOTAL_LIMIT - recentSearches.value.length));
+        types.value = [ALL_TYPES_OPTION, ...sliced];
     } catch (error) {
         if (token !== fetchTypesToken) return;
         console.error('Error fetching remote location types:', error);
-        types.value = [];
+        types.value = search ? [] : [ALL_TYPES_OPTION];
     }
 };
 

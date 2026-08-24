@@ -284,6 +284,19 @@ let fetchTypesToken = 0;
 // list fills whatever's left after Recent Searches takes its share.
 const DROPDOWN_TOTAL_LIMIT = 6;
 
+// Not a real RemoteLocation row — a synthetic entry so a user can browse
+// every At Home event regardless of platform, same as leaving the type
+// field empty, but as an explicit, visible choice in the suggested list
+// rather than something only discoverable by clicking Search with nothing
+// picked. slug: null is what selectType()/handleSearch() below already
+// treat as "no platform filter" (see handleSearch's own remoteLocation
+// param-building), so this needs no special-casing beyond this one object —
+// id: 'all' can't collide with a real RemoteLocation's integer id, keeping
+// the v-for's :key unique. Only shown in the resting (untyped) list, not
+// mixed into live-typed results — it doesn't fuzzy-match what was typed the
+// way the other entries do.
+const ALL_TYPES_OPTION = { id: 'all', name: 'All', slug: null };
+
 const fetchTypes = async (search) => {
     const token = ++fetchTypesToken;
     try {
@@ -292,16 +305,19 @@ const fetchTypes = async (search) => {
         });
         if (token !== fetchTypesToken) return;
         const results = data || [];
+        if (search) {
+            types.value = results;
+            return;
+        }
         // Only the default (no-search) fetch competes with Recent Searches
         // for the shared cap — a live typed query isn't shown alongside it
         // (see showRecentSearches), so it's never sliced.
-        types.value = search
-            ? results
-            : results.slice(0, Math.max(0, DROPDOWN_TOTAL_LIMIT - recentSearches.value.length));
+        const sliced = results.slice(0, Math.max(0, DROPDOWN_TOTAL_LIMIT - recentSearches.value.length));
+        types.value = [ALL_TYPES_OPTION, ...sliced];
     } catch (error) {
         if (token !== fetchTypesToken) return;
         console.error('Error fetching remote location types:', error);
-        types.value = [];
+        types.value = search ? [] : [ALL_TYPES_OPTION];
     }
 };
 
@@ -587,7 +603,12 @@ const handleSearch = async () => {
     const params = new URLSearchParams();
     params.set('searchType', 'atHome');
 
-    if (hasType) {
+    // searchData.remoteLocation, not hasType — hasType is true for the "All"
+    // option too (a deliberately selected type, just one with no platform
+    // filter attached), and URLSearchParams.set() would otherwise stringify
+    // a null value into the literal text "remoteLocation=null" rather than
+    // omitting the param.
+    if (searchData.remoteLocation) {
         params.set('remoteLocation', searchData.remoteLocation);
     }
 
