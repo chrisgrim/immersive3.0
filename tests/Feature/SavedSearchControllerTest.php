@@ -57,7 +57,11 @@ test('category order does not affect the fingerprint', function () {
     $this->assertDatabaseCount('saved_searches', 1);
 });
 
-test('saving different criteria overwrites the existing unpinned row instead of creating a new one', function () {
+test('saving different criteria creates a separate row, up to the cap — recent searches is a real history', function () {
+    // Regression: this used to collapse every ordinary search into a single
+    // rotating "recent" slot, so the dropdown only ever showed the latest
+    // one. A user can have up to MAX_SAVED_SEARCHES total, so under the cap
+    // each distinct search should get its own row.
     $user = User::factory()->create();
 
     $first = $this->actingAs($user)->postJson('/api/hub/saved-searches', [
@@ -68,10 +72,40 @@ test('saving different criteria overwrites the existing unpinned row instead of 
         'name' => 'Los Angeles, CA', 'criteria' => ['city' => 'Los Angeles, CA'],
     ])->assertCreated()->json('search');
 
-    $this->assertDatabaseCount('saved_searches', 1);
-    expect($second['id'])->toBe($first['id']);
-    expect($second['name'])->toBe('Los Angeles, CA');
-    $this->assertDatabaseHas('saved_searches', ['id' => $first['id'], 'name' => 'Los Angeles, CA']);
+    $this->assertDatabaseCount('saved_searches', 2);
+    expect($second['id'])->not->toBe($first['id']);
+    $this->assertDatabaseHas('saved_searches', ['id' => $first['id'], 'name' => 'New York, NY']);
+    $this->assertDatabaseHas('saved_searches', ['id' => $second['id'], 'name' => 'Los Angeles, CA']);
+});
+
+test('once at the cap, a new distinct search evicts the least-recently-touched scratch row', function () {
+    $user = User::factory()->create();
+
+    $oldest = $this->actingAs($user)->postJson('/api/hub/saved-searches', [
+        'name' => 'Search A', 'criteria' => ['city' => 'City A'],
+    ])->assertCreated()->json('search');
+
+    for ($i = 1; $i <= 4; $i++) {
+        $this->actingAs($user)->postJson('/api/hub/saved-searches', [
+            'name' => "Search {$i}", 'criteria' => ['city' => "City {$i}"],
+        ])->assertCreated();
+    }
+
+    $newest = $this->actingAs($user)->postJson('/api/hub/saved-searches', [
+        'name' => 'Search E', 'criteria' => ['city' => 'City E'],
+    ])->assertCreated()->json('search');
+
+    $this->assertDatabaseCount('saved_searches', App\Actions\Search\SaveSearchAction::MAX_SAVED_SEARCHES);
+
+    // The 7th distinct search evicts "Search A" (the oldest, least-recently
+    // touched row) rather than any of the more recently created ones.
+    $seventh = $this->actingAs($user)->postJson('/api/hub/saved-searches', [
+        'name' => 'Search F', 'criteria' => ['city' => 'City F'],
+    ])->assertCreated()->json('search');
+
+    expect($seventh['id'])->toBe($oldest['id']);
+    $this->assertDatabaseHas('saved_searches', ['id' => $oldest['id'], 'name' => 'Search F']);
+    $this->assertDatabaseHas('saved_searches', ['id' => $newest['id'], 'name' => 'Search E']);
 });
 
 test('pinning the current row protects it, and the next save creates a fresh unpinned row', function () {
@@ -153,12 +187,10 @@ test('toggling pin flips the flag and is idempotent to call again', function () 
         ->assertOk()->assertJsonPath('search.pinned', false);
 });
 
-test('unpinning a row deletes whatever other unpinned row already existed, leaving exactly one', function () {
-    // Regression test: SaveSearchAction only ever reclaims the single most
-    // recent unpinned row on the next search — if unpinning left a SECOND
-    // unpinned row sitting around, the next auto-save would only overwrite
-    // one of them, silently orphaning the other forever (reported live:
-    // "unpinned a search, then did a new search and I still see 2 searches").
+test('unpinning a row never deletes another unpinned row — a genuine multi-row history, not a single slot', function () {
+    // SaveSearchAction keeps up to MAX_SAVED_SEARCHES distinct recent
+    // searches, not one rotating slot — unpinning one of them must not
+    // wipe out an unrelated, legitimately distinct recent search.
     $user = User::factory()->create();
     $alreadyUnpinned = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Boston, MA', 'pinned' => false]);
     $toUnpin = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Los Angeles, CA', 'pinned' => true]);
@@ -166,9 +198,9 @@ test('unpinning a row deletes whatever other unpinned row already existed, leavi
     $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$toUnpin->id}/pin")
         ->assertOk()->assertJsonPath('search.pinned', false);
 
-    $this->assertDatabaseCount('saved_searches', 1);
+    $this->assertDatabaseCount('saved_searches', 2);
     $this->assertDatabaseHas('saved_searches', ['id' => $toUnpin->id, 'pinned' => false]);
-    $this->assertDatabaseMissing('saved_searches', ['id' => $alreadyUnpinned->id]);
+    $this->assertDatabaseHas('saved_searches', ['id' => $alreadyUnpinned->id, 'name' => 'Boston, MA']);
 });
 
 test('unpinning when no other unpinned row exists just flips the flag, nothing deleted', function () {
@@ -338,6 +370,28 @@ test('a user can list only their own saved searches, most recent first', functio
     expect($names->all())->toBe(['Newer', 'Older']);
 });
 
+test('listing sorts by updated_at, not created_at — an evicted rows new content sorts to the top', function () {
+    // Regression (caught in review): index() used to sort by created_at,
+    // but SaveSearchAction's eviction overwrites a scratch row's content in
+    // place and bumps updated_at without touching created_at — so a row
+    // created long ago but just repurposed into the newest search would
+    // sort to the bottom under the old created_at ordering.
+    $user = User::factory()->create();
+
+    $oldRow = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Ancient row', 'is_scratch' => true]);
+    $this->travel(1)->minutes();
+    SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Created after, never touched again', 'is_scratch' => true]);
+    $this->travel(1)->minutes();
+    // Simulate SaveSearchAction's eviction: overwrite the OLD row's content
+    // and bump its updated_at, exactly what the real eviction does.
+    $oldRow->update(['name' => 'Just repurposed']);
+
+    $response = $this->actingAs($user)->getJson('/api/hub/saved-searches');
+
+    $names = collect($response->json('searches'))->pluck('name');
+    expect($names->all())->toBe(['Just repurposed', 'Created after, never touched again']);
+});
+
 test('pinned searches are always listed before unpinned ones, regardless of recency', function () {
     $user = User::factory()->create();
 
@@ -410,11 +464,12 @@ test('updating a pinned row changes that exact row', function () {
     $this->assertDatabaseCount('saved_searches', 1);
 });
 
-test('updating an unpinned row changes that exact row and pins it', function () {
+test('updating an unpinned row changes that exact row without pinning it, but protects it from overwrite', function () {
     $user = User::factory()->create();
     $search = SavedSearch::factory()->create([
         'user_id' => $user->id,
         'pinned' => false,
+        'is_scratch' => true,
         'criteria' => ['city' => 'Old City', 'searchType' => 'inPerson'],
     ]);
 
@@ -424,13 +479,17 @@ test('updating an unpinned row changes that exact row and pins it', function () 
     ]);
 
     $response->assertOk();
-    expect($response->json('search.pinned'))->toBeTrue();
-    $this->assertDatabaseHas('saved_searches', ['id' => $search->id, 'pinned' => true]);
+    // Editing is not pinning — a user who just wants to save changes
+    // without pinning to the top of the list shouldn't have that decision
+    // made for them (regression: this used to force pinned=true on every
+    // edit with no way to opt out).
+    expect($response->json('search.pinned'))->toBeFalse();
+    $this->assertDatabaseHas('saved_searches', ['id' => $search->id, 'pinned' => false, 'is_scratch' => false]);
 });
 
 test('the next auto-save after an edit creates a fresh row, leaving the edited one untouched', function () {
     $user = User::factory()->create();
-    $search = SavedSearch::factory()->create(['user_id' => $user->id, 'pinned' => false]);
+    $search = SavedSearch::factory()->create(['user_id' => $user->id, 'pinned' => false, 'is_scratch' => true]);
 
     $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}", [
         'name' => 'Edited', 'criteria' => ['city' => 'Edited City', 'lat' => 1.0, 'lng' => 2.0, 'searchType' => 'inPerson'],
@@ -440,8 +499,33 @@ test('the next auto-save after an edit creates a fresh row, leaving the edited o
     $newRow = $action->handle($user->id, 'Auto search', ['city' => 'Auto City', 'searchType' => 'inPerson']);
 
     expect($newRow->id)->not->toBe($search->id);
-    $this->assertDatabaseHas('saved_searches', ['id' => $search->id, 'name' => 'Edited', 'pinned' => true]);
+    $this->assertDatabaseHas('saved_searches', ['id' => $search->id, 'name' => 'Edited', 'pinned' => false, 'is_scratch' => false]);
     $this->assertDatabaseCount('saved_searches', 2);
+});
+
+test('unpinning a deliberately-edited row never lets a later ordinary search overwrite it', function () {
+    // The exact bug reported live: edit a search (adds a price limit),
+    // don't pin it, then later unpin it (it got force-pinned by mistake at
+    // the time) — the next ordinary nav search must NOT silently cannibalize
+    // it, and a week of further searching must not make it disappear.
+    $user = User::factory()->create();
+    $search = SavedSearch::factory()->create(['user_id' => $user->id, 'pinned' => false, 'is_scratch' => true]);
+
+    $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}", [
+        'name' => 'New York, NY (under $5)',
+        'criteria' => ['city' => 'New York, NY', 'lat' => 1.0, 'lng' => 2.0, 'searchType' => 'inPerson', 'price' => [0, 5]],
+    ])->assertOk();
+
+    // Simulate the user pinning it, then changing their mind and unpinning.
+    $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/pin")->assertOk();
+    $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/pin")
+        ->assertOk()->assertJsonPath('search.pinned', false);
+
+    $action = app(App\Actions\Search\SaveSearchAction::class);
+    $action->handle($user->id, 'Chicago, IL', ['city' => 'Chicago, IL']);
+    $action->handle($user->id, 'Boston, MA', ['city' => 'Boston, MA']);
+
+    $this->assertDatabaseHas('saved_searches', ['id' => $search->id, 'name' => 'New York, NY (under $5)']);
 });
 
 test('editing one row never overwrites another unpinned row', function () {
@@ -598,4 +682,153 @@ test('switching a custom map search to At Home clears its bounds server-side', f
     expect($response->json('search.criteria.SWlat'))->toBeNull();
     expect($response->json('search.criteria.SWlng'))->toBeNull();
     expect($response->json('search.criteria.live'))->toBeFalse();
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/hub/saved-searches/{savedSearch}/notify — the "notify me about
+// new events" pilot toggle (see NotifySavedSearchMatchesCommand's docblock
+// and config('features.saved_search_notifications_user')).
+// ---------------------------------------------------------------------------
+
+test('the pilot user can enable notify on their own search', function () {
+    config(['features.saved_search_notifications_user' => 'pilot@example.com']);
+    $user = User::factory()->create(['email' => 'pilot@example.com']);
+    $search = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => false, 'last_checked_at' => null, 'is_scratch' => true]);
+
+    $response = $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/notify")->assertOk();
+
+    expect($response->json('search.notifyNewEvents'))->toBeTrue();
+    expect($search->fresh()->notify_new_events)->toBeTrue();
+    // Enabling sets a fresh cursor — see the endpoint's own comment on why
+    // (avoids the first scheduled run emailing a backlog).
+    expect($search->fresh()->last_checked_at)->not->toBeNull();
+    // Regression (Codex caught this in review): enabling notify must clear
+    // is_scratch, same as pinning/editing — otherwise this row could later
+    // be silently repurposed by SaveSearchAction's eviction into an
+    // unrelated search while notify_new_events stays on, quietly emailing
+    // the user about a search they never opted into.
+    expect($search->fresh()->is_scratch)->toBeFalse();
+});
+
+test('a non-pilot user cannot enable notify on their own search', function () {
+    config(['features.saved_search_notifications_user' => 'pilot@example.com']);
+    $user = User::factory()->create(['email' => 'someone-else@example.com']);
+    $search = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => false]);
+
+    $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/notify")->assertStatus(403);
+
+    expect($search->fresh()->notify_new_events)->toBeFalse();
+});
+
+test('a non-pilot user CAN disable notify if it was somehow already on', function () {
+    // Turning something off should never be blocked, even for a row that
+    // ended up enabled outside the pilot (e.g. the pilot email config
+    // changed after the fact).
+    config(['features.saved_search_notifications_user' => 'pilot@example.com']);
+    $user = User::factory()->create(['email' => 'someone-else@example.com']);
+    $search = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => true]);
+
+    $response = $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/notify")->assertOk();
+
+    expect($response->json('search.notifyNewEvents'))->toBeFalse();
+});
+
+test('disabling notify does not touch the existing cursor', function () {
+    config(['features.saved_search_notifications_user' => 'pilot@example.com']);
+    $user = User::factory()->create(['email' => 'pilot@example.com']);
+    // Whole seconds — a MySQL datetime column truncates sub-second
+    // precision, so comparing to a microsecond-precision now() would be a
+    // false negative on an otherwise-untouched value.
+    $checkedAt = now()->subDays(3)->startOfSecond();
+    $search = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => true, 'last_checked_at' => $checkedAt, 'is_scratch' => true]);
+
+    $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/notify")->assertOk();
+
+    expect($search->fresh()->last_checked_at->eq($checkedAt))->toBeTrue();
+    // Disabling is never what protects a row, so it shouldn't be what
+    // un-protects one either — is_scratch is left exactly as it was.
+    expect($search->fresh()->is_scratch)->toBeTrue();
+});
+
+test('a user cannot toggle notify on another users saved search', function () {
+    config(['features.saved_search_notifications_user' => 'pilot@example.com']);
+    $owner = User::factory()->create(['email' => 'pilot@example.com']);
+    $other = User::factory()->create(); // ownership check, not pilot status — any other user
+    $search = SavedSearch::factory()->create(['user_id' => $owner->id]);
+
+    $this->actingAs($other)->patchJson("/api/hub/saved-searches/{$search->id}/notify")->assertStatus(404);
+});
+
+test('a guest cannot toggle notify', function () {
+    $search = SavedSearch::factory()->create();
+
+    $this->patchJson("/api/hub/saved-searches/{$search->id}/notify")->assertStatus(401);
+});
+
+// ---------------------------------------------------------------------------
+// UpdateSavedSearchAction — cursor reset when criteria changes while
+// notifications are enabled (see that action's own comment for the why).
+// ---------------------------------------------------------------------------
+
+test('editing criteria on a notify-enabled search resets the cursor', function () {
+    $user = User::factory()->create();
+    $search = SavedSearch::factory()->create([
+        'user_id' => $user->id,
+        'notify_new_events' => true,
+        'last_checked_at' => now()->subDays(5),
+        'criteria' => ['city' => 'Old City', 'categories' => [], 'tags' => [], 'price' => null],
+    ]);
+
+    $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}", [
+        'name' => $search->name,
+        'criteria' => ['city' => 'New City', 'lat' => 1.0, 'lng' => 1.0, 'searchType' => 'inPerson'],
+    ])->assertOk();
+
+    expect($search->fresh()->last_checked_at->greaterThan(now()->subMinute()))->toBeTrue();
+});
+
+test('editing only the name (criteria unchanged) does not reset the cursor', function () {
+    // SavedSearch::factory()'s own fingerprint is a random placeholder (see
+    // its own comment) — never equal to what NormalizeSavedSearchCriteriaAction
+    // actually computes, so "criteria unchanged" can't be tested through it.
+    // A real, matching fingerprint is required here specifically because
+    // this test needs the false branch of the changed/unchanged check.
+    $user = User::factory()->create();
+    $checkedAt = now()->subDays(5)->startOfSecond();
+    $rawCriteria = ['city' => 'Same City', 'lat' => 1.0, 'lng' => 1.0, 'searchType' => 'inPerson'];
+    $normalized = (new App\Actions\Search\NormalizeSavedSearchCriteriaAction)->handle($rawCriteria);
+    $search = SavedSearch::create([
+        'user_id' => $user->id,
+        'name' => 'Old name',
+        'criteria' => $normalized,
+        'fingerprint' => hash('sha256', json_encode($normalized)),
+        'notify_new_events' => true,
+        'last_checked_at' => $checkedAt,
+    ]);
+
+    // Submitting the exact same raw criteria — UpdateSavedSearchAction
+    // normalizes it the same way, producing the same fingerprint.
+    $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}", [
+        'name' => 'A brand new name',
+        'criteria' => $rawCriteria,
+    ])->assertOk();
+
+    expect($search->fresh()->last_checked_at->eq($checkedAt))->toBeTrue();
+});
+
+test('editing criteria on a notify-disabled search does not touch the (null) cursor', function () {
+    $user = User::factory()->create();
+    $search = SavedSearch::factory()->create([
+        'user_id' => $user->id,
+        'notify_new_events' => false,
+        'last_checked_at' => null,
+        'criteria' => ['city' => 'Old City', 'categories' => [], 'tags' => [], 'price' => null],
+    ]);
+
+    $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}", [
+        'name' => $search->name,
+        'criteria' => ['city' => 'New City', 'lat' => 1.0, 'lng' => 1.0, 'searchType' => 'inPerson'],
+    ])->assertOk();
+
+    expect($search->fresh()->last_checked_at)->toBeNull();
 });

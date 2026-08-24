@@ -2,6 +2,7 @@
 
 use App\Models\Event;
 use App\Models\Organizer;
+use App\Models\SavedSearch;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -113,6 +114,15 @@ test('clearing does not unsave events or unfollow organizers, only silences them
 
     expect($user->fresh()->favouritedEvents()->count())->toBe(1);
     expect($user->fresh()->followedOrganizers()->count())->toBe(1);
+});
+
+test('clearing also turns off the saved-search notify pilot toggle on every one of the users searches', function () {
+    $user = User::factory()->create();
+    $search = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => true]);
+
+    $this->actingAs($user)->postJson('/api/hub/notification-preferences/clear-all')->assertOk();
+
+    expect($search->fresh()->notify_new_events)->toBeFalse();
 });
 
 test('clearing does not touch another users favorites or follows', function () {

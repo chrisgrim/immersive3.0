@@ -55,15 +55,37 @@ const props = defineProps({
 const isHidden = ref(false);
 // nav-search-mobile.vue is a separate root component — see its own comment
 // on the matching dispatch for why a window event is what ties the two
-// together, instead of a prop.
-const isSearchOpen = ref(false);
+// together, instead of a prop. Initialized from window.location, NOT just
+// false-until-the-event-says-otherwise: nav-search-mobile.vue and this
+// component are two independently-resolving async components
+// (defineAsyncComponent), and every page transition in this app is a full
+// reload (window.location.href, not client-side routing — see
+// nav-search-mobile.vue's handleSearch/handleBack), so this only needs to
+// be right ONCE per mount, synchronously. Relying solely on the event for
+// the initial value was a real bug (caught in review): with both chunks
+// already warm in the browser cache (the common case for a returning
+// visitor, not just a cold first load), nav-search-mobile.vue's immediate
+// watcher can dispatch before this component's onMounted has even attached
+// the listener below, silently losing the very first "hide" signal and
+// leaving the bar wrongly visible over a results/map/At-Home page's own
+// back arrow for the whole visit. The listener below still handles every
+// LATER change correctly (e.g. opening the search overlay while already on
+// the home page) — this only fixes the unreliable initial value.
+const isSearchOpen = ref(window.location.pathname !== '/');
 const handleSearchToggle = (event) => {
     isSearchOpen.value = !!event.detail?.open;
 };
 // Same idea, from Profile/index.vue — a drilled-into saved search's editor
 // or a liked event's detail already has its own back button up top, so the
 // bottom bar is redundant chrome on that sub-screen, not a real nav choice.
-const isDetailOpen = ref(false);
+// Initial value also reads window.__hideBottomNavBar, a synchronous flag a
+// plain Blade page can set inline (see curated/posts/show.blade.php) for a
+// page that's ALWAYS in this state for its whole lifetime, with no runtime
+// toggling — same event-timing risk as isSearchOpen's own fix above would
+// otherwise apply here too, so a static page uses a static inline-script
+// flag (guaranteed to run before this async component even starts
+// resolving) instead of a dispatched event.
+const isDetailOpen = ref(!!window.__hideBottomNavBar);
 const handleDetailToggle = (event) => {
     isDetailOpen.value = !!event.detail?.open;
 };

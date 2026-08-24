@@ -15,6 +15,11 @@ use Illuminate\Support\Facades\DB;
  * notifying by default (see the null-means-notify fallback in
  * FollowedOrganizerNewEventNotification::via() / SavedEventNewDatesNotification
  * ::via()) — this only touches what already existed at the moment it ran.
+ *
+ * Also turns off the saved-search "notify me about new events" pilot toggle
+ * (see NotifySavedSearchMatchesCommand) on every one of this user's saved
+ * searches — a different table/column, but the same email-pestering
+ * category this button exists to bulk-silence in one place.
  */
 class ClearAllNotificationsAction
 {
@@ -22,5 +27,6 @@ class ClearAllNotificationsAction
     {
         DB::table('favorites')->where('user_id', $userId)->update(['notify_new_dates' => false]);
         DB::table('organizer_followers')->where('user_id', $userId)->update(['notify_new_events' => false]);
+        DB::table('saved_searches')->where('user_id', $userId)->update(['notify_new_events' => false]);
     }
 }

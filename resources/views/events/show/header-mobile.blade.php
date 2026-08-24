@@ -140,7 +140,7 @@
         </button>
 
         <vue-event-actions
-            :event="{{ $event }}"
+            :event="{!! $eventJson !!}"
             :user="user"
             @share="handleShare()"
         ></vue-event-actions>

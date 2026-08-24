@@ -148,9 +148,22 @@
     <div class="relative w-full 2xl-air:w-[calc(50%-12px)] md:w-[calc(66.666667%-12px)] mx-auto">
         {{-- Mobile Back Button --}}
         @if (Browser::isMobile())
+        <script>
+            // Tells nav-bar-mobile.vue (a separate root component elsewhere
+            // on this page) to stay hidden — this page already has its own
+            // back button right below, so the fixed bottom tab bar is
+            // redundant chrome, same reasoning as the search/results pages
+            // and Profile's own sub-screens. A plain synchronous global, not
+            // a dispatched event: this page is always in this state for its
+            // whole lifetime (no runtime toggling), and inline scripts run
+            // before nav-bar-mobile.vue's async component chunk even starts
+            // resolving, so there's no risk of the signal arriving too late
+            // (see nav-bar-mobile.vue's own comment on that exact race).
+            window.__hideBottomNavBar = true;
+        </script>
         <div class="relative bg-white mb-8">
             <div class="flex items-center gap-4">
-                <button 
+                <button
                     onclick="if (window.history.length > 1) { window.history.back(); } else { window.location.href = '/'; }"
                     class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
                 >

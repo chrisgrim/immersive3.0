@@ -36,6 +36,13 @@ class ScheduleServiceProvider extends ServiceProvider
             $schedule->command('sanctum:prune-expired --hours=168')
                 ->dailyAt('04:00')
                 ->withoutOverlapping();
+
+            // Saved-search "notify me about new events" pilot — see
+            // NotifySavedSearchMatchesCommand's own docblock.
+            $schedule->command('ei:notify-saved-searches')
+                ->twiceDaily(8, 20)
+                ->withoutOverlapping()
+                ->appendOutputTo(storage_path('logs/saved-search-notifications.log'));
         });
     }
 }

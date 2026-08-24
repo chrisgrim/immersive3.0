@@ -4,6 +4,7 @@ use App\Models\Event;
 use App\Models\User;
 use App\Notifications\FollowedOrganizerNewEventNotification;
 use App\Notifications\SavedEventNewDatesNotification;
+use Illuminate\Support\Facades\Log;
 
 // The core requirement (Chris, item 9): the in-app feed must show updates
 // even when a user has silenced email notifications — so 'database' must
@@ -50,4 +51,47 @@ test('toDatabase payloads carry what the feed needs to render', function () {
         'event_slug' => $event->slug,
         'event_name' => 'Test Event',
     ]);
+});
+
+// ---------------------------------------------------------------------------
+// Retry backoff + failure logging — a mail-provider outage shouldn't be
+// hammered 3x back-to-back, and a permanently-failed send shouldn't just be
+// an anonymous row in failed_jobs with no context.
+// ---------------------------------------------------------------------------
+
+test('both notifications escalate backoff across retries instead of retrying immediately', function () {
+    $event = Event::factory()->published()->create();
+
+    expect((new SavedEventNewDatesNotification($event))->backoff)->toBe([60, 300, 900]);
+    expect((new FollowedOrganizerNewEventNotification($event))->backoff)->toBe([60, 300, 900]);
+});
+
+test('a permanently-failed saved-event-new-dates send logs which event/error it was', function () {
+    Log::spy();
+    $event = Event::factory()->published()->create(['name' => 'Failure Test Event']);
+    $exception = new Exception('mail server unreachable');
+
+    (new SavedEventNewDatesNotification($event))->failed($exception);
+
+    Log::shouldHaveReceived('error')->once()->withArgs(
+        fn ($message, $context) => $message === '[notifications] saved_event_new_dates permanently failed'
+            && $context['event_id'] === $event->id
+            && $context['event_slug'] === $event->slug
+            && $context['exception'] === 'mail server unreachable'
+    );
+});
+
+test('a permanently-failed followed-organizer-new-event send logs which event/error it was', function () {
+    Log::spy();
+    $event = Event::factory()->published()->create(['name' => 'Failure Test Event']);
+    $exception = new Exception('mail server unreachable');
+
+    (new FollowedOrganizerNewEventNotification($event))->failed($exception);
+
+    Log::shouldHaveReceived('error')->once()->withArgs(
+        fn ($message, $context) => $message === '[notifications] followed_organizer_new_event permanently failed'
+            && $context['event_id'] === $event->id
+            && $context['event_slug'] === $event->slug
+            && $context['exception'] === 'mail server unreachable'
+    );
 });

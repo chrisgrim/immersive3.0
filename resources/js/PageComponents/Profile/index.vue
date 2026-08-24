@@ -79,8 +79,10 @@
                             :dirty="isEditorDirty"
                             :saving="editorSaving"
                             :error="editorError"
+                            :search="selectedSearch"
                             @update:draft="editorDraft = $event"
                             @save="saveEditor"
+                            @toggle-notify="handleSearchNotifyToggled"
                         />
                         <!-- Hidden (not just its child) below `lg` once a search is
                              selected — a display:none child still leaves this wrapper's
@@ -200,8 +202,10 @@
                                 :dirty="isEditorDirty"
                                 :saving="editorSaving"
                                 :error="editorError"
+                                :search="selectedSearch"
                                 @update:draft="editorDraft = $event"
                                 @save="saveEditor"
+                                @toggle-notify="handleSearchNotifyToggled"
                             />
                             <div v-else class="w-full h-full rounded-3xl bg-neutral-100 flex items-center justify-center text-center px-12">
                                 <p class="text-2xl font-semibold text-neutral-500">Select a saved search to edit its preferences</p>
@@ -648,6 +652,20 @@ const handleSearchPinToggled = async (search) => {
         searches.value.sort((a, b) => (b.pinned === a.pinned ? 0 : b.pinned ? 1 : -1));
     } catch (error) {
         console.error('[profile-saved-searches] failed to toggle pin', error);
+    }
+};
+
+// Saved-search "notify me about new events" pilot toggle — same immediate-
+// PATCH pattern as handleSearchPinToggled above, just scoped to whichever
+// search is currently open in the editor rather than a list row.
+const handleSearchNotifyToggled = async () => {
+    if (! selectedSearch.value) return;
+
+    try {
+        const { data } = await axios.patch(`/api/hub/saved-searches/${selectedSearch.value.id}/notify`);
+        selectedSearch.value.notifyNewEvents = data.search.notifyNewEvents;
+    } catch (error) {
+        console.error('[profile-saved-searches] failed to toggle notify', error);
     }
 };
 

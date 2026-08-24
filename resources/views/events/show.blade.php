@@ -443,7 +443,7 @@
                                     
                                     <div class="flex items-center gap-8 mt-4">
                                         <vue-event-actions
-                                            :event="{{ $event }}"
+                                            :event="{!! $eventJson !!}"
                                             :user="user"
                                             @share="toggleShareModal()"
                                         ></vue-event-actions>
@@ -467,7 +467,7 @@
                                 
                                 <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
                                     <vue-show-purchase
-                                        :event="{{ $event }}"
+                                        :event="{!! $eventJson !!}"
                                         :single-image="true"
                                         :user="user"
                                     ></vue-show-purchase>
@@ -483,7 +483,7 @@
                                  the photo (which covers actual photo content on a busy image). --}}
                             <div class="flex justify-end mt-4">
                                 <vue-event-actions
-                                    :event="{{ $event }}"
+                                    :event="{!! $eventJson !!}"
                                     :user="user"
                                     @share="toggleShareModal()"
                                 ></vue-event-actions>
@@ -636,7 +636,7 @@
                                 
                                 <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
                                     <vue-show-purchase
-                                        :event="{{ $event }}"
+                                        :event="{!! $eventJson !!}"
                                         :single-image="true"
                                         :user="user"
                                     ></vue-show-purchase>
@@ -690,7 +690,7 @@
                                     
                                     <div class="flex items-center gap-8 mt-4">
                                         <vue-event-actions
-                                            :event="{{ $event }}"
+                                            :event="{!! $eventJson !!}"
                                             :user="user"
                                             @share="toggleShareModal()"
                                         ></vue-event-actions>
@@ -715,7 +715,7 @@
 
                                 <div class="w-full relative shrink-0 md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
                                     <vue-show-purchase
-                                        :event="{{ $event }}"
+                                        :event="{!! $eventJson !!}"
                                         :single-image="false"
                                         :user="user"
                                     ></vue-show-purchase>
@@ -726,7 +726,7 @@
 
                     {{-- Rest of your content --}}
                     <div class="relative w-full m-auto px-10 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
-                        <vue-show-map :event="{{ $event }}"></vue-show-map>
+                        <vue-show-map :event="{!! $eventJson !!}"></vue-show-map>
                         @include('events.show.organizer')
                     </div>
                 </div>

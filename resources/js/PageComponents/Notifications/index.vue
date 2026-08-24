@@ -45,7 +45,7 @@
             <a
                 v-for="notification in notifications"
                 :key="notification.id"
-                :href="`/events/${notification.data.event_slug}`"
+                :href="hrefFor(notification)"
                 class="flex items-center gap-4 py-5 hover:bg-neutral-50 -mx-4 px-4 rounded-xl transition-colors"
                 @click="markRead(notification)"
             >
@@ -99,14 +99,34 @@ const hasMorePages = computed(() => !!nextPageUrl.value);
 
 const hasUnread = computed(() => notifications.value.some((n) => !n.read_at));
 
+// Unlike the other two types, a saved-search alert is about a MATCH SET,
+// not one specific event — it carries its own `url` (the search's replay
+// URL) instead of an event_slug, so it needs its own branch here rather
+// than falling into the `/events/${event_slug}` link every other
+// notification uses (Codex caught this in review — it used to always link
+// to `/events/undefined` for this type).
+const hrefFor = (notification) => {
+    if (notification.data.type === 'saved_search_new_events') {
+        return notification.data.url || '/';
+    }
+    return `/events/${notification.data.event_slug}`;
+};
+
 const messageFor = (notification) => {
-    const { type, event_name: eventName, organizer_name: organizerName } = notification.data;
+    const { type, event_name: eventName, organizer_name: organizerName, saved_search_name: savedSearchName, event_count: eventCount } = notification.data;
 
     if (type === 'saved_event_new_dates') {
         return `New dates were added to "${eventName}"`;
     }
     if (type === 'followed_organizer_new_event') {
         return `${organizerName || 'An organizer you follow'} posted a new event: "${eventName}"`;
+    }
+    if (type === 'saved_search_new_events') {
+        // Same phrasing as the email subject (SavedSearchNewEventsMail) —
+        // one consistent sentence for this type across channels.
+        return eventCount === 1
+            ? `1 new event matches "${savedSearchName}"`
+            : `${eventCount} new events match "${savedSearchName}"`;
     }
     return eventName || 'You have a new update';
 };

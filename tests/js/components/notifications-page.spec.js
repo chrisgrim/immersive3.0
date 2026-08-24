@@ -12,6 +12,10 @@
  *  - Load more: appends the next page and stops offering once
  *    next_page_url is null.
  *  - The header's settings link points at the mail-preferences page.
+ *  - The saved_search_new_events type's link/message (its own branch, not
+ *    the event_slug/event_name fields the other two types use — this is
+ *    the exact regression Codex caught in review: it used to always link
+ *    to `/events/undefined` and show the generic fallback message).
  */
 import { mount, flushPromises } from '@vue/test-utils';
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -130,6 +134,36 @@ describe('Notifications/index.vue', () => {
         expect(window.axios.post).toHaveBeenCalledWith('/api/notifications/read-all');
         // Both should be back to their original unread/read state after revert.
         expect(wrapper.find('.bg-blue-600').exists()).toBe(true);
+    });
+
+    it('links a saved_search_new_events notification to its search url, not /events/undefined', async () => {
+        const wrapper = await mountLoaded([notification({
+            id: 1,
+            data: {
+                type: 'saved_search_new_events',
+                saved_search_name: 'Comedy in LA',
+                event_count: 3,
+                url: '/index/search?city=Los+Angeles%2C+CA',
+            },
+        })]);
+
+        const link = wrapper.find('.divide-y a');
+        expect(link.attributes('href')).toBe('/index/search?city=Los+Angeles%2C+CA');
+        expect(link.attributes('href')).not.toContain('undefined');
+    });
+
+    it('shows the match-count message for a saved_search_new_events notification, singular and plural', async () => {
+        const singular = await mountLoaded([notification({
+            id: 1,
+            data: { type: 'saved_search_new_events', saved_search_name: 'Comedy in LA', event_count: 1, url: '/index/search' },
+        })]);
+        expect(singular.text()).toContain('1 new event matches "Comedy in LA"');
+
+        const plural = await mountLoaded([notification({
+            id: 1,
+            data: { type: 'saved_search_new_events', saved_search_name: 'Comedy in LA', event_count: 3, url: '/index/search' },
+        })]);
+        expect(plural.text()).toContain('3 new events match "Comedy in LA"');
     });
 
     it('loads more, appends results, and hides the button once next_page_url is null', async () => {

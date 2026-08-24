@@ -78,7 +78,18 @@ class EventController extends Controller
 
         $event->append('first_show_tickets');
 
-        return view('events.show', compact('event'));
+        // Computed once and reused everywhere show.blade.php/show-mobile.
+        // blade.php/header-mobile.blade.php bind `:event="..."` on a Vue
+        // component — those templates used to write `{{ $event }}` inline
+        // at each of up to 7 (desktop) / 5 (mobile) call sites, and Blade's
+        // `{{ }}` re-serializes the ENTIRE model (every loaded relation,
+        // including `shows` — some of this app's long-running events carry
+        // 2,000+ show rows) from scratch every single time it's written.
+        // For a heavily-recurring event that was measured taking >1.4s of
+        // pure render time for a single request; this cuts it to one pass.
+        $eventJson = e($event);
+
+        return view('events.show', compact('event', 'eventJson'));
     }
 
     public function getOrganizerPaginatedEvents(Organizer $organizer, Request $request)

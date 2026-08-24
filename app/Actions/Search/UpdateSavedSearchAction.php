@@ -43,6 +43,20 @@ class UpdateSavedSearchAction
         $normalized = $this->normalizeCriteria->handle($criteria);
         $fingerprint = hash('sha256', json_encode($normalized));
 
+        // Same per-user lock as SaveSearchAction's own read-decide-write
+        // sequence — without it, a concurrent auto-save's eviction could
+        // select THIS exact row as "oldest scratch" before this edit
+        // commits is_scratch=false, then overwrite its name/criteria/
+        // fingerprint right after, silently discarding the user's
+        // deliberate edit even though is_scratch ends up correctly false
+        // (caught in review, not from a live report).
+        return SaveSearchAction::withUserLock($savedSearch->user_id, function () use ($savedSearch, $name, $normalized, $fingerprint) {
+            return $this->save($savedSearch, $name, $normalized, $fingerprint);
+        });
+    }
+
+    private function save(SavedSearch $savedSearch, string $name, array $normalized, string $fingerprint): SavedSearch
+    {
         $duplicate = SavedSearch::where('user_id', $savedSearch->user_id)
             ->where('fingerprint', $fingerprint)
             ->where('id', '!=', $savedSearch->id)
@@ -52,15 +66,34 @@ class UpdateSavedSearchAction
             throw new DuplicateSavedSearchException($duplicate);
         }
 
-        // A deliberate edit is a "keep this" action — pins the row so the
-        // next ordinary nav search (SaveSearchAction) can't silently
-        // overwrite it via the rotating unpinned-slot behavior.
+        // A deliberate edit is a "keep this" action — clears is_scratch so
+        // the next ordinary nav search (SaveSearchAction) can't silently
+        // overwrite it via the rotating scratch-slot behavior. Deliberately
+        // does NOT also pin the row (that used to be the only protection
+        // mechanism, which meant an edit-without-pinning still got quietly
+        // pinned, and unpinning it afterward threw it right back into the
+        // overwrite pool — see the is_scratch column's migration). Pinning
+        // is purely a display choice now, left exactly as the caller had it.
+        //
+        // Resetting last_checked_at when the criteria itself changed (not
+        // just the name) and notifications are on: without this, editing an
+        // enabled search from e.g. "Los Angeles" to "all remote events"
+        // could immediately email a backlog of every remote event published
+        // since the OLD (Los Angeles) search's last check, which is a
+        // completely different, unrelated window of time — see
+        // NotifySavedSearchMatchesCommand's own docblock for why "new" means
+        // "newly published since last checked", and this is what keeps that
+        // promise meaning "since these exact criteria started being
+        // watched."
+        $criteriaChanged = $fingerprint !== $savedSearch->fingerprint;
+
         try {
             $savedSearch->update([
                 'name' => $name,
                 'criteria' => $normalized,
                 'fingerprint' => $fingerprint,
-                'pinned' => true,
+                'is_scratch' => false,
+                'last_checked_at' => ($criteriaChanged && $savedSearch->notify_new_events) ? now() : $savedSearch->last_checked_at,
             ]);
         } catch (QueryException $e) {
             // Backstop for the check-then-write gap above: two concurrent

@@ -688,10 +688,16 @@ const subscribeToMapStore = () => {
 // overlay below is `fixed inset-0`, but the bottom nav is `fixed` too with a
 // higher z-index, so without this it renders on top of the overlay's own
 // content (e.g. covering the "When"/Search row) instead of getting out of
-// the way while the search is open.
+// the way while the search is open. Also fires whenever we're off the home
+// page (results/map view, At Home results, etc.) — those screens already
+// have their own back arrow up top (see `v-if="!isHomePage"` below), so the
+// bottom bar is redundant chrome there too, same reasoning as
+// profile-detail-toggle in Profile/index.vue. `immediate: true` because
+// landing directly on a non-home URL (e.g. a shared search link) never
+// changes `search` at all — without it the bar would never learn to hide.
 watch(search, (value) => {
-    window.dispatchEvent(new CustomEvent('mobile-search-toggle', { detail: { open: value !== null } }));
-});
+    window.dispatchEvent(new CustomEvent('mobile-search-toggle', { detail: { open: value !== null || ! isHomePage.value } }));
+}, { immediate: true });
 
 // Lifecycle hooks
 onMounted(() => {

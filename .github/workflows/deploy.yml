@@ -112,7 +112,12 @@ jobs:
       - name: Run post-deploy commands
         run: |
           DEPLOY_PATH="${{ steps.deploy-env.outputs.path }}"
-          
+          if [ "${{ steps.deploy-env.outputs.env }}" = "production" ]; then
+            QUEUE_SERVICE="ei-queue.service"
+          else
+            QUEUE_SERVICE="ei-queue-dev.service"
+          fi
+
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
             # Fail loud — without these, a failed composer install or migration
             # would still let the script reach the final echo, and the heredoc's
@@ -140,8 +145,22 @@ jobs:
             # for a client to still be holding a stale index.html. Allowed to fail.
             find $DEPLOY_PATH/public/build/assets -type f -mtime +30 -delete 2>/dev/null || true
 
-            # Allowed to fail if queue isn't running.
-            php artisan queue:restart 2>/dev/null || true
+            # No longer allowed to fail silently — a systemd queue worker
+            # (ei-queue.service / ei-queue-dev.service) now actually exists
+            # and depends on this signal to pick up new code. queue:restart
+            # only writes a cache flag; the worker notices it, finishes its
+            # current job, and exits — systemd's Restart=always then starts a
+            # fresh one. Give that a few seconds, then confirm it actually
+            # came back healthy, so a broken deploy (bad .env, bootstrap
+            # error) fails the workflow here instead of leaving the worker
+            # dead with no one noticing.
+            php artisan queue:restart
+            sleep 8
+            if ! systemctl is-active --quiet $QUEUE_SERVICE; then
+              echo "❌ $QUEUE_SERVICE is not active after queue:restart"
+              systemctl status $QUEUE_SERVICE --no-pager -l || true
+              exit 1
+            fi
 
             echo "✅ Deployment complete!"
           EOF
@@ -157,7 +176,21 @@ jobs:
       # GitHub runner; non-2xx response fails the workflow. Catches the class
       # of bug that hit on 2026-05-26 where the deploy reported success but
       # the site was 500'ing.
+      #
+      # if: !cancelled() — without this, a failure in the earlier queue-
+      # restart gate (Run post-deploy commands) skips this step entirely
+      # (caught in review), even though by that point rsync/composer
+      # install/migrate/cache have already completed and the site is
+      # already serving the new code. That left actual site health
+      # unconfirmed either way, and made a real outage indistinguishable in
+      # the Actions UI from a harmless queue-worker restart timing flake.
+      # This doesn't mask an earlier failure — the job still reports
+      # overall failure if a prior required step failed — it just also
+      # runs this check so there's a real answer to "is the site actually
+      # up" either way. Deliberately not plain always(): a cancelled run
+      # shouldn't still try to curl anything.
       - name: Smoke test deployed site
+        if: ${{ !cancelled() }}
         run: |
           if [ "${{ steps.deploy-env.outputs.env }}" = "production" ]; then
             URL="${{ secrets.VITE_BASE_URL_PROD }}"

@@ -83,7 +83,7 @@
                         @endif
                         <div class="">
                             @include('events.show.about')
-                            <vue-show-calendar-mobile :event="{{ $event }}"></vue-show-calendar-mobile>
+                            <vue-show-calendar-mobile :event="{!! $eventJson !!}"></vue-show-calendar-mobile>
                             @include('events.show.details')
                         </div>
                     </div>
@@ -96,14 +96,14 @@
                 @if ($event->eventreviews && count($event->eventreviews) > 0)
                     @include('events.show.reviews')
                 @endif
-                <vue-show-map :event="{{ $event }}"></vue-show-map>
+                <vue-show-map :event="{!! $eventJson !!}"></vue-show-map>
                 @include('events.show.organizer')
-                <vue-similar-events :event="{{ $event }}"></vue-similar-events>
+                <vue-similar-events :event="{!! $eventJson !!}"></vue-similar-events>
             </div>
 
             <div class="w-full relative shrink-0 md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
                 <vue-show-purchase-mobile
-                    :event="{{ $event }}"
+                    :event="{!! $eventJson !!}"
                     :single-image="false"
                     :user="user"
                 ></vue-show-purchase-mobile>

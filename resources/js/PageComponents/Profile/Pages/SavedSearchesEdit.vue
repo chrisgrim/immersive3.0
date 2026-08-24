@@ -108,6 +108,28 @@
                 <Dropdown :list="availableGenres" :creatable="false" placeholder="Select genres" @onSelect="addGenre" />
                 <List class="mt-6" :selections="selectedGenreObjects" @onSelect="removeGenre" />
             </div>
+
+            <!-- Pilot feature (see SavedSearchController::toggleNotify()) —
+                 window.Laravel.savedSearchNotificationsPilot is a UI-only
+                 visibility gate, not the real enforcement, which is
+                 server-side. A plain PATCH like togglePin's own, not part of
+                 the draft/Save flow — the toggle takes effect immediately,
+                 same as pinning a search does from the list. -->
+            <div v-if="pilotEligible">
+                <div class="flex items-center justify-between gap-6">
+                    <div>
+                        <p class="text-2xl font-semibold mb-1">Notify me about new events</p>
+                        <p class="text-lg text-neutral-500">
+                            Email me when a new event shows up in this search. Checked twice a day — this only covers events published after you turn it on, not existing ones.
+                        </p>
+                    </div>
+                    <preference-toggle
+                        aria-label="Notify me about new events"
+                        :checked="!!search?.notifyNewEvents"
+                        @change="$emit('toggle-notify')"
+                    />
+                </div>
+            </div>
         </div>
         </div>
 
@@ -146,6 +168,7 @@ import VueSlider from 'vue-slider-component';
 import 'vue-slider-component/theme/antd.css';
 import Dropdown from '@/GlobalComponents/dropdown.vue';
 import List from '@/GlobalComponents/dropdown-list.vue';
+import PreferenceToggle from '@/GlobalComponents/preference-toggle.vue';
 import SavedSearchRemoteLocationPicker from '../Components/saved-search-remote-location-picker.vue';
 import SavedSearchLocationPicker from '../Components/saved-search-location-picker.vue';
 
@@ -171,9 +194,19 @@ const props = defineProps({
         type: String,
         default: null,
     },
+    // The full saved-search row (id, notifyNewEvents, ...) — distinct from
+    // `draft`, which is only the editable name/criteria. Needed for the
+    // notify-pilot toggle below, which reads/writes a real row, not the
+    // in-progress draft.
+    search: {
+        type: Object,
+        default: null,
+    },
 });
 
-const emit = defineEmits(['update:draft', 'save']);
+const emit = defineEmits(['update:draft', 'save', 'toggle-notify']);
+
+const pilotEligible = computed(() => !!window.Laravel?.savedSearchNotificationsPilot);
 
 const updateName = (value) => {
     emit('update:draft', { ...props.draft, name: value });

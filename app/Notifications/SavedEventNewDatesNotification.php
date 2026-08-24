@@ -7,10 +7,20 @@ use App\Models\Event;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class SavedEventNewDatesNotification extends Notification implements ShouldQueue
 {
     use Queueable;
+
+    /**
+     * Escalating gaps between the worker's 3 retry attempts (see
+     * `--tries=3` on ei-queue.service/ei-queue-dev.service) — a mail
+     * provider outage or transient SMTP error isn't fixed by hammering it
+     * again a second later. 1 minute, then 5, then 15.
+     */
+    public array $backoff = [60, 300, 900];
 
     /**
      * $notifyOverride is THIS recipient's own notify_new_dates value,
@@ -77,5 +87,20 @@ class SavedEventNewDatesNotification extends Notification implements ShouldQueue
             'event_name' => $this->event->name,
             'event_image' => $this->event->largeImagePath,
         ];
+    }
+
+    /**
+     * Runs once all 3 tries are exhausted — the job itself already landed in
+     * failed_jobs by this point (Laravel's default behavior), this just adds
+     * the context (which event/recipient) that a bare failed_jobs row on its
+     * own doesn't make obvious at a glance.
+     */
+    public function failed(Throwable $exception): void
+    {
+        Log::error('[notifications] saved_event_new_dates permanently failed', [
+            'event_id' => $this->event->id,
+            'event_slug' => $this->event->slug,
+            'exception' => $exception->getMessage(),
+        ]);
     }
 }
