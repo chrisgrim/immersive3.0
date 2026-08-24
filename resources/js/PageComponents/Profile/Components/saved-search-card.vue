@@ -55,6 +55,7 @@
 <script setup>
 import { computed } from 'vue';
 import { RiCloseLine, RiSearchLine, RiExternalLinkLine, RiPushpinFill, RiPushpinLine } from '@remixicon/vue';
+import { formatSearchDateRangeLabel } from '@/composables/useSavedSearchDateRange';
 
 const props = defineProps({
     search: { type: Object, required: true },
@@ -86,9 +87,14 @@ const summary = computed(() => {
             ? criteria.remoteLocation.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
             : 'Remote');
     }
+    // criteria.start/end (see NormalizeSavedSearchCriteriaAction) — already
+    // captured on every auto-saved search and already carried through to
+    // this row's replay `url` (BuildSearchUrlAction); this just makes that
+    // existing data visible without opening the editor.
+    const dateLabel = formatSearchDateRangeLabel(criteria.start, criteria.end);
+    if (dateLabel) parts.push(dateLabel);
     // criteria.live is only ever true for a custom-map-bounds search (see
-    // BuildSearchUrlAction) — not a "happening now" date filter, which this
-    // criteria schema doesn't have.
+    // BuildSearchUrlAction).
     if (criteria.live) parts.push('Custom map area');
     if (criteria.categories?.length) {
         parts.push(`${criteria.categories.length} ${criteria.categories.length === 1 ? 'category' : 'categories'}`);

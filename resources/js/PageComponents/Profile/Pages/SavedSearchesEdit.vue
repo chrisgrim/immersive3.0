@@ -19,7 +19,7 @@
              mobile-only (this component sits full-bleed there — see
              Hub/index.vue — so it needs its own inset); lg: and up it's
              already inset by the right column's own padding. -->
-        <div class="mx-auto w-full xl:w-2/3 flex flex-col gap-12 pb-32 lg:pb-6 px-6 lg:px-0">
+        <div class="mx-auto w-full xl:w-2/3 flex flex-col gap-12 pb-36 lg:pb-6 px-6 lg:px-0">
             <!-- Each part is its own plain section — no shared card, no border
                  box, no divider lines between them. -->
             <div>
@@ -66,6 +66,42 @@
                     :model-value="draft.criteria.remoteLocation"
                     @update:model-value="updateCriteria({ remoteLocation: $event })"
                 />
+            </div>
+
+            <div>
+                <p class="text-2xl font-semibold mb-4">Dates</p>
+                <!-- Single calendar at every width (two side by side ran
+                     too wide for this column) — flex justify-center keeps
+                     it from sitting flush left, since a single calendar is
+                     narrower than the section's own width, unlike the
+                     Price range slider above it which stretches full width
+                     on its own. -->
+                <div class="px-7 saved-search-dates-calendar flex justify-center">
+                    <VueDatePicker
+                        v-model="dateRange"
+                        range
+                        disable-year-select
+                        :enable-time-picker="false"
+                        :min-date="minDate"
+                        :max-date="maxDate"
+                        inline
+                        auto-apply
+                        month-name-format="long"
+                        hide-offset-dates
+                        week-start="0"
+                    />
+                </div>
+                <div class="flex items-center justify-between mt-4">
+                    <p class="text-lg text-neutral-500">{{ dateRangeLabel || 'Any dates' }}</p>
+                    <button
+                        v-if="dateRangeLabel"
+                        type="button"
+                        class="text-black underline font-semibold hover:text-neutral-600"
+                        @click="clearDates"
+                    >
+                        Clear
+                    </button>
+                </div>
             </div>
 
             <div>
@@ -164,10 +200,16 @@
              and its tap target (py-3) was cramped (live report: hard to hit
              the Save button). py-6 makes the BAR taller, not the button
              itself — the button keeps its own px-6 py-3 unchanged, just
-             gets more breathing room around it. pb-32 on the content div
-             above compensates for this now being pulled out of flow. lg:
-             reverts both to the original desktop-pane behavior. -->
-        <div class="flex-shrink-0 border-t border-neutral-200 bg-white flex items-center justify-end gap-4 px-6 py-6 fixed bottom-0 left-0 right-0 z-40 lg:static lg:py-3 lg:-mx-20 lg:-mb-20">
+             gets more breathing room around it. pb-36 on the content div
+             above compensates for this now being pulled out of flow
+             (measured against the footer's actual rendered height, not
+             guessed — see pb-12 below for why it's taller than the
+             footer's own vertical padding alone would suggest). lg:
+             reverts both to the original desktop-pane behavior. pb-12
+             (not py-6 on both sides) — bottom needs more than top, clear
+             of the device's own home-indicator/gesture-bar inset most
+             phones now have below a fixed bottom-0 bar. -->
+        <div class="flex-shrink-0 border-t border-neutral-200 bg-white flex items-center justify-end gap-4 px-6 pt-6 pb-12 fixed bottom-0 left-0 right-0 z-40 lg:static lg:py-3 lg:-mx-20 lg:-mb-20">
             <p v-if="error" class="text-red-600 mr-auto">{{ error }}</p>
             <p v-else-if="locationMissing" class="text-red-600 mr-auto">Pick a location to save this search.</p>
             <button
@@ -190,11 +232,14 @@ import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
 import VueSlider from 'vue-slider-component';
 import 'vue-slider-component/theme/antd.css';
+import VueDatePicker from '@vuepic/vue-datepicker';
+import '@vuepic/vue-datepicker/dist/main.css';
 import Dropdown from '@/GlobalComponents/dropdown.vue';
 import List from '@/GlobalComponents/dropdown-list.vue';
 import PreferenceToggle from '@/GlobalComponents/preference-toggle.vue';
 import SavedSearchRemoteLocationPicker from '../Components/saved-search-remote-location-picker.vue';
 import SavedSearchLocationPicker from '../Components/saved-search-location-picker.vue';
+import { parseSearchDate, formatSearchDate, formatSearchDateRangeLabel } from '@/composables/useSavedSearchDateRange';
 
 const props = defineProps({
     // { name: string, criteria: {...} } — Hub/index.vue owns this (and
@@ -254,6 +299,52 @@ const locationMissing = computed(() => (
     props.draft.criteria.searchType === 'inPerson'
     && (!props.draft.criteria.lat || !props.draft.criteria.lng)
 ));
+
+const dateRangeLabel = computed(() => formatSearchDateRangeLabel(props.draft.criteria.start, props.draft.criteria.end));
+
+const dateRange = computed({
+    get: () => {
+        const start = parseSearchDate(props.draft.criteria.start);
+        if (!start) return null;
+        return [start, parseSearchDate(props.draft.criteria.end) || start];
+    },
+    // VueDatePicker's range mode can emit null (cleared) or a completed
+    // [start, end] pair; a single day picked (end still null) saves as
+    // start === end, matching what the live search bar's own handleSearch
+    // already does for a one-day pick.
+    set: (value) => {
+        if (!value || !Array.isArray(value) || !value[0]) {
+            updateCriteria({ start: null, end: null });
+            return;
+        }
+        const [start, end] = value;
+        updateCriteria({
+            start: formatSearchDate(start),
+            end: formatSearchDate(end || start),
+        });
+    },
+});
+
+const clearDates = () => updateCriteria({ start: null, end: null });
+
+// Same "no past dates, capped a year out" rule the live search bar's own
+// date picker enforces (location-search.vue's minDate/maxDate) — a saved
+// search is still a search a user could run today, not a record of the
+// past. An EXISTING search whose dates already fall outside this window
+// (edited before this feature existed, or just aged past its own date)
+// still displays correctly (dateRange's get() above doesn't filter by
+// these bounds) — min/max-date only constrain what a NEW pick inside the
+// calendar UI can select, not what's already shown.
+const minDate = computed(() => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    return date;
+});
+const maxDate = computed(() => {
+    const date = new Date();
+    date.setFullYear(date.getFullYear() + 1);
+    return date;
+});
 
 // A saved search whose price was never touched stores the app-wide "no
 // filter" sentinel [0, null] (see SearchStore's own default) — the slider
@@ -342,3 +433,137 @@ onMounted(async () => {
     }
 });
 </script>
+
+<style>
+/* Copied verbatim from location-search.vue's own .location-search-calendar
+   overrides (that file's own comment: "Add a scoping class to all styles
+   and make them !important" — vue-datepicker's default theme otherwise
+   looks nothing like the rest of the site). Deliberately a COPY, not a
+   shared import — this editor isn't a dropdown (no arrow/shadow/border
+   chrome to strip the same way), and the live search bar is explicitly out
+   of scope for this feature (see useSavedSearchDateRange.js's own comment).
+   Keep both in sync by hand if the design changes. */
+.saved-search-dates-calendar .dp__menu_inner .dp__menu_items {
+   display: none !important;
+}
+
+/* No width:100% override here, unlike location-search.vue's copy of this
+   rule — that file's calendar lives in an already width-constrained
+   dropdown, so stretching to 100% just fills it. This section's own
+   wrapper is as wide as the whole editor column, so the same override
+   would stretch the calendar itself out to that full width instead of
+   staying at its natural compact size — the flex justify-center on the
+   wrapper above only has something to center if the calendar doesn't
+   already consume all the space. */
+
+.saved-search-dates-calendar .dp__month_year_wrap {
+   font-size: 1.7rem !important;
+   font-weight: 400 !important;
+}
+
+.saved-search-dates-calendar .dp__calendar_header {
+   color: #666 !important;
+   font-weight: normal !important;
+   margin-bottom: 8px !important;
+   font-size: 1.2rem !important;
+}
+
+.saved-search-dates-calendar .dp__calendar_row {
+   margin: 0 !important;
+   gap: 0 !important;
+}
+
+.saved-search-dates-calendar .dp__calendar_item {
+   margin: 0 !important;
+   padding: 0 !important;
+   font-size: 1.4rem !important;
+}
+
+.saved-search-dates-calendar .dp__cell_inner {
+   height: 45px !important;
+   width: 45px !important;
+   margin: 0 !important;
+   padding: 0 !important;
+   display: flex !important;
+   align-items: center !important;
+   justify-content: center !important;
+   border-radius: 9999px !important;
+   font-weight: normal !important;
+   color: #333 !important;
+}
+
+.saved-search-dates-calendar .dp__cell_disabled {
+   opacity: 0.3 !important;
+   cursor: auto !important;
+}
+
+.saved-search-dates-calendar .dp__cell_inner:not(.dp--past):hover {
+   border: 2px solid black !important;
+   background: transparent !important;
+   color: black !important;
+}
+
+.saved-search-dates-calendar .dp__active {
+   background-color: black !important;
+   color: white !important;
+}
+
+.saved-search-dates-calendar .dp__range_start,
+.saved-search-dates-calendar .dp__range_end {
+   background-color: black !important;
+   color: white !important;
+}
+
+.saved-search-dates-calendar .dp__range_start {
+   border-top-right-radius: 0 !important;
+   border-bottom-right-radius: 0 !important;
+}
+
+.saved-search-dates-calendar .dp__range_end {
+   border-top-left-radius: 0 !important;
+   border-bottom-left-radius: 0 !important;
+}
+
+.saved-search-dates-calendar .dp__range_between {
+   border-radius: 0 !important;
+}
+
+.saved-search-dates-calendar .dp__arrow_bottom,
+.saved-search-dates-calendar .dp__arrow_top {
+   display: none !important;
+}
+
+.saved-search-dates-calendar .dp__today {
+   border: none !important;
+}
+
+.saved-search-dates-calendar .dp__main {
+   border: none !important;
+   box-shadow: none !important;
+   /* Shrinks to the calendar's own natural size instead of stretching to
+      fill this wrapper's full width (its library default) — the outer
+      flex justify-center above only has room to center something
+      narrower than the wrapper. */
+   width: fit-content !important;
+}
+
+.saved-search-dates-calendar .dp__calendar_header_separator {
+   display: none !important;
+}
+
+.saved-search-dates-calendar .dp__theme_light {
+   border: none !important;
+}
+
+.saved-search-dates-calendar .dp__header-wrap {
+   margin-bottom: 1rem !important;
+}
+
+.saved-search-dates-calendar .dp__menu_inner.dp__flex_display {
+   gap: 4rem !important;
+}
+
+.saved-search-dates-calendar .dp__calendar_next {
+   margin-inline-start: 0 !important;
+}
+</style>

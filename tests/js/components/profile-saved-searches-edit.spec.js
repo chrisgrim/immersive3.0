@@ -14,6 +14,10 @@
  *  - price criteria's [0, null] "no filter" sentinel displays as [0, maxPrice].
  *  - category/genre add/remove never duplicate an already-selected id.
  *  - save is emitted on click.
+ *  - Dates section: initializes from draft.criteria.start/end, a picked
+ *    range or a cleared selection emits update:draft with correctly
+ *    formatted (or null) start/end, and the label/Clear button reflect
+ *    whether dates are currently set.
  */
 import { mount, flushPromises } from '@vue/test-utils';
 import { vi } from 'vitest';
@@ -26,6 +30,7 @@ vi.mock('axios', () => ({
 
 import axios from 'axios';
 import SavedSearchesEdit from '@/PageComponents/Profile/Pages/SavedSearchesEdit.vue';
+import VueDatePicker from '@vuepic/vue-datepicker';
 
 function makeDraft(overrides = {}) {
     return {
@@ -56,6 +61,7 @@ function mountEdit(props = {}) {
         global: {
             stubs: {
                 VueSlider: true,
+                VueDatePicker: true,
                 SavedSearchLocationPicker: true,
                 SavedSearchRemoteLocationPicker: true,
             },
@@ -187,6 +193,90 @@ describe('Profile/Pages/SavedSearchesEdit.vue', () => {
 
             const emittedDraft = wrapper.emitted('update:draft').at(-1)[0];
             expect(emittedDraft.criteria.categories).toEqual([2]);
+        });
+    });
+
+    describe('Dates section', () => {
+        it('shows "Any dates" and no Clear button when criteria has no start date', () => {
+            const wrapper = mountEdit({ draft: makeDraft({ criteria: { ...makeDraft().criteria, start: null, end: null } }) });
+            expect(wrapper.text()).toContain('Any dates');
+            expect(wrapper.findAll('button').find((b) => b.text() === 'Clear')).toBeUndefined();
+        });
+
+        it('shows the formatted range and a Clear button when criteria already has dates', () => {
+            const draft = makeDraft({
+                criteria: { ...makeDraft().criteria, start: '2026-06-27 00:00:00', end: '2026-06-29 00:00:00' },
+            });
+            const wrapper = mountEdit({ draft });
+            expect(wrapper.text()).toContain('Jun 27 – Jun 29');
+            expect(wrapper.findAll('button').find((b) => b.text() === 'Clear')).toBeDefined();
+        });
+
+        it('passes the existing criteria dates into the picker as a [start, end] Date pair', () => {
+            const draft = makeDraft({
+                criteria: { ...makeDraft().criteria, start: '2026-06-27 00:00:00', end: '2026-06-29 00:00:00' },
+            });
+            const wrapper = mountEdit({ draft });
+            const picker = wrapper.findComponent(VueDatePicker);
+            const [start, end] = picker.props('modelValue');
+            expect(start.getFullYear()).toBe(2026);
+            expect(start.getMonth()).toBe(5);
+            expect(start.getDate()).toBe(27);
+            expect(end.getDate()).toBe(29);
+        });
+
+        it('emits update:draft with correctly formatted start/end when a range is picked', async () => {
+            const draft = makeDraft();
+            const wrapper = mountEdit({ draft });
+            const picker = wrapper.findComponent(VueDatePicker);
+
+            await picker.vm.$emit('update:modelValue', [new Date(2026, 6, 4), new Date(2026, 6, 8)]);
+
+            const emittedDraft = wrapper.emitted('update:draft').at(-1)[0];
+            expect(emittedDraft.criteria.start).toBe('2026-07-04 00:00:00');
+            expect(emittedDraft.criteria.end).toBe('2026-07-08 00:00:00');
+        });
+
+        it('saves start === end when only a single day is picked', async () => {
+            // Matches location-search.vue's own handleSearch behavior for a
+            // one-day pick (end falls back to start), not a null/incomplete
+            // range.
+            const draft = makeDraft();
+            const wrapper = mountEdit({ draft });
+            const picker = wrapper.findComponent(VueDatePicker);
+
+            await picker.vm.$emit('update:modelValue', [new Date(2026, 6, 4)]);
+
+            const emittedDraft = wrapper.emitted('update:draft').at(-1)[0];
+            expect(emittedDraft.criteria.start).toBe('2026-07-04 00:00:00');
+            expect(emittedDraft.criteria.end).toBe('2026-07-04 00:00:00');
+        });
+
+        it('emits null start/end when the picker is cleared', async () => {
+            const draft = makeDraft({
+                criteria: { ...makeDraft().criteria, start: '2026-06-27 00:00:00', end: '2026-06-29 00:00:00' },
+            });
+            const wrapper = mountEdit({ draft });
+            const picker = wrapper.findComponent(VueDatePicker);
+
+            await picker.vm.$emit('update:modelValue', null);
+
+            const emittedDraft = wrapper.emitted('update:draft').at(-1)[0];
+            expect(emittedDraft.criteria.start).toBeNull();
+            expect(emittedDraft.criteria.end).toBeNull();
+        });
+
+        it('emits null start/end when the Clear button is clicked', async () => {
+            const draft = makeDraft({
+                criteria: { ...makeDraft().criteria, start: '2026-06-27 00:00:00', end: '2026-06-29 00:00:00' },
+            });
+            const wrapper = mountEdit({ draft });
+
+            await wrapper.findAll('button').find((b) => b.text() === 'Clear').trigger('click');
+
+            const emittedDraft = wrapper.emitted('update:draft').at(-1)[0];
+            expect(emittedDraft.criteria.start).toBeNull();
+            expect(emittedDraft.criteria.end).toBeNull();
         });
     });
 });

@@ -219,6 +219,31 @@ test('a remoteLocation slug round-trips through save and the replay URL', functi
     expect($response->json('search.url'))->toContain('remoteLocation=telephone');
 });
 
+test('dates round-trip through auto-save, the stored criteria, and the replay URL', function () {
+    // Locks in behavior that already works end-to-end without any backend
+    // change (see NormalizeSavedSearchCriteriaAction/BuildSearchUrlAction) —
+    // this test exists so a future change can't silently regress it, since
+    // nothing previously asserted start/end specifically reach the URL.
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->postJson('/api/hub/saved-searches', [
+        'name' => 'New York, NY',
+        'criteria' => [
+            'city' => 'New York, NY',
+            'searchType' => 'inPerson',
+            'start' => '2026-06-27 00:00:00',
+            'end' => '2026-06-29 00:00:00',
+        ],
+    ])->assertCreated();
+
+    expect($response->json('search.criteria.start'))->toBe('2026-06-27 00:00:00');
+    expect($response->json('search.criteria.end'))->toBe('2026-06-29 00:00:00');
+
+    parse_str(parse_url($response->json('search.url'), PHP_URL_QUERY), $query);
+    expect($query['start'])->toBe('2026-06-27 00:00:00');
+    expect($query['end'])->toBe('2026-06-29 00:00:00');
+});
+
 test('toggling pin flips the flag and is idempotent to call again', function () {
     $user = User::factory()->create();
     $search = SavedSearch::factory()->create(['user_id' => $user->id, 'pinned' => false]);

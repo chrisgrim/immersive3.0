@@ -8,6 +8,8 @@
  *    custom map area, categories, and genres — specifically that the
  *    backend's `tags` criteria key is always rendered as "genre(s)", never
  *    "tag(s)" (a labeling fix from earlier this session).
+ *  - criteria.start/end render as a formatted date (or range) in the
+ *    summary, and are omitted entirely when unset.
  */
 import { mount } from '@vue/test-utils';
 import SavedSearchCard from '@/PageComponents/Profile/Components/saved-search-card.vue';
@@ -115,6 +117,26 @@ describe('saved-search-card.vue', () => {
                 search: makeSearch({ criteria: { city: 'NYC', categories: [1], tags: [1, 2] } }),
             });
             expect(wrapper.text()).toContain('NYC · 1 category · 2 genres');
+        });
+
+        it('shows a single formatted date when start equals end', () => {
+            const wrapper = mountCard({
+                search: makeSearch({ criteria: { city: 'NYC', start: '2026-06-27 00:00:00', end: '2026-06-27 00:00:00' } }),
+            });
+            expect(wrapper.text()).toContain('NYC · Jun 27');
+        });
+
+        it('shows a formatted date range when start and end differ', () => {
+            const wrapper = mountCard({
+                search: makeSearch({ criteria: { city: 'NYC', start: '2026-06-27 00:00:00', end: '2026-06-29 00:00:00' } }),
+            });
+            expect(wrapper.text()).toContain('NYC · Jun 27 – Jun 29');
+        });
+
+        it('omits any date fragment when start/end are unset', () => {
+            const wrapper = mountCard({ search: makeSearch({ criteria: { city: 'NYC' } }) });
+            expect(wrapper.text()).toContain('NYC');
+            expect(wrapper.text()).not.toMatch(/Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/);
         });
     });
 });
