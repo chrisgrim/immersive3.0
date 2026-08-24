@@ -63,9 +63,7 @@
                             placeholder="Add a short blurb about your community" 
                             ref="blurbInput"
                             @input="handleBlurbInput"
-                            @blur="handleBlurBlurb"
-                            @focus="handleFocusBlurb"
-                            v-model="community.blurb" 
+                            v-model="community.blurb"
                             :class="[
                                 'p-4 border rounded-2xl mt-1 block w-full',
                                 {
@@ -290,16 +288,6 @@ const onSubmit = async () => {
     } finally {
         isSubmitting.value = false;
     }
-};
-
-const handleBlurBlurb = () => {
-    if (document.activeElement !== blurbInput.value) {
-        isEditingBlurb.value = false;
-    }
-};
-
-const handleFocusBlurb = () => {
-    isEditingBlurb.value = true;
 };
 
 const clearError = (field) => {
