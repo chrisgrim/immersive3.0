@@ -405,6 +405,83 @@ test('pinned searches are always listed before unpinned ones, regardless of rece
     expect($names->all())->toBe(['Older pinned', 'Newer unpinned']);
 });
 
+// ---------------------------------------------------------------------------
+// GET /api/hub/saved-searches?dropdown=1 — the nav search bar's "Recent
+// searches" quick-access dropdown, a deliberately reduced view (spelled out
+// directly by the user): every pinned search, plus at most one more — the
+// single most-recently-touched search that isn't pinned. Without ?dropdown,
+// the full list still comes back unreduced (the Saved Search Preferences
+// page's own fetch).
+// ---------------------------------------------------------------------------
+
+test('dropdown view shows every pinned search plus only the single most recent unpinned one', function () {
+    $user = User::factory()->create();
+
+    $oldestUnpinned = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Oldest unpinned', 'pinned' => false]);
+    $this->travel(1)->minutes();
+    $middleUnpinned = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Middle unpinned', 'pinned' => false]);
+    $this->travel(1)->minutes();
+    $newestUnpinned = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Newest unpinned', 'pinned' => false]);
+    $pinned = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'A pinned search', 'pinned' => true]);
+
+    $response = $this->actingAs($user)->getJson('/api/hub/saved-searches?dropdown=1')->assertOk();
+
+    $names = collect($response->json('searches'))->pluck('name');
+    expect($names->all())->toBe(['A pinned search', 'Newest unpinned']);
+    expect($names)->not->toContain('Middle unpinned');
+    expect($names)->not->toContain('Oldest unpinned');
+});
+
+test('dropdown view without ?dropdown returns the full unreduced list', function () {
+    $user = User::factory()->create();
+    SavedSearch::factory()->count(3)->create(['user_id' => $user->id, 'pinned' => false]);
+
+    $response = $this->actingAs($user)->getJson('/api/hub/saved-searches')->assertOk();
+
+    expect($response->json('searches'))->toHaveCount(3);
+});
+
+test('dropdown view with every search pinned shows all of them, no unpinned slot added', function () {
+    $user = User::factory()->create();
+    SavedSearch::factory()->count(3)->create(['user_id' => $user->id, 'pinned' => true]);
+
+    $response = $this->actingAs($user)->getJson('/api/hub/saved-searches?dropdown=1')->assertOk();
+
+    expect($response->json('searches'))->toHaveCount(3);
+});
+
+test('dropdown view does not duplicate a pinned search that also happens to be the most recent', function () {
+    $user = User::factory()->create();
+    SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Older pinned', 'pinned' => true]);
+    $this->travel(1)->minutes();
+    $newestIsPinned = SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Newest, also pinned', 'pinned' => true]);
+
+    $response = $this->actingAs($user)->getJson('/api/hub/saved-searches?dropdown=1')->assertOk();
+
+    // 2 pinned searches, nothing unpinned exists at all — still just 2, not 3.
+    expect($response->json('searches'))->toHaveCount(2);
+});
+
+test('dropdown view with nothing pinned shows just the single most recent search', function () {
+    $user = User::factory()->create();
+    SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Older', 'pinned' => false]);
+    $this->travel(1)->minutes();
+    SavedSearch::factory()->create(['user_id' => $user->id, 'name' => 'Newer', 'pinned' => false]);
+
+    $response = $this->actingAs($user)->getJson('/api/hub/saved-searches?dropdown=1')->assertOk();
+
+    $names = collect($response->json('searches'))->pluck('name');
+    expect($names->all())->toBe(['Newer']);
+});
+
+test('dropdown view with nothing saved at all returns an empty list, not an error', function () {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->getJson('/api/hub/saved-searches?dropdown=1')->assertOk();
+
+    expect($response->json('searches'))->toBe([]);
+});
+
 test('a user can delete their own saved search', function () {
     $user = User::factory()->create();
     $search = SavedSearch::factory()->create(['user_id' => $user->id]);

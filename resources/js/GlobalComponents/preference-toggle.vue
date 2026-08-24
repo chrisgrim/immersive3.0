@@ -1,5 +1,17 @@
 <template>
-    <label class="inline-flex items-center" :class="disabled ? 'cursor-not-allowed' : 'cursor-pointer'">
+    <!-- `relative` on the label is load-bearing, not decorative — the
+         checkbox below is `sr-only` (position: absolute, no top/left set,
+         so it falls back to its "static position" — the browser's guess at
+         where it'd sit in normal flow). With no positioned ancestor, that
+         guess resolves against this component's nearest ACTUAL positioned
+         ancestor, wherever that happens to be up the tree — usually
+         harmless, but inside a deeply-nested flex/overflow-y-auto layout
+         (found live on the saved-search editor's Notify toggle) it landed
+         ~300px past all real content, silently adding that much dead
+         scrollable space to the whole page. `relative` here gives the
+         checkbox its own small, local containing block, independent of
+         wherever this component happens to be embedded. -->
+    <label class="relative inline-flex items-center" :class="disabled ? 'cursor-not-allowed' : 'cursor-pointer'">
         <input
             type="checkbox"
             class="sr-only peer"

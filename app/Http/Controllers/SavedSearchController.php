@@ -14,7 +14,9 @@ class SavedSearchController extends Controller
 {
     /**
      * The current user's saved searches, most-recently-saved first. Backs
-     * the Hub's "Saved Search Preferences" tab.
+     * both the Hub's "Saved Search Preferences" tab (full list, up to
+     * MAX_SAVED_SEARCHES) and the nav search bar's "Recent searches"
+     * dropdown (?dropdown=1 — a reduced view, see limitToDropdown() below).
      *
      * Ordered by updated_at, not created_at (caught in review) —
      * SaveSearchAction's eviction overwrites a scratch row's name/criteria
@@ -31,10 +33,36 @@ class SavedSearchController extends Controller
         $searches = $request->user()->savedSearches()
             ->orderByDesc('pinned')
             ->orderByDesc('updated_at')
-            ->get()
-            ->map(fn (SavedSearch $search) => $this->mapSearch($search, $buildUrl));
+            ->get();
 
-        return response()->json(['searches' => $searches]);
+        if ($request->boolean('dropdown')) {
+            $searches = $this->limitToDropdown($searches);
+        }
+
+        return response()->json(['searches' => $searches->map(fn (SavedSearch $search) => $this->mapSearch($search, $buildUrl))->values()]);
+    }
+
+    /**
+     * The nav dropdown's own display rule (spelled out directly by the
+     * user, not inferred): show every PINNED search in full — those are
+     * the ones someone deliberately chose to keep visible — plus at most
+     * ONE more, the single most-recently-touched search that isn't pinned.
+     * Not "every unpinned/protected search" — a user with several distinct
+     * saved-but-unpinned searches (is_scratch=false rows from editing, or
+     * genuinely scratch rows) would otherwise see the dropdown fill up with
+     * all of them, which is exactly the clutter this exists to avoid. If
+     * the most-recently-touched search overall already IS pinned, nothing
+     * extra is added — it's already in $pinned, not duplicated.
+     * $searches is already sorted pinned-desc, updated_at-desc from the
+     * query above, so ->first() on the unpinned subset is already the most
+     * recent one — no extra sort needed.
+     */
+    private function limitToDropdown(\Illuminate\Support\Collection $searches): \Illuminate\Support\Collection
+    {
+        $pinned = $searches->where('pinned', true)->values();
+        $mostRecentUnpinned = $searches->where('pinned', false)->first();
+
+        return $mostRecentUnpinned ? $pinned->push($mostRecentUnpinned) : $pinned;
     }
 
     /**

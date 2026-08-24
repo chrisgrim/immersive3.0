@@ -145,7 +145,7 @@
             </div>
         </div>
 
-        <div class="w-full bg-white p-8 flex justify-between items-center mt-auto">
+        <div class="w-full bg-transparent p-8 flex justify-between items-center mt-auto">
             <div>
                 <button @click="handleClearAll" class="underline text-4xl font-medium">Clear All</button>
             </div>
@@ -241,7 +241,13 @@ const defaultPlacesList = () => initializePlaces().slice(0, Math.max(0, DROPDOWN
 const fetchRecentSearches = async () => {
     if (!window.Laravel?.user?.id) return;
     try {
-        const { data } = await axios.get('/api/hub/saved-searches');
+        // ?dropdown=1 — every pinned search plus at most one more (the
+        // single most-recently-touched unpinned one), not every saved
+        // search the user has (spelled out directly by the user: this
+        // dropdown is a quick-access convenience, not the full list — that
+        // lives on the Saved Search Preferences page, which fetches this
+        // same endpoint without the flag).
+        const { data } = await axios.get('/api/hub/saved-searches', { params: { dropdown: 1 } });
         recentSearches.value = (data.searches || []).slice(0, DROPDOWN_TOTAL_LIMIT);
         // defaultPlacesList() splits DROPDOWN_TOTAL_LIMIT between recent
         // searches and default cities — it already ran once in onMounted

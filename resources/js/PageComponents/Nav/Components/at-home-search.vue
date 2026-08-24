@@ -346,7 +346,13 @@ const fetchRecentSearches = async () => {
     recentSearchesFetched = true;
 
     try {
-        const { data } = await axios.get('/api/hub/saved-searches');
+        // ?dropdown=1 — every pinned search plus at most one more (the
+        // single most-recently-touched unpinned one), not every saved
+        // search the user has (spelled out directly by the user: this
+        // dropdown is a quick-access convenience, not the full list — that
+        // lives on the Saved Search Preferences page, which fetches this
+        // same endpoint without the flag).
+        const { data } = await axios.get('/api/hub/saved-searches', { params: { dropdown: 1 } });
         recentSearches.value = (data.searches || []).slice(0, DROPDOWN_TOTAL_LIMIT);
         // fetchTypes('') already ran once in onInputFocus before this
         // resolved (recentSearches was still empty then), so it needs to
