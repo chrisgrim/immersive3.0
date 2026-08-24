@@ -185,6 +185,7 @@ import SearchAtHome from './Components/at-home-search-mobile.vue';
 import Filters from './Components/filters-mobile.vue';
 import SearchStore from '@/Stores/SearchStore.vue';
 import MapStore from '@/Stores/MapStore.vue';
+import { saveSearch } from '@/composables/useSavedSearches';
 
 
 // Props definition
@@ -375,7 +376,7 @@ const handleLocationUpdate = (value) => {
     }
 };
 
-const handleSearch = () => {
+const handleSearch = async () => {
     const params = new URLSearchParams(window.location.search);
     
     // Check if remote toggle is enabled
@@ -441,10 +442,35 @@ const handleSearch = () => {
     if (maxPrice < state.value.filters.maxPrice) {
         params.set('price1', maxPrice);
     }
-    
+
+    // Auto-save this as the user's recent search — mobile's own equivalent
+    // of location-search.vue's (desktop) identical call, which was never
+    // ported over here, so a mobile search never showed up in "Recent
+    // searches" at all (reported live). Skipped for a pure remote-toggle
+    // search (isRemoteMode) — that path never sets city/lat/lng here, and
+    // without a real remoteLocation slug (only the dedicated At Home tab's
+    // own handleAtHomeSearch resolves one) there'd be nothing meaningful to
+    // replay. Awaited, same as desktop — window.location.href below
+    // navigates away immediately after, and an un-awaited POST can get
+    // cancelled mid-flight by the browser before it ever reaches the server.
+    if (!isRemoteMode && (state.value.location.city || state.value.dates.start)) {
+        await saveSearch(state.value.location.city || 'All Locations', {
+            city: state.value.location.city,
+            lat: state.value.location.lat,
+            lng: state.value.location.lng,
+            searchType: 'inPerson',
+            live: false,
+            start: state.value.dates.start,
+            end: state.value.dates.end,
+            categories: state.value.filters.categories,
+            tags: state.value.filters.tags,
+            price: state.value.filters.price,
+        });
+    }
+
     // Hide search modal after search
     hideSearch();
-    
+
     // Navigate to the search page
     window.location.href = `/index/search?${params.toString()}`;
 };
