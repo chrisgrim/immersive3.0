@@ -60,16 +60,24 @@ const handleShare = async () => {
                 url: window.location.href
             });
         } catch (err) {
-            window.dispatchEvent(new CustomEvent('showShareModalFallback'));
+            showShareFallback();
         }
     } else {
-        window.dispatchEvent(new CustomEvent('showShareModalFallback'));
+        showShareFallback();
     }
 };
 
-window.addEventListener('showShareModalFallback', () => {
+// Called directly rather than bounced through a window CustomEvent, as this
+// used to be. The dispatch and its listener were both in this one file and
+// nothing else in the app referenced the event, so the round-trip bought no
+// decoupling — it only required a global listener, registered at <script
+// setup> top level rather than in onMounted, and anonymous so it could never
+// be removed. Every mount of the gallery bound another copy for the lifetime
+// of the page, which meant one failed share fired this alert() once per
+// gallery ever opened, each blocking until dismissed.
+const showShareFallback = () => {
     alert('Sharing options will appear here!');
-});
+};
 </script>
 
 <style scoped>

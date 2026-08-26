@@ -114,6 +114,38 @@ test('a second overlapping run (e.g. a manual invocation during the scheduled ti
     }
 });
 
+test('a successful run does not report itself as skipped', function () {
+    // Regression: Lock::get($callback) returns the CALLBACK's value once it
+    // acquires the lock — not acquire()'s bool — so the command's void
+    // closure made its $ran null on every successful run and printed the
+    // "already in progress" warning every single time, right after doing
+    // the work it claimed to skip. Every existing test here asserted only
+    // assertSuccessful() (true either way) and the run's DB effects (also
+    // correct either way), so nothing caught it; twice a day it wrote a
+    // contradiction into saved-search-notifications.log that reads like a
+    // dead feature.
+    $user = User::factory()->create(['type' => 'm']);
+    SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => true, 'last_checked_at' => now()->subDay()]);
+
+    $this->artisan('ei:notify-saved-searches')
+        ->doesntExpectOutputToContain('Another run is already in progress')
+        ->assertSuccessful();
+});
+
+test('a genuinely blocked run still reports the skip', function () {
+    // The other half of the pair above — fixing the false positive must not
+    // silence the warning in the case it actually exists for.
+    $lock = Cache::lock('ei:notify-saved-searches', 300);
+    $lock->get();
+    try {
+        $this->artisan('ei:notify-saved-searches')
+            ->expectsOutputToContain('Another run is already in progress')
+            ->assertSuccessful();
+    } finally {
+        $lock->release();
+    }
+});
+
 // ---------------------------------------------------------------------------
 // determineNewCursor() — the cap/cursor math itself, tested directly since
 // Event::searchQuery()->execute() can't return real results in this test

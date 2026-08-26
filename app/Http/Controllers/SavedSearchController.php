@@ -129,11 +129,20 @@ class SavedSearchController extends Controller
      * which pinning also clears (see SavedSearch::booted()) but unpinning
      * never restores — a search the user pinned (or edited) must stay safe
      * from the auto-save's eviction pool even after being unpinned.
-     * Unpinning otherwise has no side effects on the user's other rows —
-     * SaveSearchAction now keeps a genuine multi-row recent-searches history
-     * (up to MAX_SAVED_SEARCHES), not a single rotating slot, so multiple
-     * scratch rows coexisting is the normal, intended state, not something
-     * to clean up here.
+     * Unpinning otherwise has no side effects on the user's other rows,
+     * and deliberately doesn't try to tidy them: SaveSearchAction keeps
+     * exactly ONE scratch row per user (the rotating "current search"
+     * slot), and its own deleteOtherScratchRows() consolidates any strays
+     * on that user's very next ordinary search. Cleaning up from here would
+     * duplicate that self-healing outside the per-user lock that makes it
+     * safe.
+     *
+     * (This paragraph previously claimed the opposite — that a multi-row
+     * recent-searches history was the intended state. That was true only of
+     * a short-lived version of SaveSearchAction, reverted in 79ec466; the
+     * comment wasn't reverted with it. Left recorded here because the
+     * multi-row design is a specific thing not to reintroduce, not just an
+     * outdated detail.)
      *
      * Locked the same as SaveSearchAction's own read-decide-write sequence
      * (SaveSearchAction::withUserLock) — pinning happens between reading

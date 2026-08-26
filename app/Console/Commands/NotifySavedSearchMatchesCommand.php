@@ -58,6 +58,17 @@ class NotifySavedSearchMatchesCommand extends Command
         // tick will cover whatever this one would have.
         $ran = Cache::lock('ei:notify-saved-searches', 300)->get(function () use ($filterBuilder) {
             $this->process($filterBuilder);
+
+            // Load-bearing, not decoration: Lock::get() returns the
+            // CALLBACK's value when it acquires the lock, and only falls
+            // back to acquire()'s own bool when there's no callback. A void
+            // closure here left $ran null on every SUCCESSFUL run, so the
+            // warning below fired every single time — announcing a skip
+            // that hadn't happened, right after the run it claimed to skip
+            // had finished. Twice a day into
+            // saved-search-notifications.log, that reads like a dead
+            // feature when it's working fine.
+            return true;
         });
 
         if (! $ran) {

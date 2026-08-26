@@ -231,7 +231,7 @@
 </template>
 
 <script setup>
-import { ref, provide, reactive, computed, onMounted, nextTick } from 'vue';
+import { ref, provide, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import NavSidebar from './Pages/navSidebar.vue';
 import EventType from './Pages/event-type.vue';
 import Category from './Pages/category.vue';
@@ -447,6 +447,16 @@ provide('isSidebarCollapsed', isSidebarHidden);
 onMounted(() => {
     updateContainerWidth();
     window.addEventListener('resize', updateContainerWidth);
+});
+
+// Paired with the addEventListener above — window outlives this component,
+// so without this every mount of the event editor left another
+// updateContainerWidth bound to resize, all of them writing to the
+// containerWidth ref of a component that no longer exists. The wizard is
+// mounted per edited event, so this accumulated across a session of editing
+// several events, not just in theory.
+onUnmounted(() => {
+    window.removeEventListener('resize', updateContainerWidth);
 });
 </script>
 
