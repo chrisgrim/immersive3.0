@@ -184,7 +184,7 @@
                             </div>
                         </div>
                         <div 
-                            v-if="tickets.length < 5"
+                            v-if="tickets.length < MAX_TICKET_TIERS"
                             @click="addTicket"
                             class="relative h-48 flex flex-col items-center justify-center p-4 border border-dashed border-neutral-300 text-neutral-400 rounded-2xl transition-all duration-200 cursor-pointer hover:border-[#222222] hover:bg-neutral-50"
                         >
@@ -284,6 +284,11 @@ import Dropdown from '@/GlobalComponents/dropdown.vue';
 import List from '@/GlobalComponents/dropdown-list.vue';
 
 // 2. Constants
+// Must match EventUpdateRules::MAX_TICKET_TIERS — asserted by
+// tests/Feature/TicketTierLimitTest.php. Raised from a hardcoded 5 that was
+// enforced here and nowhere else, so every non-wizard path ignored it: 26
+// events already carry more, up to a published one with 9.
+const MAX_TICKET_TIERS = 10;
 const MAX_TICKET_PRICE = 99999.99;
 const MAX_DESCRIPTION_LENGTH = 60;
 const MAX_CALL_TO_ACTION_LENGTH = 20;
@@ -469,7 +474,7 @@ const handleDivClick = (index) => {
 };
 
 const addTicket = () => {
-    if (tickets.length < 5) {
+    if (tickets.length < MAX_TICKET_TIERS) {
         tickets.push({ 
             name: '', 
             ticket_price: '', 

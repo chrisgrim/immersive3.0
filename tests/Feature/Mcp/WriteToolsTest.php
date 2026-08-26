@@ -586,6 +586,54 @@ test('update-event saves shows and tickets together in the right order', functio
     expect($event->showtype)->toBe('s');
 });
 
+test('update-event enforces the ticket tier cap it advertises', function () {
+    // The cap used to exist only in the wizard UI, so this path could create
+    // any number of tiers while the tool's own description claimed a limit.
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    $tiers = collect(range(1, \App\Support\Validation\EventUpdateRules::MAX_TICKET_TIERS + 1))
+        ->map(fn ($i) => ['name' => "Tier {$i}", 'ticket_price' => $i, 'currency' => '$', 'description' => ''])
+        ->all();
+
+    $response = EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => 'America/New_York',
+        'showtype' => 's',
+        'dateArray' => [scheduleDay(30, 'America/New_York')],
+        'tickets' => $tiers,
+    ]);
+
+    // UpdateEvent reports validation failures as a successful response whose
+    // CONTENT names the failure, not as a protocol-level error — so
+    // assertHasErrors() finds nothing here even though the call was rejected
+    // (which is how this test first passed against an unenforced cap).
+    $response->assertOk()->assertSee('validation_failed')->assertSee('tickets');
+
+    $event->refresh();
+    expect($event->shows->first()?->tickets ?? collect())->toHaveCount(0);
+});
+
+test('update-event accepts a tier count right at the cap', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    $tiers = collect(range(1, \App\Support\Validation\EventUpdateRules::MAX_TICKET_TIERS))
+        ->map(fn ($i) => ['name' => "Tier {$i}", 'ticket_price' => $i, 'currency' => '$', 'description' => ''])
+        ->all();
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => 'America/New_York',
+        'showtype' => 's',
+        'dateArray' => [scheduleDay(30, 'America/New_York')],
+        'tickets' => $tiers,
+    ])->assertOk();
+
+    $event->refresh();
+    expect($event->shows->first()->tickets)->toHaveCount(\App\Support\Validation\EventUpdateRules::MAX_TICKET_TIERS);
+});
+
 test('update-event refuses tickets before dates exist', function () {
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);

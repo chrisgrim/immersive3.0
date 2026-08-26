@@ -55,6 +55,32 @@ class EventUpdateRules
     ];
 
     /**
+     * How many ticket tiers one show may carry.
+     *
+     * This was 5, enforced ONLY in the wizard UI (tickets.vue) with nothing
+     * behind it, so every non-wizard path (MCP tools, the API, the scraper)
+     * ignored it. Reported by a moderator who found a 6-tier event.
+     *
+     * Scale, stated carefully: 593 SHOWS exceed 5 tiers, but that is only 26
+     * distinct events — tiers hang off each Show, and the wizard copies one
+     * tier set onto every show date, so a single event with many dates counts
+     * many times over. Only ONE of those 26 is still open ("Artmosphere",
+     * closes 2027). Nobody is entering nine tickets per date.
+     *
+     * 10, not 8: the highest real case is a published 2022 event with 9
+     * legitimate tiers (admission vs guided tour, each split adult/child, plus
+     * packages and a free under-5). Now that the cap is actually enforced, one
+     * set below the largest existing show would fail validation the next time
+     * a moderator saved that event — and moderators are exempt from the
+     * past-event edit lock, so they are exactly who would hit it.
+     *
+     * Keep tickets.vue's own MAX_TICKET_TIERS in step — asserted by
+     * tests/Feature/TicketTierLimitTest.php, since a Vue constant can't import
+     * a PHP one.
+     */
+    public const MAX_TICKET_TIERS = 10;
+
+    /**
      * Ticket currencies an API/MCP client is likely to send instead of the
      * symbol we store, mapped to that symbol. The wizard can only emit the
      * symbols above, so this exists for non-browser callers — normalising an
@@ -157,7 +183,7 @@ class EventUpdateRules
             'always_config' => 'sometimes|nullable|array',
             'always_config.endDate' => 'sometimes|nullable|date_format:Y-m-d H:i:s',
             // Add validation for tickets
-            'tickets' => 'nullable|array',
+            'tickets' => 'nullable|array|max:'.self::MAX_TICKET_TIERS,
             // `sometimes` here used to mean an omitted price or currency passed
             // validation and then blew up in Ticket::handleTickets, which reads
             // both keys unconditionally. The web wizard always sends all four
@@ -232,6 +258,7 @@ class EventUpdateRules
             'contentAdvisories.max' => 'You can select a maximum of 16 content advisories.',
             'mobilityAdvisories.max' => 'You can select a maximum of 16 mobility advisories.',
             'name.regex' => 'The name must contain at least one letter or number.',
+            'tickets.max' => 'An event can have at most '.self::MAX_TICKET_TIERS.' ticket tiers.',
             'tickets.*.currency.in' => 'Ticket prices must use one of these currency symbols: '.implode(' ', self::CURRENCIES).'. Use the symbol, not the ISO code — "$", not "USD".',
         ];
     }
