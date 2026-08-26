@@ -152,6 +152,8 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+import { useRecentSearches } from '@/composables/useRecentSearches';
+import { useRemoteTypeSearch, ALL_TYPES_OPTION } from '@/composables/useRemoteTypeSearch';
 import axios from 'axios';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
@@ -203,14 +205,43 @@ const dateDropdown = ref(false);
 const dateHover = ref(false);
 const dropdown = ref(false);
 const searchInput = ref('');
-const types = ref([]);
+// See location-search.vue's identical DROPDOWN_TOTAL_LIMIT/defaultPlacesList
+// — the at-rest view (Recent Searches + default types) shares one combined
+// cap rather than each half being capped independently, so the default type
+// list fills whatever's left after Recent Searches takes its share.
+// Declared above the composable calls below, which read it. Vue's SFC
+// compiler happens to hoist a static literal like this one, so the old
+// ordering worked — but only for as long as the value stays a literal.
+// Written out here so nothing depends on that optimisation.
+const DROPDOWN_TOTAL_LIMIT = 6;
+
+// Shared with the other At Home panel — see
+// composables/useRemoteTypeSearch.js. ALL_TYPES_OPTION lives there too,
+// so both panels offer the same synthetic "All At Home" entry.
+const { types, fetchTypes, invalidateInFlight } = useRemoteTypeSearch({
+    limit: DROPDOWN_TOTAL_LIMIT,
+    recentCount: () => recentSearches.value.length,
+});
 // Programmatic focus target for interceptMousedown — see its own comment.
 const typeInput = ref(null);
 const date = ref(null);
 const isDark = ref(false);
 
 // See location-search.vue's identical fields for the full reasoning.
-const recentSearches = ref([]);
+// Shared with the other three nav search panels — see
+// composables/useRecentSearches.js for why this one piece is common
+// while the panels themselves stay separate.
+const { recentSearches, fetchRecentSearches } = useRecentSearches({
+    limit: DROPDOWN_TOTAL_LIMIT,
+    once: true,
+    // Give back the dropdown slots the recent searches just claimed —
+    // but never stomp a query the user has since typed.
+    onLoaded: () => {
+        if (!hasTypedSinceFocus.value) {
+            fetchTypes('');
+        }
+    },
+});
 const hasTypedSinceFocus = ref(false);
 const showRecentSearches = computed(() => !hasTypedSinceFocus.value && recentSearches.value.length > 0);
 // See location-search.vue's identical computed — the default type list gets
@@ -276,50 +307,9 @@ let typeSearchTimeout = null;
 // above only cancels a not-yet-fired timer; it can't stop an already-
 // in-flight request (e.g. one fired before a >200ms gap between keystrokes)
 // from resolving after a newer one and overwriting its results.
-let fetchTypesToken = 0;
 
-// See location-search.vue's identical DROPDOWN_TOTAL_LIMIT/defaultPlacesList
-// — the at-rest view (Recent Searches + default types) shares one combined
-// cap rather than each half being capped independently, so the default type
-// list fills whatever's left after Recent Searches takes its share.
-const DROPDOWN_TOTAL_LIMIT = 6;
 
-// Not a real RemoteLocation row — a synthetic entry so a user can browse
-// every At Home event regardless of platform, same as leaving the type
-// field empty, but as an explicit, visible choice in the suggested list
-// rather than something only discoverable by clicking Search with nothing
-// picked. slug: null is what selectType()/handleSearch() below already
-// treat as "no platform filter" (see handleSearch's own remoteLocation
-// param-building), so this needs no special-casing beyond this one object —
-// id: 'all' can't collide with a real RemoteLocation's integer id, keeping
-// the v-for's :key unique. Only shown in the resting (untyped) list, not
-// mixed into live-typed results — it doesn't fuzzy-match what was typed the
-// way the other entries do.
-const ALL_TYPES_OPTION = { id: 'all', name: 'All At Home', slug: null };
 
-const fetchTypes = async (search) => {
-    const token = ++fetchTypesToken;
-    try {
-        const { data } = await axios.get('/api/remotelocations/public', {
-            params: search ? { search } : {}
-        });
-        if (token !== fetchTypesToken) return;
-        const results = data || [];
-        if (search) {
-            types.value = results;
-            return;
-        }
-        // Only the default (no-search) fetch competes with Recent Searches
-        // for the shared cap — a live typed query isn't shown alongside it
-        // (see showRecentSearches), so it's never sliced.
-        const sliced = results.slice(0, Math.max(0, DROPDOWN_TOTAL_LIMIT - recentSearches.value.length));
-        types.value = [ALL_TYPES_OPTION, ...sliced];
-    } catch (error) {
-        if (token !== fetchTypesToken) return;
-        console.error('Error fetching remote location types:', error);
-        types.value = search ? [] : [ALL_TYPES_OPTION];
-    }
-};
 
 const updateTypes = () => {
     dropdown.value = true;
@@ -356,35 +346,6 @@ const selectType = (type) => {
 // Lazy, not onMounted — see location-search.vue's identical fix for why
 // (this component stays mounted, v-show not v-if, across every page load
 // site-wide). Fetched once, the first time the dropdown actually opens.
-let recentSearchesFetched = false;
-const fetchRecentSearches = async () => {
-    if (!window.Laravel?.user?.id || recentSearchesFetched) return;
-    recentSearchesFetched = true;
-
-    try {
-        // ?dropdown=1 — every pinned search plus at most one more (the
-        // single most-recently-touched unpinned one), not every saved
-        // search the user has (spelled out directly by the user: this
-        // dropdown is a quick-access convenience, not the full list — that
-        // lives on the Saved Search Preferences page, which fetches this
-        // same endpoint without the flag).
-        const { data } = await axios.get('/api/hub/saved-searches', { params: { dropdown: 1 } });
-        recentSearches.value = (data.searches || []).slice(0, DROPDOWN_TOTAL_LIMIT);
-        // fetchTypes('') already ran once in onInputFocus before this
-        // resolved (recentSearches was still empty then), so it needs to
-        // re-run now to give back the slots recent searches actually
-        // claimed — same reasoning as location-search.vue's identical fix.
-        // Only while still on the resting (untyped) view, though — if the
-        // user has since typed a query, types.value already holds live
-        // results for whatever they typed, and this late-resolving fetch
-        // must not stomp on those with the generic default type list.
-        if (!hasTypedSinceFocus.value) {
-            fetchTypes('');
-        }
-    } catch (error) {
-        console.error('[recent-searches] failed to load', error);
-    }
-};
 
 onMounted(() => {
     const params = new URLSearchParams(window.location.search);

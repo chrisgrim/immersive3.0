@@ -166,6 +166,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+import { useRecentSearches } from '@/composables/useRecentSearches';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
 import axios from 'axios';
@@ -227,44 +228,35 @@ function initializePlaces() {
 // fetched once for logged-in users, shown above the default city list at
 // rest (see showRecentSearches), gone once the user actually types
 // something (see hasTypedSinceFocus).
-const recentSearches = ref([]);
+// One combined cap across Recent Searches + the default city list, same as
+// desktop — a pinned search list topped up with default cities, not both
+// lists shown in full stacked on top of each other.
+// Declared above the composable calls below, which read it. Vue's SFC
+// compiler happens to hoist a static literal like this one, so the old
+// ordering worked — but only for as long as the value stays a literal.
+// Written out here so nothing depends on that optimisation.
+const DROPDOWN_TOTAL_LIMIT = 6;
+
+// Shared with the other three nav search panels — see
+// composables/useRecentSearches.js for why this one piece is common
+// while the panels themselves stay separate.
+const { recentSearches, fetchRecentSearches } = useRecentSearches({
+    limit: DROPDOWN_TOTAL_LIMIT,
+    once: false,
+    // Give back the dropdown slots the recent searches just claimed —
+    // but never stomp a query the user has since typed.
+    onLoaded: () => {
+        if (!hasTypedSinceFocus.value) {
+            places.value = defaultPlacesList();
+        }
+    },
+});
 const hasTypedSinceFocus = ref(false);
 const showRecentSearches = computed(() => !hasTypedSinceFocus.value && recentSearches.value.length > 0);
 const showSuggestedHeader = computed(() => !hasTypedSinceFocus.value && places.value.length > 0);
 
-// One combined cap across Recent Searches + the default city list, same as
-// desktop — a pinned search list topped up with default cities, not both
-// lists shown in full stacked on top of each other.
-const DROPDOWN_TOTAL_LIMIT = 6;
 const defaultPlacesList = () => initializePlaces().slice(0, Math.max(0, DROPDOWN_TOTAL_LIMIT - recentSearches.value.length));
 
-const fetchRecentSearches = async () => {
-    if (!window.Laravel?.user?.id) return;
-    try {
-        // ?dropdown=1 — every pinned search plus at most one more (the
-        // single most-recently-touched unpinned one), not every saved
-        // search the user has (spelled out directly by the user: this
-        // dropdown is a quick-access convenience, not the full list — that
-        // lives on the Saved Search Preferences page, which fetches this
-        // same endpoint without the flag).
-        const { data } = await axios.get('/api/hub/saved-searches', { params: { dropdown: 1 } });
-        recentSearches.value = (data.searches || []).slice(0, DROPDOWN_TOTAL_LIMIT);
-        // defaultPlacesList() splits DROPDOWN_TOTAL_LIMIT between recent
-        // searches and default cities — it already ran once in onMounted
-        // before this fetch resolved (recentSearches was still empty then),
-        // so it needs to re-run now to give back the slots recent searches
-        // actually claimed. But only while still on the resting (untyped)
-        // view — if the user has since typed a query, places.value already
-        // holds live Google predictions for whatever they typed, and this
-        // fetch resolving late must not stomp on those with the generic
-        // default city list.
-        if (!hasTypedSinceFocus.value) {
-            places.value = defaultPlacesList();
-        }
-    } catch (error) {
-        console.error('[recent-searches] failed to load', error);
-    }
-};
 
 const updateLocations = async () => {
     if (!autoComplete) {
@@ -456,20 +448,13 @@ onMounted(() => {
     window.addEventListener('trigger-search', handleSearch);
 
     // Add listener for clear all
-    window.addEventListener('clear-search-state', () => {
-        searchInput.value = '';
-        selectedPlace.value = null;
-        date.value = null;
-        isVisible.value = 'location';
-        hasTypedSinceFocus.value = false;
-        dropdown.value = true;
-        places.value = defaultPlacesList();
-    });
+    window.addEventListener('clear-search-state', handleClearSearchState);
 });
 
 onUnmounted(() => {
     // Remove search trigger listener
     window.removeEventListener('trigger-search', handleSearch);
+    window.removeEventListener('clear-search-state', handleClearSearchState);
 });
 
 // Use computed properties for date logic
@@ -544,6 +529,21 @@ const formatDateForUrl = (dateObj) => {
 };
 
 // Update handleSearch function
+// Named, not the inline arrow this used to be: an anonymous listener can
+// never be removed, so every mount of the mobile search panel left another
+// copy bound to window's 'clear-search-state'. They all survived unmount and
+// kept writing to the refs of dead components, so one Clear All ran this
+// body once per panel ever opened this session.
+const handleClearSearchState = () => {
+    searchInput.value = '';
+    selectedPlace.value = null;
+    date.value = null;
+    isVisible.value = 'location';
+    hasTypedSinceFocus.value = false;
+    dropdown.value = true;
+    places.value = defaultPlacesList();
+};
+
 const handleSearch = () => {
     // Validate city selection if required
     if (!props.showDatesTab && !selectedPlace.value) {

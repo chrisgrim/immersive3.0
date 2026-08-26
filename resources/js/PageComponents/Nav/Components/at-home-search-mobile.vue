@@ -162,6 +162,8 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+import { useRecentSearches } from '@/composables/useRecentSearches';
+import { useRemoteTypeSearch, ALL_TYPES_OPTION } from '@/composables/useRemoteTypeSearch';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
 import axios from 'axios';
@@ -178,7 +180,19 @@ const emit = defineEmits(['search']);
 
 const dropdown = ref(false);
 const searchInput = ref('');
-const types = ref([]);
+// Declared above the composable calls below, which read it. Vue's SFC
+// compiler happens to hoist a static literal like this one, so the old
+// ordering worked — but only for as long as the value stays a literal.
+// Written out here so nothing depends on that optimisation.
+const DROPDOWN_TOTAL_LIMIT = 6;
+
+// Shared with the other At Home panel — see
+// composables/useRemoteTypeSearch.js. ALL_TYPES_OPTION lives there too,
+// so both panels offer the same synthetic "All At Home" entry.
+const { types, fetchTypes, invalidateInFlight } = useRemoteTypeSearch({
+    limit: DROPDOWN_TOTAL_LIMIT,
+    recentCount: () => recentSearches.value.length,
+});
 const typeInput = ref(null);
 const date = ref(null);
 const isVisible = ref('type');
@@ -190,65 +204,26 @@ const tz = computed(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
 // Same combined-cap idea as location-search-mobile.vue / at-home-search.vue —
 // Recent Searches and the default type list share one budget instead of
 // each being uncapped on its own.
-const recentSearches = ref([]);
-const hasTypedSinceFocus = ref(false);
-const showRecentSearches = computed(() => !hasTypedSinceFocus.value && recentSearches.value.length > 0);
-const showSuggestedHeader = computed(() => !hasTypedSinceFocus.value && types.value.length > 0);
-const DROPDOWN_TOTAL_LIMIT = 6;
-
-// See at-home-search.vue's (desktop) identical constant — a synthetic,
-// non-database entry so a user can browse every At Home event regardless of
-// platform, as an explicit choice in the list rather than only discoverable
-// by searching with nothing picked. slug: null is already what
-// handleSearch()/nav-search-mobile.vue's handleAtHomeSearch treat as "no
-// platform filter", so nothing else needs to special-case it.
-const ALL_TYPES_OPTION = { id: 'all', name: 'All At Home', slug: null };
-
-let fetchTypesToken = 0;
-const fetchTypes = async (search) => {
-    const token = ++fetchTypesToken;
-    try {
-        const { data } = await axios.get('/api/remotelocations/public', {
-            params: search ? { search } : {}
-        });
-        if (token !== fetchTypesToken) return;
-        const results = data || [];
-        if (search) {
-            types.value = results;
-            return;
-        }
-        const sliced = results.slice(0, Math.max(0, DROPDOWN_TOTAL_LIMIT - recentSearches.value.length));
-        types.value = [ALL_TYPES_OPTION, ...sliced];
-    } catch (error) {
-        if (token !== fetchTypesToken) return;
-        console.error('Error fetching remote location types:', error);
-        types.value = search ? [] : [ALL_TYPES_OPTION];
-    }
-};
-
-const fetchRecentSearches = async () => {
-    if (!window.Laravel?.user?.id) return;
-    try {
-        // ?dropdown=1 — every pinned search plus at most one more (the
-        // single most-recently-touched unpinned one), not every saved
-        // search the user has (spelled out directly by the user: this
-        // dropdown is a quick-access convenience, not the full list — that
-        // lives on the Saved Search Preferences page, which fetches this
-        // same endpoint without the flag).
-        const { data } = await axios.get('/api/hub/saved-searches', { params: { dropdown: 1 } });
-        recentSearches.value = (data.searches || []).slice(0, DROPDOWN_TOTAL_LIMIT);
-        // See location-search-mobile.vue's identical fix — this fetch resolves
-        // after the first (empty-recents) fetchTypes('') call below, so the
-        // default type list needs to re-run to give back the slots recent
-        // searches actually claimed. Only while still on the resting view —
-        // a query the user has since typed must not be stomped.
+// Shared with the other three nav search panels — see
+// composables/useRecentSearches.js for why this one piece is common
+// while the panels themselves stay separate.
+const { recentSearches, fetchRecentSearches } = useRecentSearches({
+    limit: DROPDOWN_TOTAL_LIMIT,
+    once: false,
+    // Give back the dropdown slots the recent searches just claimed —
+    // but never stomp a query the user has since typed.
+    onLoaded: () => {
         if (!hasTypedSinceFocus.value) {
             fetchTypes('');
         }
-    } catch (error) {
-        console.error('[recent-searches] failed to load', error);
-    }
-};
+    },
+});
+const hasTypedSinceFocus = ref(false);
+const showRecentSearches = computed(() => !hasTypedSinceFocus.value && recentSearches.value.length > 0);
+const showSuggestedHeader = computed(() => !hasTypedSinceFocus.value && types.value.length > 0);
+
+
+
 
 const updateTypes = () => {
     dropdown.value = true;
@@ -460,6 +435,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    fetchTypesToken++;
+    // A response landing after unmount must not write to a dead component.
+    invalidateInFlight();
 });
 </script>

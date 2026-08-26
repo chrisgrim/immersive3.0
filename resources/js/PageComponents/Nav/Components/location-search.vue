@@ -167,6 +167,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+import { useRecentSearches } from '@/composables/useRecentSearches';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
 import { importMapsLibrary } from '@/composables/useGoogleMaps';
@@ -232,7 +233,37 @@ const isDark = ref(false); // For date picker theme
 // of the hardcoded default cities above (see the template's
 // showRecentSearches branch). Fetched once, only for logged-in users; stays
 // empty (falling back to the default list) for guests or a failed fetch.
-const recentSearches = ref([]);
+// Same endpoint the Hub's full Saved Search Preferences page calls (which
+// intentionally shows everything, up to the 50-search cap) — this dropdown
+// is a quick-access shortcut, not a management view, so the WHOLE resting
+// list (Recent Searches + the default cities below it) is capped to a
+// short combined total, not just the recent-searches half on top of a
+// separately-uncapped default list. The backend already orders pinned
+// first, then most-recently-searched, so slicing the top DROPDOWN_TOTAL_LIMIT
+// naturally means "all your pins (up to the cap), topped up with your most
+// recent unpinned searches" — no separate query needed. Default cities then
+// fill whatever's left (see defaultPlacesList()) instead of being appended
+// in full regardless of how many recent searches already show.
+// Declared above the composable calls below, which read it. Vue's SFC
+// compiler happens to hoist a static literal like this one, so the old
+// ordering worked — but only for as long as the value stays a literal.
+// Written out here so nothing depends on that optimisation.
+const DROPDOWN_TOTAL_LIMIT = 6;
+
+// Shared with the other three nav search panels — see
+// composables/useRecentSearches.js for why this one piece is common
+// while the panels themselves stay separate.
+const { recentSearches, fetchRecentSearches } = useRecentSearches({
+    limit: DROPDOWN_TOTAL_LIMIT,
+    once: true,
+    // Give back the dropdown slots the recent searches just claimed —
+    // but never stomp a query the user has since typed.
+    onLoaded: () => {
+        if (!hasTypedSinceFocus.value) {
+            places.value = defaultPlacesList();
+        }
+    },
+});
 
 // The default city list fills whatever's left of the shared combined cap
 // (see DROPDOWN_TOTAL_LIMIT below) after Recent Searches takes its share —
@@ -489,54 +520,12 @@ const initGoogleMaps = async () => {
    }
 };
 
-// Same endpoint the Hub's full Saved Search Preferences page calls (which
-// intentionally shows everything, up to the 50-search cap) — this dropdown
-// is a quick-access shortcut, not a management view, so the WHOLE resting
-// list (Recent Searches + the default cities below it) is capped to a
-// short combined total, not just the recent-searches half on top of a
-// separately-uncapped default list. The backend already orders pinned
-// first, then most-recently-searched, so slicing the top DROPDOWN_TOTAL_LIMIT
-// naturally means "all your pins (up to the cap), topped up with your most
-// recent unpinned searches" — no separate query needed. Default cities then
-// fill whatever's left (see defaultPlacesList()) instead of being appended
-// in full regardless of how many recent searches already show.
-const DROPDOWN_TOTAL_LIMIT = 6;
 
 // Lazy, not onMounted — this component stays mounted (v-show, not v-if)
 // across every page load site-wide (see nav-search.vue), so fetching here
 // on mount cost every logged-in visitor an extra request+query on every
 // page, not just the ones where the dropdown ever opens. Fetched once, the
 // first time the dropdown actually opens (see onInputFocus).
-let recentSearchesFetched = false;
-const fetchRecentSearches = async () => {
-    if (!window.Laravel?.user?.id || recentSearchesFetched) return;
-    recentSearchesFetched = true;
-
-    try {
-        // ?dropdown=1 — every pinned search plus at most one more (the
-        // single most-recently-touched unpinned one), not every saved
-        // search the user has (spelled out directly by the user: this
-        // dropdown is a quick-access convenience, not the full list — that
-        // lives on the Saved Search Preferences page, which fetches this
-        // same endpoint without the flag).
-        const { data } = await axios.get('/api/hub/saved-searches', { params: { dropdown: 1 } });
-        recentSearches.value = (data.searches || []).slice(0, DROPDOWN_TOTAL_LIMIT);
-        // defaultPlacesList() splits DROPDOWN_TOTAL_LIMIT between recent
-        // searches and default cities — it already ran once in
-        // onInputFocus before this fetch resolved (recentSearches was still
-        // empty then), so it needs to re-run now to give back the slots
-        // recent searches actually claimed. But only while still on the
-        // resting (untyped) view — if the user has since typed a query,
-        // places.value already holds live Google predictions for whatever
-        // they typed, and this fetch resolving late must not stomp on those
-        // with the generic default city list.
-        if (!hasTypedSinceFocus.value) {
-            places.value = defaultPlacesList();
-        }
-    } catch (error) {
-        console.error('[recent-searches] failed to load', error);
-    }
-};
 
 // Initialize from URL parameters
 onMounted(() => {
@@ -585,15 +574,21 @@ onMounted(() => {
     // guarantees google.maps.importLibrary — no manual <script>/initMap needed).
     initGoogleMaps();
 
-    // Add a window event listener for popstate to update UI when URL changes
-    window.addEventListener('popstate', () => {
+    // Add a window event listener for popstate to update UI when URL changes.
+    // Named and held in a local, not the inline arrow this used to be — an
+    // anonymous listener can't be removed, so every mount of the desktop
+    // search bar left another copy bound to window's 'popstate', each still
+    // writing searchInput on a component that had already unmounted. Removed
+    // alongside the observer below.
+    const handlePopState = () => {
         const params = new URLSearchParams(window.location.search);
         if (params.has('city')) {
             const fullCityName = params.get('city');
             const cityParts = fullCityName.split(',');
             searchInput.value = cityParts[0].trim();
         }
-    });
+    };
+    window.addEventListener('popstate', handlePopState);
 
     // Add a MutationObserver to detect DOM changes that might affect the URL
     const observer = new MutationObserver(() => {
@@ -622,6 +617,7 @@ onMounted(() => {
     // Cleanup on unmount
     onUnmounted(() => {
         observer.disconnect();
+        window.removeEventListener('popstate', handlePopState);
     });
 });
 
