@@ -124,13 +124,50 @@ class AdminEventController extends Controller
         return response()->json($event);
     }
 
+    /**
+     * Events awaiting moderation (status 'r' — under review, not rejected).
+     *
+     * Ordered newest-first normally, shuffled when
+     * config('ei.shuffle_review_queue') is on: the queue runs to a hundred-odd
+     * events and the same few sit at the top of a date sort until someone
+     * clears them, which makes working through it a slog.
+     *
+     * SEEDED, deliberately. MySQL's bare RAND() is evaluated per query, so
+     * paginating would reshuffle between pages — page 2 would repeat some
+     * events and skip others entirely, which is worse than no shuffle at all.
+     * A fixed seed gives one stable order that pages correctly, and changing
+     * the seed daily is what makes it feel different tomorrow.
+     *
+     * Reverting is an env change, not a deploy of new code: set
+     * EI_SHUFFLE_REVIEW_QUEUE=false and re-cache config.
+     */
     public function getPending()
     {
-        return Event::where('status', 'r')
+        $query = Event::where('status', 'r')
             ->with(['organizer', 'images', 'category', 'location', 'currentUserFavorite'])
-            ->withoutGlobalScope(LatestPublishedFirstScope::class)
-            ->latest()
-            ->paginate(20);
+            ->withoutGlobalScope(LatestPublishedFirstScope::class);
+
+        if (config('ei.shuffle_review_queue')) {
+            $query->orderByRaw('RAND(?)', [self::reviewQueueSeed()]);
+        } else {
+            $query->latest();
+        }
+
+        return $query->paginate(20);
+    }
+
+    /**
+     * One order per moderator per day.
+     *
+     * Per day so the queue looks different tomorrow without shifting under
+     * someone mid-session. Per moderator so two people working the queue at
+     * once aren't handed the same top twenty and don't collide on the same
+     * events. Deterministic from both, so every page of one person's session
+     * sorts identically.
+     */
+    private static function reviewQueueSeed(): int
+    {
+        return crc32(auth()->id().':'.now()->toDateString());
     }
 
     public function update(Request $request, $id)
