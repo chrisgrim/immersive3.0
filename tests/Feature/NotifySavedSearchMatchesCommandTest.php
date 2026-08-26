@@ -19,12 +19,11 @@ use Illuminate\Support\Facades\Notification;
 // itself, also independent of live execution.
 
 beforeEach(function () {
-    config(['features.saved_search_notifications_user' => 'pilot@example.com']);
     Notification::fake();
 });
 
 test('only checks searches with notify_new_events enabled', function () {
-    $user = User::factory()->create(['email' => 'pilot@example.com']);
+    $user = User::factory()->create(['type' => 'm']);
     $enabled = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => true, 'last_checked_at' => now()->subDay()]);
     $disabled = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => false, 'last_checked_at' => now()->subDay()]);
 
@@ -35,20 +34,29 @@ test('only checks searches with notify_new_events enabled', function () {
     expect($disabled->fresh()->last_checked_at->eq($disabled->last_checked_at))->toBeTrue();
 });
 
-test('only checks the pilot users searches, not anyone elses', function () {
-    $pilotUser = User::factory()->create(['email' => 'pilot@example.com']);
-    $otherUser = User::factory()->create(['email' => 'someone-else@example.com']);
-    $pilotSearch = SavedSearch::factory()->create(['user_id' => $pilotUser->id, 'notify_new_events' => true, 'last_checked_at' => now()->subDay()]);
+test('only checks moderators searches, not anyone elses', function () {
+    $moderatorUser = User::factory()->create(['type' => 'm']);
+    $otherUser = User::factory()->create(['type' => 'u']);
+    $moderatorSearch = SavedSearch::factory()->create(['user_id' => $moderatorUser->id, 'notify_new_events' => true, 'last_checked_at' => now()->subDay()]);
     $otherSearch = SavedSearch::factory()->create(['user_id' => $otherUser->id, 'notify_new_events' => true, 'last_checked_at' => now()->subDay()]);
 
     $this->artisan('ei:notify-saved-searches')->assertSuccessful();
 
-    expect($pilotSearch->fresh()->last_checked_at)->not->toBeNull();
+    expect($moderatorSearch->fresh()->last_checked_at)->not->toBeNull();
     expect($otherSearch->fresh()->last_checked_at->eq($otherSearch->last_checked_at))->toBeTrue();
 });
 
+test('also checks admins searches, not just moderators', function () {
+    $adminUser = User::factory()->create(['type' => 'a']);
+    $search = SavedSearch::factory()->create(['user_id' => $adminUser->id, 'notify_new_events' => true, 'last_checked_at' => now()->subDay()]);
+
+    $this->artisan('ei:notify-saved-searches')->assertSuccessful();
+
+    expect($search->fresh()->last_checked_at)->not->toBeNull();
+});
+
 test('a null last_checked_at (never checked) is treated as "start now", not "check everything ever"', function () {
-    $user = User::factory()->create(['email' => 'pilot@example.com']);
+    $user = User::factory()->create(['type' => 'm']);
     $search = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => true, 'last_checked_at' => null]);
 
     $this->artisan('ei:notify-saved-searches')->assertSuccessful();
@@ -60,7 +68,7 @@ test('a search checked more recently than the cutoff is skipped but its cursor s
     // e.g. enabled moments before this run — the toggle endpoint already set
     // last_checked_at to "now" at that point, which can land inside this
     // run's own 5-minute trailing window.
-    $user = User::factory()->create(['email' => 'pilot@example.com']);
+    $user = User::factory()->create(['type' => 'm']);
     $search = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => true, 'last_checked_at' => now()]);
 
     $this->artisan('ei:notify-saved-searches')->assertSuccessful();
@@ -69,7 +77,7 @@ test('a search checked more recently than the cutoff is skipped but its cursor s
 });
 
 test('does not error and sends nothing when no searches are enabled', function () {
-    User::factory()->create(['email' => 'pilot@example.com']);
+    User::factory()->create(['type' => 'm']);
 
     $this->artisan('ei:notify-saved-searches')->assertSuccessful();
 
@@ -77,7 +85,7 @@ test('does not error and sends nothing when no searches are enabled', function (
 });
 
 test('never dispatches a notification when Elasticsearch finds nothing (guaranteed under SCOUT_DRIVER=null)', function () {
-    $user = User::factory()->create(['email' => 'pilot@example.com']);
+    $user = User::factory()->create(['type' => 'm']);
     SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => true, 'last_checked_at' => now()->subDay()]);
 
     $this->artisan('ei:notify-saved-searches')->assertSuccessful();
@@ -91,8 +99,8 @@ test('a second overlapping run (e.g. a manual invocation during the scheduled ti
     // a manual `php artisan ei:notify-saved-searches` over SSH bypasses it
     // entirely, so without this command's OWN lock, an overlapping manual
     // run and the scheduled tick could both read the same stale cursor and
-    // double-email the pilot user for the same matches.
-    $user = User::factory()->create(['email' => 'pilot@example.com']);
+    // double-email moderators/admins for the same matches.
+    $user = User::factory()->create(['type' => 'm']);
     $search = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => true, 'last_checked_at' => now()->subDay()]);
 
     $lock = Cache::lock('ei:notify-saved-searches', 300);

@@ -48,11 +48,11 @@
             window.Laravel = {
                 user: {!! Auth::check() ? json_encode(Auth::user()->forClientSide()) : 'null' !!},
                 isMobile: {!! Browser::isMobile() ? 'true' : 'false' !!},
-                // Saved-search "notify me about new events" pilot — UI-only
-                // visibility gate for the toggle (see SavedSearchController::
-                // toggleNotify() for the real, server-side enforcement this
-                // is not a substitute for).
-                savedSearchNotificationsPilot: {!! Auth::check() && Auth::user()->email === config('features.saved_search_notifications_user') ? 'true' : 'false' !!}
+                // Mirrors EnsureCanManageApiTokens' server-side gate — while
+                // false the API Keys tab (and /settings/api-tokens) is
+                // moderator/admin only; flipping the env var opens it to
+                // everyone without a code change (see config/services.php).
+                mcpTokenUiPublic: {!! config('services.mcp.token_ui_public') ? 'true' : 'false' !!}
             };
         </script>
         <style type="text/css">html{font-size:62.5%;font-family:'Montserrat',sans-serif;height:100%}body{font-size:1.6rem;line-height:2rem;font-family:'Montserrat',sans-serif;margin:0;height:100%;color:#000}</style>

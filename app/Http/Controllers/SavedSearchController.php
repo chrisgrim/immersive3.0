@@ -157,14 +157,15 @@ class SavedSearchController extends Controller
     }
 
     /**
-     * The saved-search "notify me about new events" pilot toggle — see
+     * The saved-search "notify me about new events" toggle — see
      * NotifySavedSearchMatchesCommand's own docblock for the full design.
-     * Enabling is restricted server-side to config('features.
-     * saved_search_notifications_user'); the frontend also hides the
-     * control for anyone else, but that's a UX nicety, not the enforcement —
-     * see this method for the real gate. Disabling is never restricted:
-     * turning something off should never be blocked, even for a row that
-     * somehow ended up enabled outside the pilot.
+     * Enabling is restricted server-side to moderators/admins
+     * (User::isModerator()) — same gate as the API-keys/MCP-tokens page; the
+     * frontend also hides the control for anyone else, but that's a UX
+     * nicety, not the enforcement — see this method for the real gate.
+     * Disabling is never restricted: turning something off should never be
+     * blocked, even for a row that somehow ended up enabled outside that
+     * group (e.g. a user was demoted after enabling it).
      */
     public function toggleNotify(Request $request, SavedSearch $savedSearch, BuildSearchUrlAction $buildUrl)
     {
@@ -172,7 +173,7 @@ class SavedSearchController extends Controller
 
         $nowEnabled = ! $savedSearch->notify_new_events;
 
-        if ($nowEnabled && $request->user()->email !== config('features.saved_search_notifications_user')) {
+        if ($nowEnabled && ! $request->user()->isModerator()) {
             abort(403, 'This feature is not yet available for your account.');
         }
 

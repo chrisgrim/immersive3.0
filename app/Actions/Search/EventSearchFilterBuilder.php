@@ -6,8 +6,8 @@ use Elastic\ScoutDriverPlus\Support\Query;
 
 /**
  * "Does this event match these search criteria" — used by
- * NotifySavedSearchMatchesCommand (the one-user pilot "notify me about new
- * events matching this saved search" feature), which passes a saved search's
+ * NotifySavedSearchMatchesCommand (the moderator/admin-only "notify me about
+ * new events matching this saved search" feature), which passes a saved search's
  * already-normalized `criteria` column directly.
  *
  * DELIBERATELY NOT wired into ListingsController (the live search results
@@ -19,8 +19,8 @@ use Elastic\ScoutDriverPlus\Support\Query;
  * untestable under this app's SCOUT_DRIVER=null test config — see
  * project memory), so refactoring it to share this class would mean
  * shipping an unverifiable change to every user's search results for the
- * sake of a feature currently gated to one pilot user. If/when this
- * notification feature graduates beyond that pilot, that math changes and
+ * sake of a feature currently gated to moderators/admins only. If/when this
+ * notification feature graduates beyond that, that math changes and
  * unifying the two for real (ListingsController calling this class) becomes
  * worth the risk — see NormalizeSavedSearchCriteriaAction for the criteria
  * shape this expects, and keep both files' filter logic in sync by hand

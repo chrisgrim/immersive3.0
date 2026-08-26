@@ -158,13 +158,13 @@
                 <List class="mt-6" :selections="selectedGenreObjects" @onSelect="removeGenre" />
             </div>
 
-            <!-- Pilot feature (see SavedSearchController::toggleNotify()) —
-                 window.Laravel.savedSearchNotificationsPilot is a UI-only
-                 visibility gate, not the real enforcement, which is
-                 server-side. A plain PATCH like togglePin's own, not part of
-                 the draft/Save flow — the toggle takes effect immediately,
-                 same as pinning a search does from the list. -->
-            <div v-if="pilotEligible">
+            <!-- Moderators/admins only (see SavedSearchController::
+                 toggleNotify()) — checking window.Laravel.user.isModerator
+                 here is a UI-only visibility gate, not the real enforcement,
+                 which is server-side. A plain PATCH like togglePin's own,
+                 not part of the draft/Save flow — the toggle takes effect
+                 immediately, same as pinning a search does from the list. -->
+            <div v-if="notifyEligible">
                 <div class="flex items-center justify-between gap-6">
                     <div>
                         <p class="text-2xl font-semibold mb-1">Notify me about new events</p>
@@ -265,7 +265,7 @@ const props = defineProps({
     },
     // The full saved-search row (id, notifyNewEvents, ...) — distinct from
     // `draft`, which is only the editable name/criteria. Needed for the
-    // notify-pilot toggle below, which reads/writes a real row, not the
+    // notify toggle below, which reads/writes a real row, not the
     // in-progress draft.
     search: {
         type: Object,
@@ -275,7 +275,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:draft', 'save', 'toggle-notify']);
 
-const pilotEligible = computed(() => !!window.Laravel?.savedSearchNotificationsPilot);
+const notifyEligible = computed(() => !!window.Laravel?.user?.isModerator);
 
 const updateName = (value) => {
     emit('update:draft', { ...props.draft, name: value });

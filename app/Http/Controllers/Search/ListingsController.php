@@ -15,7 +15,7 @@ use Illuminate\Support\Arr;
  * app/Actions/Search/EventSearchFilterBuilder.php intentionally mirrors this
  * controller's filter-matching semantics (buildLocationFilter/
  * buildSearchFilters/buildMapBoundaryFilter/applyNonPriceFilters below) for
- * a separate one-user-pilot feature (saved-search "notify me about new
+ * a separate moderator/admin-only feature (saved-search "notify me about new
  * events" — see NotifySavedSearchMatchesCommand) rather than being wired in
  * here — see that class's own docblock for why. If you change matching
  * behavior in this controller, that class needs the same change by hand

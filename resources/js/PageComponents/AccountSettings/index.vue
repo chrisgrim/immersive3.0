@@ -64,7 +64,7 @@
                         <div class="w-full max-w-[772px] mx-auto"
                              :class="currentSection ? 'pt-4 pb-40 md:pt-20' : 'pt-20 md:pt-20 md:pb-40'">
                             <div class="px-6 py-8 md:px-[39px]">
-                                <component :is="currentComponent" />
+                                <component :is="currentComponent" v-bind="currentTab === 'api-keys' ? { embedded: true } : {}" />
                             </div>
                         </div>
                     </div>
@@ -81,8 +81,22 @@ import PersonalInformation from './Pages/PersonalInformation.vue';
 import LoginSecurity from './Pages/LoginSecurity.vue';
 import Privacy from './Pages/Privacy.vue';
 import Notifications from './Pages/Notifications.vue';
+// Moderator/admin only — gated the same as the /settings/api-tokens route
+// itself (EnsureCanManageApiTokens), not just hidden here. See navSidebar.vue.
+import ApiKeys from '../Settings/api-tokens.vue';
 
-const TAB_SLUGS = ['personal-info', 'login-security', 'privacy', 'notifications'];
+// Same eligibility check as navSidebar.vue's link visibility (kept in sync
+// by hand — both read the same two window.Laravel fields). Without this, a
+// non-eligible user typing /account-settings/api-keys directly would still
+// mount ApiKeys client-side and immediately eat a 403 from its own
+// /settings/api-tokens/list fetch (Codex caught this in review) — the real
+// data stays protected either way, but this keeps the URL from being a
+// dead end. Excluding the slug from TAB_SLUGS entirely (rather than special
+// casing it later) means it's treated exactly like any other unrecognized
+// tab: falls back to DEFAULT_TAB below.
+const apiKeysEligible = !!window.Laravel?.user?.isModerator || !!window.Laravel?.mcpTokenUiPublic;
+
+const TAB_SLUGS = ['personal-info', 'login-security', 'privacy', 'notifications', ...(apiKeysEligible ? ['api-keys'] : [])];
 const DEFAULT_TAB = 'personal-info';
 
 const components = {
@@ -90,6 +104,7 @@ const components = {
     'login-security': LoginSecurity,
     privacy: Privacy,
     notifications: Notifications,
+    'api-keys': ApiKeys,
 };
 
 // Same URL-drives-tab pattern as the Hub shell (resources/js/PageComponents/Hub/index.vue)

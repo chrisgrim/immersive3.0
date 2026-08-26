@@ -14,9 +14,10 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * The saved-search "notify me about new events" pilot (chgrim@gmail.com
- * only — see config('features.saved_search_notifications_user')). Runs
- * twice daily (see ScheduleServiceProvider). Cursor design deliberately
+ * The saved-search "notify me about new events" feature — moderators/admins
+ * only (see User::isModerator(), enforced both here and in
+ * SavedSearchController::toggleNotify()). Runs twice daily (see
+ * ScheduleServiceProvider). Cursor design deliberately
  * avoids storing a result-set snapshot: each saved search just tracks
  * last_checked_at, and this command asks Elasticsearch for events matching
  * that search's criteria with `published_at` in (last_checked_at, cutoff] —
@@ -29,7 +30,7 @@ class NotifySavedSearchMatchesCommand extends Command
 {
     protected $signature = 'ei:notify-saved-searches';
 
-    protected $description = 'Email the saved-search notification pilot user about newly published events matching their enabled searches';
+    protected $description = 'Email moderators/admins about newly published events matching their enabled saved searches';
 
     /**
      * Capped, not unbounded — a saved search broad enough to match hundreds
@@ -68,8 +69,6 @@ class NotifySavedSearchMatchesCommand extends Command
 
     private function process(EventSearchFilterBuilder $filterBuilder): void
     {
-        $pilotEmail = config('features.saved_search_notifications_user');
-
         // One cutoff for the ENTIRE run, captured once — not recomputed per
         // search. Every search in this run checks the exact same window, so
         // one that's slow to process doesn't get a slightly later window
@@ -81,7 +80,7 @@ class NotifySavedSearchMatchesCommand extends Command
         $cutoff = Carbon::now()->subMinutes(5);
 
         $searches = SavedSearch::where('notify_new_events', true)
-            ->whereHas('user', fn ($query) => $query->where('email', $pilotEmail))
+            ->whereHas('user', fn ($query) => $query->whereIn('type', ['m', 'a']))
             ->with('user')
             ->get();
 

@@ -5,7 +5,7 @@
          each other with no gap — also measured, not eyeballed. -->
     <nav class="flex flex-col">
         <button
-            v-for="item in items"
+            v-for="item in visibleItems"
             :key="item.tab"
             @click="$emit('navigate', item.tab)"
             :class="[
@@ -22,7 +22,8 @@
 </template>
 
 <script setup>
-import { RiUserLine, RiShieldKeyholeLine, RiEyeOffLine, RiNotification3Line } from '@remixicon/vue';
+import { computed } from 'vue';
+import { RiUserLine, RiShieldKeyholeLine, RiEyeOffLine, RiNotification3Line, RiKey2Line } from '@remixicon/vue';
 
 defineProps({
     currentTab: {
@@ -38,5 +39,18 @@ const items = [
     { tab: 'login-security', label: 'Login & security', icon: RiShieldKeyholeLine },
     { tab: 'privacy', label: 'Privacy', icon: RiEyeOffLine },
     { tab: 'notifications', label: 'Notifications', icon: RiNotification3Line },
+    // Moderator/admin only — matches the /settings/api-tokens server-side
+    // gate (EnsureCanManageApiTokens), which is the real enforcement; this
+    // is just a UX nicety so non-moderators don't see a dead-end tab.
+    { tab: 'api-keys', label: 'API keys', icon: RiKey2Line, moderatorOnly: true },
 ];
+
+const visibleItems = computed(() => {
+    // Same OR as the server-side gate (EnsureCanManageApiTokens): a
+    // moderator/admin always sees it, and everyone does once
+    // MCP_TOKEN_UI_PUBLIC opens the feature generally.
+    const canManageApiTokens = !!window.Laravel?.user?.isModerator || !!window.Laravel?.mcpTokenUiPublic;
+
+    return items.filter((item) => !item.moderatorOnly || canManageApiTokens);
+});
 </script>

@@ -833,13 +833,12 @@ test('switching a custom map search to At Home clears its bounds server-side', f
 
 // ---------------------------------------------------------------------------
 // PATCH /api/hub/saved-searches/{savedSearch}/notify — the "notify me about
-// new events" pilot toggle (see NotifySavedSearchMatchesCommand's docblock
-// and config('features.saved_search_notifications_user')).
+// new events" toggle, restricted to moderators/admins (see
+// NotifySavedSearchMatchesCommand's docblock and User::isModerator()).
 // ---------------------------------------------------------------------------
 
-test('the pilot user can enable notify on their own search', function () {
-    config(['features.saved_search_notifications_user' => 'pilot@example.com']);
-    $user = User::factory()->create(['email' => 'pilot@example.com']);
+test('a moderator can enable notify on their own search', function () {
+    $user = User::factory()->create(['type' => 'm']);
     $search = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => false, 'last_checked_at' => null, 'is_scratch' => true]);
 
     $response = $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/notify")->assertOk();
@@ -857,9 +856,17 @@ test('the pilot user can enable notify on their own search', function () {
     expect($search->fresh()->is_scratch)->toBeFalse();
 });
 
-test('a non-pilot user cannot enable notify on their own search', function () {
-    config(['features.saved_search_notifications_user' => 'pilot@example.com']);
-    $user = User::factory()->create(['email' => 'someone-else@example.com']);
+test('an admin can enable notify on their own search too', function () {
+    $user = User::factory()->create(['type' => 'a']);
+    $search = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => false]);
+
+    $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/notify")->assertOk();
+
+    expect($search->fresh()->notify_new_events)->toBeTrue();
+});
+
+test('a non-moderator cannot enable notify on their own search', function () {
+    $user = User::factory()->create(['type' => 'u']);
     $search = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => false]);
 
     $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/notify")->assertStatus(403);
@@ -867,12 +874,11 @@ test('a non-pilot user cannot enable notify on their own search', function () {
     expect($search->fresh()->notify_new_events)->toBeFalse();
 });
 
-test('a non-pilot user CAN disable notify if it was somehow already on', function () {
+test('a non-moderator CAN disable notify if it was somehow already on', function () {
     // Turning something off should never be blocked, even for a row that
-    // ended up enabled outside the pilot (e.g. the pilot email config
-    // changed after the fact).
-    config(['features.saved_search_notifications_user' => 'pilot@example.com']);
-    $user = User::factory()->create(['email' => 'someone-else@example.com']);
+    // ended up enabled outside that group (e.g. the user was demoted from
+    // moderator after enabling it).
+    $user = User::factory()->create(['type' => 'u']);
     $search = SavedSearch::factory()->create(['user_id' => $user->id, 'notify_new_events' => true]);
 
     $response = $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/notify")->assertOk();
@@ -881,8 +887,7 @@ test('a non-pilot user CAN disable notify if it was somehow already on', functio
 });
 
 test('disabling notify does not touch the existing cursor', function () {
-    config(['features.saved_search_notifications_user' => 'pilot@example.com']);
-    $user = User::factory()->create(['email' => 'pilot@example.com']);
+    $user = User::factory()->create(['type' => 'm']);
     // Whole seconds — a MySQL datetime column truncates sub-second
     // precision, so comparing to a microsecond-precision now() would be a
     // false negative on an otherwise-untouched value.
@@ -898,9 +903,8 @@ test('disabling notify does not touch the existing cursor', function () {
 });
 
 test('a user cannot toggle notify on another users saved search', function () {
-    config(['features.saved_search_notifications_user' => 'pilot@example.com']);
-    $owner = User::factory()->create(['email' => 'pilot@example.com']);
-    $other = User::factory()->create(); // ownership check, not pilot status — any other user
+    $owner = User::factory()->create(['type' => 'm']);
+    $other = User::factory()->create(); // ownership check, not moderator status — any other user
     $search = SavedSearch::factory()->create(['user_id' => $owner->id]);
 
     $this->actingAs($other)->patchJson("/api/hub/saved-searches/{$search->id}/notify")->assertStatus(404);

@@ -3,7 +3,8 @@
  *
  * Covers:
  *  - Renders exactly the 4 tabs: personal-info / login-security / privacy /
- *    notifications.
+ *    notifications, plus a 5th "API keys" tab for moderators/admins or once
+ *    MCP_TOKEN_UI_PUBLIC is on (window.Laravel.mcpTokenUiPublic).
  *  - Highlights whichever item matches the currentTab prop.
  *  - Clicking an item emits 'navigate' with that item's tab key.
  *
@@ -20,6 +21,39 @@ describe('AccountSettings/Pages/navSidebar.vue', () => {
         const labels = wrapper.findAll('button').map((b) => b.text());
 
         expect(labels).toEqual(['Personal information', 'Login & security', 'Privacy', 'Notifications']);
+    });
+
+    it('hides the API keys tab for a regular user with the public flag off', () => {
+        window.Laravel.user.isModerator = false;
+        window.Laravel.mcpTokenUiPublic = false;
+        const wrapper = mount(AccountSettingsNavSidebar, { props: { currentTab: 'personal-info' } });
+
+        expect(wrapper.findAll('button').map((b) => b.text())).not.toContain('API keys');
+    });
+
+    it('shows the API keys tab for a moderator', () => {
+        window.Laravel.user.isModerator = true;
+        const wrapper = mount(AccountSettingsNavSidebar, { props: { currentTab: 'personal-info' } });
+        const labels = wrapper.findAll('button').map((b) => b.text());
+
+        expect(labels).toEqual(['Personal information', 'Login & security', 'Privacy', 'Notifications', 'API keys']);
+    });
+
+    it('shows the API keys tab for a regular user once MCP_TOKEN_UI_PUBLIC is on', () => {
+        window.Laravel.user.isModerator = false;
+        window.Laravel.mcpTokenUiPublic = true;
+        const wrapper = mount(AccountSettingsNavSidebar, { props: { currentTab: 'personal-info' } });
+
+        expect(wrapper.findAll('button').map((b) => b.text())).toContain('API keys');
+    });
+
+    it('emits navigate with "api-keys" when a moderator clicks the API keys tab', async () => {
+        window.Laravel.user.isModerator = true;
+        const wrapper = mount(AccountSettingsNavSidebar, { props: { currentTab: 'personal-info' } });
+
+        await wrapper.findAll('button')[4].trigger('click');
+
+        expect(wrapper.emitted('navigate')).toEqual([['api-keys']]);
     });
 
     it('highlights only the button matching currentTab', () => {

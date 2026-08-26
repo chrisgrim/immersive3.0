@@ -26,6 +26,7 @@ import PersonalInformation from '@/PageComponents/AccountSettings/Pages/Personal
 import LoginSecurity from '@/PageComponents/AccountSettings/Pages/LoginSecurity.vue';
 import Privacy from '@/PageComponents/AccountSettings/Pages/Privacy.vue';
 import Notifications from '@/PageComponents/AccountSettings/Pages/Notifications.vue';
+import ApiKeys from '@/PageComponents/Settings/api-tokens.vue';
 
 /** Controls window.location.pathname for tabFromPath()/explicitTabFromPath(). */
 function setPath(pathname) {
@@ -64,6 +65,46 @@ describe('AccountSettings/index.vue', () => {
 
             setPath('/account-settings/notifications');
             expect(shallowMount(AccountSettingsIndex).findComponent(Notifications).exists()).toBe(true);
+        });
+
+        // Restored reachability for the API Keys / MCP token page (previously
+        // orphaned when this shell replaced the old /users/{id}/edit profile
+        // page — see navSidebar.vue for the moderator/public-flag gate on the
+        // *link*). The api-keys slug itself is only ever "known" (in
+        // TAB_SLUGS) for an eligible visitor — see the fallback test below
+        // for the ineligible case.
+        it('renders the API keys tab embedded for a moderator', () => {
+            window.Laravel.user.isModerator = true;
+            setPath('/account-settings/api-keys');
+            const wrapper = shallowMount(AccountSettingsIndex);
+            const apiKeys = wrapper.findComponent(ApiKeys);
+
+            expect(apiKeys.exists()).toBe(true);
+            expect(apiKeys.props('embedded')).toBe(true);
+        });
+
+        it('renders the API keys tab once MCP_TOKEN_UI_PUBLIC is on, even for a non-moderator', () => {
+            window.Laravel.mcpTokenUiPublic = true;
+            setPath('/account-settings/api-keys');
+            const wrapper = shallowMount(AccountSettingsIndex);
+
+            expect(wrapper.findComponent(ApiKeys).exists()).toBe(true);
+        });
+
+        // Regression (Codex caught this in review): a non-eligible user
+        // typing /account-settings/api-keys directly used to still mount
+        // ApiKeys, which would immediately eat a 403 from its own
+        // /settings/api-tokens/list fetch — a dead-end URL rather than a
+        // data leak (the token data itself was never exposed), but not a
+        // clean fallback either. The slug is now excluded from TAB_SLUGS
+        // entirely for an ineligible visitor, so it's treated like any
+        // other unrecognized tab.
+        it('falls back to the default tab for a non-eligible user deep-linking to api-keys', () => {
+            setPath('/account-settings/api-keys');
+            const wrapper = shallowMount(AccountSettingsIndex);
+
+            expect(wrapper.findComponent(ApiKeys).exists()).toBe(false);
+            expect(wrapper.findComponent(PersonalInformation).exists()).toBe(true);
         });
     });
 

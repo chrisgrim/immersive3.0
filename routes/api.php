@@ -171,8 +171,8 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         ->name('hub.saved-searches.destroy');
     Route::PATCH('/hub/saved-searches/{savedSearch}/pin', [SavedSearchController::class, 'togglePin'])
         ->name('hub.saved-searches.pin');
-    // Saved-search "notify me about new events" pilot toggle — server-side
-    // restricted to config('features.saved_search_notifications_user'), see
+    // Saved-search "notify me about new events" toggle — server-side
+    // restricted to moderators/admins (User::isModerator()), see
     // SavedSearchController::toggleNotify().
     Route::PATCH('/hub/saved-searches/{savedSearch}/notify', [SavedSearchController::class, 'toggleNotify'])
         ->name('hub.saved-searches.notify');

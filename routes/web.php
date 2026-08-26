@@ -94,7 +94,7 @@ Route::middleware(['auth'])->group(function () {
     // Account Settings shell — Personal info / Login & security / Privacy / Notifications.
     // Same tab-in-path pattern as the Hub above.
     Route::get('/account-settings/{tab?}', [AccountSettingsController::class, 'index'])
-        ->where('tab', 'personal-info|login-security|privacy|notifications')
+        ->where('tab', 'personal-info|login-security|privacy|notifications|api-keys')
         ->name('account-settings.index');
 
     Route::get('/notifications', [NotificationsController::class, 'index'])

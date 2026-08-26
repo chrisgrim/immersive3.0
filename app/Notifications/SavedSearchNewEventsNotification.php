@@ -13,9 +13,9 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * The saved-search "notify me about new events" pilot (chgrim@gmail.com
- * only for now — see config('features.saved_search_notifications_user') and
- * NotifySavedSearchMatchesCommand, which dispatches this). Unlike
+ * The saved-search "notify me about new events" feature (moderators/admins
+ * only for now — see User::isModerator() and NotifySavedSearchMatchesCommand,
+ * which dispatches this). Unlike
  * SavedEventNewDatesNotification/FollowedOrganizerNewEventNotification,
  * there's no per-item override resolved once at dispatch time — instead
  * via() re-reads the saved search fresh from the DB every time it runs
