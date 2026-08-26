@@ -120,27 +120,16 @@
                     foreach ($event->first_show_tickets as $ticket) {
                         // Set currency if available
                         if (isset($ticket->currency)) {
-                            // Make sure we use ISO 4217 currency code
-                            if ($ticket->currency === '$') {
-                                $currencyCode = 'USD';
-                            } elseif ($ticket->currency === '€') {
-                                $currencyCode = 'EUR';
-                            } elseif ($ticket->currency === '£') {
-                                $currencyCode = 'GBP';
-                            } elseif ($ticket->currency === '¥') {
-                                $currencyCode = 'JPY';
-                            } elseif ($ticket->currency === 'C$') {
-                                $currencyCode = 'CAD';
-                            } elseif ($ticket->currency === 'MX$') {
-                                $currencyCode = 'MXN';
-                            } elseif ($ticket->currency === 'CN¥') {
-                                $currencyCode = 'CNY';
-                            } elseif ($ticket->currency === '₩') {
-                                $currencyCode = 'KRW';
-                            } elseif (strlen($ticket->currency) === 3) {
-                                // If it's already a 3-letter code, use it
-                                $currencyCode = $ticket->currency;
-                            }
+                            // ISO 4217 for schema.org, read from the one place
+                            // the currency catalog is defined. This used to be
+                            // a hand-written elseif ladder — a fourth copy of
+                            // the same list, which had to be edited in step
+                            // with the validation rules and the wizard picker
+                            // every time a currency was added.
+                            $currencyCode = \App\Support\Validation\EventUpdateRules::CURRENCY_ISO[$ticket->currency]
+                                // A stored value that isn't a known symbol but
+                                // is already a 3-letter code passes through.
+                                ?? (strlen($ticket->currency) === 3 ? $ticket->currency : $currencyCode);
                         }
                         
                         // Check for PWYC tickets

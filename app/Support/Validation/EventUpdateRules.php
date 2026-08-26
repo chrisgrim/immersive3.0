@@ -24,9 +24,35 @@ class EventUpdateRules
      * instead of touching JPY's existing stored value, same precedent as
      * 'MX$' getting the prefix rather than USD's already-live '$'.
      *
+     * @var array<string, string>
+     */
+    public const CURRENCY_ISO = [
+        '$' => 'USD',
+        '€' => 'EUR',
+        '£' => 'GBP',
+        '¥' => 'JPY',
+        'C$' => 'CAD',
+        'MX$' => 'MXN',
+        'CN¥' => 'CNY',
+        '₩' => 'KRW',
+    ];
+
+    /**
+     * The symbols themselves, derived so this can never disagree with the
+     * map above. Adding a currency means adding ONE line to CURRENCY_ISO.
+     *
+     * This is the single source of truth for which currencies exist. The
+     * event page's JSON-LD reads CURRENCY_ISO directly, and the wizard's own
+     * picker list (tickets.vue) is asserted against both by
+     * tests/Feature/CurrencyCatalogTest.php, since a Vue constant can't
+     * import a PHP one — the list used to be maintained by hand in four
+     * separate places with nothing checking they agreed.
+     *
      * @var array<int, string>
      */
-    public const CURRENCIES = ['$', '€', '£', '¥', 'C$', 'MX$', 'CN¥', '₩'];
+    public const CURRENCIES = [
+        '$', '€', '£', '¥', 'C$', 'MX$', 'CN¥', '₩',
+    ];
 
     /**
      * Ticket currencies an API/MCP client is likely to send instead of the
