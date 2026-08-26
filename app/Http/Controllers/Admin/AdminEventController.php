@@ -11,6 +11,8 @@ use App\Services\EventNotificationDispatcher;
 use App\Services\ImageHandler;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 
@@ -127,47 +129,125 @@ class AdminEventController extends Controller
     /**
      * Events awaiting moderation (status 'r' — under review, not rejected).
      *
-     * Ordered newest-first normally, shuffled when
-     * config('ei.shuffle_review_queue') is on: the queue runs to a hundred-odd
-     * events and the same few sit at the top of a date sort until someone
-     * clears them, which makes working through it a slog.
+     * Newest-first clusters near-identical listings. A single organizer enters
+     * a multi-city chain in one sitting — six "The Drunken Lab <city>" rows
+     * created within six seconds — so a date sort hands the moderator six
+     * near-identical events back to back and attention slides straight off
+     * them.
      *
-     * SEEDED, deliberately. MySQL's bare RAND() is evaluated per query, so
-     * paginating would reshuffle between pages — page 2 would repeat some
-     * events and skip others entirely, which is worse than no shuffle at all.
-     * A fixed seed gives one stable order that pages correctly, and changing
-     * the seed daily is what makes it feel different tomorrow.
+     * So the queue is interleaved by organizer instead: never two from the
+     * same organizer in a row while any other organizer still has one left.
+     *
+     * Deterministic, NOT shuffled. Random ordering clumps — with half the
+     * queue from one organizer a shuffle would routinely still deal three of
+     * them in a row, which is the exact thing this exists to prevent. Being
+     * deterministic also means it paginates correctly with no seed, and does
+     * not reorder under a moderator mid-session.
      *
      * Reverting is an env change, not a deploy of new code: set
-     * EI_SHUFFLE_REVIEW_QUEUE=false and re-cache config.
+     * EI_INTERLEAVE_REVIEW_QUEUE=false and re-cache config.
      */
     public function getPending()
     {
         $query = Event::where('status', 'r')
             ->with(['organizer', 'images', 'category', 'location', 'currentUserFavorite'])
-            ->withoutGlobalScope(LatestPublishedFirstScope::class);
+            ->withoutGlobalScope(LatestPublishedFirstScope::class)
+            ->latest();
 
-        if (config('ei.shuffle_review_queue')) {
-            $query->orderByRaw('RAND(?)', [self::reviewQueueSeed()]);
-        } else {
-            $query->latest();
+        if (! config('ei.interleave_review_queue')) {
+            return $query->paginate(20);
         }
 
-        return $query->paginate(20);
+        // Reordering by organizer cannot be expressed as a single SQL sort, so
+        // the queue is loaded and arranged in PHP. Safe at this size: this is a
+        // work-in-progress list a moderator is actively draining (12 events at
+        // time of writing, and it has never held more than ~114). Worth
+        // revisiting if it ever runs to thousands.
+        $ordered = self::interleaveByOrganizer($query->get());
+
+        $perPage = 20;
+        $page = LengthAwarePaginator::resolveCurrentPage();
+
+        return new LengthAwarePaginator(
+            $ordered->forPage($page, $perPage)->values(),
+            $ordered->count(),
+            $perPage,
+            $page,
+            ['path' => LengthAwarePaginator::resolveCurrentPath()]
+        );
     }
 
     /**
-     * One order per moderator per day.
+     * Arrange the events so same-organizer ones sit as far apart as possible.
      *
-     * Per day so the queue looks different tomorrow without shifting under
-     * someone mid-session. Per moderator so two people working the queue at
-     * once aren't handed the same top twenty and don't collide on the same
-     * events. Deterministic from both, so every page of one person's session
-     * sorts identically.
+     * Works from the smallest batch up: each batch is cut into evenly-sized
+     * chunks and dealt around everything arranged so far, so the biggest batch
+     * is spread across the whole queue last and most thinly.
+     *
+     * Six events from one organizer among six others come out perfectly
+     * alternating. When one organizer holds MORE than half the queue its events
+     * cannot all be separated — arithmetic, not a bug — and this splits them
+     * into the most even runs the spacers allow: nine events with two others to
+     * break them up become three runs of three, not one run of seven.
+     *
+     * Deterministic: batches are ordered by size and then by organizer id, so
+     * two identical requests produce the identical order. Pagination slices a
+     * re-derived arrangement, so anything less would repeat and skip events
+     * between pages. Order within one organizer is left as it arrived, newest
+     * first.
      */
-    private static function reviewQueueSeed(): int
+    private static function interleaveByOrganizer(Collection $events): Collection
     {
-        return crc32(auth()->id().':'.now()->toDateString());
+        // sortKeys() before sortByDesc so equally-sized batches tie-break on
+        // organizer id rather than on hash order.
+        $batches = $events->groupBy('organizer_id')
+            ->map->values()
+            ->sortKeys()
+            ->sortByDesc->count();
+
+        $arranged = collect();
+
+        foreach ($batches->values()->reverse() as $batch) {
+            $chunks = self::chunkEvenly($batch, $arranged->count() + 1);
+            $merged = collect();
+
+            foreach ($chunks as $i => $chunk) {
+                $merged = $merged->concat($chunk);
+
+                // One already-arranged event between consecutive chunks; the
+                // last chunk has nothing to follow it.
+                if ($i < $arranged->count()) {
+                    $merged->push($arranged->get($i));
+                }
+            }
+
+            $arranged = $merged;
+        }
+
+        return $arranged;
+    }
+
+    /**
+     * Cut a batch into exactly $chunks pieces of as near the same size as
+     * possible, remainder on the front. Emptier chunks than items is fine and
+     * expected — that is what produces a clean alternation when a batch is
+     * smaller than the queue it is being dealt into.
+     *
+     * @return array<int, Collection>
+     */
+    private static function chunkEvenly(Collection $items, int $chunks): array
+    {
+        $total = $items->count();
+        $out = [];
+        $offset = 0;
+
+        for ($i = 0; $i < $chunks; $i++) {
+            $size = intdiv($total, $chunks) + ($i < $total % $chunks ? 1 : 0);
+            $out[] = $items->slice($offset, $size)->values();
+            $offset += $size;
+        }
+
+        return $out;
     }
 
     public function update(Request $request, $id)
