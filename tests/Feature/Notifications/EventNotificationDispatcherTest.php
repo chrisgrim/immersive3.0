@@ -75,16 +75,17 @@ test('newDatesForSavedEvent only mails favoriters whose per-item override is on'
     Notification::assertSentTo($optedOut, SavedEventNewDatesNotification::class, fn ($n, $channels) => ! in_array('mail', $channels));
 });
 
-test('newDatesForSavedEvent defaults to mailing when the favorite has no override', function () {
+test('newDatesForSavedEvent does NOT mail when the favorite has no override', function () {
     $user = User::factory()->create();
     $event = Event::factory()->published()->create();
 
     $this->actingAs($user);
-    $event->favorite(); // notify_new_dates left null — never touched the per-item toggle, or cleared via "Clear all notifications"
+    $event->favorite(); // notify_new_dates left null — hearting an event is not a request to be emailed about it
 
     (new EventNotificationDispatcher)->newDatesForSavedEvent($event);
 
-    Notification::assertSentTo($user, SavedEventNewDatesNotification::class, fn ($n, $channels) => in_array('mail', $channels));
+    // Still lands in the in-app feed; just no email.
+    Notification::assertSentTo($user, SavedEventNewDatesNotification::class, fn ($n, $channels) => ! in_array('mail', $channels));
 });
 
 test('newDatesForSavedEvent only mails once within the cooldown window, even across several separate dispatches', function () {
@@ -96,11 +97,24 @@ test('newDatesForSavedEvent only mails once within the cooldown window, even acr
     $event = Event::factory()->published()->create();
     $this->actingAs($user);
     $event->favorite();
+    // Explicit opt-in: mail is off by default now, so without this the
+    // cooldown under test would never be reached at all.
+    $event->favorites()->where('user_id', $user->id)->update(['notify_new_dates' => true]);
 
+    // Each dispatch is moved a second apart deliberately. Tests run on
+    // MySQL, whose UPDATE reports rows CHANGED rather than rows matched, so
+    // three same-second calls all write an identical now() and the 2nd/3rd
+    // report 0 affected regardless of the cooldown clause. That made
+    // $mailAllowed false for the wrong reason: deleting the cooldown
+    // entirely still left this test green (verified by mutating it away).
+    // Spacing the calls means only the real cooldown can hold mail to one.
     $dispatcher = new EventNotificationDispatcher;
     $dispatcher->newDatesForSavedEvent($event);
+    $this->travel(2)->seconds();
     $dispatcher->newDatesForSavedEvent($event);
+    $this->travel(2)->seconds();
     $dispatcher->newDatesForSavedEvent($event);
+    $this->travelBack();
 
     Notification::assertSentTimes(SavedEventNewDatesNotification::class, 3); // database channel every time
 
@@ -113,6 +127,7 @@ test('newDatesForSavedEvent mails again once the cooldown window has passed', fu
     $event = Event::factory()->published()->create(['notified_new_dates_at' => now()->subHours(25)]);
     $this->actingAs($user);
     $event->favorite();
+    $event->favorites()->where('user_id', $user->id)->update(['notify_new_dates' => true]); // opt in; see the cooldown test above
 
     (new EventNotificationDispatcher)->newDatesForSavedEvent($event);
 
@@ -177,7 +192,16 @@ test('newEventFromFollowedOrganizer only notifies once even when called twice fo
 
     $dispatcher = new EventNotificationDispatcher;
     $dispatcher->newEventFromFollowedOrganizer($event);
+    // The travel is load-bearing. Tests run on MySQL, whose UPDATE reports
+    // rows CHANGED, not rows matched — so back-to-back calls in the same
+    // second write an identical now() timestamp, change nothing, and report
+    // 0 affected. Without moving the clock, the second call bails out on
+    // that accident rather than on the whereNull claim, and this test passes
+    // even with the claim deleted (verified by mutating it away). One second
+    // later, only the real guard can stop the second dispatch.
+    $this->travel(2)->seconds();
     $dispatcher->newEventFromFollowedOrganizer($event);
+    $this->travelBack();
 
     Notification::assertSentToTimes($follower, FollowedOrganizerNewEventNotification::class, 1);
     expect($event->fresh()->organizer_notified_at)->not->toBeNull();
@@ -207,15 +231,15 @@ test('newEventFromFollowedOrganizer only mails followers whose per-item override
     Notification::assertSentTo($optedOut, FollowedOrganizerNewEventNotification::class, fn ($n, $channels) => ! in_array('mail', $channels));
 });
 
-test('newEventFromFollowedOrganizer defaults to mailing when the follow has no override', function () {
+test('newEventFromFollowedOrganizer does NOT mail when the follow has no override', function () {
     $user = User::factory()->create();
     $organizer = Organizer::factory()->create(['status' => 'p']);
     $event = Event::factory()->published()->create(['organizer_id' => $organizer->id]);
 
     $this->actingAs($user);
-    $organizer->follow(); // notify_new_events left null — never touched the per-item toggle, or cleared via "Clear all notifications"
+    $organizer->follow(); // notify_new_events left null — following is not a request to be emailed
 
     (new EventNotificationDispatcher)->newEventFromFollowedOrganizer($event);
 
-    Notification::assertSentTo($user, FollowedOrganizerNewEventNotification::class, fn ($n, $channels) => in_array('mail', $channels));
+    Notification::assertSentTo($user, FollowedOrganizerNewEventNotification::class, fn ($n, $channels) => ! in_array('mail', $channels));
 });

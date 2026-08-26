@@ -20,12 +20,16 @@ test('counts only include favorites/follows currently notifying, not the raw tot
     $silenced = Event::factory()->published()->create();
     $this->actingAs($user);
     $notifying->favorite();
+    // Explicitly on — null now means "never opted in", so a bare favorite
+    // would count as silenced and this test would pass for the wrong reason.
+    $notifying->favorites()->where('user_id', $user->id)->update(['notify_new_dates' => true]);
     $silenced->favorite();
     $silenced->favorites()->where('user_id', $user->id)->update(['notify_new_dates' => false]);
 
     $orgNotifying = Organizer::factory()->create(['status' => 'p']);
     $orgSilenced = Organizer::factory()->create(['status' => 'p']);
     $orgNotifying->follow();
+    DB::table('organizer_followers')->where(['organizer_id' => $orgNotifying->id, 'user_id' => $user->id])->update(['notify_new_events' => true]);
     $orgSilenced->follow();
     DB::table('organizer_followers')->where(['organizer_id' => $orgSilenced->id, 'user_id' => $user->id])->update(['notify_new_events' => false]);
 
@@ -38,7 +42,7 @@ test('counts only include favorites/follows currently notifying, not the raw tot
     ]);
 });
 
-test('an untouched favorite/follow (no override yet) counts as notifying', function () {
+test('an untouched favorite/follow (no override yet) does NOT count as notifying', function () {
     $user = User::factory()->create();
     $event = Event::factory()->published()->create();
     $organizer = Organizer::factory()->create(['status' => 'p']);
@@ -48,9 +52,12 @@ test('an untouched favorite/follow (no override yet) counts as notifying', funct
 
     $response = $this->actingAs($user)->getJson('/api/hub/notification-preferences/counts')->assertOk();
 
+    // Notifications are opt-in, so a null override isn't "on" — counting it
+    // would promise emails that never arrive, and leave "Clear all" looking
+    // broken when the number refused to drop to 0.
     expect($response->json())->toBe([
-        'saved_events_count' => 1,
-        'followed_organizers_count' => 1,
+        'saved_events_count' => 0,
+        'followed_organizers_count' => 0,
     ]);
 });
 

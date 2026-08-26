@@ -33,7 +33,7 @@ class FavoriteController extends Controller
      * One favorited event, same shape as an index() row — backs deep-linking
      * a saved event's detail view directly (/dashboard/events/{slug}) without
      * paginating through the whole list to find it. 404s if this user hasn't
-     * favorited it (matches PublishedScope's own status/archived gate on the
+     * favorited it (matches LatestPublishedFirstScope's own status/archived gate on the
      * relation below — this endpoint isn't a general event lookup).
      */
     public function show(Event $event)
@@ -91,17 +91,17 @@ class FavoriteController extends Controller
     {
         $followedOrganizer = $event->organizer ? $followedOrganizers->get($event->organizer->id) : null;
 
-        // Effective per-item "Get updates" state: an explicit true/false on
-        // this favorite/follow row always wins; null (never touched the
-        // toggle) defaults to true — saving an event or following an
-        // organizer implies wanting to hear about it, same default
-        // *Notification::via() uses. One combined toggle covers both
-        // event-date updates and organizer-new-event updates, so both must
-        // be on for it to read as "on" — matches how toggling it sets both
-        // together.
-        $notifyEvent = $event->pivot->notify_new_dates ?? true;
+        // Effective per-item "Get updates" state. Notifications are OPT-IN:
+        // only an explicit `true` counts. Null means the person saved the
+        // event (or followed the organizer) without ever asking to be
+        // emailed about it, and saving is not a request to be emailed —
+        // same default *Notification::via() uses. One combined toggle covers
+        // both event-date updates and organizer-new-event updates, so both
+        // must be on for it to read as "on" — matches how toggling it sets
+        // them together.
+        $notifyEvent = $event->pivot->notify_new_dates ?? false;
         $notifyOrganizer = $event->organizer
-            ? ($followedOrganizer->pivot->notify_new_events ?? true)
+            ? ($followedOrganizer->pivot->notify_new_events ?? false)
             : null;
 
         return [
@@ -132,7 +132,11 @@ class FavoriteController extends Controller
                 'city' => $event->location->city,
             ] : null,
             'remotelocations' => $event->remotelocations->map(fn ($r) => ['id' => $r->id, 'name' => $r->name]),
-            'notifyUpdates' => $notifyOrganizer === null ? $notifyEvent : ($notifyEvent && $notifyOrganizer),
+            // (bool) is not cosmetic: the pivot column comes back as a raw
+            // int, so the no-organizer branch returned 1 while the && branch
+            // returned a real boolean — the same JSON field changing type
+            // depending on whether the event had an organizer.
+            'notifyUpdates' => (bool) ($notifyOrganizer === null ? $notifyEvent : ($notifyEvent && $notifyOrganizer)),
         ];
     }
 
@@ -140,10 +144,10 @@ class FavoriteController extends Controller
      * Favorite the given event for the current user. Idempotent —
      * Favoritable::favorite() uses insertOrIgnore, so a repeat call (or two
      * racing tabs) never creates a duplicate row or throws. 404s for a
-     * non-published event — Event's own global scope (PublishedScope) only
-     * adds an ORDER BY, it does NOT filter by status despite the name, so
-     * without this check a draft/embargoed/rejected event's slug could be
-     * favorited directly. Same guard FollowController::store() already has
+     * non-published event — no global scope on Event filters by status
+     * (LatestPublishedFirstScope only orders), so without this check a
+     * draft/embargoed/rejected event's slug could be favorited directly.
+     * Same guard FollowController::store() already has
      * for organizers.
      */
     public function store(Event $event)

@@ -17,8 +17,10 @@ use Illuminate\Support\Facades\Log;
 test('saved-event-new-dates always includes database, gated only by the per-item override', function () {
     $user = User::factory()->create();
 
+    // Opt-in: no override means the person never asked for email, so mail
+    // is absent. The in-app feed row is still written either way.
     expect((new SavedEventNewDatesNotification($event = Event::factory()->published()->create(), null))->via($user))
-        ->toBe(['database', 'mail']); // no override → defaults to notify
+        ->toBe(['database']);
     expect((new SavedEventNewDatesNotification($event, true))->via($user))->toBe(['database', 'mail']);
     expect((new SavedEventNewDatesNotification($event, false))->via($user))->toBe(['database']);
 });
@@ -35,7 +37,7 @@ test('followed-organizer-new-event always includes database, gated only by the p
     $user = User::factory()->create();
     $event = Event::factory()->published()->create();
 
-    expect((new FollowedOrganizerNewEventNotification($event, null))->via($user))->toBe(['database', 'mail']);
+    expect((new FollowedOrganizerNewEventNotification($event, null))->via($user))->toBe(['database']); // opt-in: no override → no mail
     expect((new FollowedOrganizerNewEventNotification($event, true))->via($user))->toBe(['database', 'mail']);
     expect((new FollowedOrganizerNewEventNotification($event, false))->via($user))->toBe(['database']);
 });

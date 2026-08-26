@@ -38,18 +38,19 @@ class NotificationPreferenceController extends Controller
 
     private function notifyingCounts(int $userId): array
     {
+        // Only an explicit true counts. NULL means "never opted in", which
+        // is now OFF (see SavedEventNewDatesNotification::via()) — counting
+        // it here would tell users they have notifications on for things
+        // that will never email them, and make "Clear all" look broken when
+        // the number didn't drop to 0.
         $savedEventsCount = DB::table('favorites')
             ->where('user_id', $userId)
-            ->where(function ($query) {
-                $query->whereNull('notify_new_dates')->orWhere('notify_new_dates', true);
-            })
+            ->where('notify_new_dates', true)
             ->count();
 
         $followedOrganizersCount = DB::table('organizer_followers')
             ->where('user_id', $userId)
-            ->where(function ($query) {
-                $query->whereNull('notify_new_events')->orWhere('notify_new_events', true);
-            })
+            ->where('notify_new_events', true)
             ->count();
 
         return [

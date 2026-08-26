@@ -31,8 +31,9 @@ class FollowedOrganizerNewEventNotification extends Notification implements Shou
      * job/serialized payload; embedding the whole map here would mean every
      * job carries every OTHER recipient's override too. Null (the default,
      * meaning the user has never touched this follow's own "Get updates"
-     * toggle) means "notify" — following an organizer implies wanting to
-     * hear about it. There is no separate account-wide switch layered on
+     * toggle) means "do NOT email" — these notifications are opt-in, and
+     * following an organizer is not by itself a request to be emailed.
+     * There is no separate account-wide switch layered on
      * top of this; Account Settings' "Clear all notifications" is a one-time
      * bulk action that sets every existing row's override to false, not a
      * persistent flag checked here (see ClearAllNotificationsAction).
@@ -43,7 +44,7 @@ class FollowedOrganizerNewEventNotification extends Notification implements Shou
     {
         $channels = ['database'];
 
-        if ($this->notifyOverride ?? true) {
+        if ($this->notifyOverride ?? false) {
             $channels[] = 'mail';
         }
 

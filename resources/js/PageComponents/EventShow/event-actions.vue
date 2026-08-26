@@ -73,6 +73,18 @@ const currentUser = computed(() => (props.user?.id ? props.user : window.Laravel
 const favorited = ref(!!props.event.isFavorited);
 const pending = ref(false);
 const showLikedModal = ref(false);
+// Starts OFF, and the server agrees: these notifications are OPT-IN. A
+// fresh favorite row is created with notify_new_dates = null, and null is
+// read as "do not email" everywhere (FavoriteController::mapEvent,
+// SavedEventNewDatesNotification::via()). Saving an event is not by itself a
+// request to be emailed about it — someone has to actively turn this on.
+//
+// Worth stating because the pairing is the whole point: this switch and that
+// server-side default have to move together. It previously read off while
+// the server treated null as "notify", so the user was already subscribed
+// and the single click meant to opt OUT sent `enabled: true` — subscribing
+// them harder and following the organizer too (UpdateFavoriteNotifyAction).
+// Flipping only one side reintroduces exactly that.
 const notifyOn = ref(false);
 const notifyPending = ref(false);
 
@@ -96,6 +108,8 @@ const onLikeClick = async () => {
         if (next) {
             await axios.post(`/api/events/${props.event.slug}/favorite`);
             // Fresh like only — unliking just toggles the heart back, no modal.
+            // Reset to the server's default for the row just created
+            // (null -> not subscribed) — see notifyOn above.
             notifyOn.value = false;
             showLikedModal.value = true;
         } else {

@@ -31,8 +31,9 @@ class SavedEventNewDatesNotification extends Notification implements ShouldQueue
      * job/serialized payload; embedding the whole map here would mean every
      * job carries every OTHER recipient's override too. Null (the default,
      * meaning the user has never touched this favorite's own "Get updates"
-     * toggle) means "notify" — saving an event implies wanting to hear about
-     * it. There is no separate account-wide switch layered on top of this;
+     * toggle) means "do NOT email" — these notifications are opt-in, and
+     * saving an event is not by itself a request to be emailed about it.
+     * There is no separate account-wide switch layered on top of this;
      * Account Settings' "Clear all notifications" is a one-time bulk action
      * that sets every existing row's override to false, not a persistent
      * flag checked here (see ClearAllNotificationsAction).
@@ -62,7 +63,7 @@ class SavedEventNewDatesNotification extends Notification implements ShouldQueue
     {
         $channels = ['database'];
 
-        if (($this->notifyOverride ?? true) && $this->mailAllowed) {
+        if (($this->notifyOverride ?? false) && $this->mailAllowed) {
             $channels[] = 'mail';
         }
 
