@@ -4,7 +4,7 @@ namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\FormatsEvents;
 use App\Models\Event;
-use App\Scopes\PublishedScope;
+use App\Scopes\LatestPublishedFirstScope;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
@@ -24,7 +24,7 @@ class GetEvent extends Tool
             'event_slug' => 'required|string',
         ]);
 
-        $event = Event::withoutGlobalScope(PublishedScope::class)
+        $event = Event::withoutGlobalScope(LatestPublishedFirstScope::class)
             ->where('slug', $validated['event_slug'])
             ->first();
 

@@ -8,7 +8,7 @@ use App\Models\Messaging\Message;
 use App\Models\Organizer;
 use App\Models\OwnershipClaim;
 use App\Models\User;
-use App\Scopes\PublishedScope;
+use App\Scopes\LatestPublishedFirstScope;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -95,8 +95,8 @@ class OwnershipClaimService
             $organizer->users()->sync([$claimant->id => ['role' => 'owner']]);
 
             // Attribute the organizer's events to the new owner (incl. soft-deleted, so a later
-            // restore stays consistent). PublishedScope only adds an ORDER BY, so drop it on a bulk update.
-            Event::withoutGlobalScope(PublishedScope::class)
+            // restore stays consistent). LatestPublishedFirstScope only orders, so drop it on a bulk update.
+            Event::withoutGlobalScope(LatestPublishedFirstScope::class)
                 ->withTrashed()
                 ->where('organizer_id', $organizer->id)
                 ->update(['user_id' => $claimant->id]);

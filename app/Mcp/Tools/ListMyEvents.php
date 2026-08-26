@@ -4,7 +4,7 @@ namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\FormatsEvents;
 use App\Models\Event;
-use App\Scopes\PublishedScope;
+use App\Scopes\LatestPublishedFirstScope;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
@@ -34,7 +34,7 @@ class ListMyEvents extends Tool
             $teamIds = collect([$validated['organizer_id']]);
         }
 
-        $events = Event::withoutGlobalScope(PublishedScope::class)
+        $events = Event::withoutGlobalScope(LatestPublishedFirstScope::class)
             ->whereIn('organizer_id', $teamIds)
             ->with('organizer:id,name')
             ->orderByDesc('updated_at')

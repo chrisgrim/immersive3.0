@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Event;
-use App\Scopes\PublishedScope;
+use App\Scopes\LatestPublishedFirstScope;
 use App\Services\EventScheduleAssistant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -23,7 +23,7 @@ class ScheduleAssistantController extends Controller
         // moderator, so gate strictly here.
         abort_unless($user && $user->isAdmin(), 403, 'Admin access required.');
 
-        $event = Event::withoutGlobalScope(PublishedScope::class)
+        $event = Event::withoutGlobalScope(LatestPublishedFirstScope::class)
             ->where('slug', $slug)
             ->firstOrFail();
 

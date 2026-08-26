@@ -7,7 +7,7 @@ use App\Actions\Events\UpdateEventAction;
 use App\Mcp\Tools\Concerns\BuildsSyntheticRequests;
 use App\Mcp\Tools\Concerns\FormatsEvents;
 use App\Models\Event;
-use App\Scopes\PublishedScope;
+use App\Scopes\LatestPublishedFirstScope;
 use App\Support\RecurringDates;
 use App\Support\Validation\EventUpdateRules;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -83,7 +83,7 @@ class UpdateEvent extends Tool
 
         $slugValidated = $request->validate(['event_slug' => 'required|string']);
 
-        $event = Event::withoutGlobalScope(PublishedScope::class)
+        $event = Event::withoutGlobalScope(LatestPublishedFirstScope::class)
             ->where('slug', $slugValidated['event_slug'])
             ->first();
 

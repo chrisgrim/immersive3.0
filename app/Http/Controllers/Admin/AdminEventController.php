@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\Comments;
 use App\Models\Event;
 use App\Models\Messaging\Message;
-use App\Scopes\PublishedScope;
+use App\Scopes\LatestPublishedFirstScope;
 use App\Services\EventNotificationDispatcher;
 use App\Services\ImageHandler;
 use Carbon\Carbon;
@@ -128,7 +128,7 @@ class AdminEventController extends Controller
     {
         return Event::where('status', 'r')
             ->with(['organizer', 'images', 'category', 'location', 'currentUserFavorite'])
-            ->withoutGlobalScope(PublishedScope::class)
+            ->withoutGlobalScope(LatestPublishedFirstScope::class)
             ->latest()
             ->paginate(20);
     }

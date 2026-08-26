@@ -31,7 +31,7 @@ test('favoriting twice via the endpoint is idempotent — no duplicate row', fun
 });
 
 test('a non-published event cannot be favorited', function () {
-    // Regression guard: Event's own global scope (PublishedScope) only adds
+    // Regression guard: Event's own global scope (LatestPublishedFirstScope) only adds
     // an ORDER BY, it does NOT filter by status despite the name — without
     // an explicit check, a draft/embargoed/rejected event's slug could be
     // favorited directly, matching FollowController::store()'s equivalent

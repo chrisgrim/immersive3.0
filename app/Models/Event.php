@@ -17,7 +17,7 @@ use App\Models\Events\PriceRange;
 use App\Models\Events\RemoteLocation;
 use App\Models\Events\Show;
 use App\Models\Events\ShowChangeLog;
-use App\Scopes\PublishedScope;
+use App\Scopes\LatestPublishedFirstScope;
 use App\Services\ImageHandler;
 use App\Support\Slug;
 use App\Traits\Favoritable;
@@ -55,7 +55,7 @@ class Event extends Model
 
     protected static function booted()
     {
-        static::addGlobalScope(new PublishedScope);
+        static::addGlobalScope(new LatestPublishedFirstScope);
     }
 
     public function shouldBeSearchable()
@@ -590,10 +590,10 @@ class Event extends Model
      */
     public static function countUnpublishedEventsForOrganizers(array $organizerIds)
     {
-        // PublishedScope's global orderBy('published_at') isn't in the GROUP BY
+        // LatestPublishedFirstScope's global orderBy('published_at') isn't in the GROUP BY
         // below, which MySQL's ONLY_FULL_GROUP_BY mode rejects. Irrelevant to a
         // count anyway, so drop it rather than add it to the grouping.
-        return self::withoutGlobalScope(PublishedScope::class)
+        return self::withoutGlobalScope(LatestPublishedFirstScope::class)
             ->whereIn('organizer_id', $organizerIds)
             ->whereNotIn('status', ['p', 'e'])
             ->selectRaw('organizer_id, count(*) as aggregate')

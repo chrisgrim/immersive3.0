@@ -82,7 +82,7 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         ->name('event.update');
 
     // Admin-only AI scheduling assistant for the Dates step. Uses {slug} (not
-    // implicit binding) so it resolves drafts past the PublishedScope; admin +
+    // implicit binding) so it resolves drafts past the LatestPublishedFirstScope; admin +
     // per-event authorization are enforced in the controller. Tight throttle —
     // each call fans out to the Claude API.
     Route::POST('/hosting/event/{slug}/schedule-assistant', \App\Http\Controllers\Admin\ScheduleAssistantController::class)

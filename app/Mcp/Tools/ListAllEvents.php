@@ -5,7 +5,7 @@ namespace App\Mcp\Tools;
 use App\Mcp\Tools\Concerns\FormatsEvents;
 use App\Models\Event;
 use App\Models\Organizer;
-use App\Scopes\PublishedScope;
+use App\Scopes\LatestPublishedFirstScope;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Database\Eloquent\Builder;
 use Laravel\Mcp\Request;
@@ -55,10 +55,10 @@ class ListAllEvents extends Tool
         $user = $request->user();
         $isModerator = $user->isModerator();
 
-        // PublishedScope only orders by published_at; dropping it lets our own
+        // LatestPublishedFirstScope only orders by published_at; dropping it lets our own
         // sort win (and keeps unpublished rows, whose published_at is null,
         // from sorting unpredictably).
-        $query = Event::withoutGlobalScope(PublishedScope::class)
+        $query = Event::withoutGlobalScope(LatestPublishedFirstScope::class)
             ->with('organizer:id,name,slug')
             ->withCount('shows');
 

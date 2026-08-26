@@ -8,16 +8,16 @@ use App\Models\Genre;
 use App\Scopes\AdminScope;
 use App\Scopes\CreatedAtScope;
 use App\Scopes\DateScope;
-use App\Scopes\PublishedScope;
+use App\Scopes\LatestPublishedFirstScope;
 use App\Scopes\RankScope;
 
 // note: Every global scope in app/Scopes only ORDERS the query — none of them
 // FILTER any rows out. These tests assert that ordering and that
 // withoutGlobalScope() bypasses it (restoring insertion / id order).
 
-// ----- PublishedScope (Event, published_at desc) -----
+// ----- LatestPublishedFirstScope (Event, published_at desc) -----
 
-test('PublishedScope orders events by published_at desc', function () {
+test('LatestPublishedFirstScope orders events by published_at desc', function () {
     $oldest = Event::factory()->published()->create(['published_at' => now()->subDays(10)]);
     $newest = Event::factory()->published()->create(['published_at' => now()->subDay()]);
     $middle = Event::factory()->published()->create(['published_at' => now()->subDays(5)]);
@@ -27,7 +27,7 @@ test('PublishedScope orders events by published_at desc', function () {
     expect($ids)->toBe([$newest->id, $middle->id, $oldest->id]);
 });
 
-test('PublishedScope does not filter — unpublished events are still returned', function () {
+test('LatestPublishedFirstScope does not filter — unpublished events are still returned', function () {
     Event::factory()->draft()->create();
     Event::factory()->inReview()->create();
     Event::factory()->published()->create();
@@ -36,12 +36,12 @@ test('PublishedScope does not filter — unpublished events are still returned',
     expect(Event::count())->toBe(3);
 });
 
-test('withoutGlobalScope bypasses PublishedScope ordering', function () {
+test('withoutGlobalScope bypasses LatestPublishedFirstScope ordering', function () {
     $first = Event::factory()->published()->create(['published_at' => now()->subDay()]);
     $second = Event::factory()->published()->create(['published_at' => now()->subDays(10)]);
 
     $ordered = Event::pluck('id')->all();
-    $natural = Event::withoutGlobalScope(PublishedScope::class)->orderBy('id')->pluck('id')->all();
+    $natural = Event::withoutGlobalScope(LatestPublishedFirstScope::class)->orderBy('id')->pluck('id')->all();
 
     // Scoped order is published_at desc (first, since it is most recent).
     expect($ordered)->toBe([$first->id, $second->id]);
