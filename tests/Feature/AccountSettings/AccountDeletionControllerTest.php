@@ -188,3 +188,22 @@ test('deleting one user never touches another users data', function () {
     expect(User::find($other->id))->not->toBeNull();
     expect(DB::table('favorites')->where('user_id', $other->id)->exists())->toBeTrue();
 });
+
+test('a blocked deletion leaves the user logged in', function () {
+    // The controller's own blockingReason() check is defence-in-depth:
+    // UserDeletionService::delete() re-checks inside the transaction and
+    // throws, so removing the controller check still blocks the delete and
+    // every existing test here stays green. Its one unique contribution is
+    // bailing out BEFORE the logout — without it, a user who can't be
+    // deleted gets signed out anyway on every attempt, not just on the rare
+    // TOCTOU race the controller comment accepts that for.
+    $user = User::factory()->create();
+    Organizer::factory()->create(['user_id' => $user->id, 'status' => 'p']);
+
+    $this->actingAs($user)
+        ->deleteJson('/api/account-settings')
+        ->assertStatus(422);
+
+    expect(Auth::guard('web')->check())->toBeTrue();
+    expect(User::find($user->id))->not->toBeNull();
+});

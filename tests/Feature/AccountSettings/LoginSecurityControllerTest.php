@@ -221,3 +221,30 @@ test('a user cannot log out another users device', function () {
 
     expect(LoginHistory::find($device->id))->not->toBeNull();
 });
+
+test('logging out a device destroys its real session, not just the history row', function () {
+    // The point of the feature. The existing test above only asserts the
+    // LoginHistory row is gone, so reducing destroy() to a plain row delete
+    // left the whole suite green — while the device it claimed to sign out
+    // stayed logged in and simply vanished from Device History, with no way
+    // left to reach it. That is the exact failure mode someone signing out a
+    // lost or stolen laptop is relying on this not to have.
+    $user = User::factory()->create();
+    $handler = app('session')->driver()->getHandler();
+
+    $sessionId = 'device-session-under-test';
+    $handler->write($sessionId, serialize(['_token' => 'x']));
+    expect($handler->read($sessionId))->not->toBe('');
+
+    $device = LoginHistory::factory()->create([
+        'user_id' => $user->id,
+        'session_id' => $sessionId,
+    ]);
+
+    $this->actingAs($user)
+        ->deleteJson("/api/account-settings/login-security/devices/{$device->id}")
+        ->assertOk();
+
+    expect($handler->read($sessionId))->toBe('');
+    expect(LoginHistory::find($device->id))->toBeNull();
+});

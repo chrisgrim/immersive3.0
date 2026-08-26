@@ -26,6 +26,26 @@ test('a user with no saved preferences sees both toggles default on', function (
         ]]);
 });
 
+test('the settings page reads back a toggle the user turned off', function () {
+    // The only other show() test uses null preferences and expects both
+    // true, so hardcoding either field to true passed the whole suite. The
+    // enforcement side is covered (see the public-extras tests below) — this
+    // is the settings screen itself, where showing a toggle back ON after
+    // someone deliberately turned it off reads as "my change didn't save".
+    $user = User::factory()->create(['privacy_preferences' => [
+        'followed_organizers' => false,
+        'saved_events_count' => true,
+    ]]);
+
+    $this->actingAs($user)
+        ->getJson('/api/account-settings/privacy')
+        ->assertOk()
+        ->assertExactJson(['privacy_preferences' => [
+            'followed_organizers' => false,
+            'saved_events_count' => true,
+        ]]);
+});
+
 // ---------------------------------------------------------------------------
 // PATCH /api/account-settings/privacy
 // ---------------------------------------------------------------------------
