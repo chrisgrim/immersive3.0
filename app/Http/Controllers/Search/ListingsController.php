@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Search;
 
+use App\Actions\Search\EventSearchFilterBuilder;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Event;
@@ -12,230 +13,211 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 
 /**
- * app/Actions/Search/EventSearchFilterBuilder.php intentionally mirrors this
- * controller's filter-matching semantics (buildLocationFilter/
- * buildSearchFilters/buildMapBoundaryFilter/applyNonPriceFilters below) for
- * a separate moderator/admin-only feature (saved-search "notify me about new
- * events" — see NotifySavedSearchMatchesCommand) rather than being wired in
- * here — see that class's own docblock for why. If you change matching
- * behavior in this controller, that class needs the same change by hand
- * until the two are formally unified.
+ * "Which events match this search" is defined ONCE, in
+ * EventSearchFilterBuilder, and this controller delegates to it. The saved-
+ * search notifier (NotifySavedSearchMatchesCommand) uses the same class, so
+ * an alert can no longer disagree with what the search page shows.
+ *
+ * They used to be two hand-maintained copies, and had already drifted: the
+ * builder gated coordinates on isset() while this controller used
+ * truthiness, so a coordinate of exactly 0 silently dropped the geo filter
+ * here but not there. Unified 2026-08-26; the isset() behaviour won, so a
+ * 0 coordinate now filters correctly on both paths.
+ *
+ * What stays here is everything that is genuinely this controller's job and
+ * not the query's: parsing raw request input (slugs to ids, comma-separated
+ * lists, JavaScript's 'NaN'), logging bad coordinates, and assembling the
+ * category/tag/remote-location lists the search UI renders. Those three
+ * concerns living inside the filter builders is what made the logic
+ * un-shareable in the first place.
  */
 class ListingsController extends Controller
 {
-    protected function buildLocationFilter(Request $request)
+    /**
+     * Raw request -> the normalised criteria EventSearchFilterBuilder takes.
+     * This is the adapter layer: slugs resolved to ids, comma-separated
+     * lists split, JavaScript's literal 'NaN' dropped, coordinates validated
+     * (and logged when they're junk, which the builder deliberately doesn't
+     * do — it has no request to describe in a log line).
+     *
+     * `live` is cast to a real bool here. The request carries the string
+     * 'true'; the builder works in booleans, same as a saved search's stored
+     * criteria. Converting once, here, is what lets both callers share it.
+     */
+    protected function criteriaFromRequest(Request $request): array
     {
-        // If searchType is null or not set, we should NOT filter by attendance_type_id
-        // This allows the default search to include both in-person and remote events
-        if (! $request->searchType || $request->searchType === 'null') {
-            $geoFilter = null;
+        // Memoised per request object. This is called by all three filter
+        // builders and again by both the results query and the max-price
+        // aggregation — five times for one search — and it does slug->id
+        // lookups against categories, genres and remote_locations. Without
+        // this the refactor would have turned one set of lookups into five on
+        // the busiest page on the site, and logged the same bad-coordinate
+        // warning five times over (caught in review).
+        //
+        // A WeakMap keyed on the request itself, not spl_object_id(). Object
+        // ids are only unique among LIVE objects, so a short-lived request
+        // that has already been collected can hand its id to the next one and
+        // serve it the previous request's criteria — which is exactly what
+        // happened, caught by the test below. A WeakMap keys on identity and
+        // drops entries when the request is collected, so it can't confuse
+        // two requests or hold one alive.
+        $this->criteriaCache ??= new \WeakMap;
 
-            if ($request->lat && $request->lng) {
-                if (is_numeric($request->lat) && is_numeric($request->lng)) {
-                    $geoFilter = Query::geoDistance()
-                        ->field('location_latlon')
-                        ->distance('40km')
-                        ->lat((float) $request->lat)
-                        ->lon((float) $request->lng);
-                } else {
-                    \Log::warning('Invalid lat/lng coordinates received', [
-                        'lat' => $request->lat,
-                        'lng' => $request->lng,
-                        'city' => $request->city,
-                    ]);
-                }
-            }
-
-            return ['geoFilter' => $geoFilter];
-        }
-
-        if ($request->searchType === 'inPerson') {
-            // Get in-person attendance type ID (should be 1 based on migration)
-            $inPersonId = 1;
-
-            $geoFilter = null;
-
-            if ($request->lat && $request->lng) {
-                if (is_numeric($request->lat) && is_numeric($request->lng)) {
-                    $geoFilter = Query::geoDistance()
-                        ->field('location_latlon')
-                        ->distance('40km')
-                        ->lat((float) $request->lat)
-                        ->lon((float) $request->lng);
-                } else {
-                    \Log::warning('Invalid lat/lng coordinates received', [
-                        'lat' => $request->lat,
-                        'lng' => $request->lng,
-                        'city' => $request->city,
-                    ]);
-                }
-            }
-
-            return [
-                'attendanceType' => Query::term()->field('attendance_type_id')->value($inPersonId),
-                'inPersonCategories' => Category::withCount('events')->where(function ($query) use ($inPersonId) {
-                    $query->whereJsonContains('applicable_attendance_types', $inPersonId)
-                        ->orWhereNull('applicable_attendance_types'); // Include categories without restrictions
-                })->get(),
-                'geoFilter' => $geoFilter,
-            ];
-        }
-
-        if ($request->searchType === 'atHome') {
-            // Get remote attendance type ID (should be 2 based on migration)
-            $remoteId = 2;
-
-            return [
-                'attendanceType' => Query::term()->field('attendance_type_id')->value($remoteId),
-                'remoteCategories' => Category::withCount('events')->where(function ($query) use ($remoteId) {
-                    $query->whereJsonContains('applicable_attendance_types', $remoteId)
-                        ->orWhereNull('applicable_attendance_types'); // Include categories without restrictions
-                })->get(),
-            ];
-        }
-
-        return [];
+        return $this->criteriaCache[$request] ??= $this->buildCriteria($request);
     }
 
+    /** @var \WeakMap<Request, array<string, mixed>>|null */
+    private ?\WeakMap $criteriaCache = null;
+
+    private function buildCriteria(Request $request): array
+    {
+        return [
+            'searchType' => $request->searchType,
+            ...$this->coordinates($request),
+            'live' => $request->live === 'true',
+            'NElat' => $request->NElat,
+            'NElng' => $request->NElng,
+            'SWlat' => $request->SWlat,
+            'SWlng' => $request->SWlng,
+            'categoryIds' => $this->resolveIds($request->category, Category::class),
+            'tagIds' => $this->resolveIds($request->tag, Genre::class),
+            'remoteLocationId' => $this->resolveRemoteLocationId($request),
+            'priceMin' => $request->has('price0') ? (float) $request->price0 : null,
+            'priceMax' => $request->has('price1') ? (float) $request->price1 : null,
+            'start' => $request->start,
+            'end' => $request->end,
+        ];
+    }
+
+    /**
+     * The search centre as floats the builder can use, or nulls.
+     *
+     * Validated as a PAIR, and logged at most once — a geocode that produced
+     * junk produced one bad location, not two independent bad numbers, and
+     * the log line names the city precisely because this is the only layer
+     * that still knows it. The builder returns null silently by design; it
+     * has no request to describe.
+     *
+     * isset(), not truthiness. This controller used to gate on
+     * `$request->lat && $request->lng`, under which a coordinate of exactly 0
+     * — the equator, or the prime meridian through London — is falsy and
+     * silently dropped the geo filter, quietly returning worldwide results
+     * for a location search. EventSearchFilterBuilder already gated on
+     * isset() and called that out as a bug here; unifying the two is what
+     * fixes it.
+     *
+     * @return array{lat: float|null, lng: float|null}
+     */
+    private function coordinates(Request $request): array
+    {
+        $lat = $request->lat;
+        $lng = $request->lng;
+
+        if (! isset($lat) || ! isset($lng)) {
+            return ['lat' => null, 'lng' => null];
+        }
+
+        if (! is_numeric($lat) || ! is_numeric($lng)) {
+            \Log::warning('Invalid lat/lng coordinates received', [
+                'lat' => $lat,
+                'lng' => $lng,
+                'city' => $request->city,
+            ]);
+
+            return ['lat' => null, 'lng' => null];
+        }
+
+        return ['lat' => (float) $lat, 'lng' => (float) $lng];
+    }
+
+    /**
+     * Category/genre input arrives as ids, slugs, or a comma-separated mix of
+     * both, and JavaScript sometimes sends the literal string 'NaN' for a
+     * failed Number() conversion. Unknown slugs are dropped rather than
+     * erroring — a stale bookmarked URL should return results, not a 500.
+     *
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
+     * @return int[]
+     */
+    private function resolveIds($input, string $model): array
+    {
+        if (! $input) {
+            return [];
+        }
+
+        $ids = [];
+
+        $items = is_array($input) ? $input : explode(',', $input);
+
+        foreach ($items as $item) {
+            if (is_numeric($item)) {
+                $ids[] = (int) $item;
+            } elseif ($item !== 'NaN') {
+                if ($found = $model::where('slug', $item)->first()) {
+                    $ids[] = $found->id;
+                }
+            }
+        }
+
+        return $ids;
+    }
+
+    private function resolveRemoteLocationId(Request $request): ?int
+    {
+        if (! $request->remoteLocation) {
+            return null;
+        }
+
+        $remoteLocation = is_numeric($request->remoteLocation)
+            ? RemoteLocation::find((int) $request->remoteLocation)
+            : RemoteLocation::where('slug', $request->remoteLocation)->first();
+
+        return $remoteLocation?->id;
+    }
+
+    /**
+     * Attendance-type + geo filters from EventSearchFilterBuilder, plus the
+     * category lists only the search UI needs (the picker shows which
+     * categories apply to the chosen attendance type). The query shapes are
+     * the builder's; the picker lists are this controller's.
+     */
+    protected function buildLocationFilter(Request $request)
+    {
+        $criteria = $this->criteriaFromRequest($request);
+        $filters = $this->filterBuilder()->locationFilter($criteria);
+
+        if ($request->searchType === 'inPerson') {
+            $filters['inPersonCategories'] = $this->categoriesForAttendanceType(1);
+        } elseif ($request->searchType === 'atHome') {
+            $filters['remoteCategories'] = $this->categoriesForAttendanceType(2);
+        }
+
+        return $filters;
+    }
+
+    /**
+     * Category/tag/remote-location/price/date filters from the builder, plus
+     * the `searched*` models the UI echoes back as active-filter chips.
+     */
     protected function buildSearchFilters(Request $request)
     {
-        $filters = [];
+        $criteria = $this->criteriaFromRequest($request);
+        $filters = $this->filterBuilder()->searchFilters($criteria);
 
-        // Category filters
-        if ($request->category) {
-            $categoryIds = [];
-            $inputCategories = is_array($request->category)
-                ? $request->category
-                : explode(',', $request->category);
-
-            // Convert any string-based slugs to numeric IDs
-            foreach ($inputCategories as $categoryInput) {
-                // Check if it's a valid number first
-                if (is_numeric($categoryInput)) {
-                    // Already a numeric ID
-                    $categoryIds[] = (int) $categoryInput;
-                } elseif ($categoryInput === 'NaN') {
-                    // Handle explicit NaN from JavaScript conversion
-                    continue;
-                } else {
-                    // It's a slug or non-numeric value, find the corresponding category ID
-                    $category = Category::where('slug', $categoryInput)->first();
-                    if ($category) {
-                        $categoryIds[] = $category->id;
-                    }
-                }
-            }
-
-            // Only proceed if we have valid IDs
-            if (! empty($categoryIds)) {
-                $request->request->add(['category' => $categoryIds]);
-                $filters['searchedCategories'] = Category::withCount('events')->find($categoryIds);
-                $filters['categories'] = Query::terms()->field('category_id')->values($categoryIds);
-            }
+        if ($criteria['categoryIds']) {
+            // Written back onto the request because downstream view code
+            // still reads `category` expecting resolved ids, not the slugs
+            // the URL may have carried.
+            $request->request->add(['category' => $criteria['categoryIds']]);
+            $filters['searchedCategories'] = Category::withCount('events')->find($criteria['categoryIds']);
         }
 
-        // Add tag filter
-        if ($request->tag) {
-            $tagIds = [];
-            $inputTags = is_array($request->tag)
-                ? $request->tag
-                : explode(',', $request->tag);
-
-            // Convert any string-based slugs to numeric IDs
-            foreach ($inputTags as $tagInput) {
-                // Check if it's a valid number first
-                if (is_numeric($tagInput)) {
-                    // Already a numeric ID
-                    $tagIds[] = (int) $tagInput;
-                } elseif ($tagInput === 'NaN') {
-                    // Handle explicit NaN from JavaScript conversion
-                    continue;
-                } else {
-                    // It's a slug or non-numeric value, find the corresponding genre ID
-                    $genre = Genre::where('slug', $tagInput)->first();
-                    if ($genre) {
-                        $tagIds[] = $genre->id;
-                    }
-                }
-            }
-
-            // Only proceed if we have valid IDs
-            if (! empty($tagIds)) {
-                $filters['searchedTags'] = Genre::find($tagIds);
-                $filters['tags'] = Query::bool()
-                    ->must(
-                        Query::terms()
-                            ->field('genres.genre_id')
-                            ->values($tagIds)
-                    );
-            }
+        if ($criteria['tagIds']) {
+            $filters['searchedTags'] = Genre::find($criteria['tagIds']);
         }
 
-        // At Home remote-location-type filter (e.g. "Zoom", "Telephone") —
-        // accepts either a numeric id or a slug, matching the pattern above.
-        // Gated on searchType === 'atHome': a stray remoteLocation param left
-        // over from switching tabs (see nav-search.vue's handleLocationSearch)
-        // must not silently filter an in-person search down to zero results —
-        // in-person events have no remote_location_ids at all.
-        if ($request->remoteLocation && $request->searchType === 'atHome') {
-            $remoteLocation = is_numeric($request->remoteLocation)
-                ? RemoteLocation::find((int) $request->remoteLocation)
-                : RemoteLocation::where('slug', $request->remoteLocation)->first();
-
-            if ($remoteLocation) {
-                $filters['searchedRemoteLocation'] = $remoteLocation;
-                $filters['remoteLocation'] = Query::terms()->field('remote_location_ids')->values([$remoteLocation->id]);
-            }
-        }
-
-        // Price filters
-        if ($request->has('price0') || $request->has('price1')) {
-            $minPrice = $request->has('price0') ? (float) $request->price0 : 0;
-
-            $filters['prices'] = Query::range()
-                ->field('priceranges.price')
-                ->gte($minPrice);
-
-            // Only add upper bound if price1 is set (meaning we're not at max)
-            if ($request->has('price1')) {
-                $maxPrice = (float) $request->price1;
-                $filters['prices']->lte($maxPrice);
-            }
-
-        }
-
-        // Date filters
-        if ($request->start && $request->end) {
-            // Normalize range to cover the full days the user picked. The frontend
-            // sends both bounds at 00:00:00, which would otherwise exclude any show
-            // happening later in the day on the chosen end date.
-            $start = \Carbon\Carbon::parse($request->start)->startOfDay()->format('Y-m-d H:i:s');
-            $end = \Carbon\Carbon::parse($request->end)->endOfDay()->format('Y-m-d H:i:s');
-
-            $dateFilter = Query::bool();
-
-            $dateFilter->should(
-                Query::nested()
-                    ->path('shows')
-                    ->query(
-                        Query::range()
-                            ->field('shows.date')
-                            ->gte($start)
-                            ->lte($end)
-                    )
-            );
-
-            // Add the always-available condition
-            $dateFilter->should(
-                Query::term()
-                    ->field('showtype')
-                    ->value('a')
-            );
-
-            // Set minimum matches
-            $dateFilter->minimumShouldMatch(1);
-
-            $filters['dates'] = $dateFilter;
+        if ($criteria['remoteLocationId'] && $request->searchType === 'atHome') {
+            $filters['searchedRemoteLocation'] = RemoteLocation::find($criteria['remoteLocationId']);
         }
 
         return $filters;
@@ -243,37 +225,39 @@ class ListingsController extends Controller
 
     protected function buildMapBoundaryFilter(Request $request)
     {
-        // Only build boundary filter when live is explicitly 'true'
-        if (! isset($request->live) || $request->live !== 'true') {
+        $criteria = $this->criteriaFromRequest($request);
+
+        if (! $criteria['live']) {
             return null;
         }
 
-        // Validate that all required geo coordinates are present and numeric
-        $requiredCoords = ['NElat', 'NElng', 'SWlat', 'SWlng'];
-        foreach ($requiredCoords as $coord) {
+        // Logged here, not in the builder, for the same reason as
+        // numericCoord() above — the builder returns null silently.
+        $required = ['NElat', 'NElng', 'SWlat', 'SWlng'];
+        foreach ($required as $coord) {
             if (! isset($request->$coord) || ! is_numeric($request->$coord)) {
                 \Log::warning('Invalid geo boundary coordinates received', [
-                    'coordinates' => $request->only($requiredCoords),
+                    'coordinates' => $request->only($required),
                 ]);
 
                 return null;
             }
         }
 
-        return Query::bool()->filterRaw([
-            'geo_bounding_box' => [
-                'location_latlon' => [
-                    'top_right' => [
-                        'lat' => (float) $request->NElat,
-                        'lon' => (float) $request->NElng,
-                    ],
-                    'bottom_left' => [
-                        'lat' => (float) $request->SWlat,
-                        'lon' => (float) $request->SWlng,
-                    ],
-                ],
-            ],
-        ]);
+        return $this->filterBuilder()->mapBoundaryFilter($criteria);
+    }
+
+    private function categoriesForAttendanceType(int $attendanceTypeId)
+    {
+        return Category::withCount('events')->where(function ($query) use ($attendanceTypeId) {
+            $query->whereJsonContains('applicable_attendance_types', $attendanceTypeId)
+                ->orWhereNull('applicable_attendance_types'); // categories with no restriction apply to both
+        })->get();
+    }
+
+    private function filterBuilder(): EventSearchFilterBuilder
+    {
+        return app(EventSearchFilterBuilder::class);
     }
 
     /**
@@ -297,34 +281,17 @@ class ListingsController extends Controller
      */
     private function applyNonPriceFilters($query, array $searchFilters, array $locationFilters, $boundaryFilter, Request $request, bool $applyGeoFilter)
     {
-        if ($locationFilters['attendanceType'] ?? null) {
-            $query->filter($locationFilters['attendanceType']);
-        }
-
-        if ($searchFilters['categories'] ?? null) {
-            $query->filter($searchFilters['categories']);
-        }
-
-        if ($searchFilters['tags'] ?? null) {
-            $query->filter($searchFilters['tags']);
-        }
-
-        if ($searchFilters['remoteLocation'] ?? null) {
-            $query->filter($searchFilters['remoteLocation']);
-        }
-
-        if ($applyGeoFilter) {
-            $geoFilter = $request->live === 'true' ? $boundaryFilter : $locationFilters['geoFilter'];
-            if ($geoFilter !== null) {
-                $query->filter($geoFilter);
-            }
-        }
-
-        if ($searchFilters['dates'] ?? null) {
-            $query->filter($searchFilters['dates']);
-        }
-
-        return $query;
+        // Delegated so there is exactly one implementation of "attach these
+        // filters to this query", shared with the saved-search notifier. The
+        // geo gate is passed explicitly rather than derived, because which of
+        // the two conditions applies is a property of the calling endpoint
+        // (see this method's docblock above), not of the search itself.
+        return $this->filterBuilder()->applyToQuery(
+            $query,
+            array_merge($locationFilters, $searchFilters, ['boundaryFilter' => $boundaryFilter]),
+            $this->criteriaFromRequest($request),
+            $applyGeoFilter,
+        );
     }
 
     private function maxPriceQuery(array $searchFilters, array $locationFilters, $boundaryFilter, Request $request, bool $applyGeoFilter)

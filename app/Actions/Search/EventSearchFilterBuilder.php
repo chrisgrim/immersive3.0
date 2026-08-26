@@ -5,39 +5,35 @@ namespace App\Actions\Search;
 use Elastic\ScoutDriverPlus\Support\Query;
 
 /**
- * "Does this event match these search criteria" — used by
- * NotifySavedSearchMatchesCommand (the moderator/admin-only "notify me about
- * new events matching this saved search" feature), which passes a saved search's
- * already-normalized `criteria` column directly.
+ * "Does this event match these search criteria" — the single definition,
+ * used by BOTH the live search page (ListingsController, which adapts the
+ * request into the criteria array below) and the saved-search "notify me
+ * about new events" command (NotifySavedSearchMatchesCommand, which passes a
+ * saved search's stored `criteria` column directly).
  *
- * DELIBERATELY NOT wired into ListingsController (the live search results
- * page), even though its filter semantics are written to match that
- * controller's own buildLocationFilter/buildSearchFilters/
- * buildMapBoundaryFilter/applyNonPriceFilters exactly — verified by reading
- * that file directly, not guessed at. ListingsController is live,
- * traffic-serving, and has zero automated test coverage (Elasticsearch is
- * untestable under this app's SCOUT_DRIVER=null test config — see
- * project memory), so refactoring it to share this class would mean
- * shipping an unverifiable change to every user's search results for the
- * sake of a feature currently gated to moderators/admins only. If/when this
- * notification feature graduates beyond that, that math changes and
- * unifying the two for real (ListingsController calling this class) becomes
- * worth the risk — see NormalizeSavedSearchCriteriaAction for the criteria
- * shape this expects, and keep both files' filter logic in sync by hand
- * until then.
+ * It was originally a deliberate hand-maintained copy of ListingsController's
+ * filter methods, on the reasoning that the controller was live, untested,
+ * and too risky to refactor. Both halves of that turned out to be wrong:
+ * ListingsFilterTest already covered the controller's filter construction
+ * through reflection, and the two copies had ALREADY drifted — this class
+ * gated coordinates on isset() while the controller used truthiness, so a
+ * coordinate of exactly 0 built a geo filter here and silently didn't there.
+ * Unified 2026-08-26.
  *
  * Deliberately takes a plain array, not an Illuminate\Http\Request — a saved
- * search has no request to hand it. Category/tag/remote-location values must
- * already be resolved to integer ids — a saved search's stored criteria
- * already is (NormalizeSavedSearchCriteriaAction).
+ * search has no request to hand it, and keeping requests out is what lets one
+ * implementation serve both callers. Everything request-shaped stays in the
+ * controller: resolving slugs to ids, splitting comma-separated lists,
+ * dropping JavaScript's 'NaN', logging junk coordinates, and building the
+ * category/tag lists the search UI renders. Category, tag and remote-location
+ * values must arrive here already resolved to integer ids.
  *
  * Two-step API (buildFilters() then applyToQuery()), not one combined
- * build(): mirrors ListingsController's own split, where its max-price
- * aggregation runs the exact same query MINUS the price filter (aggregating
- * max price over an already-price-filtered query is self-referential — see
- * that controller's applyNonPriceFilters() comment) — this command doesn't
- * need that split today, but keeping the same shape is what makes "stays in
- * sync by hand" actually checkable at a glance.
+ * build(): ListingsController's max-price aggregation runs the same query
+ * MINUS the price filter, since aggregating a maximum over an already
+ * price-filtered query is self-referential and permanently caps the slider at
+ * whatever was last searched. Keeping price separable is what makes that
+ * possible.
  */
 class EventSearchFilterBuilder
 {
@@ -80,7 +76,7 @@ class EventSearchFilterBuilder
      * (`$filters['prices'] ?? null`) when the caller wants it, same as
      * ListingsController's own index()/apiIndex() do after calling this.
      */
-    public function applyToQuery($query, array $filters, array $criteria)
+    public function applyToQuery($query, array $filters, array $criteria, ?bool $forceGeoFilter = null)
     {
         if ($filters['attendanceType'] ?? null) {
             $query->filter($filters['attendanceType']);
@@ -115,9 +111,17 @@ class EventSearchFilterBuilder
         // is effectively always true — intentional: a stored search with
         // coordinates should always geo-filter when replayed, the same as it
         // did live.
+        // $forceGeoFilter lets a caller state the gate outright instead of
+        // having it derived. ListingsController needs that: its index() and
+        // apiIndex() deliberately gate geo on different conditions (see
+        // applyNonPriceFilters' docblock), which is a property of the two
+        // endpoints, not of the criteria. Left null, the derivation below
+        // runs — the saved-search notifier has no endpoint to speak of.
         $searchType = $criteria['searchType'] ?? null;
-        $applyGeoFilter = ($searchType === 'inPerson' || ! $searchType || $searchType === 'null')
-            && array_key_exists('live', $criteria);
+        $applyGeoFilter = $forceGeoFilter ?? (
+            ($searchType === 'inPerson' || ! $searchType || $searchType === 'null')
+            && array_key_exists('live', $criteria)
+        );
         if ($applyGeoFilter) {
             $geoFilter = ($criteria['live'] ?? false) ? ($filters['boundaryFilter'] ?? null) : ($filters['geoFilter'] ?? null);
             if ($geoFilter !== null) {

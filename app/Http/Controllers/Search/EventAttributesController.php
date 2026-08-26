@@ -12,7 +12,7 @@ use App\Models\Events\InteractiveLevel;
 use App\Models\Events\MobilityAdvisory;
 use App\Models\Events\RemoteLocation;
 use App\Models\Genre;
-use App\Scopes\PublishedScope;
+use App\Scopes\LatestPublishedFirstScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
@@ -131,23 +131,22 @@ class EventAttributesController extends Controller
         // doesn't need up-to-the-second accuracy; an hour of staleness is a
         // better failure mode than a permanently-stale cache entry.
         $eligibleLocationIds = Cache::remember('at-home-eligible-remote-location-ids', now()->addHour(), function () {
-            // withoutGlobalScope(PublishedScope): that scope's ENTIRE job is
-            // `orderBy('published_at', 'desc')` (see its class — no WHERE
-            // clause at all, despite the name), reapplied at execute time no
+            // withoutGlobalScope(LatestPublishedFirstScope): that scope
+            // orders by published_at and is reapplied at execute time no
             // matter what reorder() does earlier in the chain. Left in place,
             // MySQL rejects the query outright ("Expression #1 of ORDER BY
             // clause is not in SELECT list ... incompatible with DISTINCT"),
             // since that column isn't part of this DISTINCT pluck — and no
             // ordering is needed here anyway, this result only feeds a
-            // whereIn(), nothing user-visible. PublishedScope dropping the
-            // status filter it sounds like it should have means the explicit
-            // ->where('status', 'p') below still has to be here — the actual
+            // whereIn(), nothing user-visible. No global scope filters by
+            // status, so the explicit ->where('status', 'p') below still has
+            // to be here — the actual
             // ES-backed search (Event::shouldBeSearchable()) only ever
             // indexes published events, so an unpublished event's remote
             // location must never be treated as "eligible" here either, or
             // this dropdown offers a type that search then returns zero
             // results for.
-            return Event::withoutGlobalScope(PublishedScope::class)
+            return Event::withoutGlobalScope(LatestPublishedFirstScope::class)
                 ->where('status', 'p')
                 ->where('attendance_type_id', 2)
                 ->where('closingDate', '>=', now())

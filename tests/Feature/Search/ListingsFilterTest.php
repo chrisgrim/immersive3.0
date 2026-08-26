@@ -7,6 +7,7 @@ use App\Models\Events\RemoteLocation;
 use App\Models\Genre;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 // These tests exercise ONLY the pure filter-construction helpers on
@@ -605,4 +606,82 @@ test('maxPriceQuery still includes the other active filters (category)', functio
     $built = json_encode($maxPriceQuery->buildQuery());
     expect($built)->not->toContain('priceranges.price');
     expect($built)->toContain('category_id');
+});
+
+test('a coordinate of exactly 0 still builds a geo filter', function () {
+    // Longitude 0 runs through London; latitude 0 is the equator. Both are
+    // real, searchable places whose coordinate is falsy in PHP. This
+    // controller used to gate on `$request->lat && $request->lng`, so such a
+    // search silently dropped its geo filter and returned worldwide results.
+    // EventSearchFilterBuilder already gated on isset() and documented this
+    // as a bug here; delegating to it is what fixed it.
+    $result = callBuilder('buildLocationFilter', [
+        'searchType' => 'inPerson',
+        'lat' => 51.5,
+        'lng' => 0,
+        'city' => 'London',
+    ]);
+
+    expect($result['geoFilter'])->not->toBeNull();
+
+    $compiled = $result['geoFilter']->buildQuery();
+    expect($compiled['geo_distance']['location_latlon']['lon'])->toBe(0.0);
+    expect($compiled['geo_distance']['distance'])->toBe('40km');
+});
+
+test('a 0 coordinate is not mistaken for a missing one, and logs nothing', function () {
+    callBuilder('buildLocationFilter', ['searchType' => 'inPerson', 'lat' => 0, 'lng' => 0]);
+
+    Log::shouldNotHaveReceived('warning');
+});
+
+test('a search resolves its slugs once, not once per filter stage', function () {
+    // criteriaFromRequest() is called by all three filter builders and again
+    // by the results and max-price queries. It does slug->id lookups against
+    // categories, genres and remote_locations, so without memoisation one
+    // search on the busiest page on the site fires those lookups five times
+    // over (caught in review of the refactor that introduced this path).
+    $category = Category::factory()->create(['slug' => 'immersive-theatre']);
+    $genre = Genre::factory()->create(['slug' => 'horror', 'admin' => 1]);
+
+    $request = Request::create('/index/search', 'GET', [
+        'searchType' => 'inPerson',
+        'category' => $category->slug,
+        'tag' => $genre->slug,
+        'lat' => 34.05,
+        'lng' => -118.24,
+    ]);
+
+    $controller = new ListingsController;
+    $ref = new ReflectionMethod(ListingsController::class, 'criteriaFromRequest');
+    $ref->setAccessible(true);
+
+    DB::enableQueryLog();
+    // The same sequence index()/apiIndex() run.
+    $ref->invoke($controller, $request);
+    $ref->invoke($controller, $request);
+    $ref->invoke($controller, $request);
+    $ref->invoke($controller, $request);
+    $ref->invoke($controller, $request);
+    $queries = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    // One lookup for the category slug, one for the genre slug. Five calls,
+    // not five times the queries.
+    expect($queries)->toBe(2);
+});
+
+test('a separate request is normalised on its own, never served the previous ones criteria', function () {
+    $a = Category::factory()->create(['slug' => 'cat-a']);
+    $b = Category::factory()->create(['slug' => 'cat-b']);
+
+    $controller = new ListingsController;
+    $ref = new ReflectionMethod(ListingsController::class, 'criteriaFromRequest');
+    $ref->setAccessible(true);
+
+    $first = $ref->invoke($controller, Request::create('/index/search', 'GET', ['category' => $a->slug]));
+    $second = $ref->invoke($controller, Request::create('/index/search', 'GET', ['category' => $b->slug]));
+
+    expect($first['categoryIds'])->toBe([$a->id]);
+    expect($second['categoryIds'])->toBe([$b->id]);
 });
