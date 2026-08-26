@@ -4,22 +4,25 @@ namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\FormatsEvents;
 use App\Models\Event;
+use App\Models\Image;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Services\ImageHandler;
 use App\Services\ImageIngestException;
 use App\Services\RemoteImageIngest;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
+use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Attach an image to an event you can manage — for moderators and admins that is any event on the platform — by downloading it from a public URL (jpeg/png/webp, max 5 MB, max 5 images per event). Rank 0 is the primary portrait image (cropped 900x1200); ranks 1-4 are gallery landscape images (cropped 1200x800). An existing image at the same rank is replaced.')]
+#[Description('Attach an image to an event you can manage — for moderators and admins that is any event on the platform — by downloading it from a public URL (jpeg/png/webp, max 5 MB, max 5 images per event). Rank 0 is the primary portrait image (cropped 900x1200); ranks 1-4 are gallery landscape images (cropped 1200x800). An existing image at the same rank is replaced. Returns a preview of the cropped result so the user can check the framing.')]
 class AttachEventImage extends Tool
 {
     use FormatsEvents;
 
-    public function handle(Request $request): Response
+    public function handle(Request $request): Response|ResponseFactory
     {
         $user = $request->user();
 
@@ -69,7 +72,7 @@ class AttachEventImage extends Tool
                 ImageHandler::deleteImage($existingAtRank);
             }
 
-            ImageHandler::saveImage(
+            $created = ImageHandler::saveImage(
                 $image,
                 $event,
                 ($rank === 0) ? 900 : 1200,
@@ -83,12 +86,46 @@ class AttachEventImage extends Tool
 
         $event->refresh();
 
-        return Response::json([
+        $summary = Response::json([
             'message' => $rank === 0
                 ? 'Primary image attached.'
                 : "Gallery image attached at rank {$rank}.",
             'images' => $event->images()->orderBy('rank')->get(['id', 'rank', 'large_image_path']),
         ]);
+
+        $preview = $this->preview($created);
+
+        return $preview ? Response::make([$summary, $preview]) : $summary;
+    }
+
+    /**
+     * The cropped thumbnail, as an MCP image block, so the client can show the
+     * user what the crop actually did rather than just a storage path.
+     *
+     * ImageHandler writes a JPEG twin of every WebP it saves; we send that one
+     * because it is the format every MCP client renders. Half-size thumb, not
+     * the full image: ~350 image tokens instead of ~1400, and framing is all
+     * anyone is checking here.
+     *
+     * A preview is a nicety on top of a write that already succeeded, so any
+     * failure to read it back is swallowed — never turn a saved image into a
+     * failed tool call.
+     */
+    protected function preview(?Image $created): ?Response
+    {
+        if (! $created || blank($created->thumb_image_path)) {
+            return null;
+        }
+
+        $path = '/public/'.preg_replace('/\.webp$/', '.jpg', $created->thumb_image_path);
+
+        try {
+            $data = Storage::disk('digitalocean')->get($path);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return ($data === null || $data === '') ? null : Response::image($data, 'image/jpeg');
     }
 
     /**

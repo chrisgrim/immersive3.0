@@ -185,3 +185,76 @@ test('attach-event-image saves through ImageHandler with rank-based dimensions',
     expect($event->images()->where('rank', 0)->count())->toBe(1);
     expect($event->largeImagePath)->not->toBeNull();
 });
+
+/** The JSON-RPC content blocks behind a tool TestResponse. */
+function toolContent(\Laravel\Mcp\Server\Testing\TestResponse $response): array
+{
+    $raw = (fn () => $this->response)->call($response)->toArray();
+
+    return $raw['result']['content'];
+}
+
+test('attach-event-image returns the cropped thumbnail as an image block', function () {
+    $user = imageToolUser();
+    $event = imageToolEvent($user);
+
+    skipUrlValidation();
+    Http::fake(['images.example.com/*' => Http::response(tinyPng(), 200)]);
+    \Illuminate\Support\Facades\Storage::fake('digitalocean');
+
+    $response = EiServer::actingAs($user)->tool(AttachEventImage::class, [
+        'event_slug' => $event->slug,
+        'image_url' => 'https://images.example.com/pixel.png',
+        'rank' => 0,
+    ]);
+
+    $response->assertOk();
+
+    $content = toolContent($response);
+    $images = array_values(array_filter($content, fn ($block) => ($block['type'] ?? null) === 'image'));
+
+    // The JSON summary still comes back alongside the preview.
+    expect(array_filter($content, fn ($block) => ($block['type'] ?? null) === 'text'))->not->toBeEmpty();
+
+    expect($images)->toHaveCount(1);
+    expect($images[0]['mimeType'])->toBe('image/jpeg');
+    // Real JPEG bytes — not the path string, and not the WebP twin.
+    expect(substr(base64_decode($images[0]['data']), 0, 2))->toBe("\xFF\xD8");
+});
+
+test('attach-event-image preview reads the jpeg twin of the stored webp thumb', function () {
+    $user = imageToolUser();
+    $event = imageToolEvent($user);
+
+    skipUrlValidation();
+    Http::fake(['images.example.com/*' => Http::response(tinyPng(), 200)]);
+    \Illuminate\Support\Facades\Storage::fake('digitalocean');
+
+    EiServer::actingAs($user)->tool(AttachEventImage::class, [
+        'event_slug' => $event->slug,
+        'image_url' => 'https://images.example.com/pixel.png',
+        'rank' => 1,
+    ]);
+
+    $stored = $event->images()->where('rank', 1)->first();
+    expect($stored->thumb_image_path)->toEndWith('.webp');
+
+    $jpegTwin = '/public/'.preg_replace('/\.webp$/', '.jpg', $stored->thumb_image_path);
+    \Illuminate\Support\Facades\Storage::disk('digitalocean')->assertExists($jpegTwin);
+});
+
+test('a preview that cannot be read back is dropped, not turned into an error', function () {
+    \Illuminate\Support\Facades\Storage::fake('digitalocean');
+
+    // An image row whose files are gone from storage — the read-back throws
+    // (or misses) and the tool must simply omit the preview block.
+    $orphan = new \App\Models\Image([
+        'large_image_path' => 'event-images/gone/gone-1.webp',
+        'thumb_image_path' => 'event-images/gone/gone-1-thumb.webp',
+        'rank' => 0,
+    ]);
+
+    $preview = (fn () => $this->preview($orphan))->call(new AttachEventImage);
+
+    expect($preview)->toBeNull();
+});
