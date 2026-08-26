@@ -56,13 +56,13 @@ resources/
 - **User**: Roles via `type` char — `g`=guest, `u`=user, `c`=curator, `m`=moderator, `a`=admin
 
 ### Status Codes
-- **Event status**: `d`=draft, `0`=new, `r`=rejected, `p`=published, `e`=embargoed, `n`=other
+- **Event status**: `d`=draft, `0`=new, `r`=**under review** (awaiting moderation — this is the approval queue, see `AdminEventController::getPending()`), `p`=published, `e`=embargoed, `n`=**rejected** (set by `reject()` along with `rejection_reason`). ⚠️ `r` is NOT "rejected" and `n` is NOT "other" — this file said so until 2026-08-26 and it's an easy way to read the approval queue backwards.
 - **Event showtype**: `s`=specific dates, `o`=ongoing, `a`=always, `l`=limited
-- **Content status** (organizer/community/post): `p`=published, `d`=draft, `r`=rejected
+- **Content status** (organizer/community/post): `p`=published, `d`=draft, `r`=under review, `n`=rejected — same convention as events above (`AdminOrganizerController`/`AdminCommunityController` both set `n` on reject).
 
 ### Key Patterns
 - **Action classes** for business logic instead of fat controllers
-- **Global scopes** on models (PublishedScope, RankScope, DateScope, AdminScope)
+- **Global scopes** on models (LatestPublishedFirstScope, RankScope, DateScope, AdminScope). ⚠️ `LatestPublishedFirstScope` only sorts (`orderBy('published_at','desc')`) — it filters nothing. Anything that must show published events only needs its own `where('status','p')`. It was called `PublishedScope` until 2026-08-26, which repeatedly got mistaken for a visibility filter.
 - **Polymorphic relationships** for Images, Videos, Favorites, NameChangeRequests
 - **ImageHandler service** saves WebP + JPEG with thumbnails to DigitalOcean Spaces
 - **Slug-based routing** (`getRouteKeyName() = 'slug'`) on Event, Organizer, Community, Category
