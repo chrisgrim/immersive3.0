@@ -243,17 +243,42 @@ class Show extends Model
     }
 
     /**
-     * Bulk-insert a copy of each ticket tier onto each newly created show. The
-     * new shows have no tickets yet, so a plain insert is safe (no upsert or
-     * duplicate handling needed).
+     * Bulk-copy each ticket tier onto every newly created show.
+     *
+     * This is the SECOND writer of tickets, alongside Ticket::handleTickets(),
+     * and it needs the same protection for the same reasons — a point missed
+     * when handleTickets was hardened, so it kept a plain insert() for a while
+     * after the other path stopped using one.
+     *
+     * Two ways a plain insert breaks here, both now impossible since
+     * (ticket_type, ticket_id, name) is unique:
+     *
+     *  - Two saves adding dates at the same time each build rows for shows the
+     *    other just created. Before the constraint that silently duplicated;
+     *    with it, one of them would 500 instead.
+     *  - $oldTickets is read from an existing show, so if THAT show carried
+     *    duplicate names (as 148 shows in production did), every new date
+     *    inherited the duplicates — which is how a data bug spread itself
+     *    across a schedule every time someone added dates.
+     *
+     * The upsert is what makes both cases safe. keyBy('name') is an efficiency
+     * measure on top, not a second guard: a duplicated source tier would
+     * otherwise build two rows per date and send both, which on a 4,000-date
+     * schedule is 4,000 redundant rows for the database to collapse one at a
+     * time. Matching columns are kept in step with the unique index by
+     * tests/Feature/Models/TicketDuplicationTest.php.
      */
     private static function copyTicketsToShows($oldTickets, $showIds): void
     {
         $now = now();
         $rows = [];
 
+        // Same collapse handleTickets does. The upsert below would fold these
+        // anyway; doing it here keeps the payload the size it should be.
+        $tiers = collect($oldTickets)->keyBy('name');
+
         foreach ($showIds as $showId) {
-            foreach ($oldTickets as $ticket) {
+            foreach ($tiers as $ticket) {
                 $rows[] = [
                     'ticket_type' => self::class,
                     'ticket_id' => $showId,
@@ -270,7 +295,11 @@ class Show extends Model
 
         collect($rows)
             ->chunk(self::INSERT_CHUNK)
-            ->each(fn ($chunk) => Ticket::insert($chunk->values()->all()));
+            ->each(fn ($chunk) => Ticket::upsert(
+                $chunk->values()->all(),
+                ['ticket_type', 'ticket_id', 'name'],
+                ['description', 'currency', 'ticket_price', 'updated_at'],
+            ));
     }
 
     /**

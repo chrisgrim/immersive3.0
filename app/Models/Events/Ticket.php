@@ -117,11 +117,29 @@ class Ticket extends Model
                     }
                 }
 
+                // upsert(), not insert(). The block above is read-then-write:
+                // it reads which shows are missing a tier, then writes them. Two
+                // saves landing together both read "missing" and, with a plain
+                // insert, both wrote — which is exactly how 148 duplicate rows
+                // got into production, 147 of them created within the same
+                // second. Matching on the same columns as the unique index
+                // (see the tickets_owner_name_unique migration) makes the loser
+                // of that race update the winner's row instead of adding a
+                // second one, rather than erroring on the constraint.
+                //
+                // keyBy('name') above already collapses duplicates WITHIN one
+                // request; this is the across-requests half, which that could
+                // never cover.
+                //
                 // Chunked so an enormous schedule can never exceed the DB's
                 // bind-parameter limit.
                 collect($rowsToInsert)
                     ->chunk(self::INSERT_CHUNK)
-                    ->each(fn ($chunk) => self::insert($chunk->values()->all()));
+                    ->each(fn ($chunk) => self::upsert(
+                        $chunk->values()->all(),
+                        ['ticket_type', 'ticket_id', 'name'],
+                        ['description', 'currency', 'ticket_price', 'updated_at'],
+                    ));
             }
 
             $event->priceranges()->delete();
