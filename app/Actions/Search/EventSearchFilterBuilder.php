@@ -237,11 +237,19 @@ class EventSearchFilterBuilder
             $filters['prices'] = $priceFilter;
         }
 
-        $start = $criteria['start'] ?? null;
-        $end = $criteria['end'] ?? null;
+        // parseSearchDate, not a bare Carbon::parse: `start`/`end` arrive
+        // straight from a URL on the live path and from a saved search's
+        // stored criteria on the notify path, and neither is validated
+        // upstream. An unparseable value used to throw out of here — a 500 on
+        // the busiest page on the site, and a dead notify command — for the
+        // same class of junk input this file already shrugs off everywhere
+        // else (see ListingsController: unknown slugs and 'NaN' are dropped so
+        // a stale bookmarked URL returns results rather than erroring).
+        $start = self::parseSearchDate($criteria['start'] ?? null);
+        $end = self::parseSearchDate($criteria['end'] ?? null);
         if ($start && $end) {
-            $startOfDay = \Carbon\Carbon::parse($start)->startOfDay()->format('Y-m-d H:i:s');
-            $endOfDay = \Carbon\Carbon::parse($end)->endOfDay()->format('Y-m-d H:i:s');
+            $startOfDay = $start->startOfDay()->format('Y-m-d H:i:s');
+            $endOfDay = $end->endOfDay()->format('Y-m-d H:i:s');
 
             $dateFilter = Query::bool();
             $dateFilter->should(
@@ -292,5 +300,30 @@ class EventSearchFilterBuilder
                 ],
             ],
         ]);
+    }
+
+    /**
+     * A search date, or null if it is not a date at all.
+     *
+     * Shared with ListingsController rather than each side doing its own
+     * check: the last time this class and that controller each validated the
+     * same input their own way, they drifted (coordinates, isset() vs
+     * truthiness) and a 0 coordinate filtered on one path and not the other.
+     * One definition, both callers.
+     *
+     * Carbon is generous about what counts as a date, which is deliberate —
+     * this is only here to reject junk, not to enforce a format.
+     */
+    public static function parseSearchDate($value): ?\Carbon\Carbon
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        try {
+            return \Carbon\Carbon::parse($value);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

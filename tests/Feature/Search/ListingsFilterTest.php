@@ -685,3 +685,35 @@ test('a separate request is normalised on its own, never served the previous one
     expect($first['categoryIds'])->toBe([$a->id]);
     expect($second['categoryIds'])->toBe([$b->id]);
 });
+
+// ============================================================
+// buildSearchFilters — date validation (EI-LARAVEL-10)
+// ============================================================
+
+test('buildSearchFilters drops and logs a date that is not a date', function () {
+    // The reported crash: a crawler requested colons encoded one time too
+    // many, and Carbon::parse threw straight out of the filter builder as a
+    // 500 on the busiest page on the site.
+    $result = callBuilder('buildSearchFilters', [
+        'start' => '2026-08-26 00%3A00%3A00',
+        'end' => '2026-08-27 00%3A00%3A00',
+    ]);
+
+    expect($result['dates'] ?? null)->toBeNull();
+    Log::shouldHaveReceived('warning')->withArgs(fn ($msg) => str_contains($msg, 'Invalid search date'))->once();
+});
+
+test('buildSearchFilters still builds a date filter for a valid range, and logs nothing', function () {
+    $result = callBuilder('buildSearchFilters', ['start' => '2026-09-01', 'end' => '2026-09-05']);
+
+    expect($result['dates'] ?? null)->not->toBeNull();
+    Log::shouldNotHaveReceived('warning');
+});
+
+test('buildSearchFilters logs nothing when no dates are supplied at all', function () {
+    // Absent is not junk — only a present-but-unparseable value is worth a line.
+    $result = callBuilder('buildSearchFilters', []);
+
+    expect($result['dates'] ?? null)->toBeNull();
+    Log::shouldNotHaveReceived('warning');
+});

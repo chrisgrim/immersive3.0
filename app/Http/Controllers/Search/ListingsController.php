@@ -84,8 +84,7 @@ class ListingsController extends Controller
             'remoteLocationId' => $this->resolveRemoteLocationId($request),
             'priceMin' => $request->has('price0') ? (float) $request->price0 : null,
             'priceMax' => $request->has('price1') ? (float) $request->price1 : null,
-            'start' => $request->start,
-            'end' => $request->end,
+            ...$this->dates($request),
         ];
     }
 
@@ -128,6 +127,38 @@ class ListingsController extends Controller
         }
 
         return ['lat' => (float) $lat, 'lng' => (float) $lng];
+    }
+
+    /**
+     * The date range, or nulls if either end is not a date.
+     *
+     * Same treatment as coordinates above: validate here where there is a
+     * request worth describing in a log line, and hand the builder something
+     * it can trust. Junk is dropped rather than fatal — an unparseable date
+     * used to throw out of the filter builder as a 500 (EI-LARAVEL-10, a
+     * crawler requesting a double-encoded '2026-08-26 00%3A00%3A00').
+     *
+     * Both ends are dropped together because the filter needs the pair; half a
+     * range would silently widen the search rather than narrow it.
+     */
+    private function dates(Request $request): array
+    {
+        $start = $request->start;
+        $end = $request->end;
+
+        $invalid = (filled($start) && ! EventSearchFilterBuilder::parseSearchDate($start))
+            || (filled($end) && ! EventSearchFilterBuilder::parseSearchDate($end));
+
+        if ($invalid) {
+            \Log::warning('Invalid search date received', [
+                'start' => $start,
+                'end' => $end,
+            ]);
+
+            return ['start' => null, 'end' => null];
+        }
+
+        return ['start' => $start, 'end' => $end];
     }
 
     /**

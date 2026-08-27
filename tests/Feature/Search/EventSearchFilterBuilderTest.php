@@ -222,3 +222,39 @@ test('a fully-loaded criteria set combines every applicable filter without dropp
     // attendanceType + geo + categories + tags + dates + price = 6 clauses.
     expect($result['bool']['filter'])->toHaveCount(6);
 });
+
+/**
+ * EI-LARAVEL-10: a crawler requested `?start=2026-08-26 00%3A00%3A00` — a
+ * date whose colons had been encoded one time too many — and Carbon::parse
+ * threw straight out of searchFilters(). That is a 500 on the busiest page on
+ * the site, and, because this builder is shared, a dead
+ * NotifySavedSearchMatchesCommand for any saved search holding a bad date.
+ */
+test('an unparseable date drops the date filter instead of throwing', function (string $start, string $end) {
+    $filters = builder()->buildFilters(['start' => $start, 'end' => $end]);
+
+    expect($filters['dates'] ?? null)->toBeNull();
+})->with([
+    'double-encoded colons (the reported crash)' => ['2026-08-26 00%3A00%3A00', '2026-08-27 00%3A00%3A00'],
+    'not a date at all' => ['banana', 'kumquat'],
+    'JavaScript NaN' => ['NaN', 'NaN'],
+    'html injected into the param' => ['<script>', '<script>'],
+]);
+
+test('one bad end of the range drops the whole filter, never half a range', function () {
+    // Half a range would silently widen the search rather than narrow it.
+    expect(builder()->buildFilters(['start' => '2026-09-01', 'end' => 'garbage'])['dates'] ?? null)->toBeNull();
+    expect(builder()->buildFilters(['start' => 'garbage', 'end' => '2026-09-05'])['dates'] ?? null)->toBeNull();
+});
+
+test('a valid range still builds the date filter', function () {
+    // Guards against the fix above swallowing good input too.
+    expect(builder()->buildFilters(['start' => '2026-09-01', 'end' => '2026-09-05'])['dates'] ?? null)->not->toBeNull();
+});
+
+test('parseSearchDate returns null for junk and a Carbon for a real date', function () {
+    expect(EventSearchFilterBuilder::parseSearchDate('2026-08-26 00%3A00%3A00'))->toBeNull();
+    expect(EventSearchFilterBuilder::parseSearchDate(null))->toBeNull();
+    expect(EventSearchFilterBuilder::parseSearchDate(''))->toBeNull();
+    expect(EventSearchFilterBuilder::parseSearchDate('2026-09-01'))->toBeInstanceOf(\Carbon\Carbon::class);
+});
