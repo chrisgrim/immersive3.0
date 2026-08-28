@@ -62,27 +62,46 @@ describe('similar-results.vue', () => {
     });
 
     describe('when the filter panel is narrowing the search', () => {
-        it('says the filters are why, instead of changing the subject', async () => {
+        it('leads with the filters being the reason', async () => {
             setFilters({ categories: [5] });
             const wrapper = await mountEmptyState({ suggestions: 3 });
 
             expect(wrapper.text()).toContain('Please remove filters to see more events');
-            expect(wrapper.text()).not.toContain('nearby areas');
         });
 
-        it('withholds the nearby suggestions, which ignore those filters', async () => {
-            // similar-by-location is fetched on lat/lng alone, so offering its
-            // results under "remove your filters" answers a different question
-            // than the one the user just asked.
+        it('opens the filter panel, so "remove filters" is one click not a hunt', async () => {
+            setFilters({ categories: [5] });
+            const listener = vi.fn();
+            window.addEventListener('open-filters', listener);
+
+            const wrapper = await mountEmptyState();
+            await wrapper.get('button').trigger('click');
+
+            expect(listener).toHaveBeenCalled();
+            window.removeEventListener('open-filters', listener);
+        });
+
+        it('still fills the column with suggestions rather than leaving it blank', async () => {
             setFilters({ tags: [1] });
             const wrapper = await mountEmptyState({ suggestions: 3 });
 
-            expect(wrapper.find('.event-list').exists()).toBe(false);
+            expect(wrapper.find('.event-list').exists()).toBe(true);
+        });
+
+        it('marks the suggestions as OTHER events, below a clear gap', async () => {
+            // They are fetched on lat/lng alone, ignoring the filters, so
+            // directly under "remove your filters" they would read as an
+            // answer to it. The wording and the gap both say otherwise.
+            setFilters({ tags: [1] });
+            const wrapper = await mountEmptyState({ suggestions: 3 });
+
+            expect(wrapper.text()).toContain('Here are some other events in nearby areas');
+            expect(wrapper.html()).toContain('mt-12');
         });
 
         it('counts a real price range but not the default full-range slider', async () => {
             setFilters({ price: [0, 200], maxPrice: 200 });
-            expect((await mountEmptyState()).text()).toContain('nearby areas');
+            expect((await mountEmptyState()).text()).not.toContain('Please remove filters');
 
             setFilters({ price: [20, 80], maxPrice: 200 });
             expect((await mountEmptyState()).text()).toContain('Please remove filters');
@@ -90,11 +109,17 @@ describe('similar-results.vue', () => {
     });
 
     describe('when nothing is filtered', () => {
-        it('offers the nearby events as before', async () => {
+        it('offers the nearby events as before, with no "other" and no gap', async () => {
             const wrapper = await mountEmptyState({ suggestions: 3 });
 
             expect(wrapper.text()).toContain('Here are some events in nearby areas');
+            expect(wrapper.text()).not.toContain('some other events');
             expect(wrapper.find('.event-list').exists()).toBe(true);
+        });
+
+        it('leaves the nearby-areas line as plain text, with nothing to click', async () => {
+            const wrapper = await mountEmptyState({ suggestions: 3 });
+            expect(wrapper.find('button').exists()).toBe(false);
         });
 
         it('offers online events when the suggestions are remote', async () => {
@@ -104,7 +129,7 @@ describe('similar-results.vue', () => {
 
         it('still explains itself when there is nothing nearby to suggest', async () => {
             // The blank-page case: no matches, no suggestions, and previously
-            // no message either.
+            // no message either. The intro must not appear over an empty grid.
             const wrapper = await mountEmptyState({ suggestions: 0 });
 
             expect(wrapper.text()).toContain("Sorry, we couldn't find any events in Los Angeles");

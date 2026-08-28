@@ -4,45 +4,65 @@
          page — no explanation at all. It is unconditional now; only the
          suggestions below depend on there being suggestions. -->
     <div class="mt-8">
-        <div class="mb-6">
-            <h2 class="text-2.5xl text-black font-medium">
-                Sorry, we couldn't find any events in {{ cityName }}
-            </h2>
+        <h2 class="text-2.5xl text-black font-medium">
+            Sorry, we couldn't find any events in {{ cityName }}
+        </h2>
 
-            <!-- When the filter panel is narrowing the search, that is almost
-                 always the reason for the empty result, and "here are some
-                 events nearby" buries it. Say the actionable thing instead. -->
-            <p v-if="hasActiveFilters" class="text-xl text-gray-700 mt-2 leading-tight">
-                Please remove filters to see more events
+        <!-- When the filter panel is narrowing the search, that is almost
+             always the reason for the empty result, so say the actionable
+             thing — and carry the user to the panel, since being told to
+             remove filters is no help if you then have to go find them.
+             Underlined at rest, unlike the results header's informational
+             line: this one is an instruction meant to be acted on. -->
+        <button
+            v-if="hasActiveFilters"
+            type="button"
+            @click="openFilters"
+            class="text-xl text-gray-700 mt-2 leading-tight underline underline-offset-4 decoration-gray-400 hover:text-black hover:decoration-current focus-visible:text-black focus-visible:outline-none">
+            Please remove filters to see more events
+        </button>
+
+        <!-- The suggestions show either way. They are fetched on location
+             alone, ignoring the filters, so under a "remove your filters"
+             message they need the clear gap and their own heading rather
+             than sitting directly beneath it as an apparent answer to it. -->
+        <div v-if="similarEvents.length" :class="hasActiveFilters ? 'mt-12' : 'mt-2'">
+            <p class="text-xl text-gray-700 leading-tight mb-6">
+                {{ suggestionsIntro }}
             </p>
-            <p v-else-if="similarEvents.length" class="text-xl text-gray-700 mt-2 leading-tight">
-                {{ isRemote
-                    ? 'Here are some online events you might be interested in:'
-                    : 'Here are some events in nearby areas you might be interested in:' }}
-            </p>
+
+            <EventList
+                :show-location="true"
+                :items="similarEvents"
+                :columns="columns"
+                :user="user"
+            />
         </div>
-
-        <!-- Suggestions are fetched by location alone, ignoring the filters,
-             so offering them under "remove your filters" would be answering a
-             different question than the one just asked. -->
-        <EventList
-            v-if="similarEvents.length && !hasActiveFilters"
-            :show-location="true"
-            :items="similarEvents"
-            :columns="columns"
-            :user="user"
-        />
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import EventList from '@/GlobalComponents/Grid/event-grid.vue'
 import { useSearchFilters } from '@/composables/useSearchFilters'
 
 // Same notion of "a filter is on" the results header uses for its summary
 // line — category, genre or price, the three the filter panel owns.
-const { hasActiveFilters } = useSearchFilters()
+const { hasActiveFilters, openFilters } = useSearchFilters()
+
+// "other nearby events" once the filter message is already above it; the
+// plain version when this heading is the first thing after the apology.
+const suggestionsIntro = computed(() => {
+  if (isRemote.value) {
+    return hasActiveFilters.value
+      ? 'Here are some other online events you might be interested in:'
+      : 'Here are some online events you might be interested in:'
+  }
+
+  return hasActiveFilters.value
+    ? 'Here are some other events in nearby areas you might be interested in:'
+    : 'Here are some events in nearby areas you might be interested in:'
+})
 
 const props = defineProps({
   user: {
