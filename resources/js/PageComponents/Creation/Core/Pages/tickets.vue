@@ -47,7 +47,7 @@
                         Price cannot be negative.
                     </span>
                     <span v-else-if="$v.tickets.$each.$response.$errors[state.currentMedia].ticket_price.$maxValue">
-                        Price cannot exceed ${{ MAX_TICKET_PRICE.toLocaleString() }}.
+                        Price cannot exceed {{ state.selectedCurrency }}{{ MAX_TICKET_PRICE.toLocaleString() }}.
                     </span>
                     <span v-else>
                         Please enter a valid price.
@@ -289,7 +289,14 @@ import List from '@/GlobalComponents/dropdown-list.vue';
 // enforced here and nowhere else, so every non-wizard path ignored it: 26
 // events already carry more, up to a published one with 9.
 const MAX_TICKET_TIERS = 10;
-const MAX_TICKET_PRICE = 99999.99;
+// Must match EventUpdateRules::MAX_TICKET_PRICE (asserted by
+// tests/Feature/CurrencyCatalogTest.php). 999999.99 is the ceiling of the
+// tickets.ticket_price decimal(8,2) column, and is what lets zero-decimal
+// currencies work at all — 144,000 KRW is an ordinary ticket price.
+const MAX_TICKET_PRICE = 999999.99;
+// Digits allowed before the decimal point, derived so the input can never
+// truncate a value the cap above would have accepted.
+const MAX_PRICE_DIGITS = String(Math.floor(MAX_TICKET_PRICE)).length;
 const MAX_DESCRIPTION_LENGTH = 60;
 const MAX_CALL_TO_ACTION_LENGTH = 20;
 const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$', 'MX$', 'CN¥', '₩'];
@@ -513,8 +520,8 @@ const updateTicketPrice = (e) => {
     }
 
     const parts = value.split('.');
-    if (parts[0].length > 5) {
-        parts[0] = parts[0].substring(0, 5);
+    if (parts[0].length > MAX_PRICE_DIGITS) {
+        parts[0] = parts[0].substring(0, MAX_PRICE_DIGITS);
         value = parts.join('.');
     }
 

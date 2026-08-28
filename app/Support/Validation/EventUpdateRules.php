@@ -81,6 +81,28 @@ class EventUpdateRules
     public const MAX_TICKET_TIERS = 10;
 
     /**
+     * The highest price a single ticket tier may carry.
+     *
+     * This was 99999.99, which is a fine ceiling for a currency with a minor
+     * unit and a nonsense one for a currency without: a normal ticket to
+     * Sleep No More Seoul is 144,000 KRW (~$105), and it was rejected. The
+     * wizard was worse than a rejection — its input capped the integer part at
+     * five digits, so typing 144000 silently became 14400 and saved a tenth of
+     * the real price.
+     *
+     * 999999.99 is the largest value the `tickets.ticket_price` column holds
+     * (decimal(8,2)), so raising to exactly the column ceiling needs no
+     * migration. It clears the zero-decimal currencies by a wide margin
+     * (999,999 KRW is ~$720 a head) while still catching the fat-finger and
+     * overflow cases the cap is actually for.
+     *
+     * Keep tickets.vue's own MAX_TICKET_PRICE in step — asserted by
+     * tests/Feature/CurrencyCatalogTest.php, since a Vue constant can't
+     * import a PHP one.
+     */
+    public const MAX_TICKET_PRICE = 999999.99;
+
+    /**
      * Ticket currencies an API/MCP client is likely to send instead of the
      * symbol we store, mapped to that symbol. The wizard can only emit the
      * symbols above, so this exists for non-browser callers — normalising an
@@ -191,7 +213,7 @@ class EventUpdateRules
             // send a partial tier — they get a field error now instead of an
             // "Undefined array key" 500.
             'tickets.*.name' => 'required_with:tickets|string|max:40',
-            'tickets.*.ticket_price' => 'required_with:tickets|numeric|min:0|max:99999.99',
+            'tickets.*.ticket_price' => 'required_with:tickets|numeric|min:0|max:'.self::MAX_TICKET_PRICE,
             'tickets.*.description' => 'sometimes|nullable|string|max:200',
             'tickets.*.currency' => 'required_with:tickets|string|in:'.implode(',', self::CURRENCIES),
             // Relaxed validation for images
@@ -259,6 +281,7 @@ class EventUpdateRules
             'mobilityAdvisories.max' => 'You can select a maximum of 16 mobility advisories.',
             'name.regex' => 'The name must contain at least one letter or number.',
             'tickets.max' => 'An event can have at most '.self::MAX_TICKET_TIERS.' ticket tiers.',
+            'tickets.*.ticket_price.max' => 'A ticket price cannot exceed '.number_format(self::MAX_TICKET_PRICE, 2).'.',
             'tickets.*.currency.in' => 'Ticket prices must use one of these currency symbols: '.implode(' ', self::CURRENCIES).'. Use the symbol, not the ISO code — "$", not "USD".',
         ];
     }

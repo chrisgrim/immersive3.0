@@ -63,3 +63,52 @@ test('every alias resolves to a currency that actually exists', function () {
             ->toBeTrue("alias '{$alias}' points at unknown symbol '{$symbol}'");
     }
 });
+
+/**
+ * The price ceiling is part of the currency contract, not separate from it:
+ * 99999.99 is a reasonable cap in dollars and an absurd one in won. A normal
+ * ticket to Sleep No More Seoul is 144,000 KRW, and both the validator and the
+ * wizard rejected it — the wizard by silently truncating it to 14,400.
+ */
+test('the wizard enforces exactly the price ceiling the backend accepts', function () {
+    preg_match('/const MAX_TICKET_PRICE = ([\d.]+);/', ticketsVue(), $m);
+    expect($m)->not->toBeEmpty('MAX_TICKET_PRICE not found in tickets.vue — was it renamed?');
+
+    expect((float) $m[1])->toBe(EventUpdateRules::MAX_TICKET_PRICE);
+});
+
+test('the wizard derives its digit cap so it can never truncate an accepted price', function () {
+    // The regression this guards: a literal `parts[0].length > 5` silently
+    // rewrote 144000 as 14400 while typing — a wrong price, saved without an
+    // error, which is worse than the rejection it accompanied.
+    expect(ticketsVue())->toContain('const MAX_PRICE_DIGITS = String(Math.floor(MAX_TICKET_PRICE)).length;');
+});
+
+test('the ceiling clears ordinary prices in the zero-decimal currencies', function () {
+    // ¥/CN¥/₩ have no minor unit, so their everyday prices are 4-6 digits.
+    expect(EventUpdateRules::MAX_TICKET_PRICE)->toBeGreaterThan(144000.0);
+});
+
+test('the ceiling fits the column that stores it', function () {
+    // tickets.ticket_price is decimal(8,2) — 999999.99 is its largest value.
+    // Raising the rule past this would trade a validation error for a
+    // truncated or out-of-range write at the database.
+    expect(EventUpdateRules::MAX_TICKET_PRICE)->toBeLessThanOrEqual(999999.99);
+});
+
+test('a ticket priced in a zero-decimal currency validates', function () {
+    $validate = fn (float $price) => validator(
+        ['tickets' => [['name' => 'General', 'ticket_price' => $price, 'currency' => '₩', 'description' => '']]],
+        EventUpdateRules::rules(),
+        EventUpdateRules::messages(),
+    )->passes();
+
+    expect($validate(144000))->toBeTrue('144,000 KRW is an ordinary ticket price');
+    expect($validate(EventUpdateRules::MAX_TICKET_PRICE))->toBeTrue();
+    expect($validate(1000000))->toBeFalse('past the column ceiling, so still rejected');
+});
+
+test('the price cap explains itself rather than failing bare', function () {
+    expect(EventUpdateRules::messages()['tickets.*.ticket_price.max'])
+        ->toContain(number_format(EventUpdateRules::MAX_TICKET_PRICE, 2));
+});
