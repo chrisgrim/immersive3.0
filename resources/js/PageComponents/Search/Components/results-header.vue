@@ -1,6 +1,6 @@
 <template>
     <div v-if="total > 0" class="mb-8">
-        <h1 class="text-4xl font-medium text-black leading-tight">{{ headline }}</h1>
+        <h1 class="text-2.5xl text-black font-medium">{{ headline }}</h1>
 
         <!-- Only the EXTRA filters go here; whatever the headline already
              names (the city, the map area, the At Home type) is not repeated. -->
@@ -8,9 +8,9 @@
             v-if="filterSummary"
             type="button"
             @click="openFilters"
-            class="mt-2 flex items-center gap-2 text-xl text-gray-600 hover:text-black hover:underline underline-offset-4 focus-visible:text-black focus-visible:underline focus-visible:outline-none"
+            class="mt-2 flex items-center gap-2 text-xl text-gray-700 leading-tight hover:text-black hover:underline underline-offset-4 focus-visible:text-black focus-visible:underline focus-visible:outline-none"
         >
-            <svg class="w-6 h-6 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                 <circle cx="12" cy="12" r="9" />
                 <path d="M12 11v5" stroke-linecap="round" />
                 <path d="M12 8h.01" stroke-linecap="round" />
@@ -23,7 +23,12 @@
 <script setup>
 import { computed, onMounted } from 'vue';
 import SearchStore from '@/Stores/SearchStore.vue';
+import { useSearchFilters } from '@/composables/useSearchFilters';
 import axios from 'axios';
+
+// Shared with the empty state, which uses the same notion of "a filter is on"
+// to explain why a search came back with nothing.
+const { filterSummary, openFilters } = useSearchFilters();
 
 const props = defineProps({
     // The server's own result count (searchedEvents.total), which every search
@@ -78,52 +83,6 @@ const headline = computed(() => {
     const noun = props.total === 1 ? 'Event' : 'Events';
     return [props.total.toLocaleString(), noun, context.value].filter(Boolean).join(' ');
 });
-
-// Check if price filter is active
-const hasPriceFilter = computed(() => {
-    return (
-        activeFilters.value.price?.[0] > 0 ||
-        (activeFilters.value.price?.[1] !== undefined &&
-         activeFilters.value.price?.[1] < (activeFilters.value.maxPrice || 1000) &&
-         activeFilters.value.maxPrice > 0)
-    );
-});
-
-// The narrowing the headline does NOT already account for, named by dimension
-// rather than by value: "filtered by category and price" reads at a glance,
-// where the old row of value pills ("Escape Rooms & Games, Horror, $20 - $80")
-// competed with the results for attention and still never said how many
-// results there were.
-const filterSummary = computed(() => {
-    const dimensions = [];
-
-    if (activeFilters.value.categories?.length) {
-        dimensions.push(activeFilters.value.categories.length === 1 ? 'category' : 'categories');
-    }
-    if (activeFilters.value.tags?.length) {
-        // Stored as "tags" in the store and the URL, but every user-facing
-        // label calls this field Genres (same rule as saved-search-card.vue) —
-        // "tag" is the backend name, not something a user should ever see.
-        dimensions.push(activeFilters.value.tags.length === 1 ? 'genre' : 'genres');
-    }
-    if (hasPriceFilter.value) {
-        dimensions.push('price');
-    }
-
-    if (!dimensions.length) return null;
-
-    const list = dimensions.length === 1
-        ? dimensions[0]
-        : `${dimensions.slice(0, -1).join(', ')} and ${dimensions[dimensions.length - 1]}`;
-
-    return `Search filtered by ${list}`;
-});
-
-// Function to open the filters modal
-const openFilters = () => {
-    // Dispatch a global event that the nav component can listen for
-    window.dispatchEvent(new CustomEvent('open-filters'));
-};
 
 // Resolves the store's raw remoteLocation slug (hydrated straight from the
 // URL by SearchStore.initializeFromUrl) into { slug, name }. Also done in

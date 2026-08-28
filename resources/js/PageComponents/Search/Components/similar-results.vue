@@ -1,18 +1,32 @@
 <template>
-    <div v-if="similarEvents.length > 0" class="mt-8">
+    <!-- The heading used to hang off similarEvents.length, so a search that
+         matched nothing AND had no nearby events to suggest rendered a blank
+         page — no explanation at all. It is unconditional now; only the
+         suggestions below depend on there being suggestions. -->
+    <div class="mt-8">
         <div class="mb-6">
-        <h2 class="text-2.5xl text-black font-medium">
-            Sorry, we couldn't find any events in {{ cityName }}
-        </h2>
-        <p class="text-xl text-gray-700 mt-2 leading-tight">
-            {{ isRemote ? 
-          'Here are some online events you might be interested in:' : 
-          'Here are some events in nearby areas you might be interested in:' 
-        }}
-        </p>
+            <h2 class="text-2.5xl text-black font-medium">
+                Sorry, we couldn't find any events in {{ cityName }}
+            </h2>
+
+            <!-- When the filter panel is narrowing the search, that is almost
+                 always the reason for the empty result, and "here are some
+                 events nearby" buries it. Say the actionable thing instead. -->
+            <p v-if="hasActiveFilters" class="text-xl text-gray-700 mt-2 leading-tight">
+                Please remove filters to see more events
+            </p>
+            <p v-else-if="similarEvents.length" class="text-xl text-gray-700 mt-2 leading-tight">
+                {{ isRemote
+                    ? 'Here are some online events you might be interested in:'
+                    : 'Here are some events in nearby areas you might be interested in:' }}
+            </p>
         </div>
-    
+
+        <!-- Suggestions are fetched by location alone, ignoring the filters,
+             so offering them under "remove your filters" would be answering a
+             different question than the one just asked. -->
         <EventList
+            v-if="similarEvents.length && !hasActiveFilters"
             :show-location="true"
             :items="similarEvents"
             :columns="columns"
@@ -24,6 +38,11 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import EventList from '@/GlobalComponents/Grid/event-grid.vue'
+import { useSearchFilters } from '@/composables/useSearchFilters'
+
+// Same notion of "a filter is on" the results header uses for its summary
+// line — category, genre or price, the three the filter panel owns.
+const { hasActiveFilters } = useSearchFilters()
 
 const props = defineProps({
   user: {
