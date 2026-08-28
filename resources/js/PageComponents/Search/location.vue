@@ -7,12 +7,7 @@
                 class="z-10 relative inline-block w-[59%] max-[1200px]:w-[50%] min-h-[calc(100vh-8rem)]"
             >
                 <div class="px-8 pt-16">
-                    <!-- Active Filters -->
-                    <active-filters />
-                    
-                    <div class="inline-block text-left pb-4">
-                        <p class="text-2xl font-medium" v-if="hasEvents">{{ events.total }} immersive events.</p>
-                    </div>
+                    <results-header :total="events.total" />
                 </div>
                 
                 <div class="px-8">
@@ -57,7 +52,7 @@ import EventList from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 import Map from './Components/map.vue'
 import SearchStore from '@/Stores/SearchStore.vue'
-import ActiveFilters from './Components/active-filters.vue'
+import ResultsHeader from './Components/results-header.vue'
 import SimilarResults from './Components/similar-results.vue'
 
 // Constants

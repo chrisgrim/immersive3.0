@@ -1,7 +1,7 @@
 <template>
     <div class="max-w-screen-5xl mx-auto px-10 md:px-32 py-16">
         <!-- Active Filters -->
-        <active-filters class="mb-8" :initial-remote-location="searchedRemoteLocation" />
+        <results-header :total="events.total" :initial-remote-location="searchedRemoteLocation" />
 
         <!-- Main Content -->
         <event-grid
@@ -48,7 +48,7 @@ import axios from 'axios'
 import EventGrid from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 import SearchStore from '@/Stores/SearchStore.vue'
-import ActiveFilters from './Components/active-filters.vue'
+import ResultsHeader from './Components/results-header.vue'
 
 // Props
 const props = defineProps({
@@ -58,7 +58,7 @@ const props = defineProps({
     },
     // Server-resolved { id, name, slug } for the URL's remoteLocation slug
     // (see ListingsController::buildSearchFilters) — passed straight through
-    // to active-filters.vue so it can skip its own resolution fetch. See
+    // to results-header.vue so it can skip its own resolution fetch. See
     // that component for the full reasoning.
     searchedRemoteLocation: {
         type: Object,

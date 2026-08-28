@@ -92,8 +92,8 @@ class SearchStore {
                 // already resolved it — e.g. synchronously from a
                 // server-provided initial-remote-location prop — this must
                 // not clobber that object back down to the raw string, or
-                // active-filters.vue's label falls back to the generic
-                // "Remote Events" right after briefly showing the real name.
+                // results-header.vue's headline falls back to the generic
+                // "at home" wording right after briefly showing the real name.
                 remoteLocation: (() => {
                     const slug = params.get('remoteLocation') || null;
                     const current = this.state.filters.remoteLocation;

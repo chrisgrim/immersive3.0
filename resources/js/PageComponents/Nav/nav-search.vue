@@ -645,7 +645,7 @@ const handleLocationSearch = (searchData) => {
                     ...state.value.filters,
                     atHome: false,
                     // Stale otherwise — harmless while atHome is false
-                    // (active-filters.vue only reads it when atHome is
+                    // (results-header.vue only reads it when atHome is
                     // true), but clearing it keeps the store honest.
                     remoteLocation: null
                 }
@@ -703,8 +703,8 @@ const handleAtHomeSearch = (searchData) => {
             atHome: true,
             // { slug, name } directly from the search bar's own already-
             // resolved selection (see at-home-search.vue's handleSearch) —
-            // active-filters.vue reads this for the "Results filtered by"
-            // summary. This path doesn't reload the page, so there's no
+            // results-header.vue reads this to name the At Home type in
+            // its headline. This path doesn't reload the page, so there's no
             // fresh onMounted() to resolve it the way a redirect would.
             remoteLocation: searchData.remoteLocation
                 ? { slug: searchData.remoteLocation, name: searchData.remoteLocationName }

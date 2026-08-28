@@ -176,7 +176,7 @@ const props = defineProps({
     // (see nav-search.vue's own prop of the same name) — lets onMounted seed
     // the compact pill synchronously instead of always waiting on its own
     // fetch below, which otherwise flashes a blank "Search" placeholder (and
-    // active-filters.vue's "Remote Events" fallback) before resolving to the
+    // results-header.vue's generic "at home" wording) before resolving to the
     // real name on every fresh page load.
     initialRemoteLocation: {
         type: Object,
@@ -378,7 +378,7 @@ onMounted(() => {
                 committedSelectedType.value = selectedType.value;
                 committedSearchInput.value = searchInput.value;
                 // Resolves the store's raw slug (see SearchStore's
-                // initializeFromUrl) into { slug, name } — active-filters.vue
+                // initializeFromUrl) into { slug, name } — results-header.vue
                 // reads this to show the specific type ("Telephone") in the
                 // "Results filtered by" summary instead of a generic label.
                 SearchStore.updateState({
