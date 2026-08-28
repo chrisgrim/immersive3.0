@@ -13,7 +13,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[IsReadOnly]
-#[Description('Get the full editable state of an event by slug, including a readiness checklist showing what still needs to be filled in before submit-event-for-review. Works on any event you can manage — for moderators and admins that is EVERY event on the platform, not just your own organizers. Find slugs with list-all-events.')]
+#[Description('Get the full editable state of an event by slug, including a readiness checklist showing what still needs to be filled in before submit-event-for-review. Works on any event you can manage — for moderators and admins that is EVERY event on the platform, not just your own organizers. Find slugs with list-all-events. Pass summary=true to collapse the schedule to a count plus first/last date — do that whenever you are working on content rather than dates, since a recurring event can return thousands of them.')]
 class GetEvent extends Tool
 {
     use FormatsEvents;
@@ -22,7 +22,10 @@ class GetEvent extends Tool
     {
         $validated = $request->validate([
             'event_slug' => 'required|string',
+            'summary' => 'nullable|boolean',
         ]);
+
+        $summary = (bool) ($validated['summary'] ?? false);
 
         $event = Event::withoutGlobalScope(LatestPublishedFirstScope::class)
             ->where('slug', $validated['event_slug'])
@@ -76,7 +79,7 @@ class GetEvent extends Tool
                 'timezone' => $event->timezone,
                 'showtype' => $event->showtype,
                 'showtype_config' => $event->showtype_config,
-                'show_dates' => $event->shows->pluck('date'),
+                ...$this->scheduleFields($event, $summary),
                 'show_times' => $event->show_times,
                 'closing_date' => $event->closingDate,
                 'embargo_date' => $event->embargo_date,
@@ -104,6 +107,33 @@ class GetEvent extends Tool
     }
 
     /**
+     * The schedule, either in full or collapsed to its endpoints.
+     *
+     * An ongoing event's show_dates array is by far the largest thing in this
+     * response — one escape room carries 2,282 dates, 49 KB of nothing but
+     * timestamps, and 371 events hold more than 100. That crowded out the
+     * fields a content or metadata pass actually reads, to the point where a
+     * tag cleanup had to farm events out to subagents to stay within context.
+     *
+     * Summary mode answers the question the dates are usually being read for
+     * ("when does this run, and how many performances?") in three fields
+     * instead of thousands. The median event has 4 shows, so this changes
+     * nothing for most calls — it exists for the long tail.
+     */
+    protected function scheduleFields(Event $event, bool $summary): array
+    {
+        if (! $summary) {
+            return ['show_dates' => $event->shows->pluck('date')];
+        }
+
+        return [
+            'shows_count' => $event->shows->count(),
+            'first_show_date' => $event->shows->min('date'),
+            'last_show_date' => $event->shows->max('date'),
+        ];
+    }
+
+    /**
      * @return array<string, \Illuminate\JsonSchema\Types\Type>
      */
     public function schema(JsonSchema $schema): array
@@ -112,6 +142,8 @@ class GetEvent extends Tool
             'event_slug' => $schema->string()
                 ->description('The event slug, as returned by create-event-draft or list-my-events.')
                 ->required(),
+            'summary' => $schema->boolean()
+                ->description('Collapse the schedule instead of listing every date: replaces show_dates with shows_count, first_show_date and last_show_date. Every other field is unchanged. Use this for content/metadata work (tags, descriptions, advisories) and for sweeping many events — a recurring event can carry thousands of dates. Defaults to false; omit it when you need to see or edit the individual dates.'),
         ];
     }
 }
