@@ -3,6 +3,7 @@
 namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\FormatsEvents;
+use App\Models\Category;
 use App\Models\Event;
 use App\Models\Organizer;
 use App\Scopes\LatestPublishedFirstScope;
@@ -42,6 +43,8 @@ class ListAllEvents extends Tool
         $validated = $request->validate([
             'search' => 'nullable|string|max:100',
             'organizer' => 'nullable|string|max:100',
+            'category' => 'nullable|string|max:100',
+            'genre' => 'nullable|string|max:100',
             'status' => 'nullable|string|in:published,embargoed,live,in_review,needs_revision,draft,any',
             'showtype' => 'nullable|string|in:s,o,a,l',
             'closing_before' => 'nullable|date',
@@ -59,7 +62,7 @@ class ListAllEvents extends Tool
         // sort win (and keeps unpublished rows, whose published_at is null,
         // from sorting unpredictably).
         $query = Event::withoutGlobalScope(LatestPublishedFirstScope::class)
-            ->with('organizer:id,name,slug')
+            ->with(['organizer:id,name,slug', 'category:id,name,slug', 'genres:id,name'])
             ->withCount('shows');
 
         // Draft/in-review/rejected events are not public. Everyone else sees
@@ -77,6 +80,18 @@ class ListAllEvents extends Tool
 
         if (filled($validated['organizer'] ?? null)) {
             $this->applyOrganizer($query, $validated['organizer']);
+        }
+
+        // The whole point of these two: auditing "every event in category X"
+        // or "everything tagged Y" used to mean scraping the site's own
+        // category page, which is lazy-loaded and drops cards silently — that
+        // is how a tag cleanup missed 2 of 72 events.
+        if (filled($validated['category'] ?? null)) {
+            $this->applyCategory($query, $validated['category']);
+        }
+
+        if (filled($validated['genre'] ?? null)) {
+            $this->applyGenre($query, $validated['genre']);
         }
 
         if (filled($validated['showtype'] ?? null)) {
@@ -122,6 +137,9 @@ class ListAllEvents extends Tool
                 ? 'All events on the platform, every status. You can edit any of these with update-event — you are not limited to your own organizers.'
                 : 'Published events only. Sign-in role limits this search to the public catalog; use list-my-events for your own drafts.',
             'events' => $events->map(fn (Event $event) => $this->eventSummary($event) + [
+                'category' => $event->category?->name,
+                'category_id' => $event->category_id,
+                'genres' => $event->genres->pluck('name')->all(),
                 'showtype' => $event->showtype,
                 'showtype_label' => $this->showtypeLabel($event->showtype),
                 'closing_date' => $event->closingDate,
@@ -151,6 +169,40 @@ class ListAllEvents extends Tool
         }
 
         $query->whereIn('status', self::STATUS_GROUPS[$status]);
+    }
+
+    /**
+     * Accept either a category id or a name fragment, matching the organizer
+     * filter's convention. A name that matches nothing must return nothing
+     * rather than everything, so an unmatched fragment yields an empty id set.
+     */
+    protected function applyCategory(Builder $query, string $category): void
+    {
+        if (ctype_digit($category)) {
+            $query->where('category_id', (int) $category);
+
+            return;
+        }
+
+        $ids = Category::where('name', 'LIKE', '%'.$this->escapeLike($category).'%')->pluck('id');
+        $query->whereIn('category_id', $ids);
+    }
+
+    /**
+     * Genres are a many-to-many, so this is whereHas, not a column match. Id or
+     * name fragment again — with 1,600+ genre rows, most of them user-created
+     * duplicates of each other, a fragment is usually what the caller has.
+     */
+    protected function applyGenre(Builder $query, string $genre): void
+    {
+        if (ctype_digit($genre)) {
+            $query->whereHas('genres', fn (Builder $q) => $q->where('genres.id', (int) $genre));
+
+            return;
+        }
+
+        $term = '%'.$this->escapeLike($genre).'%';
+        $query->whereHas('genres', fn (Builder $q) => $q->where('genres.name', 'LIKE', $term));
     }
 
     /**
@@ -189,6 +241,8 @@ class ListAllEvents extends Tool
             'status' => $schema->string()
                 ->enum(['published', 'embargoed', 'live', 'in_review', 'needs_revision', 'draft', 'any'])
                 ->description('Moderators/admins only (everyone else always gets published events). "live" = published or embargoed; "draft" = anything still in the creation wizard. Defaults to "any".'),
+            'category' => $schema->string()->description('Restrict to one category: either its numeric id or a fragment of its name (e.g. "Escape Rooms"). Use list-event-attributes type=categories for the list. This is the reliable way to enumerate every event in a category.'),
+            'genre' => $schema->string()->description('Restrict to events carrying this genre/tag: either its numeric id or a fragment of its name. Matches if ANY of the event\'s genres match.'),
             'showtype' => $schema->string()->enum(['s', 'o', 'a', 'l'])->description('s = specific dates, o = ongoing/recurring, a = always available, l = the retired "limited" type.'),
             'closing_before' => $schema->string()->description('Only events whose closingDate is on or before this date ("Y-m-d" or "Y-m-d H:i:s"). This is the expiry sweep: closing_before = a month from now finds runs about to drop off the site.'),
             'closing_after' => $schema->string()->description('Only events whose closingDate is on or after this date. Combine with closing_before for a window.'),

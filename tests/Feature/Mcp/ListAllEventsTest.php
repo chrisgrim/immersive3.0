@@ -2,7 +2,9 @@
 
 use App\Mcp\Servers\EiServer;
 use App\Mcp\Tools\ListAllEvents;
+use App\Models\Category;
 use App\Models\Event;
+use App\Models\Genre;
 use App\Models\Organizer;
 use App\Models\User;
 
@@ -101,6 +103,76 @@ test('the organizer filter accepts an id or a name fragment', function () {
 
     EiServer::actingAs($moderator)->tool(ListAllEvents::class, ['organizer' => 'meow'])
         ->assertOk()->assertSee('Omega Mart')->assertDontSee('Unrelated Show');
+});
+
+// ── category / genre ───────────────────────────────────────────────────
+//
+// Added after a tag-cleanup pass missed 2 of 72 events: with no category
+// filter here, the only way to enumerate a category was scraping the site's
+// own category page, which lazy-loads and drops cards silently.
+
+test('the category filter accepts an id or a name fragment', function () {
+    $escapeRooms = Category::factory()->create(['name' => 'Escape Rooms & Games']);
+    strangerEvent(['name' => 'The Locked Vault', 'category_id' => $escapeRooms->id]);
+    strangerEvent(['name' => 'A Theatre Show', 'category_id' => Category::factory()->create(['name' => 'Theatre'])->id]);
+
+    $moderator = catalogUser('m');
+
+    EiServer::actingAs($moderator)->tool(ListAllEvents::class, ['category' => (string) $escapeRooms->id])
+        ->assertOk()->assertSee('The Locked Vault')->assertDontSee('A Theatre Show');
+
+    EiServer::actingAs($moderator)->tool(ListAllEvents::class, ['category' => 'escape rooms'])
+        ->assertOk()->assertSee('The Locked Vault')->assertDontSee('A Theatre Show');
+});
+
+test('a category name that matches nothing returns nothing, not everything', function () {
+    strangerEvent(['name' => 'Some Event', 'category_id' => Category::factory()->create(['name' => 'Theatre'])->id]);
+
+    // The failure mode being guarded: an empty id set turning into no filter,
+    // which would silently answer a narrow question with the whole catalog.
+    EiServer::actingAs(catalogUser('m'))
+        ->tool(ListAllEvents::class, ['category' => 'no such category'])
+        ->assertOk()->assertDontSee('Some Event')->assertSee('"total_matching":0');
+});
+
+test('the genre filter accepts an id or a name fragment and matches any of an event\'s genres', function () {
+    $horror = Genre::factory()->create(['name' => 'Horror']);
+    $tagged = strangerEvent(['name' => 'Haunted House']);
+    $tagged->genres()->attach([$horror->id, Genre::factory()->create(['name' => 'Comedy'])->id]);
+    strangerEvent(['name' => 'Untagged Show']);
+
+    $moderator = catalogUser('m');
+
+    EiServer::actingAs($moderator)->tool(ListAllEvents::class, ['genre' => (string) $horror->id])
+        ->assertOk()->assertSee('Haunted House')->assertDontSee('Untagged Show');
+
+    // "Comedy" is the event's second genre — matching must not require the first.
+    EiServer::actingAs($moderator)->tool(ListAllEvents::class, ['genre' => 'comedy'])
+        ->assertOk()->assertSee('Haunted House')->assertDontSee('Untagged Show');
+});
+
+test('an event matching two genres is not returned twice', function () {
+    // whereHas, not a join — a join would duplicate the row per matching genre
+    // and corrupt total_matching, which is what an audit counts against.
+    $event = strangerEvent(['name' => 'Double Tagged']);
+    $event->genres()->attach([
+        Genre::factory()->create(['name' => 'Dark Comedy'])->id,
+        Genre::factory()->create(['name' => 'Comedy Horror'])->id,
+    ]);
+
+    EiServer::actingAs(catalogUser('m'))
+        ->tool(ListAllEvents::class, ['genre' => 'comedy'])
+        ->assertOk()->assertSee(['Double Tagged', '"total_matching":1']);
+});
+
+test('summary rows carry the category and genres, so an audit needs no follow-up call', function () {
+    $event = strangerEvent(['name' => 'Tagged Show', 'category_id' => Category::factory()->create(['name' => 'Escape Rooms & Games'])->id]);
+    $event->genres()->attach(Genre::factory()->create(['name' => 'Puzzle'])->id);
+
+    EiServer::actingAs(catalogUser('m'))->tool(ListAllEvents::class, ['search' => 'Tagged Show'])
+        ->assertOk()
+        ->assertSee('Escape Rooms & Games')
+        ->assertSee('Puzzle');
 });
 
 test('closing_before finds the runs that are about to expire', function () {
