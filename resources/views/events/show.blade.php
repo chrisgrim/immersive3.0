@@ -588,14 +588,14 @@
                                                                         $currency = isset($event->first_show_tickets[0]->currency) ? $event->first_show_tickets[0]->currency : '$';
                                                                         // ¥/CN¥/₩ (JPY/CNY/KRW) have no minor unit — "¥1234.00"
                                                                         // reads as wrong to anyone used to those currencies.
-                                                                        $decimals = in_array($currency, ['¥', 'CN¥', '₩']) ? 0 : 2;
+                                                                        $decimals = \App\Support\Validation\EventUpdateRules::decimalsFor($currency);
                                                                     @endphp
                                                                     {{ $event->call_to_action }} {{ $showPrice ? 'from ' . $currency . number_format($event->priceranges->min('price'), $decimals) : '' }}
                                                                 @else
                                                                     @php
                                                                         $currency = isset($event->first_show_tickets[0]->currency) ? $event->first_show_tickets[0]->currency : '$';
                                                                         $minPrice = $event->priceranges->min('price');
-                                                                        $decimals = in_array($currency, ['¥', 'CN¥', '₩']) ? 0 : 2;
+                                                                        $decimals = \App\Support\Validation\EventUpdateRules::decimalsFor($currency);
                                                                     @endphp
                                                                     @if($minPrice == 0)
                                                                         Free Tickets Available

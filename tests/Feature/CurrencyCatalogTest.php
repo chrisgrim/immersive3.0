@@ -112,3 +112,59 @@ test('the price cap explains itself rather than failing bare', function () {
     expect(EventUpdateRules::messages()['tickets.*.ticket_price.max'])
         ->toContain(number_format(EventUpdateRules::MAX_TICKET_PRICE, 2));
 });
+
+/**
+ * ¥/CN¥/₩ have no minor unit, so a price in them is written without decimals.
+ * That list was inline in six places before the wizard's price input needed it
+ * too — and the input was the one place getting it wrong, forcing "₩144000.00"
+ * while every display surface rendered "₩144000" correctly.
+ *
+ * EventUpdateRules::ZERO_DECIMAL_CURRENCIES is the source now. The blade reads
+ * it directly; the Vue files can't, so they are asserted against it here.
+ */
+test('every zero-decimal currency is a currency that exists', function () {
+    foreach (EventUpdateRules::ZERO_DECIMAL_CURRENCIES as $symbol) {
+        expect(in_array($symbol, EventUpdateRules::CURRENCIES, true))
+            ->toBeTrue("'{$symbol}' is not in the currency catalog");
+    }
+});
+
+test('decimalsFor drops the decimals only for those currencies', function () {
+    expect(EventUpdateRules::decimalsFor('₩'))->toBe(0);
+    expect(EventUpdateRules::decimalsFor('¥'))->toBe(0);
+    expect(EventUpdateRules::decimalsFor('CN¥'))->toBe(0);
+    expect(EventUpdateRules::decimalsFor('$'))->toBe(2);
+    expect(EventUpdateRules::decimalsFor('€'))->toBe(2);
+    // An unknown or absent currency must not silently lose its decimals.
+    expect(EventUpdateRules::decimalsFor(null))->toBe(2);
+});
+
+test('the event page reads the shared list rather than its own copy', function () {
+    expect(file_get_contents(resource_path('views/events/show.blade.php')))
+        ->toContain('EventUpdateRules::decimalsFor($currency)')
+        ->not->toContain("['¥', 'CN¥', '₩']");
+});
+
+test('every Vue copy of the zero-decimal list matches the backend', function () {
+    // Each of these formats a price for display; a copy drifting out of step
+    // means one surface printing "₩144000.00" while the rest print "₩144000".
+    $files = [
+        'js/PageComponents/Creation/Core/Pages/tickets.vue',
+        'js/PageComponents/Creation/Core/Pages/navSidebar.vue',
+        'js/PageComponents/Creation/Core/Pages/review.vue',
+        'js/PageComponents/EventShow/show-purchase.vue',
+        'js/PageComponents/EventShow/show-purchase-mobile.vue',
+        'js/PageComponents/Admin/Approval/EventReview.vue',
+    ];
+
+    foreach ($files as $file) {
+        $source = file_get_contents(resource_path($file));
+
+        preg_match('/const ZERO_DECIMAL_CURRENCIES = \[(.*?)\];/s', $source, $m);
+        expect($m)->not->toBeEmpty("ZERO_DECIMAL_CURRENCIES not found in {$file} — was it renamed?");
+
+        preg_match_all("/'([^']+)'/", $m[1], $symbols);
+
+        expect($symbols[1])->toBe(EventUpdateRules::ZERO_DECIMAL_CURRENCIES, "{$file} disagrees with the backend");
+    }
+});

@@ -55,6 +55,32 @@ class EventUpdateRules
     ];
 
     /**
+     * Currencies with no minor unit, where a price is written without decimals.
+     *
+     * JPY, CNY and KRW have no "cents", so "¥1234.00" and "₩144000.00" are
+     * both wrong — the trailing .00 is not how those amounts are ever
+     * written. The list was inline in six places (the event page's blade
+     * twice, show-purchase.vue and its mobile twin, navSidebar.vue,
+     * review.vue, EventReview.vue) before it was needed in the wizard's
+     * price input as well, which would have made seven.
+     *
+     * The blade reads this directly; the Vue copies can't import a PHP
+     * constant, so tests/Feature/CurrencyCatalogTest.php asserts each of them
+     * against it — the same arrangement CURRENCY_ISO already has.
+     *
+     * @var array<int, string>
+     */
+    public const ZERO_DECIMAL_CURRENCIES = ['¥', 'CN¥', '₩'];
+
+    /**
+     * How many decimal places a price in this currency is written with.
+     */
+    public static function decimalsFor(?string $currency): int
+    {
+        return in_array($currency, self::ZERO_DECIMAL_CURRENCIES, true) ? 0 : 2;
+    }
+
+    /**
      * How many ticket tiers one show may carry.
      *
      * This was 5, enforced ONLY in the wizard UI (tickets.vue) with nothing

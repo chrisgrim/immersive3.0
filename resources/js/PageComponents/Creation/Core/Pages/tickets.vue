@@ -297,6 +297,26 @@ const MAX_TICKET_PRICE = 999999.99;
 // Digits allowed before the decimal point, derived so the input can never
 // truncate a value the cap above would have accepted.
 const MAX_PRICE_DIGITS = String(Math.floor(MAX_TICKET_PRICE)).length;
+// ¥/CN¥/₩ (JPY/CNY/KRW) have no minor unit, so "₩144000.00" is not how that
+// amount is ever written. Must match EventUpdateRules::ZERO_DECIMAL_CURRENCIES
+// (asserted by tests/Feature/CurrencyCatalogTest.php).
+const ZERO_DECIMAL_CURRENCIES = ['¥', 'CN¥', '₩'];
+
+// The input's displayed value for a stored price. Zero-decimal currencies are
+// rendered as-is rather than with toFixed(0): toFixed ROUNDS, so a stored
+// 144000.5 would display — and on the next save store — as 144001, which is
+// the same class of silent value change as the five-digit truncation this
+// input used to do.
+const displayPrice = (price, currency) => {
+    const value = parseFloat(price);
+    if (isNaN(value)) return '';
+
+    return ZERO_DECIMAL_CURRENCIES.includes(currency) ? String(value) : value.toFixed(2);
+};
+
+// The currency every tier is in — they always share one (see selectCurrency).
+const activeCurrency = () => tickets[0]?.currency || state.value.selectedCurrency;
+
 const MAX_DESCRIPTION_LENGTH = 60;
 const MAX_CALL_TO_ACTION_LENGTH = 20;
 const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$', 'MX$', 'CN¥', '₩'];
@@ -380,7 +400,7 @@ state.value.ticketUrl = show?.ticket_url || '';
 
 // Update initial state values after tickets are initialized
 if (tickets.length > 0) {
-    state.value.formattedPrice = parseFloat(tickets[0].ticket_price).toFixed(2);
+    state.value.formattedPrice = displayPrice(tickets[0].ticket_price, activeCurrency());
     state.value.formattedName = tickets[0].name;
     state.value.formattedDescription = tickets[0].description;
     state.value.selectedCurrency = tickets[0].currency;
@@ -454,7 +474,7 @@ const handleDivClick = (index) => {
     
     // Format price if it exists, otherwise keep it empty
     if (tickets[index].ticket_price !== '') {
-        state.value.formattedPrice = parseFloat(tickets[index].ticket_price).toFixed(2);
+        state.value.formattedPrice = displayPrice(tickets[index].ticket_price, activeCurrency());
     } else {
         state.value.formattedPrice = '';
     }
@@ -526,7 +546,7 @@ const updateTicketPrice = (e) => {
     }
 
     if (parseFloat(value) > MAX_TICKET_PRICE) {
-        value = MAX_TICKET_PRICE.toFixed(2);
+        value = displayPrice(MAX_TICKET_PRICE, activeCurrency());
     }
 
     state.value.formattedPrice = value;
@@ -544,7 +564,7 @@ const updateTicketName = (item) => {
     
     // Set price to 0 for Free tickets, auto-fill 0.01 for PWYC (as a minimum)
     if (item.name.toLowerCase() === 'free') {
-        state.value.formattedPrice = '0.00';
+        state.value.formattedPrice = displayPrice(0, activeCurrency());
         tickets[state.value.currentMedia].ticket_price = 0;
         
         // Focus the description input safely
@@ -646,6 +666,16 @@ const selectCurrency = (currency) => {
     state.value.selectedCurrency = currency;
     tickets.forEach(ticket => ticket.currency = currency);
     state.value.showCurrencyDropdown = false;
+
+    // Switching to or from a zero-decimal currency changes how the amount on
+    // screen should be written, and the input holds a formatted string — so
+    // without this, picking ₩ leaves "144000.00" sitting there until you
+    // happen to switch tiers. Reformats the DISPLAY only; ticket_price is
+    // untouched.
+    const current = tickets[state.value.currentMedia];
+    if (current && current.ticket_price !== '' && current.ticket_price !== null && current.ticket_price !== undefined) {
+        state.value.formattedPrice = displayPrice(current.ticket_price, currency);
+    }
 };
 
 // 10. Helper Methods
@@ -653,7 +683,7 @@ const formatPrice = (price) => {
     if (price === '' || price === null || price === undefined) {
         return '';
     }
-    return parseFloat(price).toFixed(2);
+    return displayPrice(price, activeCurrency());
 };
 
 // 11. Component API
@@ -698,7 +728,7 @@ defineExpose({
 watch(() => state.value.currentMedia, (newIndex) => {
     if (tickets[newIndex]) {
         if (tickets[newIndex].ticket_price !== '') {
-            state.value.formattedPrice = parseFloat(tickets[newIndex].ticket_price).toFixed(2);
+            state.value.formattedPrice = displayPrice(tickets[newIndex].ticket_price, activeCurrency());
         } else {
             state.value.formattedPrice = '';
         }
@@ -715,7 +745,7 @@ onMounted(() => {
     if (tickets.length > 0) {
         // For existing tickets with price data, format it. Otherwise, leave it empty
         if (tickets[state.value.currentMedia].ticket_price !== '') {
-            state.value.formattedPrice = parseFloat(tickets[state.value.currentMedia].ticket_price).toFixed(2);
+            state.value.formattedPrice = displayPrice(tickets[state.value.currentMedia].ticket_price, activeCurrency());
         } else {
             state.value.formattedPrice = '';
         }
