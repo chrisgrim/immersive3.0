@@ -24,11 +24,16 @@
 import { computed, onMounted } from 'vue';
 import SearchStore from '@/Stores/SearchStore.vue';
 import { useSearchFilters } from '@/composables/useSearchFilters';
+import { useSearchContext } from '@/composables/useSearchContext';
 import axios from 'axios';
 
 // Shared with the empty state, which uses the same notion of "a filter is on"
 // to explain why a search came back with nothing.
 const { filterSummary, openFilters } = useSearchFilters();
+
+// Shared with the empty state so a search names the same place whether or not
+// it found anything.
+const { context } = useSearchContext();
 
 const props = defineProps({
     // The server's own result count (searchedEvents.total), which every search
@@ -47,36 +52,6 @@ const props = defineProps({
         type: Object,
         default: null
     }
-});
-
-// Get current active filters from the SearchStore
-const activeFilters = computed(() => SearchStore.state.filters);
-const location = computed(() => SearchStore.state.location);
-
-// remoteLocation is null (no specific type — e.g. a bare atHome search with
-// nothing picked), a raw slug string (hydrated from the URL, not yet
-// resolved — see SearchStore.initializeFromUrl), or { slug, name } once
-// resolved (see at-home-search.vue / nav-search.vue's handleAtHomeSearch).
-// Returns null for the first two so the headline can say "at home" rather
-// than "in <raw-slug>" or the old generic "Remote Events" label, which read
-// as "Events in Remote Events" once it moved into a sentence.
-const remoteLocationName = computed(() => {
-    const remoteLocation = activeFilters.value.remoteLocation;
-    return (remoteLocation && typeof remoteLocation === 'object' && remoteLocation.name)
-        ? remoteLocation.name
-        : null;
-});
-
-// Where the results are from, in the order that answers "why these events?".
-// Dragging the map outranks everything: the results are then literally
-// whatever is in the viewport, no longer the city the search started from.
-const context = computed(() => {
-    if (location.value.live) return 'in the map area';
-    if (location.value.city) return `in ${location.value.city}`;
-    if (activeFilters.value.atHome) {
-        return remoteLocationName.value ? `in ${remoteLocationName.value}` : 'at home';
-    }
-    return null;
 });
 
 const headline = computed(() => {

@@ -14,20 +14,40 @@
         <!-- Empty state — this page has no map to fall back to (unlike
              location.vue's SimilarResults), so "here's what's out there
              instead" is just the latest remote/At-Home events, unfiltered
-             by whatever this search's own filters were. -->
-        <div v-else class="py-8">
-            <h2 class="text-2.5xl text-black font-medium">No events match your filters</h2>
-            <p class="text-xl text-gray-700 mt-2 leading-tight">
-                Try changing or removing some of your filters — here are some other events you might like:
-            </p>
+             by whatever this search's own filters were.
 
-            <event-grid
-                v-if="fallbackEvents.length"
-                :items="fallbackEvents"
-                :columns="6"
-                :show-location="true"
-                class="mt-8"
-            />
+             Same shape as SimilarResults so the two empty states read alike:
+             name the place, say if filters are the reason (and offer to open
+             them), then the suggestions below a clear gap. The old heading
+             was a flat "No events match your filters", which was simply
+             untrue when no filters were on. -->
+        <div v-else class="py-8">
+            <h2 class="text-2.5xl text-black font-medium">
+                {{ ['Sorry, we couldn\'t find any events', context].filter(Boolean).join(' ') }}
+            </h2>
+
+            <button
+                v-if="hasActiveFilters"
+                type="button"
+                @click="openFilters"
+                class="text-xl text-gray-700 mt-2 leading-tight underline underline-offset-4 decoration-gray-400 hover:text-black hover:decoration-current focus-visible:text-black focus-visible:outline-none">
+                Please remove filters to see more events
+            </button>
+
+            <!-- Fetched unfiltered, so under a "remove your filters" message
+                 they need the gap and the "other" wording rather than reading
+                 as an answer to it. -->
+            <div v-if="fallbackEvents.length" :class="hasActiveFilters ? 'mt-12' : 'mt-2'">
+                <p class="text-xl text-gray-700 leading-tight mb-6">
+                    Here are some {{ hasActiveFilters ? 'other ' : '' }}events you might like:
+                </p>
+
+                <event-grid
+                    :items="fallbackEvents"
+                    :columns="6"
+                    :show-location="true"
+                />
+            </div>
         </div>
 
         <!-- Pagination -->
@@ -48,7 +68,14 @@ import axios from 'axios'
 import EventGrid from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 import SearchStore from '@/Stores/SearchStore.vue'
+import { useSearchFilters } from '@/composables/useSearchFilters'
+import { useSearchContext } from '@/composables/useSearchContext'
 import ResultsHeader from './Components/results-header.vue'
+
+// Shared with the map page's empty state (SimilarResults) and the results
+// header, so all three name the place and the filters the same way.
+const { hasActiveFilters, openFilters } = useSearchFilters()
+const { context } = useSearchContext()
 
 // Props
 const props = defineProps({
