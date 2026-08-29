@@ -111,6 +111,7 @@
                     />
                     <SearchEvent
                         v-if="!collapsed && activeTab === 'e'"
+                        ref="eventsSearch"
                         :has-active-filters="hasActiveFilters"
                         :show-filters="showFilters"
                         @open-filters="showFilters = true"
@@ -207,6 +208,12 @@ const state = computed(() => SearchStore.state);
 // results page itself, it should load minimized, same as if the user had
 // already scrolled past it, and only open on request.
 const isHomePage = () => window.location.pathname === '/';
+
+// Mirrors SearchStore.initializeFromUrl's own formatting — US cities are
+// stored and displayed without the country.
+const stripCountry = (city) => (typeof city === 'string' && city.endsWith(', USA'))
+    ? city.slice(0, -', USA'.length)
+    : city;
 
 const collapsed = ref(!isHomePage());
 // Defaults to Location, but a page loaded from an At Home search (whether
@@ -306,6 +313,7 @@ const expand = (tab) => {
 };
 
 const atHomeSearch = ref(null);
+const eventsSearch = ref(null);
 
 // Clicking a tab only swapped which search bar was visible; the incoming one
 // never received focus, so its dropdown stayed shut and you had to click the
@@ -335,6 +343,8 @@ const selectTab = (tab) => {
             atHomeSearch.value?.focusInput();
         } else if (tab === 'l') {
             locationSearch.value?.focusInput();
+        } else if (tab === 'e') {
+            eventsSearch.value?.focusInput();
         }
     }, 0);
 };
@@ -612,7 +622,13 @@ const handleLocationSearch = (searchData) => {
     // Use the updateState method to update the store with search data
     SearchStore.updateState({
         location: {
-            city: searchData.location.city,
+            // Same ", USA" strip SearchStore.initializeFromUrl applies on a
+            // cold load. Without it the store held the raw Google description
+            // after an in-place search, so one city was named three ways in a
+            // single session: "Los Angeles" (empty state, reading the URL),
+            // "Los Angeles, CA" (header, fresh load) and "Los Angeles, CA,
+            // USA" (header, after searching).
+            city: stripCountry(searchData.location.city),
             lat: searchData.location.lat,
             lng: searchData.location.lng,
             live: searchData.location.live
@@ -857,10 +873,23 @@ const subscribeToMapStore = () => {
     params.set('SWlng', swLng.toFixed(6));
     params.set('live', 'true');
     params.set('searchType', 'inPerson');
+    // A new viewport is a new result set. Without this a pan carried the old
+    // page number, so panning from page 3 into a sparser area returned a real
+    // total with an empty page — the header counting events the list did not
+    // show, and no pagination rendered to get back.
+    params.set('page', 1);
 
     // Update center coordinates with validated values
     params.set('lat', centerLat.toString());
     params.set('lng', centerLng.toString());
+
+    // The store, not just the URL: useSearchContext reads location.live to
+    // decide between "in the map area" and the city the search started from.
+    // Left unset, the header went on naming Los Angeles after you panned to
+    // San Diego — the exact case the map-area wording exists for.
+    SearchStore.updateState({
+        location: { ...SearchStore.state.location, live: true },
+    });
 
     // Update URL without reload
     updateUrlParams(params);
@@ -927,6 +956,7 @@ const handleDatesClear = () => {
     const params = urlParams.value;
     params.delete('start');
     params.delete('end');
+    params.set('page', 1); // Same reason as the map subscriber above.
 
     // If we're on a search page, update the search results
     if (isSearchPage.value) {

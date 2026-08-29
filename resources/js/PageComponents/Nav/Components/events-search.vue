@@ -9,6 +9,7 @@
                         <use xlink:href="/storage/website-files/icons.svg#ri-search-line"></use>
                     </svg>
                     <input
+                        ref="nameInput"
                         class="relative rounded-full p-7 pl-24 bg-transparent w-full font-normal z-40"
                         v-model="searchInput"
                         placeholder="Event and Organizer Search"
@@ -96,6 +97,15 @@ const filtersState = computed(() => SearchStore.state.filters);
 const isSearchPage = computed(() => window.location.pathname.includes('/search'));
 
 const searchInput = ref('');
+const nameInput = ref(null);
+
+// See at-home-search.vue's identical helper: focus is what opens the dropdown
+// (@focus above), so nav-search.vue calls this when switching to this tab.
+const focusInput = () => {
+    nameInput.value?.focus();
+};
+
+defineExpose({ focusInput });
 const searchOptions = ref([]);
 const dropdown = ref(false);
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
@@ -106,7 +116,13 @@ const generateSearchList = async () => {
         const response = await axios.get('/api/search/nav/names', { 
             params: { keywords: searchInput.value } 
         });
-        searchOptions.value = response.data;
+        // Drop hits whose model didn't hydrate. These come back from the
+        // search index when the underlying row is gone (deleted event or
+        // organizer whose index entry outlived it), and every field below —
+        // starting with the :key, `item.model.id` — then reads through null.
+        // One orphan took the whole Name dropdown down with a render error,
+        // leaving the tab visibly blank.
+        searchOptions.value = (response.data || []).filter((item) => item?.model?.id);
     } catch (error) {
         console.error('Error fetching search results:', error);
     }

@@ -1,7 +1,11 @@
 <template>
     <div class="max-w-screen-5xl mx-auto px-10 md:px-32 py-16">
         <!-- Active Filters -->
-        <results-header :total="events.total" :initial-remote-location="searchedRemoteLocation" />
+        <!-- v-if on hasEvents, not on total: the two disagree when a page
+             number outruns the results (a real total, an empty page), and
+             the header would then count events beside "we couldn't find
+             any". The empty state below owns that case. -->
+        <results-header v-if="hasEvents" :total="events.total" :initial-remote-location="searchedRemoteLocation" />
 
         <!-- Main Content -->
         <event-grid

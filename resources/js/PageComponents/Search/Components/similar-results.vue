@@ -5,7 +5,7 @@
          suggestions below depend on there being suggestions. -->
     <div class="mt-8">
         <h2 class="text-2.5xl text-black font-medium">
-            Sorry, we couldn't find any events in {{ cityName }}
+            {{ ['Sorry, we couldn\'t find any events', context].filter(Boolean).join(' ') }}
         </h2>
 
         <!-- When the filter panel is narrowing the search, that is almost
@@ -45,10 +45,16 @@
 import { ref, computed, onMounted } from 'vue'
 import EventList from '@/GlobalComponents/Grid/event-grid.vue'
 import { useSearchFilters } from '@/composables/useSearchFilters'
+import { useSearchContext } from '@/composables/useSearchContext'
 
 // Same notion of "a filter is on" the results header uses for its summary
 // line — category, genre or price, the three the filter panel owns.
 const { hasActiveFilters, openFilters } = useSearchFilters()
+
+// The same phrase the results header uses, from the same source. These read
+// the city from different places before — the URL here, the store there — and
+// disagreed on how much of it to print.
+const { context } = useSearchContext()
 
 // "other nearby events" once the filter message is already above it; the
 // plain version when this heading is the first thing after the apology.
@@ -79,26 +85,9 @@ const similarEvents = ref([])
 const isLoading = ref(false)
 const error = ref(null)
 const isRemote = ref(false)
-const cityName = ref('this location')
-
-// Try to get city name from URL params
-const extractCityFromUrl = () => {
-  const params = new URLSearchParams(window.location.search)
-  const city = params.get('city')
-  
-  if (city) {
-    // For "City, State" format, just get the city part
-    const parts = city.split(',')
-    cityName.value = parts[0].trim()
-  }
-}
-
 // Fetch similar events based on location
 onMounted(async () => {
   isLoading.value = true
-  
-  // Extract city name from URL for the message
-  extractCityFromUrl()
   
   try {
     // Get search parameters from URL

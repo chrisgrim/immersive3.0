@@ -16,6 +16,13 @@ import SearchStore from '@/Stores/SearchStore.vue';
 
 // tests/js/setup.js installs a fully-mocked window.axios and rebuilds it
 // before every test, so drive it through that rather than stubbing over it.
+// The heading now names the place through useSearchContext, i.e. from the
+// store — the same source the results header reads, so the two can no longer
+// print the city differently.
+function setLocation(location = {}) {
+    SearchStore.state.location = { city: 'Los Angeles', lat: 34, lng: -118, live: false, ...location };
+}
+
 function setFilters(filters = {}) {
     SearchStore.state.filters = {
         categories: [],
@@ -53,12 +60,23 @@ async function mountEmptyState({ suggestions = 1, isRemote = false } = {}) {
 describe('similar-results.vue', () => {
     beforeEach(() => {
         setFilters();
-        window.history.replaceState({}, '', '/index/search?city=Los+Angeles,+CA&lat=34&lng=-118');
+        setLocation();
+        window.history.replaceState({}, '', '/index/search?city=Los+Angeles&lat=34&lng=-118');
     });
 
     it('names the city that came back empty', async () => {
         const wrapper = await mountEmptyState();
         expect(wrapper.text()).toContain("Sorry, we couldn't find any events in Los Angeles");
+    });
+
+    it('names the place from the same source the results header uses', async () => {
+        // These read the city from different places before — the URL here, the
+        // store there — and disagreed on how much of it to print.
+        setLocation({ city: 'New York' });
+        expect((await mountEmptyState()).text()).toContain("any events in New York");
+
+        setLocation({ city: 'New York', live: true });
+        expect((await mountEmptyState()).text()).toContain('any events in the map area');
     });
 
     describe('when the filter panel is narrowing the search', () => {

@@ -7,7 +7,9 @@
                 class="z-10 relative inline-block w-[59%] max-[1200px]:w-[50%] min-h-[calc(100vh-8rem)]"
             >
                 <div class="px-8 pt-16">
-                    <results-header :total="events.total" />
+                    <!-- See all.vue: gated on hasEvents so the count and the
+                         empty state can never appear together. -->
+                    <results-header v-if="hasEvents" :total="events.total" />
                 </div>
                 
                 <div class="px-8">
