@@ -87,7 +87,14 @@ class Show extends Model
         $preservedPastDates = [];
         $rejectedPastDates = [];
 
-        DB::transaction(function () use ($request, $event, $targetDates, $showtypeChanged, $oldDates, $oldTickets, &$preservedPastDates, &$rejectedPastDates) {
+        // Days in those two lists are named in the EVENT's timezone — the day
+        // the organizer picked, not the UTC day the row is stored under (an
+        // evening show in Los Angeles is stored on the next UTC day). The
+        // creation guard below tests by the same local day.
+        $tz = $request->timezone ?? $event->timezone ?? 'UTC';
+        $localDay = fn ($d) => Carbon::parse((string) $d, 'UTC')->setTimezone($tz)->toDateString();
+
+        DB::transaction(function () use ($request, $event, $targetDates, $showtypeChanged, $oldDates, $oldTickets, $tz, $localDay, &$preservedPastDates, &$rejectedPastDates) {
             // --- Remove obsolete shows in ONE pass. This was an N+1 (a delete
             //     per show plus a delete per show's tickets), which made saving a
             //     large recurring schedule crawl. A show-type switch wipes all;
@@ -110,8 +117,8 @@ class Show extends Model
                 if ($protectedIds->isNotEmpty()) {
                     $preservedPastDates = $pastShows->whereIn('id', $protectedIds)
                         ->pluck('date')
-                        ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
-                        ->sort()->values()->all();
+                        ->map($localDay)
+                        ->unique()->sort()->values()->all();
                 }
 
                 $idsToDelete = $idsToDelete->diff($protectedIds);
@@ -140,15 +147,22 @@ class Show extends Model
             // rows for days it never ran — and the deletion guard would then
             // make them permanent. The MCP tool rejects these earlier with its
             // own message; this is the floor under every other write path.
+            //
+            // "Past" is by calendar day where the event is, NOT by the minute
+            // in UTC. The wizard pins every show to 12:00 local
+            // (dateUtils.formatDateForAPI) and lets today be picked, so a
+            // to-the-second test against now() refused tonight's show to
+            // anyone saving after local noon — and, because the obsolete
+            // shows were already deleted above, could leave the event with
+            // none. Today is today until midnight where the event is. Same
+            // rule and basis as the MCP tool's own pre-check.
             if (! auth()->user()?->isModerator()) {
-                $cutoff = now()->format('Y-m-d H:i:s');
-                [$future, $past] = $datesToCreate->partition(fn ($d) => (string) $d >= $cutoff);
+                $today = Carbon::now($tz)->toDateString();
+                [$current, $past] = $datesToCreate->partition(fn ($d) => $localDay($d) >= $today);
 
-                $rejectedPastDates = $past
-                    ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
-                    ->unique()->sort()->values()->all();
+                $rejectedPastDates = $past->map($localDay)->unique()->sort()->values()->all();
 
-                $datesToCreate = $future->values();
+                $datesToCreate = $current->values();
             }
 
             if ($datesToCreate->isNotEmpty()) {

@@ -3,6 +3,7 @@
 use App\Models\Event;
 use App\Models\Organizer;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 
 // Helper: an organizer + member who can host/manage events on it.
 function memberOf(Organizer $organizer, string $type = 'u'): User
@@ -735,4 +736,85 @@ test('a published event with no closing date cannot be cycled through embargo ei
         ->assertOk();
 
     expect($event->fresh()->status)->toBe('p');
+});
+
+// ----- The past-date creation guard is by calendar day where the event is -----
+
+test('an organizer can add a show for tonight after local noon', function () {
+    // The wizard pins every show to 12:00 in the event's timezone and lets
+    // today be picked. A to-the-second guard against now() refused that to
+    // anyone saving in the afternoon — today is today until local midnight.
+    Carbon::setTestNow('2026-08-29 22:00:00'); // 15:00 in Los Angeles
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+    ]);
+    $user = memberOf($organizer);
+    $tonight = '2026-08-29 19:00:00'; // noon in Los Angeles, stored as UTC — three hours "ago" by the clock
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'America/Los_Angeles',
+            'dateArray' => [$tonight],
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([$tonight]);
+    expect($response->json('warning'))->toBeNull();
+});
+
+test('moving the only upcoming show to tonight does not strand the event without shows', function () {
+    // The obsolete show is deleted before the replacement is created, so a
+    // refused replacement would have left nothing behind — the invariant the
+    // empty-schedule guard at the top of saveShows exists to protect.
+    Carbon::setTestNow('2026-08-29 22:00:00');
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+    ]);
+    $event->shows()->create(['date' => '2026-09-05 19:00:00']);
+    $user = memberOf($organizer);
+    $tonight = '2026-08-29 19:00:00';
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'America/Los_Angeles',
+            'dateArray' => [$tonight],
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([$tonight]);
+});
+
+test('yesterday is refused, and named, by the day where the event is', function () {
+    // 03:00 UTC on the 30th is still the evening of the 29th in Los Angeles.
+    // A show at 22:00 LA on the 28th is stored under the 29th in UTC — it is
+    // yesterday, so it is refused, and the warning must say the 28th.
+    Carbon::setTestNow('2026-08-30 03:00:00');
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+    ]);
+    $user = memberOf($organizer);
+    $today = '2026-08-29 20:00:00';     // 13:00 LA on the 29th — today, kept
+    $yesterday = '2026-08-29 05:00:00'; // 22:00 LA on the 28th — refused
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'America/Los_Angeles',
+            'dateArray' => [$today, $yesterday],
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([$today]);
+    expect($response->json('warning'))->toContain('2026-08-28')->not->toContain('2026-08-29');
 });
