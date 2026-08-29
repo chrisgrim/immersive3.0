@@ -45,7 +45,7 @@
                 <div class="nav-search-tabs" :class="{ 'is-collapsed': collapsed }" :aria-hidden="collapsed">
                     <div class="w-full flex justify-center items-center gap-2">
                         <button
-                            @click="activeTab = 'l'"
+                            @click="selectTab('l')"
                             :class="[
                                 'text-gray-500 relative border-none p-4 text-2xl rounded-full transition-all duration-200',
                                 activeTab === 'l' ? 'font-bold' : 'font-normal',
@@ -55,7 +55,7 @@
                             <span class="block" :class="{ 'font-bold text-black': activeTab === 'l' }">Location</span>
                         </button>
                         <button
-                            @click="activeTab = 'e'"
+                            @click="selectTab('e')"
                             :class="[
                                 'text-gray-500 relative border-none p-4 text-2xl rounded-full transition-all duration-200',
                                 activeTab === 'e' ? 'font-bold' : 'font-normal',
@@ -65,7 +65,7 @@
                             <span class="block" :class="{ 'font-bold text-black': activeTab === 'e' }">Name</span>
                         </button>
                         <button
-                            @click="activeTab = 'a'"
+                            @click="selectTab('a')"
                             :class="[
                                 'text-gray-500 relative border-none p-4 text-2xl rounded-full transition-all duration-200',
                                 activeTab === 'a' ? 'font-bold' : 'font-normal',
@@ -119,6 +119,7 @@
                     />
                     <SearchAtHome
                         v-show="activeTab === 'a'"
+                        ref="atHomeSearch"
                         :compact="collapsed"
                         :has-active-filters="hasActiveFilters"
                         :show-filters="showAtHomeFilters"
@@ -160,6 +161,7 @@ import SearchLocation from './Components/location-search.vue';
 import SearchEvent from './Components/events-search.vue';
 import SearchAtHome from './Components/at-home-search.vue';
 import SearchStore from '@/Stores/SearchStore.vue';
+import { rendersMapView } from '@/composables/useSearchView';
 import MapStore from '@/Stores/MapStore.vue';
 
 // Props definition
@@ -303,6 +305,40 @@ const expand = (tab) => {
     ignoreScrollUntil = Date.now() + 500;
 };
 
+const atHomeSearch = ref(null);
+
+// Clicking a tab only swapped which search bar was visible; the incoming one
+// never received focus, so its dropdown stayed shut and you had to click the
+// bar a second time to get at it. Focus is what opens each dropdown (see
+// onInputFocus in both components), so hand it over as part of the click.
+//
+// setTimeout, and the delay is doing real work. v-click-outside binds a
+// bubbling document click listener, so this very click is still travelling up
+// the tree — focusing synchronously (or in a microtask) opens the dropdown
+// and then lets that listener close it again, which is the original bug with
+// an extra step. A macrotask lands after the click has finished dispatching,
+// and after the DOM has updated, which this needs too: the bars are v-show,
+// so the incoming one is still display:none at click time and focus() on a
+// hidden element does nothing.
+//
+// Skipped while collapsed, where only the location bar shows at all and
+// stealing focus would expand the nav unasked.
+const selectTab = (tab) => {
+    activeTab.value = tab;
+
+    if (collapsed.value) return;
+
+    setTimeout(() => {
+        if (collapsed.value || activeTab.value !== tab) return;
+
+        if (tab === 'a') {
+            atHomeSearch.value?.focusInput();
+        } else if (tab === 'l') {
+            locationSearch.value?.focusInput();
+        }
+    }, 0);
+};
+
 const collapse = () => {
     pinnedOpen.value = false;
     // On the homepage, expanded is the resting state at the top of the page
@@ -359,6 +395,12 @@ watch(collapsed, (isCollapsed) => {
 
 // Remove the getUrlParams utility function and replace with computed property
 const urlParams = computed(() => new URLSearchParams(window.location.search));
+
+// Snapshotted from the URL rather than from urlParams, which is a computed
+// over a non-reactive source: it caches its URLSearchParams on first read and
+// the handlers below then mutate that same object, so by the time one runs it
+// may already hold a previous in-page search's params.
+const currentlyRendersMapView = () => rendersMapView(new URLSearchParams(window.location.search));
 
 const updateUrlParams = (params) => {
     window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
@@ -565,6 +607,7 @@ const handleFilterUpdate = async (filters) => {
 };
 
 const handleLocationSearch = (searchData) => {
+    const wasMapView = currentlyRendersMapView();
 
     // Use the updateState method to update the store with search data
     SearchStore.updateState({
@@ -679,8 +722,10 @@ const handleLocationSearch = (searchData) => {
     // decides whether to emit here or redirect on its own — see that
     // component for why it can't live only in this handler).
 
-    // Determine whether to redirect or update URL based on conditions
-    if (hasLocationData && isNewLocation) {
+    // Determine whether to redirect or update URL based on conditions.
+    // The view test covers the date-only branch above, which drops `live` and
+    // so moves a map-view search to the list view without changing the city.
+    if ((hasLocationData && isNewLocation) || rendersMapView(params) !== wasMapView) {
         window.location.href = `/index/search?${params.toString()}`;
     } else {
         updateUrlParams(params);
@@ -690,6 +735,7 @@ const handleLocationSearch = (searchData) => {
 
 const handleAtHomeSearch = (searchData) => {
     const params = urlParams.value;
+    const wasMapView = currentlyRendersMapView();
     const currentRemoteLocation = params.get('remoteLocation');
     const isNewRemoteLocation = currentRemoteLocation !== searchData.remoteLocation;
 
@@ -755,7 +801,12 @@ const handleAtHomeSearch = (searchData) => {
     // time from a non-atHome search) needs a full redirect for the same
     // reason a new city does in handleLocationSearch — otherwise stays in
     // place and re-fetches.
-    if (isNewRemoteLocation) {
+    //
+    // wasMapView catches the case isNewRemoteLocation misses: coming from a
+    // location search and picking "All At Home" leaves remoteLocation null on
+    // both sides, so the type "hasn't changed" — but the page it has to
+    // render has.
+    if (isNewRemoteLocation || wasMapView) {
         window.location.href = `/index/search?${params.toString()}`;
     } else {
         updateUrlParams(params);

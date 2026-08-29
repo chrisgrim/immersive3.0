@@ -930,6 +930,14 @@ function interceptClick(event) {
     }
 }
 
+// See at-home-search.vue's identical helper: focus is what opens the
+// dropdown, so nav-search.vue calls this when switching back to this tab.
+const focusInput = () => {
+    loc.value?.focus();
+};
+
+defineExpose({ focusInput });
+
 function onInputFocus(event) {
     if (props.compact) {
         emit('expand-requested');

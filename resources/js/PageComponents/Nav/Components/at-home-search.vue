@@ -585,6 +585,15 @@ const clearDates = () => {
     date.value = null;
 };
 
+// Focusing the input is what opens the dropdown (see onInputFocus below), so
+// this is how nav-search.vue hands over on a tab switch — without it, showing
+// this bar leaves it focus-less and its dropdown shut.
+const focusInput = () => {
+    typeInput.value?.focus();
+};
+
+defineExpose({ focusInput });
+
 function onInputFocus(event) {
     if (props.compact) {
         emit('expand-requested');
