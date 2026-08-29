@@ -44,8 +44,20 @@ class ZeroDecimalPriceRule implements DataAwareRule, ValidationRule
             return; // `numeric` reports this; don't pile on a second message.
         }
 
-        // "tickets.0.ticket_price" → the currency of that same tier.
+        // "tickets.0.ticket_price" → the name and currency of that same tier.
         $index = explode('.', $attribute)[1] ?? null;
+
+        // A PWYC tier's price is a sentinel, never rendered: the wizard writes
+        // 0.01 to mean "not free, pay what you can", hides the price input,
+        // and every price surface prints "PWYC" in its place (Ticket::
+        // priceRange, show-purchase.vue — same case-insensitive test). No
+        // decimal amount is being quoted, so there is nothing to reject; a
+        // rejection here was one the organizer had no field to act on.
+        $name = data_get($this->data, "tickets.{$index}.name");
+        if (is_string($name) && strtoupper(trim($name)) === 'PWYC') {
+            return;
+        }
+
         $currency = data_get($this->data, "tickets.{$index}.currency");
         $currency = EventUpdateRules::normalizeCurrency($currency);
 

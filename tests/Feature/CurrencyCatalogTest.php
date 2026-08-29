@@ -220,3 +220,22 @@ test('the yuan is not treated as a zero-decimal currency', function () {
 
     expect($passes(99.50))->toBeTrue();
 });
+
+test('a PWYC tier keeps its sentinel price in a zero-decimal currency', function () {
+    // The wizard writes 0.01 for PWYC to mean "not free, pay what you can",
+    // hides the price input, and every price surface prints "PWYC" in its
+    // place (Ticket::priceRange, show-purchase.vue). Rejecting the sentinel
+    // as a fractional ₩ price made a PWYC tier unsaveable in ₩/¥ — with no
+    // field on screen to fix it from.
+    $validate = fn (string $name, float $price) => validator(
+        ['tickets' => [['name' => $name, 'ticket_price' => $price, 'currency' => '₩', 'description' => '']]],
+        EventUpdateRules::rules(),
+        EventUpdateRules::messages(),
+    );
+
+    expect($validate('PWYC', 0.01)->passes())->toBeTrue();
+    // The same case-insensitive, trimmed test the display code applies.
+    expect($validate(' pwyc ', 0.01)->passes())->toBeTrue();
+    // Any other tier is still held to whole numbers.
+    expect($validate('General', 0.01)->passes())->toBeFalse();
+});
