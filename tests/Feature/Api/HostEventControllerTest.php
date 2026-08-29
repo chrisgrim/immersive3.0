@@ -543,3 +543,169 @@ test('duplicate is denied to non-members (403)', function () {
         ->postJson("/api/events/{$event->slug}/duplicate")
         ->assertStatus(403);
 });
+
+/*
+ * The three fences that make a reopened finished event safe. Removing the edit
+ * lock (c3db259) let organizers back into their own archive, which is what we
+ * want — but it also exposed three ways to bring a finished event back to life
+ * or misrepresent it that the lock had been incidentally covering.
+ */
+
+test('closingDate cannot be set directly, so one field cannot revive a finished run', function () {
+    // It is DERIVED from the schedule. Accepted as input, this single field put
+    // a finished event back in search and listings while every show stayed in
+    // the past — an ended run rendered as live, invisible to date search.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'closingDate' => now()->subMonth(),
+    ]);
+    $user = memberOf($organizer);
+    $before = (string) $event->closingDate;
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", ['closingDate' => now()->addYears(4)->format('Y-m-d H:i:s')])
+        ->assertOk();
+
+    expect((string) $event->fresh()->closingDate)->toBe($before);
+});
+
+test('an organizer cannot re-announce a finished event to the organizer followers', function () {
+    // published → embargoed → published is how an event announces itself, and
+    // clearing the embargo mails every follower. events.organizer_notified_at
+    // was added without a backfill, so every older event is unmarked and would
+    // announce again — the whole archive, one toggle away.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 's',
+        'status' => 'p',
+        'closingDate' => now()->subMonth(),
+    ]);
+    $event->shows()->create(['date' => now()->subMonth()->format('Y-m-d H:i:s')]);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [now()->subMonth()->format('Y-m-d H:i:s')],
+            'embargo_date' => now()->addMonth()->format('Y-m-d H:i:s'),
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->status)->toBe('p');
+});
+
+test('embargo still works when the same save gives the event a real future run', function () {
+    // The test is the schedule AFTER the save, not before it — an organizer
+    // relaunching with genuine future dates is embargoing an upcoming run.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 's',
+        'status' => 'p',
+        'closingDate' => now()->subMonth(),
+    ]);
+    $past = now()->subMonth()->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $past]);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [$past, now()->addMonths(2)->format('Y-m-d H:i:s')],
+            'embargo_date' => now()->addMonth()->format('Y-m-d H:i:s'),
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->status)->toBe('e');
+});
+
+test('a moderator can still embargo a finished event', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 's',
+        'status' => 'p',
+        'closingDate' => now()->subMonth(),
+    ]);
+    $past = now()->subMonth()->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $past]);
+    $moderator = User::factory()->create(['type' => 'm']);
+
+    $this->actingAs($moderator)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [$past],
+            'embargo_date' => now()->addMonth()->format('Y-m-d H:i:s'),
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->status)->toBe('e');
+});
+
+test('an organizer cannot invent a show in the past, and is told so', function () {
+    // The mirror of the deletion guard. The ongoing editor regenerates the
+    // whole schedule from its recurrence rule, so ticking an extra weekday on
+    // a finished event would otherwise create real show rows for days it never
+    // ran — which the deletion guard would then make permanent.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'showtype' => 's']);
+    $user = memberOf($organizer);
+    $future = now()->addDays(20)->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $future]);
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [$future, '2019-06-01 19:00:00'],
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->shows()->count())->toBe(1);
+    expect($response->json('warning'))->toContain('2019-06-01');
+});
+
+test('a moderator can backfill a show in the past', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'showtype' => 's']);
+    $moderator = User::factory()->create(['type' => 'm']);
+    $future = now()->addDays(20)->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $future]);
+
+    $this->actingAs($moderator)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [$future, '2019-06-01 19:00:00'],
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('an existing past show is still preserved, not re-rejected as a new one', function () {
+    // The two guards must not collide: a real past occurrence that is already
+    // saved has to survive a re-save, while a NEW past date is refused.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'showtype' => 's']);
+    $user = memberOf($organizer);
+    $past = '2019-06-01 19:00:00';
+    $future = now()->addDays(20)->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $past]);
+    $event->shows()->create(['date' => $future]);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [$past, $future],
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->shows()->count())->toBe(2);
+});

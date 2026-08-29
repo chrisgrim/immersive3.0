@@ -77,7 +77,7 @@ class Show extends Model
         // matches EVERY row) wipe the schedule. The MCP tool and web wizard both
         // reject an empty s/o schedule upstream; this is the last line of defence.
         if (empty($targetDates) && in_array($request->showtype, ['s', 'o'], true)) {
-            return [];
+            return ['preserved' => [], 'rejected' => []];
         }
 
         // Populated inside the transaction below if any already-past show
@@ -85,8 +85,9 @@ class Show extends Model
         // this to tell a non-staff editor why their save didn't fully match
         // what they asked for, rather than silently reporting success.
         $preservedPastDates = [];
+        $rejectedPastDates = [];
 
-        DB::transaction(function () use ($request, $event, $targetDates, $showtypeChanged, $oldDates, $oldTickets, &$preservedPastDates) {
+        DB::transaction(function () use ($request, $event, $targetDates, $showtypeChanged, $oldDates, $oldTickets, &$preservedPastDates, &$rejectedPastDates) {
             // --- Remove obsolete shows in ONE pass. This was an N+1 (a delete
             //     per show plus a delete per show's tickets), which made saving a
             //     large recurring schedule crawl. A show-type switch wipes all;
@@ -127,6 +128,29 @@ class Show extends Model
                 ->reject(fn ($d) => in_array($d, $survivingDates, true))
                 ->values();
 
+            // The mirror of the deletion guard above: a non-moderator may not
+            // INVENT a show that already happened, any more than they may
+            // erase one. Only NEW dates are tested — the surviving ones were
+            // filtered out just above, so a running event's real past
+            // occurrences pass through untouched.
+            //
+            // This matters most on the ongoing editor, which regenerates the
+            // whole date set from (days, start, end): ticking an extra weekday
+            // on an event whose run has ended would otherwise create real show
+            // rows for days it never ran — and the deletion guard would then
+            // make them permanent. The MCP tool rejects these earlier with its
+            // own message; this is the floor under every other write path.
+            if (! auth()->user()?->isModerator()) {
+                $cutoff = now()->format('Y-m-d H:i:s');
+                [$future, $past] = $datesToCreate->partition(fn ($d) => (string) $d >= $cutoff);
+
+                $rejectedPastDates = $past
+                    ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
+                    ->unique()->sort()->values()->all();
+
+                $datesToCreate = $future->values();
+            }
+
             if ($datesToCreate->isNotEmpty()) {
                 $now = now();
                 $datesToCreate
@@ -164,7 +188,11 @@ class Show extends Model
             $event->searchable();
         }
 
-        return $preservedPastDates;
+        // Two lists, two different refusals: dates that already happened and
+        // were KEPT against the caller's wishes, and dates in the past the
+        // caller tried to create and did not get. Both are reported rather
+        // than applied silently — see UpdateEventAction's docblock.
+        return ['preserved' => $preservedPastDates, 'rejected' => $rejectedPastDates];
     }
 
     private static function logDateChanges($event, array $oldDates): void
@@ -381,8 +409,30 @@ class Show extends Model
             if ($event->status === 'e' && ! $request->embargo_date) {
                 $updateData['status'] = 'p';
             } elseif ($event->status === 'p' && $request->embargo_date) {
-                $updateData['status'] = 'e';
-                $event->unsearchable();
+                // Not on a run that has already ended. Published → embargoed →
+                // published is how an event announces itself: clearing the
+                // embargo fires newEventFromFollowedOrganizer, mailing every
+                // follower of the organizer. The one-time claim keys on
+                // events.organizer_notified_at, which was added in Aug 2026
+                // with no backfill — so every older event is unmarked and the
+                // claim succeeds again. While finished events were locked this
+                // was unreachable; now that they are editable, the whole
+                // archive would be a re-announcement away. Staff keep it for
+                // legitimate re-launches.
+                //
+                // Tested against the schedule AFTER this save, so an organizer
+                // adding real future dates in the same request is embargoing a
+                // run that is genuinely upcoming, and is allowed.
+                $closing = $updateData['closingDate'] ?? $event->closingDate;
+                $hasEnded = $closing !== null && Carbon::parse($closing)->isPast();
+
+                // Skip only the embargo transition — the rest of $updateData
+                // (the recomputed closingDate, start_date, showtype) still has
+                // to be written, so this must not return early.
+                if (! $hasEnded || auth()->user()?->isModerator()) {
+                    $updateData['status'] = 'e';
+                    $event->unsearchable();
+                }
             }
         }
 

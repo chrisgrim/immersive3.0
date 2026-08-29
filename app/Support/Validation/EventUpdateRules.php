@@ -175,7 +175,13 @@ class EventUpdateRules
             'interactive_level_id' => 'nullable|exists:interactive_levels,id',
             'description' => 'sometimes|string|min:1|max:5000',
             'name' => 'sometimes|string|max:100|regex:/[\p{L}\p{N}]/u',
-            'closingDate' => 'nullable|date',
+            // closingDate is DERIVED from the schedule (Show::calculateLastDate),
+            // never submitted. Accepting it let one field revive a finished
+            // event: POST {"closingDate": "2030-01-01"} put it back in search
+            // and listings while every show stayed in the past — a run that
+            // has ended, rendered as live, and invisible to date search. The
+            // MCP tool already refused it for exactly this reason
+            // (UpdateEvent::DERIVED); the web path never did.
             'websiteUrl' => 'sometimes|url|max:255',
             'ticketUrl' => 'nullable|url|max:255',
             'show_times' => 'nullable|string|max:500',

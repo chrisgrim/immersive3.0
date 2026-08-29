@@ -42,6 +42,18 @@ class UpdateEventAction
      */
     public array $preservedPastDates = [];
 
+    /**
+     * Dates in the past the caller asked to CREATE and did not get.
+     *
+     * The mirror of $preservedPastDates: Show::saveShows() refuses to invent a
+     * show that already happened for a non-moderator, just as it refuses to
+     * erase one. Reported for the same reason — the saved schedule does not
+     * match what was submitted, and saying so beats an unqualified success.
+     *
+     * @var array<int, string>
+     */
+    public array $rejectedPastDates = [];
+
     public function handle(Event $event, array $validatedData, Request $request): Event
     {
         $wasPublished = in_array($event->status, ['p', 'e']);
@@ -134,7 +146,9 @@ class UpdateEventAction
                 // favoriters actually saved the event under, not the new one.
                 $datesBeforeUpdate = $event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
 
-                $this->preservedPastDates = Show::saveShows($request, $event);
+                $showResult = Show::saveShows($request, $event);
+                $this->preservedPastDates = $showResult['preserved'];
+                $this->rejectedPastDates = $showResult['rejected'];
                 Show::updateEvent($request, $event, $oldShowtype);
 
                 $this->notifyIfNewDatesAdded($event, $datesBeforeUpdate);

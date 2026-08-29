@@ -88,10 +88,23 @@ class HostEventController extends Controller
         // See UpdateEventAction::$preservedPastDates — normally unreachable
         // through the wizard's own calendar UI (past dates aren't
         // selectable there), but a direct API call could still attempt it.
+        $warnings = [];
+
         if (! empty($updateEvent->preservedPastDates)) {
-            $response['warning'] = 'Dates that have already passed ('
+            $warnings[] = 'Dates that have already passed ('
                 .implode(', ', $updateEvent->preservedPastDates)
                 .') were kept and not removed. Only admins and moderators can remove past dates.';
+        }
+
+        // The mirror refusal — see UpdateEventAction::$rejectedPastDates.
+        if (! empty($updateEvent->rejectedPastDates)) {
+            $warnings[] = 'Dates in the past ('
+                .implode(', ', $updateEvent->rejectedPastDates)
+                .') were not added. Only admins and moderators can add dates that have already passed.';
+        }
+
+        if ($warnings) {
+            $response['warning'] = implode(' ', $warnings);
         }
 
         return response()->json($response, 200);
