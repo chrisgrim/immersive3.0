@@ -99,8 +99,7 @@ class EventUpdateRules
      * legitimate tiers (admission vs guided tour, each split adult/child, plus
      * packages and a free under-5). Now that the cap is actually enforced, one
      * set below the largest existing show would fail validation the next time
-     * a moderator saved that event — and moderators are exempt from the
-     * past-event edit lock, so they are exactly who would hit it.
+     * anyone saved that event.
      *
      * Keep tickets.vue's own MAX_TICKET_TIERS in step — asserted by
      * tests/Feature/TicketTierLimitTest.php, since a Vue constant can't import
