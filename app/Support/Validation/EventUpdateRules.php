@@ -2,6 +2,8 @@
 
 namespace App\Support\Validation;
 
+use App\Rules\ZeroDecimalPriceRule;
+
 /**
  * The canonical partial-update validation contract for events.
  *
@@ -239,9 +241,15 @@ class EventUpdateRules
             // send a partial tier — they get a field error now instead of an
             // "Undefined array key" 500.
             'tickets.*.name' => 'required_with:tickets|string|max:40',
-            'tickets.*.ticket_price' => 'required_with:tickets|numeric|min:0|max:'.self::MAX_TICKET_PRICE,
             'tickets.*.description' => 'sometimes|nullable|string|max:200',
             'tickets.*.currency' => 'required_with:tickets|string|in:'.implode(',', self::CURRENCIES),
+            // A currency with no minor unit has no fractional price — see
+            // ZeroDecimalPriceRule for why this is rejected on the way in
+            // rather than rounded on the way out.
+            'tickets.*.ticket_price' => [
+                'required_with:tickets', 'numeric', 'min:0', 'max:'.self::MAX_TICKET_PRICE,
+                new ZeroDecimalPriceRule,
+            ],
             // Relaxed validation for images
             'images' => 'nullable|array',
             'images.*' => [

@@ -656,13 +656,20 @@ const handleLocationSearch = (searchData) => {
     if (hasLocationData) {
         isNewLocation = currentCity !== searchData.location.city;
 
+        // Unconditional: a location search IS an in-person search, whatever
+        // the URL said before. This used to sit inside the isNewLocation
+        // branch, so searching the SAME city from an At Home results page
+        // that still carried a city param left searchType=atHome in place —
+        // the store switched to in-person while the request went on asking
+        // for remote events.
+        params.set('searchType', 'inPerson');
+
         // Clear map bounds if location has changed
         if (isNewLocation) {
             params.delete('NElat');
             params.delete('NElng');
             params.delete('SWlat');
             params.delete('SWlng');
-            params.set('searchType', 'inPerson');
             params.set('live', 'false');
         }
 

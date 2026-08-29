@@ -104,8 +104,21 @@ test('a ticket priced in a zero-decimal currency validates', function () {
     )->passes();
 
     expect($validate(144000))->toBeTrue('144,000 KRW is an ordinary ticket price');
-    expect($validate(EventUpdateRules::MAX_TICKET_PRICE))->toBeTrue();
+    // The ceiling as a WHOLE number — the .99 form of it is rejected in a
+    // zero-decimal currency by ZeroDecimalPriceRule, which is the point.
+    expect($validate(999999))->toBeTrue();
     expect($validate(1000000))->toBeFalse('past the column ceiling, so still rejected');
+});
+
+test('the ceiling itself is reachable in a currency that has decimals', function () {
+    $passes = fn (float $price) => validator(
+        ['tickets' => [['name' => 'General', 'ticket_price' => $price, 'currency' => '$', 'description' => '']]],
+        EventUpdateRules::rules(),
+        EventUpdateRules::messages(),
+    )->passes();
+
+    expect($passes(EventUpdateRules::MAX_TICKET_PRICE))->toBeTrue();
+    expect($passes(1000000))->toBeFalse();
 });
 
 test('the price cap explains itself rather than failing bare', function () {
@@ -167,4 +180,24 @@ test('every Vue copy of the zero-decimal list matches the backend', function () 
 
         expect($symbols[1])->toBe(EventUpdateRules::ZERO_DECIMAL_CURRENCIES, "{$file} disagrees with the backend");
     }
+});
+
+test('a currency with no minor unit rejects a fractional price', function () {
+    // Otherwise 144000.50 in ₩ is stored happily, then shown as "144000.5"
+    // in the editor and "₩144001" on the live listing — a page quoting a
+    // price the database does not hold.
+    $validate = fn (string $currency, float $price) => validator(
+        ['tickets' => [['name' => 'General', 'ticket_price' => $price, 'currency' => $currency, 'description' => '']]],
+        EventUpdateRules::rules(),
+        EventUpdateRules::messages(),
+    );
+
+    expect($validate('₩', 144000.50)->passes())->toBeFalse();
+    expect($validate('¥', 1500.25)->passes())->toBeFalse();
+    expect($validate('CN¥', 99.99)->passes())->toBeFalse();
+
+    // Whole numbers are fine, and currencies WITH a minor unit are untouched.
+    expect($validate('₩', 144000)->passes())->toBeTrue();
+    expect($validate('$', 17.50)->passes())->toBeTrue();
+    expect($validate('€', 0.99)->passes())->toBeTrue();
 });

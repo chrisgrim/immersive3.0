@@ -533,6 +533,14 @@ const updateTicketPrice = (e) => {
         return;
     }
 
+    // A currency with no minor unit has no fractional price — the backend
+    // rejects one (ZeroDecimalPriceRule), so don't let the input create one.
+    // Dropping the separator as you type beats accepting "144000.5" and
+    // failing on save, and beats rounding it behind your back.
+    if (ZERO_DECIMAL_CURRENCIES.includes(activeCurrency())) {
+        value = value.split('.')[0];
+    }
+
     const decimalIndex = value.indexOf('.');
     if (decimalIndex !== -1) {
         value = value.substring(0, decimalIndex + 1) + 
