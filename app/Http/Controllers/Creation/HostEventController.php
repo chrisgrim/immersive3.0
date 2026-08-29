@@ -20,32 +20,24 @@ class HostEventController extends Controller
         $this->nameChangeService = $nameChangeService;
     }
 
-    /**
-     * Events whose run has already fully ended can't be edited (unless
-     * you're staff) — editing a historical record and creating a new event
-     * are different intents, and rewriting a past event's dates/details
-     * would misrepresent what actually happened. Moderators/admins stay
-     * exempt: they use this same edit path for legitimate historical
-     * corrections (e.g. backfilling old records), which the MCP tools also
-     * already allow them to do on any event regardless of status.
+    /*
+     * A finished run is NOT read-only. Editing one used to 403 for anyone but
+     * a moderator, on the reasoning that rewriting a past event's details
+     * misrepresents what happened — but it also blocked the most ordinary
+     * reason an organizer comes back to a finished event: they are running
+     * the show again and want to add dates. Their only route was duplicating,
+     * which starts a new listing at a new URL and abandons the original's
+     * favourites, click stats and search history.
      *
-     * A null closingDate is NOT "already happened" — it means no schedule
-     * has been set yet (a draft still mid-creation), which is exactly the
-     * normal, must-stay-editable state every new event starts in.
+     * What actually protects the record is narrower and lives deeper: Show::
+     * saveShows() refuses to delete a show whose date has already passed for
+     * any non-moderator, on every write path, and reports the ones it kept.
+     * So the history cannot be erased, only added to — which is the real
+     * invariant, and it holds without locking the whole event.
      */
-    private function assertEditable(Event $event): void
-    {
-        abort_if(
-            $event->closingDate !== null && ! $event->isShowing && ! auth()->user()->isModerator(),
-            403,
-            'This event has already happened and can no longer be edited. Please create a new event instead.'
-        );
-    }
 
     public function edit(Event $event)
     {
-        $this->assertEditable($event);
-
         $event->load([
             'shows.tickets',
             'location',
@@ -72,8 +64,6 @@ class HostEventController extends Controller
 
     public function update(StoreEventRequest $request, Event $event, UpdateEventAction $updateEvent)
     {
-        $this->assertEditable($event);
-
         $validatedData = $request->validated();
 
         // Check for duplicate event names if name is being updated (skip if user acknowledged)

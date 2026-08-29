@@ -447,6 +447,17 @@ provide('isSidebarCollapsed', isSidebarHidden);
 onMounted(() => {
     updateContainerWidth();
     window.addEventListener('resize', updateContainerWidth);
+
+    // Open on the step a ?view= deep link asks for, the way the creation
+    // wizard (Core/index.vue) already does. This editor is what a PUBLISHED
+    // event opens in, so without it the dashboard's link straight to Dates
+    // for a finished run — the one step an organizer came back for — landed
+    // on Name instead, with the param sitting in the URL doing nothing.
+    // setStep() validates against steps, so an unknown value is ignored.
+    const viewStep = new URLSearchParams(window.location.search).get('view');
+    if (viewStep) {
+        setStep(viewStep);
+    }
 });
 
 // Paired with the addEventListener above — window outlives this component,

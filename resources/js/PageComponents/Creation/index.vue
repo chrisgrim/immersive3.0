@@ -326,49 +326,6 @@
 			</div>
 		</div>
 
-		<!-- Past Event Modal -->
-		<teleport to="body">
-			<div v-if="pastEvent"
-				 class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50"
-				 @click="closePastEventModal">
-				<div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-3xl rounded-t-2xl shadow-xl p-8 md:p-16 relative"
-					 role="dialog"
-					 aria-modal="true"
-					 aria-labelledby="past-event-title"
-					 @click.stop>
-					<div class="text-center">
-						<svg class="mx-auto h-12 md:h-16 w-12 md:w-16 text-gray-400 mb-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-							<rect x="3" y="5" width="18" height="16" rx="2" />
-							<path stroke-linecap="round" d="M3 10h18M8 3v4M16 3v4" />
-							<path stroke-linecap="round" d="M9 15l6 4M15 15l-6 4" />
-						</svg>
-
-						<h3 id="past-event-title" class="text-2xl md:text-4xl mb-4 break-words hyphens-auto">
-							<span class="font-bold">{{ pastEvent.name }}</span> has finished its run
-						</h3>
-
-						<p class="text-xl text-gray-600 mb-10 max-w-xl mx-auto leading-normal">
-							Its last date was {{ cleanDate(pastEvent.closingDate) }}, so it stays on the site as a record of what happened and can no longer be edited. Running the show again? Start a new listing from this one — we'll copy across the description, location, images and advisories, and you just add the new dates and tickets.
-						</p>
-
-						<div class="flex flex-col md:flex-row gap-3 md:gap-4 md:justify-center">
-							<button
-								@click="relistPastEvent"
-								:disabled="relisting"
-								class="w-full md:w-auto px-8 py-4 bg-black text-white rounded-xl hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed">
-								{{ relisting ? 'Starting…' : 'Start a new listing' }}
-							</button>
-							<button
-								@click="closePastEventModal"
-								class="w-full md:w-auto px-8 py-4 border border-black rounded-xl hover:bg-gray-100">
-								Close
-							</button>
-						</div>
-					</div>
-				</div>
-			</div>
-		</teleport>
-
 		<!-- Name Change Modal -->
 		<teleport to="body">
 			<div v-if="showNameChangeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
@@ -476,20 +433,6 @@ const viewEvent = (event) => {
 	window.location.href = `/events/${event.slug}`;
 };
 
-// Mirrors HostEventController::assertEditable() exactly, including its
-// moderator exemption and its "a null closingDate is not 'already happened'"
-// rule (that's a draft with no schedule yet, the state every event starts in).
-// The server still refuses — this only replaces a dead-end "403 Access
-// Denied" page with an explanation and the action the organizer wanted.
-//
-// Deliberately NOT isPastEvent() below: that one groups the dashboard's own
-// list and only counts published events, so a rejected or embargoed event
-// whose dates have passed is "not past" for display while still being
-// refused by the server. Two different questions, two predicates.
-const isEditLocked = (event) => {
-	return Boolean(event.closingDate) && !event.isShowing && !props.user?.isModerator;
-};
-
 const editEvent = (event) => {
 
 	if (event.status === 'r') {
@@ -497,12 +440,6 @@ const editEvent = (event) => {
 		return;
 	}
 
-	if (isEditLocked(event)) {
-		pastEvent.value = event;
-		closeModal();
-		return;
-	}
-	
 	// Get the status info to determine the correct view
 	const statusInfo = getStatusInfo(event, cleanDate);
 
@@ -536,7 +473,10 @@ const eventPassed = (event) => {
 const getStatusInfo = (event, cleanDateFn) => {
 
 	if (eventPassed(event)) {
-		return { color: 'bg-slate-200', progress: 'event has no more dates', url: `/hosting/event/${event.slug}/edit` };
+		// Straight to Dates rather than the wizard's first step: a finished
+		// run is editable again, and adding dates is why an organizer comes
+		// back to one. Landing on "What's your event called?" buries that.
+		return { color: 'bg-slate-200', progress: 'event has no more dates', url: `/hosting/event/${event.slug}/edit?view=Dates` };
 	}
 
 	// Map status codes to steps and their info
@@ -708,39 +648,6 @@ const selectFilter = (id) => {
 	currentFilter.value = id;
 	isOpen.value = false;
 };
-
-// The event an organizer just tried to edit after its run ended.
-const pastEvent = ref(null);
-
-const closePastEventModal = () => {
-	pastEvent.value = null;
-};
-
-// Duplicating is the answer to "so what do I do instead?": Event::duplicate()
-// copies the description, location, images and advisories but deliberately
-// drops the dates, tickets and closing date, which is exactly the shape of a
-// new run of the same show. No confirm() here — this modal IS the prompt.
-const relistPastEvent = async () => {
-	const event = pastEvent.value;
-	if (!event) return;
-
-	relisting.value = true;
-
-	try {
-		const response = await axios.post(`/api/events/${event.slug}/duplicate`);
-		window.location.href = `/hosting/event/${response.data.event.slug}/edit`;
-	} catch (error) {
-		relisting.value = false;
-		if (error.response?.status === 422) {
-			alert(error.response.data.message);
-		} else {
-			console.error('Error duplicating event:', error);
-			alert('Failed to start a new listing. Please try again.');
-		}
-	}
-};
-
-const relisting = ref(false);
 
 const duplicateEvent = async (event) => {
 	if (confirm('Are you sure you want to duplicate this event?')) {

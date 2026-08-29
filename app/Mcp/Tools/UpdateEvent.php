@@ -95,14 +95,10 @@ class UpdateEvent extends Tool
             return Response::error('You do not have permission to edit this event.');
         }
 
-        // Same rule as HostEventController::assertEditable() (the web
-        // wizard's equivalent) — an event whose run has already fully ended
-        // can't be edited unless you're staff. Moderators/admins stay
-        // exempt for legitimate historical corrections. A null closingDate
-        // means no schedule has been set yet, not "already happened".
-        if ($event->closingDate !== null && ! $event->isShowing && ! $user->isModerator()) {
-            return Response::error('This event has already happened and can no longer be edited. Please create a new event instead.');
-        }
+        // A finished run is editable — see the note in HostEventController
+        // where the matching web-wizard lock used to be. What stops history
+        // being rewritten is Show::saveShows() refusing to delete an
+        // already-passed show for a non-moderator, not a lock on the event.
 
         // Site rule: once submitted, an event is locked until an admin
         // approves or rejects it (moderators can still edit).

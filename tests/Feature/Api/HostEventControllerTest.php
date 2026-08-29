@@ -202,7 +202,18 @@ test('update is denied to non-members (403)', function () {
         ->assertStatus(403);
 });
 
-test('update rejects editing an event whose run has already fully ended', function () {
+/*
+ * A finished run used to be refused outright for anyone but a moderator. That
+ * also blocked the most ordinary reason an organizer returns to one — they are
+ * running the show again and want to add dates — leaving them only the
+ * duplicate flow, which starts a new listing at a new URL and abandons the
+ * original's favourites and click stats.
+ *
+ * It is editable now. The record is protected by the narrower rule below
+ * instead: Show::saveShows() will not DELETE an already-passed show for a
+ * non-moderator, so history can be added to but not erased.
+ */
+test('an organizer can edit an event whose run has already fully ended', function () {
     $organizer = Organizer::factory()->create();
     $event = Event::factory()->create([
         'organizer_id' => $organizer->id,
@@ -212,13 +223,68 @@ test('update rejects editing an event whose run has already fully ended', functi
     $user = memberOf($organizer);
 
     $this->actingAs($user)
-        ->postJson("/api/hosting/event/{$event->slug}", ['description' => 'Rewriting history.'])
-        ->assertStatus(403);
+        ->postJson("/api/hosting/event/{$event->slug}", ['description' => 'Back for another run.'])
+        ->assertOk();
 
-    expect($event->fresh()->description)->toBe('Original.');
+    expect($event->fresh()->description)->toBe('Back for another run.');
 });
 
-test('update allows a moderator to edit an event whose run has already fully ended', function () {
+test('an organizer can add a future date to a finished run, reviving it', function () {
+    // The whole point of reopening these: a new date moves closingDate, and
+    // the event comes back to life at its own URL rather than as a new listing.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 's',
+        'closingDate' => now()->subMonth(),
+    ]);
+    $user = memberOf($organizer);
+    $tz = 'America/Los_Angeles';
+    $past = now($tz)->subMonth()->format('Y-m-d H:i:s');
+    $future = now($tz)->addDays(30)->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $past]);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => $tz,
+            'dateArray' => [$past, $future],
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->shows()->count())->toBe(2);
+    expect($event->fresh()->isShowing)->toBeTrue();
+});
+
+test('reopening the event does not let an organizer erase its past dates', function () {
+    // The guarantee that replaced the blanket lock. Without this, "editable
+    // again" would quietly mean "rewritable", which is what the lock existed
+    // to prevent in the first place.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 's',
+        'closingDate' => now()->subMonth(),
+    ]);
+    $user = memberOf($organizer);
+    $tz = 'America/Los_Angeles';
+    $past = '2020-01-01 12:00:00';
+    $future = now($tz)->addDays(30)->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $past]);
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => $tz,
+            'dateArray' => [$future],
+        ])
+        ->assertOk();
+
+    expect($response->json('warning'))->toContain('2020-01-01');
+    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d))->toContain($past);
+});
+
+test('a moderator can still edit an event whose run has already fully ended', function () {
     $organizer = Organizer::factory()->create();
     $event = Event::factory()->create([
         'organizer_id' => $organizer->id,
@@ -234,7 +300,7 @@ test('update allows a moderator to edit an event whose run has already fully end
     expect($event->fresh()->description)->toBe('Historical correction.');
 });
 
-test('edit GET rejects loading the edit form for an event whose run has already ended', function () {
+test('the edit form loads for an event whose run has already ended', function () {
     $organizer = Organizer::factory()->create();
     $event = Event::factory()->create([
         'organizer_id' => $organizer->id,
@@ -244,7 +310,7 @@ test('edit GET rejects loading the edit form for an event whose run has already 
 
     $this->actingAs($user)
         ->get("/hosting/event/{$event->slug}/edit")
-        ->assertStatus(403);
+        ->assertOk();
 });
 
 test('update still allows editing a draft event with no closingDate set yet', function () {
