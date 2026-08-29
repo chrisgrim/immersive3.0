@@ -423,8 +423,15 @@ class Show extends Model
                 // Tested against the schedule AFTER this save, so an organizer
                 // adding real future dates in the same request is embargoing a
                 // run that is genuinely upcoming, and is allowed.
+                // A null closingDate does NOT prove the run is upcoming. On a
+                // DRAFT it means "no schedule yet" — but this branch only runs
+                // for an already-published event, where it means we cannot
+                // tell when the run ends, and the permissive reading would
+                // hand the whole announcement path back to any organizer whose
+                // event happens to have one. Refuse unless we can positively
+                // see a future closing date.
                 $closing = $updateData['closingDate'] ?? $event->closingDate;
-                $hasEnded = $closing !== null && Carbon::parse($closing)->isPast();
+                $hasEnded = $closing === null || Carbon::parse($closing)->isPast();
 
                 // Skip only the embargo transition — the rest of $updateData
                 // (the recomputed closingDate, start_date, showtype) still has

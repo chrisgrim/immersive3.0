@@ -189,9 +189,10 @@ const getDates = () => {
     }
 };
 
-// ¥/CN¥/₩ (JPY/CNY/KRW) have no minor unit — same list/reasoning as
+// ¥/₩ (JPY/KRW) have no minor unit — CN¥ does NOT belong here,
+// the yuan subdivides into 100 fen (see EventUpdateRules::ZERO_DECIMAL_CURRENCIES) — same list/reasoning as
 // show-purchase.vue's identical fix.
-const ZERO_DECIMAL_CURRENCIES = ['¥', 'CN¥', '₩'];
+const ZERO_DECIMAL_CURRENCIES = ['¥', '₩'];
 const formatTicketPrice = (ticket) => {
     // Check if ticket name is PWYC (case insensitive)
     if (ticket.name && ticket.name.toUpperCase().trim() === 'PWYC') {

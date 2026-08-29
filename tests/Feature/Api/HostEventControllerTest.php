@@ -709,3 +709,30 @@ test('an existing past show is still preserved, not re-rejected as a new one', f
 
     expect($event->fresh()->shows()->count())->toBe(2);
 });
+
+test('a published event with no closing date cannot be cycled through embargo either', function () {
+    // A null closingDate proves nothing about whether the run is upcoming.
+    // The permissive reading handed the announcement path back to any
+    // organizer whose event happened to have one.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 's',
+        'status' => 'p',
+        'closingDate' => null,
+    ]);
+    $past = now()->subMonth()->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $past]);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [$past],
+            'embargo_date' => now()->addMonth()->format('Y-m-d H:i:s'),
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->status)->toBe('p');
+});

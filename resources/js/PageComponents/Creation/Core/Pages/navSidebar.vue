@@ -441,9 +441,10 @@ const ticketCount = computed(() => {
     return props.event.shows?.[0]?.tickets?.length || 0;
 });
 
-// ¥/CN¥/₩ (JPY/CNY/KRW) have no minor unit — same list/reasoning as
+// ¥/₩ (JPY/KRW) have no minor unit — CN¥ does NOT belong here,
+// the yuan subdivides into 100 fen (see EventUpdateRules::ZERO_DECIMAL_CURRENCIES) — same list/reasoning as
 // show-purchase.vue's identical fix.
-const ZERO_DECIMAL_CURRENCIES = ['¥', 'CN¥', '₩'];
+const ZERO_DECIMAL_CURRENCIES = ['¥', '₩'];
 const ticketPriceRange = computed(() => {
     const tickets = props.event.shows?.[0]?.tickets || [];
     if (!tickets.length) return 'No tickets set';

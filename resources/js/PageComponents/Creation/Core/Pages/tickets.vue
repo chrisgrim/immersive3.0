@@ -297,10 +297,11 @@ const MAX_TICKET_PRICE = 999999.99;
 // Digits allowed before the decimal point, derived so the input can never
 // truncate a value the cap above would have accepted.
 const MAX_PRICE_DIGITS = String(Math.floor(MAX_TICKET_PRICE)).length;
-// ¥/CN¥/₩ (JPY/CNY/KRW) have no minor unit, so "₩144000.00" is not how that
+// ¥/₩ (JPY/KRW) have no minor unit — CN¥ does NOT belong here,
+// the yuan subdivides into 100 fen (see EventUpdateRules::ZERO_DECIMAL_CURRENCIES), so "₩144000.00" is not how that
 // amount is ever written. Must match EventUpdateRules::ZERO_DECIMAL_CURRENCIES
 // (asserted by tests/Feature/CurrencyCatalogTest.php).
-const ZERO_DECIMAL_CURRENCIES = ['¥', 'CN¥', '₩'];
+const ZERO_DECIMAL_CURRENCIES = ['¥', '₩'];
 
 // The input's displayed value for a stored price. Zero-decimal currencies are
 // rendered as-is rather than with toFixed(0): toFixed ROUNDS, so a stored

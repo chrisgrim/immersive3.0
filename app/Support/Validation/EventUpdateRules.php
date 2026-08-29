@@ -59,12 +59,16 @@ class EventUpdateRules
     /**
      * Currencies with no minor unit, where a price is written without decimals.
      *
-     * JPY, CNY and KRW have no "cents", so "¥1234.00" and "₩144000.00" are
-     * both wrong — the trailing .00 is not how those amounts are ever
-     * written. The list was inline in six places (the event page's blade
-     * twice, show-purchase.vue and its mobile twin, navSidebar.vue,
-     * review.vue, EventReview.vue) before it was needed in the wizard's
-     * price input as well, which would have made seven.
+     * JPY and KRW have no "cents", so "¥1234.00" and "₩144000.00" are both
+     * wrong — the trailing .00 is not how those amounts are ever written.
+     *
+     * CN¥ is deliberately NOT here, though it was in all six inline copies
+     * this list replaced (the event page's blade twice, show-purchase.vue and
+     * its mobile twin, navSidebar.vue, review.vue, EventReview.vue). The yuan
+     * subdivides into 100 fen — ISO 4217 gives CNY an exponent of 2, same as
+     * USD — so ¥99.50 is an ordinary price. As a display-only list the error
+     * merely dropped the decimals; once a validation rule was hung off it, it
+     * would have rejected legitimate CNY prices outright.
      *
      * The blade reads this directly; the Vue copies can't import a PHP
      * constant, so tests/Feature/CurrencyCatalogTest.php asserts each of them
@@ -72,7 +76,7 @@ class EventUpdateRules
      *
      * @var array<int, string>
      */
-    public const ZERO_DECIMAL_CURRENCIES = ['¥', 'CN¥', '₩'];
+    public const ZERO_DECIMAL_CURRENCIES = ['¥', '₩'];
 
     /**
      * How many decimal places a price in this currency is written with.

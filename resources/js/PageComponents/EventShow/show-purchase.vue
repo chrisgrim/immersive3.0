@@ -154,12 +154,13 @@ const props = defineProps({
     user: Object
 });
 
-// ¥/CN¥/₩ (JPY/CNY/KRW) have no minor unit — same list and reasoning as
+// ¥/₩ (JPY/KRW) have no minor unit — CN¥ does NOT belong here,
+// the yuan subdivides into 100 fen (see EventUpdateRules::ZERO_DECIMAL_CURRENCIES) — same list and reasoning as
 // events/show.blade.php's and EventReview.vue's identical price formatting.
 // Needed here specifically because ticket_price arrives as a fixed 2-decimal
 // string straight from the decimal-column cast (e.g. "17.00"), so a
 // zero-decimal currency shows the same wrong ".00" unless reformatted.
-const ZERO_DECIMAL_CURRENCIES = ['¥', 'CN¥', '₩'];
+const ZERO_DECIMAL_CURRENCIES = ['¥', '₩'];
 const formatTicketPrice = (ticket) => {
     // Check if ticket name is PWYC (case insensitive)
     if (ticket.name && ticket.name.toUpperCase().trim() === 'PWYC') {

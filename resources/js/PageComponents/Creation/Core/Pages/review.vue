@@ -326,7 +326,7 @@ const formatEmbargoDate = (date) => {
 // queue's EventReview.vue (this is the wizard's own final-review step,
 // so an organizer pricing in a non-USD currency saw the wrong symbol
 // right before submitting, not just admins reviewing it after).
-const ZERO_DECIMAL_CURRENCIES = ['¥', 'CN¥', '₩'];
+const ZERO_DECIMAL_CURRENCIES = ['¥', '₩'];
 const formatTicketPrice = (ticket) => {
     const currency = ticket.currency || '$';
     const decimals = ZERO_DECIMAL_CURRENCIES.includes(currency) ? 0 : 2;

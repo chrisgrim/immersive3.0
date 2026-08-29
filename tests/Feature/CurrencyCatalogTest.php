@@ -145,7 +145,8 @@ test('every zero-decimal currency is a currency that exists', function () {
 test('decimalsFor drops the decimals only for those currencies', function () {
     expect(EventUpdateRules::decimalsFor('₩'))->toBe(0);
     expect(EventUpdateRules::decimalsFor('¥'))->toBe(0);
-    expect(EventUpdateRules::decimalsFor('CN¥'))->toBe(0);
+    // CN¥ has a minor unit (100 fen), unlike the two above.
+    expect(EventUpdateRules::decimalsFor('CN¥'))->toBe(2);
     expect(EventUpdateRules::decimalsFor('$'))->toBe(2);
     expect(EventUpdateRules::decimalsFor('€'))->toBe(2);
     // An unknown or absent currency must not silently lose its decimals.
@@ -194,10 +195,28 @@ test('a currency with no minor unit rejects a fractional price', function () {
 
     expect($validate('₩', 144000.50)->passes())->toBeFalse();
     expect($validate('¥', 1500.25)->passes())->toBeFalse();
-    expect($validate('CN¥', 99.99)->passes())->toBeFalse();
 
-    // Whole numbers are fine, and currencies WITH a minor unit are untouched.
+    // Whole numbers are fine, and currencies WITH a minor unit are untouched
+    // — CN¥ among them: the yuan subdivides into 100 fen.
     expect($validate('₩', 144000)->passes())->toBeTrue();
     expect($validate('$', 17.50)->passes())->toBeTrue();
     expect($validate('€', 0.99)->passes())->toBeTrue();
+    expect($validate('CN¥', 99.99)->passes())->toBeTrue();
+});
+
+test('the yuan is not treated as a zero-decimal currency', function () {
+    // CN¥ was in all six inline copies this list replaced, wrongly: the yuan
+    // subdivides into 100 fen and ISO 4217 gives CNY an exponent of 2. As a
+    // display-only list that just dropped the decimals; with a validation rule
+    // hung off it, it would reject legitimate prices outright.
+    expect(EventUpdateRules::ZERO_DECIMAL_CURRENCIES)->not->toContain('CN¥');
+    expect(EventUpdateRules::decimalsFor('CN¥'))->toBe(2);
+
+    $passes = fn (float $price) => validator(
+        ['tickets' => [['name' => 'General', 'ticket_price' => $price, 'currency' => 'CN¥', 'description' => '']]],
+        EventUpdateRules::rules(),
+        EventUpdateRules::messages(),
+    )->passes();
+
+    expect($passes(99.50))->toBeTrue();
 });
