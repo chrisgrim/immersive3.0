@@ -1,20 +1,19 @@
 <?php
 
 /**
- * The share button's handler lives on `window`, assigned by an inline script
+ * The Share button's handler lives on `window`, assigned by an inline script
  * in show.blade.php, while the button itself is a Vue component emitting
- * `share`. That makes every `@share` binding a Vue template expression, not a
- * DOM onclick — it compiles to a `with(_ctx)` lookup that only reaches a
- * global by falling through the component proxy.
+ * `share` from inside Blade. That makes every `@share` binding a runtime-
+ * compiled Vue template expression, evaluated inside `with(_ctx)` — and Vue's
+ * runtime proxy claims every identifier that is not on its short globals
+ * allowlist, `window` included. So a binding can reach the handler ONLY
+ * through something registered on app.config.globalProperties, which is what
+ * resources/js/bladeBridge.js does. (Sentry EI-VUE-12 and EI-VUE-15 were this,
+ * not the DOMContentLoaded race two earlier fixes assumed.)
  *
- * A bare `handleShare()` there has reported "handleShare is not a function"
- * from production twice: Sentry EI-VUE-12, and EI-VUE-15 again after the
- * first fix moved the assignment out of DOMContentLoaded. Rather than guess
- * at a third timing fix, the bindings name `window` explicitly and call
- * optionally, so a missing handler is a no-op rather than a thrown error.
- *
- * This is the guard on that, because the failure only shows up in production
- * on a real tap and there is nothing else asserting the binding's shape.
+ * tests/js/blade-bridge.spec.js proves the mechanism by mounting the real
+ * bindings and clicking. This is the cheap PHP-side tripwire on the shape:
+ * every binding must call the name the bridge registers, and nothing else.
  */
 function shareBindingSources(): array
 {
@@ -24,7 +23,10 @@ function shareBindingSources(): array
     ];
 }
 
-test('every @share binding calls through window explicitly', function () {
+test('every @share binding calls the handler the Blade bridge registers', function () {
+    $bridge = file_get_contents(resource_path('js/bladeBridge.js'));
+    expect(str_contains($bridge, 'globalProperties.toggleShareModal'))->toBeTrue();
+
     foreach (shareBindingSources() as $file => $source) {
         preg_match_all('/@share="([^"]+)"/', $source, $matches);
 
@@ -35,18 +37,21 @@ test('every @share binding calls through window explicitly', function () {
             // and a message passed as its second argument silently becomes
             // another thing it searches for (same trap noted in
             // CurrencyCatalogTest).
-            expect(str_starts_with($expression, 'window.'))
-                ->toBeTrue("{$file}: `{$expression}` relies on Vue's scope fallthrough to reach a global");
-
-            expect(str_contains($expression, '?.('))
-                ->toBeTrue("{$file}: `{$expression}` would throw rather than no-op if the handler is missing");
+            expect($expression === 'toggleShareModal()')
+                ->toBeTrue("{$file}: `{$expression}` is not the bridged handler — anything else resolves through Vue's proxy to undefined");
         }
     }
 });
 
-test('the handler the bindings call is defined on both sides of the mobile split', function () {
+test('app.js installs the bridge', function () {
+    $app = file_get_contents(resource_path('js/app.js'));
+
+    expect(str_contains($app, 'installBladeBridge(app)'))->toBeTrue();
+});
+
+test('the handler the bridge calls is defined on both sides of the mobile split', function () {
     // handleShare is only assigned inside the isMobile branch; toggleShareModal
-    // is assigned in both, so the binding cannot depend on which branch ran.
+    // is assigned in both, so the bridge cannot depend on which branch ran.
     $source = shareBindingSources()['events/show.blade.php'];
 
     expect(substr_count($source, 'window.toggleShareModal = function'))->toBe(2);

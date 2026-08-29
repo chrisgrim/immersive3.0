@@ -280,6 +280,11 @@
 
             window.closeShareModal = function() {
                 document.getElementById('shareModal').classList.add('hidden');
+                // toggleShareModal locks background scroll on open, and this is
+                // the only close path the mobile modal's X and copyLink use,
+                // so it has to unlock — unless the photo gallery is open
+                // underneath: that locked the page itself and is still showing.
+                document.body.style.overflow = document.getElementById('photoGallery') ? 'hidden' : 'auto';
             };
 
             window.toggleShareModal = function() {
@@ -446,7 +451,7 @@
                                         <vue-event-actions
                                             :event="{!! $eventJson !!}"
                                             :user="user"
-                                            @share="window.toggleShareModal?.()"
+                                            @share="toggleShareModal()"
                                         ></vue-event-actions>
                                     </div>
                                 </div>
@@ -486,7 +491,7 @@
                                 <vue-event-actions
                                     :event="{!! $eventJson !!}"
                                     :user="user"
-                                    @share="window.toggleShareModal?.()"
+                                    @share="toggleShareModal()"
                                 ></vue-event-actions>
                             </div>
                             {{-- Top section with title and image --}}
@@ -693,7 +698,7 @@
                                         <vue-event-actions
                                             :event="{!! $eventJson !!}"
                                             :user="user"
-                                            @share="window.toggleShareModal?.()"
+                                            @share="toggleShareModal()"
                                         ></vue-event-actions>
                                     </div>
                                 </div>

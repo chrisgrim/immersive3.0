@@ -1,4 +1,5 @@
 import { createApp, defineAsyncComponent } from 'vue';
+import { installBladeBridge } from './bladeBridge';
 import '../css/app.css';
 import axios from 'axios';
 import { ClickOutsideDirective } from './Directives/ClickOutsideDirective';
@@ -264,5 +265,8 @@ app.component('vue-post-edit', PostComponents.Edit);
 app.component('vue-post-create', PostComponents.Create);
 
 app.directive('click-outside', ClickOutsideDirective);
+
+// Handlers that Vue bindings written inside Blade can reach — see the module.
+installBladeBridge(app);
 
 app.mount('#app');

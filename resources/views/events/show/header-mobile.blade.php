@@ -151,19 +151,17 @@
         <vue-event-actions
             :event="{!! $eventJson !!}"
             :user="user"
-            {{-- window.-prefixed and optional-called on purpose. This is a Vue
-                 template expression, not a DOM onclick: it compiles to a
-                 `with(_ctx)` lookup that only reaches a global by falling
-                 through the component proxy, and a bare `handleShare()` there
-                 has now twice reported "handleShare is not a function" from
-                 production (Sentry EI-VUE-12, then EI-VUE-15 after the first
-                 fix). Naming window explicitly removes the fallthrough, `?.()`
-                 makes a missing handler a no-op instead of a thrown error, and
-                 toggleShareModal is the function the desktop bindings already
-                 use — defined in BOTH branches of the isMobile split, unlike
-                 handleShare, and it locks background scroll while the modal is
-                 open. --}}
-            @share="window.toggleShareModal?.()"
+            {{-- A Vue template expression, not a DOM onclick — compiled at
+                 runtime inside `with(_ctx)`, whose proxy claims every
+                 identifier not on Vue's short globals allowlist. Neither
+                 `handleShare()` nor `window.toggleShareModal?.()` can reach
+                 the function show.blade.php puts on window (EI-VUE-12,
+                 EI-VUE-15 — never a timing race). toggleShareModal here is
+                 the one resources/js/bladeBridge.js registers on
+                 globalProperties, which IS where the proxy looks; it calls
+                 the window function, defined in both branches of the
+                 isMobile split, and no-ops if it is missing. --}}
+            @share="toggleShareModal()"
         ></vue-event-actions>
     </div>
     {{-- Spacer matching the fixed bar's own rendered height (measured, not
