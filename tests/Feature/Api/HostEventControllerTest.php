@@ -849,3 +849,149 @@ test('a refused embargo is not stored, and the organizer is told', function () {
     expect($event->embargo_date)->toBeNull();
     expect($response->json('warning'))->toContain('embargo was not applied');
 });
+
+// ----- closingDate is derived from the shows; sentinel rows are not history -----
+
+test('ongoing_config.endDate cannot revive a finished run either', function () {
+    // closingDate is out of the request rules, but it used to be taken
+    // straight from ongoing_config.endDate — the same one-field revival,
+    // spelled differently. Derived from the shows, a run ends when its last
+    // show does, whatever the recurrence rule was asked to say.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 'o',
+        'status' => 'p',
+        'closingDate' => now()->subMonth(),
+    ]);
+    $past = now()->subMonth()->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $past]);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 'o',
+            'timezone' => 'UTC',
+            'dateArray' => [$past],
+            'ongoing_config' => [
+                'startDate' => now()->subMonths(2)->format('Y-m-d H:i:s'),
+                'endDate' => now()->addYears(2)->format('Y-m-d H:i:s'),
+                'daysOfWeek' => [1],
+            ],
+        ])
+        ->assertOk();
+
+    $event->refresh();
+    expect(substr((string) $event->closingDate, 0, 10))->toBe(substr($past, 0, 10));
+    expect($event->isShowing)->toBeFalse();
+});
+
+test('an ongoing run extended with real shows closes after the last of them', function () {
+    // The honest version of the above: the recurrence produced future shows,
+    // and the closing date follows the last one.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 'o',
+        'status' => 'p',
+        'closingDate' => now()->subMonth(),
+    ]);
+    $past = now()->subMonth()->format('Y-m-d H:i:s');
+    $future = now()->addDays(45)->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $past]);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 'o',
+            'timezone' => 'UTC',
+            'dateArray' => [$past, $future],
+            'ongoing_config' => [
+                'startDate' => $past,
+                'endDate' => now()->addYears(2)->format('Y-m-d H:i:s'),
+                'daysOfWeek' => [1],
+            ],
+        ])
+        ->assertOk();
+
+    $event->refresh();
+    expect(substr((string) $event->closingDate, 0, 10))->toBe(substr($future, 0, 10));
+    expect($event->isShowing)->toBeTrue();
+});
+
+test('closing an always-available event by a past end date keeps its ticket tiers', function () {
+    // An 'a' event's one show row is just its end date, not a performance.
+    // Treating it as history deleted the old (future) sentinel, refused the
+    // new (past) one, and left the event with no shows and its tickets gone.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'showtype' => 'a', 'status' => 'p']);
+    $sentinel = $event->shows()->create(['date' => now()->addDays(20)->format('Y-m-d H:i:s')]);
+    $sentinel->tickets()->create(['name' => 'General', 'ticket_price' => '20.00', 'currency' => '$', 'type' => 's']);
+    $user = memberOf($organizer);
+    $yesterday = now()->subDay()->format('Y-m-d H:i:s');
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 'a',
+            'timezone' => 'UTC',
+            'always_config' => ['endDate' => $yesterday],
+        ])
+        ->assertOk();
+
+    $event->refresh();
+    expect($event->shows()->count())->toBe(1);
+    expect((string) $event->shows()->first()->date)->toBe($yesterday);
+    expect($event->shows()->first()->tickets()->count())->toBe(1);
+    expect($event->isShowing)->toBeFalse();
+    expect($response->json('warning'))->toBeNull();
+});
+
+test('converting an expired always-available event to dates does not keep its sentinel as a past show', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 'a',
+        'status' => 'p',
+        'closingDate' => now()->subMonth(),
+    ]);
+    $event->shows()->create(['date' => now()->subMonth()->format('Y-m-d H:i:s')]);
+    $user = memberOf($organizer);
+    $future = now()->addDays(30)->format('Y-m-d H:i:s');
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [$future],
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([$future]);
+    expect($response->json('warning'))->toBeNull();
+});
+
+test('a finished dated run converted to always-available still keeps its real past shows', function () {
+    // The other direction: those rows ARE history, and survive the switch.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 's',
+        'status' => 'p',
+        'closingDate' => now()->subMonth(),
+    ]);
+    $past = now()->subMonth()->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $past]);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 'a',
+            'timezone' => 'UTC',
+            'always_config' => ['endDate' => now()->addMonths(6)->format('Y-m-d H:i:s')],
+        ])
+        ->assertOk();
+
+    $dates = $event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
+    expect($dates)->toContain($past);
+    expect(count($dates))->toBe(2);
+});

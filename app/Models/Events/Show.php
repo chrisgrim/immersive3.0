@@ -53,8 +53,14 @@ class Show extends Model
         return $this->morphMany(Ticket::class, 'ticket');
     }
 
-    public static function saveShows($request, $event)
+    public static function saveShows($request, $event, ?string $previousShowtype = null)
     {
+        // The type the rows being replaced were created under. UpdateEventAction
+        // has mass-assigned the NEW type onto $event by the time this runs, so
+        // callers that know the old one pass it in (as they do for updateEvent);
+        // anyone else falls back to the model, matching the old behaviour.
+        $previousShowtype = func_num_args() >= 3 ? $previousShowtype : $event->showtype;
+
         // Capture current show dates before any changes (for change logging)
         $oldDates = $event->shows()->pluck('date')
             ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
@@ -94,7 +100,7 @@ class Show extends Model
         $tz = $request->timezone ?? $event->timezone ?? 'UTC';
         $localDay = fn ($d) => Carbon::parse((string) $d, 'UTC')->setTimezone($tz)->toDateString();
 
-        DB::transaction(function () use ($request, $event, $targetDates, $showtypeChanged, $oldDates, $oldTickets, $tz, $localDay, &$preservedPastDates, &$rejectedPastDates) {
+        DB::transaction(function () use ($request, $event, $previousShowtype, $targetDates, $showtypeChanged, $oldDates, $oldTickets, $tz, $localDay, &$preservedPastDates, &$rejectedPastDates) {
             // --- Remove obsolete shows in ONE pass. This was an N+1 (a delete
             //     per show plus a delete per show's tickets), which made saving a
             //     large recurring schedule crawl. A show-type switch wipes all;
@@ -110,7 +116,14 @@ class Show extends Model
             // safe here: this always runs within the same authenticated
             // request as the web wizard's or MCP's own call, never a queued
             // job or console context.
-            if (! auth()->user()?->isModerator()) {
+            //
+            // Only rows of the dated types ARE records, though. An always-
+            // available or limited event carries a single sentinel row whose
+            // date is just its end date (targetDatesFor) — nothing happened
+            // on it. Protecting an expired sentinel kept it as a phantom
+            // "past performance" when the event was converted to dates, and
+            // warned the organizer about a date they never chose.
+            if (! auth()->user()?->isModerator() && in_array($previousShowtype, ['s', 'o'], true)) {
                 $pastShows = $event->shows()->where('date', '<', now())->get(['id', 'date']);
                 $protectedIds = $idsToDelete->intersect($pastShows->pluck('id'));
 
@@ -156,7 +169,12 @@ class Show extends Model
             // shows were already deleted above, could leave the event with
             // none. Today is today until midnight where the event is. Same
             // rule and basis as the MCP tool's own pre-check.
-            if (! auth()->user()?->isModerator()) {
+            //
+            // Sentinel rows are exempt here too: setting an always-available
+            // event's end date to yesterday is how its organizer closes it,
+            // and refusing that row (after the old one was already deleted)
+            // left the event with no shows and its ticket tiers gone.
+            if (! auth()->user()?->isModerator() && in_array($request->showtype, ['s', 'o'], true)) {
                 $today = Carbon::now($tz)->toDateString();
                 [$current, $past] = $datesToCreate->partition(fn ($d) => $localDay($d) >= $today);
 
@@ -392,9 +410,10 @@ class Show extends Model
         // the stored recurrence rule — when the caller actually supplied schedule
         // data or changed the show type. A bare showtype echo (e.g. a
         // show_times-only edit that still includes showtype) must NOT recompute
-        // them: doing so would null the saved recurrence rule and reset
-        // closingDate to a default six months out even though the schedule is
-        // unchanged, silently corrupting the event. Each recipe only counts for
+        // them: doing so would null the saved recurrence rule (and, for an
+        // always-available event, reset closingDate to a default six months
+        // out) even though the schedule is unchanged, silently corrupting the
+        // event. Each recipe only counts for
         // its own show type, too — buildShowtypeConfig and calculateLastDate below
         // read ongoing_config only for 'o' and always_config only for 'a', so
         // treating a mismatched one as "schedule supplied" recomputed closingDate
@@ -536,6 +555,8 @@ class Show extends Model
         // Get the event's timezone, default to UTC
         $timezone = $request->timezone ?? $event->timezone ?? 'UTC';
 
+        // The sentinel types have no real performances: their one show row IS
+        // the end date (targetDatesFor), so the config is the schedule.
         if ($type === 'a') {
             // For 'always available' shows, check if there's a specific end date in the configuration
             if ($request && isset($request->always_config) && $request->always_config['endDate']) {
@@ -552,27 +573,22 @@ class Show extends Model
             return Carbon::now($timezone)->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
         }
 
-        if ($type === 'o') {
-            // For ongoing shows, check if there's a specific end date in the configuration
-            if ($request && isset($request->ongoing_config) && $request->ongoing_config['endDate']) {
-                // Parse in UTC (frontend already converted)
-                return Carbon::parse($request->ongoing_config['endDate'], 'UTC')->endOfDay()->format('Y-m-d H:i:s');
-            }
+        // Specific and ongoing: the end of the last show that actually exists
+        // after this save — never a config field. ongoing_config.endDate is
+        // an INPUT to the recurrence that generated the shows, and taking
+        // closingDate straight from it let one field revive a finished run:
+        // an organizer could post endDate two years out with no future show
+        // behind it and be back in listings, the very thing dropping
+        // closingDate from the request rules was meant to stop. Derived from
+        // the rows, the two cannot disagree, and the stored recurrence rule
+        // (showtype_config) still says what the organizer asked for.
+        $lastShow = $event->shows()->withoutGlobalScope(DateScope::class)->max('date');
 
-            // Default for ongoing shows: 6 months from now in the event's timezone
-            return Carbon::now($timezone)->addMonths(6)->endOfDay()->format('Y-m-d H:i:s');
-        }
-
-        // For single shows, get the last date from shows
-        $lastShow = $event->shows()
-            ->orderBy('date', 'DESC')
-            ->first();
-
-        // If we have a last show, use end of day for that date; otherwise use current date
         if ($lastShow) {
-            return Carbon::parse($lastShow->date, 'UTC')->endOfDay()->format('Y-m-d H:i:s');
+            return Carbon::parse((string) $lastShow, 'UTC')->endOfDay()->format('Y-m-d H:i:s');
         }
 
+        // No shows at all (a draft mid-creation): end of today.
         return Carbon::now($timezone)->endOfDay()->format('Y-m-d H:i:s');
     }
 }

@@ -2257,3 +2257,27 @@ test('update-event says when an embargo on a finished run was refused, and store
     $after = $event->fresh();
     expect($after->status)->toBe('p')->and($after->embargo_date)->toBeNull();
 });
+
+test('update-event cannot revive a finished ongoing run through ongoing_config.endDate', function () {
+    // closingDate is stripped as DERIVED, but it used to be taken straight from
+    // ongoing_config.endDate — the same one-field revival, spelled differently.
+    // An explicit dateArray wins over the recipe, so no future show is created;
+    // the closing date has to follow the shows, not the config.
+    $user = writeToolUser();
+    $tz = 'America/Toronto';
+    $past = '2020-01-01 12:00:00';
+    $event = liveEvent($user, 'o', [$past], ['closingDate' => $past]);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 'o',
+        'timezone' => $tz,
+        'dateArray' => [$past],
+        'ongoing_config' => ['startDate' => $past, 'endDate' => scheduleDay(700, $tz), 'daysOfWeek' => [1]],
+        'confirm_live_edit' => true,
+    ])->assertOk();
+
+    $after = $event->fresh();
+    expect(substr((string) $after->closingDate, 0, 10))->toBe('2020-01-01')
+        ->and($after->isShowing)->toBeFalse();
+});

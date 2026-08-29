@@ -157,7 +157,7 @@ class UpdateEventAction
                 // favoriters actually saved the event under, not the new one.
                 $datesBeforeUpdate = $event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
 
-                $showResult = Show::saveShows($request, $event);
+                $showResult = Show::saveShows($request, $event, $oldShowtype);
                 $this->preservedPastDates = $showResult['preserved'];
                 $this->rejectedPastDates = $showResult['rejected'];
                 $this->embargoRefused = Show::updateEvent($request, $event, $oldShowtype)['embargoRefused'];
