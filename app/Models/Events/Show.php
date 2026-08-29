@@ -74,7 +74,13 @@ class Show extends Model
         // The exact set of show datetimes this save should end with, normalised
         // to UTC "Y-m-d H:i:s" so they compare byte-for-byte with stored dates.
         $targetDates = self::targetDatesFor($request);
-        $showtypeChanged = $request->showtype !== $event->showtype;
+        // Against the PREVIOUS type, not $event->showtype: UpdateEventAction has
+        // already mass-assigned the new one, so that comparison never saw a
+        // switch — the "wipe on switch" below never ran, and a dateArray that
+        // echoed an expired sentinel's exact datetime kept that row as a "show"
+        // of the new dated event: an availability end marker rebranded as a
+        // past performance, with no guard fired.
+        $showtypeChanged = $request->showtype !== $previousShowtype;
 
         // Defence-in-depth: a specific/ongoing event must never be left with zero
         // shows. If the resolved target set is empty — a caller that echoed
@@ -383,10 +389,6 @@ class Show extends Model
             'showtype' => $type,
         ];
 
-        // Set below if a published event's embargo was refused; the caller
-        // relays it, the same way saveShows()'s refusals are relayed.
-        $embargoRefused = false;
-
         // show_times and embargo_date are plain event fields, not schedule data,
         // so carry them over only when the caller actually sent them. Reading
         // them unconditionally meant every PARTIAL schedule edit (the MCP tools
@@ -437,60 +439,6 @@ class Show extends Model
             $updateData['showtype_config'] = self::buildShowtypeConfig($type, $request);
         }
 
-        // Handle embargo status changes — only when the caller actually supplied
-        // an embargo_date. Inferring "no embargo" from an absent key published an
-        // embargoed event immediately (and dropped its embargo date) on any
-        // unrelated partial edit that happened to touch the schedule. Clearing
-        // stays an explicit act: send embargo_date=null.
-        if (self::requestHas($request, 'embargo_date')) {
-            if ($event->status === 'e' && ! $request->embargo_date) {
-                $updateData['status'] = 'p';
-            } elseif ($event->status === 'p' && $request->embargo_date) {
-                // Not on a run that has already ended. Published → embargoed →
-                // published is how an event announces itself: clearing the
-                // embargo fires newEventFromFollowedOrganizer, mailing every
-                // follower of the organizer. The one-time claim keys on
-                // events.organizer_notified_at, which was added in Aug 2026
-                // with no backfill — so every older event is unmarked and the
-                // claim succeeds again. While finished events were locked this
-                // was unreachable; now that they are editable, the whole
-                // archive would be a re-announcement away. Staff keep it for
-                // legitimate re-launches.
-                //
-                // Tested against the schedule AFTER this save, so an organizer
-                // adding real future dates in the same request is embargoing a
-                // run that is genuinely upcoming, and is allowed.
-                // A null closingDate does NOT prove the run is upcoming. On a
-                // DRAFT it means "no schedule yet" — but this branch only runs
-                // for an already-published event, where it means we cannot
-                // tell when the run ends, and the permissive reading would
-                // hand the whole announcement path back to any organizer whose
-                // event happens to have one. Refuse unless we can positively
-                // see a future closing date.
-                $closing = $updateData['closingDate'] ?? $event->closingDate;
-                $hasEnded = $closing === null || Carbon::parse($closing)->isPast();
-
-                // Skip only the embargo transition — the rest of $updateData
-                // (the recomputed closingDate, start_date, showtype) still has
-                // to be written, so this must not return early.
-                if (! $hasEnded || auth()->user()?->isModerator()) {
-                    $updateData['status'] = 'e';
-                    $event->unsearchable();
-                } else {
-                    // Refused — so the date must not be stored either. Left in
-                    // place it sat on a published event as an embargo that
-                    // never took effect, and the wizard's Dates step resends
-                    // event.embargo_date on every save, so once that date had
-                    // passed, `after:now` 422'd unrelated edits until the
-                    // organizer cleared an embargo they never got. Cleared
-                    // rather than skipped: UpdateEventAction's top-level
-                    // mass-assign has already written it by the time we run.
-                    $updateData['embargo_date'] = null;
-                    $embargoRefused = true;
-                }
-            }
-        }
-
         // Update the event
         $event->update($updateData);
 
@@ -498,8 +446,82 @@ class Show extends Model
         if ($event->shouldBeSearchable()) {
             $event->searchable();
         }
+    }
 
-        return ['embargoRefused' => $embargoRefused];
+    /**
+     * Apply a requested embargo change — with or without a schedule.
+     *
+     * Only when the caller actually supplied embargo_date: inferring "no
+     * embargo" from an absent key published an embargoed event immediately
+     * (and dropped its date) on any unrelated partial edit. Clearing stays an
+     * explicit act: send embargo_date=null.
+     *
+     * This used to live inside updateEvent(), which only runs when the save
+     * carries a showtype — so an embargo_date sent on its own (the MCP tool,
+     * or a direct POST) was mass-assigned by UpdateEventAction and never
+     * examined: on a finished run it was stored with no refusal and no
+     * report, and on an upcoming one the status never flipped. Callers run
+     * this AFTER the schedule has been saved, so the guard sees the closing
+     * date this save produced.
+     *
+     * Returns true when the embargo was refused (and the date cleared).
+     */
+    public static function applyEmbargo($request, Event $event): bool
+    {
+        if (! self::requestHas($request, 'embargo_date')) {
+            return false;
+        }
+
+        if ($event->status === 'e' && ! $request->embargo_date) {
+            $event->update(['status' => 'p']);
+
+            if ($event->shouldBeSearchable()) {
+                $event->searchable();
+            }
+
+            return false;
+        }
+
+        if ($event->status !== 'p' || ! $request->embargo_date) {
+            return false;
+        }
+
+        // Not on a run that has already ended. Published → embargoed →
+        // published is how an event announces itself: clearing the embargo
+        // fires newEventFromFollowedOrganizer, mailing every follower of the
+        // organizer. The one-time claim keys on events.organizer_notified_at,
+        // added in Aug 2026 with no backfill — so every older event is
+        // unmarked and the claim succeeds again. While finished events were
+        // locked this was unreachable; now that they are editable, the whole
+        // archive would be a re-announcement away. Staff keep it for
+        // legitimate re-launches.
+        //
+        // A null closingDate does NOT prove the run is upcoming. On a DRAFT
+        // it means "no schedule yet" — but this only runs for an already-
+        // published event, where it means we cannot tell when the run ends,
+        // and the permissive reading would hand the whole announcement path
+        // back to any organizer whose event happens to have one. Refuse
+        // unless we can positively see a future closing date.
+        $closing = $event->closingDate;
+        $hasEnded = $closing === null || Carbon::parse((string) $closing)->isPast();
+
+        if (! $hasEnded || auth()->user()?->isModerator()) {
+            $event->update(['status' => 'e']);
+            $event->unsearchable();
+
+            return false;
+        }
+
+        // Refused — so the date must not be stored either. Left in place it
+        // sat on a published event as an embargo that never took effect, and
+        // the wizard's Dates step resends event.embargo_date on every save,
+        // so once that date had passed, `after:now` 422'd unrelated edits
+        // until the organizer cleared an embargo they never got. Cleared
+        // rather than skipped: UpdateEventAction's mass-assign has already
+        // written it by the time we run.
+        $event->update(['embargo_date' => null]);
+
+        return true;
     }
 
     private static function determineShowType($request): string

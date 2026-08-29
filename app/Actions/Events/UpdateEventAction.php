@@ -57,7 +57,7 @@ class UpdateEventAction
     /**
      * Whether a requested embargo on a published event was refused.
      *
-     * Show::updateEvent() will not move a published event whose run has
+     * Show::applyEmbargo() will not move a published event whose run has
      * already ended into embargo for a non-moderator (lifting it again is
      * how an event announces itself to the organizer's followers), and it
      * does not store the date either. Reported for the same reason as the
@@ -160,10 +160,18 @@ class UpdateEventAction
                 $showResult = Show::saveShows($request, $event, $oldShowtype);
                 $this->preservedPastDates = $showResult['preserved'];
                 $this->rejectedPastDates = $showResult['rejected'];
-                $this->embargoRefused = Show::updateEvent($request, $event, $oldShowtype)['embargoRefused'];
+                Show::updateEvent($request, $event, $oldShowtype);
+
+                // After the schedule, so the guard sees the closing date this
+                // save produced; before the notification, which only goes out
+                // for a published event.
+                $this->embargoRefused = Show::applyEmbargo($request, $event);
 
                 $this->notifyIfNewDatesAdded($event, $datesBeforeUpdate);
             });
+        } else {
+            // An embargo sent without a schedule — see Show::applyEmbargo.
+            $this->embargoRefused = Show::applyEmbargo($request, $event);
         }
 
         // Handle all advisory-related updates

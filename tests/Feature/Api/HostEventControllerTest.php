@@ -995,3 +995,84 @@ test('a finished dated run converted to always-available still keeps its real pa
     expect($dates)->toContain($past);
     expect(count($dates))->toBe(2);
 });
+
+test('an embargo sent on its own is still refused on a finished run', function () {
+    // The guard lived in Show::updateEvent, which only runs when the save
+    // carries a showtype — so an embargo_date sent by itself was mass-assigned
+    // straight onto the event with no refusal and no report.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 's',
+        'status' => 'p',
+        'closingDate' => now()->subMonth(),
+        'embargo_date' => null,
+    ]);
+    $event->shows()->create(['date' => now()->subMonth()->format('Y-m-d H:i:s')]);
+    $user = memberOf($organizer);
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'embargo_date' => now()->addMonth()->format('Y-m-d H:i:s'),
+        ])
+        ->assertOk();
+
+    $event->refresh();
+    expect($event->status)->toBe('p');
+    expect($event->embargo_date)->toBeNull();
+    expect($response->json('warning'))->toContain('embargo was not applied');
+});
+
+test('an embargo sent on its own still applies to a run that is upcoming', function () {
+    // The other half: moving the guard out of the schedule path must not
+    // stop a legitimate embargo-only save from taking effect.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 's',
+        'status' => 'p',
+        'closingDate' => now()->addMonth(),
+        'embargo_date' => null,
+    ]);
+    $event->shows()->create(['date' => now()->addMonth()->format('Y-m-d H:i:s')]);
+    $user = memberOf($organizer);
+    $embargo = now()->addDays(10)->format('Y-m-d H:i:s');
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", ['embargo_date' => $embargo])
+        ->assertOk();
+
+    $event->refresh();
+    expect($event->status)->toBe('e');
+    expect((string) $event->embargo_date)->toBe($embargo);
+});
+
+test('echoing an expired sentinel datetime cannot turn it into dated history', function () {
+    // A type switch is supposed to wipe the old rows, but saveShows compared
+    // the request against the already-mass-assigned event, so it never saw a
+    // switch. A dateArray that repeated the expired sentinel's exact datetime
+    // kept that row as a "show" of the new dated event — an availability end
+    // marker rebranded as a past performance, with no guard fired.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 'a',
+        'status' => 'p',
+        'closingDate' => now()->subMonth(),
+    ]);
+    $sentinel = now()->subMonth()->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $sentinel]);
+    $user = memberOf($organizer);
+    $future = now()->addDays(30)->format('Y-m-d H:i:s');
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [$sentinel, $future],
+        ])
+        ->assertOk();
+
+    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([$future]);
+    expect($response->json('warning'))->toContain(substr($sentinel, 0, 10));
+});

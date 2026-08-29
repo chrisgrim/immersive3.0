@@ -2281,3 +2281,39 @@ test('update-event cannot revive a finished ongoing run through ongoing_config.e
     expect(substr((string) $after->closingDate, 0, 10))->toBe('2020-01-01')
         ->and($after->isShowing)->toBeFalse();
 });
+
+test('update-event refuses an embargo sent on its own for a finished run', function () {
+    // The guard used to run only alongside a schedule (Show::updateEvent needs
+    // a showtype); an embargo_date by itself was stored silently.
+    $user = writeToolUser();
+    $past = '2020-01-01 12:00:00';
+    $event = liveEvent($user, 's', [$past], ['closingDate' => $past, 'embargo_date' => null]);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'embargo_date' => now()->addMonth()->format('Y-m-d H:i:s'),
+        'confirm_live_edit' => true,
+    ])->assertOk()->assertSee('embargo_not_applied');
+
+    $after = $event->fresh();
+    expect($after->status)->toBe('p')->and($after->embargo_date)->toBeNull();
+});
+
+test('update-event cannot turn an expired sentinel into dated history by echoing its datetime', function () {
+    $user = writeToolUser();
+    $tz = 'America/Toronto';
+    $sentinel = '2020-01-01 12:00:00';
+    $event = liveEvent($user, 'a', [$sentinel], ['closingDate' => $sentinel]);
+    $future = scheduleDay(30, $tz);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => $tz,
+        'dateArray' => [$sentinel, $future],
+        'confirm_live_edit' => true,
+        'confirm_schedule_replace' => true,
+    ])->assertOk()->assertSee('rejected_past_dates');
+
+    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([$future]);
+});
