@@ -398,6 +398,7 @@ class UpdateEvent extends Tool
         $rest = collect($validated)->except('location')->all();
         $preservedPastDates = [];
         $rejectedPastDates = [];
+        $embargoRefused = false;
 
         if ($rest !== []) {
             $updateAction = app(UpdateEventAction::class);
@@ -408,6 +409,7 @@ class UpdateEvent extends Tool
             );
             $preservedPastDates = $updateAction->preservedPastDates;
             $rejectedPastDates = $updateAction->rejectedPastDates;
+            $embargoRefused = $updateAction->embargoRefused;
         }
 
         if ($location !== null) {
@@ -445,6 +447,10 @@ class UpdateEvent extends Tool
             // fired, "Event updated." with dateArray in updated_fields would
             // have the caller believe a show exists that does not.
             ...($rejectedPastDates === [] ? [] : ['rejected_past_dates' => $rejectedPastDates]),
+            // A published event whose run has ended cannot be embargoed by a
+            // non-moderator (lifting it again is how an event announces
+            // itself to followers), and the date was not stored.
+            ...($embargoRefused ? ['embargo_not_applied' => 'This event\'s run has already ended, so the embargo was refused and embargo_date was not stored. Add upcoming dates in the same call to embargo a new run; only admins and moderators can embargo a finished event.'] : []),
             'readiness' => $readiness,
             'missing' => collect($readiness)->reject(fn ($ok) => $ok)->keys()->values(),
         ];

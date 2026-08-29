@@ -103,6 +103,12 @@ class HostEventController extends Controller
                 .') were not added. Only admins and moderators can add dates that have already passed.';
         }
 
+        // See UpdateEventAction::$embargoRefused.
+        if ($updateEvent->embargoRefused) {
+            $warnings[] = 'The embargo was not applied: this event\'s run has already ended. '
+                .'Add upcoming dates in the same save to embargo a new run. Only admins and moderators can embargo a finished event.';
+        }
+
         if ($warnings) {
             $response['warning'] = implode(' ', $warnings);
         }

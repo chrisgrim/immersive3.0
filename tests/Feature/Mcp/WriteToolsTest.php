@@ -2236,3 +2236,24 @@ test('update-event carries no rejected-dates notice when nothing was refused', f
         'description' => 'Still the same show.',
     ])->assertOk()->assertDontSee('rejected_past_dates');
 });
+
+test('update-event says when an embargo on a finished run was refused, and stores no date', function () {
+    // The web path relays this refusal; this is the other door to the same
+    // save. Without it the tool answered "Event updated." with embargo_date in
+    // updated_fields while the event stayed published and carried no date.
+    $user = writeToolUser();
+    $past = '2020-01-01 12:00:00';
+    $event = liveEvent($user, 's', [$past], ['closingDate' => $past, 'embargo_date' => null]);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Toronto',
+        'dateArray' => [$past],
+        'embargo_date' => now()->addMonth()->format('Y-m-d H:i:s'),
+        'confirm_live_edit' => true,
+    ])->assertOk()->assertSee('embargo_not_applied');
+
+    $after = $event->fresh();
+    expect($after->status)->toBe('p')->and($after->embargo_date)->toBeNull();
+});

@@ -54,6 +54,17 @@ class UpdateEventAction
      */
     public array $rejectedPastDates = [];
 
+    /**
+     * Whether a requested embargo on a published event was refused.
+     *
+     * Show::updateEvent() will not move a published event whose run has
+     * already ended into embargo for a non-moderator (lifting it again is
+     * how an event announces itself to the organizer's followers), and it
+     * does not store the date either. Reported for the same reason as the
+     * two lists above: the save did not do what was asked.
+     */
+    public bool $embargoRefused = false;
+
     public function handle(Event $event, array $validatedData, Request $request): Event
     {
         $wasPublished = in_array($event->status, ['p', 'e']);
@@ -149,7 +160,7 @@ class UpdateEventAction
                 $showResult = Show::saveShows($request, $event);
                 $this->preservedPastDates = $showResult['preserved'];
                 $this->rejectedPastDates = $showResult['rejected'];
-                Show::updateEvent($request, $event, $oldShowtype);
+                $this->embargoRefused = Show::updateEvent($request, $event, $oldShowtype)['embargoRefused'];
 
                 $this->notifyIfNewDatesAdded($event, $datesBeforeUpdate);
             });

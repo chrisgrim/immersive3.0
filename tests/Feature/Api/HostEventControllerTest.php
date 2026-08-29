@@ -818,3 +818,34 @@ test('yesterday is refused, and named, by the day where the event is', function 
     expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([$today]);
     expect($response->json('warning'))->toContain('2026-08-28')->not->toContain('2026-08-29');
 });
+
+test('a refused embargo is not stored, and the organizer is told', function () {
+    // Refusing the status change but keeping the date left a published event
+    // carrying an embargo that never took effect; the Dates step resends it on
+    // every save, so once it had passed, `after:now` 422'd unrelated edits.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'showtype' => 's',
+        'status' => 'p',
+        'closingDate' => now()->subMonth(),
+        'embargo_date' => null,
+    ]);
+    $past = now()->subMonth()->format('Y-m-d H:i:s');
+    $event->shows()->create(['date' => $past]);
+    $user = memberOf($organizer);
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [$past],
+            'embargo_date' => now()->addMonth()->format('Y-m-d H:i:s'),
+        ])
+        ->assertOk();
+
+    $event->refresh();
+    expect($event->status)->toBe('p');
+    expect($event->embargo_date)->toBeNull();
+    expect($response->json('warning'))->toContain('embargo was not applied');
+});

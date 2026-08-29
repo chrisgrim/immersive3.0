@@ -365,6 +365,10 @@ class Show extends Model
             'showtype' => $type,
         ];
 
+        // Set below if a published event's embargo was refused; the caller
+        // relays it, the same way saveShows()'s refusals are relayed.
+        $embargoRefused = false;
+
         // show_times and embargo_date are plain event fields, not schedule data,
         // so carry them over only when the caller actually sent them. Reading
         // them unconditionally meant every PARTIAL schedule edit (the MCP tools
@@ -453,6 +457,17 @@ class Show extends Model
                 if (! $hasEnded || auth()->user()?->isModerator()) {
                     $updateData['status'] = 'e';
                     $event->unsearchable();
+                } else {
+                    // Refused — so the date must not be stored either. Left in
+                    // place it sat on a published event as an embargo that
+                    // never took effect, and the wizard's Dates step resends
+                    // event.embargo_date on every save, so once that date had
+                    // passed, `after:now` 422'd unrelated edits until the
+                    // organizer cleared an embargo they never got. Cleared
+                    // rather than skipped: UpdateEventAction's top-level
+                    // mass-assign has already written it by the time we run.
+                    $updateData['embargo_date'] = null;
+                    $embargoRefused = true;
                 }
             }
         }
@@ -464,6 +479,8 @@ class Show extends Model
         if ($event->shouldBeSearchable()) {
             $event->searchable();
         }
+
+        return ['embargoRefused' => $embargoRefused];
     }
 
     private static function determineShowType($request): string
