@@ -151,7 +151,19 @@
         <vue-event-actions
             :event="{!! $eventJson !!}"
             :user="user"
-            @share="handleShare()"
+            {{-- window.-prefixed and optional-called on purpose. This is a Vue
+                 template expression, not a DOM onclick: it compiles to a
+                 `with(_ctx)` lookup that only reaches a global by falling
+                 through the component proxy, and a bare `handleShare()` there
+                 has now twice reported "handleShare is not a function" from
+                 production (Sentry EI-VUE-12, then EI-VUE-15 after the first
+                 fix). Naming window explicitly removes the fallthrough, `?.()`
+                 makes a missing handler a no-op instead of a thrown error, and
+                 toggleShareModal is the function the desktop bindings already
+                 use — defined in BOTH branches of the isMobile split, unlike
+                 handleShare, and it locks background scroll while the modal is
+                 open. --}}
+            @share="window.toggleShareModal?.()"
         ></vue-event-actions>
     </div>
     {{-- Spacer matching the fixed bar's own rendered height (measured, not

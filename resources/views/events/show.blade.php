@@ -446,7 +446,7 @@
                                         <vue-event-actions
                                             :event="{!! $eventJson !!}"
                                             :user="user"
-                                            @share="toggleShareModal()"
+                                            @share="window.toggleShareModal?.()"
                                         ></vue-event-actions>
                                     </div>
                                 </div>
@@ -486,7 +486,7 @@
                                 <vue-event-actions
                                     :event="{!! $eventJson !!}"
                                     :user="user"
-                                    @share="toggleShareModal()"
+                                    @share="window.toggleShareModal?.()"
                                 ></vue-event-actions>
                             </div>
                             {{-- Top section with title and image --}}
@@ -693,7 +693,7 @@
                                         <vue-event-actions
                                             :event="{!! $eventJson !!}"
                                             :user="user"
-                                            @share="toggleShareModal()"
+                                            @share="window.toggleShareModal?.()"
                                         ></vue-event-actions>
                                     </div>
                                 </div>
