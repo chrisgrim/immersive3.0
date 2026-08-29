@@ -397,6 +397,7 @@ class UpdateEvent extends Tool
         $location = $validated['location'] ?? null;
         $rest = collect($validated)->except('location')->all();
         $preservedPastDates = [];
+        $rejectedPastDates = [];
 
         if ($rest !== []) {
             $updateAction = app(UpdateEventAction::class);
@@ -406,6 +407,7 @@ class UpdateEvent extends Tool
                 $this->syntheticRequest($rest, $user)
             );
             $preservedPastDates = $updateAction->preservedPastDates;
+            $rejectedPastDates = $updateAction->rejectedPastDates;
         }
 
         if ($location !== null) {
@@ -437,6 +439,12 @@ class UpdateEvent extends Tool
             // as ignored_fields: don't let the caller assume its requested
             // schedule was applied exactly as sent.
             ...($preservedPastDates === [] ? [] : ['preserved_past_dates' => $preservedPastDates]),
+            // The mirror: dates in the past the caller asked to CREATE and did
+            // not get. The pre-check above catches these first in the ordinary
+            // case, so this is the floor under it — and when the floor is what
+            // fired, "Event updated." with dateArray in updated_fields would
+            // have the caller believe a show exists that does not.
+            ...($rejectedPastDates === [] ? [] : ['rejected_past_dates' => $rejectedPastDates]),
             'readiness' => $readiness,
             'missing' => collect($readiness)->reject(fn ($ok) => $ok)->keys()->values(),
         ];

@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Events\UpdateEventAction;
 use App\Mcp\Servers\EiServer;
 use App\Mcp\Tools\CreateEventDraft;
 use App\Mcp\Tools\CreateOrganizer;
@@ -13,6 +14,7 @@ use App\Models\User;
 use App\Support\RecurringDates;
 use App\Support\Validation\EventUpdateRules;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
@@ -2196,4 +2198,41 @@ test('a normal edit reports no ignored fields', function () {
         'event_slug' => $event->slug,
         'description' => 'Nothing here should be dropped.',
     ])->assertOk()->assertDontSee('ignored_fields');
+});
+
+test('update-event reports a past show the save refused to create', function () {
+    // Show::saveShows() refuses to CREATE an already-passed show for a
+    // non-moderator, the mirror of the preservation above. The tool's own
+    // day-granular pre-check catches these first in the ordinary case, so the
+    // refusal is the floor under it — and when the floor is what fired, the
+    // caller must still hear about it rather than read "Event updated." and
+    // assume the date exists. A stand-in action pins the wiring itself,
+    // independent of how exactly the two guards overlap.
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    app()->bind(UpdateEventAction::class, fn () => new class extends UpdateEventAction
+    {
+        public function handle(Event $event, array $validatedData, Request $request): Event
+        {
+            $this->rejectedPastDates = ['2020-01-01'];
+
+            return $event;
+        }
+    });
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'description' => 'Still the same show.',
+    ])->assertOk()->assertSee('rejected_past_dates')->assertSee('2020-01-01');
+});
+
+test('update-event carries no rejected-dates notice when nothing was refused', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'description' => 'Still the same show.',
+    ])->assertOk()->assertDontSee('rejected_past_dates');
 });
