@@ -97,6 +97,28 @@ test('buildLocationFilter ignores non-numeric lat/lng and logs a warning (no geo
     Log::shouldHaveReceived('warning')->withArgs(fn ($msg) => str_contains($msg, 'Invalid lat/lng'))->once();
 });
 
+test('buildLocationFilter ignores an out-of-range lng and logs a warning (no geoFilter)', function () {
+    // EI-LARAVEL-11: numeric but not a coordinate. Elasticsearch rejects the
+    // whole query with a 400 rather than matching nothing, so this has to be
+    // dropped here like any other junk coordinate.
+    $result = callBuilder('buildLocationFilter', [
+        'lat' => '34.05',
+        'lng' => '314326023',
+        'city' => 'Nowhere',
+    ]);
+
+    expect($result['geoFilter'])->toBeNull();
+    Log::shouldHaveReceived('warning')->withArgs(fn ($msg) => str_contains($msg, 'Invalid lat/lng'))->once();
+});
+
+test('buildLocationFilter still accepts the extremes of the valid range', function () {
+    $result = callBuilder('buildLocationFilter', ['lat' => '90', 'lng' => '-180']);
+
+    $built = $result['geoFilter']->buildQuery();
+    expect($built['geo_distance']['location_latlon'])->toBe(['lat' => 90.0, 'lon' => -180.0]);
+    Log::shouldNotHaveReceived('warning');
+});
+
 test('buildLocationFilter ignores missing lng even when lat is present', function () {
     // Only lat present -> the `$request->lat && $request->lng` guard short-circuits,
     // so no geoFilter is built and nothing is logged.
@@ -492,6 +514,16 @@ test('buildMapBoundaryFilter returns null and logs when any boundary coord is no
     $result = callBuilder('buildMapBoundaryFilter', [
         'live' => 'true',
         'NElat' => '40.9', 'NElng' => 'NaN', 'SWlat' => '40.4', 'SWlng' => '-74.2',
+    ]);
+
+    expect($result)->toBeNull();
+    Log::shouldHaveReceived('warning')->withArgs(fn ($msg) => str_contains($msg, 'Invalid geo boundary'))->once();
+});
+
+test('buildMapBoundaryFilter returns null and logs when a boundary coord is out of range', function () {
+    $result = callBuilder('buildMapBoundaryFilter', [
+        'live' => 'true',
+        'NElat' => '40.9', 'NElng' => '-73.7', 'SWlat' => '-91', 'SWlng' => '-74.2',
     ]);
 
     expect($result)->toBeNull();

@@ -94,6 +94,34 @@ test('missing lat/lng applies no geo filter and does not error', function () {
     expect(collect($result['bool']['filter'])->pluck('geo_distance')->filter())->toBeEmpty();
 });
 
+test('an out-of-range longitude applies no geo filter rather than a query ES rejects', function () {
+    // The exact value from EI-LARAVEL-11. It is perfectly numeric, so the old
+    // is_numeric()-only guard passed it straight through to Elasticsearch,
+    // which answered `[geo_distance] center point longitude is invalid` — a
+    // 400 that fails every shard and 500s the search page.
+    $result = combinedQuery(['searchType' => 'inPerson', 'live' => false, 'lat' => 34.05, 'lng' => 3.14326023E8]);
+
+    expect(collect($result['bool']['filter'])->pluck('geo_distance')->filter())->toBeEmpty();
+});
+
+test('an out-of-range latitude applies no geo filter', function () {
+    $result = combinedQuery(['searchType' => 'inPerson', 'live' => false, 'lat' => 91, 'lng' => -118.24]);
+
+    expect(collect($result['bool']['filter'])->pluck('geo_distance')->filter())->toBeEmpty();
+});
+
+test('the extremes of the valid range still apply a geo filter', function () {
+    // -90/180 are legal coordinates, not junk; the range check is inclusive.
+    $result = combinedQuery(['searchType' => 'inPerson', 'live' => false, 'lat' => -90, 'lng' => 180]);
+
+    expect($result['bool']['filter'])->toContain([
+        'geo_distance' => [
+            'location_latlon' => ['lat' => -90.0, 'lon' => 180.0],
+            'distance' => '40km',
+        ],
+    ]);
+});
+
 test('categories filter is an any-of terms clause', function () {
     $result = combinedQuery(['categoryIds' => [5, 6, 7]]);
 
@@ -206,6 +234,17 @@ test('incomplete map bounds fall back to no geo filter rather than erroring', fu
     $filters = builder()->buildFilters($criteria);
 
     expect($filters['boundaryFilter'])->toBeNull();
+});
+
+test('an out-of-range map bound corner falls back to no boundary filter', function () {
+    // geo_bounding_box validates its corners exactly like geo_distance
+    // validates its centre, so this is the same 400 as EI-LARAVEL-11.
+    $criteria = [
+        'searchType' => 'inPerson', 'live' => true,
+        'NElat' => 34.2, 'NElng' => -118.1, 'SWlat' => 33.9, 'SWlng' => -3.14326023E8,
+    ];
+
+    expect(builder()->buildFilters($criteria)['boundaryFilter'])->toBeNull();
 });
 
 test('a fully-loaded criteria set combines every applicable filter without dropping any', function () {

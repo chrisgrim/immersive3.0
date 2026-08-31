@@ -97,6 +97,12 @@ class ListingsController extends Controller
      * that still knows it. The builder returns null silently by design; it
      * has no request to describe.
      *
+     * "Numeric" is not enough on its own: Elasticsearch rejects an
+     * out-of-range geo point with a 400 that fails every shard, so a lng of
+     * 3.14326023E8 500s this page instead of returning nothing
+     * (EI-LARAVEL-11). Hence the shared isValidLatitude/isValidLongitude,
+     * which range-check as well.
+     *
      * isset(), not truthiness. This controller used to gate on
      * `$request->lat && $request->lng`, under which a coordinate of exactly 0
      * — the equator, or the prime meridian through London — is falsy and
@@ -116,7 +122,7 @@ class ListingsController extends Controller
             return ['lat' => null, 'lng' => null];
         }
 
-        if (! is_numeric($lat) || ! is_numeric($lng)) {
+        if (! EventSearchFilterBuilder::isValidLatitude($lat) || ! EventSearchFilterBuilder::isValidLongitude($lng)) {
             \Log::warning('Invalid lat/lng coordinates received', [
                 'lat' => $lat,
                 'lng' => $lng,
@@ -266,7 +272,11 @@ class ListingsController extends Controller
         // numericCoord() above — the builder returns null silently.
         $required = ['NElat', 'NElng', 'SWlat', 'SWlng'];
         foreach ($required as $coord) {
-            if (! isset($request->$coord) || ! is_numeric($request->$coord)) {
+            $valid = str_ends_with($coord, 'lat')
+                ? EventSearchFilterBuilder::isValidLatitude($request->$coord)
+                : EventSearchFilterBuilder::isValidLongitude($request->$coord);
+
+            if (! $valid) {
                 \Log::warning('Invalid geo boundary coordinates received', [
                     'coordinates' => $request->only($required),
                 ]);

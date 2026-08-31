@@ -172,18 +172,18 @@ class EventSearchFilterBuilder
      * Same 40km geoDistance filter both branches of buildLocationFilter
      * build inline above — extracted only within this class.
      *
-     * Uses isset(), not truthiness — ListingsController's own equivalent
-     * checks `$request->lat && $request->lng`, under which a real
-     * coordinate of exactly 0 (equator or prime meridian) would be silently
-     * dropped. That's a pre-existing latent bug there (unrelated to this
-     * feature, not fixed here), not something worth carrying into new code.
+     * Range-checked, not just numeric: Elasticsearch rejects an out-of-range
+     * centre point outright (`[geo_distance] center point longitude is
+     * invalid`), which fails the whole shard and 500s the search page —
+     * EI-LARAVEL-11, a lng of 3.14326023E8. isValidLatitude/Longitude also
+     * subsume the isset()/is_numeric() pair this used to do by hand.
      */
     private function geoDistanceFilter(array $criteria)
     {
         $lat = $criteria['lat'] ?? null;
         $lng = $criteria['lng'] ?? null;
 
-        if (! isset($lat) || ! isset($lng) || ! is_numeric($lat) || ! is_numeric($lng)) {
+        if (! self::isValidLatitude($lat) || ! self::isValidLongitude($lng)) {
             return null;
         }
 
@@ -279,9 +279,18 @@ class EventSearchFilterBuilder
             return null;
         }
 
-        $coords = ['NElat', 'NElng', 'SWlat', 'SWlng'];
-        foreach ($coords as $coord) {
-            if (! isset($criteria[$coord]) || ! is_numeric($criteria[$coord])) {
+        // Same range check as geoDistanceFilter above, and for the same
+        // reason: geo_bounding_box validates its corners exactly like
+        // geo_distance validates its centre, so an out-of-range corner is
+        // the same 400 from Elasticsearch rather than an empty result set.
+        foreach (['NElat', 'SWlat'] as $coord) {
+            if (! self::isValidLatitude($criteria[$coord] ?? null)) {
+                return null;
+            }
+        }
+
+        foreach (['NElng', 'SWlng'] as $coord) {
+            if (! self::isValidLongitude($criteria[$coord] ?? null)) {
                 return null;
             }
         }
@@ -300,6 +309,30 @@ class EventSearchFilterBuilder
                 ],
             ],
         ]);
+    }
+
+    /**
+     * Whether a value is usable as a latitude / longitude.
+     *
+     * Shared with ListingsController for the same reason parseSearchDate
+     * below is: one definition of what counts as a coordinate, so the two
+     * parallel filter-building paths cannot drift apart again.
+     *
+     * The range half matters as much as the numeric half. Elasticsearch
+     * validates geo points itself and answers an out-of-range one with a
+     * 400 that fails every shard — so a value that is numeric but not a
+     * coordinate is a 500 on the search page, not a search that finds
+     * nothing (EI-LARAVEL-11). NAN and INF both fall out here for free:
+     * every comparison against NAN is false, and INF is outside any range.
+     */
+    public static function isValidLatitude($value): bool
+    {
+        return is_numeric($value) && $value >= -90 && $value <= 90;
+    }
+
+    public static function isValidLongitude($value): bool
+    {
+        return is_numeric($value) && $value >= -180 && $value <= 180;
     }
 
     /**
