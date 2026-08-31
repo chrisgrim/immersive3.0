@@ -22,8 +22,14 @@ class StoreSavedSearchRequest extends FormRequest
             'name' => 'required|string|max:255',
             'criteria' => 'required|array',
             'criteria.city' => 'nullable|string|max:255',
-            'criteria.lat' => 'nullable|numeric',
-            'criteria.lng' => 'nullable|numeric',
+            // Bounded, not just numeric — same as UpdateSavedSearchRequest's
+            // own lat/lng and the four map corners below. A coordinate that
+            // is numeric but off the planet is what 500'd the search page
+            // (EI-LARAVEL-11); it is dropped at query time now, but there is
+            // no reason to store it, and '1e400' casts to INF, which does not
+            // survive a json_encode of the criteria column.
+            'criteria.lat' => 'nullable|numeric|between:-90,90',
+            'criteria.lng' => 'nullable|numeric|between:-180,180',
             'criteria.searchType' => 'nullable|in:inPerson,atHome',
             'criteria.remoteLocation' => 'nullable|string|max:255',
             'criteria.live' => 'nullable|boolean',

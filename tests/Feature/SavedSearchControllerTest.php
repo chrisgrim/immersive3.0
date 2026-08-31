@@ -325,6 +325,26 @@ test('saving rejects an invalid searchType', function () {
     ])->assertStatus(422)->assertJsonValidationErrors(['criteria.searchType']);
 });
 
+test('saving rejects a coordinate that is off the planet', function () {
+    // EI-LARAVEL-11's exact longitude. Dropped at query time now, but this
+    // keeps it out of the criteria column in the first place.
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->postJson('/api/hub/saved-searches', [
+        'name' => 'Nowhere', 'criteria' => ['city' => 'Nowhere', 'lat' => 34.05, 'lng' => 314326023],
+    ])->assertStatus(422)->assertJsonValidationErrors(['criteria.lng']);
+});
+
+test('saving rejects a coordinate that overflows to INF', function () {
+    // between: rejects this before it can be cast; INF would not survive the
+    // json_encode of the criteria column.
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->postJson('/api/hub/saved-searches', [
+        'name' => 'Overflow', 'criteria' => ['city' => 'Nowhere', 'lat' => '1e400', 'lng' => -118.24],
+    ])->assertStatus(422)->assertJsonValidationErrors(['criteria.lat']);
+});
+
 test('a user is blocked from saving a 7th search once every existing row is pinned', function () {
     // The cap only bites once there's no unpinned slot left to reuse — see
     // the "still succeeds" tests below for the cases that must NOT be
