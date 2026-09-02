@@ -3,8 +3,8 @@
         <div class="w-full">
             <div class="w-full max-w-[64rem] mx-auto mb-16">
                 <template v-if="showCropper || !mainImage">
-                    <h2 class="text-black">Add an image for your event</h2>
-                    <p class="text-neutral-500 font-normal mt-4">Ideal resolution: 900 by 1200 pixels (vertical)</p>
+                    <h2 class="text-black text-center">Add an image for your event</h2>
+                    <p class="text-neutral-500 font-normal mt-4 text-center">Ideal resolution: 900 by 1200 pixels (vertical)</p>
                 </template>
                 <h2 v-else class="text-black">Add additional images</h2>
             </div>
