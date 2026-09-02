@@ -34,6 +34,7 @@ class EventUpdateRules
         '£' => 'GBP',
         '¥' => 'JPY',
         'C$' => 'CAD',
+        'A$' => 'AUD',
         'MX$' => 'MXN',
         'CN¥' => 'CNY',
         '₩' => 'KRW',
@@ -53,7 +54,7 @@ class EventUpdateRules
      * @var array<int, string>
      */
     public const CURRENCIES = [
-        '$', '€', '£', '¥', 'C$', 'MX$', 'CN¥', '₩',
+        '$', '€', '£', '¥', 'C$', 'A$', 'MX$', 'CN¥', '₩',
     ];
 
     /**
@@ -147,6 +148,7 @@ class EventUpdateRules
         'GBP' => '£', 'POUND' => '£', 'POUNDS' => '£', 'QUID' => '£',
         'JPY' => '¥', 'YEN' => '¥',
         'CAD' => 'C$', 'CA$' => 'C$', 'CAD$' => 'C$', 'C' => 'C$',
+        'AUD' => 'A$', 'AU$' => 'A$', 'AUD$' => 'A$', 'AU' => 'A$',
         'MXN' => 'MX$', 'MXN$' => 'MX$', 'MX' => 'MX$', 'PESO' => 'MX$', 'PESOS' => 'MX$',
         'CNY' => 'CN¥', 'RMB' => 'CN¥', 'YUAN' => 'CN¥',
         'KRW' => '₩', 'WON' => '₩',

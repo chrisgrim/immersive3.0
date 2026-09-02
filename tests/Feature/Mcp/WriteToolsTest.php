@@ -2101,7 +2101,7 @@ test('an ISO currency code is normalized to the symbol the site renders', functi
 test('the other unambiguous currency codes normalize too', function () {
     $user = writeToolUser();
 
-    foreach (['EUR' => '€', 'gbp' => '£', 'JPY' => '¥', 'CAD' => 'C$', 'MXN' => 'MX$', ' usd ' => '$'] as $sent => $stored) {
+    foreach (['EUR' => '€', 'gbp' => '£', 'JPY' => '¥', 'CAD' => 'C$', 'AUD' => 'A$', 'au$' => 'A$', 'MXN' => 'MX$', ' usd ' => '$'] as $sent => $stored) {
         $event = eventReadyForTickets($user);
 
         EiServer::actingAs($user)->tool(UpdateEvent::class, [

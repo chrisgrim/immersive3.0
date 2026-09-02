@@ -320,7 +320,7 @@ const activeCurrency = () => tickets[0]?.currency || state.value.selectedCurrenc
 
 const MAX_DESCRIPTION_LENGTH = 60;
 const MAX_CALL_TO_ACTION_LENGTH = 20;
-const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$', 'MX$', 'CN¥', '₩'];
+const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$', 'A$', 'MX$', 'CN¥', '₩'];
 // Display labels for the currency picker. The stored value is still the short
 // symbol; the label only disambiguates lookalike "$" currencies (USD vs MXN)
 // and lookalike "¥" currencies (JPY vs CNY — see EventUpdateRules::CURRENCIES
@@ -331,6 +331,7 @@ const CURRENCY_LABELS = {
     '£': '£ — GBP',
     '¥': '¥ — JPY',
     'C$': 'C$ — CAD',
+    'A$': 'A$ — AUD (Australian dollar)',
     'MX$': 'MX$ — MXN (Mexican peso)',
     'CN¥': 'CN¥ — CNY (Chinese yuan)',
     '₩': '₩ — KRW',
