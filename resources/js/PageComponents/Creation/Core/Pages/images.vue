@@ -2,7 +2,10 @@
     <main class="w-full min-h-fit">
         <div class="w-full">
             <div class="w-full max-w-[64rem] mx-auto mb-16">
-                <h2 v-if="showCropper || !mainImage" class="text-black">Add the poster image of your event</h2>
+                <template v-if="showCropper || !mainImage">
+                    <h2 class="text-black">Add an image for your event</h2>
+                    <p class="text-neutral-500 font-normal mt-4">Ideal resolution: 900 by 1200 pixels (vertical)</p>
+                </template>
                 <h2 v-else class="text-black">Add additional images</h2>
             </div>
 
@@ -108,7 +111,7 @@
             <div class="mt-16 max-w-[64rem] mx-auto">
                 <p v-if="showMainImageError" 
                    class="text-red-500 text-1xl text-center mb-4">
-                    Please add a poster image for your event
+                    Please add an image for your event
                 </p>
                 <Videos 
                     v-model="videos" 
