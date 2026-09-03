@@ -1,51 +1,74 @@
 <template>
-    <div
-        v-click-outside="close"
-        class="absolute left-0 z-50 mt-2 flex w-[42rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-neutral-300 bg-white shadow-xl"
-        role="dialog"
-        aria-label="Choose a currency"
-        @keydown.esc.prevent="close"
-    >
-        <div class="border-b border-neutral-200 p-3">
-            <input
-                ref="searchInput"
-                v-model="query"
-                type="text"
-                placeholder="Search by name or code"
-                autocomplete="off"
-                aria-label="Search currencies"
-                class="w-full rounded-xl border border-neutral-300 px-4 py-3 text-lg placeholder-neutral-400 focus:border-black focus:outline-none"
-                @input="highlighted = null"
-                @keydown.down.prevent="move(1)"
-                @keydown.up.prevent="move(-1)"
-                @keydown.enter.prevent="choose(highlightedCode)"
-            />
-        </div>
+    <!-- On a phone this is a bottom sheet teleported to <body> — the site's
+         standard mobile format (see the hosting page's Filter Events sheet):
+         dimmed backdrop, title, close cross. On desktop it stays a popover
+         rendered in place under the caption. -->
+    <teleport to="body" :disabled="!isMobile">
+        <div :class="isMobile ? 'fixed inset-0 z-[1001] flex items-end justify-center bg-black bg-opacity-50' : 'contents'">
+            <div
+                v-click-outside="close"
+                role="dialog"
+                aria-label="Choose a currency"
+                :class="isMobile
+                    ? 'flex h-[60vh] w-full flex-col rounded-t-2xl bg-white shadow-xl'
+                    : 'absolute left-0 z-50 mt-2 flex w-[42rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-neutral-300 bg-white shadow-xl'"
+                @keydown.esc.prevent="close"
+            >
+                <div v-if="isMobile" class="flex items-center justify-between px-8 pb-4 pt-8">
+                    <h3 class="text-2xl font-medium">Currency</h3>
+                    <button type="button" aria-label="Close" @click="close">
+                        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                </div>
 
-        <div ref="listEl" class="max-h-[40vh] overflow-y-auto overscroll-contain py-1" role="listbox">
-            <template v-for="group in groups" :key="group.label">
-                <p class="px-4 pb-1 pt-3 text-sm font-medium uppercase tracking-wide text-neutral-500">{{ group.label }}</p>
-                <button
-                    v-for="code in group.codes"
-                    :key="`${group.label}-${code}`"
-                    type="button"
-                    role="option"
-                    :aria-selected="code === modelValue"
-                    :data-code="code"
-                    :data-row="`${group.label}-${code}`"
-                    class="flex w-full items-center gap-3 px-4 py-3 text-left"
-                    :class="`${group.label}-${code}` === highlightedRow ? 'bg-neutral-100' : 'hover:bg-neutral-50'"
-                    @click="choose(code)"
-                    @mousemove="highlighted = `${group.label}-${code}`"
+                <div :class="isMobile ? 'px-8 pb-4' : 'border-b border-neutral-200 p-3'">
+                    <input
+                        ref="searchInput"
+                        v-model="query"
+                        type="text"
+                        placeholder="Search by name or code"
+                        autocomplete="off"
+                        aria-label="Search currencies"
+                        class="w-full rounded-xl border border-neutral-300 px-4 py-3 text-lg placeholder-neutral-400 focus:border-black focus:outline-none"
+                        @input="highlighted = null"
+                        @keydown.down.prevent="move(1)"
+                        @keydown.up.prevent="move(-1)"
+                        @keydown.enter.prevent="choose(highlightedCode)"
+                    />
+                </div>
+
+                <div
+                    ref="listEl"
+                    role="listbox"
+                    :class="isMobile ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-8' : 'max-h-[40vh] overflow-y-auto overscroll-contain py-1'"
                 >
-                    <span class="w-14 shrink-0 font-semibold">{{ code }}</span>
-                    <span class="flex-1 truncate" :class="{ 'font-semibold': code === modelValue }">{{ currencyName(code) }}</span>
-                    <span class="shrink-0 text-neutral-500">{{ currencySymbol(code) }}</span>
-                </button>
-            </template>
-            <p v-if="!visible.length" class="px-4 py-6 text-neutral-500">No currency matches “{{ query }}”.</p>
+                    <template v-for="group in groups" :key="group.label">
+                        <p class="px-4 pb-1 pt-3 text-sm font-medium uppercase tracking-wide text-neutral-500">{{ group.label }}</p>
+                        <button
+                            v-for="code in group.codes"
+                            :key="`${group.label}-${code}`"
+                            type="button"
+                            role="option"
+                            :aria-selected="code === modelValue"
+                            :data-code="code"
+                            :data-row="`${group.label}-${code}`"
+                            class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left"
+                            :class="`${group.label}-${code}` === highlightedRow ? 'bg-neutral-100' : 'hover:bg-neutral-50'"
+                            @click="choose(code)"
+                            @mousemove="highlighted = `${group.label}-${code}`"
+                        >
+                            <span class="w-20 shrink-0 font-semibold">{{ code }}</span>
+                            <span class="flex-1 truncate" :class="{ 'font-semibold': code === modelValue }">{{ currencyName(code) }}</span>
+                            <span class="shrink-0 text-neutral-500">{{ currencySymbol(code) }}</span>
+                        </button>
+                    </template>
+                    <p v-if="!visible.length" class="px-4 py-6 text-neutral-500">No currency matches “{{ query }}”.</p>
+                </div>
+            </div>
         </div>
-    </div>
+    </teleport>
 </template>
 
 <script setup>
@@ -59,7 +82,7 @@
  * Replaced a fixed dropdown of twelve hand-picked symbols that grew by one
  * every time someone emailed to ask.
  */
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import {
     CURRENCY_CODES,
     DEFAULT_CURRENCY,
@@ -74,6 +97,14 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:modelValue', 'close']);
+
+// Below Tailwind's md breakpoint the picker is a bottom sheet (see the
+// template). Tracked live so rotating a tablet swaps the layout.
+const mobileQuery = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia('(max-width: 767px)')
+    : null;
+const isMobile = ref(mobileQuery?.matches ?? false);
+const onMediaChange = (event) => { isMobile.value = event.matches; };
 
 const query = ref('');
 const searchInput = ref(null);
@@ -159,9 +190,15 @@ const choose = (code) => {
 const close = () => emit('close');
 
 onMounted(() => {
+    mobileQuery?.addEventListener?.('change', onMediaChange);
+
     nextTick(() => {
-        searchInput.value?.focus({ preventScroll: true });
+        // Not on a phone: focusing the search there raises the keyboard over
+        // half the sheet before the suggested currencies have been seen.
+        if (!isMobile.value) searchInput.value?.focus({ preventScroll: true });
         if (highlighted.value) scrollTo(highlighted.value, 'center');
     });
 });
+
+onUnmounted(() => mobileQuery?.removeEventListener?.('change', onMediaChange));
 </script>

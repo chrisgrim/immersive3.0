@@ -129,6 +129,29 @@ describe('currency-picker', () => {
         expect(w.emitted('update:modelValue')).toBeUndefined();
     });
 
+    it('is a bottom sheet with a title and a close cross on a phone', async () => {
+        // The site's standard mobile format (the hosting page's Filter Events
+        // sheet): teleported to body, dimmed backdrop, title, close cross.
+        const original = window.matchMedia;
+        window.matchMedia = (q) => ({ matches: true, media: q, addEventListener() {}, removeEventListener() {} });
+
+        try {
+            const w = make();
+            const dialog = document.body.querySelector('[role="dialog"][aria-label="Choose a currency"]');
+
+            expect(dialog).not.toBeNull();
+            expect(dialog.textContent).toContain('Currency');
+            expect(dialog.parentElement.className).toContain('fixed inset-0');
+            expect(dialog.className).toContain('rounded-t-2xl');
+
+            dialog.querySelector('button[aria-label="Close"]').click();
+            await w.vm.$nextTick();
+            expect(w.emitted('close')).toHaveLength(1);
+        } finally {
+            window.matchMedia = original;
+        }
+    });
+
     it('marks the current currency', () => {
         const w = make({ modelValue: 'GBP', suggested: [] });
 
