@@ -45,7 +45,7 @@
             <ul class="list-disc pl-8 space-y-2 text-1xl text-neutral-700">
                 <li>Reach any organizer you don't belong to, or anyone else's drafts</li>
                 <li>Change your email, password or sign-in methods</li>
-                <li>Act as a moderator, even if you are one</li>
+                <li>Act as a moderator{{ $user->isModerator() ? ', unless you say so below' : ', even if you are one' }}</li>
             </ul>
         </div>
 
@@ -55,28 +55,46 @@
             <a href="{{ route('account-settings.index', ['tab' => 'api-keys']) }}" class="underline hover:no-underline">Account Settings</a>.
         </p>
 
-        <div class="flex flex-wrap items-center gap-4">
-            <form method="POST" action="{{ route('passport.authorizations.approve') }}">
-                @csrf
-                <input type="hidden" name="state" value="{{ $request->state }}">
-                <input type="hidden" name="client_id" value="{{ $client->getKey() }}">
-                <input type="hidden" name="auth_token" value="{{ $authToken }}">
+        {{-- Cancel is a separate form (DELETE), referenced from the button below
+             by id so both buttons can sit on one row. --}}
+        <form id="deny-form" method="POST" action="{{ route('passport.authorizations.deny') }}">
+            @csrf
+            @method('DELETE')
+            <input type="hidden" name="state" value="{{ $request->state }}">
+            <input type="hidden" name="client_id" value="{{ $client->getKey() }}">
+            <input type="hidden" name="auth_token" value="{{ $authToken }}">
+        </form>
+
+        <form method="POST" action="{{ route('passport.authorizations.approve') }}">
+            @csrf
+            <input type="hidden" name="state" value="{{ $request->state }}">
+            <input type="hidden" name="client_id" value="{{ $client->getKey() }}">
+            <input type="hidden" name="auth_token" value="{{ $authToken }}">
+
+            @if ($user->isModerator())
+                {{-- The one way a connection gets moderator powers: the moderator
+                     says so, here, per connection. The client cannot ask for it. --}}
+                <label class="flex items-start gap-3 border border-red-200 rounded-2xl p-6 mb-8 cursor-pointer" data-test="moderate-option">
+                    <input type="checkbox" name="moderate" value="1" class="mt-1">
+                    <span class="text-1xl">
+                        <strong class="font-semibold">Include moderator powers for this connection.</strong>
+                        <span class="text-neutral-600">
+                            {{ $client->name }} will then be able to read and edit any event or organizer on the site, as you.
+                            Leave this off unless this assistant needs it; you can disconnect it at any time.
+                        </span>
+                    </span>
+                </label>
+            @endif
+
+            <div class="flex flex-wrap items-center gap-4">
                 <button type="submit" class="rounded-full bg-black text-white px-10 h-16 text-1xl font-medium hover:bg-neutral-800">
                     Approve
                 </button>
-            </form>
-
-            <form method="POST" action="{{ route('passport.authorizations.deny') }}">
-                @csrf
-                @method('DELETE')
-                <input type="hidden" name="state" value="{{ $request->state }}">
-                <input type="hidden" name="client_id" value="{{ $client->getKey() }}">
-                <input type="hidden" name="auth_token" value="{{ $authToken }}">
-                <button type="submit" class="rounded-full border border-neutral-300 px-10 h-16 text-1xl font-medium hover:border-black">
+                <button type="submit" form="deny-form" class="rounded-full border border-neutral-300 px-10 h-16 text-1xl font-medium hover:border-black">
                     Cancel
                 </button>
-            </form>
-        </div>
+            </div>
+        </form>
     </div>
 </div>
 @endsection

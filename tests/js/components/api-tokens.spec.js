@@ -12,7 +12,10 @@ vi.mock('axios', () => ({
  * assistants already connected (with Disconnect), and API keys for scripts
  * (with moderator powers offered to moderators only).
  */
-const apps = [{ id: 't1', app: 'Claude Code', scopes: ['mcp:use'], connected_at: '2026-09-01T00:00:00Z', expires_at: null }];
+const apps = [
+    { id: 't1', app: 'Claude Code', scopes: ['mcp:use'], connected_at: '2026-09-01T00:00:00Z', expires_at: null },
+    { id: 't2', app: 'Claude Desktop', scopes: ['mcp:use', 'mcp:moderate'], connected_at: '2026-09-02T00:00:00Z', expires_at: null },
+];
 const keys = [{ id: 'k1', name: 'Nightly import', moderate: true, created_at: '2026-08-01T00:00:00Z', expires_at: '2026-10-30T00:00:00Z' }];
 
 const mountPage = () => mount(ApiTokens, { props: { embedded: true } });
@@ -43,13 +46,16 @@ describe('api-tokens', () => {
         const w = mountPage();
         await flushPromises();
 
-        expect(w.find('[data-test="connected-apps"]').text()).toContain('Claude Code');
+        const list = w.find('[data-test="connected-apps"]');
+        expect(list.text()).toContain('Claude Code');
+        // A connection approved with moderator powers says so.
+        expect(list.findAll('.rounded-full.bg-red-50').map((b) => b.text())).toEqual(['moderator powers']);
 
-        await w.find('[data-test="connected-apps"] button').trigger('click');
+        await list.findAll('button')[0].trigger('click');
         await flushPromises();
 
         expect(axios.delete).toHaveBeenCalledWith('/oauth/connections/t1');
-        expect(w.find('[data-test="no-apps"]').exists()).toBe(true);
+        expect(w.find('[data-test="connected-apps"]').text()).not.toContain('Claude Code');
     });
 
     it('lists API keys, marking one that carries moderator powers', async () => {

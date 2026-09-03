@@ -3,6 +3,7 @@
 use App\Models\User;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use Laravel\Passport\AccessToken;
 use Laravel\Passport\Client;
 use Laravel\Passport\ClientRepository;
 use Laravel\Passport\Passport;
@@ -49,11 +50,11 @@ function consentUser(string $type = 'm'): User
 }
 
 /** Walk the browser half as $user: view the consent screen, approve, return the code. */
-function approveAndGetCode($test, User $user, Client $client, string $challenge): string
+function approveAndGetCode($test, User $user, Client $client, string $challenge, array $approveWith = []): string
 {
     $test->actingAs($user)->get('/oauth/authorize?'.authorizeQuery($client, $challenge))->assertOk();
 
-    $response = $test->actingAs($user)->post('/oauth/authorize', [
+    $response = $test->actingAs($user)->post('/oauth/authorize', $approveWith + [
         'auth_token' => session('authToken'),
         'state' => 'st4te',
         'client_id' => $client->getKey(),
@@ -220,8 +221,40 @@ test('the consent screen names the app, the account, and where the browser will 
         ->assertSee($user->email)
         ->assertSee('localhost')
         ->assertSee('Not you? Sign out.')
-        ->assertSee('Act as a moderator, even if you are one')
+        ->assertSee('Act as a moderator, unless you say so below') // consentUser() is a moderator
         ->assertSee('Approve');
+});
+
+test('a moderator can include moderator powers on a connection, and nobody else can', function () {
+    // The consent screen offers the choice to moderators only…
+    [, $challenge] = pkcePair();
+    $client = oauthClient();
+    $this->actingAs(consentUser('m'))->get('/oauth/authorize?'.authorizeQuery($client, $challenge))->assertOk()->assertSee('data-test="moderate-option"', false);
+    config(['services.mcp.public' => true]);
+    $this->actingAs(consentUser('u'))->get('/oauth/authorize?'.authorizeQuery($client, $challenge))->assertOk()->assertDontSee('data-test="moderate-option"', false);
+
+    // …and honours it only from a moderator.
+    foreach ([['m', true, ['mcp:use', User::MODERATE_SCOPE]], ['m', false, ['mcp:use']], ['u', true, ['mcp:use']]] as [$type, $tick, $expected]) {
+        [$verifier, $challenge] = pkcePair();
+        $user = consentUser($type);
+        $client = oauthClient();
+        $code = approveAndGetCode($this, $user, $client, $challenge, $tick ? ['moderate' => '1'] : []);
+        $tokens = exchangeCode($this, $client, $code, $verifier)->assertOk()->json();
+
+        $stored = $user->tokens()->first();
+        expect($stored->scopes)->toBe($expected);
+        // What the credential-aware check makes of it — the thing every policy
+        // keys on. (Not Passport::actingAs: that flips the default guard to
+        // `api`, which would derail the next iteration's browser-side calls.)
+        $user->withAccessToken(new AccessToken(['oauth_user_id' => $user->id, 'oauth_scopes' => $stored->scopes]));
+        expect($user->isModerator())->toBe($type === 'm' && $tick);
+        $user->withAccessToken(null);
+
+        // The grant survives a refresh unchanged, and shows in the connections list.
+        $this->postJson('/oauth/token', ['grant_type' => 'refresh_token', 'client_id' => $client->getKey(), 'refresh_token' => $tokens['refresh_token']])->assertOk();
+        expect($user->tokens()->where('revoked', false)->first()->scopes)->toBe($expected);
+        expect($this->actingAs($user)->getJson('/oauth/connections')->json('apps.0.scopes'))->toBe($expected);
+    }
 });
 
 test('an assistant can only ever be granted the default scope', function () {

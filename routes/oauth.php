@@ -1,8 +1,8 @@
 <?php
 
+use App\Http\Controllers\Oauth\ApproveAuthorizationController;
 use App\Http\Controllers\User\ConnectedAppController;
 use Illuminate\Support\Facades\Route;
-use Laravel\Passport\Http\Controllers\ApproveAuthorizationController;
 use Laravel\Passport\Http\Controllers\AuthorizationController;
 use Laravel\Passport\Http\Controllers\DenyAuthorizationController;
 

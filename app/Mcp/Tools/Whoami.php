@@ -53,7 +53,7 @@ class Whoami extends Tool
         $hint = $user->isModerator()
             ? 'As a moderator/admin you are NOT limited to the organizers listed here. Use list-all-events to search every event on the platform in any status, then get-event / update-event / attach-event-image / submit-event-for-review on any of them, and update-organizer on any organizer. Pass ANY existing organizer id to create-event-draft, even one you do not belong to — prefer an existing organizer over creating a duplicate.'
             : ($moderatorAccount
-                ? 'This account is a moderator, but this connection carries the mcp:use scope only, so it acts on the user\'s own organizers like anyone else. Moderator actions need an API key created with moderator powers on the API keys page — an assistant connected through sign-in never has them.'
+                ? 'This account is a moderator, but this connection carries the mcp:use scope only, so it acts on the user\'s own organizers like anyone else. For moderator actions the user must reconnect this assistant and tick "Include moderator powers" on the consent screen, or create an API key with moderator powers on the settings page.'
                 : ($organizers->isEmpty()
                     ? 'This user has no organizer yet. Create one with create-organizer before creating events.'
                     : 'Pass an organizer id to create-event-draft to create an event under that organizer.'));

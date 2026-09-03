@@ -65,10 +65,11 @@ class EiServer extends Server
     whenever an event might live under someone else's organizer, or to sweep for
     work (e.g. `closing_before` finds runs about to expire). A moderator or
     admin can edit ANY event they find there with `update-event` — but only
-    when the credential carries the `mcp:moderate` scope, which an API key
-    created with moderator powers has and a connection made through sign-in
-    never does. `whoami` reports `is_moderator` for the credential in use; if
-    it is false, treat the account like any other organizer's.
+    when the credential carries the `mcp:moderate` scope: a connection the
+    moderator approved with "Include moderator powers" ticked, or an API key
+    created with moderator powers. `whoami` reports `is_moderator` for the
+    credential in use; if it is false, treat the account like any other
+    organizer's and tell the user how to reconnect if they need more.
 
     Editing a schedule: send the field that matches the event's showtype —
     `dateArray` for "s", `ongoing_config` for "o", `always_config` for "a".

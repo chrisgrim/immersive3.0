@@ -36,7 +36,10 @@
             <div v-if="apps.length" class="border border-neutral-200 rounded-2xl divide-y divide-neutral-200" data-test="connected-apps">
                 <div v-for="app in apps" :key="app.id" class="flex items-center justify-between p-6 gap-4">
                     <div class="min-w-0">
-                        <p class="text-2xl font-medium truncate">{{ app.app }}</p>
+                        <p class="text-2xl font-medium truncate">
+                            {{ app.app }}
+                            <span v-if="app.scopes?.includes('mcp:moderate')" class="ml-2 rounded-full bg-red-50 text-red-700 px-3 py-1 text-sm font-medium align-middle">moderator powers</span>
+                        </p>
                         <p class="text-1xl text-neutral-500">
                             Connected {{ formatDate(app.connected_at) }}
                             <span v-if="app.expires_at"> · Renews until {{ formatDate(app.expires_at) }}</span>
