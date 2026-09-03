@@ -562,6 +562,7 @@ import {
     RiPatreonLine 
 } from '@remixicon/vue';
 import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue';
+import { formatPrice } from '@/composables/useCurrency';
 
 const props = defineProps({
     event: {
@@ -589,16 +590,7 @@ const formatEmbargoDate = (date) => {
 // Regression: this used to hardcode a literal "$" regardless of the
 // ticket's actual currency, so every non-USD event's price showed the
 // wrong symbol here even though the data was already loaded correctly.
-// ¥/₩ (JPY/KRW) have no minor unit — CN¥ does NOT belong here,
-// the yuan subdivides into 100 fen (see EventUpdateRules::ZERO_DECIMAL_CURRENCIES) — same reasoning as
-// events/show.blade.php's identical price formatting.
-const ZERO_DECIMAL_CURRENCIES = ['¥', '₩'];
-const formatTicketPrice = (ticket) => {
-    const currency = ticket.currency || '$';
-    const decimals = ZERO_DECIMAL_CURRENCIES.includes(currency) ? 0 : 2;
-
-    return `${currency}${Number(ticket.ticket_price).toFixed(decimals)}`;
-};
+const formatTicketPrice = (ticket) => formatPrice(ticket.ticket_price, ticket.currency);
 
 const categoryImagePath = computed(() => {
     if (props.event?.category?.images?.[0]?.path) {

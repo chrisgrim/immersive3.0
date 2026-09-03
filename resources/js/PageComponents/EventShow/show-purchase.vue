@@ -144,6 +144,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import axios from 'axios';
 import ShowMore from '@/GlobalComponents/show-more.vue';
+import { formatPrice } from '@/composables/useCurrency';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
 import dayjs from 'dayjs';
@@ -154,13 +155,10 @@ const props = defineProps({
     user: Object
 });
 
-// ¥/₩ (JPY/KRW) have no minor unit — CN¥ does NOT belong here,
-// the yuan subdivides into 100 fen (see EventUpdateRules::ZERO_DECIMAL_CURRENCIES) — same list and reasoning as
-// events/show.blade.php's and EventReview.vue's identical price formatting.
-// Needed here specifically because ticket_price arrives as a fixed 2-decimal
-// string straight from the decimal-column cast (e.g. "17.00"), so a
-// zero-decimal currency shows the same wrong ".00" unless reformatted.
-const ZERO_DECIMAL_CURRENCIES = ['¥', '₩'];
+// ticket.currency is an ISO code; formatPrice renders it the way the
+// server does (see useCurrency.js), decimals included — ticket_price arrives
+// as a fixed 2-decimal string from the decimal-column cast ("1500.00"), so a
+// zero-decimal currency needs reformatting, not just a prefix.
 const formatTicketPrice = (ticket) => {
     // Check if ticket name is PWYC (case insensitive)
     if (ticket.name && ticket.name.toUpperCase().trim() === 'PWYC') {
@@ -170,9 +168,7 @@ const formatTicketPrice = (ticket) => {
     if (ticket.type === 'p') return 'Pay what you can';
     if (ticket.ticket_price == 0.00) return 'Free';
 
-    const decimals = ZERO_DECIMAL_CURRENCIES.includes(ticket.currency) ? 0 : 2;
-
-    return `${ticket.currency} ${Number(ticket.ticket_price).toFixed(decimals)}`;
+    return formatPrice(ticket.ticket_price, ticket.currency);
 };
 
 const canEdit = computed(() => 

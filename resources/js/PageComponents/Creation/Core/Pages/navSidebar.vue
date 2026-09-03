@@ -382,6 +382,7 @@ import { computed, ref } from 'vue';
 import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { formatPrice } from '@/composables/useCurrency';
 
 const props = defineProps({
     event: {
@@ -441,10 +442,6 @@ const ticketCount = computed(() => {
     return props.event.shows?.[0]?.tickets?.length || 0;
 });
 
-// ¥/₩ (JPY/KRW) have no minor unit — CN¥ does NOT belong here,
-// the yuan subdivides into 100 fen (see EventUpdateRules::ZERO_DECIMAL_CURRENCIES) — same list/reasoning as
-// show-purchase.vue's identical fix.
-const ZERO_DECIMAL_CURRENCIES = ['¥', '₩'];
 const ticketPriceRange = computed(() => {
     const tickets = props.event.shows?.[0]?.tickets || [];
     if (!tickets.length) return 'No tickets set';
@@ -452,10 +449,10 @@ const ticketPriceRange = computed(() => {
     const prices = tickets.map(t => parseFloat(t.ticket_price));
     const min = Math.min(...prices);
     const max = Math.max(...prices);
-    const decimals = ZERO_DECIMAL_CURRENCIES.includes(tickets[0].currency) ? 0 : 2;
+    const currency = tickets[0].currency;
 
-    if (min === max) return `${tickets[0].currency}${min.toFixed(decimals)}`;
-    return `${tickets[0].currency}${min.toFixed(decimals)} - ${tickets[0].currency}${max.toFixed(decimals)}`;
+    if (min === max) return formatPrice(min, currency);
+    return `${formatPrice(min, currency)} - ${formatPrice(max, currency)}`;
 });
 
 const imageCount = computed(() => {

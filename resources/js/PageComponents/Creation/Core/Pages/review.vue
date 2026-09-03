@@ -303,6 +303,7 @@ import moment from 'moment-timezone';
 import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { formatPrice } from '@/composables/useCurrency';
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const event = inject('event');
@@ -326,13 +327,7 @@ const formatEmbargoDate = (date) => {
 // queue's EventReview.vue (this is the wizard's own final-review step,
 // so an organizer pricing in a non-USD currency saw the wrong symbol
 // right before submitting, not just admins reviewing it after).
-const ZERO_DECIMAL_CURRENCIES = ['¥', '₩'];
-const formatTicketPrice = (ticket) => {
-    const currency = ticket.currency || '$';
-    const decimals = ZERO_DECIMAL_CURRENCIES.includes(currency) ? 0 : 2;
-
-    return `${currency}${Number(ticket.ticket_price).toFixed(decimals)}`;
-};
+const formatTicketPrice = (ticket) => formatPrice(ticket.ticket_price, ticket.currency);
 
 // Map configuration
 const locationMapRef = ref(null);

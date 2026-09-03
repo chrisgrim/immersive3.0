@@ -295,6 +295,36 @@ test('the event page formats through Currency rather than its own list', functio
         ->not->toContain("['¥', 'CN¥', '₩']");
 });
 
+// ── the browser side ─────────────────────────────────────────────────────
+
+test('the Vue side reads the same two data files rather than its own list', function () {
+    $composable = file_get_contents(resource_path('js/composables/useCurrency.js'));
+
+    expect($composable)
+        ->toContain("from '../../data/currencies.json'")
+        ->toContain("from '../../data/country-currency.json'")
+        ->toContain("const LOCALE = '".Currency::LOCALE."'");
+});
+
+test('no Vue file keeps a private copy of the zero-decimal list any more', function () {
+    // Six of these existed; each was a chance for one surface to print
+    // "₩144000.00" while the rest printed "₩144,000".
+    $files = [
+        'js/PageComponents/Creation/Core/Pages/navSidebar.vue',
+        'js/PageComponents/Creation/Core/Pages/review.vue',
+        'js/PageComponents/EventShow/show-purchase.vue',
+        'js/PageComponents/EventShow/show-purchase-mobile.vue',
+        'js/PageComponents/Admin/Approval/EventReview.vue',
+    ];
+
+    foreach ($files as $file) {
+        $source = file_get_contents(resource_path($file));
+
+        expect($source)->not->toContain('ZERO_DECIMAL_CURRENCIES', "{$file} still carries its own list");
+        expect($source)->toContain("@/composables/useCurrency", "{$file} does not use the shared formatter");
+    }
+});
+
 // ── the migration ────────────────────────────────────────────────────────
 
 test('the ISO migration maps stored symbols, repairs "AU", and rebuilds price_range', function () {

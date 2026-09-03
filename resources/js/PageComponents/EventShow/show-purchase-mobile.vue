@@ -87,6 +87,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import axios from 'axios';
 import ShowMore from '@/GlobalComponents/show-more.vue';
 import dayjs from 'dayjs';
+import { formatPrice } from '@/composables/useCurrency';
 
 const props = defineProps({
     event: Object,
@@ -189,10 +190,7 @@ const getDates = () => {
     }
 };
 
-// ¥/₩ (JPY/KRW) have no minor unit — CN¥ does NOT belong here,
-// the yuan subdivides into 100 fen (see EventUpdateRules::ZERO_DECIMAL_CURRENCIES) — same list/reasoning as
-// show-purchase.vue's identical fix.
-const ZERO_DECIMAL_CURRENCIES = ['¥', '₩'];
+// Same formatting as show-purchase.vue — see the note there.
 const formatTicketPrice = (ticket) => {
     // Check if ticket name is PWYC (case insensitive)
     if (ticket.name && ticket.name.toUpperCase().trim() === 'PWYC') {
@@ -202,8 +200,6 @@ const formatTicketPrice = (ticket) => {
     if (ticket.type === 'p') return 'Pay what you can';
     if (ticket.ticket_price == 0.00) return 'Free';
 
-    const decimals = ZERO_DECIMAL_CURRENCIES.includes(ticket.currency) ? 0 : 2;
-
-    return `${ticket.currency} ${Number(ticket.ticket_price).toFixed(decimals)}`;
+    return formatPrice(ticket.ticket_price, ticket.currency);
 };
 </script>
