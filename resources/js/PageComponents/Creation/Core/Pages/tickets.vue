@@ -9,8 +9,9 @@
                     <span 
                         v-if="!isPWYCTicket && !isFreeTicket"
                         class="text-[6rem] md:text-[9.5rem] font-bold text-heavy leading-tight cursor-pointer hover:wiggle"
-                        @click="toggleCurrencyDropdown"
-                    >{{ state.selectedCurrency }}</span>
+                        title="Change currency"
+                        @click="openCurrencyPicker"
+                    >{{ currencySymbol(state.selectedCurrency) }}</span>
                     
                     <!-- Show PWYC text when PWYC ticket type is selected -->
                     <span 
@@ -38,8 +39,12 @@
                         @focus="selectPriceInput"
                         placeholder="0.00"
                         ref="priceInput"
-                        autofocus
                     />
+                    <!-- No native `autofocus` here: onMounted below focuses this
+                         input from script already, and Chrome defers a native
+                         autofocus until the page has fully loaded (maps and all),
+                         so it fired late and stole focus from the currency
+                         picker's search box if that had been opened first. -->
                 </div>
                 <div v-if="$v.tickets.$anyDirty && tickets[state.currentMedia] && $v.tickets.$each.$response.$data[state.currentMedia]?.ticket_price.$error" 
                      class="text-red-500 text-1xl ml-20 mb-8 px-4">
@@ -47,25 +52,29 @@
                         Price cannot be negative.
                     </span>
                     <span v-else-if="$v.tickets.$each.$response.$errors[state.currentMedia].ticket_price.$maxValue">
-                        Price cannot exceed {{ state.selectedCurrency }}{{ MAX_TICKET_PRICE.toLocaleString() }}.
+                        Price cannot exceed {{ formatPrice(MAX_TICKET_PRICE, state.selectedCurrency) }}.
                     </span>
                     <span v-else>
                         Please enter a valid price.
                     </span>
                 </div>
-                <div
-                    v-if="state.showCurrencyDropdown"
-                    v-click-outside="closeCurrencyDropdown"
-                    class="absolute mt-2 max-h-[40vh] overflow-y-auto overscroll-contain border border-neutral-300 rounded-lg bg-white shadow-lg z-50"
-                >
-                    <ul class="flex flex-col m-0">
-                        <li
-                            v-for="currency in CURRENCY_SYMBOLS"
-                            :key="currency"
-                            @click="selectCurrency(currency)"
-                            class="w-full p-4 cursor-pointer hover:bg-neutral-50 text-center whitespace-nowrap"
-                        >{{ CURRENCY_LABELS[currency] || currency }}</li>
-                    </ul>
+                <!-- Which currency prices are in, and where that came from. The
+                     wrapper is the picker's positioning parent, so it opens
+                     directly under this line. -->
+                <div class="relative">
+                <p class="mt-2 flex flex-wrap items-center gap-x-2 text-neutral-500">
+                    <span>
+                        Prices in {{ currencyName(state.selectedCurrency) }} ({{ state.selectedCurrency }})<template v-if="state.currencySource === 'location'">, based on your event's location</template>
+                    </span>
+                    <button type="button" class="underline hover:text-black" @click="openCurrencyPicker">Change</button>
+                </p>
+                <CurrencyPicker
+                    v-if="state.showCurrencyPicker"
+                    :model-value="state.selectedCurrency"
+                    :suggested="suggestedCurrencies"
+                    @update:model-value="selectCurrency"
+                    @close="closeCurrencyPicker"
+                />
                 </div>
             </div>
 
@@ -178,7 +187,7 @@
                                         PWYC
                                     </template>
                                     <template v-else>
-                                        {{ state.selectedCurrency }}{{ formatPrice(ticket.ticket_price) }}
+                                        {{ formatPrice(ticket.ticket_price, activeCurrency()) }}
                                     </template>
                                 </h4>
                             </div>
@@ -282,6 +291,15 @@ import { required, maxLength, helpers, minValue, maxValue } from '@vuelidate/val
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import Dropdown from '@/GlobalComponents/dropdown.vue';
 import List from '@/GlobalComponents/dropdown-list.vue';
+import CurrencyPicker from '@/GlobalComponents/currency-picker.vue';
+import {
+    DEFAULT_CURRENCY,
+    currencyDecimals,
+    currencyForCountry,
+    currencyName,
+    currencySymbol,
+    formatPrice,
+} from '@/composables/useCurrency';
 
 // 2. Constants
 // Must match EventUpdateRules::MAX_TICKET_TIERS — asserted by
@@ -297,22 +315,19 @@ const MAX_TICKET_PRICE = 999999.99;
 // Digits allowed before the decimal point, derived so the input can never
 // truncate a value the cap above would have accepted.
 const MAX_PRICE_DIGITS = String(Math.floor(MAX_TICKET_PRICE)).length;
-// ¥/₩ (JPY/KRW) have no minor unit — CN¥ does NOT belong here,
-// the yuan subdivides into 100 fen (see EventUpdateRules::ZERO_DECIMAL_CURRENCIES), so "₩144000.00" is not how that
-// amount is ever written. Must match EventUpdateRules::ZERO_DECIMAL_CURRENCIES
-// (asserted by tests/Feature/CurrencyCatalogTest.php).
-const ZERO_DECIMAL_CURRENCIES = ['¥', '₩'];
-
-// The input's displayed value for a stored price. Zero-decimal currencies are
-// rendered as-is rather than with toFixed(0): toFixed ROUNDS, so a stored
-// 144000.5 would display — and on the next save store — as 144001, which is
-// the same class of silent value change as the five-digit truncation this
-// input used to do.
+// The input's displayed value for a stored price, with the currency's own
+// number of decimals (2 for most, 0 for JPY/KRW — from the browser's locale
+// data, see useCurrency.js). A zero-decimal price is rendered as-is rather
+// than with toFixed(0): toFixed ROUNDS, so a stored 144000.5 would display —
+// and on the next save store — as 144001, which is the same class of silent
+// value change as the five-digit truncation this input used to do.
 const displayPrice = (price, currency) => {
     const value = parseFloat(price);
     if (isNaN(value)) return '';
 
-    return ZERO_DECIMAL_CURRENCIES.includes(currency) ? String(value) : value.toFixed(2);
+    const decimals = currencyDecimals(currency);
+
+    return decimals === 0 ? String(value) : value.toFixed(decimals);
 };
 
 // The currency every tier is in — they always share one (see selectCurrency).
@@ -320,25 +335,6 @@ const activeCurrency = () => tickets[0]?.currency || state.value.selectedCurrenc
 
 const MAX_DESCRIPTION_LENGTH = 60;
 const MAX_CALL_TO_ACTION_LENGTH = 20;
-const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$', 'A$', 'HK$', 'NT$', 'MX$', 'CN¥', '₩', '฿'];
-// Display labels for the currency picker. The stored value is still the short
-// symbol; the label only disambiguates lookalike "$" currencies (USD vs MXN)
-// and lookalike "¥" currencies (JPY vs CNY — see EventUpdateRules::CURRENCIES
-// for why yuan gets the "CN¥" prefix instead of bare "¥").
-const CURRENCY_LABELS = {
-    '$': '$ — USD',
-    '€': '€ — EUR',
-    '£': '£ — GBP',
-    '¥': '¥ — JPY',
-    'C$': 'C$ — CAD',
-    'A$': 'A$ — AUD (Australian dollar)',
-    'HK$': 'HK$ — HKD (Hong Kong dollar)',
-    'NT$': 'NT$ — TWD (New Taiwan dollar)',
-    'MX$': 'MX$ — MXN (Mexican peso)',
-    'CN¥': 'CN¥ — CNY (Chinese yuan)',
-    '₩': '₩ — KRW',
-    '฿': '฿ — THB (Thai baht)',
-};
 const MAX_URL_LENGTH = 255;
 const TICKET_NAME_OPTIONS = [
   { id: 'general', name: 'General' },
@@ -366,13 +362,29 @@ const user = inject('user');
 // Admin check
 const isAdmin = computed(() => user && (user.isAdmin || false));
 
+// The currency to start in. Saved tickets carry their own; a new event
+// takes the currency of its venue country (a Singapore event prices in SGD
+// without anyone opening the picker); a remote event, or one whose venue
+// has no country yet, starts in USD. The MCP tool applies the same rule
+// server-side for a tier sent without a currency.
+const show = event?.shows?.[0];
+const savedCurrency = show?.tickets?.[0]?.currency || null;
+const inPerson = event?.attendance_type_id === 1 || !!event?.hasLocation;
+const locationCurrency = inPerson ? currencyForCountry(event?.location?.country) : null;
+const initialCurrency = savedCurrency || locationCurrency || DEFAULT_CURRENCY;
+const initialSource = savedCurrency ? 'saved' : (locationCurrency ? 'location' : 'default');
+
 // 4. State Management
 const state = ref({
     currentMedia: 0,
     hoveredLocation: null,
     showAdditionalDetails: false,
-    showCurrencyDropdown: false,
-    selectedCurrency: '$',
+    showCurrencyPicker: false,
+    selectedCurrency: initialCurrency,
+    // For the caption under the price: 'saved' (the event's own tickets),
+    // 'location' (its venue country), 'default' (USD, nothing better to go
+    // on) or 'chosen' (picked in this session).
+    currencySource: initialSource,
     formattedPrice: '',
     formattedName: '',
     formattedDescription: '',
@@ -384,7 +396,6 @@ const state = ref({
 });
 
 // Get tickets from the first show
-const show = event?.shows?.[0];
 const tickets = reactive(show?.tickets?.length 
     ? show.tickets.map(ticket => ({
         name: ticket.name || '',
@@ -542,14 +553,14 @@ const updateTicketPrice = (e) => {
     // rejects one (ZeroDecimalPriceRule), so don't let the input create one.
     // Dropping the separator as you type beats accepting "144000.5" and
     // failing on save, and beats rounding it behind your back.
-    if (ZERO_DECIMAL_CURRENCIES.includes(activeCurrency())) {
+    if (currencyDecimals(activeCurrency()) === 0) {
         value = value.split('.')[0];
     }
 
     const decimalIndex = value.indexOf('.');
     if (decimalIndex !== -1) {
         value = value.substring(0, decimalIndex + 1) + 
-               value.substring(decimalIndex + 1).replace(/\./g, '').substring(0, 2);
+               value.substring(decimalIndex + 1).replace(/\./g, '').substring(0, currencyDecimals(activeCurrency()));
     }
 
     const parts = value.split('.');
@@ -667,18 +678,25 @@ const toggleAdditionalDetails = () => {
     }
 };
 
-const toggleCurrencyDropdown = () => {
-    state.value.showCurrencyDropdown = !state.value.showCurrencyDropdown;
+const openCurrencyPicker = () => {
+    state.value.showCurrencyPicker = true;
 };
 
-const closeCurrencyDropdown = () => {
-    state.value.showCurrencyDropdown = false;
+const closeCurrencyPicker = () => {
+    state.value.showCurrencyPicker = false;
 };
+
+// The picker's "Suggested" group: the venue's currency first, then the
+// ones most events here are priced in.
+const suggestedCurrencies = computed(() =>
+    [...new Set([locationCurrency, 'USD', 'GBP', 'EUR', 'CAD', 'AUD'].filter(Boolean))]
+);
 
 const selectCurrency = (currency) => {
     state.value.selectedCurrency = currency;
+    state.value.currencySource = 'chosen';
     tickets.forEach(ticket => ticket.currency = currency);
-    state.value.showCurrencyDropdown = false;
+    state.value.showCurrencyPicker = false;
 
     // Switching to or from a zero-decimal currency changes how the amount on
     // screen should be written, and the input holds a formatted string — so
@@ -692,12 +710,6 @@ const selectCurrency = (currency) => {
 };
 
 // 10. Helper Methods
-const formatPrice = (price) => {
-    if (price === '' || price === null || price === undefined) {
-        return '';
-    }
-    return displayPrice(price, activeCurrency());
-};
 
 // 11. Component API
 defineExpose({

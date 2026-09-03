@@ -310,6 +310,7 @@ test('no Vue file keeps a private copy of the zero-decimal list any more', funct
     // Six of these existed; each was a chance for one surface to print
     // "₩144000.00" while the rest printed "₩144,000".
     $files = [
+        'js/PageComponents/Creation/Core/Pages/tickets.vue',
         'js/PageComponents/Creation/Core/Pages/navSidebar.vue',
         'js/PageComponents/Creation/Core/Pages/review.vue',
         'js/PageComponents/EventShow/show-purchase.vue',
@@ -320,8 +321,10 @@ test('no Vue file keeps a private copy of the zero-decimal list any more', funct
     foreach ($files as $file) {
         $source = file_get_contents(resource_path($file));
 
-        expect($source)->not->toContain('ZERO_DECIMAL_CURRENCIES', "{$file} still carries its own list");
-        expect($source)->toContain("@/composables/useCurrency", "{$file} does not use the shared formatter");
+        // toContain() takes needles, not a message — a second argument
+        // silently becomes another thing it searches for.
+        expect(str_contains($source, 'ZERO_DECIMAL_CURRENCIES'))->toBeFalse("{$file} still carries its own list");
+        expect(str_contains($source, '@/composables/useCurrency'))->toBeTrue("{$file} does not use the shared formatter");
     }
 });
 

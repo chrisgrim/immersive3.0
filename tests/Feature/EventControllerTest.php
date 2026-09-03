@@ -159,7 +159,7 @@ test('show does not duplicate the wheelchair-accessible line when advisory id 22
     // updateOrCreate()/create() silently drop 'id' — it's not in the
     // model's $fillable — so this forces the specific id the Blade fix
     // filters on, rather than whatever id autoincrement would assign.
-    (new MobilityAdvisory())->forceFill([
+    (new MobilityAdvisory)->forceFill([
         'id' => 22,
         'name' => 'Event is wheelchair accessible.',
         'user_id' => $event->user_id,
