@@ -32,10 +32,16 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->withoutOverlapping()
                 ->appendOutputTo(storage_path('logs/archive-clicks.log'));
 
-            // Delete expired MCP API tokens a week after they expire.
-            $schedule->command('sanctum:prune-expired --hours=168')
+            // OAuth housekeeping for the MCP server (Passport). purge drops
+            // revoked and expired tokens and codes; the second sweeps client
+            // registrations that never went on to obtain a token.
+            $schedule->command('passport:purge')
                 ->dailyAt('04:00')
-                ->withoutOverlapping();
+                ->timezone('America/Los_Angeles');
+
+            $schedule->command('mcp:prune-oauth-clients')
+                ->dailyAt('04:10')
+                ->timezone('America/Los_Angeles');
 
             // Saved-search "notify me about new events" pilot — see
             // NotifySavedSearchMatchesCommand's own docblock.

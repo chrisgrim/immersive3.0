@@ -95,3 +95,34 @@ function mcpToken(User $user, array $scopes = ['mcp:use'], string $name = 'test'
 
     return $user->createToken($name, $scopes)->accessToken;
 }
+
+/**
+ * A JSON-RPC initialize call: the smallest request that proves /mcp let a
+ * credential in. Shared by every HTTP-level test of the endpoint.
+ */
+function mcpInitializePayload(): array
+{
+    return [
+        'jsonrpc' => '2.0',
+        'id' => 1,
+        'method' => 'initialize',
+        'params' => [
+            'protocolVersion' => '2025-03-26',
+            'capabilities' => [],
+            'clientInfo' => ['name' => 'pest', 'version' => '1.0'],
+        ],
+    ];
+}
+
+/**
+ * Call /mcp with a bearer token. Guards are reset first: Passport's request
+ * guard caches the user it resolved, and in one test process that cache
+ * survives between requests, so a revoked token "worked" if a good one had
+ * just been used. Every real request is a fresh process.
+ */
+function mcpCall($test, string $token)
+{
+    app('auth')->forgetGuards();
+
+    return $test->postJson('/mcp', mcpInitializePayload(), ['Authorization' => "Bearer {$token}"]);
+}

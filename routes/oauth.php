@@ -1,9 +1,9 @@
 <?php
 
+use App\Http\Controllers\User\ConnectedAppController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Passport\Http\Controllers\ApproveAuthorizationController;
 use Laravel\Passport\Http\Controllers\AuthorizationController;
-use Laravel\Passport\Http\Controllers\AuthorizedAccessTokenController;
 use Laravel\Passport\Http\Controllers\DenyAuthorizationController;
 
 /*
@@ -31,9 +31,10 @@ Route::prefix('oauth')->name('passport.')->group(function () {
     });
 
     // The signed-in user's own grants: what the "Connected apps" list reads
-    // and what its Revoke button calls. Passport scopes both to the user.
+    // and what its Disconnect button calls. Ours, not Passport's /oauth/tokens:
+    // that one hides tokens of unowned clients, which every assistant is.
     Route::middleware('auth')->group(function () {
-        Route::get('/tokens', [AuthorizedAccessTokenController::class, 'forUser'])->name('tokens.index');
-        Route::delete('/tokens/{token_id}', [AuthorizedAccessTokenController::class, 'destroy'])->name('tokens.destroy');
+        Route::get('/connections', [ConnectedAppController::class, 'index'])->name('connections.index');
+        Route::delete('/connections/{tokenId}', [ConnectedAppController::class, 'destroy'])->name('connections.destroy');
     });
 });

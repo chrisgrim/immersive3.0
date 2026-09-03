@@ -10,20 +10,6 @@ use Laravel\Passport\Passport;
  * HTTP-level auth on the /mcp endpoint: Passport bearer tokens carrying the
  * mcp:use scope, and nothing else — no session, no cookie, no CSRF.
  */
-function mcpInitializePayload(): array
-{
-    return [
-        'jsonrpc' => '2.0',
-        'id' => 1,
-        'method' => 'initialize',
-        'params' => [
-            'protocolVersion' => '2025-03-26',
-            'capabilities' => [],
-            'clientInfo' => ['name' => 'pest', 'version' => '1.0'],
-        ],
-    ];
-}
-
 test('the mcp endpoint rejects unauthenticated requests and says where to get a token', function () {
     $response = $this->postJson('/mcp', mcpInitializePayload())->assertStatus(401);
 

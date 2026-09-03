@@ -120,8 +120,11 @@ class LoginCodeController extends Controller
         // Generate session
         $request->session()->regenerate();
 
+        // Back to where the guest redirect sent them from — the OAuth consent
+        // screen, when an assistant asked to connect (routes/oauth.php) — and
+        // the home page otherwise. Social sign-in already did this.
         return response()->json([
-            'redirect' => '/'
+            'redirect' => redirect()->intended('/')->getTargetUrl(),
         ]);
     }
 
