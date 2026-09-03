@@ -42,7 +42,7 @@ const items = [
     // Moderator/admin only — matches the /settings/api-tokens server-side
     // gate (EnsureCanManageApiTokens), which is the real enforcement; this
     // is just a UX nicety so non-moderators don't see a dead-end tab.
-    { tab: 'api-keys', label: 'API keys', icon: RiKey2Line, moderatorOnly: true },
+    { tab: 'api-keys', label: 'AI & API access', icon: RiKey2Line, moderatorOnly: true },
 ];
 
 const visibleItems = computed(() => {

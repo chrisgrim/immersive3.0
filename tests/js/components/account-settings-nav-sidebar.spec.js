@@ -28,7 +28,7 @@ describe('AccountSettings/Pages/navSidebar.vue', () => {
         window.Laravel.mcpPublic = false;
         const wrapper = mount(AccountSettingsNavSidebar, { props: { currentTab: 'personal-info' } });
 
-        expect(wrapper.findAll('button').map((b) => b.text())).not.toContain('API keys');
+        expect(wrapper.findAll('button').map((b) => b.text())).not.toContain('AI & API access');
     });
 
     it('shows the API keys tab for a moderator', () => {
@@ -36,7 +36,7 @@ describe('AccountSettings/Pages/navSidebar.vue', () => {
         const wrapper = mount(AccountSettingsNavSidebar, { props: { currentTab: 'personal-info' } });
         const labels = wrapper.findAll('button').map((b) => b.text());
 
-        expect(labels).toEqual(['Personal information', 'Login & security', 'Privacy', 'Notifications', 'API keys']);
+        expect(labels).toEqual(['Personal information', 'Login & security', 'Privacy', 'Notifications', 'AI & API access']);
     });
 
     it('shows the API keys tab for a regular user once MCP_PUBLIC is on', () => {
@@ -44,7 +44,7 @@ describe('AccountSettings/Pages/navSidebar.vue', () => {
         window.Laravel.mcpPublic = true;
         const wrapper = mount(AccountSettingsNavSidebar, { props: { currentTab: 'personal-info' } });
 
-        expect(wrapper.findAll('button').map((b) => b.text())).toContain('API keys');
+        expect(wrapper.findAll('button').map((b) => b.text())).toContain('AI & API access');
     });
 
     it('emits navigate with "api-keys" when a moderator clicks the API keys tab', async () => {
