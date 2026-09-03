@@ -29,8 +29,9 @@ class RecordMcpToolCall
 
         try {
             $body = $request->json()->all();
-            // A JSON-RPC batch is an array of calls; record it as one.
-            $isBatch = array_is_list($body);
+            // A JSON-RPC batch is an array of calls; record it as one. (An empty
+            // or non-JSON body decodes to [] too, and is not a batch.)
+            $isBatch = $body !== [] && array_is_list($body);
             $user = $request->user();
             $token = $user?->token();
 

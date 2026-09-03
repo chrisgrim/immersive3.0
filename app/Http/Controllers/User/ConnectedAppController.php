@@ -21,7 +21,7 @@ class ConnectedAppController extends Controller
     {
         return response()->json([
             'apps' => $this->grants($request->user())
-                ->with('client')
+                ->with(['client', 'refreshToken'])
                 ->orderByDesc('created_at')
                 ->get()
                 ->map(fn (Token $token) => [
@@ -29,7 +29,10 @@ class ConnectedAppController extends Controller
                     'app' => $token->client?->name ?? 'Unknown app',
                     'scopes' => $token->scopes,
                     'connected_at' => $token->created_at,
-                    'expires_at' => $token->expires_at,
+                    // The access token lasts an hour and is renewed silently;
+                    // the refresh token's expiry is when the connection itself
+                    // lapses, which is the date worth showing.
+                    'expires_at' => $token->refreshToken?->expires_at ?? $token->expires_at,
                 ])->values(),
         ]);
     }

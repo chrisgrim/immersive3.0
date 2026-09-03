@@ -22,14 +22,16 @@
     <div class="w-full max-w-[64rem]">
         <h1 class="text-4.5xl font-semibold mb-4">Connect {{ $client->name }}?</h1>
 
-        <p class="text-2xl text-neutral-700 mb-10">
+        <p class="text-2xl text-neutral-700 mb-2">
             <strong class="font-semibold text-black">{{ $client->name }}</strong> wants to use Everything Immersive as
             <strong class="font-semibold text-black">{{ $user->email }}</strong>.
-            <form method="POST" action="{{ route('logout') }}" class="inline">
-                @csrf
-                <button type="submit" class="underline hover:no-underline">Not you? Sign out.</button>
-            </form>
         </p>
+        {{-- Its own block, not inside the paragraph: a form is block-level, and
+             browsers close a <p> around it, which broke the layout. --}}
+        <form method="POST" action="{{ route('logout') }}" class="mb-10">
+            @csrf
+            <button type="submit" class="text-1xl text-neutral-500 underline hover:no-underline">Not you? Sign out.</button>
+        </form>
 
         <div class="border border-neutral-200 rounded-2xl p-8 mb-8">
             <h2 class="text-2.5xl font-semibold mb-4">It will be able to</h2>
