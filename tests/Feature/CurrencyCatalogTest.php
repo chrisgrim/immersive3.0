@@ -113,6 +113,8 @@ test('symbol is the prefix ICU prints, falling back to the code itself', functio
     expect(Currency::symbol('AUD'))->toBe('A$');
     expect(Currency::symbol('INR'))->toBe('₹');
     expect(Currency::symbol('SGD'))->toBe('SGD');
+    // A phrase, with a plain space — ICU's own has a narrow non-breaking one.
+    expect(Currency::symbol('XOF'))->toBe('F CFA');
 });
 
 // ── normalising what clients send ────────────────────────────────────────

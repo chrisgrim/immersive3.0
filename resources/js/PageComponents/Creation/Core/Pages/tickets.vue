@@ -11,7 +11,7 @@
                         class="text-[6rem] md:text-[9.5rem] font-bold text-heavy leading-tight cursor-pointer hover:wiggle"
                         title="Change currency"
                         @click="openCurrencyPicker"
-                    >{{ currencySymbol(state.selectedCurrency) }}</span>
+                    >{{ currencyPrefix(state.selectedCurrency) }}</span>
                     
                     <!-- Show PWYC text when PWYC ticket type is selected -->
                     <span 
@@ -37,7 +37,7 @@
                         v-model="state.formattedPrice"
                         @input="updateTicketPrice"
                         @focus="selectPriceInput"
-                        placeholder="0.00"
+                        :placeholder="displayPrice(0, activeCurrency())"
                         ref="priceInput"
                     />
                     <!-- No native `autofocus` here: onMounted below focuses this
@@ -297,7 +297,7 @@ import {
     currencyDecimals,
     currencyForCountry,
     currencyName,
-    currencySymbol,
+    currencyPrefix,
     formatPrice,
 } from '@/composables/useCurrency';
 

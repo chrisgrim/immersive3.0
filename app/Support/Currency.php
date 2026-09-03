@@ -172,7 +172,9 @@ final class Currency
         $formatter = self::formatter();
         $formatter->setTextAttribute(NumberFormatter::CURRENCY_CODE, self::isValid($code) ? $code : self::DEFAULT);
 
-        return $formatter->getSymbol(NumberFormatter::CURRENCY_SYMBOL);
+        // Same plain-space substitution as format(): ICU writes "F CFA" with
+        // a narrow non-breaking space inside it.
+        return str_replace(["\u{A0}", "\u{202F}"], ' ', $formatter->getSymbol(NumberFormatter::CURRENCY_SYMBOL));
     }
 
     /**

@@ -50,7 +50,23 @@ export const currencyDecimals = (code) =>
 export const currencySymbol = (code) => {
     const resolved = isCurrencyCode(code) ? code : DEFAULT_CURRENCY;
 
-    return formatterFor(resolved).formatToParts(0).find((part) => part.type === 'currency')?.value ?? resolved;
+    const symbol = formatterFor(resolved).formatToParts(0).find((part) => part.type === 'currency')?.value ?? resolved;
+
+    // Same plain-space substitution as formatPrice: ICU writes "F CFA" with a
+    // narrow non-breaking space inside it.
+    return symbol.replace(/[\u00A0\u202F]/g, ' ');
+};
+
+/**
+ * What to print as a large stand-alone prefix, as in the wizard's giant
+ * price input: the symbol when it is short ("$", "A$", "CA$", "SGD"), the
+ * code when ICU's symbol is a phrase ("F CFA" for XOF, "FCFA" for XAF) —
+ * at a 9.5rem font a five-character symbol collides with the number.
+ */
+export const currencyPrefix = (code) => {
+    const symbol = currencySymbol(code);
+
+    return symbol.length <= 3 ? symbol : (isCurrencyCode(code) ? code : DEFAULT_CURRENCY);
 };
 
 let displayNames = null;
@@ -90,7 +106,7 @@ export const formatPrice = (amount, code, { compact = false } = {}) => {
 
     const formatter = compact && Number.isInteger(value) ? formatterFor(resolved, 0) : formatterFor(resolved);
 
-    return formatter.format(value).replace(/[  ]/g, ' ');
+    return formatter.format(value).replace(/[\u00A0\u202F]/g, ' ');
 };
 
 /**

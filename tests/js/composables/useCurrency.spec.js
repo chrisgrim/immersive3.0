@@ -5,6 +5,7 @@ import {
     currencyDecimals,
     currencyForCountry,
     currencyName,
+    currencyPrefix,
     currencySymbol,
     formatPrice,
     isCurrencyCode,
@@ -81,6 +82,19 @@ describe('useCurrency', () => {
         expect(currencySymbol('AUD')).toBe('A$');
         expect(currencySymbol('INR')).toBe('₹');
         expect(currencySymbol('SGD')).toBe('SGD');
+    });
+
+    it('uses the code as a large prefix when the symbol is a phrase', () => {
+        expect(currencyPrefix('USD')).toBe('$');
+        expect(currencyPrefix('AUD')).toBe('A$');
+        expect(currencyPrefix('CAD')).toBe('CA$');
+        expect(currencyPrefix('SGD')).toBe('SGD');
+        // ICU's English symbol is "F CFA" — five characters, one of them a
+        // space, which at the wizard's 9.5rem size ran into the number.
+        expect(currencySymbol('XOF')).toBe('F CFA');
+        expect(currencyPrefix('XOF')).toBe('XOF');
+        expect(currencyPrefix('XAF')).toBe('XAF');
+        expect(currencyPrefix(null)).toBe('$');
     });
 
     it('names a currency from the browser, with no list of its own', () => {
