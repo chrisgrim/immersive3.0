@@ -83,8 +83,8 @@ describe('AccountSettings/index.vue', () => {
             expect(apiKeys.props('embedded')).toBe(true);
         });
 
-        it('renders the API keys tab once MCP_TOKEN_UI_PUBLIC is on, even for a non-moderator', () => {
-            window.Laravel.mcpTokenUiPublic = true;
+        it('renders the API keys tab once MCP_PUBLIC is on, even for a non-moderator', () => {
+            window.Laravel.mcpPublic = true;
             setPath('/account-settings/api-keys');
             const wrapper = shallowMount(AccountSettingsIndex);
 

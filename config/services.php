@@ -54,9 +54,10 @@ return [
     ],
 
     'mcp' => [
-        // While false, the API-token page is only visible to moderators/admins.
-        // Flip to true (env) when the MCP server opens to the public.
-        'token_ui_public' => env('MCP_TOKEN_UI_PUBLIC', false),
+        // While false, connecting an AI assistant (OAuth consent) and the API
+        // keys page are moderator/admin only — a soft launch. Flip MCP_PUBLIC
+        // to open both to every verified user without a code change.
+        'public' => env('MCP_PUBLIC', false),
     ],
 
     'google_geocoding' => [

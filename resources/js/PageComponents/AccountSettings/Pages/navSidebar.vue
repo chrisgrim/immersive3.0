@@ -48,8 +48,8 @@ const items = [
 const visibleItems = computed(() => {
     // Same OR as the server-side gate (EnsureCanManageApiTokens): a
     // moderator/admin always sees it, and everyone does once
-    // MCP_TOKEN_UI_PUBLIC opens the feature generally.
-    const canManageApiTokens = !!window.Laravel?.user?.isModerator || !!window.Laravel?.mcpTokenUiPublic;
+    // MCP_PUBLIC opens the feature generally.
+    const canManageApiTokens = !!window.Laravel?.user?.isModerator || !!window.Laravel?.mcpPublic;
 
     return items.filter((item) => !item.moderatorOnly || canManageApiTokens);
 });

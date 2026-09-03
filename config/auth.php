@@ -40,6 +40,15 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Bearer tokens (the MCP server): Laravel Passport, OAuth 2.1 grants and
+        // personal access tokens alike. The SPA never uses this guard; its API
+        // routes stay on auth:sanctum, which is cookie-only now that the User
+        // model no longer carries Sanctum's token trait.
+        'api' => [
+            'driver' => 'passport',
+            'provider' => 'users',
+        ],
     ],
 
     /*

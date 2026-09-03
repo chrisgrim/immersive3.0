@@ -4,7 +4,7 @@
  * Covers:
  *  - Renders exactly the 4 tabs: personal-info / login-security / privacy /
  *    notifications, plus a 5th "API keys" tab for moderators/admins or once
- *    MCP_TOKEN_UI_PUBLIC is on (window.Laravel.mcpTokenUiPublic).
+ *    MCP_PUBLIC is on (window.Laravel.mcpPublic).
  *  - Highlights whichever item matches the currentTab prop.
  *  - Clicking an item emits 'navigate' with that item's tab key.
  *
@@ -25,7 +25,7 @@ describe('AccountSettings/Pages/navSidebar.vue', () => {
 
     it('hides the API keys tab for a regular user with the public flag off', () => {
         window.Laravel.user.isModerator = false;
-        window.Laravel.mcpTokenUiPublic = false;
+        window.Laravel.mcpPublic = false;
         const wrapper = mount(AccountSettingsNavSidebar, { props: { currentTab: 'personal-info' } });
 
         expect(wrapper.findAll('button').map((b) => b.text())).not.toContain('API keys');
@@ -39,9 +39,9 @@ describe('AccountSettings/Pages/navSidebar.vue', () => {
         expect(labels).toEqual(['Personal information', 'Login & security', 'Privacy', 'Notifications', 'API keys']);
     });
 
-    it('shows the API keys tab for a regular user once MCP_TOKEN_UI_PUBLIC is on', () => {
+    it('shows the API keys tab for a regular user once MCP_PUBLIC is on', () => {
         window.Laravel.user.isModerator = false;
-        window.Laravel.mcpTokenUiPublic = true;
+        window.Laravel.mcpPublic = true;
         const wrapper = mount(AccountSettingsNavSidebar, { props: { currentTab: 'personal-info' } });
 
         expect(wrapper.findAll('button').map((b) => b.text())).toContain('API keys');

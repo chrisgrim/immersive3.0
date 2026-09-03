@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Cashier\Billable;
-use Laravel\Sanctum\HasApiTokens;
+use Laravel\Passport\HasApiTokens;
 
 class User extends Authenticatable
 {
@@ -328,7 +328,7 @@ class User extends Authenticatable
      */
     public function isAdmin()
     {
-        return $this->type === 'a';
+        return $this->type === 'a' && $this->credentialAllowsModeration();
     }
 
     /**
@@ -375,7 +375,33 @@ class User extends Authenticatable
      */
     public function isModerator()
     {
-        return $this->type === 'm' || $this->type === 'a';
+        return ($this->type === 'm' || $this->type === 'a') && $this->credentialAllowsModeration();
+    }
+
+    /**
+     * The OAuth scope that lets an API token exercise moderator/admin powers.
+     * Only personal access tokens minted on the API keys page can carry it;
+     * an assistant connected through the OAuth consent screen never can.
+     */
+    public const MODERATE_SCOPE = 'mcp:moderate';
+
+    /**
+     * Whether the credential this request authenticated with may exercise
+     * moderator/admin powers.
+     *
+     * On a web session there is no access token, and the answer is yes — the
+     * site behaves exactly as it always has. On the MCP endpoint the request
+     * carries a Passport token, and the answer is whether that token holds
+     * the mcp:moderate scope. Every moderator branch in the policies, the
+     * review-lock bypasses and the cap bypasses already key on isModerator()
+     * / isAdmin(), so this one check is what keeps a leaked assistant token —
+     * even an admin's — inside that admin's own organizers.
+     */
+    public function credentialAllowsModeration(): bool
+    {
+        $token = $this->token();
+
+        return $token === null || $token->can(self::MODERATE_SCOPE);
     }
 
     /**

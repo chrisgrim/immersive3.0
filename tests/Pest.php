@@ -1,6 +1,11 @@
 <?php
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Passport\Client;
+use Laravel\Passport\ClientRepository;
+use Laravel\Passport\Passport;
+use phpseclib3\Crypt\RSA;
 use Tests\TestCase;
 
 /*
@@ -14,7 +19,7 @@ use Tests\TestCase;
 |
 */
 
-uses(TestCase::class, RefreshDatabase::class)->in('Feature');
+uses(TestCase::class, RefreshDatabase::class)->beforeEach(fn () => passportTestKeys())->in('Feature');
 
 /*
 |--------------------------------------------------------------------------
@@ -42,7 +47,51 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Point Passport at a throwaway RSA key pair for the test run, generated once
+ * per machine under storage/framework/testing (git-ignored). Real tokens are
+ * signed JWTs, so HTTP-level tests need real keys; 2048 bits keeps the
+ * one-off generation to a fraction of a second.
+ */
+function passportTestKeys(): void
 {
-    // ..
+    $dir = storage_path('framework/testing/oauth');
+
+    if (! is_file($dir.'/oauth-private.key') || ! is_file($dir.'/oauth-public.key')) {
+        if (! is_dir($dir)) {
+            mkdir($dir, 0700, true);
+        }
+        $key = RSA::createKey(2048);
+        file_put_contents($dir.'/oauth-private.key', (string) $key);
+        file_put_contents($dir.'/oauth-public.key', (string) $key->getPublicKey());
+        chmod($dir.'/oauth-private.key', 0600);
+        chmod($dir.'/oauth-public.key', 0600);
+    }
+
+    Passport::loadKeysFrom($dir);
+}
+
+/**
+ * The personal-access client createToken() needs. RefreshDatabase wipes it,
+ * so it is made on demand — the same call `mcp:oauth-setup` makes on deploy.
+ */
+function personalAccessClient(): Client
+{
+    $clients = app(ClientRepository::class);
+
+    try {
+        return $clients->personalAccessClient('users');
+    } catch (\RuntimeException) {
+        return $clients->createPersonalAccessGrantClient('Test API keys', 'users');
+    }
+}
+
+/**
+ * A real, signed personal access token for HTTP-level tests of /mcp.
+ */
+function mcpToken(User $user, array $scopes = ['mcp:use'], string $name = 'test'): string
+{
+    personalAccessClient();
+
+    return $user->createToken($name, $scopes)->accessToken;
 }

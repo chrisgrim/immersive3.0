@@ -52,7 +52,7 @@
                 // false the API Keys tab (and /settings/api-tokens) is
                 // moderator/admin only; flipping the env var opens it to
                 // everyone without a code change (see config/services.php).
-                mcpTokenUiPublic: {!! config('services.mcp.token_ui_public') ? 'true' : 'false' !!}
+                mcpPublic: {!! config('services.mcp.public') ? 'true' : 'false' !!}
             };
         </script>
         <style type="text/css">html{font-size:62.5%;font-family:'Montserrat',sans-serif;height:100%}body{font-size:1.6rem;line-height:2rem;font-family:'Montserrat',sans-serif;margin:0;height:100%;color:#000}</style>
