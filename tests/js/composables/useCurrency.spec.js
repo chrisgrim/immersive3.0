@@ -77,7 +77,9 @@ describe('useCurrency', () => {
         expect(currencyDecimals('JPY')).toBe(0);
         expect(currencyDecimals('KRW')).toBe(0);
         expect(currencyDecimals('CNY')).toBe(2);
-        expect(currencyDecimals('KWD')).toBe(3);
+        // CLDR says 3 for KWD; the column holds 2, so both sides cap there.
+        expect(currencyDecimals('KWD')).toBe(2);
+        expect(formatPrice(1.23, 'KWD')).toBe('KWD 1.23');
         expect(currencyDecimals(undefined)).toBe(2);
     });
 

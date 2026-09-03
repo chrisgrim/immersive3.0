@@ -15,6 +15,10 @@ const LOCALE = 'en';
 
 export const DEFAULT_CURRENCY = 'USD';
 
+// The most decimals a stored price can carry (tickets.ticket_price is
+// decimal(8,2)). CLDR writes KWD, BHD, JOD… with three; see Currency::MAX_DECIMALS.
+export const MAX_DECIMALS = 2;
+
 export { CURRENCY_CODES };
 
 export const isCurrencyCode = (code) => typeof code === 'string' && CURRENCY_CODES.includes(code);
@@ -38,10 +42,10 @@ const formatterFor = (code, fractionDigits) => {
 
 /**
  * How many decimals a price in this currency is written with (2 for most,
- * 0 for JPY/KRW, 3 for KWD). Mirrors Currency::decimals.
+ * 0 for JPY/KRW), capped at MAX_DECIMALS. Mirrors Currency::decimals.
  */
 export const currencyDecimals = (code) =>
-    formatterFor(isCurrencyCode(code) ? code : DEFAULT_CURRENCY).resolvedOptions().maximumFractionDigits;
+    Math.min(MAX_DECIMALS, formatterFor(isCurrencyCode(code) ? code : DEFAULT_CURRENCY).resolvedOptions().maximumFractionDigits);
 
 /**
  * The prefix printed before the number: "$", "A$", "₹", or the code itself
@@ -104,7 +108,7 @@ export const formatPrice = (amount, code, { compact = false } = {}) => {
         return `${resolved}${compact && Number.isInteger(value) ? value : value.toFixed(2)}`;
     }
 
-    const formatter = compact && Number.isInteger(value) ? formatterFor(resolved, 0) : formatterFor(resolved);
+    const formatter = formatterFor(resolved, compact && Number.isInteger(value) ? 0 : currencyDecimals(resolved));
 
     return formatter.format(value).replace(/[\u00A0\u202F]/g, ' ');
 };

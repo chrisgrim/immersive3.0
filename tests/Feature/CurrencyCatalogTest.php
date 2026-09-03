@@ -109,6 +109,16 @@ test('an unknown or missing code formats as the default currency rather than err
     expect(Currency::format(10, 'BTC'))->toBe('$10.00');
 });
 
+test('a legacy stored symbol formats as the currency it meant', function () {
+    // On deploy the new code is live for the seconds before the migration
+    // has converted every row; a '£' ticket must not render as dollars then.
+    expect(Currency::format(17.5, '£'))->toBe('£17.50');
+    expect(Currency::format(25, 'AU'))->toBe('A$25.00');
+    expect(Currency::decimals('₩'))->toBe(0);
+    expect(Currency::symbol('C$'))->toBe('CA$');
+    expect(Ticket::getPriceRange([25, 80], '£'))->toBe('£25 - £80');
+});
+
 test('decimals come from CLDR, not a list', function () {
     expect(Currency::decimals('USD'))->toBe(2);
     expect(Currency::decimals('JPY'))->toBe(0);
@@ -116,9 +126,22 @@ test('decimals come from CLDR, not a list', function () {
     // The yuan subdivides into 100 fen; the old hand list once got this wrong.
     expect(Currency::decimals('CNY'))->toBe(2);
     expect(Currency::decimals('TWD'))->toBe(2);
-    // Three-decimal currencies exist too — a list would never have had them.
-    expect(Currency::decimals('KWD'))->toBe(3);
+    // KWD is written with three per CLDR, but the column holds two: capped.
+    expect(Currency::decimals('KWD'))->toBe(2);
     expect(Currency::decimals(null))->toBe(2);
+});
+
+test('a three-decimal currency is entered, shown and validated with two', function () {
+    // tickets.ticket_price is decimal(8,2); MySQL would round "1.234" to
+    // 1.23 silently on the way in (and SQLite in tests would keep it, hiding
+    // the loss). So the third decimal is refused up front, and formatting
+    // never shows one.
+    expect(Currency::format(1.23, 'KWD'))->toBe('KWD 1.23');
+    expect(validateTickets(['ticket_price' => 1.23, 'currency' => 'KWD'])->passes())->toBeTrue();
+    expect(validateTickets(['ticket_price' => 1.234, 'currency' => 'KWD'])->passes())->toBeFalse();
+    expect(validateTickets(['ticket_price' => 17.505, 'currency' => 'USD'])->passes())->toBeFalse();
+    expect(validateTickets(['ticket_price' => 17.505, 'currency' => 'USD'])->errors()->first('tickets.0.ticket_price'))
+        ->toContain('decimal places');
 });
 
 test('symbol is the prefix ICU prints, falling back to the code itself', function () {
@@ -297,7 +320,8 @@ test('price_range strings keep their compact shape, now in any currency', functi
 });
 
 test('a stored value the migration could not map keeps the old verbatim form', function () {
-    // Rather than being silently rendered as dollars.
+    // Rather than being silently rendered as dollars. (A legacy SYMBOL is
+    // mapped, not verbatim — see the test above.)
     expect(Ticket::getPriceRange([25], 'XX'))->toBe('XX25');
 });
 

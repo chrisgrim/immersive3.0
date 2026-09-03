@@ -79,7 +79,7 @@ return new class extends Migration
     {
         $showsHaveSoftDeletes = Schema::hasColumn('shows', 'deleted_at');
 
-        DB::table('events')->select('id')->orderBy('id')->chunkById(500, function ($events) use ($showsHaveSoftDeletes) {
+        DB::table('events')->select('id', 'updated_at', 'price_range')->orderBy('id')->chunkById(500, function ($events) use ($showsHaveSoftDeletes) {
             foreach ($events as $event) {
                 $shows = DB::table('shows')->where('event_id', $event->id)->orderBy('date');
                 if ($showsHaveSoftDeletes) {
@@ -98,13 +98,25 @@ return new class extends Migration
                     continue;
                 }
 
-                DB::table('events')->where('id', $event->id)->update([
-                    'price_range' => Ticket::getPriceRange(
-                        $tickets->pluck('ticket_price')->map(fn ($p) => (float) $p)->all(),
-                        $tickets->first()->currency,
-                        $tickets->pluck('name')->all(),
-                    ),
-                ]);
+                $range = Ticket::getPriceRange(
+                    $tickets->pluck('ticket_price')->map(fn ($p) => (float) $p)->all(),
+                    $tickets->first()->currency,
+                    $tickets->pluck('name')->all(),
+                );
+
+                if ($range === $event->price_range) {
+                    continue;
+                }
+
+                // Guarded on updated_at: this runs with the site live, and an
+                // organizer saving the event meanwhile rewrites price_range
+                // from its own tiers (Ticket::handleTickets) and bumps
+                // updated_at. If that landed after this row was read, the
+                // string computed here is the stale one and must not win.
+                DB::table('events')
+                    ->where('id', $event->id)
+                    ->when($event->updated_at === null, fn ($q) => $q->whereNull('updated_at'), fn ($q) => $q->where('updated_at', $event->updated_at))
+                    ->update(['price_range' => $range]);
             }
         });
     }

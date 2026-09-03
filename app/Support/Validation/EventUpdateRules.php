@@ -150,6 +150,9 @@ class EventUpdateRules
             // ZeroDecimalPriceRule for why this is rejected on the way in
             // rather than rounded on the way out.
             'tickets.*.ticket_price' => [
+                // The column is decimal(8,2): a third decimal (KWD, BHD…) would be
+                // rounded away silently by MySQL. See Currency::MAX_DECIMALS.
+                'decimal:0,'.Currency::MAX_DECIMALS,
                 'required_with:tickets', 'numeric', 'min:0', 'max:'.self::MAX_TICKET_PRICE,
                 new ZeroDecimalPriceRule,
             ],
@@ -219,6 +222,7 @@ class EventUpdateRules
             'name.regex' => 'The name must contain at least one letter or number.',
             'tickets.max' => 'An event can have at most '.self::MAX_TICKET_TIERS.' ticket tiers.',
             'tickets.*.ticket_price.max' => 'A ticket price cannot exceed '.number_format(self::MAX_TICKET_PRICE, 2).'.',
+            'tickets.*.ticket_price.decimal' => 'A ticket price can have at most '.Currency::MAX_DECIMALS.' decimal places.',
             'tickets.*.currency.in' => 'Ticket currency must be a 3-letter ISO 4217 code such as USD, GBP, EUR, AUD or SGD — the code, not a symbol.',
         ];
     }

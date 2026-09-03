@@ -211,7 +211,7 @@ class Ticket extends Model
      */
     private static function formatCompact(float|int|string $amount, ?string $currency): string
     {
-        if (Currency::isValid($currency)) {
+        if (Currency::isValid(Currency::normalize($currency))) {
             return Currency::format($amount, $currency, compact: true);
         }
 

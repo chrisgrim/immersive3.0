@@ -42,6 +42,14 @@ final class Currency
 
     public const DEFAULT = 'USD';
 
+    /**
+     * The most decimal places a stored price can carry: tickets.ticket_price
+     * is decimal(8,2). CLDR writes KWD, BHD, JOD, OMR, TND, LYD and IQD with
+     * three, and MySQL would silently round a third away on the way in — so
+     * those are entered, validated (decimal:0,2) and shown with two here.
+     */
+    public const MAX_DECIMALS = 2;
+
     private const CODES_FILE = 'data/currencies.json';
 
     private const COUNTRY_FILE = 'data/country-currency.json';
@@ -138,9 +146,9 @@ final class Currency
     public static function format(int|float|string $amount, ?string $code, bool $compact = false): string
     {
         $amount = (float) $amount;
-        $code = self::isValid($code) ? $code : self::DEFAULT;
+        $code = self::resolve($code);
 
-        $precision = ($compact && floor($amount) == $amount) ? 0 : null;
+        $precision = ($compact && floor($amount) == $amount) ? 0 : self::decimals($code);
 
         $formatted = Number::currency($amount, in: $code, locale: self::LOCALE, precision: $precision);
 
@@ -154,15 +162,15 @@ final class Currency
     }
 
     /**
-     * How many decimal places a price in this currency is written with,
-     * per CLDR: 2 for most, 0 for JPY/KRW/…, 3 for KWD/BHD/….
+     * How many decimal places a price in this currency is written with, per
+     * CLDR — 2 for most, 0 for JPY/KRW — capped at MAX_DECIMALS.
      */
     public static function decimals(?string $code): int
     {
         $formatter = self::formatter();
-        $formatter->setTextAttribute(NumberFormatter::CURRENCY_CODE, self::isValid($code) ? $code : self::DEFAULT);
+        $formatter->setTextAttribute(NumberFormatter::CURRENCY_CODE, self::resolve($code));
 
-        return (int) $formatter->getAttribute(NumberFormatter::FRACTION_DIGITS);
+        return min(self::MAX_DECIMALS, (int) $formatter->getAttribute(NumberFormatter::FRACTION_DIGITS));
     }
 
     /**
@@ -172,7 +180,7 @@ final class Currency
     public static function symbol(?string $code): string
     {
         $formatter = self::formatter();
-        $formatter->setTextAttribute(NumberFormatter::CURRENCY_CODE, self::isValid($code) ? $code : self::DEFAULT);
+        $formatter->setTextAttribute(NumberFormatter::CURRENCY_CODE, self::resolve($code));
 
         // Same plain-space substitution as format(): ICU writes "F CFA" with
         // a narrow non-breaking space inside it.
@@ -193,6 +201,19 @@ final class Currency
         $key = self::COUNTRY_NAMES[$key] ?? $key;
 
         return self::countries()[$key] ?? null;
+    }
+
+    /**
+     * The code to format in: the value itself if it is a code, the code a
+     * legacy symbol maps to ('£' → GBP — a row the ISO migration has not
+     * reached yet, which on deploy is the few seconds between the code going
+     * live and the migration finishing), and the default for anything else.
+     */
+    private static function resolve(?string $code): string
+    {
+        $normalized = self::normalize($code);
+
+        return self::isValid($normalized) ? $normalized : self::DEFAULT;
     }
 
     /**
