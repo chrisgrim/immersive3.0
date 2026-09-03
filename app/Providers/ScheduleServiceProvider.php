@@ -43,6 +43,10 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->dailyAt('04:10')
                 ->timezone('America/Los_Angeles');
 
+            $schedule->command('model:prune', ['--model' => [\App\Models\McpToolCall::class]])
+                ->dailyAt('04:20')
+                ->timezone('America/Los_Angeles');
+
             // Saved-search "notify me about new events" pilot — see
             // NotifySavedSearchMatchesCommand's own docblock.
             $schedule->command('ei:notify-saved-searches')

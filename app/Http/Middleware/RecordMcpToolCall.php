@@ -28,10 +28,7 @@ class RecordMcpToolCall
         $response = $next($request);
 
         try {
-            $body = $request->json()->all();
-            // A JSON-RPC batch is an array of calls; record it as one. (An empty
-            // or non-JSON body decodes to [] too, and is not a batch.)
-            $isBatch = $body !== [] && array_is_list($body);
+            [$method, $tool] = $this->describe($request);
             $user = $request->user();
             $token = $user?->token();
 
@@ -39,8 +36,8 @@ class RecordMcpToolCall
                 'user_id' => $user?->getAuthIdentifier(),
                 'token_id' => $token?->id ?? null,
                 'client_name' => $token?->client?->name,
-                'method' => $isBatch ? 'batch' : substr((string) ($body['method'] ?? '?'), 0, 64),
-                'tool' => $isBatch ? null : (isset($body['params']['name']) ? substr((string) $body['params']['name'], 0, 64) : null),
+                'method' => $method,
+                'tool' => $tool,
                 'status' => $response->getStatusCode(),
                 'duration_ms' => (int) ((hrtime(true) - $started) / 1e6),
                 'ip' => $request->ip(),
@@ -51,5 +48,49 @@ class RecordMcpToolCall
         }
 
         return $response;
+    }
+
+    /**
+     * The JSON-RPC method and tool name(s) of the request — a batch lists
+     * every tool it called — or '?' when the body is not JSON-RPC at all,
+     * so the row is still written.
+     *
+     * @return array{0: string, 1: string|null}
+     */
+    protected function describe(Request $request): array
+    {
+        try {
+            $body = $request->json()->all();
+        } catch (\Throwable) {
+            return ['?', null];
+        }
+
+        if (! is_array($body) || $body === []) {
+            return ['?', null];
+        }
+
+        $name = fn ($call) => is_array($call) && isset($call['params']['name']) && is_scalar($call['params']['name'])
+            ? (string) $call['params']['name']
+            : null;
+
+        if (array_is_list($body)) {
+            $tools = array_values(array_filter(array_map($name, $body)));
+
+            return ['batch', $tools ? self::fit(implode(',', $tools), 255) : null];
+        }
+
+        $method = isset($body['method']) && is_scalar($body['method']) ? (string) $body['method'] : '?';
+
+        return [self::fit($method, 64), ($tool = $name($body)) ? self::fit($tool, 255) : null];
+    }
+
+    /**
+     * Fit a value into a column of $chars characters, multibyte-safe, marking
+     * the cut rather than silently dropping the tail: a huge batch's later
+     * tools were disappearing from the record.
+     */
+    protected static function fit(string $value, int $chars): string
+    {
+        return mb_strlen($value) <= $chars ? $value : mb_substr($value, 0, $chars - 8).' …(more)';
     }
 }

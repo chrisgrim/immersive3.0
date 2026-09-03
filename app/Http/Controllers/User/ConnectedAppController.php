@@ -54,15 +54,20 @@ class ConnectedAppController extends Controller
     }
 
     /**
-     * Live OAuth grants: not revoked, not expired, and issued to an
-     * authorization-code client rather than the personal-access one (those
-     * are the API keys, listed by ApiTokenController).
+     * Live OAuth grants: issued to an authorization-code client (the API keys
+     * are listed by ApiTokenController), not revoked, and still able to act —
+     * either the hour-long access token is current, or its 30-day refresh
+     * token is, which is the case for every connection between uses. Keyed
+     * on the access token alone, a dormant connection vanished from this
+     * list while its app could still mint a fresh token.
      */
     protected function grants(User $user)
     {
         return $user->tokens()
             ->where('revoked', false)
-            ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+            ->where(fn ($query) => $query
+                ->where('expires_at', '>', now())
+                ->orWhereHas('refreshToken', fn ($refresh) => $refresh->where('revoked', false)->where('expires_at', '>', now())))
             ->whereHas('client', fn ($query) => $query->whereJsonContains('grant_types', 'authorization_code'));
     }
 }

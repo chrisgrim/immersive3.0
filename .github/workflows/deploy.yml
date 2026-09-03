@@ -140,6 +140,9 @@ jobs:
             # Idempotent; never touches existing keys (that would log every
             # connected assistant out).
             php artisan mcp:oauth-setup
+            # Generated as root a moment ago; PHP-FPM (www-data) must read them.
+            chown www-data:www-data storage/oauth-private.key storage/oauth-public.key
+            chmod 600 storage/oauth-private.key storage/oauth-public.key
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache

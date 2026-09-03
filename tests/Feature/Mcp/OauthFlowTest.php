@@ -120,15 +120,39 @@ test('registration accepts allowlisted redirects and refuses everything else', f
         $this->postJson('/oauth/register', ['client_name' => 'Cursor', 'redirect_uris' => ['cursor://anysphere.cursor-retrieval/oauth/callback']])
             ->assertStatus(201);
 
+        // Loopback on any port, either scheme, IPv6 too.
+        $this->postJson('/oauth/register', ['redirect_uris' => ['https://localhost:1234/cb', 'http://127.0.0.1:8/cb', 'http://[::1]:5555/cb']])
+            ->assertStatus(201);
+
         // Anything else: the package default was '*', which would have let a
         // stranger register a client that sends approved codes to their server.
-        $this->postJson('/oauth/register', ['client_name' => 'Claude', 'redirect_uris' => ['https://claude.ai.evil.example/cb']])
-            ->assertStatus(400)
-            ->assertJsonPath('error', 'invalid_redirect_uri');
-        $this->postJson('/oauth/register', ['client_name' => 'x', 'redirect_uris' => ['https://evil.example/cb']])
-            ->assertStatus(400);
-        $this->postJson('/oauth/register', ['client_name' => 'x', 'redirect_uris' => ['evil://cb']])
-            ->assertStatus(400);
+        $refused = [
+            'https://claude.ai.evil.example/cb',     // suffix confusion
+            'https://evil.example/cb',               // not on the list
+            'evil://cb',                             // unknown scheme
+            'http://localhost:80@evil.example/cb',   // "localhost" is the userinfo; the host is evil.example
+            'http://127.0.0.1@evil.example/cb',
+            'https://claude.ai@evil.example/cb',
+            'https://claude.ai:8443/cb',             // no ports off loopback
+            'http://claude.ai/cb',                   // https only off loopback
+            'https://claude.ai/cb#fragment',
+            'cursor://user:pw@host/cb',              // credentials in a private scheme
+            'cursor:///no-host',
+            'https://claude.ai/c b',                 // whitespace inside (the ends are trimmed by TrimStrings before validation)
+        ];
+        foreach ($refused as $uri) {
+            RateLimiter::clear($key); // this test alone would trip the 10/minute limit
+            $this->postJson('/oauth/register', ['client_name' => 'x', 'redirect_uris' => [$uri]])
+                ->assertStatus(400)
+                ->assertJsonPath('error', 'invalid_redirect_uri');
+        }
+        expect(Client::query()->whereJsonContains('redirect_uris', 'http://localhost:80@evil.example/cb')->exists())->toBeFalse();
+
+        // One bad URI poisons the whole registration, and there is a cap.
+        RateLimiter::clear($key);
+        $this->postJson('/oauth/register', ['redirect_uris' => ['http://localhost:1/cb', 'https://evil.example/cb']])->assertStatus(400);
+        RateLimiter::clear($key);
+        $this->postJson('/oauth/register', ['redirect_uris' => array_map(fn ($i) => "http://localhost:{$i}/cb", range(1, 6))])->assertStatus(400);
     } finally {
         RateLimiter::clear($key);
     }
@@ -317,6 +341,28 @@ test('the user can see the connection and revoke it, after which the token is de
     mcpCall($this, $tokens['access_token'])->assertStatus(401);
 
     // …and the refresh token went with it.
+    $this->postJson('/oauth/token', [
+        'grant_type' => 'refresh_token', 'client_id' => $client->getKey(), 'refresh_token' => $tokens['refresh_token'],
+    ])->assertStatus(400)->assertJsonPath('error', 'invalid_grant');
+    expect($this->actingAs($user)->getJson('/oauth/connections')->json('apps'))->toHaveCount(0);
+});
+
+test('a dormant connection — access token expired, refresh token alive — is still listed and can still be cut off', function () {
+    // Between uses every connection looks like this: the hour-long access
+    // token has lapsed and only the 30-day refresh token remains. Keyed on
+    // the access token alone, the list went blank and Disconnect had
+    // nothing to revoke while the app could still mint a fresh token.
+    [$verifier, $challenge] = pkcePair();
+    $user = consentUser();
+    $client = oauthClient(['http://localhost:9000/callback'], 'Claude');
+    $tokens = exchangeCode($this, $client, approveAndGetCode($this, $user, $client, $challenge), $verifier)->json();
+    $user->tokens()->update(['expires_at' => now()->subMinute()]);
+
+    $list = $this->actingAs($user)->getJson('/oauth/connections')->json('apps');
+    expect($list)->toHaveCount(1);
+    expect((string) $list[0]['expires_at'])->not->toBe('');
+
+    $this->actingAs($user)->deleteJson('/oauth/connections/'.$list[0]['id'])->assertOk();
     $this->postJson('/oauth/token', [
         'grant_type' => 'refresh_token', 'client_id' => $client->getKey(), 'refresh_token' => $tokens['refresh_token'],
     ])->assertStatus(400)->assertJsonPath('error', 'invalid_grant');

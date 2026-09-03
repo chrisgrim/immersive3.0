@@ -29,10 +29,26 @@ class McpOauthSetup extends Command
 
         if (is_file($private) && is_file($public)) {
             $this->components->info('Keys: present ('.dirname($private).')');
+        } elseif (is_file($private) || is_file($public)) {
+            // Half a pair means something went wrong once; generating over it
+            // would silently orphan every token signed with the old private key.
+            $this->components->error('Keys: only one of oauth-private.key / oauth-public.key exists in '.dirname($private).'. Restore the other from backup, or remove both to start fresh.');
+
+            return self::FAILURE;
         } else {
-            $this->call('passport:keys', ['--length' => (int) $this->option('length')]);
+            if ($this->call('passport:keys', ['--length' => (int) $this->option('length')]) !== self::SUCCESS) {
+                $this->components->error('Keys: passport:keys failed.');
+
+                return self::FAILURE;
+            }
             $this->components->info('Keys: generated ('.dirname($private).')');
         }
+
+        // PHP-FPM has to read them. The deploy runs this as root and chowns
+        // afterwards; say what the files look like so a wrong owner is
+        // visible in the deploy log rather than as a 500 on the first token.
+        $owner = function_exists('posix_getpwuid') ? (posix_getpwuid(fileowner($private))['name'] ?? fileowner($private)) : fileowner($private);
+        $this->components->info(sprintf('Keys: owner %s, modes %o / %o', $owner, fileperms($private) & 0777, fileperms($public) & 0777));
 
         $provider = config('auth.guards.api.provider', 'users');
 

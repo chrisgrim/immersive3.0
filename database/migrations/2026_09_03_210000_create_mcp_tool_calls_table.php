@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 /**
  * One row per request to the MCP endpoint: who, with which credential, which
  * tool, did it succeed, how long. What an assistant did on someone's behalf
- * should be answerable after the fact.
+ * should be answerable after the fact. Pruned after McpToolCall::RETENTION_DAYS.
  */
 return new class extends Migration
 {
@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('token_id', 80)->nullable()->index();
             $table->string('client_name')->nullable();
             $table->string('method', 64);
-            $table->string('tool', 64)->nullable();
+            $table->string('tool')->nullable();
             $table->unsignedSmallInteger('status');
             $table->unsignedInteger('duration_ms');
             $table->string('ip', 45)->nullable();

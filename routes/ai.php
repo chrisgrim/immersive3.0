@@ -1,9 +1,9 @@
 <?php
 
+use App\Http\Controllers\Oauth\RegisterClientController;
 use App\Mcp\Servers\EiServer;
 use Illuminate\Support\Facades\Route;
 use Laravel\Mcp\Facades\Mcp;
-use Laravel\Mcp\Server\Http\Controllers\OAuthRegisterController;
 use Laravel\Passport\Http\Controllers\AccessTokenController;
 
 /*
@@ -44,11 +44,17 @@ Route::middleware('throttle:oauth-metadata')->group(function () {
     Mcp::oauthRoutes();
 });
 
-// …and registration re-declared last with its own, much tighter limit: the
-// package registers it bare, and the last definition of a URI wins.
-Route::post('oauth/register', OAuthRegisterController::class)
+// …and registration re-declared last — the last definition of a URI wins —
+// with our own controller (strict, parsed redirect-URI validation; the
+// package's is a prefix match) and a much tighter limit.
+Route::post('oauth/register', RegisterClientController::class)
     ->middleware('throttle:oauth-register')
     ->name('mcp.oauth.register');
+
+// The package's GET/DELETE stubs on /mcp (405) are declared bare; give them
+// the same pre-auth limit as the real endpoint.
+Route::get('mcp', fn () => response('', 405)->header('Allow', 'POST'))->middleware('mcp.ip-throttle');
+Route::delete('mcp', fn () => response('', 405)->header('Allow', 'POST'))->middleware('mcp.ip-throttle');
 
 // The token endpoint is called by the client program, not a browser: no
 // session, no CSRF. It lives here, outside the web group, for that reason.
