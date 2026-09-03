@@ -4,11 +4,15 @@
             <h2 class="text-black">Tickets</h2>
             <!-- Price Section -->
             <div>
-                <div class="flex items-center">
-                    <!-- Currency symbol - hide for Free and PWYC tickets -->
+                <div class="flex items-baseline">
+                    <!-- Currency prefix - hide for Free and PWYC tickets. A single
+                         glyph ("$", "£", "₹") is set as large as the number; anything
+                         longer ("A$", "SGD", "XOF") at about half that, sitting on
+                         the number's baseline, so it never crowds the amount. -->
                     <span 
                         v-if="!isPWYCTicket && !isFreeTicket"
-                        class="text-[6rem] md:text-[9.5rem] font-bold text-heavy leading-tight cursor-pointer hover:wiggle"
+                        class="shrink-0 font-bold text-heavy leading-tight cursor-pointer hover:wiggle"
+                        :class="currencyPrefix(state.selectedCurrency).length > 1 ? 'text-[3.5rem] md:text-[5.5rem]' : 'text-[6rem] md:text-[9.5rem]'"
                         title="Change currency"
                         @click="openCurrencyPicker"
                     >{{ currencyPrefix(state.selectedCurrency) }}</span>

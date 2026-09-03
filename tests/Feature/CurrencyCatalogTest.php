@@ -53,6 +53,19 @@ test('the code list is a set of current ISO 4217 codes', function () {
     }
 });
 
+test('retired currencies ICU still lists are left out', function () {
+    // Nobody prices a ticket in the pre-2024 Zimbabwean dollar or the kuna;
+    // offering them in the picker only invites a wrong choice. Pruned by
+    // scripts/generate-currency-list.mjs.
+    foreach (['ZWL', 'HRK', 'SLL', 'ANG', 'CUC', 'XDR', 'XSU'] as $retired) {
+        expect(Currency::isValid($retired))->toBeFalse("{$retired} should be retired");
+    }
+    // Their replacements are in.
+    foreach (['ZWG', 'SLE', 'XCG'] as $current) {
+        expect(Currency::isValid($current))->toBeTrue("{$current} missing");
+    }
+});
+
 test('isValid is exact: no symbols, no lower case, no codes ICU does not know', function () {
     foreach (['$', 'usd', 'US$', 'BTC', 'XXX', '', null, 17] as $bad) {
         expect(Currency::isValid($bad))->toBeFalse(json_encode($bad).' should not validate');

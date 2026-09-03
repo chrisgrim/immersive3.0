@@ -27,7 +27,9 @@ use NumberFormatter;
  * resources/js/composables/useCurrency.js.
  *
  * The code list and the country map live in resources/data/ as JSON so the
- * PHP and Vue sides read one file rather than two hand-synced copies.
+ * PHP and Vue sides read one file rather than two hand-synced copies. The
+ * code list is generated (node scripts/generate-currency-list.mjs) from ICU
+ * minus a few retired codes ICU still carries.
  */
 final class Currency
 {

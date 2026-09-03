@@ -25,6 +25,10 @@ describe('useCurrency', () => {
         }
         expect(isCurrencyCode('$')).toBe(false);
         expect(isCurrencyCode('usd')).toBe(false);
+        // Retired codes ICU still carries are pruned from the list.
+        expect(isCurrencyCode('ZWL')).toBe(false);
+        expect(isCurrencyCode('HRK')).toBe(false);
+        expect(isCurrencyCode('ZWG')).toBe(true);
         expect(isCurrencyCode(null)).toBe(false);
         expect(DEFAULT_CURRENCY).toBe('USD');
     });
