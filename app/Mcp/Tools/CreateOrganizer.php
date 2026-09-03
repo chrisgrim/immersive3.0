@@ -44,8 +44,11 @@ class CreateOrganizer extends Tool
 
         // Same duplicate signal as the web flow's organizers/check-name endpoint.
         if (empty($validated['acknowledge_duplicate'])) {
+            // Published organizers only: they are public pages already. An
+            // in-review one is another user's private submission, and listing it
+            // here (with its slug) disclosed it to anyone who guessed the name.
             $existing = Organizer::where('name', 'LIKE', $validated['name'])
-                ->where('status', '!=', 'd')
+                ->where('status', 'p')
                 ->get(['id', 'name', 'slug', 'user_id', 'status']);
 
             if ($existing->isNotEmpty()) {

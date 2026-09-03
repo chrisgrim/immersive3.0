@@ -48,18 +48,25 @@ class Whoami extends Tool
         // The same blind spot then showed up on the read side: a client that
         // could only see this list concluded events under other organizers were
         // invisible to the API, when in fact every tool below reaches them.
+        $moderatorAccount = in_array($user->type, ['m', 'a'], true);
+
         $hint = $user->isModerator()
             ? 'As a moderator/admin you are NOT limited to the organizers listed here. Use list-all-events to search every event on the platform in any status, then get-event / update-event / attach-event-image / submit-event-for-review on any of them, and update-organizer on any organizer. Pass ANY existing organizer id to create-event-draft, even one you do not belong to — prefer an existing organizer over creating a duplicate.'
-            : ($organizers->isEmpty()
-                ? 'This user has no organizer yet. Create one with create-organizer before creating events.'
-                : 'Pass an organizer id to create-event-draft to create an event under that organizer.');
+            : ($moderatorAccount
+                ? 'This account is a moderator, but this connection carries the mcp:use scope only, so it acts on the user\'s own organizers like anyone else. Moderator actions need an API key created with moderator powers on the API keys page — an assistant connected through sign-in never has them.'
+                : ($organizers->isEmpty()
+                    ? 'This user has no organizer yet. Create one with create-organizer before creating events.'
+                    : 'Pass an organizer id to create-event-draft to create an event under that organizer.'));
 
         return Response::json([
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                // Credential-aware: true only when the account is a moderator AND
+                // this token carries mcp:moderate (User::credentialAllowsModeration).
                 'is_moderator' => $user->isModerator(),
+                'moderator_account' => $moderatorAccount,
                 'email_verified' => $user->email_verified_at !== null,
             ],
             'organizers' => $organizers,

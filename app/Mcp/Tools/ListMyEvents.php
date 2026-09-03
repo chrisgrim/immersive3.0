@@ -25,7 +25,14 @@ class ListMyEvents extends Tool
         ]);
 
         $user = $request->user();
-        $teamIds = $user->teams()->pluck('organizers.id');
+        // Team memberships AND organizers the user owns outright: the policies
+        // (User::belongsToOrganization) count both, and this list used to count
+        // only the former, so an owned organizer's events could be edited but
+        // never listed.
+        $teamIds = $user->teams()->pluck('organizers.id')
+            ->merge($user->organizers()->pluck('id'))
+            ->unique()
+            ->values();
 
         if (isset($validated['organizer_id'])) {
             if (! $teamIds->contains($validated['organizer_id']) && ! $user->isModerator()) {

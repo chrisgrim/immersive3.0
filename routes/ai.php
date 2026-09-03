@@ -32,7 +32,10 @@ use Laravel\Passport\Http\Controllers\AccessTokenController;
 */
 
 Mcp::web('/mcp', EiServer::class)
-    ->middleware(['mcp.ip-throttle', 'auth:api', 'scope:mcp:use', 'throttle:mcp'])
+    // Order matters: the per-IP throttle and the audit log run before
+    // authentication (neither is a priority-sorted class), so a flood is
+    // refused cheaply and a refused request is still recorded.
+    ->middleware(['mcp.ip-throttle', 'mcp.audit', 'auth:api', 'scope:mcp:use', 'throttle:mcp'])
     ->name('mcp.ei');
 
 // OAuth discovery metadata and dynamic client registration. Registered

@@ -39,6 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'mcp.tokens' => \App\Http\Middleware\EnsureCanManageApiTokens::class,
             'mcp.consent' => \App\Http\Middleware\EnsureMcpConsentAllowed::class,
             'mcp.ip-throttle' => \App\Http\Middleware\ThrottleMcpByIp::class,
+            'mcp.audit' => \App\Http\Middleware\RecordMcpToolCall::class,
         ]);
 
         // "Sign in with Apple" POSTs its callback cross-site from apple.com (form_post
