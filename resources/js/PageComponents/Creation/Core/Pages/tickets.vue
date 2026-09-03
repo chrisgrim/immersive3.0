@@ -56,7 +56,7 @@
                 <div
                     v-if="state.showCurrencyDropdown"
                     v-click-outside="closeCurrencyDropdown"
-                    class="absolute mt-2 border border-neutral-300 rounded-lg bg-white shadow-lg z-50"
+                    class="absolute mt-2 max-h-[40vh] overflow-y-auto overscroll-contain border border-neutral-300 rounded-lg bg-white shadow-lg z-50"
                 >
                     <ul class="flex flex-col m-0">
                         <li
@@ -320,7 +320,7 @@ const activeCurrency = () => tickets[0]?.currency || state.value.selectedCurrenc
 
 const MAX_DESCRIPTION_LENGTH = 60;
 const MAX_CALL_TO_ACTION_LENGTH = 20;
-const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$', 'A$', 'MX$', 'CN¥', '₩'];
+const CURRENCY_SYMBOLS = ['$', '€', '£', '¥', 'C$', 'A$', 'HK$', 'NT$', 'MX$', 'CN¥', '₩', '฿'];
 // Display labels for the currency picker. The stored value is still the short
 // symbol; the label only disambiguates lookalike "$" currencies (USD vs MXN)
 // and lookalike "¥" currencies (JPY vs CNY — see EventUpdateRules::CURRENCIES
@@ -332,9 +332,12 @@ const CURRENCY_LABELS = {
     '¥': '¥ — JPY',
     'C$': 'C$ — CAD',
     'A$': 'A$ — AUD (Australian dollar)',
+    'HK$': 'HK$ — HKD (Hong Kong dollar)',
+    'NT$': 'NT$ — TWD (New Taiwan dollar)',
     'MX$': 'MX$ — MXN (Mexican peso)',
     'CN¥': 'CN¥ — CNY (Chinese yuan)',
     '₩': '₩ — KRW',
+    '฿': '฿ — THB (Thai baht)',
 };
 const MAX_URL_LENGTH = 255;
 const TICKET_NAME_OPTIONS = [
