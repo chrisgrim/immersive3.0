@@ -32,10 +32,11 @@
                     role="option"
                     :aria-selected="code === modelValue"
                     :data-code="code"
+                    :data-row="`${group.label}-${code}`"
                     class="flex w-full items-center gap-3 px-4 py-3 text-left"
-                    :class="code === highlightedCode ? 'bg-neutral-100' : 'hover:bg-neutral-50'"
+                    :class="`${group.label}-${code}` === highlightedRow ? 'bg-neutral-100' : 'hover:bg-neutral-50'"
                     @click="choose(code)"
-                    @mousemove="highlighted = code"
+                    @mousemove="highlighted = `${group.label}-${code}`"
                 >
                     <span class="w-14 shrink-0 font-semibold">{{ code }}</span>
                     <span class="flex-1 truncate" :class="{ 'font-semibold': code === modelValue }">{{ currencyName(code) }}</span>
@@ -77,7 +78,6 @@ const emit = defineEmits(['update:modelValue', 'close']);
 const query = ref('');
 const searchInput = ref(null);
 const listEl = ref(null);
-const highlighted = ref(props.modelValue);
 
 // Built once: the full list, alphabetical by NAME (people look for
 // "Singapore", not "SGD"), with a lower-cased haystack to search.
@@ -111,28 +111,42 @@ const groups = computed(() => {
     return out;
 });
 
-// What the arrow keys walk, in display order.
-const walkable = computed(() => groups.value.flatMap((group) => group.codes));
+// Every row the arrow keys walk, in display order.
+const walkable = computed(() =>
+    groups.value.flatMap((group) => group.codes.map((code) => ({ row: `${group.label}-${code}`, code })))
+);
+
+// A row key ("Suggested-USD"), not a code: a suggested currency appears
+// twice, and the arrow keys have to be able to walk past both copies.
+// Starts on the current currency (its first copy, if suggested) — set here,
+// synchronously, rather than in onMounted, so nothing typed in the meantime
+// is overridden.
+const highlighted = ref(walkable.value.find((entry) => entry.code === props.modelValue)?.row ?? null);
 
 // A computed fallback rather than a watcher on `query`: the highlight is
 // whatever was last hovered or arrowed to, as long as it is still on
 // screen, otherwise the first thing that is. Typing clears it (the @input
 // handler above), so Enter always takes the top match of a fresh search.
-const highlightedCode = computed(() =>
-    walkable.value.includes(highlighted.value) ? highlighted.value : walkable.value[0] ?? null
+const highlightedRow = computed(() =>
+    walkable.value.some((entry) => entry.row === highlighted.value) ? highlighted.value : walkable.value[0]?.row ?? null
 );
 
-const scrollTo = (code, block = 'nearest') => {
-    nextTick(() => listEl.value?.querySelector(`[data-code="${code}"]`)?.scrollIntoView?.({ block }));
+const highlightedCode = computed(() =>
+    walkable.value.find((entry) => entry.row === highlightedRow.value)?.code ?? null
+);
+
+const scrollTo = (row, block = 'nearest') => {
+    nextTick(() => listEl.value?.querySelector(`[data-row="${row}"]`)?.scrollIntoView?.({ block }));
 };
 
 const move = (delta) => {
-    const list = walkable.value;
-    if (!list.length) return;
+    const rows = walkable.value;
+    if (!rows.length) return;
 
-    const index = list.indexOf(highlightedCode.value);
-    highlighted.value = list[(index + delta + list.length) % list.length];
-    scrollTo(highlighted.value);
+    const index = rows.findIndex((entry) => entry.row === highlightedRow.value);
+    const next = rows[(index + delta + rows.length) % rows.length];
+    highlighted.value = next.row;
+    scrollTo(next.row);
 };
 
 const choose = (code) => {
@@ -147,7 +161,7 @@ const close = () => emit('close');
 onMounted(() => {
     nextTick(() => {
         searchInput.value?.focus({ preventScroll: true });
-        scrollTo(props.modelValue, 'center');
+        if (highlighted.value) scrollTo(highlighted.value, 'center');
     });
 });
 </script>

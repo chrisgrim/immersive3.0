@@ -699,14 +699,26 @@ const suggestedCurrencies = computed(() =>
 const selectCurrency = (currency) => {
     state.value.selectedCurrency = currency;
     state.value.currencySource = 'chosen';
-    tickets.forEach(ticket => ticket.currency = currency);
     state.value.showCurrencyPicker = false;
 
-    // Switching to or from a zero-decimal currency changes how the amount on
-    // screen should be written, and the input holds a formatted string — so
-    // without this, picking ₩ leaves "144000.00" sitting there until you
-    // happen to switch tiers. Reformats the DISPLAY only; ticket_price is
-    // untouched.
+    // Every tier moves to the new currency. A price with more decimals than
+    // the new currency writes is rounded to what it can hold — 17.50 becomes
+    // ¥18 — because the backend refuses a fractional yen price (see
+    // ZeroDecimalPriceRule) and there is no field on screen to fix it from
+    // except this input, tier by tier. A rounded value the organizer can see
+    // beats a tier that silently cannot be saved. PWYC keeps its 0.01 sentinel.
+    const decimals = currencyDecimals(currency);
+    tickets.forEach((ticket) => {
+        ticket.currency = currency;
+
+        const isPwyc = typeof ticket.name === 'string' && ticket.name.trim().toLowerCase() === 'pwyc';
+        if (!isPwyc && ticket.ticket_price !== '' && ticket.ticket_price !== null && ticket.ticket_price !== undefined) {
+            ticket.ticket_price = Number(Number(ticket.ticket_price).toFixed(decimals));
+        }
+    });
+
+    // The input holds a formatted string, so without this, picking ₩ leaves
+    // "144000.00" sitting there until you happen to switch tiers.
     const current = tickets[state.value.currentMedia];
     if (current && current.ticket_price !== '' && current.ticket_price !== null && current.ticket_price !== undefined) {
         state.value.formattedPrice = displayPrice(current.ticket_price, currency);

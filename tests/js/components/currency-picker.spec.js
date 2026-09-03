@@ -106,6 +106,20 @@ describe('currency-picker', () => {
         expect(w.emitted('update:modelValue')).toEqual([[codesIn(w)[1]]]);
     });
 
+    it('walks past both copies of a suggested currency', async () => {
+        // Afghan Afghani is first alphabetically, so suggesting it puts it at
+        // row 0 (Suggested) and row 1 (All currencies). Tracking the highlight
+        // by code got stuck bouncing between those two.
+        const w = make({ modelValue: 'AFN', suggested: ['AFN'] });
+        const input = w.find('input');
+
+        await input.trigger('keydown', { key: 'ArrowDown' });
+        await input.trigger('keydown', { key: 'ArrowDown' });
+        await input.trigger('keydown', { key: 'Enter' });
+
+        expect(w.emitted('update:modelValue')).toEqual([['ALL']]);
+    });
+
     it('closes on Escape without choosing', async () => {
         const w = make();
 

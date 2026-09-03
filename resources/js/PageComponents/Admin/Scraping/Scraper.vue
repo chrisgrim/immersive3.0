@@ -286,9 +286,9 @@
                                 <p class="px-4 pt-4 text-1xl font-semibold">Base Price</p>
                                 <div class="flex-grow flex flex-col justify-end px-4 pb-4">
                                     <p class="text-1xl font-semibold mt-14 leading-tight">
-                                        {{ scrapedData.currency === 'USD' ? '$' : scrapedData.currency + ' ' }}{{ scrapedData.priceMin }}
+                                        {{ formatPrice(scrapedData.priceMin, scrapedData.currency) }}
                                         <span v-if="scrapedData.priceMax && scrapedData.priceMax !== scrapedData.priceMin">
-                                            - {{ scrapedData.currency === 'USD' ? '$' : '' }}{{ scrapedData.priceMax }}
+                                            - {{ formatPrice(scrapedData.priceMax, scrapedData.currency) }}
                                         </span>
                                     </p>
                                     <p v-if="scrapedData.priceNotes" class="text-lg text-gray-600 leading-tight mt-2">
@@ -438,6 +438,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import axios from 'axios'
+import { formatPrice } from '@/composables/useCurrency';
 
 // Confidence Badge Component
 const ConfidenceBadge = {
