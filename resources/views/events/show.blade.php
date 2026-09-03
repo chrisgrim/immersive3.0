@@ -120,16 +120,13 @@
                     foreach ($event->first_show_tickets as $ticket) {
                         // Set currency if available
                         if (isset($ticket->currency)) {
-                            // ISO 4217 for schema.org, read from the one place
-                            // the currency catalog is defined. This used to be
-                            // a hand-written elseif ladder — a fourth copy of
-                            // the same list, which had to be edited in step
-                            // with the validation rules and the wizard picker
-                            // every time a currency was added.
-                            $currencyCode = \App\Support\Validation\EventUpdateRules::CURRENCY_ISO[$ticket->currency]
-                                // A stored value that isn't a known symbol but
-                                // is already a 3-letter code passes through.
-                                ?? (strlen($ticket->currency) === 3 ? $ticket->currency : $currencyCode);
+                            // Stored as the ISO 4217 code schema.org wants;
+                            // normalize() only matters for a row the ISO
+                            // migration could not map.
+                            $storedCode = \App\Support\Currency::normalize($ticket->currency);
+                            if (\App\Support\Currency::isValid($storedCode)) {
+                                $currencyCode = $storedCode;
+                            }
                         }
                         
                         // Check for PWYC tickets
@@ -590,22 +587,18 @@
                                                                         $showPrice = in_array($event->call_to_action, $priceIncludingActions) && 
                                                                                 isset($event->priceranges[0]) && 
                                                                                 $event->priceranges[0]->price > 0;
-                                                                        $currency = isset($event->first_show_tickets[0]->currency) ? $event->first_show_tickets[0]->currency : '$';
-                                                                        // ¥/CN¥/₩ (JPY/CNY/KRW) have no minor unit — "¥1234.00"
-                                                                        // reads as wrong to anyone used to those currencies.
-                                                                        $decimals = \App\Support\Validation\EventUpdateRules::decimalsFor($currency);
+                                                                        $currency = $event->first_show_tickets[0]->currency ?? \App\Support\Currency::DEFAULT;
                                                                     @endphp
-                                                                    {{ $event->call_to_action }} {{ $showPrice ? 'from ' . $currency . number_format($event->priceranges->min('price'), $decimals) : '' }}
+                                                                    {{ $event->call_to_action }} {{ $showPrice ? 'from ' . \App\Support\Currency::format($event->priceranges->min('price'), $currency) : '' }}
                                                                 @else
                                                                     @php
-                                                                        $currency = isset($event->first_show_tickets[0]->currency) ? $event->first_show_tickets[0]->currency : '$';
+                                                                        $currency = $event->first_show_tickets[0]->currency ?? \App\Support\Currency::DEFAULT;
                                                                         $minPrice = $event->priceranges->min('price');
-                                                                        $decimals = \App\Support\Validation\EventUpdateRules::decimalsFor($currency);
                                                                     @endphp
                                                                     @if($minPrice == 0)
                                                                         Free Tickets Available
                                                                     @else
-                                                                        Get Tickets from {{ $currency }}{{ number_format($minPrice, $decimals) }}
+                                                                        Get Tickets from {{ \App\Support\Currency::format($minPrice, $currency) }}
                                                                     @endif
                                                                 @endif
                                                             @elseif(isset($event->call_to_action) && !empty($event->call_to_action))

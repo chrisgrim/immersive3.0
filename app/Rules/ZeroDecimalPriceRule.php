@@ -2,7 +2,7 @@
 
 namespace App\Rules;
 
-use App\Support\Validation\EventUpdateRules;
+use App\Support\Currency;
 use Closure;
 use Illuminate\Contracts\Validation\DataAwareRule;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -10,13 +10,14 @@ use Illuminate\Contracts\Validation\ValidationRule;
 /**
  * A price in a currency with no minor unit must be a whole number.
  *
- * ¥/CN¥/₩ are written without decimals everywhere they are displayed, so a
- * stored 144000.50 in ₩ has no correct rendering: the wizard's editor shows
- * "144000.5" and the live listing rounds to "₩144001", leaving the page
- * quoting a price the database does not hold. Rejecting the value on the way
- * in is the only place that divergence can actually be closed — making six
- * display surfaces agree on a rounding rule would still leave the stored
- * number unrepresentable.
+ * JPY, KRW and the other zero-decimal currencies (per CLDR, via
+ * Currency::decimals) are written without decimals everywhere they are
+ * displayed, so a stored 144000.50 in KRW has no correct rendering: the
+ * wizard's editor shows "144000.5" and the live listing rounds to
+ * "₩144,001", leaving the page quoting a price the database does not hold.
+ * Rejecting the value on the way in is the only place that divergence can
+ * actually be closed — making every display surface agree on a rounding
+ * rule would still leave the stored number unrepresentable.
  *
  * Reads the sibling `currency` from the validator's own data (DataAwareRule)
  * rather than the request: these rules are shared by the web wizard, the MCP
@@ -59,9 +60,9 @@ class ZeroDecimalPriceRule implements DataAwareRule, ValidationRule
         }
 
         $currency = data_get($this->data, "tickets.{$index}.currency");
-        $currency = EventUpdateRules::normalizeCurrency($currency);
+        $currency = Currency::normalize($currency);
 
-        if (! in_array($currency, EventUpdateRules::ZERO_DECIMAL_CURRENCIES, true)) {
+        if (! Currency::isValid($currency) || Currency::decimals($currency) !== 0) {
             return;
         }
 

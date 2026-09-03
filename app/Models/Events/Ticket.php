@@ -3,6 +3,7 @@
 namespace App\Models\Events;
 
 use App\Models\Event;
+use App\Support\Currency;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -66,7 +67,7 @@ class Ticket extends Model
         foreach ($tiers as $name => $ticketData) {
             $prices[] = $ticketData['ticket_price'] ?? 0;
             $names[] = $name;
-            $currency = $ticketData['currency'] ?? '$';
+            $currency = $ticketData['currency'] ?? Currency::DEFAULT;
         }
 
         DB::transaction(function () use ($event, $tiers, $submittedNames, $showIds, $prices) {
@@ -96,7 +97,7 @@ class Ticket extends Model
                     if ($existing->isNotEmpty()) {
                         self::whereIn('id', $existing->pluck('id'))->update([
                             'description' => $ticketData['description'] ?? '',
-                            'currency' => $ticketData['currency'] ?? '$',
+                            'currency' => $ticketData['currency'] ?? Currency::DEFAULT,
                             'ticket_price' => $ticketData['ticket_price'] ?? 0,
                             'updated_at' => $now,
                         ]);
@@ -109,7 +110,7 @@ class Ticket extends Model
                             'ticket_id' => $showId,
                             'name' => $name,
                             'description' => $ticketData['description'] ?? '',
-                            'currency' => $ticketData['currency'] ?? '$',
+                            'currency' => $ticketData['currency'] ?? Currency::DEFAULT,
                             'ticket_price' => $ticketData['ticket_price'] ?? 0,
                             'created_at' => $now,
                             'updated_at' => $now,
@@ -186,23 +187,34 @@ class Ticket extends Model
         } elseif ($lowestPrice == 0) {
             $first = 'Free';
         } else {
-            $formattedLowestPrice = number_format($lowestPrice, 2);
-            $formattedLowestPrice = preg_replace('/\.00$/', '', $formattedLowestPrice);
-            $first = $currency.$formattedLowestPrice;
+            $first = self::formatCompact($lowestPrice, $currency);
         }
 
         if (count($prices) > 1) {
-            $formattedHighestPrice = number_format($prices[0], 2);
-            $formattedHighestPrice = preg_replace('/\.00$/', '', $formattedHighestPrice);
+            $highest = self::formatCompact($prices[0], $currency);
 
             // If lowest price is PWYC but there are higher prices, show the range
-            if ($hasPWYC) {
-                return $pricerange = 'PWYC - '.$currency.$formattedHighestPrice;
-            } else {
-                return $pricerange = $first.' - '.$currency.$formattedHighestPrice;
-            }
-        } else {
-            return $pricerange = $first;
+            return $hasPWYC ? 'PWYC - '.$highest : $first.' - '.$highest;
         }
+
+        return $first;
+    }
+
+    /**
+     * "$40", "$17.50", "A$25", "SGD 45", "₩144,000" — ICU formatting with a
+     * whole amount's zero decimals dropped, which is what the price_range
+     * strings on every card have always looked like.
+     *
+     * A stored value that is not an ISO code (only possible for rows the
+     * 2026-09-02 migration could not map) keeps the old verbatim-prefix form
+     * rather than being silently shown as dollars.
+     */
+    private static function formatCompact(float|int|string $amount, ?string $currency): string
+    {
+        if (Currency::isValid($currency)) {
+            return Currency::format($amount, $currency, compact: true);
+        }
+
+        return $currency.preg_replace('/\.00$/', '', number_format((float) $amount, 2));
     }
 }

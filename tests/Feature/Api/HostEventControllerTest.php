@@ -926,7 +926,7 @@ test('closing an always-available event by a past end date keeps its ticket tier
     $organizer = Organizer::factory()->create();
     $event = Event::factory()->create(['organizer_id' => $organizer->id, 'showtype' => 'a', 'status' => 'p']);
     $sentinel = $event->shows()->create(['date' => now()->addDays(20)->format('Y-m-d H:i:s')]);
-    $sentinel->tickets()->create(['name' => 'General', 'ticket_price' => '20.00', 'currency' => '$', 'type' => 's']);
+    $sentinel->tickets()->create(['name' => 'General', 'ticket_price' => '20.00', 'currency' => 'USD', 'type' => 's']);
     $user = memberOf($organizer);
     $yesterday = now()->subDay()->format('Y-m-d H:i:s');
 

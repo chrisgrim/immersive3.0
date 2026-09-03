@@ -579,10 +579,11 @@ test('StoreEvent caps location venue at the 80 chars the wizard input allows', f
     expect($okValidator->errors()->has('location.venue'))->toBeFalse();
 });
 
-test('StoreEvent rejects an ISO currency code in favour of the symbol', function () {
-    // The currency is rendered verbatim next to the price, so "USD" would show
-    // on the live listing as "USD17.00". The old max:3 rule let it through.
-    $data = ['tickets' => [['name' => 'General', 'ticket_price' => 17.00, 'currency' => 'USD']]];
+test('StoreEvent rejects a currency symbol in favour of the ISO code', function () {
+    // The column holds ISO 4217 codes (App\Support\Currency) and the wizard
+    // only ever sends codes, so a bare symbol here is a client bug. (The
+    // MCP tool maps symbols before validating; the web request does not.)
+    $data = ['tickets' => [['name' => 'General', 'ticket_price' => 17.00, 'currency' => '$']]];
     $request = makeRequest(StoreEventRequest::class, $data);
 
     $validator = validateWith($request, $data);
@@ -593,9 +594,9 @@ test('StoreEvent rejects an ISO currency code in favour of the symbol', function
     expect($validator->errors()->has('tickets.0.currency'))->toBeTrue();
 });
 
-test('StoreEvent accepts every currency symbol the wizard picker offers', function () {
-    foreach (\App\Support\Validation\EventUpdateRules::CURRENCIES as $symbol) {
-        $data = ['tickets' => [['name' => 'General', 'ticket_price' => 17.00, 'currency' => $symbol]]];
+test('StoreEvent accepts any current ISO 4217 currency code', function () {
+    foreach (['USD', 'GBP', 'EUR', 'AUD', 'SGD', 'INR', 'JPY', 'KRW', 'THB', 'TWD', 'HKD', 'ZAR', 'BRL'] as $code) {
+        $data = ['tickets' => [['name' => 'General', 'ticket_price' => 17.00, 'currency' => $code]]];
         $request = makeRequest(StoreEventRequest::class, $data);
 
         $validator = validateWith($request, $data);

@@ -8,11 +8,11 @@ use App\Mcp\Tools\SubmitEventForReview;
 use App\Mcp\Tools\UpdateEvent;
 use App\Models\Category;
 use App\Models\Event;
+use App\Models\Events\Location;
 use App\Models\NameChangeRequest;
 use App\Models\Organizer;
 use App\Models\User;
 use App\Support\RecurringDates;
-use App\Support\Validation\EventUpdateRules;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -1729,13 +1729,16 @@ test('update-event accepts a ticket tier with no description', function () {
     expect($event->price_range)->toContain('31');
 });
 
-test('update-event reports a field error for a tier missing price or currency', function () {
+test('update-event reports a field error for a tier missing its price', function () {
+    // A missing CURRENCY is no longer an error — it defaults from the event's
+    // location (see 'a tier sent without a currency takes the currency of the
+    // event location' below). A missing price still has nothing to default to.
     $user = writeToolUser();
 
-    foreach (['ticket_price', 'currency'] as $omitted) {
+    foreach (['ticket_price'] as $omitted) {
         $event = draftFor(writeToolOrganizer($user), $user);
         $tier = array_diff_key(
-            ['name' => 'General', 'ticket_price' => 25.00, 'currency' => '$'],
+            ['name' => 'General', 'ticket_price' => 25.00, 'currency' => 'USD'],
             [$omitted => null]
         );
 
@@ -2084,24 +2087,24 @@ function eventReadyForTickets(User $user): Event
     return $event->fresh();
 }
 
-test('an ISO currency code is normalized to the symbol the site renders', function () {
+test('a currency symbol is normalized to the ISO code the site stores', function () {
     $user = writeToolUser();
     $event = eventReadyForTickets($user);
 
-    // "USD" is 3 chars, so the old max:3 rule accepted it — and the symbol is
-    // printed verbatim beside the price, so the listing read "USD17.00".
+    // The column held symbols until 2026-09-02, so a client written against
+    // the old contract still sends "$". It is mapped, not bounced.
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
-        'tickets' => [['name' => 'General', 'ticket_price' => 17.00, 'currency' => 'USD']],
+        'tickets' => [['name' => 'General', 'ticket_price' => 17.00, 'currency' => '$']],
     ])->assertOk()->assertSee('Event updated.');
 
-    expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe('$');
+    expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe('USD');
 });
 
-test('the other unambiguous currency codes normalize too', function () {
+test('the other symbols, and lower-case or padded codes, normalize too', function () {
     $user = writeToolUser();
 
-    foreach (['EUR' => '€', 'gbp' => '£', 'JPY' => '¥', 'CAD' => 'C$', 'AUD' => 'A$', 'au$' => 'A$', 'HKD' => 'HK$', 'TWD' => 'NT$', 'ntd' => 'NT$', 'THB' => '฿', 'MXN' => 'MX$', ' usd ' => '$'] as $sent => $stored) {
+    foreach (['€' => 'EUR', '£' => 'GBP', '¥' => 'JPY', 'C$' => 'CAD', 'A$' => 'AUD', 'au$' => 'AUD', 'HK$' => 'HKD', 'NT$' => 'TWD', 'ntd' => 'TWD', '฿' => 'THB', 'MX$' => 'MXN', ' usd ' => 'USD', 'sgd' => 'SGD'] as $sent => $stored) {
         $event = eventReadyForTickets($user);
 
         EiServer::actingAs($user)->tool(UpdateEvent::class, [
@@ -2123,26 +2126,54 @@ test('an unrecognised currency is refused with the list of valid symbols', funct
     ])->assertOk()->assertSee([
         'validation_failed',
         'tickets.0.currency',
-        // The message has to name the valid options, or the client just guesses again.
-        'not the ISO code',
+        // The message has to say what shape is wanted, or the client just guesses again.
+        'ISO 4217',
     ]);
 
     expect($event->fresh()->shows->first()->tickets)->toHaveCount(0);
 });
 
-test('a symbol the picker offers is stored untouched', function () {
+test('an ISO code is stored untouched', function () {
     $user = writeToolUser();
 
-    foreach (EventUpdateRules::CURRENCIES as $symbol) {
+    foreach (['USD', 'GBP', 'SGD', 'KRW', 'INR'] as $code) {
         $event = eventReadyForTickets($user);
 
         EiServer::actingAs($user)->tool(UpdateEvent::class, [
             'event_slug' => $event->slug,
-            'tickets' => [['name' => 'General', 'ticket_price' => 20, 'currency' => $symbol]],
+            'tickets' => [['name' => 'General', 'ticket_price' => 20, 'currency' => $code]],
         ])->assertOk();
 
-        expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe($symbol);
+        expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe($code);
     }
+});
+
+test('a tier sent without a currency takes the currency of the event location', function () {
+    // The reason the whole ISO move happened: an assistant creating a
+    // Singapore event would fall back to USD because SGD was not on the
+    // list. Now it need not send a currency at all.
+    $user = writeToolUser();
+    $event = eventReadyForTickets($user);
+    Location::updateOrCreate(['event_id' => $event->id], ['country' => 'SG']);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'tickets' => [['name' => 'General', 'ticket_price' => 45]],
+    ])->assertOk()->assertSee('Event updated.');
+
+    expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe('SGD');
+});
+
+test('a tier sent without a currency falls back to USD when the location has no country', function () {
+    $user = writeToolUser();
+    $event = eventReadyForTickets($user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'tickets' => [['name' => 'General', 'ticket_price' => 45]],
+    ])->assertOk();
+
+    expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe('USD');
 });
 
 // ── fields this tool refuses to set ────────────────────────────────────

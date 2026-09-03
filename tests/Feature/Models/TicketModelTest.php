@@ -39,7 +39,7 @@ function ticketRequest(array $tickets): Request
 
 function gaTier(float $price = 25, string $description = 'Standard entry'): array
 {
-    return ['name' => 'GA', 'ticket_price' => $price, 'currency' => '$', 'description' => $description];
+    return ['name' => 'GA', 'ticket_price' => $price, 'currency' => 'USD', 'description' => $description];
 }
 
 test('handleTickets writes every tier onto every show', function () {
@@ -47,7 +47,7 @@ test('handleTickets writes every tier onto every show', function () {
 
     Ticket::handleTickets(ticketRequest([
         gaTier(),
-        ['name' => 'VIP', 'ticket_price' => 80, 'currency' => '$', 'description' => 'Front row'],
+        ['name' => 'VIP', 'ticket_price' => 80, 'currency' => 'USD', 'description' => 'Front row'],
     ]), $this->event);
 
     $shows = $this->event->fresh()->shows;
@@ -84,7 +84,7 @@ test('handleTickets deletes tiers the user removed, on every show', function () 
 
     Ticket::handleTickets(ticketRequest([
         gaTier(),
-        ['name' => 'VIP', 'ticket_price' => 80, 'currency' => '$', 'description' => 'Front row'],
+        ['name' => 'VIP', 'ticket_price' => 80, 'currency' => 'USD', 'description' => 'Front row'],
     ]), $this->event);
     expect(Ticket::where('ticket_type', Show::class)->count())->toBe(6);
 
@@ -146,7 +146,7 @@ test('handleTickets leaves other events tickets alone', function () {
     $otherIds = $other->shows()->first()->tickets()->pluck('id');
 
     Ticket::handleTickets(ticketRequest([
-        ['name' => 'VIP', 'ticket_price' => 80, 'currency' => '$', 'description' => 'Front row'],
+        ['name' => 'VIP', 'ticket_price' => 80, 'currency' => 'USD', 'description' => 'Front row'],
     ]), $this->event);
 
     $otherTickets = Ticket::whereIn('id', $otherIds)->get();
@@ -221,7 +221,7 @@ test('handleTickets rebuilds the price ranges and the event price range', functi
 
     Ticket::handleTickets(ticketRequest([
         gaTier(),
-        ['name' => 'VIP', 'ticket_price' => 80, 'currency' => '$', 'description' => 'Front row'],
+        ['name' => 'VIP', 'ticket_price' => 80, 'currency' => 'USD', 'description' => 'Front row'],
     ]), $this->event);
 
     expect($this->event->priceranges()->pluck('price')->all())->toEqualCanonicalizing(['25', '80']);
@@ -238,7 +238,7 @@ test('handleTickets query count stays flat as the number of shows grows', functi
     // The N+1 this replaced ran 3 queries per show, so 40 shows meant ~120
     // ticket queries. The batched version must not scale with the show count.
     showsFor($this->event, 40);
-    $tickets = [gaTier(), ['name' => 'VIP', 'ticket_price' => 80, 'currency' => '$', 'description' => 'Front row']];
+    $tickets = [gaTier(), ['name' => 'VIP', 'ticket_price' => 80, 'currency' => 'USD', 'description' => 'Front row']];
 
     DB::enableQueryLog();
     Ticket::handleTickets(ticketRequest($tickets), $this->event);

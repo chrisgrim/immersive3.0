@@ -93,7 +93,7 @@ test('show returns the first show tickets in the appended attribute', function (
     $firstShow->tickets()->create([
         'name' => 'General',
         'ticket_price' => '20.00',
-        'currency' => '$',
+        'currency' => 'USD',
         'type' => 's',
     ]);
 
@@ -124,7 +124,7 @@ test('show formats a zero-decimal currency price without cents', function () {
     $firstShow->tickets()->create([
         'name' => 'General',
         'ticket_price' => '25.00',
-        'currency' => '₩',
+        'currency' => 'KRW',
         'type' => 's',
     ]);
 
@@ -141,7 +141,7 @@ test('show still shows two decimal places for a currency with a minor unit', fun
     $firstShow->tickets()->create([
         'name' => 'General',
         'ticket_price' => '25.00',
-        'currency' => '$',
+        'currency' => 'USD',
         'type' => 's',
     ]);
 

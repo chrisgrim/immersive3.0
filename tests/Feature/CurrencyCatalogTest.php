@@ -1,75 +1,196 @@
 <?php
 
+use App\Models\Event;
+use App\Models\Events\Show;
+use App\Models\Events\Ticket;
+use App\Models\Organizer;
+use App\Models\User;
+use App\Support\Currency;
 use App\Support\Validation\EventUpdateRules;
+use Illuminate\Support\Facades\DB;
 
 /**
- * The currency catalog used to be maintained by hand in four places: the
- * validation allowlist, the wizard picker's symbol list, that picker's
- * ISO labels, and an elseif ladder in the event page's JSON-LD. They all
- * happened to agree, but nothing checked it, so adding a currency to three
- * of the four would have shipped silently.
+ * Ticket currencies are ISO 4217 codes rendered by ICU (App\Support\Currency).
  *
- * EventUpdateRules::CURRENCY_ISO is now the single source. The blade reads
- * it directly. A Vue constant can't import a PHP one, so these assert the
- * wizard's copy against it — the drift has to fail here before it can reach
- * a user picking a currency the backend then rejects.
+ * Until 2026-09-02 the column held a display symbol from a hand-maintained
+ * list, copied into the validator, the wizard picker, a zero-decimal list in
+ * six Vue files, and the event page's JSON-LD — this file existed to keep
+ * those copies agreeing. There is no list to agree on now: PHP and the
+ * browser both read resources/data/currencies.json and both format through
+ * their platform's CLDR data with the same 'en' locale. What these tests pin
+ * is that contract — the outputs both sides are expected to produce.
  */
 function ticketsVue(): string
 {
     return file_get_contents(resource_path('js/PageComponents/Creation/Core/Pages/tickets.vue'));
 }
 
-test('CURRENCIES is exactly the keys of CURRENCY_ISO', function () {
-    expect(EventUpdateRules::CURRENCIES)->toBe(array_keys(EventUpdateRules::CURRENCY_ISO));
-});
+function validateTickets(array $tier): \Illuminate\Validation\Validator
+{
+    return validator(
+        ['tickets' => [$tier + ['name' => 'General', 'description' => '']]],
+        EventUpdateRules::rules(),
+        EventUpdateRules::messages(),
+    );
+}
 
-test('every currency maps to a 3-letter ISO 4217 code', function () {
-    foreach (EventUpdateRules::CURRENCY_ISO as $symbol => $iso) {
-        expect($iso)->toMatch('/^[A-Z]{3}$/', "'{$symbol}' maps to an invalid ISO code");
+// ── the code list ────────────────────────────────────────────────────────
+
+test('the code list is a set of current ISO 4217 codes', function () {
+    $codes = Currency::codes();
+
+    expect(count($codes))->toBeGreaterThan(150);
+    expect($codes)->toBe(array_values(array_unique($codes)));
+
+    foreach ($codes as $code) {
+        expect($code)->toMatch('/^[A-Z]{3}$/');
+    }
+
+    // Every currency the old symbol list covered, plus the ones that were
+    // being requested one email at a time.
+    foreach (['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'MXN', 'CNY', 'KRW', 'AUD', 'HKD', 'TWD', 'THB', 'SGD', 'INR'] as $code) {
+        expect(Currency::isValid($code))->toBeTrue("{$code} missing from the code list");
     }
 });
 
-test('the wizard picker offers exactly the currencies the backend accepts', function () {
-    preg_match('/const CURRENCY_SYMBOLS = \[(.*?)\];/s', ticketsVue(), $m);
-    expect($m)->not->toBeEmpty('CURRENCY_SYMBOLS not found in tickets.vue — was it renamed?');
-
-    preg_match_all("/'([^']+)'/", $m[1], $symbols);
-
-    expect($symbols[1])->toBe(EventUpdateRules::CURRENCIES);
-});
-
-test('the wizard picker labels every currency with the same ISO code the backend uses', function () {
-    preg_match('/const CURRENCY_LABELS = \{(.*?)\};/s', ticketsVue(), $m);
-    expect($m)->not->toBeEmpty('CURRENCY_LABELS not found in tickets.vue — was it renamed?');
-
-    preg_match_all("/'([^']+)':\s*'([^']+)'/", $m[1], $pairs, PREG_SET_ORDER);
-
-    $labels = collect($pairs)->mapWithKeys(fn ($p) => [$p[1] => $p[2]]);
-
-    expect($labels->keys()->all())->toBe(EventUpdateRules::CURRENCIES);
-
-    foreach (EventUpdateRules::CURRENCY_ISO as $symbol => $iso) {
-        // e.g. '$ — USD' / 'MX$ — MXN (Mexican peso)' — the label is free to
-        // add a clarifier, but the ISO code in it has to be the real one.
-        expect($labels[$symbol])->toContain($iso);
+test('isValid is exact: no symbols, no lower case, no codes ICU does not know', function () {
+    foreach (['$', 'usd', 'US$', 'BTC', 'XXX', '', null, 17] as $bad) {
+        expect(Currency::isValid($bad))->toBeFalse(json_encode($bad).' should not validate');
     }
 });
 
-test('every alias resolves to a currency that actually exists', function () {
-    foreach (EventUpdateRules::CURRENCY_ALIASES as $alias => $symbol) {
-        // toContain() takes needles, not a message — a message passed as a
-        // second argument silently becomes another thing it searches for.
-        expect(in_array($symbol, EventUpdateRules::CURRENCIES, true))
-            ->toBeTrue("alias '{$alias}' points at unknown symbol '{$symbol}'");
+// ── formatting ───────────────────────────────────────────────────────────
+
+test('format reproduces the conventions the old symbol list encoded by hand', function () {
+    // Bare "$" is USD; the other dollars get a disambiguating prefix; the two
+    // yen-glyph currencies are told apart; JPY and KRW carry no decimals.
+    expect(Currency::format(17.5, 'USD'))->toBe('$17.50');
+    expect(Currency::format(25, 'AUD'))->toBe('A$25.00');
+    expect(Currency::format(25, 'CAD'))->toBe('CA$25.00');
+    expect(Currency::format(25, 'HKD'))->toBe('HK$25.00');
+    expect(Currency::format(25, 'TWD'))->toBe('NT$25.00');
+    expect(Currency::format(25, 'MXN'))->toBe('MX$25.00');
+    expect(Currency::format(99.5, 'CNY'))->toBe('CN¥99.50');
+    expect(Currency::format(1500, 'JPY'))->toBe('¥1,500');
+    expect(Currency::format(144000, 'KRW'))->toBe('₩144,000');
+    expect(Currency::format(0.99, 'EUR'))->toBe('€0.99');
+    expect(Currency::format(10, 'GBP'))->toBe('£10.00');
+    expect(Currency::format(500, 'INR'))->toBe('₹500.00');
+});
+
+test('a currency with no well-known symbol is written as code and space', function () {
+    // No one has to invent a glyph for these; the code is the unambiguous form.
+    expect(Currency::format(45, 'SGD'))->toBe('SGD 45.00');
+    expect(Currency::format(1200, 'THB'))->toBe('THB 1,200.00');
+});
+
+test('compact formatting drops zero decimals from a whole amount only', function () {
+    expect(Currency::format(40, 'USD', compact: true))->toBe('$40');
+    expect(Currency::format(17.5, 'USD', compact: true))->toBe('$17.50');
+    expect(Currency::format(45, 'SGD', compact: true))->toBe('SGD 45');
+    expect(Currency::format(144000, 'KRW', compact: true))->toBe('₩144,000');
+});
+
+test('an unknown or missing code formats as the default currency rather than erroring', function () {
+    expect(Currency::format(10, null))->toBe('$10.00');
+    expect(Currency::format(10, 'BTC'))->toBe('$10.00');
+});
+
+test('decimals come from CLDR, not a list', function () {
+    expect(Currency::decimals('USD'))->toBe(2);
+    expect(Currency::decimals('JPY'))->toBe(0);
+    expect(Currency::decimals('KRW'))->toBe(0);
+    // The yuan subdivides into 100 fen; the old hand list once got this wrong.
+    expect(Currency::decimals('CNY'))->toBe(2);
+    expect(Currency::decimals('TWD'))->toBe(2);
+    // Three-decimal currencies exist too — a list would never have had them.
+    expect(Currency::decimals('KWD'))->toBe(3);
+    expect(Currency::decimals(null))->toBe(2);
+});
+
+test('symbol is the prefix ICU prints, falling back to the code itself', function () {
+    expect(Currency::symbol('USD'))->toBe('$');
+    expect(Currency::symbol('AUD'))->toBe('A$');
+    expect(Currency::symbol('INR'))->toBe('₹');
+    expect(Currency::symbol('SGD'))->toBe('SGD');
+});
+
+// ── normalising what clients send ────────────────────────────────────────
+
+test('normalize maps the old stored symbols and habitual variants to the code', function () {
+    expect(Currency::normalize('$'))->toBe('USD');
+    expect(Currency::normalize(' usd '))->toBe('USD');
+    expect(Currency::normalize('A$'))->toBe('AUD');
+    // The literal four published Australian events stored for years.
+    expect(Currency::normalize('AU'))->toBe('AUD');
+    expect(Currency::normalize('₩'))->toBe('KRW');
+    expect(Currency::normalize('CN¥'))->toBe('CNY');
+    expect(Currency::normalize('sgd'))->toBe('SGD');
+});
+
+test('normalize leaves an unrecognised value alone so validation can name it', function () {
+    expect(Currency::normalize('BTC'))->toBe('BTC');
+    expect(Currency::normalize(null))->toBeNull();
+    expect(Currency::normalize(17))->toBe(17);
+});
+
+// ── the location default ─────────────────────────────────────────────────
+
+test('forCountry maps an ISO country code to its currency', function () {
+    expect(Currency::forCountry('SG'))->toBe('SGD');
+    expect(Currency::forCountry('au'))->toBe('AUD');
+    expect(Currency::forCountry('GB'))->toBe('GBP');
+    expect(Currency::forCountry('IN'))->toBe('INR');
+    expect(Currency::forCountry('TW'))->toBe('TWD');
+    // Bulgaria joined the euro on 2026-01-01.
+    expect(Currency::forCountry('BG'))->toBe('EUR');
+});
+
+test('forCountry accepts the English names a few hundred older location rows hold', function () {
+    expect(Currency::forCountry('United States'))->toBe('USD');
+    expect(Currency::forCountry('United Kingdom'))->toBe('GBP');
+});
+
+test('forCountry gives no default when it has nothing to go on', function () {
+    expect(Currency::forCountry(null))->toBeNull();
+    expect(Currency::forCountry(''))->toBeNull();
+    expect(Currency::forCountry('ZZ'))->toBeNull();
+    expect(Currency::forCountry('Narnia'))->toBeNull();
+});
+
+test('every country in the map points at a currency the validator accepts', function () {
+    $map = json_decode(file_get_contents(resource_path('data/country-currency.json')), true);
+
+    expect(count($map))->toBeGreaterThan(240);
+
+    foreach ($map as $country => $code) {
+        expect($country)->toMatch('/^[A-Z]{2}$/');
+        expect(Currency::isValid($code))->toBeTrue("{$country} maps to unknown currency {$code}");
     }
 });
 
-/**
- * The price ceiling is part of the currency contract, not separate from it:
- * 99999.99 is a reasonable cap in dollars and an absurd one in won. A normal
- * ticket to Sleep No More Seoul is 144,000 KRW, and both the validator and the
- * wizard rejected it — the wizard by silently truncating it to 14,400.
- */
+// ── validation ───────────────────────────────────────────────────────────
+
+test('the validator accepts any current code and rejects symbols', function () {
+    foreach (['USD', 'SGD', 'KRW', 'ZAR'] as $code) {
+        expect(validateTickets(['ticket_price' => 20, 'currency' => $code])->passes())->toBeTrue("{$code} rejected");
+    }
+
+    foreach (['$', 'A$', 'usd', 'BTC'] as $bad) {
+        $validator = validateTickets(['ticket_price' => 17.5, 'currency' => $bad]);
+        expect($validator->errors()->has('tickets.0.currency'))->toBeTrue("{$bad} accepted");
+    }
+});
+
+test('the currency error says what shape is wanted instead of listing 160 codes', function () {
+    $message = validateTickets(['ticket_price' => 17.5, 'currency' => '$'])->errors()->first('tickets.0.currency');
+
+    expect($message)->toContain('ISO 4217');
+    expect(strlen($message))->toBeLessThan(200);
+});
+
+// ── the price ceiling (unchanged contract, still copied into the wizard) ──
+
 test('the wizard enforces exactly the price ceiling the backend accepts', function () {
     preg_match('/const MAX_TICKET_PRICE = ([\d.]+);/', ticketsVue(), $m);
     expect($m)->not->toBeEmpty('MAX_TICKET_PRICE not found in tickets.vue — was it renamed?');
@@ -85,37 +206,27 @@ test('the wizard derives its digit cap so it can never truncate an accepted pric
 });
 
 test('the ceiling clears ordinary prices in the zero-decimal currencies', function () {
-    // ¥/CN¥/₩ have no minor unit, so their everyday prices are 4-6 digits.
+    // JPY/KRW have no minor unit, so their everyday prices are 4-6 digits.
     expect(EventUpdateRules::MAX_TICKET_PRICE)->toBeGreaterThan(144000.0);
 });
 
 test('the ceiling fits the column that stores it', function () {
     // tickets.ticket_price is decimal(8,2) — 999999.99 is its largest value.
-    // Raising the rule past this would trade a validation error for a
-    // truncated or out-of-range write at the database.
     expect(EventUpdateRules::MAX_TICKET_PRICE)->toBeLessThanOrEqual(999999.99);
 });
 
 test('a ticket priced in a zero-decimal currency validates', function () {
-    $validate = fn (float $price) => validator(
-        ['tickets' => [['name' => 'General', 'ticket_price' => $price, 'currency' => '₩', 'description' => '']]],
-        EventUpdateRules::rules(),
-        EventUpdateRules::messages(),
-    )->passes();
+    $passes = fn (float $price) => validateTickets(['ticket_price' => $price, 'currency' => 'KRW'])->passes();
 
-    expect($validate(144000))->toBeTrue('144,000 KRW is an ordinary ticket price');
+    expect($passes(144000))->toBeTrue('144,000 KRW is an ordinary ticket price');
     // The ceiling as a WHOLE number — the .99 form of it is rejected in a
     // zero-decimal currency by ZeroDecimalPriceRule, which is the point.
-    expect($validate(999999))->toBeTrue();
-    expect($validate(1000000))->toBeFalse('past the column ceiling, so still rejected');
+    expect($passes(999999))->toBeTrue();
+    expect($passes(1000000))->toBeFalse('past the column ceiling, so still rejected');
 });
 
 test('the ceiling itself is reachable in a currency that has decimals', function () {
-    $passes = fn (float $price) => validator(
-        ['tickets' => [['name' => 'General', 'ticket_price' => $price, 'currency' => '$', 'description' => '']]],
-        EventUpdateRules::rules(),
-        EventUpdateRules::messages(),
-    )->passes();
+    $passes = fn (float $price) => validateTickets(['ticket_price' => $price, 'currency' => 'USD'])->passes();
 
     expect($passes(EventUpdateRules::MAX_TICKET_PRICE))->toBeTrue();
     expect($passes(1000000))->toBeFalse();
@@ -126,116 +237,91 @@ test('the price cap explains itself rather than failing bare', function () {
         ->toContain(number_format(EventUpdateRules::MAX_TICKET_PRICE, 2));
 });
 
-/**
- * ¥/CN¥/₩ have no minor unit, so a price in them is written without decimals.
- * That list was inline in six places before the wizard's price input needed it
- * too — and the input was the one place getting it wrong, forcing "₩144000.00"
- * while every display surface rendered "₩144000" correctly.
- *
- * EventUpdateRules::ZERO_DECIMAL_CURRENCIES is the source now. The blade reads
- * it directly; the Vue files can't, so they are asserted against it here.
- */
-test('every zero-decimal currency is a currency that exists', function () {
-    foreach (EventUpdateRules::ZERO_DECIMAL_CURRENCIES as $symbol) {
-        expect(in_array($symbol, EventUpdateRules::CURRENCIES, true))
-            ->toBeTrue("'{$symbol}' is not in the currency catalog");
-    }
-});
-
-test('decimalsFor drops the decimals only for those currencies', function () {
-    expect(EventUpdateRules::decimalsFor('₩'))->toBe(0);
-    expect(EventUpdateRules::decimalsFor('¥'))->toBe(0);
-    // CN¥ has a minor unit (100 fen), unlike the two above.
-    expect(EventUpdateRules::decimalsFor('CN¥'))->toBe(2);
-    expect(EventUpdateRules::decimalsFor('$'))->toBe(2);
-    expect(EventUpdateRules::decimalsFor('€'))->toBe(2);
-    // An unknown or absent currency must not silently lose its decimals.
-    expect(EventUpdateRules::decimalsFor(null))->toBe(2);
-});
-
-test('the event page reads the shared list rather than its own copy', function () {
-    expect(file_get_contents(resource_path('views/events/show.blade.php')))
-        ->toContain('EventUpdateRules::decimalsFor($currency)')
-        ->not->toContain("['¥', 'CN¥', '₩']");
-});
-
-test('every Vue copy of the zero-decimal list matches the backend', function () {
-    // Each of these formats a price for display; a copy drifting out of step
-    // means one surface printing "₩144000.00" while the rest print "₩144000".
-    $files = [
-        'js/PageComponents/Creation/Core/Pages/tickets.vue',
-        'js/PageComponents/Creation/Core/Pages/navSidebar.vue',
-        'js/PageComponents/Creation/Core/Pages/review.vue',
-        'js/PageComponents/EventShow/show-purchase.vue',
-        'js/PageComponents/EventShow/show-purchase-mobile.vue',
-        'js/PageComponents/Admin/Approval/EventReview.vue',
-    ];
-
-    foreach ($files as $file) {
-        $source = file_get_contents(resource_path($file));
-
-        preg_match('/const ZERO_DECIMAL_CURRENCIES = \[(.*?)\];/s', $source, $m);
-        expect($m)->not->toBeEmpty("ZERO_DECIMAL_CURRENCIES not found in {$file} — was it renamed?");
-
-        preg_match_all("/'([^']+)'/", $m[1], $symbols);
-
-        expect($symbols[1])->toBe(EventUpdateRules::ZERO_DECIMAL_CURRENCIES, "{$file} disagrees with the backend");
-    }
-});
+// ── zero-decimal currencies ──────────────────────────────────────────────
 
 test('a currency with no minor unit rejects a fractional price', function () {
-    // Otherwise 144000.50 in ₩ is stored happily, then shown as "144000.5"
-    // in the editor and "₩144001" on the live listing — a page quoting a
+    // Otherwise 144000.50 in KRW is stored happily, then shown as "144000.5"
+    // in the editor and "₩144,001" on the live listing — a page quoting a
     // price the database does not hold.
-    $validate = fn (string $currency, float $price) => validator(
-        ['tickets' => [['name' => 'General', 'ticket_price' => $price, 'currency' => $currency, 'description' => '']]],
-        EventUpdateRules::rules(),
-        EventUpdateRules::messages(),
-    );
-
-    expect($validate('₩', 144000.50)->passes())->toBeFalse();
-    expect($validate('¥', 1500.25)->passes())->toBeFalse();
+    expect(validateTickets(['ticket_price' => 144000.50, 'currency' => 'KRW'])->passes())->toBeFalse();
+    expect(validateTickets(['ticket_price' => 1500.25, 'currency' => 'JPY'])->passes())->toBeFalse();
 
     // Whole numbers are fine, and currencies WITH a minor unit are untouched
-    // — CN¥ among them: the yuan subdivides into 100 fen.
-    expect($validate('₩', 144000)->passes())->toBeTrue();
-    expect($validate('$', 17.50)->passes())->toBeTrue();
-    expect($validate('€', 0.99)->passes())->toBeTrue();
-    expect($validate('CN¥', 99.99)->passes())->toBeTrue();
-});
-
-test('the yuan is not treated as a zero-decimal currency', function () {
-    // CN¥ was in all six inline copies this list replaced, wrongly: the yuan
-    // subdivides into 100 fen and ISO 4217 gives CNY an exponent of 2. As a
-    // display-only list that just dropped the decimals; with a validation rule
-    // hung off it, it would reject legitimate prices outright.
-    expect(EventUpdateRules::ZERO_DECIMAL_CURRENCIES)->not->toContain('CN¥');
-    expect(EventUpdateRules::decimalsFor('CN¥'))->toBe(2);
-
-    $passes = fn (float $price) => validator(
-        ['tickets' => [['name' => 'General', 'ticket_price' => $price, 'currency' => 'CN¥', 'description' => '']]],
-        EventUpdateRules::rules(),
-        EventUpdateRules::messages(),
-    )->passes();
-
-    expect($passes(99.50))->toBeTrue();
+    // — CNY among them: the yuan subdivides into 100 fen.
+    expect(validateTickets(['ticket_price' => 144000, 'currency' => 'KRW'])->passes())->toBeTrue();
+    expect(validateTickets(['ticket_price' => 17.50, 'currency' => 'USD'])->passes())->toBeTrue();
+    expect(validateTickets(['ticket_price' => 0.99, 'currency' => 'EUR'])->passes())->toBeTrue();
+    expect(validateTickets(['ticket_price' => 99.99, 'currency' => 'CNY'])->passes())->toBeTrue();
 });
 
 test('a PWYC tier keeps its sentinel price in a zero-decimal currency', function () {
     // The wizard writes 0.01 for PWYC to mean "not free, pay what you can",
     // hides the price input, and every price surface prints "PWYC" in its
-    // place (Ticket::priceRange, show-purchase.vue). Rejecting the sentinel
-    // as a fractional ₩ price made a PWYC tier unsaveable in ₩/¥ — with no
-    // field on screen to fix it from.
-    $validate = fn (string $name, float $price) => validator(
-        ['tickets' => [['name' => $name, 'ticket_price' => $price, 'currency' => '₩', 'description' => '']]],
-        EventUpdateRules::rules(),
-        EventUpdateRules::messages(),
-    );
-
-    expect($validate('PWYC', 0.01)->passes())->toBeTrue();
+    // place (Ticket::getPriceRange, show-purchase.vue). Rejecting the sentinel
+    // as a fractional KRW price made a PWYC tier unsaveable in KRW/JPY — with
+    // no field on screen to fix it from.
+    expect(validateTickets(['name' => 'PWYC', 'ticket_price' => 0.01, 'currency' => 'KRW'])->passes())->toBeTrue();
     // The same case-insensitive, trimmed test the display code applies.
-    expect($validate(' pwyc ', 0.01)->passes())->toBeTrue();
+    expect(validateTickets(['name' => ' pwyc ', 'ticket_price' => 0.01, 'currency' => 'KRW'])->passes())->toBeTrue();
     // Any other tier is still held to whole numbers.
-    expect($validate('General', 0.01)->passes())->toBeFalse();
+    expect(validateTickets(['name' => 'General', 'ticket_price' => 0.01, 'currency' => 'KRW'])->passes())->toBeFalse();
+});
+
+// ── the precomputed price_range string ───────────────────────────────────
+
+test('price_range strings keep their compact shape, now in any currency', function () {
+    expect(Ticket::getPriceRange([40], 'USD'))->toBe('$40');
+    expect(Ticket::getPriceRange([17.5], 'USD'))->toBe('$17.50');
+    expect(Ticket::getPriceRange([80, 25], 'USD'))->toBe('$25 - $80');
+    expect(Ticket::getPriceRange([0], 'USD'))->toBe('Free');
+    expect(Ticket::getPriceRange([0, 30], 'USD'))->toBe('Free - $30');
+    expect(Ticket::getPriceRange([0.01, 80], 'USD', ['PWYC', 'VIP']))->toBe('PWYC - $80');
+    expect(Ticket::getPriceRange([25, 80], 'AUD'))->toBe('A$25 - A$80');
+    expect(Ticket::getPriceRange([45], 'SGD'))->toBe('SGD 45');
+    expect(Ticket::getPriceRange([144000], 'KRW'))->toBe('₩144,000');
+});
+
+test('a stored value the migration could not map keeps the old verbatim form', function () {
+    // Rather than being silently rendered as dollars.
+    expect(Ticket::getPriceRange([25], 'XX'))->toBe('XX25');
+});
+
+test('the event page formats through Currency rather than its own list', function () {
+    $blade = file_get_contents(resource_path('views/events/show.blade.php'));
+
+    expect($blade)
+        ->toContain('\App\Support\Currency::format(')
+        ->not->toContain('decimalsFor')
+        ->not->toContain("['¥', 'CN¥', '₩']");
+});
+
+// ── the migration ────────────────────────────────────────────────────────
+
+test('the ISO migration maps stored symbols, repairs "AU", and rebuilds price_range', function () {
+    $event = Event::factory()->create([
+        'organizer_id' => Organizer::factory()->create()->id,
+        'user_id' => User::factory()->create()->id,
+    ]);
+    $show = Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(3)->format('Y-m-d H:i:s')]);
+    $show->tickets()->create(['name' => 'General', 'ticket_price' => 25, 'currency' => 'AU', 'type' => 's']);
+    $show->tickets()->create(['name' => 'VIP', 'ticket_price' => 80, 'currency' => 'AU', 'type' => 's']);
+    DB::table('events')->where('id', $event->id)->update(['price_range' => 'AU25 - AU80']);
+
+    $other = Event::factory()->create([
+        'organizer_id' => Organizer::factory()->create()->id,
+        'user_id' => User::factory()->create()->id,
+    ]);
+    $otherShow = Show::factory()->create(['event_id' => $other->id, 'date' => now()->addDays(3)->format('Y-m-d H:i:s')]);
+    $otherShow->tickets()->create(['name' => 'General', 'ticket_price' => 144000, 'currency' => '₩', 'type' => 's']);
+    $otherShow->tickets()->create(['name' => 'Odd', 'ticket_price' => 5, 'currency' => 'XX', 'type' => 's']);
+
+    $migration = include database_path('migrations/2026_09_02_180000_convert_ticket_currencies_to_iso_codes.php');
+    $migration->up();
+
+    expect($show->tickets()->pluck('currency')->unique()->values()->all())->toBe(['AUD']);
+    expect($event->fresh()->price_range)->toBe('A$25 - A$80');
+
+    expect($otherShow->tickets()->where('name', 'General')->value('currency'))->toBe('KRW');
+    // Unknown values are reported, not rewritten.
+    expect($otherShow->tickets()->where('name', 'Odd')->value('currency'))->toBe('XX');
 });

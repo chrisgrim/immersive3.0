@@ -99,8 +99,8 @@ test('web update creates shows then tickets, price ranges, and closing date', fu
         'showtype' => 's',
         'dateArray' => ['2026-11-05 00:00:00', '2026-11-06 00:00:00'],
         'tickets' => [
-            ['name' => 'PWYC', 'ticket_price' => 0, 'currency' => '$', 'description' => ''],
-            ['name' => 'VIP', 'ticket_price' => 80, 'currency' => '$', 'description' => 'Front row'],
+            ['name' => 'PWYC', 'ticket_price' => 0, 'currency' => 'USD', 'description' => ''],
+            ['name' => 'VIP', 'ticket_price' => 80, 'currency' => 'USD', 'description' => 'Front row'],
         ],
     ])->assertStatus(200);
 
@@ -119,7 +119,7 @@ test('web update showtype change wipes and recreates shows and tickets', functio
     $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
         'showtype' => 's',
         'dateArray' => ['2026-11-05 00:00:00'],
-        'tickets' => [['name' => 'GA', 'ticket_price' => 10, 'currency' => '$', 'description' => '']],
+        'tickets' => [['name' => 'GA', 'ticket_price' => 10, 'currency' => 'USD', 'description' => '']],
     ])->assertStatus(200);
 
     $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [

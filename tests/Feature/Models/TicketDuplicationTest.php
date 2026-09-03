@@ -30,7 +30,7 @@ test('the database refuses a second tier with the same name on one show', functi
     $show = showWithEvent();
     $row = fn (string $name) => [
         'ticket_type' => Show::class, 'ticket_id' => $show->id, 'name' => $name,
-        'description' => '', 'currency' => '$', 'ticket_price' => 10,
+        'description' => '', 'currency' => 'USD', 'ticket_price' => 10,
         'created_at' => now(), 'updated_at' => now(),
     ];
 
@@ -52,14 +52,14 @@ test('the losing side of a concurrent save updates the winners row instead of er
     // the upsert() collapses it onto the existing row.
     $show = showWithEvent();
 
-    saveTiers($show->event, [['name' => 'General', 'ticket_price' => 42, 'currency' => '$', 'description' => 'winner']]);
+    saveTiers($show->event, [['name' => 'General', 'ticket_price' => 42, 'currency' => 'USD', 'description' => 'winner']]);
 
     $losingWrite = [[
         'ticket_type' => Show::class,
         'ticket_id' => $show->id,
         'name' => 'General',
         'description' => 'loser',
-        'currency' => '$',
+        'currency' => 'USD',
         'ticket_price' => 40,
         'created_at' => now(),
         'updated_at' => now(),
@@ -80,11 +80,11 @@ test('a plain insert on that same write would have duplicated, which is what ups
     // through insert() hits the constraint instead of collapsing. Before the
     // constraint existed it silently made a second row.
     $show = showWithEvent();
-    saveTiers($show->event, [['name' => 'General', 'ticket_price' => 42, 'currency' => '$', 'description' => '']]);
+    saveTiers($show->event, [['name' => 'General', 'ticket_price' => 42, 'currency' => 'USD', 'description' => '']]);
 
     expect(fn () => Ticket::insert([[
         'ticket_type' => Show::class, 'ticket_id' => $show->id, 'name' => 'General',
-        'description' => '', 'currency' => '$', 'ticket_price' => 40,
+        'description' => '', 'currency' => 'USD', 'ticket_price' => 40,
         'created_at' => now(), 'updated_at' => now(),
     ]]))->toThrow(Illuminate\Database\UniqueConstraintViolationException::class);
 });
@@ -93,8 +93,8 @@ test('two sequential saves of the same tier keep one row', function () {
     $show = showWithEvent();
     $event = $show->event;
 
-    saveTiers($event, [['name' => 'General', 'ticket_price' => 42, 'currency' => '$', 'description' => '']]);
-    saveTiers($event, [['name' => 'General', 'ticket_price' => 40, 'currency' => '$', 'description' => '']]);
+    saveTiers($event, [['name' => 'General', 'ticket_price' => 42, 'currency' => 'USD', 'description' => '']]);
+    saveTiers($event, [['name' => 'General', 'ticket_price' => 40, 'currency' => 'USD', 'description' => '']]);
 
     $tickets = Ticket::where('ticket_type', Show::class)->where('ticket_id', $show->id)->get();
 
@@ -108,8 +108,8 @@ test('a payload carrying the same tier name twice keeps only one', function () {
     $show = showWithEvent();
 
     saveTiers($show->event, [
-        ['name' => 'General', 'ticket_price' => 42, 'currency' => '$', 'description' => ''],
-        ['name' => 'General', 'ticket_price' => 40, 'currency' => '$', 'description' => ''],
+        ['name' => 'General', 'ticket_price' => 42, 'currency' => 'USD', 'description' => ''],
+        ['name' => 'General', 'ticket_price' => 40, 'currency' => 'USD', 'description' => ''],
     ]);
 
     $tickets = Ticket::where('ticket_type', Show::class)->where('ticket_id', $show->id)->get();
@@ -122,8 +122,8 @@ test('distinct tier names on one show are unaffected', function () {
     $show = showWithEvent();
 
     saveTiers($show->event, [
-        ['name' => 'Adult', 'ticket_price' => 47, 'currency' => '$', 'description' => ''],
-        ['name' => 'Child', 'ticket_price' => 18, 'currency' => '$', 'description' => ''],
+        ['name' => 'Adult', 'ticket_price' => 47, 'currency' => 'USD', 'description' => ''],
+        ['name' => 'Child', 'ticket_price' => 18, 'currency' => 'USD', 'description' => ''],
     ]);
 
     expect(Ticket::where('ticket_id', $show->id)->count())->toBe(2);
@@ -135,7 +135,7 @@ test('the same tier name on two different shows is still allowed', function () {
     $event = Event::factory()->published()->create();
     Show::factory()->count(2)->create(['event_id' => $event->id]);
 
-    saveTiers($event, [['name' => 'General', 'ticket_price' => 25, 'currency' => '$', 'description' => '']]);
+    saveTiers($event, [['name' => 'General', 'ticket_price' => 25, 'currency' => 'USD', 'description' => '']]);
 
     expect(Ticket::where('name', 'General')->count())->toBe(2);
 });
@@ -144,8 +144,8 @@ test('re-saving an existing tier updates it rather than adding another', functio
     $show = showWithEvent();
     $event = $show->event;
 
-    saveTiers($event, [['name' => 'General', 'ticket_price' => 25, 'currency' => '$', 'description' => 'first']]);
-    saveTiers($event, [['name' => 'General', 'ticket_price' => 30, 'currency' => '$', 'description' => 'second']]);
+    saveTiers($event, [['name' => 'General', 'ticket_price' => 25, 'currency' => 'USD', 'description' => 'first']]);
+    saveTiers($event, [['name' => 'General', 'ticket_price' => 30, 'currency' => 'USD', 'description' => 'second']]);
 
     $tickets = Ticket::where('ticket_id', $show->id)->get();
 
@@ -190,8 +190,8 @@ test('adding dates to an event whose tiers were duplicated does not spread the d
     $source = Show::factory()->create(['event_id' => $event->id]);
 
     $duplicated = collect([
-        (object) ['name' => 'General', 'description' => '', 'currency' => '$', 'ticket_price' => 42, 'type' => 's'],
-        (object) ['name' => 'General', 'description' => '', 'currency' => '$', 'ticket_price' => 40, 'type' => 's'],
+        (object) ['name' => 'General', 'description' => '', 'currency' => 'USD', 'ticket_price' => 42, 'type' => 's'],
+        (object) ['name' => 'General', 'description' => '', 'currency' => 'USD', 'ticket_price' => 40, 'type' => 's'],
     ]);
 
     $newShow = Show::factory()->create(['event_id' => $event->id]);
@@ -211,13 +211,13 @@ test('copying tiers onto a show that already has them updates rather than errori
     $event = Event::factory()->published()->create();
     $show = Show::factory()->create(['event_id' => $event->id]);
 
-    $tiers = collect([(object) ['name' => 'General', 'description' => 'first', 'currency' => '$', 'ticket_price' => 42, 'type' => 's']]);
+    $tiers = collect([(object) ['name' => 'General', 'description' => 'first', 'currency' => 'USD', 'ticket_price' => 42, 'type' => 's']]);
 
     $copy = new ReflectionMethod(Show::class, 'copyTicketsToShows');
     $copy->setAccessible(true);
     $copy->invoke(null, $tiers, collect([$show->id]));
 
-    $again = collect([(object) ['name' => 'General', 'description' => 'second', 'currency' => '$', 'ticket_price' => 40, 'type' => 's']]);
+    $again = collect([(object) ['name' => 'General', 'description' => 'second', 'currency' => 'USD', 'ticket_price' => 40, 'type' => 's']]);
     $copy->invoke(null, $again, collect([$show->id]));
 
     $tickets = Ticket::where('ticket_id', $show->id)->get();

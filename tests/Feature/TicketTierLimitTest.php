@@ -52,10 +52,11 @@ test('the cap is explained in the error message rather than a bare validation fa
 test('the MCP tool advertises the same limit and currency list as the validator', function () {
     // This description told API clients "1-5 ticket tiers" and listed only six
     // currencies, having missed CN¥ and ₩ when they were added — a fourth copy
-    // of both facts, drifting silently. It derives from the constants now.
+    // of both facts, drifting silently. The tier cap derives from the constant
+    // now, and the currency is any ISO 4217 code rather than a list at all.
     $source = file_get_contents(app_path('Mcp/Tools/UpdateEvent.php'));
 
     expect($source)
         ->toContain("'1-'.EventUpdateRules::MAX_TICKET_TIERS.' ticket tiers")
-        ->toContain("implode(' ', EventUpdateRules::CURRENCIES)");
+        ->toContain('ISO 4217');
 });

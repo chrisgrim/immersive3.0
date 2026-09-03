@@ -8,6 +8,7 @@ use App\Mcp\Tools\Concerns\BuildsSyntheticRequests;
 use App\Mcp\Tools\Concerns\FormatsEvents;
 use App\Models\Event;
 use App\Scopes\LatestPublishedFirstScope;
+use App\Support\Currency;
 use App\Support\RecurringDates;
 use App\Support\Validation\EventUpdateRules;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -69,14 +70,14 @@ class UpdateEvent extends Tool
             $input['videos'] = json_encode($input['videos']);
         }
 
-        // Currency is stored as the symbol and rendered verbatim beside the
-        // price, so an ISO code reaches the live listing as "USD17.00". Map the
-        // unambiguous ones onto their symbol rather than bouncing the call;
-        // anything still unrecognised fails validation with the valid list.
+        // Currency is stored as an ISO 4217 code. A client sending a symbol
+        // out of habit ("$", "A$", "₩") gets it mapped to the code rather
+        // than bounced; anything unrecognised fails validation with a message
+        // that says what shape is wanted.
         if (isset($input['tickets']) && is_array($input['tickets'])) {
             foreach ($input['tickets'] as $i => $tier) {
                 if (is_array($tier) && isset($tier['currency'])) {
-                    $input['tickets'][$i]['currency'] = EventUpdateRules::normalizeCurrency($tier['currency']);
+                    $input['tickets'][$i]['currency'] = Currency::normalize($tier['currency']);
                 }
             }
         }
@@ -93,6 +94,19 @@ class UpdateEvent extends Tool
 
         if (! $user->can('manage', $event)) {
             return Response::error('You do not have permission to edit this event.');
+        }
+
+        // A tier sent without a currency takes the currency of the event's
+        // location country — a Singapore event priced in SGD without the
+        // client having to know that — and USD for remote events. This is
+        // the same default the web wizard applies (tickets.vue).
+        if (isset($input['tickets']) && is_array($input['tickets'])) {
+            $default = Currency::forCountry($event->location?->country) ?? Currency::DEFAULT;
+            foreach ($input['tickets'] as $i => $tier) {
+                if (is_array($tier) && ($tier['currency'] ?? '') === '') {
+                    $input['tickets'][$i]['currency'] = $default;
+                }
+            }
         }
 
         // A finished run is editable — see the note in HostEventController
@@ -629,7 +643,7 @@ class UpdateEvent extends Tool
             'ongoing_config' => $schema->object()->description('For showtype=o: {startDate, endDate (UTC "Y-m-d H:i:s", anchored at noon in the event timezone), daysOfWeek: [0-6, Sunday=0]}. The server generates the concrete occurrence dates from this rule — send it alone, WITHOUT dateArray, for a normal weekly run.'),
             'always_config' => $schema->object()->description('For showtype=a: {endDate (UTC "Y-m-d H:i:s")} — when the listing should close. Defaults to 6 months out if omitted.'),
             'show_times' => $schema->string()->description('Human-readable showtimes text, max 500 chars, e.g. "Fridays 8pm, Saturdays 6pm & 9pm".'),
-            'tickets' => $schema->array()->description('1-'.EventUpdateRules::MAX_TICKET_TIERS.' ticket tiers applied to every show: [{"name": "General", "ticket_price": 25.00, "currency": "$", "description": ""}]. Names must be unique; name "Free" requires price 0; name "PWYC" = pay-what-you-can; description shows truncated around 60 chars. Currency must be one of these SYMBOLS, not an ISO code: '.implode(' ', EventUpdateRules::CURRENCIES).' (send "$", never "USD" — the symbol is printed verbatim next to the price). Requires dates to exist first.'),
+            'tickets' => $schema->array()->description('1-'.EventUpdateRules::MAX_TICKET_TIERS.' ticket tiers applied to every show: [{"name": "General", "ticket_price": 25.00, "currency": "USD", "description": ""}]. Names must be unique; name "Free" requires price 0; name "PWYC" = pay-what-you-can; description shows truncated around 60 chars. Currency is a 3-letter ISO 4217 code (USD, GBP, EUR, AUD, SGD, JPY, INR…) — any current currency is accepted; omit it and the event\'s location country decides (USD for remote events). Requires dates to exist first.'),
             'ticketUrl' => $schema->string()->description('URL where attendees buy tickets. Required before submission.'),
             'websiteUrl' => $schema->string()->description('Event or organizer website URL.'),
             'call_to_action' => $schema->string()->description('Ticket-button text, keep to 20 chars. Required before submission — default to "Get Tickets" if the user has no preference.'),

@@ -3,6 +3,7 @@
 namespace App\Support\Validation;
 
 use App\Rules\ZeroDecimalPriceRule;
+use App\Support\Currency;
 
 /**
  * The canonical partial-update validation contract for events.
@@ -13,83 +14,6 @@ use App\Rules\ZeroDecimalPriceRule;
  */
 class EventUpdateRules
 {
-    /**
-     * The only currencies a ticket may be stored in — exactly the symbols the
-     * wizard's picker offers (CURRENCY_SYMBOLS in tickets.vue). The value is
-     * rendered verbatim next to the price, so anything else shows up on the
-     * live listing as-is: an API client sending the ISO code "USD" produced
-     * "USD17.00" where "$17.00" was meant. `max:3` accepted it because the code
-     * is three characters long.
-     *
-     * 'CN¥' (not bare '¥') for yuan — CNY and JPY share the same glyph, and
-     * '¥' was already live for JPY, so yuan gets the disambiguating prefix
-     * instead of touching JPY's existing stored value, same precedent as
-     * 'MX$' getting the prefix rather than USD's already-live '$'.
-     *
-     * @var array<string, string>
-     */
-    public const CURRENCY_ISO = [
-        '$' => 'USD',
-        '€' => 'EUR',
-        '£' => 'GBP',
-        '¥' => 'JPY',
-        'C$' => 'CAD',
-        'A$' => 'AUD',
-        'HK$' => 'HKD',
-        'NT$' => 'TWD',
-        'MX$' => 'MXN',
-        'CN¥' => 'CNY',
-        '₩' => 'KRW',
-        '฿' => 'THB',
-    ];
-
-    /**
-     * The symbols themselves, derived so this can never disagree with the
-     * map above. Adding a currency means adding ONE line to CURRENCY_ISO.
-     *
-     * This is the single source of truth for which currencies exist. The
-     * event page's JSON-LD reads CURRENCY_ISO directly, and the wizard's own
-     * picker list (tickets.vue) is asserted against both by
-     * tests/Feature/CurrencyCatalogTest.php, since a Vue constant can't
-     * import a PHP one — the list used to be maintained by hand in four
-     * separate places with nothing checking they agreed.
-     *
-     * @var array<int, string>
-     */
-    public const CURRENCIES = [
-        '$', '€', '£', '¥', 'C$', 'A$', 'HK$', 'NT$', 'MX$', 'CN¥', '₩', '฿',
-    ];
-
-    /**
-     * Currencies with no minor unit, where a price is written without decimals.
-     *
-     * JPY and KRW have no "cents", so "¥1234.00" and "₩144000.00" are both
-     * wrong — the trailing .00 is not how those amounts are ever written.
-     *
-     * CN¥ is deliberately NOT here, though it was in all six inline copies
-     * this list replaced (the event page's blade twice, show-purchase.vue and
-     * its mobile twin, navSidebar.vue, review.vue, EventReview.vue). The yuan
-     * subdivides into 100 fen — ISO 4217 gives CNY an exponent of 2, same as
-     * USD — so ¥99.50 is an ordinary price. As a display-only list the error
-     * merely dropped the decimals; once a validation rule was hung off it, it
-     * would have rejected legitimate CNY prices outright.
-     *
-     * The blade reads this directly; the Vue copies can't import a PHP
-     * constant, so tests/Feature/CurrencyCatalogTest.php asserts each of them
-     * against it — the same arrangement CURRENCY_ISO already has.
-     *
-     * @var array<int, string>
-     */
-    public const ZERO_DECIMAL_CURRENCIES = ['¥', '₩'];
-
-    /**
-     * How many decimal places a price in this currency is written with.
-     */
-    public static function decimalsFor(?string $currency): int
-    {
-        return in_array($currency, self::ZERO_DECIMAL_CURRENCIES, true) ? 0 : 2;
-    }
-
     /**
      * How many ticket tiers one show may carry.
      *
@@ -133,51 +57,10 @@ class EventUpdateRules
      *
      * Keep tickets.vue's own MAX_TICKET_PRICE in step — asserted by
      * tests/Feature/CurrencyCatalogTest.php, since a Vue constant can't
-     * import a PHP one.
+     * import a PHP one. (The currency list itself is no longer copied: both
+     * sides read resources/data/currencies.json.)
      */
     public const MAX_TICKET_PRICE = 999999.99;
-
-    /**
-     * Ticket currencies an API/MCP client is likely to send instead of the
-     * symbol we store, mapped to that symbol. The wizard can only emit the
-     * symbols above, so this exists for non-browser callers — normalising an
-     * unambiguous ISO code beats rejecting it and making the client guess.
-     *
-     * @var array<string, string>
-     */
-    public const CURRENCY_ALIASES = [
-        'USD' => '$', 'US$' => '$', 'DOLLAR' => '$', 'DOLLARS' => '$',
-        'EUR' => '€', 'EURO' => '€', 'EUROS' => '€',
-        'GBP' => '£', 'POUND' => '£', 'POUNDS' => '£', 'QUID' => '£',
-        'JPY' => '¥', 'YEN' => '¥',
-        'CAD' => 'C$', 'CA$' => 'C$', 'CAD$' => 'C$', 'C' => 'C$',
-        'AUD' => 'A$', 'AU$' => 'A$', 'AUD$' => 'A$', 'AU' => 'A$',
-        'HKD' => 'HK$', 'HKD$' => 'HK$', 'HK' => 'HK$',
-        'TWD' => 'NT$', 'NTD' => 'NT$', 'TWD$' => 'NT$', 'NT' => 'NT$', 'TW' => 'NT$',
-        'MXN' => 'MX$', 'MXN$' => 'MX$', 'MX' => 'MX$', 'PESO' => 'MX$', 'PESOS' => 'MX$',
-        'CNY' => 'CN¥', 'RMB' => 'CN¥', 'YUAN' => 'CN¥',
-        'KRW' => '₩', 'WON' => '₩',
-        'THB' => '฿', 'BAHT' => '฿',
-    ];
-
-    /**
-     * Resolve a caller-supplied currency to the symbol we store, or return it
-     * unchanged so validation can reject it with the list of valid options.
-     */
-    public static function normalizeCurrency(mixed $currency): mixed
-    {
-        if (! is_string($currency)) {
-            return $currency;
-        }
-
-        $trimmed = trim($currency);
-
-        if (in_array($trimmed, self::CURRENCIES, true)) {
-            return $trimmed;
-        }
-
-        return self::CURRENCY_ALIASES[mb_strtoupper($trimmed)] ?? $currency;
-    }
 
     public static function rules(): array
     {
@@ -259,7 +142,10 @@ class EventUpdateRules
             // "Undefined array key" 500.
             'tickets.*.name' => 'required_with:tickets|string|max:40',
             'tickets.*.description' => 'sometimes|nullable|string|max:200',
-            'tickets.*.currency' => 'required_with:tickets|string|in:'.implode(',', self::CURRENCIES),
+            // ISO 4217 codes, stored as-is and rendered by ICU — see App\Support\Currency.
+            // Symbols a client sends out of habit are mapped to the code before
+            // validation by the callers that accept them (UpdateEvent), not here.
+            'tickets.*.currency' => 'required_with:tickets|string|in:'.implode(',', Currency::codes()),
             // A currency with no minor unit has no fractional price — see
             // ZeroDecimalPriceRule for why this is rejected on the way in
             // rather than rounded on the way out.
@@ -333,7 +219,7 @@ class EventUpdateRules
             'name.regex' => 'The name must contain at least one letter or number.',
             'tickets.max' => 'An event can have at most '.self::MAX_TICKET_TIERS.' ticket tiers.',
             'tickets.*.ticket_price.max' => 'A ticket price cannot exceed '.number_format(self::MAX_TICKET_PRICE, 2).'.',
-            'tickets.*.currency.in' => 'Ticket prices must use one of these currency symbols: '.implode(' ', self::CURRENCIES).'. Use the symbol, not the ISO code — "$", not "USD".',
+            'tickets.*.currency.in' => 'Ticket currency must be a 3-letter ISO 4217 code such as USD, GBP, EUR, AUD or SGD — the code, not a symbol.',
         ];
     }
 }
