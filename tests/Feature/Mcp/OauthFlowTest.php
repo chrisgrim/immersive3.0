@@ -257,6 +257,17 @@ test('a moderator can include moderator powers on a connection, and nobody else 
     }
 });
 
+test('the consent screen refuses to be framed', function () {
+    // A hostile page laying its own buttons over Approve and the moderator
+    // checkbox is the classic way to walk a signed-in person into a grant.
+    [, $challenge] = pkcePair();
+
+    $this->actingAs(consentUser())->get('/oauth/authorize?'.authorizeQuery(oauthClient(), $challenge))
+        ->assertOk()
+        ->assertHeader('Content-Security-Policy', "frame-ancestors 'none'")
+        ->assertHeader('X-Frame-Options', 'DENY');
+});
+
 test('an assistant can only ever be granted the default scope', function () {
     [, $challenge] = pkcePair();
     $client = oauthClient();

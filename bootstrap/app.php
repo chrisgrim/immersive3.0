@@ -40,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'mcp.consent' => \App\Http\Middleware\EnsureMcpConsentAllowed::class,
             'mcp.ip-throttle' => \App\Http\Middleware\ThrottleMcpByIp::class,
             'mcp.audit' => \App\Http\Middleware\RecordMcpToolCall::class,
+            'deny-framing' => \App\Http\Middleware\DenyFraming::class,
         ]);
 
         // "Sign in with Apple" POSTs its callback cross-site from apple.com (form_post

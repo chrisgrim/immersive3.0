@@ -24,7 +24,9 @@ use Laravel\Passport\Http\Controllers\DenyAuthorizationController;
 */
 
 Route::prefix('oauth')->name('passport.')->group(function () {
-    Route::middleware(['auth', 'mcp.consent', 'throttle:30,1'])->group(function () {
+    // deny-framing: the consent screen must never render inside another
+    // site's frame (clickjacking of Approve / the moderator checkbox).
+    Route::middleware(['auth', 'mcp.consent', 'throttle:30,1', 'deny-framing'])->group(function () {
         Route::get('/authorize', [AuthorizationController::class, 'authorize'])->name('authorizations.authorize');
         Route::post('/authorize', [ApproveAuthorizationController::class, 'approve'])->name('authorizations.approve');
         Route::delete('/authorize', [DenyAuthorizationController::class, 'deny'])->name('authorizations.deny');
