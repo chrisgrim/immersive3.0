@@ -104,5 +104,14 @@ class Genre extends Model
         })->toArray())->get();
 
         $event->genres()->sync($newSync);
+
+        // The event was saved — and so indexed — before this sync ran
+        // (UpdateEventAction), with its previous genres; a pivot sync does
+        // not touch the event, so nothing re-indexed it. Every tag added
+        // after an event was last saved was invisible to the tag search
+        // until some unrelated edit happened to refresh the document.
+        // fresh(), so the genre relation is read again rather than served
+        // from whatever this instance had loaded.
+        $event->fresh()->searchable();
     }
 }
