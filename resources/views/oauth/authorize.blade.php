@@ -1,11 +1,11 @@
 @extends('layouts.master-container')
 
 @php
-    // Where the browser goes after approval. Shown so a client that calls
-    // itself "Claude" but sends the code somewhere odd is visible for what it
-    // is. Desktop editors use a private scheme rather than a host.
-    $redirect = (string) $request->redirect_uri;
-    $destination = parse_url($redirect, PHP_URL_HOST) ?: (parse_url($redirect, PHP_URL_SCHEME) ?: 'the app');
+    // Where the browser goes after approval. A real domain is named so a
+    // client that calls itself "Claude" but sends the code somewhere odd is
+    // visible for what it is; a loopback address or a desktop app's private
+    // scheme is "this computer" (see RedirectDestination).
+    $destinationHost = \App\Support\RedirectDestination::host((string) $request->redirect_uri);
 @endphp
 
 @section('meta')
@@ -50,9 +50,16 @@
         </div>
 
         <p class="text-1xl text-neutral-500 mb-10">
-            After you approve, you'll be sent back to <strong class="font-medium text-neutral-700">{{ $destination }}</strong>.
-            Access lasts until you disconnect it, which you can do at any time from
-            <a href="{{ route('account-settings.index', ['tab' => 'api-keys']) }}" class="underline hover:no-underline">Account Settings</a>.
+            After you approve, you'll be sent back to
+            <strong class="font-medium text-neutral-700">{{ $client->name }}</strong>
+            @if ($destinationHost === null)
+                on this computer.
+            @else
+                at <strong class="font-medium text-neutral-700">{{ $destinationHost }}</strong>.
+            @endif
+            Access lasts until you disconnect it, which you can do at any time under
+            <a href="{{ route('account-settings.index', ['tab' => 'api-keys']) }}" class="underline hover:no-underline">AI &amp; API access</a>
+            in your account settings.
         </p>
 
         {{-- Cancel is a separate form (DELETE), referenced from the button below

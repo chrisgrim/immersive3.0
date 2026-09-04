@@ -219,10 +219,24 @@ test('the consent screen names the app, the account, and where the browser will 
         ->assertOk()
         ->assertSee('Connect Claude Code?')
         ->assertSee($user->email)
-        ->assertSee('localhost')
+        // A loopback callback is the assistant on the user's own machine, and
+        // is described that way: "localhost" reads as a bug to an organizer.
+        ->assertSee('on this computer')
+        ->assertDontSee('>localhost<', false) // (the test app's own URL is localhost, so the bare word is everywhere)
+        ->assertSee('AI &amp; API access', false)
         ->assertSee('Not you? Sign out.')
         ->assertSee('Act as a moderator, unless you say so below') // consentUser() is a moderator
         ->assertSee('Approve');
+});
+
+test('the consent screen names a hosted app\'s domain, the one thing it cannot dress up', function () {
+    [, $challenge] = pkcePair();
+    $client = oauthClient(['https://claude.ai/api/mcp/auth_callback'], 'Claude');
+
+    $this->actingAs(consentUser())->get('/oauth/authorize?'.authorizeQuery($client, $challenge))
+        ->assertOk()
+        ->assertSee('claude.ai')
+        ->assertDontSee('on this computer');
 });
 
 test('a moderator can include moderator powers on a connection, and nobody else can', function () {
