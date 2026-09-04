@@ -84,6 +84,13 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions) {
         \Sentry\Laravel\Integration::handles($exceptions);
+
+        // A bearer token Passport cannot accept on /mcp (expired, revoked,
+        // garbage, an old pre-OAuth key) is a 401 by design, but Passport's
+        // guard report()s the refusal before answering. Left alone that is a
+        // Sentry event per stale token — every assistant, every hour. The
+        // audit table keeps the 401s; Sentry keeps the real errors.
+        $exceptions->dontReport(\League\OAuth2\Server\Exception\OAuthServerException::class);
     })
     ->withCommands([
         CheckClosingEvents::class,

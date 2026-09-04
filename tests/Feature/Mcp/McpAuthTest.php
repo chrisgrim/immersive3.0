@@ -100,3 +100,17 @@ test('a flood from one address is refused before authentication runs', function 
         RateLimiter::clear($key);
     }
 });
+
+test('a refused bearer token is a 401 in the audit table, not an error in Sentry', function () {
+    // Passport's guard report()s every refusal before answering 401. Left
+    // alone that is one Sentry event per stale token per hour for every
+    // connected assistant (EI-LARAVEL-16), so the class is on the
+    // do-not-report list in bootstrap/app.php. The audit row still lands.
+    $handler = app(\Illuminate\Contracts\Debug\ExceptionHandler::class);
+    $refusal = \League\OAuth2\Server\Exception\OAuthServerException::accessDenied('The JWT string must have two dots');
+
+    expect($handler->shouldReport($refusal))->toBeFalse();
+
+    mcpCall($this, 'not-a-jwt')->assertStatus(401);
+    expect(\App\Models\McpToolCall::query()->where('status', 401)->whereNull('user_id')->exists())->toBeTrue();
+});
