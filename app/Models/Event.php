@@ -146,6 +146,45 @@ class Event extends Model
         return ['location', 'pricerangesSelect', 'genreSelect', 'remotelocations'];
     }
 
+    /**
+     * Everything a search-map marker and its popup need, and nothing else.
+     * map.vue / map-mobile.vue read id, price_range and location_latlon for
+     * the marker; map-element(-mobile).vue read slug, name, tag_line,
+     * price_range and thumbImagePath for the popup.
+     */
+    public const MAP_PIN_FIELDS = ['id', 'slug', 'name', 'tag_line', 'price_range', 'thumbImagePath', 'location_latlon'];
+
+    /**
+     * The map's pins for these ids: only MAP_PIN_FIELDS, as plain arrays.
+     * Shaped by hand rather than toArray() so the $appends accessors never
+     * run — isFavorited is a query per row. An id the index still holds but
+     * the table has lost is skipped.
+     *
+     * @param  int[]  $ids
+     * @return array<int, array<string, mixed>>
+     */
+    public static function mapPins(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        return static::query()
+            ->whereIn('id', $ids)
+            ->get(self::MAP_PIN_FIELDS)
+            ->map(fn (Event $event) => [
+                'id' => $event->id,
+                'slug' => $event->slug,
+                'name' => $event->name,
+                'tag_line' => $event->tag_line,
+                'price_range' => $event->price_range,
+                'thumbImagePath' => $event->thumbImagePath,
+                'location_latlon' => $event->location_latlon,
+            ])
+            ->values()
+            ->all();
+    }
+
     public function scopeUserEvents($query)
     {
         return $query->where('user_id', auth()->id());

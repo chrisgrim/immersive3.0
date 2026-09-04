@@ -165,9 +165,10 @@ describe('MapStore — subscribe / unsubscribe', () => {
         expect(a).toHaveBeenCalledTimes(1);
         expect(b).toHaveBeenCalledTimes(1);
 
-        // Unsubscribing one leaves the other active.
+        // Unsubscribing one leaves the other active. A different viewport:
+        // a repeat of the last one is deliberately ignored (see below).
         unsubA();
-        MapStore.boundsUpdate(makeBounds(), makeCenter());
+        MapStore.boundsUpdate(makeBounds({ northEast: { lat: 45.7 } }), makeCenter());
         expect(a).toHaveBeenCalledTimes(1);
         expect(b).toHaveBeenCalledTimes(2);
     });
@@ -191,5 +192,36 @@ describe('MapStore — cross-test isolation', () => {
     it('does not carry the previous test subscriber into a fresh store', () => {
         MapStore.boundsUpdate(makeBounds(), makeCenter());
         expect(leaked).toHaveBeenCalledTimes(0); // fresh store → never notified the leaked sub
+    });
+});
+
+// Leaflet fires moveend for a size change too (invalidateSize when a mobile
+// browser's toolbar collapses, the desktop full-map toggle), with the same
+// rectangle as before. That is not a new search: it would reset the list to
+// page 1 and rebuild every marker for nothing.
+describe('MapStore — a repeat of the last viewport', () => {
+    const repeatBounds = (n) => ({ _northEast: { lat: n, lng: -118.1 }, _southWest: { lat: 33.9, lng: -118.5 } });
+    const repeatCenter = { lat: 34.05, lng: -118.3 };
+
+    it('notifies for a new viewport, and again for a different one', () => {
+        const cb = vi.fn();
+        const unsubscribe = MapStore.subscribe(cb);
+
+        MapStore.boundsUpdate(repeatBounds(34.61), repeatCenter);
+        MapStore.boundsUpdate(repeatBounds(34.62), repeatCenter);
+
+        expect(cb).toHaveBeenCalledTimes(2);
+        unsubscribe();
+    });
+
+    it('ignores the same viewport sent twice', () => {
+        const cb = vi.fn();
+        const unsubscribe = MapStore.subscribe(cb);
+
+        MapStore.boundsUpdate(repeatBounds(34.63), repeatCenter);
+        MapStore.boundsUpdate(repeatBounds(34.63), repeatCenter);
+
+        expect(cb).toHaveBeenCalledTimes(1);
+        unsubscribe();
     });
 });

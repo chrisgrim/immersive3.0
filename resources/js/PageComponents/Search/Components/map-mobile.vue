@@ -34,8 +34,9 @@
         <div 
             v-if="selectedEvent"
             v-click-outside="closePopup"
-            class="fixed bottom-28 left-0 right-0 bg-white m-8 rounded-2xl overflow-hidden rounded-t-3xl shadow-lg transform transition-transform duration-300 z-[1003]"
+            class="fixed left-0 right-0 bg-white m-8 rounded-2xl overflow-hidden rounded-t-3xl shadow-lg transform transition-transform duration-300 z-[1003]"
             :class="selectedEvent ? 'translate-y-0' : 'translate-y-full'"
+            :style="{ bottom: `${popupClearance}px` }"
         >
             <popup-content :data="selectedEvent"/>
         </div>
@@ -59,9 +60,23 @@ const props = defineProps({
         type: Boolean, 
         required: true 
     },
-    events: { 
-        type: Array, 
-        required: true 
+    // Every event matching the search (capped server-side at
+    // ListingsController::MAX_MAP_PINS), not the current page of results.
+    // Each pin carries only what a marker and its popup draw: id, slug,
+    // name, tag_line, price_range, thumbImagePath, location_latlon.
+    pins: {
+        type: Array,
+        default: () => []
+    },
+    // How far up from the bottom of the screen the popup has to start so
+    // it clears the list panel's header. location-mobile.vue measures it
+    // when the full map opens: the panel slides down by a fixed amount, but
+    // where it ends up on screen depends on the nav height and the
+    // viewport, and the fixed 70px this used to be left the popup's price
+    // line under the panel on real phones.
+    popupClearance: {
+        type: Number,
+        default: 70
     }
 });
 
@@ -286,7 +301,7 @@ const initMap = () => {
     }
 
     // Create markers
-    createMarkers(props.events);
+    createMarkers(props.pins);
     } catch (err) {
         console.error('Map init failed:', err);
         mapError.value = true;
@@ -387,16 +402,16 @@ onMounted(() => {
     }, 0);
 });
 
-// Watch for changes to events
-watch(() => props.events, (newEvents, oldEvents) => {
+// A new pin set (a new search, or a map pan under `live`) rebuilds the
+// markers. The array is always replaced wholesale, never mutated in place,
+// so a shallow watch is enough — deep-watching up to 500 pin objects was
+// wasted work. A page change never reaches here (see location.vue).
+watch(() => props.pins, (newPins) => {
     if (map && markerClusterGroup) {
-        // Only recreate if events actually changed
-        if (newEvents !== oldEvents) {
-            startLoading();
-            createMarkers(newEvents);
-        }
+        startLoading();
+        createMarkers(newPins);
     }
-}, { deep: true });
+});
 
 // Watch for selection changes
 watch(() => selectedMarker.value, () => {

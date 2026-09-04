@@ -20,12 +20,17 @@
 
 @section('content')
     @if (Browser::isMobile())
+        {{-- $mapPins rides separately from $searchedEvents on purpose: the nav
+             partials above @json the events object a second time, and the
+             pin list would be embedded in the page twice. --}}
         <vue-search-location-mobile
             :searched-events='@json($searchedEvents)'
+            :pins='@json($mapPins)'
         ></vue-search-location-mobile>
     @else
         <vue-search-location
             :searched-events='@json($searchedEvents)'
+            :pins='@json($mapPins)'
         ></vue-search-location>
     @endif
 @endsection

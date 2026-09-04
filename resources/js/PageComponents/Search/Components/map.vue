@@ -59,9 +59,13 @@ const props = defineProps({
         type: Boolean, 
         required: true 
     },
-    events: { 
-        type: Array, 
-        required: true 
+    // Every event matching the search (capped server-side at
+    // ListingsController::MAX_MAP_PINS), not the current page of results.
+    // Each pin carries only what a marker and its popup draw: id, slug,
+    // name, tag_line, price_range, thumbImagePath, location_latlon.
+    pins: {
+        type: Array,
+        default: () => []
     },
     isDebug: {
         type: Boolean,
@@ -110,8 +114,9 @@ const mapConfig = {
     // used to get clamped back in here on replay, since this was capped
     // tighter than what the picker actually allowed selecting. Marker
     // clustering (below) is what keeps a wide, marker-dense view fast, not
-    // this limit — pagination (20 events/page) already bounds the data
-    // itself regardless of how far zoomed out the view is.
+    // this limit — the server-side pin cap (ListingsController::MAX_MAP_PINS)
+    // already bounds the data itself regardless of how far zoomed out the
+    // view is.
     minZoom: 4,
     tileUrl: "https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=5Pwt4rF8iefMU4hIcRqZJ0GXPqWi5l4NVjEn4owEBKOdGyuJVARXbYTBDO2or3cU",
     attribution: '<a href="http://jawg.io" title="Tiles Courtesy of Jawg Maps" target="_blank">&copy; <b>Jawg</b>Maps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -248,6 +253,10 @@ const initMap = () => {
             maxZoom: mapConfig.maxZoom,
             minZoom: mapConfig.minZoom,
             zoomControl: true,
+            // Deliberately off (tried on 2026-09-04): a trackpad swipe zooms
+            // three levels at once, which is worse than the gesture falling
+            // through to the page. If this comes up again, the fix is
+            // Leaflet's wheelPxPerZoomLevel / wheelDebounceTime, not this flag.
             scrollWheelZoom: false,
             zoomAnimation: true,
             fadeAnimation: true
@@ -321,7 +330,7 @@ const initMap = () => {
         }
 
         // Create markers
-        createMarkers(props.events);
+        createMarkers(props.pins);
     } catch (err) {
         console.error('Map init failed:', err);
         mapError.value = true;
@@ -436,16 +445,16 @@ onMounted(() => {
     }, 0);
 });
 
-// Watch for events changes should trigger loading
-watch(() => props.events, (newEvents, oldEvents) => {
+// A new pin set (a new search, or a map pan under `live`) rebuilds the
+// markers. The array is always replaced wholesale, never mutated in place,
+// so a shallow watch is enough — deep-watching up to 500 pin objects was
+// wasted work. A page change never reaches here (see location.vue).
+watch(() => props.pins, (newPins) => {
     if (map && markerClusterGroup) {
-        // Only recreate if events actually changed
-        if (newEvents !== oldEvents) {
-            startLoading();
-            createMarkers(newEvents);
-        }
+        startLoading();
+        createMarkers(newPins);
     }
-}, { deep: true });
+});
 
 // Watch for selection changes
 watch(() => selectedMarker.value, () => {

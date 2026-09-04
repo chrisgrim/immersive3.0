@@ -54,26 +54,27 @@
             </div>
         </div>
 
-        <!-- Pagination -->
-        <div v-if="events.last_page > 1" class="mt-12">
-            <Pagination
-                v-if="events"
-                class="mt-6"
-                :pagination="events"
-                @paginate="handlePageChange"
-            />
-        </div>
+        <ShowMoreResults
+            v-if="hasEvents"
+            class="mt-6"
+            :shown="events.data.length"
+            :total="events.total"
+            :has-more="events.has_more"
+            :limit-reached="events.limit_reached"
+            :loading="loading"
+            @more="handleShowMore"
+        />
     </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import axios from 'axios'
 import EventGrid from '@/GlobalComponents/Grid/event-grid.vue'
-import Pagination from '@/GlobalComponents/pagination.vue'
-import SearchStore from '@/Stores/SearchStore.vue'
+import ShowMoreResults from './Components/show-more-results.vue'
 import { useSearchFilters } from '@/composables/useSearchFilters'
 import { useSearchContext } from '@/composables/useSearchContext'
+import { useSearchResults } from '@/composables/useSearchResults'
 import ResultsHeader from './Components/results-header.vue'
 
 // Shared with the map page's empty state (SimilarResults) and the results
@@ -81,7 +82,6 @@ import ResultsHeader from './Components/results-header.vue'
 const { hasActiveFilters, openFilters } = useSearchFilters()
 const { context } = useSearchContext()
 
-// Props
 const props = defineProps({
     searchedEvents: {
         type: Object,
@@ -97,23 +97,12 @@ const props = defineProps({
     }
 })
 
-// Refs & State
-const events = ref({
-    data: props.searchedEvents?.data || [],
-    total: props.searchedEvents?.total || 0,
-    current_page: props.searchedEvents?.current_page || 1,
-    last_page: props.searchedEvents?.last_page || 1,
-    from: props.searchedEvents?.from || 0,
-    to: props.searchedEvents?.to || 0,
-    per_page: props.searchedEvents?.per_page || 20
+// No map on this page, so no pins to seed.
+const { events, loading, hasEvents, handleShowMore } = useSearchResults({
+    searchedEvents: props.searchedEvents,
 })
 
-const unsubscribe = ref(null)
-let pageRequestController = null
 const fallbackEvents = ref([])
-
-// Computed
-const hasEvents = computed(() => events.value.data && events.value.data.length > 0)
 const imageUrl = computed(() => import.meta.env.VITE_IMAGE_URL)
 
 // Empty-state fallback — "no events match your filters, here's what's out
@@ -139,87 +128,4 @@ watch(hasEvents, (has) => {
             console.error('[search] failed to load fallback events', error)
         })
 }, { immediate: true })
-
-// Methods
-const handlePageChange = async (page) => {
-    const params = new URLSearchParams(window.location.search)
-    params.set('page', page)
-    
-    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`)
-    window.scrollTo(0, 0)
-
-    // Cancel any in-flight pagination request so a slow earlier page can't
-    // overwrite the results of a faster later one.
-    if (pageRequestController) {
-        pageRequestController.abort()
-    }
-    pageRequestController = new AbortController()
-
-    try {
-        SearchStore.setLoading(true)
-
-        // Make API call
-        const response = await axios.get(`/api/index/search?${params.toString()}`, {
-            signal: pageRequestController.signal,
-        })
-        
-        // First, directly update our local component state for immediate feedback
-        if (response.data && response.data.data) {
-            events.value = {
-                data: response.data.data || [],
-                total: response.data.total || 0,
-                current_page: response.data.current_page || 1,
-                last_page: response.data.last_page || 1,
-                from: response.data.from || 0,
-                to: response.data.to || 0,
-                per_page: response.data.per_page || 20
-            }
-        }
-
-        // Create a properly structured data object for SearchStore
-        // This ensures that SearchStore receives the complete expected structure
-        const completeState = {
-            events: {
-                data: response.data.data || [],
-                total: response.data.total || 0,
-                current_page: response.data.current_page || 1,
-                last_page: response.data.last_page || 1,
-                from: response.data.from || 0,
-                to: response.data.to || 0,
-                per_page: response.data.per_page || 20
-            }
-        }
-        
-        // Then update the store (which will update any other components)
-        SearchStore.updateState(completeState)
-    } catch (error) {
-        if (axios.isCancel?.(error) || error.name === 'CanceledError') return
-        console.error('Error changing page:', error)
-    } finally {
-        SearchStore.setLoading(false)
-    }
-}
-
-// Lifecycle
-onMounted(() => {
-    // Subscribe to SearchStore updates
-    unsubscribe.value = SearchStore.subscribe(state => {
-        events.value = state.events
-    })
-
-    // Initialize from URL if needed
-    const params = new URLSearchParams(window.location.search)
-    if (params.has('page')) {
-        const page = parseInt(params.get('page'))
-        if (page && page !== events.value.current_page) {
-            handlePageChange(page)
-        }
-    }
-})
-
-onUnmounted(() => {
-    if (unsubscribe.value) {
-        unsubscribe.value()
-    }
-})
 </script>

@@ -378,6 +378,9 @@ const handleLocationUpdate = (value) => {
 
 const handleSearch = async () => {
     const params = new URLSearchParams(window.location.search);
+    // A new search is a new result set: drop the depth the last one had
+    // opened (page=N means N pages are open), as the desktop nav does.
+    params.delete('page');
     
     // Check if remote toggle is enabled
     const isRemoteMode = state.value.filters.atHome === true;
@@ -702,6 +705,11 @@ const subscribeToMapStore = () => {
         params.set('searchType', 'inPerson');
         params.set('lat', mapState.bounds.center[0]);
         params.set('lng', mapState.bounds.center[1]);
+        // A new viewport is a new result set — same fix nav-search.vue got.
+        // Without it a pan from page 2 kept page=2, and a sparser area
+        // returned a real total with an empty page; now that the map draws
+        // every match, that would be a full map over an empty list.
+        params.set('page', '1');
 
         // Update URL and fetch results
         updateUrlParams(params);

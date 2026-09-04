@@ -20,6 +20,7 @@ vi.mock('axios', () => {
     };
 });
 
+import { toRaw } from 'vue';
 import axios from 'axios';
 import searchStore from '@/Stores/SearchStore.vue';
 
@@ -34,7 +35,10 @@ function freshState() {
             from: null,
             to: null,
             last_page: 1,
+            has_more: false,
+            limit_reached: false,
         },
+        pins: [],
         filters: {
             categories: [],
             tags: [],
@@ -273,7 +277,10 @@ describe('SearchStore — fetchResults', () => {
         await searchStore.fetchResults('city=Portland&live=true');
 
         expect(axios.get).toHaveBeenCalledTimes(1);
-        expect(axios.get).toHaveBeenCalledWith('/api/index/search?city=Portland&live=true');
+        expect(axios.get).toHaveBeenCalledWith(
+            '/api/index/search?city=Portland&live=true',
+            expect.objectContaining({ signal: expect.any(AbortSignal) }),
+        );
     });
 
     it('updates state from the response and strips ", USA" from the returned city', async () => {
@@ -361,5 +368,161 @@ describe('SearchStore — fetchResults', () => {
         expect(searchStore.state.loading).toBe(false);
 
         consoleSpy.mockRestore();
+    });
+});
+
+// The search map draws `pins` — every match, slimmed — not the page of
+// results, so the store carries them separately from events. Two rules
+// matter: an update that doesn't mention pins leaves them alone (a page
+// change must not touch the map), and the page can seed them on mount
+// without the nav's initializeFromUrl() wiping them whichever mounts first.
+describe('SearchStore — pins', () => {
+    it('sets pins when an update carries them', () => {
+        const pins = [{ id: 1 }, { id: 2 }];
+
+        searchStore.updateState({ pins });
+
+        expect(toRaw(searchStore.state.pins)).toBe(pins);
+    });
+
+    it('leaves pins alone when an update does not mention them', () => {
+        const pins = [{ id: 1 }];
+        searchStore.state.pins = pins;
+
+        searchStore.updateState({ events: { data: [{ id: 9 }], total: 1 } });
+
+        expect(toRaw(searchStore.state.pins)).toBe(pins);
+    });
+
+    it('survives initializeFromUrl, which never sets pins', () => {
+        const pins = [{ id: 1 }];
+        searchStore.state.pins = pins;
+        setSearch('?city=Los%20Angeles');
+
+        searchStore.initializeFromUrl({ data: [], total: 0 });
+
+        expect(toRaw(searchStore.state.pins)).toBe(pins);
+    });
+
+    it('leaves the pins alone when a response carries none — a Show more window', async () => {
+        const pins = [{ id: 1 }];
+        searchStore.state.pins = pins;
+        axios.get.mockResolvedValueOnce({ data: { data: [{ id: 21 }], current_page: 2, maxPrice: 0 } });
+
+        await searchStore.fetchResults('pages=2&include_pins=0');
+
+        expect(toRaw(searchStore.state.pins)).toBe(pins);
+        expect(searchStore.state.events.data).toEqual([{ id: 21 }]);
+        expect(searchStore.state.events.current_page).toBe(2);
+    });
+
+    it('stores the pins a fetch returns, including an empty list for a page with no map', async () => {
+        const pins = [{ id: 3 }];
+        axios.get.mockResolvedValueOnce({ data: { data: [], maxPrice: 0, pins } });
+        await searchStore.fetchResults('city=Portland');
+        expect(toRaw(searchStore.state.pins)).toBe(pins);
+
+        axios.get.mockResolvedValueOnce({ data: { data: [], maxPrice: 0, pins: [] } });
+        await searchStore.fetchResults('searchType=atHome');
+        expect(searchStore.state.pins).toEqual([]);
+    });
+});
+
+// Every map pan fires a fetch, and a slow response for a viewport the user
+// has already left can arrive after the fast one for where they are now.
+// With the map drawing every match that would snap the markers back to the
+// old viewport, so a superseded response is dropped and the earlier request
+// aborted.
+describe('SearchStore — stale responses', () => {
+    function deferred() {
+        let resolve;
+        const promise = new Promise((r) => { resolve = r; });
+        return { promise, resolve };
+    }
+
+    it('ignores a response that lands after a newer request was made', async () => {
+        const slow = deferred();
+        const fast = deferred();
+        axios.get
+            .mockImplementationOnce(() => slow.promise)
+            .mockImplementationOnce(() => fast.promise);
+
+        const first = searchStore.fetchResults('city=Old');
+        const second = searchStore.fetchResults('city=New');
+
+        fast.resolve({ data: { data: [{ id: 2 }], pins: [{ id: 2 }], maxPrice: 0 } });
+        await second;
+        slow.resolve({ data: { data: [{ id: 1 }], pins: [{ id: 1 }], maxPrice: 0 } });
+        await first;
+
+        expect(searchStore.state.events.data).toEqual([{ id: 2 }]);
+        expect(searchStore.state.pins).toEqual([{ id: 2 }]);
+        expect(searchStore.state.loading).toBe(false);
+    });
+
+    it('aborts the previous request and keeps loading until the latest one settles', async () => {
+        const slow = deferred();
+        const fast = deferred();
+        axios.get
+            .mockImplementationOnce(() => slow.promise)
+            .mockImplementationOnce(() => fast.promise);
+
+        const first = searchStore.fetchResults('city=Old');
+        const second = searchStore.fetchResults('city=New');
+
+        expect(axios.get.mock.calls[0][1].signal.aborted).toBe(true);
+        expect(axios.get.mock.calls[1][1].signal.aborted).toBe(false);
+
+        // The stale one settling must not clear the loading flag.
+        slow.resolve({ data: { data: [], maxPrice: 0 } });
+        await first;
+        expect(searchStore.state.loading).toBe(true);
+
+        fast.resolve({ data: { data: [], maxPrice: 0 } });
+        await second;
+        expect(searchStore.state.loading).toBe(false);
+    });
+
+    it('treats its own abort as a non-event, not an error', async () => {
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+        axios.get.mockRejectedValueOnce(Object.assign(new Error('canceled'), { name: 'CanceledError' }));
+
+        await expect(searchStore.fetchResults('city=Old')).resolves.toBeUndefined();
+
+        expect(error).not.toHaveBeenCalled();
+        error.mockRestore();
+    });
+});
+
+// "Show more" is a window request: the server answers with pages 1..N and
+// says whether there is more (has_more); the store replaces the list with
+// that window and passes the flag through untouched.
+describe('SearchStore — Show more windows', () => {
+    it('replaces the list with the window it is given, and keeps has_more', async () => {
+        searchStore.state.events = { ...freshState().events, data: [{ id: 1 }, { id: 2 }], current_page: 1, has_more: true };
+        axios.get.mockResolvedValueOnce({
+            data: { data: [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }], current_page: 2, last_page: 2, total: 4, per_page: 2, from: 1, to: 4, has_more: false, limit_reached: true, maxPrice: 0 },
+        });
+
+        await searchStore.fetchResults('pages=2&include_pins=0');
+
+        expect(searchStore.state.events.data).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }]);
+        expect(searchStore.state.events.current_page).toBe(2);
+        expect(searchStore.state.events.has_more).toBe(false);
+        expect(searchStore.state.events.limit_reached).toBe(true);
+    });
+
+    it('treats a missing has_more as nothing more to show', async () => {
+        axios.get.mockResolvedValueOnce({ data: { data: [{ id: 1 }], maxPrice: 0 } });
+
+        await searchStore.fetchResults('city=Portland');
+
+        expect(searchStore.state.events.has_more).toBe(false);
+    });
+
+    it('seeds has_more from the server-rendered page', () => {
+        searchStore.initializeFromUrl({ data: [{ id: 1 }], total: 40, current_page: 1, last_page: 2, has_more: true });
+
+        expect(searchStore.state.events.has_more).toBe(true);
     });
 });

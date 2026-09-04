@@ -19,11 +19,15 @@
                         :user="user"
                         :columns="gridColumns"
                     />
-                    <Pagination 
-                        v-if="events && hasEvents"
+                    <ShowMoreResults
+                        v-if="hasEvents"
                         class="mt-6"
-                        :pagination="events"
-                        @paginate="handlePageChange"
+                        :shown="events.data.length"
+                        :total="events.total"
+                        :has-more="events.has_more"
+                        :limit-reached="events.limit_reached"
+                        :loading="loading"
+                        @more="handleShowMore"
                     />
                     
                     <SimilarResults
@@ -37,11 +41,12 @@
                 </div>
             </section>
 
-            <!-- Map Component -->
+            <!-- Map Component. It draws `pins` — every match in the search —
+                 not the current page. No :key either: the map is never
+                 remounted, so a page change leaves it where the user panned. -->
             <Map
                 v-model="isFullMap"
-                :key="mapKey"
-                :events="events.data"
+                :pins="pins"
             />
         </div>
     </div>
@@ -49,39 +54,27 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import axios from 'axios'
 import EventList from '@/GlobalComponents/Grid/event-grid.vue'
-import Pagination from '@/GlobalComponents/pagination.vue'
+import ShowMoreResults from './Components/show-more-results.vue'
 import Map from './Components/map.vue'
-import SearchStore from '@/Stores/SearchStore.vue'
 import ResultsHeader from './Components/results-header.vue'
 import SimilarResults from './Components/similar-results.vue'
+import { useSearchResults } from '@/composables/useSearchResults'
 
-// Constants
-const DEFAULT_LOCATION = {
-    fullMap: false
-}
-
-// Props
 const props = defineProps({
     searchedEvents: Object,
-    user: Object
+    user: Object,
+    // The initial map markers: every match under the current filters, each
+    // slimmed to what a marker draws (Event::mapPins()), capped server-side.
+    pins: { type: Array, default: () => [] }
 })
 
-// Refs & State
-const mapKey = ref(0)
 const isFullMap = ref(false)
-const events = ref({
-    data: props.searchedEvents?.data || [],
-    total: props.searchedEvents?.total || 0,
-    current_page: props.searchedEvents?.current_page || 1,
-    per_page: props.searchedEvents?.per_page || 20,
-    from: props.searchedEvents?.from || null,
-    to: props.searchedEvents?.to || null,
-    last_page: props.searchedEvents?.last_page || 1
+
+const { events, pins, loading, hasEvents, handleShowMore } = useSearchResults({
+    searchedEvents: props.searchedEvents,
+    pins: props.pins,
 })
-const unsubscribe = ref(null)
-let pageRequestController = null
 
 // Below ~1200px the list column narrows (see the matching max-[1200px]:w-[50%]
 // on this section and on Map.vue) to make room for the map, which no longer
@@ -91,82 +84,6 @@ const windowWidth = ref(window.innerWidth)
 const updateWindowWidth = () => { windowWidth.value = window.innerWidth }
 const gridColumns = computed(() => windowWidth.value <= 1200 ? 3 : 4)
 
-// Computed
-const hasEvents = computed(() => events.value.data && events.value.data.length)
-
-const handlePageChange = async (page) => {
-    const params = new URLSearchParams(window.location.search)
-    params.set('page', page)
-
-    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`)
-    window.scrollTo(0, 0)
-
-    if (pageRequestController) {
-        pageRequestController.abort()
-    }
-    pageRequestController = new AbortController()
-
-    try {
-        SearchStore.setLoading(true)
-
-        // Make API call
-        const response = await axios.get(`/api/index/search?${params.toString()}`, {
-            signal: pageRequestController.signal,
-        })
-        
-        // First, directly update our local component state for immediate feedback
-        if (response.data && response.data.data) {
-            events.value = {
-                data: response.data.data || [],
-                total: response.data.total || 0,
-                current_page: response.data.current_page || 1,
-                last_page: response.data.last_page || 1,
-                from: response.data.from || 0,
-                to: response.data.to || 0,
-                per_page: response.data.per_page || 20
-            }
-            
-            // Force map to re-render with new events
-            mapKey.value++
-        }
-
-        // Create a properly structured data object for SearchStore
-        // This ensures that SearchStore receives the complete expected structure
-        const completeState = {
-            events: {
-                data: response.data.data || [],
-                total: response.data.total || 0,
-                current_page: response.data.current_page || 1,
-                last_page: response.data.last_page || 1,
-                from: response.data.from || 0,
-                to: response.data.to || 0,
-                per_page: response.data.per_page || 20
-            }
-        }
-        
-        // Then update the store (which will update any other components)
-        SearchStore.updateState(completeState)
-    } catch (error) {
-        if (axios.isCancel?.(error) || error.name === 'CanceledError') return
-        console.error('Error changing page:', error)
-    } finally {
-        SearchStore.setLoading(false)
-    }
-}
-
-// Lifecycle
-onMounted(() => {
-    // Subscribe to SearchStore updates
-    unsubscribe.value = SearchStore.subscribe(state => {
-        events.value = state.events;
-    });
-    window.addEventListener('resize', updateWindowWidth)
-})
-
-onUnmounted(() => {
-    if (unsubscribe.value) {
-        unsubscribe.value();
-    }
-    window.removeEventListener('resize', updateWindowWidth)
-})
+onMounted(() => window.addEventListener('resize', updateWindowWidth))
+onUnmounted(() => window.removeEventListener('resize', updateWindowWidth))
 </script>

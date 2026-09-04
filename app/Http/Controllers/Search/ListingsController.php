@@ -34,6 +34,28 @@ use Illuminate\Support\Arr;
 class ListingsController extends Controller
 {
     /**
+     * Ceiling on the markers one search sends to the map (also the ES size
+     * of that query). The whole in-person index is ~630 events, so nothing
+     * real hits it; `pins_truncated` in the API says if it ever does.
+     */
+    public const MAX_MAP_PINS = 1000;
+
+    public const PER_PAGE = 20;
+
+    /**
+     * "Show more", not page numbers: `?page=N` means N pages are open, and
+     * a cold load of that URL renders pages 1..N in one query so a refresh
+     * or Back from an event keeps the reader's place. Every click asks for
+     * the whole window too and replaces the list — an append on a
+     * newest-first, offset-paginated list repeats a card and hides an event
+     * published between clicks. This caps the window (100 events, embedded
+     * twice in the page HTML by the nav partial); the client stops offering
+     * more at the same depth (`has_more`), so the URL never claims a depth
+     * a cold load can't restore.
+     */
+    public const MAX_INITIAL_PAGES = 5;
+
+    /**
      * Raw request -> the normalised criteria EventSearchFilterBuilder takes.
      * This is the adapter layer: slugs resolved to ids, comma-separated
      * lists split, JavaScript's literal 'NaN' dropped, coordinates validated
@@ -342,6 +364,140 @@ class ListingsController extends Controller
         return $this->applyNonPriceFilters($query, $searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
     }
 
+    /** The price slider's ceiling: the dearest ticket across the results, price filter excluded. */
+    private function maxPriceFor(array $searchFilters, array $locationFilters, $boundaryFilter, Request $request, bool $applyGeoFilter): float
+    {
+        return (float) (Event::searchQuery($this->maxPriceQuery($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter))
+            ->aggregate('max_price', ['max' => ['field' => 'priceranges.price']])
+            ->execute()
+            ->aggregations()
+            ->get('max_price')['value'] ?? 0);
+    }
+
+    /**
+     * A paginator page of PER_PAGE × $window items re-described as "$window
+     * pages are open" — what the page components and SearchStore expect, so
+     * a cold load of ?page=3 looks like page 1 plus two Show more clicks.
+     */
+    private function asPageWindow(array $content, int $window): array
+    {
+        $lastPage = max(1, (int) ceil($content['total'] / self::PER_PAGE));
+        $currentPage = max(1, min($window, $lastPage));
+
+        return array_merge($content, [
+            'per_page' => self::PER_PAGE,
+            'last_page' => $lastPage,
+            'current_page' => $currentPage,
+            'from' => 1,
+            'to' => count($content['data']),
+            'has_more' => $this->hasMore($currentPage, $lastPage),
+            'limit_reached' => $this->limitReached($currentPage, $lastPage),
+        ]);
+    }
+
+    /** Offer "Show more"? Not at the last page, and not at MAX_INITIAL_PAGES. */
+    private function hasMore(int $currentPage, int $lastPage): bool
+    {
+        return $currentPage < $lastPage && $currentPage < self::MAX_INITIAL_PAGES;
+    }
+
+    /** has_more is false and matches remain: the list is as deep as one search goes. */
+    private function limitReached(int $currentPage, int $lastPage): bool
+    {
+        return $currentPage >= self::MAX_INITIAL_PAGES && $currentPage < $lastPage;
+    }
+
+    /**
+     * Run the results query and shape the answer. $window is "pages
+     * 1..$window in one go" (a cold load of ?page=N, a Show more click);
+     * null is the single page $page (a fresh search, a map move).
+     */
+    private function resultsPayload($query, int $page, ?int $window): array
+    {
+        $builder = Event::searchQuery($query)
+            ->load(['genres', 'category', 'location', 'attendanceType', 'currentUserFavorite', 'remotelocations'])
+            ->sortRaw(['published_at' => 'desc']);
+
+        $results = $window
+            ? $builder->paginate(self::PER_PAGE * $window, 'page', 1)
+            : $builder->paginate(self::PER_PAGE, 'page', $page);
+
+        // Always the same structure, even with no results.
+        if ($results->total() === 0) {
+            return [
+                'data' => [],
+                'total' => 0,
+                'current_page' => 1,
+                'per_page' => self::PER_PAGE,
+                'from' => null,
+                'to' => null,
+                'last_page' => 1,
+                'has_more' => false,
+                'limit_reached' => false,
+            ];
+        }
+
+        $content = $results->toArray();
+        $content['data'] = Arr::pluck($content['data'], 'model');
+
+        if ($window) {
+            return $this->asPageWindow($content, $window);
+        }
+
+        $content['has_more'] = $this->hasMore((int) $content['current_page'], (int) $content['last_page']);
+        $content['limit_reached'] = $this->limitReached((int) $content['current_page'], (int) $content['last_page']);
+
+        return $content;
+    }
+
+    /**
+     * The query behind the results list — shared by index(), apiIndex() and
+     * the map pins, so the three cannot drift apart.
+     */
+    private function buildResultsQuery(array $searchFilters, array $locationFilters, $boundaryFilter, Request $request, bool $applyGeoFilter)
+    {
+        $query = Query::bool()->filter(Query::range()->field('closingDate')->gte('now/d'));
+
+        $this->applyNonPriceFilters($query, $searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
+
+        if ($searchFilters['prices'] ?? null) {
+            $query->filter($searchFilters['prices']);
+        }
+
+        return $query;
+    }
+
+    /**
+     * The results query narrowed to events with coordinates. Protected so
+     * tests can inspect it like the other builders in ListingsFilterTest.
+     */
+    protected function buildMapPinsQuery(array $searchFilters, array $locationFilters, $boundaryFilter, Request $request, bool $applyGeoFilter)
+    {
+        return $this->buildResultsQuery($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter)
+            ->filter(Query::term()->field('hasLocation')->value(true));
+    }
+
+    /**
+     * Every pinnable match, as Event::mapPins() arrays: ids only from
+     * Elasticsearch (`_source: false`), then one MySQL query — the driver's
+     * own hydration would eager-load the list's relations per pin.
+     */
+    private function mapPins(array $searchFilters, array $locationFilters, $boundaryFilter, Request $request, bool $applyGeoFilter): array
+    {
+        $ids = Event::searchQuery($this->buildMapPinsQuery($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter))
+            // Same order as the list, so if the cap ever bites it drops the
+            // oldest listings, not an arbitrary set.
+            ->sortRaw(['published_at' => 'desc'])
+            ->size(self::MAX_MAP_PINS)
+            ->sourceRaw(false)
+            ->execute()
+            ->documents()
+            ->map(fn ($document) => (int) $document->id())
+            ->all();
+
+        return Event::mapPins($ids);
+    }
+
     public function index(Request $request)
     {
         $locationFilters = $this->buildLocationFilter($request);
@@ -350,56 +506,19 @@ class ListingsController extends Controller
 
         $applyGeoFilter = $request->searchType === 'inPerson' && isset($request->live);
 
-        // Build query step by step
-        $query = Query::bool()
-            ->filter(Query::range()->field('closingDate')->gte('now/d'));
-
-        $this->applyNonPriceFilters($query, $searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
-
-        // Add price filter
-        if ($searchFilters['prices'] ?? null) {
-            $query->filter($searchFilters['prices']);
-        }
+        $query = $this->buildResultsQuery($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
 
         // Clamp the requested page so Elasticsearch's from+size stays within the
         // default 10,000 result window (perPage * page must be <= 10000). Without
         // this, crawlers requesting huge page numbers trigger a 400 (EI-LARAVEL-6).
         $page = min(max((int) $request->input('page', 1), 1), 500);
 
-        // Execute search and paginate
-        $results = Event::searchQuery($query)
-            ->load(['genres', 'category', 'location', 'attendanceType', 'currentUserFavorite', 'remotelocations'])
-            ->sortRaw(['published_at' => 'desc'])
-            ->paginate(20, 'page', $page);
+        // A cold load honours ?page=N as a depth: pages 1..N in one query,
+        // so a refresh or Back from an event restores the list as it was.
+        // See MAX_INITIAL_PAGES.
+        $searchedEvents = $this->resultsPayload($query, $page, min($page, self::MAX_INITIAL_PAGES));
 
-        // Get max price from the current filtered results, EXCLUDING the
-        // price filter itself (see applyNonPriceFilters/maxPriceQuery).
-        $maxPrice = Event::searchQuery($this->maxPriceQuery($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter))
-            ->aggregate('max_price', [
-                'max' => [
-                    'field' => 'priceranges.price',
-                ],
-            ])
-            ->execute()
-            ->aggregations()
-            ->get('max_price')['value'] ?? 0;
-
-        // Always return a consistent structure, even with no results
-        $searchedEvents = [
-            'data' => [],           // Empty array for no results
-            'total' => 0,           // Zero total for no results
-            'current_page' => 1,    // Default page
-            'per_page' => 20,       // Default per page
-            'from' => null,         // No starting record
-            'to' => null,           // No ending record
-            'last_page' => 1,        // Default last page
-        ];
-
-        if ($results->total() > 0) {
-            $searchedEvents = tap($results->toArray(), function (array &$content) {
-                $content['data'] = Arr::pluck($content['data'], 'model');
-            });
-        }
+        $maxPrice = $this->maxPriceFor($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
 
         // Add maxPrice to response
         $searchedEvents['maxPrice'] = ceil($maxPrice);
@@ -418,6 +537,12 @@ class ListingsController extends Controller
             'searchedTags' => $searchFilters['searchedTags'] ?? [],
             'searchedRemoteLocation' => $searchFilters['searchedRemoteLocation'] ?? null,
         ];
+
+        // Pins only for the map view — the same condition as the geo filter
+        // and as the view choice below.
+        $viewData['mapPins'] = $applyGeoFilter
+            ? $this->mapPins($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter)
+            : [];
 
         $viewData = array_merge($viewData, $locationFilters);
 
@@ -442,55 +567,38 @@ class ListingsController extends Controller
         // view with no explicit mode chosen yet).
         $applyGeoFilter = ($request->searchType === 'inPerson' || ! $request->searchType || $request->searchType === 'null') && isset($request->live);
 
-        // Build the main query
-        $query = Query::bool()->filter(Query::range()->field('closingDate')->gte('now/d'));
-        $this->applyNonPriceFilters($query, $searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
-
-        if ($searchFilters['prices'] ?? null) {
-            $query->filter($searchFilters['prices']);
-        }
+        $query = $this->buildResultsQuery($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
 
         // Clamp the requested page so Elasticsearch's from+size stays within the
         // default 10,000 result window (perPage * page must be <= 10000). Without
         // this, crawlers requesting huge page numbers trigger a 400 (EI-LARAVEL-6).
         $page = min(max((int) $request->input('page', 1), 1), 500);
 
-        // Execute search
-        $results = Event::searchQuery($query)
-            ->load(['genres', 'category', 'location', 'attendanceType', 'currentUserFavorite', 'remotelocations'])
-            ->sortRaw(['published_at' => 'desc'])
-            ->paginate(20, 'page', $page);
+        // `pages=N` is a "Show more" click: pages 1..N replace the list, the
+        // same window a cold load of ?page=N renders (see MAX_INITIAL_PAGES).
+        // Without it this is one page — a fresh search, a map move.
+        $window = $request->filled('pages')
+            ? min(max((int) $request->input('pages'), 1), self::MAX_INITIAL_PAGES)
+            : null;
 
-        // Get max price from the current filtered results, EXCLUDING the
-        // price filter itself (see applyNonPriceFilters/maxPriceQuery).
-        $maxPrice = Event::searchQuery($this->maxPriceQuery($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter))
-            ->aggregate('max_price', [
-                'max' => [
-                    'field' => 'priceranges.price',
-                ],
-            ])
-            ->execute()
-            ->aggregations()
-            ->get('max_price')['value'] ?? 0;
+        $response = $this->resultsPayload($query, $page, $window);
 
-        // Always return a consistent structure
-        $response = [
-            'data' => [],
-            'total' => 0,
-            'current_page' => 1,
-            'per_page' => 20,
-            'from' => null,
-            'to' => null,
-            'last_page' => 1,
-            'maxPrice' => ceil($maxPrice),
-        ];
+        $maxPrice = $this->maxPriceFor($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
 
-        if ($results->total() > 0) {
-            $response = array_merge(
-                $results->toArray(),
-                ['maxPrice' => ceil($maxPrice)]
-            );
-            $response['data'] = Arr::pluck($response['data'], 'model');
+        $response['maxPrice'] = ceil($maxPrice);
+
+        // The map's markers — every match, not this page — whenever a map
+        // is on the page (the same condition as the geo filter). "Show more"
+        // sends include_pins=0 to decline them: same search, same pins, and
+        // the client keeps the markers it has when the key is absent.
+        $includePins = filter_var($request->input('include_pins', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true;
+        if ($includePins) {
+            $response['pins'] = $applyGeoFilter
+                ? $this->mapPins($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter)
+                : [];
+            // The cap was hit, so the map is not showing every match. Nothing
+            // renders this yet; it is here so the limit is never silent.
+            $response['pins_truncated'] = count($response['pins']) >= self::MAX_MAP_PINS;
         }
 
         return $response;

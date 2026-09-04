@@ -20,6 +20,8 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { vi } from 'vitest';
 import NavSearchMobile from '@/PageComponents/Nav/nav-search-mobile.vue';
 import SearchStore from '@/Stores/SearchStore.vue';
+import MapStore from '@/Stores/MapStore.vue';
+import axios from 'axios';
 import { saveSearch } from '@/composables/useSavedSearches';
 
 vi.mock('axios', () => ({ default: { get: vi.fn(() => Promise.resolve({ data: [] })), post: vi.fn(() => Promise.resolve({ data: {} })) } }));
@@ -189,6 +191,46 @@ describe('nav-search-mobile.vue', () => {
             await flushPromises();
 
             expect(saveSearch).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('a new search', () => {
+        it('drops the depth the previous search had opened', async () => {
+            // page=N means N pages are open; a fresh search must start closed.
+            stubLocation('?city=Los+Angeles&lat=34.05&lng=-118.24&searchType=inPerson&live=false&page=3');
+            const wrapper = mountNav({ city: 'San Diego, CA', lat: 32.71, lng: -117.16 });
+            await wrapper.vm.handleSearch();
+            await flushPromises();
+
+            expect(params().get('city')).toBe('San Diego, CA');
+            expect(params().has('page')).toBe(false);
+        });
+    });
+
+    describe('map moves', () => {
+        // A new viewport is a new result set. The desktop nav resets the
+        // page on a pan; the mobile one didn't, so panning from page 2 into
+        // a sparser area returned a real total with an empty page — and,
+        // now that the map draws every match, a full map over an empty list.
+        it('resets to page 1 when the map is panned', async () => {
+            stubLocation('?city=Los+Angeles&lat=34.05&lng=-118.24&searchType=inPerson&live=false&page=2');
+            const push = vi.spyOn(window.history, 'pushState').mockImplementation(() => {});
+            axios.get.mockClear();
+            const wrapper = mountNav({ city: 'Los Angeles', lat: 34.05, lng: -118.24 });
+
+            MapStore.boundsUpdate(
+                { _northEast: { lat: 34.2, lng: -118.1 }, _southWest: { lat: 33.9, lng: -118.5 } },
+                { lat: 34.05, lng: -118.3 },
+            );
+            await flushPromises();
+
+            const pushed = new URLSearchParams(push.mock.calls.at(-1)[2].split('?')[1]);
+            expect(pushed.get('page')).toBe('1');
+            expect(pushed.get('live')).toBe('true');
+            expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('page=1'), expect.anything());
+
+            wrapper.unmount();
+            push.mockRestore();
         });
     });
 });

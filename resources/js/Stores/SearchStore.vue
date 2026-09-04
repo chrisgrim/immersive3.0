@@ -1,20 +1,18 @@
 <script>
 import { ref, reactive } from 'vue';
 import axios from 'axios';
+import { normalizeSearchResults } from './searchResults';
 
 class SearchStore {
     constructor() {
         // Create the state from scratch
         this.state = reactive({
-            events: {
-                data: [],
-                total: 0,
-                current_page: 1,
-                per_page: 20,
-                from: null,
-                to: null,
-                last_page: 1
-            },
+            events: normalizeSearchResults(),
+            // Every event matching the search, slimmed down to what a map
+            // marker and its popup draw (see Event::mapPins()). Independent
+            // of events.data, which is only the current page — the map
+            // shows all of these, the list pages through those.
+            pins: [],
             filters: {
                 categories: [],
                 tags: [],
@@ -42,6 +40,10 @@ class SearchStore {
         });
         
         this.listeners = new Set();
+
+        // See fetchResults(): which request is the latest, and its aborter.
+        this.latestRequestId = 0;
+        this.inflight = null;
     }
     
     // Initialize state from URL and props
@@ -55,15 +57,7 @@ class SearchStore {
         }
         
         const initialState = {
-            events: {
-                data: searchedEvents?.data || [],
-                total: searchedEvents?.total || 0,
-                current_page: searchedEvents?.current_page || 1,
-                last_page: searchedEvents?.last_page || 1,
-                from: searchedEvents?.from || null,
-                to: searchedEvents?.to || null,
-                per_page: searchedEvents?.per_page || 15
-            },
+            events: normalizeSearchResults(searchedEvents),
             location: {
                 city: cityName || null,
                 lat: params.has('lat') ? parseFloat(params.get('lat')) : null,
@@ -122,15 +116,15 @@ class SearchStore {
     updateState(newData) {
         // Update events data
         if (newData.events) {
-            this.state.events = {
-                data: newData.events.data || [],
-                total: newData.events.total || 0,
-                current_page: newData.events.current_page || 1,
-                per_page: newData.events.per_page || 20,
-                from: newData.events.from,
-                to: newData.events.to,
-                last_page: newData.events.last_page || 1
-            };
+            this.state.events = normalizeSearchResults(newData.events);
+        }
+
+        // Only when the update mentions pins. A page change updates events
+        // alone and must leave the map's markers untouched; the search page
+        // seeds pins on mount and the nav's initializeFromUrl never sets
+        // them, so neither can clobber the other whichever mounts first.
+        if (newData.pins !== undefined) {
+            this.state.pins = newData.pins || [];
         }
 
         // For location data, handle null values explicitly
@@ -179,11 +173,29 @@ class SearchStore {
         this.listeners.forEach(listener => listener(this.state));
     }
 
+    /**
+     * Every search, map pan and Show more lands here. A pan fires one per
+     * moveend, so a slow response for a viewport the user has left could
+     * land after the fast one for where they are: the previous request is
+     * aborted, and a response is applied only if it is still the latest
+     * (an abort alone can't recall a response already on the wire).
+     */
     async fetchResults(queryString) {
+        const requestId = ++this.latestRequestId;
+        this.inflight?.abort();
+        const controller = new AbortController();
+        this.inflight = controller;
+
         try {
             this.setLoading(true);
-            const response = await axios.get(`/api/index/search?${queryString}`);
-            
+            const response = await axios.get(`/api/index/search?${queryString}`, {
+                signal: controller.signal,
+            });
+
+            // Superseded while in flight: drop it on the floor. The newer
+            // request owns the state (and the loading flag) now.
+            if (requestId !== this.latestRequestId) return;
+
             // Format city name to remove country for US cities
             let cityName = response.data.city;
             if (cityName && cityName.endsWith(", USA")) {
@@ -192,15 +204,10 @@ class SearchStore {
             
             // Update the store with ALL necessary data
             this.updateState({
-                events: {
-                    current_page: response.data.current_page,
-                    data: response.data.data,
-                    from: response.data.from,
-                    last_page: response.data.last_page,
-                    per_page: response.data.per_page,
-                    to: response.data.to,
-                    total: response.data.total
-                },
+                events: normalizeSearchResults(response.data),
+                // A response without pins (Show more declines them) leaves the
+                // map's markers as they are.
+                ...(response.data.pins !== undefined ? { pins: response.data.pins } : {}),
                 location: {
                     city: cityName,
                     lat: response.data.lat,
@@ -222,10 +229,14 @@ class SearchStore {
             
             return response.data;
         } catch (error) {
+            // Our own abort of a superseded request is not an error.
+            if (axios.isCancel?.(error) || error.name === 'CanceledError') return;
             console.error('Error fetching results:', error);
             throw error;
         } finally {
-            this.setLoading(false);
+            if (requestId === this.latestRequestId) {
+                this.setLoading(false);
+            }
         }
     }
 }

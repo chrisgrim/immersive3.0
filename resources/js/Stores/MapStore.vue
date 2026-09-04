@@ -13,6 +13,7 @@ const state = ref({
 });
 
 const subscribers = [];
+let lastBoundsKey = null;
 
 const MapStore = {
     state,
@@ -47,7 +48,15 @@ const MapStore = {
             },
             center: [centerLat, centerLng]
         };
-        
+
+        // Leaflet fires moveend for a size change too (invalidateSize when a
+        // mobile browser's toolbar collapses, the desktop full-map toggle).
+        // The same rectangle is not a new search: it would reset the list
+        // to page 1 and rebuild every marker for nothing.
+        const key = JSON.stringify(updatedBounds);
+        if (key === lastBoundsKey) return;
+        lastBoundsKey = key;
+
         state.value.bounds = updatedBounds;
         
         // Notify subscribers

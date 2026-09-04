@@ -1,15 +1,25 @@
 <template>
     <div class="w-full">
-        <a :href="`/events/${data.slug}?name=${name}&lat=${lat}&lng=${lng}`" class="flex gap-4">
-            <div class="w-32 aspect-[3/4] flex-shrink-0">
-                <div 
-                    class="w-full h-full bg-cover bg-center bg-no-repeat rounded-x-xl" 
-                    :style="backgroundImage" 
+        <!-- Padding on the link, so the thumbnail is inset like the text
+             rather than flush with the card's edge — same as the desktop
+             popup (map-element.vue). -->
+        <a :href="`/events/${data.slug}?name=${name}&lat=${lat}&lng=${lng}`" class="flex gap-4 p-6">
+            <!-- self-center, not the row's default stretch: a stretched flex
+                 item gets an explicit height, and aspect-ratio yields to
+                 that, so the thumbnail grew as tall as the text beside it
+                 and turned into a sliver. Centred, it keeps its 3:4 box
+                 whatever the text does. -->
+            <div class="w-32 aspect-[3/4] flex-shrink-0 self-center rounded-xl overflow-hidden">
+                <div
+                    class="w-full h-full bg-cover bg-center bg-no-repeat"
+                    :style="backgroundImage"
                 />
             </div>
-            <div class="flex flex-col justify-between p-6">
+            <div class="flex flex-col justify-between min-w-0">
                 <span class="text-3xl font-bold text-black line-clamp-2">{{ data.name }}</span>
-                <span class="text-xl text-black">{{ data.tag_line }}</span>
+                <!-- Two lines, like the name: a long tagline used to make the
+                     card as tall as it liked. -->
+                <span class="text-xl text-black line-clamp-2">{{ data.tag_line }}</span>
                 <span class="text-xl text-black font-bold">{{ data.price_range ? data.price_range : '' }}</span>
             </div>
         </a>

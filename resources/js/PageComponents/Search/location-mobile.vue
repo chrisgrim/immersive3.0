@@ -4,11 +4,15 @@
             <!-- Map Component (Background) -->
             <div class="fixed top-0 left-0 right-0 bottom-[40vh] transition-all duration-300 ease-in-out"
                  :class="isFullMap ? 'z-[49]' : 'z-[48]'">
+                <!-- `pins` is every match in the search, not the current page.
+                     :key stays only for the full-map toggle's remount below;
+                     a page change no longer bumps it. -->
                 <Map
                     v-model="isFullMap"
                     :key="mapKey"
-                    :events="events.data"
+                    :pins="pins"
                     :full-map="isFullMap"
+                    :popup-clearance="popupClearance"
                 />
             </div>
 
@@ -20,6 +24,7 @@
 
             <!-- Events List Section -->
             <div 
+                ref="panel"
                 :style="{
                     transform: isFullMap 
                         ? `translate3d(0, ${mapHeight}px, 0)` 
@@ -40,11 +45,15 @@
                             :user="user"
                             :columns="2"
                         />
-                        <Pagination 
-                            v-if="events && hasEvents"
+                        <ShowMoreResults
+                            v-if="hasEvents"
                             class="mt-6 mb-8"
-                            :pagination="events"
-                            @paginate="handlePageChange"
+                            :shown="events.data.length"
+                            :total="events.total"
+                            :has-more="events.has_more"
+                            :limit-reached="events.limit_reached"
+                            :loading="loading"
+                            @more="handleShowMore"
                         />
                         
                         <SimilarResults 
@@ -63,98 +72,51 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import axios from 'axios'
+import { ref, onMounted, onUnmounted } from 'vue'
 import EventList from '@/GlobalComponents/Grid/event-grid.vue'
-import Pagination from '@/GlobalComponents/pagination.vue'
+import ShowMoreResults from './Components/show-more-results.vue'
 import Map from './Components/map-mobile.vue'
-import SearchStore from '@/Stores/SearchStore.vue'
 import SimilarResults from './Components/similar-results.vue'
+import { useSearchResults } from '@/composables/useSearchResults'
 
-// Props
 const props = defineProps({
     searchedEvents: Object,
-    user: Object
+    user: Object,
+    // See location.vue: the initial markers, every match, slimmed.
+    pins: { type: Array, default: () => [] }
 })
 
-// Refs & State
+// mapKey remounts the map when the full-map toggle resizes it
+// (showFullMap/hideFullMap); Show more never touches it.
 const mapKey = ref(0)
 const isFullMap = ref(false)
-const events = ref({
-    data: props.searchedEvents?.data || [],
-    total: props.searchedEvents?.total || 0,
-    current_page: props.searchedEvents?.current_page || 1,
-    per_page: props.searchedEvents?.per_page || 20,
-    from: props.searchedEvents?.from || null,
-    to: props.searchedEvents?.to || null,
-    last_page: props.searchedEvents?.last_page || 1
+
+const { events, pins, loading, hasEvents, handleShowMore } = useSearchResults({
+    searchedEvents: props.searchedEvents,
+    pins: props.pins,
 })
-const unsubscribe = ref(null)
 
-// Mobile-specific refs that are needed for the template
+const panel = ref(null)
 const mapHeight = ref(0)
-const listPosition = ref(0)
-const isMapFocused = ref(false)
-const scrollHeight = ref(0)
+// See measurePanel(): px from the bottom of the screen the map's popup must
+// keep clear so it sits above the list panel's header.
+const popupClearance = ref(70)
 
-// Computed
-const hasEvents = computed(() => events.value.data && events.value.data.length)
-
-// Event handlers
-const handlePageChange = async (page) => {
-    const params = new URLSearchParams(window.location.search)
-    params.set('page', page)
-    
-    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`)
-    window.scrollTo(0, 0)
-
-    try {
-        SearchStore.setLoading(true)
-        
-        // Make API call
-        const response = await axios.get(`/api/index/search?${params.toString()}`)
-        
-        // First, directly update our local component state for immediate feedback
-        if (response.data && response.data.data) {
-            events.value = {
-                data: response.data.data || [],
-                total: response.data.total || 0,
-                current_page: response.data.current_page || 1,
-                last_page: response.data.last_page || 1,
-                from: response.data.from || 0,
-                to: response.data.to || 0,
-                per_page: response.data.per_page || 20
-            }
-            
-            // Force map to re-render with new events
-            mapKey.value++
-        }
-
-        // Create a properly structured data object for SearchStore
-        // This ensures that SearchStore receives the complete expected structure
-        const completeState = {
-            events: {
-                data: response.data.data || [],
-                total: response.data.total || 0,
-                current_page: response.data.current_page || 1,
-                last_page: response.data.last_page || 1,
-                from: response.data.from || 0,
-                to: response.data.to || 0,
-                per_page: response.data.per_page || 20
-            }
-        }
-        
-        // Then update the store (which will update any other components)
-        SearchStore.updateState(completeState)
-    } catch (error) {
-        console.error('Error changing page:', error)
-    } finally {
-        SearchStore.setLoading(false)
-    }
+// Where the list panel's top edge will sit once the full map is open, as a
+// clearance from the bottom of the screen. The panel slides down by
+// mapHeight from its place in the flow, and that place includes whatever
+// sits above it (the nav), so it is measured rather than assumed. From the
+// list state the transform hasn't been applied yet, so the slide is added;
+// in the full-map state the rect already is the on-screen position.
+const measurePanel = () => {
+    if (!panel.value) return
+    const top = panel.value.getBoundingClientRect().top + (isFullMap.value ? 0 : mapHeight.value)
+    popupClearance.value = Math.max(0, Math.round(window.innerHeight - top))
 }
 
 const showFullMap = () => {
     window.scrollTo(0, 0);
+    measurePanel();
     isFullMap.value = true;
     document.body.classList.add('noscroll');
     mapKey.value += 1;
@@ -166,35 +128,19 @@ const hideFullMap = () => {
     mapKey.value += 1;
 }
 
-// Lifecycle
-onMounted(() => {
-    // Subscribe to SearchStore updates
-    unsubscribe.value = SearchStore.subscribe(state => {
-        events.value = state.events;
-    });
-
-    // Mobile-specific initialization
+const handleResize = () => {
     mapHeight.value = window.innerHeight * 0.4;
-    scrollHeight.value = window.innerHeight * 0.7;
-    listPosition.value = 0;
-    
+    // The panel's new height and slide land over the 300ms transition;
+    // measuring synchronously here reads the old geometry on a rotation.
+    setTimeout(measurePanel, 350);
+}
+
+onMounted(() => {
+    mapHeight.value = window.innerHeight * 0.4;
     window.addEventListener('resize', handleResize);
 })
 
-onUnmounted(() => {
-    // Clean up listeners
-    window.removeEventListener('resize', handleResize);
-    
-    if (unsubscribe.value) {
-        unsubscribe.value();
-    }
-})
-
-// Handle window resize
-const handleResize = () => {
-    scrollHeight.value = window.innerHeight * 0.7;
-    mapHeight.value = window.innerHeight * 0.4;
-}
+onUnmounted(() => window.removeEventListener('resize', handleResize))
 </script>
 <style scoped>
 .event-search {
