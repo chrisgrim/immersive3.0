@@ -155,7 +155,7 @@ class UpdateEventAction
 
                 // Captured before the write so it reflects the schedule
                 // favoriters actually saved the event under, not the new one.
-                $datesBeforeUpdate = $event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
+                $datesBeforeUpdate = $this->scheduleDays($event);
 
                 $showResult = Show::saveShows($request, $event, $oldShowtype);
                 $this->preservedPastDates = $showResult['preserved'];
@@ -416,7 +416,7 @@ class UpdateEventAction
             return;
         }
 
-        $datesAfterUpdate = $event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
+        $datesAfterUpdate = $this->scheduleDays($event);
         $addedDates = array_diff($datesAfterUpdate, $datesBeforeUpdate);
 
         if (empty($addedDates)) {
@@ -424,5 +424,27 @@ class UpdateEventAction
         }
 
         app(EventNotificationDispatcher::class)->newDatesForSavedEvent($event);
+    }
+
+    /**
+     * The schedule as the calendar days it plays, in the event's timezone.
+     * "New dates" means new DAYS: Show::saveShows() moves a row whose
+     * stored time is off the noon convention onto it in place, and a raw
+     * datetime comparison read that move as a date being added — and would
+     * have told every favoriter so.
+     *
+     * @return string[]
+     */
+    private function scheduleDays(Event $event): array
+    {
+        $tz = Show::validTimezone($event->timezone);
+        $rows = $event->shows()->pluck('date');
+        $curtainTimes = Show::usesCurtainTimes($rows);
+
+        return $rows
+            ->map(fn ($d) => Show::localDay($d, $tz, $curtainTimes))
+            ->unique()
+            ->values()
+            ->all();
     }
 }

@@ -7,6 +7,7 @@ use App\Actions\Events\UpdateEventAction;
 use App\Mcp\Tools\Concerns\BuildsSyntheticRequests;
 use App\Mcp\Tools\Concerns\FormatsEvents;
 use App\Models\Event;
+use App\Models\Events\Show;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Support\Currency;
 use App\Support\RecurringDates;
@@ -321,16 +322,22 @@ class UpdateEvent extends Tool
             $floor = $user->isAdmin()
                 ? \Illuminate\Support\Carbon::now($tz)->subYears(10)->toDateString()
                 : \Illuminate\Support\Carbon::now($tz)->toDateString();
-            $existing = $event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
+            // Already-saved shows are recognised by their local DAY, not the
+            // exact datetime: the stored time is a convention (noon local,
+            // Show::targetDatesFor) the caller need not reproduce, and rows
+            // written before that convention carry the curtain time.
+            $existingRows = $event->shows()->pluck('date');
+            $curtainTimes = Show::usesCurtainTimes($existingRows);
+            $existingDays = $existingRows->map(fn ($d) => Show::localDay($d, $tz, $curtainTimes))->all();
             $tooFarBack = [];
             foreach ($validated['dateArray'] as $datetime) {
-                if (in_array($datetime, $existing, true)) {
-                    continue; // already-saved show — leave it be
-                }
                 try {
                     $day = \Illuminate\Support\Carbon::parse($datetime, 'UTC')->setTimezone($tz)->toDateString();
                 } catch (\Throwable $e) {
                     continue; // malformed values are handled by field validation
+                }
+                if (in_array($day, $existingDays, true)) {
+                    continue; // already-saved show — leave it be
                 }
                 if ($day < $floor) {
                     $tooFarBack[] = $day;
@@ -548,9 +555,30 @@ class UpdateEvent extends Tool
             return max(0, $event->shows()->count() - 1);
         }
 
-        // Same specific/ongoing type with a new date list: shows not in it drop.
+        // Same specific/ongoing type with a new date list: shows whose DAY is
+        // not in it drop. By local day, like Show::saveShows() itself — a
+        // list that names the same days at different times removes nothing,
+        // so it must not demand a confirmation for a deletion that won't happen.
         if (isset($validated['dateArray']) && in_array($showtype, ['s', 'o'], true)) {
-            return $event->shows()->whereNotIn('date', $validated['dateArray'])->count();
+            $tz = $validated['timezone'] ?? $event->timezone ?? 'UTC';
+            $keptDays = collect($validated['dateArray'])
+                ->map(function ($d) use ($tz) {
+                    try {
+                        return Show::localDay($d, $tz);
+                    } catch (\Throwable $e) {
+                        return null;
+                    }
+                })
+                ->filter()
+                ->all();
+
+            $rows = $event->shows()->pluck('date');
+            $curtainTimes = Show::usesCurtainTimes($rows);
+
+            return $rows
+                ->map(fn ($d) => Show::localDay($d, $tz, $curtainTimes))
+                ->reject(fn ($day) => in_array($day, $keptDays, true))
+                ->count();
         }
 
         return 0;
@@ -641,7 +669,7 @@ class UpdateEvent extends Tool
             'remote_description' => $schema->string()->description('For remote events: how attendees join, max 3000 chars.'),
             'timezone' => $schema->string()->description('IANA timezone of the event, e.g. "America/New_York". geocode-address results include coordinates you can infer it from.'),
             'showtype' => $schema->string()->enum(['s', 'o', 'a'])->description('s = specific dates, o = ongoing/recurring, a = always available. WARNING: changing this wipes and recreates all shows and tickets. Always-available events have no embargo on the website, so clear it explicitly with embargo_date=null when switching to "a".'),
-            'dateArray' => $schema->array()->description('Show datetimes in UTC "Y-m-d H:i:s". REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it.'),
+            'dateArray' => $schema->array()->description('The calendar dates the event plays, each as "Y-m-d 00:00:00" — exactly midnight means that date in the event timezone, whatever the timezone ("2026-10-31 00:00:00" = Oct 31). Do not convert curtain times to UTC here: a value with any other time is read as a real UTC instant and lands on whatever local day that is (8 PM Eastern is 00:00 UTC, which would then read as a date). Times of day belong in show_times. One show is stored per calendar day. REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it.'),
             'ongoing_config' => $schema->object()->description('For showtype=o: {startDate, endDate (UTC "Y-m-d H:i:s", anchored at noon in the event timezone), daysOfWeek: [0-6, Sunday=0]}. The server generates the concrete occurrence dates from this rule — send it alone, WITHOUT dateArray, for a normal weekly run.'),
             'always_config' => $schema->object()->description('For showtype=a: {endDate (UTC "Y-m-d H:i:s")} — when the listing should close. Defaults to 6 months out if omitted.'),
             'show_times' => $schema->string()->description('Human-readable showtimes text, max 500 chars, e.g. "Fridays 8pm, Saturdays 6pm & 9pm".'),

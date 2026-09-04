@@ -185,6 +185,47 @@ class Event extends Model
             ->all();
     }
 
+    /**
+     * A stored UTC show datetime as its calendar day in this event's
+     * timezone (see Show::localDay() for the rule), in $format.
+     */
+    public function localDate($utcDateTime, string $format = 'Y-m-d'): ?string
+    {
+        if (! $utcDateTime) {
+            return null;
+        }
+
+        $timezone = Show::validTimezone($this->timezone);
+
+        return Carbon::parse(Show::localDay($utcDateTime, $timezone, $this->usesCurtainTimes()).' 12:00:00', $timezone)->format($format);
+    }
+
+    /**
+     * Whether this event's stored shows record real times of day — see
+     * Show::usesCurtainTimes(). Reads the loaded `shows` relation, or the
+     * `timed_shows_count` aggregate when a listing query supplied one
+     * (FavoriteController) so the Hub never lazy-loads a schedule per card.
+     */
+    public function usesCurtainTimes(): bool
+    {
+        if (array_key_exists('timed_shows_count', $this->attributes)) {
+            return (int) $this->timed_shows_count > 0;
+        }
+
+        // Memoised against the loaded collection: callers ask once per show
+        // (get-event's show_days, the page's calendars), and a fresh walk of
+        // a 2,000-show schedule each time would be quadratic.
+        $shows = $this->shows;
+        if ($this->curtainTimesMemo === null || $this->curtainTimesMemo[0] !== $shows) {
+            $this->curtainTimesMemo = [$shows, Show::usesCurtainTimes($shows)];
+        }
+
+        return $this->curtainTimesMemo[1];
+    }
+
+    /** @var array{0: \Illuminate\Support\Collection, 1: bool}|null */
+    private ?array $curtainTimesMemo = null;
+
     public function scopeUserEvents($query)
     {
         return $query->where('user_id', auth()->id());
@@ -833,7 +874,7 @@ class Event extends Model
         // the future/past comparison itself is timezone-agnostic — only display
         // needs converting back to the event's own local timezone.
         $nextDate = $this->next_show_date
-            ? Carbon::parse($this->next_show_date, 'UTC')->setTimezone($this->timezone ?? 'Etc/UTC')->format('M j')
+            ? $this->showDayInLocalTime($this->next_show_date)->format('M j')
             : null;
 
         $label = match (true) {
@@ -866,17 +907,25 @@ class Event extends Model
             return null;
         }
 
-        $tz = $this->timezone ?? 'Etc/UTC';
-        $first = Carbon::parse($this->first_show_date, 'UTC')->setTimezone($tz);
-        $last = $this->last_show_date
-            ? Carbon::parse($this->last_show_date, 'UTC')->setTimezone($tz)
-            : $first;
+        $first = $this->showDayInLocalTime($this->first_show_date);
+        $last = $this->last_show_date ? $this->showDayInLocalTime($this->last_show_date) : $first;
 
         if ($first->isSameDay($last)) {
             return $first->format('M j, Y');
         }
 
         return $first->format('M j, Y').' - '.$last->format('M j, Y');
+    }
+
+    /**
+     * A stored show datetime as noon of its day in this event's timezone,
+     * for the Hub's aggregate first/next/last dates.
+     */
+    private function showDayInLocalTime($utcDateTime): Carbon
+    {
+        $tz = Show::validTimezone($this->timezone);
+
+        return Carbon::parse(Show::localDay($utcDateTime, $tz, $this->usesCurtainTimes()).' 12:00:00', $tz);
     }
 
     /**
@@ -892,11 +941,8 @@ class Event extends Model
             return null;
         }
 
-        $tz = $this->timezone ?? 'Etc/UTC';
-        $first = Carbon::parse($this->first_show_date, 'UTC')->setTimezone($tz);
-        $last = $this->last_show_date
-            ? Carbon::parse($this->last_show_date, 'UTC')->setTimezone($tz)
-            : $first;
+        $first = $this->showDayInLocalTime($this->first_show_date);
+        $last = $this->last_show_date ? $this->showDayInLocalTime($this->last_show_date) : $first;
 
         return [
             'first' => ['day' => $first->format('D'), 'date' => $first->day, 'label' => $first->format('M j, Y')],

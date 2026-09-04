@@ -86,7 +86,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import axios from 'axios';
 import ShowMore from '@/GlobalComponents/show-more.vue';
-import dayjs from 'dayjs';
+import { isShowUpcoming, usesCurtainTimes } from '@/composables/useShowDates';
 import { formatPrice } from '@/composables/useCurrency';
 
 const props = defineProps({
@@ -173,21 +173,15 @@ const storeClick = () => {
     });
 };
 
+// Days in the EVENT's timezone — see composables/useShowDates.js.
 const getDates = () => {
-    if (props.event.shows) {
-        props.event.shows.forEach(event => {
-            const eventDate = new Date(event.date);
-            // Normalize date to midnight for comparison
-            const normalizedEventDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
-            const normalizedToday = new Date();
-            normalizedToday.setHours(0, 0, 0, 0);
-            // Use today as baseline, not yesterday
-            
-            if (normalizedEventDate >= normalizedToday) {
-                remaining.value.push(event.date);
-            }
-        });
-    }
+    if (!props.event.shows) return;
+    const curtainTimes = usesCurtainTimes(props.event.shows);
+    props.event.shows.forEach(show => {
+        if (isShowUpcoming(show.date, props.event.timezone, new Date(), curtainTimes)) {
+            remaining.value.push(show.date);
+        }
+    });
 };
 
 // Same formatting as show-purchase.vue — see the note there.

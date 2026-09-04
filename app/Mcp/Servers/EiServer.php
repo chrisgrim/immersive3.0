@@ -49,7 +49,8 @@ class EiServer extends Server
     5. Description (up to 5000 chars)
     6. Schedule: specific dates, ongoing/recurring, or always available —
        then tickets (1-10 tiers), the ticket purchase URL, and button text.
-       All datetimes are UTC "Y-m-d H:i:s".
+       All datetimes are UTC "Y-m-d H:i:s". For show dates, a value at exactly
+       00:00:00 means that calendar date; any other time is the real UTC instant.
     7. Primary image via `attach-event-image` (rank 0; gallery = ranks 1-4)
     8. Advisories — ask each explicitly: contact level, age limit, interaction
        level, the audience's role, whether there is sexual content (description

@@ -73,7 +73,7 @@
                   
                         <!-- Dates if available -->
                         <p v-if="similarEvent.shows && similarEvent.shows.length > 0" class="text-sm text-neutral-600 mt-2">
-                        {{ formatDate(similarEvent.shows[0].date) }}
+                        {{ formatDate(similarEvent.shows[0], similarEvent.timezone, similarEvent.shows) }}
                         </p>
                   
                         <!-- Tag line or description -->
@@ -91,6 +91,7 @@
   
   <script setup>
   import { ref, onMounted, onUnmounted, computed } from 'vue'
+  import { formatShowDay, usesCurtainTimes } from '@/composables/useShowDates'
   
   const props = defineProps({
     event: {
@@ -139,11 +140,8 @@
     }
   }
   
-  const formatDate = (dateString) => {
-    if (!dateString) return ''
-    const options = { month: 'long', day: 'numeric', year: 'numeric' }
-    return new Date(dateString).toLocaleDateString('en-US', options)
-  }
+  // The day in the EVENT's timezone — see composables/useShowDates.js.
+  const formatDate = (show, timezone, shows) => formatShowDay(show.date, timezone, 'MMMM D, YYYY', usesCurtainTimes(shows))
   
   const getEventLocation = (event) => {
     // For remote events - match blade template logic

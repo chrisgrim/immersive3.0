@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Event;
+use App\Models\Events\Show;
 use App\Models\Organizer;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -817,7 +818,8 @@ test('yesterday is refused, and named, by the day where the event is', function 
         ])
         ->assertOk();
 
-    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([$today]);
+    // Stored at noon of its LA day (Show::targetDatesFor), not the instant sent.
+    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([Show::atLocalNoon($today, 'America/Los_Angeles')]);
     expect($response->json('warning'))->toContain('2026-08-28')->not->toContain('2026-08-29');
 });
 
@@ -968,7 +970,8 @@ test('converting an expired always-available event to dates does not keep its se
         ])
         ->assertOk();
 
-    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([$future]);
+    // Stored at noon of its day (Show::targetDatesFor), not the instant sent.
+    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([Show::atLocalNoon($future, 'UTC')]);
     expect($response->json('warning'))->toBeNull();
 });
 
@@ -1075,7 +1078,8 @@ test('echoing an expired sentinel datetime cannot turn it into dated history', f
         ])
         ->assertOk();
 
-    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([$future]);
+    // Stored at noon of its day (Show::targetDatesFor), not the instant sent.
+    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([Show::atLocalNoon($future, 'UTC')]);
     expect($response->json('warning'))->toContain(substr($sentinel, 0, 10));
 });
 

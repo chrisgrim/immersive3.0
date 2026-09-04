@@ -87,7 +87,7 @@
                     </svg>
                     <div>
                         <p class="text-2xl md:text-1xl leading-tight font-semibold">Start date</p>
-                        <p class="text-xl font-medium text-neutral-500">{{ \Illuminate\Support\Carbon::parse($event->shows->min('date'))->format('F jS, Y') }}</p>
+                        <p class="text-xl font-medium text-neutral-500">{{ $event->localDate($event->shows->min('date'), 'F jS, Y') }}</p>
                     </div>
                 </div>
 
@@ -97,7 +97,7 @@
                     </svg>
                     <div>
                         <p class="text-2xl md:text-1xl leading-tight font-semibold">End date</p>
-                        <p class="text-xl font-medium text-neutral-500">{{ \Illuminate\Support\Carbon::parse($event->shows->max('date'))->format('F jS, Y') }}</p>
+                        <p class="text-xl font-medium text-neutral-500">{{ $event->localDate($event->shows->max('date'), 'F jS, Y') }}</p>
                     </div>
                 </div>
             @endif

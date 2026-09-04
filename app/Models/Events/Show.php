@@ -61,9 +61,26 @@ class Show extends Model
         // anyone else falls back to the model, matching the old behaviour.
         $previousShowtype = func_num_args() >= 3 ? $previousShowtype : $event->showtype;
 
+        // Every calendar day in here is named in the EVENT's timezone — the
+        // day the organizer picked, not the UTC day the row is stored under
+        // (an evening show in Los Angeles is stored on the next UTC day).
+        // The change log, the past-date guard and closingDate all test by
+        // the same local day; the change log used to take the UTC date part
+        // and recorded a Houston show's Oct 31 as "2026-11-01".
+        $tz = self::validTimezone($request->timezone ?? $event->timezone ?? 'UTC');
+        // Incoming values: a midnight value means "this date" (localDay()).
+        $localDay = fn ($d) => self::localDay($d, $tz);
+        // Stored rows, read once (the caller holds the event's lock), by the
+        // convention the whole schedule follows. Oldest first, so the oldest
+        // row survives a same-day duplicate — the survivor
+        // normalizeToLocalNoon() picks too.
+        $existingRows = $event->shows()->reorder()->orderBy('id')->get(['id', 'date']);
+        $curtainTimes = self::usesCurtainTimes($existingRows);
+        $storedDay = fn ($d) => self::localDay($d, $tz, $curtainTimes);
+
         // Capture current show dates before any changes (for change logging)
-        $oldDates = $event->shows()->pluck('date')
-            ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
+        $oldDates = $existingRows->pluck('date')
+            ->map($storedDay)
             ->sort()->values()->toArray();
 
         // Capture the event's ticket tiers before any deletes so they can be
@@ -73,7 +90,7 @@ class Show extends Model
 
         // The exact set of show datetimes this save should end with, normalised
         // to UTC "Y-m-d H:i:s" so they compare byte-for-byte with stored dates.
-        $targetDates = self::targetDatesFor($request);
+        $targetDates = self::targetDatesFor($request, $tz);
         // Against the PREVIOUS type, not $event->showtype: UpdateEventAction has
         // already mass-assigned the new one, so that comparison never saw a
         // switch — the "wipe on switch" below never ran, and a dateArray that
@@ -99,21 +116,49 @@ class Show extends Model
         $preservedPastDates = [];
         $rejectedPastDates = [];
 
-        // Days in those two lists are named in the EVENT's timezone — the day
-        // the organizer picked, not the UTC day the row is stored under (an
-        // evening show in Los Angeles is stored on the next UTC day). The
-        // creation guard below tests by the same local day.
-        $tz = $request->timezone ?? $event->timezone ?? 'UTC';
-        $localDay = fn ($d) => Carbon::parse((string) $d, 'UTC')->setTimezone($tz)->toDateString();
+        DB::transaction(function () use ($request, $event, $previousShowtype, $targetDates, $showtypeChanged, $existingRows, $oldDates, $oldTickets, $tz, $localDay, $storedDay, &$preservedPastDates, &$rejectedPastDates) {
+            // --- Match existing rows to the target set by LOCAL DAY, not by
+            //     exact datetime: a show's identity is the day it plays, and
+            //     rows written before the noon convention don't share the
+            //     time. Matching on the string made an unchanged re-save
+            //     delete and recreate rows (new ids, every show's tickets
+            //     replaced by a copy of the first show's). Matched rows keep
+            //     id and tickets; only `date` moves. One bulk delete, one
+            //     UPDATE per row that actually moves; a type switch wipes all. ---
+            $targetByDay = collect($targetDates)->mapWithKeys(fn ($d) => [$localDay($d) => $d]);
+            $idsToDelete = collect();
+            $datesToMove = []; // id => the target datetime on that row's day
+            $duplicatesToMerge = []; // duplicate id => the surviving row's id
 
-        DB::transaction(function () use ($request, $event, $previousShowtype, $targetDates, $showtypeChanged, $oldDates, $oldTickets, $tz, $localDay, &$preservedPastDates, &$rejectedPastDates) {
-            // --- Remove obsolete shows in ONE pass. This was an N+1 (a delete
-            //     per show plus a delete per show's tickets), which made saving a
-            //     large recurring schedule crawl. A show-type switch wipes all;
-            //     otherwise only shows whose date left the target set are dropped. ---
-            $idsToDelete = $showtypeChanged
-                ? $event->shows()->pluck('id')
-                : $event->shows()->whereNotIn('date', $targetDates)->pluck('id');
+            if ($showtypeChanged) {
+                $idsToDelete = $event->shows()->pluck('id');
+            } else {
+                $seenDays = [];
+                foreach ($existingRows as $row) {
+                    $day = $storedDay($row->date);
+
+                    // Not in the new schedule: drop it.
+                    if (! $targetByDay->has($day)) {
+                        $idsToDelete->push($row->id);
+
+                        continue;
+                    }
+
+                    // A second row for a day that already has one (legacy
+                    // duplicates): fold it into the first.
+                    if (isset($seenDays[$day])) {
+                        $duplicatesToMerge[$row->id] = $seenDays[$day];
+
+                        continue;
+                    }
+
+                    $seenDays[$day] = $row->id;
+
+                    if ((string) $row->date !== $targetByDay[$day]) {
+                        $datesToMove[$row->id] = $targetByDay[$day];
+                    }
+                }
+            }
 
             // A show that's already happened is a historical record, not a
             // schedule entry to be edited away — only staff can remove one
@@ -136,7 +181,7 @@ class Show extends Model
                 if ($protectedIds->isNotEmpty()) {
                     $preservedPastDates = $pastShows->whereIn('id', $protectedIds)
                         ->pluck('date')
-                        ->map($localDay)
+                        ->map($storedDay)
                         ->unique()->sort()->values()->all();
                 }
 
@@ -145,13 +190,27 @@ class Show extends Model
 
             self::deleteShowsByIds($idsToDelete);
 
+            foreach ($duplicatesToMerge as $duplicateId => $survivorId) {
+                self::mergeDuplicateShow($survivorId, $duplicateId);
+            }
+
+            // Move matched rows onto the storage convention in place. A
+            // protected past row (kept above) is moved too if its day is in
+            // the schedule: same day, same id, same tickets — only the time.
+            $now = now();
+            foreach ($datesToMove as $id => $date) {
+                self::withoutGlobalScope(DateScope::class)->whereKey($id)->update(['date' => $date, 'updated_at' => $now]);
+            }
+
             // --- Create the missing shows in bulk (was an updateOrCreate per
-            //     date). Only dates without a surviving show are inserted, so
+            //     date). Only days without a surviving show are inserted, so
             //     re-saving an unchanged schedule writes nothing. Chunked so an
             //     enormous list can never exceed the DB's bind-parameter limit. ---
-            $survivingDates = $event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
-            $datesToCreate = collect($targetDates)
-                ->reject(fn ($d) => in_array($d, $survivingDates, true))
+            // Survivors matched to the schedule were moved to noon just above,
+            // so these read as instants either way.
+            $survivingDays = $event->shows()->pluck('date')->map($storedDay)->all();
+            $datesToCreate = $targetByDay
+                ->reject(fn ($d, $day) => in_array($day, $survivingDays, true))
                 ->values();
 
             // The mirror of the deletion guard above: a non-moderator may not
@@ -190,7 +249,6 @@ class Show extends Model
             }
 
             if ($datesToCreate->isNotEmpty()) {
-                $now = now();
                 $datesToCreate
                     ->map(fn ($d) => [
                         'event_id' => $event->id,
@@ -213,7 +271,7 @@ class Show extends Model
 
             // Log date changes only for published events
             if ($event->status === 'p') {
-                self::logDateChanges($event, $oldDates);
+                self::logDateChanges($event, $oldDates, $tz);
             }
 
             // Update the event's showtype to the new value
@@ -233,10 +291,14 @@ class Show extends Model
         return ['preserved' => $preservedPastDates, 'rejected' => $rejectedPastDates];
     }
 
-    private static function logDateChanges($event, array $oldDates): void
+    private static function logDateChanges($event, array $oldDates, string $tz): void
     {
-        $newDates = $event->shows()->pluck('date')
-            ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
+        // Read by the convention the rows follow NOW: matched rows were just
+        // moved to noon, new ones were written at noon.
+        $newRows = $event->shows()->pluck('date');
+        $curtainTimes = self::usesCurtainTimes($newRows);
+        $newDates = $newRows
+            ->map(fn ($d) => self::localDay($d, $tz, $curtainTimes))
             ->sort()->values()->toArray();
 
         $added = array_values(array_diff($newDates, $oldDates));
@@ -265,15 +327,19 @@ class Show extends Model
     /**
      * The normalised set of show datetimes a save should end with, as UTC
      * "Y-m-d H:i:s". Specific ('s') and ongoing ('o') events use the supplied
-     * date list; always ('a') and limited ('l') collapse to one sentinel show.
+     * date list, each stored at NOON of its calendar day in the event's
+     * timezone whatever instant was sent — the one time of day whose UTC
+     * date matches the local date wherever the site is used, which every
+     * "which day is this" reader relies on. Always ('a') and limited ('l')
+     * collapse to one sentinel show.
      *
      * @return array<int, string>
      */
-    private static function targetDatesFor($request): array
+    private static function targetDatesFor($request, string $tz): array
     {
         if ($request->showtype === 's' || $request->showtype === 'o') {
             return collect($request->dateArray ?? [])
-                ->map(fn ($d) => Carbon::parse($d, 'UTC')->format('Y-m-d H:i:s'))
+                ->map(fn ($d) => self::atLocalNoon($d, $tz))
                 ->unique()
                 ->values()
                 ->all();
@@ -292,6 +358,73 @@ class Show extends Model
         }
 
         return [];
+    }
+
+    /**
+     * Whether a schedule's stored rows record real times of day.
+     *
+     * A row at exactly 00:00:00 UTC is a calendar DATE — the wizard wrote
+     * every show that way until late 2025, and assistants still send midnight
+     * for a list of dates — UNLESS the schedule also has rows at other times,
+     * which means whoever wrote it was recording curtain times (8 PM Eastern
+     * is 00:00 UTC). A per-row timestamp cannot tell the two apart; the whole
+     * schedule can. Verified against organizers' own show_times text on the
+     * production data when this rule was written.
+     */
+    public static function usesCurtainTimes(iterable $rows): bool
+    {
+        foreach ($rows as $row) {
+            $date = is_object($row) ? $row->date : $row;
+            if (substr((string) $date, 11, 8) !== '00:00:00') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The calendar day a stored UTC datetime falls on in $tz — a show's
+     * identity. Twin of Event::localDate() for callers that only have a
+     * timezone in hand. $curtainTimes is usesCurtainTimes() for the rows
+     * this value belongs to; leave it false for an incoming value, which
+     * makes a midnight value mean "this date".
+     */
+    public static function localDay($utcDateTime, string $tz, bool $curtainTimes = false): string
+    {
+        $utc = Carbon::parse((string) $utcDateTime, 'UTC');
+
+        if (! $curtainTimes && $utc->format('H:i:s') === '00:00:00') {
+            return $utc->toDateString();
+        }
+
+        return $utc->setTimezone(self::validTimezone($tz))->toDateString();
+    }
+
+    /**
+     * A UTC datetime moved to noon of its own calendar day in $tz, as the
+     * UTC "Y-m-d H:i:s" the shows table stores. Idempotent for a value that
+     * is already local noon. Same $curtainTimes rule as localDay().
+     */
+    public static function atLocalNoon($utcDateTime, string $tz, bool $curtainTimes = false): string
+    {
+        $tz = self::validTimezone($tz);
+
+        return Carbon::parse(self::localDay($utcDateTime, $tz, $curtainTimes).' 12:00:00', $tz)
+            ->utc()
+            ->format('Y-m-d H:i:s');
+    }
+
+    /** A junk or blank timezone must never 500 a save or a page: read it as UTC. */
+    public static function validTimezone(?string $tz): string
+    {
+        try {
+            new \DateTimeZone($tz ?: 'UTC');
+
+            return $tz ?: 'UTC';
+        } catch (\Throwable) {
+            return 'UTC';
+        }
     }
 
     /**
@@ -572,6 +705,162 @@ class Show extends Model
         return null;
     }
 
+    /**
+     * The one-off repair behind `ei:normalize-show-times`: move this event's
+     * shows onto the storage convention in place (same ids, tickets kept),
+     * fold same-day duplicates into the oldest row, and fix a closingDate
+     * the old UTC-day rule derived wrongly. With $apply false it only
+     * reports; $onlyShifted limits it to rows that currently READ wrong.
+     *
+     * @return array{updated: int, merged: int, closing_before: ?string, closing_after: ?string}
+     */
+    public static function normalizeToLocalNoon(Event $event, bool $apply, bool $onlyShifted = true): array
+    {
+        if (! $apply) {
+            return self::normalizationPlan($event, $onlyShifted, lock: false)['report'];
+        }
+
+        // Plan and write under one lock, taken in the same order a schedule
+        // save takes it (UpdateEventAction: the event row first, then its
+        // shows), so a save landing at the same moment waits rather than
+        // deadlocking, and cannot be overwritten from a stale plan. Nothing
+        // here reaches the search index: that happens below, after the
+        // commit.
+        $report = DB::transaction(function () use ($event, $onlyShifted) {
+            Event::withoutGlobalScopes()->whereKey($event->id)->lockForUpdate()->first();
+            $event->refresh();
+
+            $plan = self::normalizationPlan($event, $onlyShifted, lock: true);
+
+            if (! $plan['changed']) {
+                return $plan['report'];
+            }
+
+            $now = now();
+            foreach ($plan['moves'] as $id => $date) {
+                self::withoutGlobalScope(DateScope::class)->whereKey($id)->update(['date' => $date, 'updated_at' => $now]);
+            }
+            foreach ($plan['duplicates'] as $duplicateId => $survivorId) {
+                self::mergeDuplicateShow($survivorId, $duplicateId);
+            }
+            if ($plan['report']['closing_after'] !== (string) $event->closingDate) {
+                Event::withoutSyncingToSearch(fn () => $event->update(['closingDate' => $plan['report']['closing_after']]));
+            }
+
+            return $plan['report'];
+        });
+
+        // The index carries the shows and closingDate; refresh it from the
+        // committed rows.
+        if (($report['updated'] > 0 || $report['merged'] > 0 || $report['closing_before'] !== $report['closing_after'])
+            && $event->shouldBeSearchable()) {
+            $event->refresh()->searchable();
+        }
+
+        return $report;
+    }
+
+    /**
+     * What normalizeToLocalNoon() would do: moves, duplicate merges and the
+     * closingDate the surviving days imply. Reads only.
+     *
+     * @return array{moves: array<int, string>, duplicates: array<int, int>, changed: bool, report: array{updated: int, merged: int, closing_before: ?string, closing_after: ?string}}
+     */
+    private static function normalizationPlan(Event $event, bool $onlyShifted, bool $lock): array
+    {
+        $tz = $event->timezone ?: 'UTC';
+        $query = self::withoutGlobalScope(DateScope::class)
+            ->where('event_id', $event->id)
+            ->orderBy('id');
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+        $rows = $query->get(['id', 'date']);
+        $curtainTimes = self::usesCurtainTimes($rows);
+
+        $survivors = [];      // day => id
+        $moves = [];          // id => new date
+        $duplicates = [];     // duplicate id => surviving id
+
+        foreach ($rows as $row) {
+            $day = self::localDay($row->date, $tz, $curtainTimes);
+            if (isset($survivors[$day])) {
+                $duplicates[$row->id] = $survivors[$day];
+
+                continue;
+            }
+            $survivors[$day] = $row->id;
+
+            // Default scope: only rows that READ wrong — stored under a UTC
+            // date that is not their day. --all also moves rows whose day
+            // is right but whose time is off the convention (legacy
+            // midnight rows, mostly), for one uniform column.
+            if ($onlyShifted && $day === substr((string) $row->date, 0, 10)) {
+                continue;
+            }
+
+            $target = self::atLocalNoon($row->date, $tz, $curtainTimes);
+            if ((string) $row->date !== $target) {
+                $moves[$row->id] = $target;
+            }
+        }
+
+        // closingDate: replaced ONLY when it is provably the value the old
+        // UTC-day rule derived from these rows — then it becomes the end of
+        // the latest surviving LOCAL day (this also repairs a noon-local
+        // Auckland row the old rule closed a day early). Anything else was
+        // set by hand — ongoing runs get extended past their generated rows
+        // (Mystère, Museum of Ice Cream) — and is left exactly as it is.
+        $closingBefore = $event->closingDate ? (string) $event->closingDate : null;
+        $derived = $rows->isNotEmpty()
+            ? Carbon::parse((string) $rows->max('date'), 'UTC')->endOfDay()->format('Y-m-d H:i:s')
+            : null;
+        $days = array_keys($survivors);
+        sort($days);
+        $lastDay = end($days);
+        $closingAfter = ($lastDay && $closingBefore !== null && $closingBefore === $derived)
+            ? Carbon::parse($lastDay.' 12:00:00', $tz)->endOfDay()->format('Y-m-d H:i:s')
+            : $closingBefore;
+
+        $report = [
+            'updated' => count($moves),
+            'merged' => count($duplicates),
+            'closing_before' => $closingBefore,
+            'closing_after' => $closingAfter,
+        ];
+
+        return [
+            'moves' => $moves,
+            'duplicates' => $duplicates,
+            'changed' => $report['updated'] > 0 || $report['merged'] > 0 || $closingAfter !== $closingBefore,
+            'report' => $report,
+        ];
+    }
+
+    /**
+     * Fold a second row for the same local day into the first. The survivor
+     * keeps its id and its tickets; if it has none, it adopts the
+     * duplicate's rather than losing the only tiers that day had. Then the
+     * duplicate and whatever tickets are left on it go.
+     */
+    private static function mergeDuplicateShow(int $survivorId, int $duplicateId): void
+    {
+        // A tier's identity is its name — the same key handleTickets() and
+        // copyTicketsToShows() collapse on. Tiers the survivor lacks move
+        // across; a tier it already has keeps the survivor's version.
+        $survivorTierNames = Ticket::where('ticket_type', self::class)
+            ->where('ticket_id', $survivorId)
+            ->pluck('name')
+            ->all();
+
+        Ticket::where('ticket_type', self::class)
+            ->where('ticket_id', $duplicateId)
+            ->whereNotIn('name', $survivorTierNames)
+            ->update(['ticket_id' => $survivorId]);
+
+        self::deleteShowsByIds(collect([$duplicateId]));
+    }
+
     private static function calculateLastDate(Event $event, string $type, $request = null): string
     {
         // Get the event's timezone, default to UTC
@@ -607,7 +896,11 @@ class Show extends Model
         $lastShow = $event->shows()->withoutGlobalScope(DateScope::class)->max('date');
 
         if ($lastShow) {
-            return Carbon::parse((string) $lastShow, 'UTC')->endOfDay()->format('Y-m-d H:i:s');
+            // End of the last LOCAL day. Ending the UTC day instead pushed a
+            // run whose last show is stored on the next UTC day a day later.
+            // Same naive "Y-m-d 23:59:59" this has always produced for a
+            // noon-local row, so nothing downstream reads it differently.
+            return Carbon::parse((string) $lastShow, 'UTC')->setTimezone($timezone)->endOfDay()->format('Y-m-d H:i:s');
         }
 
         // No shows at all (a draft mid-creation): end of today.

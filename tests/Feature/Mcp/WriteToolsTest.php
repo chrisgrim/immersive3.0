@@ -2430,3 +2430,104 @@ test('get-event and list-my-events say when the caller is locked out', function 
     EiServer::actingAs(writeToolUser('m'))->tool(\App\Mcp\Tools\GetEvent::class, ['event_slug' => $event->slug])
         ->assertOk()->assertSee('"edit_locked":false');
 });
+
+// ---------------------------------------------------------------------------
+// Show days are stored at noon local, whatever instant the assistant sends
+// (see Show::targetDatesFor / Show::localDay).
+// ---------------------------------------------------------------------------
+
+test('update-event stores a curtain-time instant at noon of its local day', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user, ['timezone' => 'America/Chicago']);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => 'America/Chicago',
+        'showtype' => 's',
+        'dateArray' => [scheduleDayAt(30, 20, 'America/Chicago')],
+    ])->assertOk();
+
+    $event->refresh();
+    expect($event->shows->pluck('date')->all())->toBe([scheduleDay(30, 'America/Chicago')]);
+    // closingDate ends the LOCAL day of that show.
+    $localDay = now('America/Chicago')->addDays(30)->toDateString();
+    expect((string) $event->closingDate)->toBe($localDay.' 23:59:59');
+});
+
+test('update-event recognises the same days sent at different times: no replacement, no churn', function () {
+    $user = writeToolUser();
+    $tz = 'America/Chicago';
+    // Rows as the assistant wrote them before the fix — real curtain times.
+    $event = liveEvent($user, 's', [scheduleDayAt(30, 20, $tz), scheduleDayAt(31, 20, $tz)], ['timezone' => $tz]);
+    $ids = $event->shows->pluck('id')->sort()->values()->all();
+
+    $response = EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => $tz,
+        'showtype' => 's',
+        'dateArray' => [scheduleDayAt(30, 18, $tz), scheduleDayAt(31, 21, $tz)],
+        'confirm_live_edit' => true,
+    ]);
+
+    // Same two days: nothing would be removed, so no confirmation is demanded…
+    $response->assertOk()->assertDontSee('confirm_schedule_replace');
+    $event->refresh();
+    // …the rows keep their ids…
+    expect($event->shows->pluck('id')->sort()->values()->all())->toBe($ids);
+    // …and now sit at noon local.
+    expect($event->shows->pluck('date')->sort()->values()->all())->toBe([scheduleDay(30, $tz), scheduleDay(31, $tz)]);
+});
+
+test('get-event reports the days a schedule plays, not just the stored instants', function () {
+    $user = writeToolUser();
+    $tz = 'America/Chicago';
+    $event = liveEvent($user, 's', [scheduleDayAt(30, 20, $tz)], ['timezone' => $tz]);
+
+    $response = EiServer::actingAs($user)->tool(\App\Mcp\Tools\GetEvent::class, ['event_slug' => $event->slug]);
+
+    $response->assertOk()->assertSee(now($tz)->addDays(30)->toDateString());
+});
+
+test('update-event recognises a past day sent at a different time and keeps it', function () {
+    $user = writeToolUser(); // not staff: past days are protected, not editable
+    $tz = 'America/Chicago';
+    $event = liveEvent($user, 's', [scheduleDayAt(-3, 20, $tz), scheduleDayAt(30, 20, $tz)], ['timezone' => $tz]);
+    $pastId = $event->shows->sortBy('date')->first()->id;
+
+    $response = EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => $tz,
+        'showtype' => 's',
+        // The same past day at 6 PM instead of 8, the same future day, one new day.
+        'dateArray' => [scheduleDayAt(-3, 18, $tz), scheduleDayAt(30, 18, $tz), scheduleDayAt(31, 18, $tz)],
+        'confirm_live_edit' => true,
+    ]);
+
+    // Not refused as a past date: it is the day already on file.
+    $response->assertOk()->assertDontSee('past_dates');
+    $event->refresh();
+    expect($event->shows)->toHaveCount(3);
+    expect($event->shows->pluck('id')->all())->toContain($pastId);
+});
+
+test('update-event reads a value at exactly midnight UTC as that calendar date', function () {
+    // Assistants send a list of dates as "Y-m-d 00:00:00"; the tool's
+    // description says so. A Los Angeles event: read as an instant, midnight
+    // UTC would be 5 PM the evening BEFORE — Reign of Terror's whole run
+    // would have shifted a day.
+    $user = writeToolUser();
+    $tz = 'America/Los_Angeles';
+    $event = draftFor(writeToolOrganizer($user), $user, ['timezone' => $tz]);
+    $day = now($tz)->addDays(30)->toDateString();
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => $tz,
+        'showtype' => 's',
+        'dateArray' => [$day.' 00:00:00'],
+    ])->assertOk();
+
+    $event->refresh();
+    expect($event->shows->pluck('date')->all())->toBe([scheduleDay(30, $tz)]);
+    expect((string) $event->closingDate)->toBe($day.' 23:59:59');
+});

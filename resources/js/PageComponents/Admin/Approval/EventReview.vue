@@ -550,6 +550,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import moment from 'moment-timezone';
+import { showDay, usesCurtainTimes } from '@/composables/useShowDates';
 import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -573,13 +574,16 @@ const props = defineProps({
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 
+// Days in the EVENT's timezone — a raw shows.date is UTC, and an evening
+// show is stored on the next UTC day (composables/useShowDates.js).
 const formatDateRange = (shows) => {
     if (!shows?.length) return 'No dates set';
-    
-    const dates = shows.map(show => moment(show.date));
-    const firstDate = moment.min(dates).format('MMM D, YYYY');
-    const lastDate = moment.max(dates).format('MMM D, YYYY');
-    
+
+    const curtainTimes = usesCurtainTimes(shows);
+    const days = shows.map(show => showDay(show.date, props.event.timezone, curtainTimes)).filter(Boolean).sort();
+    const firstDate = moment(days[0]).format('MMM D, YYYY');
+    const lastDate = moment(days[days.length - 1]).format('MMM D, YYYY');
+
     return firstDate === lastDate ? firstDate : `${firstDate} - ${lastDate}`;
 };
 

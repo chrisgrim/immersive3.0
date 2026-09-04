@@ -82,7 +82,13 @@ class FavoriteController extends Controller
                 $query->where('date', '>=', $now);
             }], 'date')
             ->withMin('shows as first_show_date', 'date')
-            ->withMax('shows as last_show_date', 'date');
+            ->withMax('shows as last_show_date', 'date')
+            // Event::usesCurtainTimes() reads this instead of loading every
+            // card's schedule: how those aggregates turn into days depends on
+            // whether the rows carry real times (Show::usesCurtainTimes).
+            ->withCount(['shows as timed_shows_count' => function ($query) {
+                $query->whereRaw("TIME(date) <> '00:00:00'");
+            }]);
         // first_show_date/last_show_date back dateRangeLabel() below (Event
         // model reads them off the loaded aggregate columns, not a query).
     }

@@ -147,7 +147,7 @@ import ShowMore from '@/GlobalComponents/show-more.vue';
 import { formatPrice } from '@/composables/useCurrency';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
-import dayjs from 'dayjs';
+import { formatShowDay, showDayAsDate, isShowUpcoming, usesCurtainTimes } from '@/composables/useShowDates';
 
 const props = defineProps({
     event: Object,
@@ -187,9 +187,9 @@ const eventUrl = computed(() => {
 
 const showDateRange = computed(() => {
     if (props.event.shows.length > 1) {
-        return `${cleanDate(props.event.shows[props.event.shows.length - 1].date)} - ${cleanDate(props.event.shows[0].date)}`;
+        return `${cleanDate(props.event.shows[props.event.shows.length - 1])} - ${cleanDate(props.event.shows[0])}`;
     }
-    return cleanDate(props.event.shows[0].date);
+    return cleanDate(props.event.shows[0]);
 });
 
 const hover = ref(null);
@@ -229,30 +229,31 @@ const hide = () => {
     datesVisible.value = false;
 };
 
+// Whether this schedule's rows carry real times (composables/useShowDates.js).
+const curtainTimes = computed(() => usesCurtainTimes(props.event.shows));
+
+// Every show becomes a calendar day in the EVENT's timezone — see
+// composables/useShowDates.js for why the raw UTC string must never be
+// handed to new Date() or dayjs() here.
 const getDates = () => {
-    if (props.event.shows) {
-        props.event.shows.forEach(event => {
-            const eventDate = new Date(event.date);
-            // Normalize date to midnight for comparison
-            const normalizedEventDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
-            const normalizedToday = new Date();
-            normalizedToday.setHours(0, 0, 0, 0);
-            // Use today as baseline, not yesterday
-            
-            if (normalizedEventDate >= normalizedToday) {
-                remaining.value.push(event.date);
-            }
-            
-            // Add all dates to highlightedDates, regardless of whether they're past or future
-            highlightedDates.value.push(normalizedEventDate);
-            
-            // Keep all dates for reference
-            dates.value.push(event.date);
-        });
-    }
+    if (!props.event.shows) return;
+    props.event.shows.forEach(show => {
+        const day = showDayAsDate(show.date, props.event.timezone, curtainTimes.value);
+        if (!day) return;
+
+        if (isShowUpcoming(show.date, props.event.timezone, new Date(), curtainTimes.value)) {
+            remaining.value.push(show.date);
+        }
+
+        // Add all dates to highlightedDates, regardless of whether they're past or future
+        highlightedDates.value.push(day);
+
+        // Keep all dates for reference
+        dates.value.push(show.date);
+    });
 };
 
-const cleanDate = (data) => dayjs(data).format("MMM D, YYYY");
+const cleanDate = (show) => formatShowDay(show.date, props.event.timezone, 'MMM D, YYYY', curtainTimes.value);
 
 const preventDefault = (val) => {
     // Reset to original highlighted dates to prevent selection

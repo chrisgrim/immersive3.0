@@ -42,6 +42,7 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue';
+import { showDayAsDate, isShowUpcoming, usesCurtainTimes } from '@/composables/useShowDates';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
 
@@ -59,32 +60,29 @@ const remaining = ref([]);
 const maxDate = ref(new Date(new Date().setFullYear(new Date().getFullYear() + 1)));
 const previewDate = ref(new Date());
 
+// Days in the EVENT's timezone — see composables/useShowDates.js.
 const getDates = () => {
-  if (props.event.shows) {
-    props.event.shows.forEach(event => {
-      const eventDate = new Date(event.date);
-      // Normalize date to midnight for comparison
-      const normalizedEventDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
-      const normalizedToday = new Date();
-      normalizedToday.setHours(0, 0, 0, 0);
-      // Use today as baseline, not yesterday
-      
-      if (normalizedEventDate >= normalizedToday) {
-        remaining.value.push(event.date);
-      }
-      
-      // Add all dates to highlightedDates, regardless of whether they're past or future
-      highlightedDates.value.push(normalizedEventDate);
-      
-      // Keep all dates for reference
-      dates.value.push(event.date);
-    });
-    
-    // Set selectedDates AFTER calendar is initialized
-    nextTick(() => {
-      selectedDates.value = [...highlightedDates.value];
-    });
-  }
+  if (!props.event.shows) return;
+  const curtainTimes = usesCurtainTimes(props.event.shows);
+  props.event.shows.forEach(show => {
+    const day = showDayAsDate(show.date, props.event.timezone, curtainTimes);
+    if (!day) return;
+
+    if (isShowUpcoming(show.date, props.event.timezone, new Date(), curtainTimes)) {
+      remaining.value.push(show.date);
+    }
+
+    // Add all dates to highlightedDates, regardless of whether they're past or future
+    highlightedDates.value.push(day);
+
+    // Keep all dates for reference
+    dates.value.push(show.date);
+  });
+
+  // Set selectedDates AFTER calendar is initialized
+  nextTick(() => {
+    selectedDates.value = [...highlightedDates.value];
+  });
 };
 
 const preventDefault = (val) => {

@@ -383,6 +383,7 @@ import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatPrice } from '@/composables/useCurrency';
+import { isShowUpcoming, usesCurtainTimes } from '@/composables/useShowDates';
 
 const props = defineProps({
     event: {
@@ -508,10 +509,11 @@ const showsCount = computed(() => {
 const remainingShows = computed(() => {
     if (props.event.showtype === 'a') return '';
     if (!props.event.shows) return 0;
+    // By the show's day where the event is (composables/useShowDates.js),
+    // not the browser's reading of the raw UTC string.
     const now = new Date();
-    const futureShows = props.event.shows.filter(show => {
-        return new Date(show.date) >= now;
-    });
+    const curtainTimes = usesCurtainTimes(props.event.shows);
+    const futureShows = props.event.shows.filter(show => isShowUpcoming(show.date, props.event.timezone, now, curtainTimes));
     return futureShows.length;
 });
 

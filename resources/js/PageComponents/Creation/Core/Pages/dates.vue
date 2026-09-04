@@ -130,6 +130,7 @@ import {
     getBrowserTimezone,
     utcDateTimeToLocalDate
 } from '@/composables/dateUtils';
+import { showDay, usesCurtainTimes } from '@/composables/useShowDates';
 
 const emit = defineEmits(['toggle-sidebar']);
 
@@ -438,8 +439,13 @@ const hydrateFromEvent = () => {
         // timezone before taking the calendar day. Truncating the UTC string to
         // its date part first (the old bug) shifts evening shows a day late
         // (8 PM Pacific is 03:00 UTC the next day).
+        // showDay, not utcDateTimeToLocalDate: a midnight-UTC row is a calendar
+        // date unless this schedule records real times (useShowDates.js). Reading
+        // it as an instant put a Friday show on Thursday in the picker, and a
+        // re-save then moved the row to Thursday.
+        const curtainTimes = usesCurtainTimes(event.shows);
         const localShowDates = event.shows.map(show =>
-            utcDateTimeToLocalDate(show.date, selectedTimezone.value)
+            showDay(show.date, selectedTimezone.value, curtainTimes)
         );
 
         date.value = localShowDates.map(dateStr => parseDateString(dateStr, selectedTimezone.value));

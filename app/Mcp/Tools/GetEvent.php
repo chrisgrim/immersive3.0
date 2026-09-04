@@ -125,14 +125,27 @@ class GetEvent extends Tool
      */
     protected function scheduleFields(Event $event, bool $summary): array
     {
+        // *_date fields are the stored UTC datetimes; *_day fields are the
+        // calendar days in the event's own timezone, which is what "when
+        // does it play" means. Read the days: a show stored at 01:00 UTC is
+        // the evening BEFORE in Houston.
         if (! $summary) {
-            return ['show_dates' => $event->shows->pluck('date')];
+            return [
+                'show_dates' => $event->shows->pluck('date'),
+                'show_days' => $event->shows->map(fn ($show) => $event->localDate($show->date))->unique()->values(),
+            ];
         }
+
+        // By day, not by stored instant: a date-only midnight row and a
+        // curtain-time row can sort the other way round as instants.
+        $days = $event->shows->map(fn ($show) => $event->localDate($show->date))->filter();
 
         return [
             'shows_count' => $event->shows->count(),
             'first_show_date' => $event->shows->min('date'),
             'last_show_date' => $event->shows->max('date'),
+            'first_show_day' => $days->min(),
+            'last_show_day' => $days->max(),
         ];
     }
 
