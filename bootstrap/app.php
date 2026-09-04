@@ -33,9 +33,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
             'moderator' => \App\Http\Middleware\ModeratorMiddleware::class,
-            'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
-            'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
+            // Passport scope checks for the MCP endpoint (routes/ai.php).
+            'scopes' => \Laravel\Passport\Http\Middleware\CheckToken::class,
+            'scope' => \Laravel\Passport\Http\Middleware\CheckTokenForAnyScope::class,
             'mcp.tokens' => \App\Http\Middleware\EnsureCanManageApiTokens::class,
+            'mcp.consent' => \App\Http\Middleware\EnsureMcpConsentAllowed::class,
+            'mcp.ip-throttle' => \App\Http\Middleware\ThrottleMcpByIp::class,
+            'mcp.audit' => \App\Http\Middleware\RecordMcpToolCall::class,
+            'deny-framing' => \App\Http\Middleware\DenyFraming::class,
         ]);
 
         // "Sign in with Apple" POSTs its callback cross-site from apple.com (form_post

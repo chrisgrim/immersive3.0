@@ -7,15 +7,16 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Gates the API-token management UI. While services.mcp.token_ui_public is
- * false the page is a moderator/admin preview; flipping the env var opens
- * it to all (verified) users without a code change.
+ * Gates the API-token management UI. While services.mcp.public is false the
+ * page is a moderator/admin preview; flipping MCP_PUBLIC opens it (and the
+ * OAuth consent screen, see EnsureMcpConsentAllowed) to everyone without a
+ * code change.
  */
 class EnsureCanManageApiTokens
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (config('services.mcp.token_ui_public') || $request->user()?->isModerator()) {
+        if (config('services.mcp.public') || $request->user()?->isModerator()) {
             return $next($request);
         }
 

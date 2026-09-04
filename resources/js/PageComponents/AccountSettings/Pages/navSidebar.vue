@@ -42,14 +42,14 @@ const items = [
     // Moderator/admin only — matches the /settings/api-tokens server-side
     // gate (EnsureCanManageApiTokens), which is the real enforcement; this
     // is just a UX nicety so non-moderators don't see a dead-end tab.
-    { tab: 'api-keys', label: 'API keys', icon: RiKey2Line, moderatorOnly: true },
+    { tab: 'api-keys', label: 'AI & API access', icon: RiKey2Line, moderatorOnly: true },
 ];
 
 const visibleItems = computed(() => {
     // Same OR as the server-side gate (EnsureCanManageApiTokens): a
     // moderator/admin always sees it, and everyone does once
-    // MCP_TOKEN_UI_PUBLIC opens the feature generally.
-    const canManageApiTokens = !!window.Laravel?.user?.isModerator || !!window.Laravel?.mcpTokenUiPublic;
+    // MCP_PUBLIC opens the feature generally.
+    const canManageApiTokens = !!window.Laravel?.user?.isModerator || !!window.Laravel?.mcpPublic;
 
     return items.filter((item) => !item.moderatorOnly || canManageApiTokens);
 });

@@ -22,7 +22,9 @@ class UpdateOrganizer extends Tool
         $user = $request->user();
 
         $validated = $request->validate([
-            'organizer_slug' => 'required|string|exists:organizers,slug',
+            // Not `exists:` — that validated (and so disclosed) slug existence
+            // before the authorization check below had its say.
+            'organizer_slug' => 'required|string',
             'name' => ['sometimes', ...OrganizerRules::name()],
             'description' => 'sometimes|'.OrganizerRules::description(),
             'image_url' => 'nullable|url',
@@ -31,8 +33,10 @@ class UpdateOrganizer extends Tool
 
         $organizer = Organizer::where('slug', $validated['organizer_slug'])->first();
 
-        if (! $user->can('edit', $organizer)) {
-            return Response::error('You do not have permission to edit this organizer.');
+        // One message whether the slug is unknown or the organizer is someone
+        // else's — see GetEvent.
+        if (! $organizer || ! $user->can('edit', $organizer)) {
+            return Response::error('No organizer with that slug that you can edit. Slugs come from whoami.');
         }
 
         // Site rule: once submitted for review, locked until an admin

@@ -36,12 +36,10 @@ class AttachEventImage extends Tool
             ->where('slug', $validated['event_slug'])
             ->first();
 
-        if (! $event) {
-            return Response::error('No event found with that slug.');
-        }
-
-        if (! $user->can('manage', $event)) {
-            return Response::error('You do not have permission to edit this event.');
+        // One message whether the slug is unknown or the event is someone
+        // else's — see GetEvent.
+        if (! $event || ! $user->can('manage', $event)) {
+            return Response::error('No event with that slug that you can edit. Slugs come from list-my-events.');
         }
 
         // See UpdateEvent: a long-finished published event is read-only to

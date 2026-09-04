@@ -48,7 +48,7 @@ class EiServer extends Server
        Online: which platforms (remotelocations) + how to join.
     5. Description (up to 5000 chars)
     6. Schedule: specific dates, ongoing/recurring, or always available —
-       then tickets (1-5 tiers), the ticket purchase URL, and button text.
+       then tickets (1-10 tiers), the ticket purchase URL, and button text.
        All datetimes are UTC "Y-m-d H:i:s".
     7. Primary image via `attach-event-image` (rank 0; gallery = ranks 1-4)
     8. Advisories — ask each explicitly: contact level, age limit, interaction
@@ -63,10 +63,13 @@ class EiServer extends Server
     Finding an existing event: `list-my-events` covers only the organizers the
     user belongs to. `list-all-events` searches the whole platform — use it
     whenever an event might live under someone else's organizer, or to sweep for
-    work (e.g. `closing_before` finds runs about to expire). Moderators and
-    admins can edit ANY event they find there with `update-event`; the "your
-    events" framing in these tools is about ownership, not about what you are
-    allowed to reach.
+    work (e.g. `closing_before` finds runs about to expire). A moderator or
+    admin can edit ANY event they find there with `update-event` — but only
+    when the credential carries the `mcp:moderate` scope: a connection the
+    moderator approved with "Include moderator powers" ticked, or an API key
+    created with moderator powers. `whoami` reports `is_moderator` for the
+    credential in use; if it is false, treat the account like any other
+    organizer's and tell the user how to reconnect if they need more.
 
     Editing a schedule: send the field that matches the event's showtype —
     `dateArray` for "s", `ongoing_config` for "o", `always_config` for "a".

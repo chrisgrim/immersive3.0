@@ -24,14 +24,15 @@ class EventPolicy
 
         // If user doesn't belong to any teams, simply return false
         // to deny access without throwing an exception
-        if (!$user->teams()->exists()) {
+        if (! $user->teams()->exists()) {
             // Log the occurrence with more detailed information
             \Log::info('User without teams attempted to access hosting features', [
                 'user_id' => $user->id,
                 'url' => Request::fullUrl(),
                 'route' => Route::currentRouteName(),
-                'method' => Request::method()
+                'method' => Request::method(),
             ]);
+
             return false;
         }
 
@@ -43,8 +44,11 @@ class EventPolicy
      */
     public function manage(User $user, Event $event): bool
     {
-        return $user->belongsToOrganization($event->organizer) || 
-               $user->isModerator();
+        // An event whose organizer row is gone belongs to nobody but a moderator.
+        $organizer = $event->organizer;
+
+        return ($organizer !== null && $user->belongsToOrganization($organizer))
+            || $user->isModerator();
     }
 
     /**
@@ -60,8 +64,8 @@ class EventPolicy
      */
     public function duplicate(User $user, Event $event): bool
     {
-        return $user->belongsToOrganization($event->organizer) || 
-               $user->isModerator() || 
+        return $user->belongsToOrganization($event->organizer) ||
+               $user->isModerator() ||
                $user->isAdmin();
     }
 
@@ -70,8 +74,8 @@ class EventPolicy
      */
     public function viewClickStats(User $user, Event $event): bool
     {
-        return $user->belongsToOrganization($event->organizer) || 
-               $user->isModerator() || 
+        return $user->belongsToOrganization($event->organizer) ||
+               $user->isModerator() ||
                $user->isAdmin();
     }
 }

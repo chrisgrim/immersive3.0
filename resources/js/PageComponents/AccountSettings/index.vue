@@ -94,7 +94,7 @@ import ApiKeys from '../Settings/api-tokens.vue';
 // dead end. Excluding the slug from TAB_SLUGS entirely (rather than special
 // casing it later) means it's treated exactly like any other unrecognized
 // tab: falls back to DEFAULT_TAB below.
-const apiKeysEligible = !!window.Laravel?.user?.isModerator || !!window.Laravel?.mcpTokenUiPublic;
+const apiKeysEligible = !!window.Laravel?.user?.isModerator || !!window.Laravel?.mcpPublic;
 
 const TAB_SLUGS = ['personal-info', 'login-security', 'privacy', 'notifications', ...(apiKeysEligible ? ['api-keys'] : [])];
 const DEFAULT_TAB = 'personal-info';

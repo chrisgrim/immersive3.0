@@ -111,7 +111,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Routes requiring email verification
     Route::middleware(['verified'])->group(function () {
-        // API tokens for the MCP server (moderator-only until MCP_TOKEN_UI_PUBLIC)
+        // API tokens for the MCP server (moderator-only until MCP_PUBLIC)
         Route::prefix('settings')->middleware('mcp.tokens')->group(function () {
             Route::get('/api-tokens', [\App\Http\Controllers\User\ApiTokenController::class, 'index'])->name('api-tokens.index');
             Route::get('/api-tokens/list', [\App\Http\Controllers\User\ApiTokenController::class, 'list'])->name('api-tokens.list');
@@ -200,3 +200,4 @@ Route::fallback(function () {
 */
 require __DIR__.'/auth.php';
 require __DIR__.'/curated.php';
+require __DIR__.'/oauth.php';

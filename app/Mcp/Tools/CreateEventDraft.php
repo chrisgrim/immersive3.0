@@ -39,8 +39,10 @@ class CreateEventDraft extends Tool
             return Response::error('You need to belong to an organizer (team) before you can create events.');
         }
 
+        // No name in the denial: organizer ids are guessable, and this used to
+        // resolve any of them — drafts and in-review ones included — to a name.
         if (! $user->isModerator() && ! $user->belongsToOrganization($organizer)) {
-            return Response::error("You are not a member of \"{$organizer->name}\". Call whoami to see your organizers.");
+            return Response::error('You are not a member of that organizer. Call whoami to see your organizers.');
         }
 
         // Unpublished-events cap, admins exempt (same as the web flow).

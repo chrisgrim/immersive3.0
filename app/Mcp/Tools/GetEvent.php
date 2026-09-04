@@ -31,12 +31,11 @@ class GetEvent extends Tool
             ->where('slug', $validated['event_slug'])
             ->first();
 
-        if (! $event) {
-            return Response::error('No event found with that slug.');
-        }
-
-        if (! $request->user()->can('manage', $event)) {
-            return Response::error('You do not have permission to view this event.');
+        // One message whether the slug is unknown or the event is someone
+        // else's: two different messages were an existence oracle for every
+        // draft on the platform.
+        if (! $event || ! $request->user()->can('manage', $event)) {
+            return Response::error('No event with that slug that you can view. Slugs come from list-my-events; list-all-events covers published events.');
         }
 
         $event->load([

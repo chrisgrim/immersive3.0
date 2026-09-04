@@ -64,7 +64,7 @@ test('verify logs the user in with a correct code', function () {
         'code' => '123456',
     ]);
 
-    $response->assertOk()->assertJsonPath('redirect', '/');
+    $response->assertOk()->assertJsonPath('redirect', url('/'));
     $this->assertAuthenticatedAs($user);
     expect($user->fresh()->email_verified_at)->not->toBeNull();
     expect(Cache::has('login_code_verify@example.com'))->toBeFalse();
