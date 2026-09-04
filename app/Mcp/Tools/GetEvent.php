@@ -61,6 +61,10 @@ class GetEvent extends Tool
 
         return Response::json([
             'event' => $this->eventSummary($event) + [
+                // True when update-event would refuse: the run ended more
+                // than Event::EDIT_WINDOW_DAYS ago and the caller is not
+                // staff. Tell the client before it tries.
+                'edit_locked' => $event->isEditLockedFor($request->user()),
                 'tag_line' => $event->tag_line,
                 'description' => $event->description,
                 'category' => $event->category?->only(['id', 'name']),

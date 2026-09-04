@@ -370,6 +370,12 @@ const saveChanges = async () => {
             }
         }
     } catch (error) {
+        // A refusal that carries a reason is worth showing — chiefly the
+        // 90-day edit lock (Event::EDIT_LOCKED_MESSAGE) reaching an editor
+        // that was opened before the window closed.
+        if (error.response?.status === 403 && error.response.data?.message) {
+            showToast(error.response.data.message);
+        }
         console.error('Error:', error);
     } finally {
         isSubmitting.value = false;

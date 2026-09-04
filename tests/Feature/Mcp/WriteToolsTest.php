@@ -2273,7 +2273,7 @@ test('update-event says when an embargo on a finished run was refused, and store
     // save. Without it the tool answered "Event updated." with embargo_date in
     // updated_fields while the event stayed published and carried no date.
     $user = writeToolUser();
-    $past = '2020-01-01 12:00:00';
+    $past = scheduleDay(-30); // finished, but inside Event::EDIT_WINDOW_DAYS — past it the lock refuses first
     $event = liveEvent($user, 's', [$past], ['closingDate' => $past, 'embargo_date' => null]);
 
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
@@ -2296,7 +2296,7 @@ test('update-event cannot revive a finished ongoing run through ongoing_config.e
     // the closing date has to follow the shows, not the config.
     $user = writeToolUser();
     $tz = 'America/Toronto';
-    $past = '2020-01-01 12:00:00';
+    $past = scheduleDay(-30, $tz); // inside Event::EDIT_WINDOW_DAYS
     $event = liveEvent($user, 'o', [$past], ['closingDate' => $past]);
 
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
@@ -2309,7 +2309,7 @@ test('update-event cannot revive a finished ongoing run through ongoing_config.e
     ])->assertOk();
 
     $after = $event->fresh();
-    expect(substr((string) $after->closingDate, 0, 10))->toBe('2020-01-01')
+    expect(substr((string) $after->closingDate, 0, 10))->toBe(substr($past, 0, 10))
         ->and($after->isShowing)->toBeFalse();
 });
 
@@ -2317,7 +2317,7 @@ test('update-event refuses an embargo sent on its own for a finished run', funct
     // The guard used to run only alongside a schedule (Show::updateEvent needs
     // a showtype); an embargo_date by itself was stored silently.
     $user = writeToolUser();
-    $past = '2020-01-01 12:00:00';
+    $past = scheduleDay(-30); // inside Event::EDIT_WINDOW_DAYS
     $event = liveEvent($user, 's', [$past], ['closingDate' => $past, 'embargo_date' => null]);
 
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
@@ -2333,7 +2333,7 @@ test('update-event refuses an embargo sent on its own for a finished run', funct
 test('update-event cannot turn an expired sentinel into dated history by echoing its datetime', function () {
     $user = writeToolUser();
     $tz = 'America/Toronto';
-    $sentinel = '2020-01-01 12:00:00';
+    $sentinel = scheduleDay(-30, $tz); // expired, but inside Event::EDIT_WINDOW_DAYS
     $event = liveEvent($user, 'a', [$sentinel], ['closingDate' => $sentinel]);
     $future = scheduleDay(30, $tz);
 
@@ -2347,4 +2347,86 @@ test('update-event cannot turn an expired sentinel into dated history by echoing
     ])->assertOk()->assertSee('rejected_past_dates');
 
     expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([$future]);
+});
+
+// ── The 90-day edit window (Event::EDIT_WINDOW_DAYS) ──────────────────
+//
+// Same rule as the website's hosting controller, asked of the same model
+// method: a published event closed for more than 90 days is a historical
+// record that organizers can no longer change. There is no duplicate tool,
+// so the refusal points at create-event-draft.
+
+test('update-event refuses a published event that ended more than 90 days ago', function () {
+    $user = writeToolUser();
+    $past = scheduleDay(-(Event::EDIT_WINDOW_DAYS + 30));
+    $event = liveEvent($user, 's', [$past], ['closingDate' => $past, 'name' => 'The Archive']);
+
+    $response = EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'name' => 'The Archive Rewritten',
+        'acknowledge_duplicate' => true,
+    ]);
+
+    $response->assertHasErrors()->assertSee('create-event-draft');
+    expect($event->fresh()->name)->toBe('The Archive');
+});
+
+test('update-event still edits a published event that ended within the last 90 days', function () {
+    $user = writeToolUser();
+    $past = scheduleDay(-(Event::EDIT_WINDOW_DAYS - 1));
+    $event = liveEvent($user, 's', [$past], ['closingDate' => $past, 'description' => 'Original.']);
+
+    $response = EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'description' => 'Back for another run.',
+        'confirm_live_edit' => true,
+    ]);
+
+    $response->assertOk();
+    expect($event->fresh()->description)->toBe('Back for another run.');
+});
+
+test('a moderator can update-event a published event that ended more than 90 days ago', function () {
+    $owner = writeToolUser();
+    $past = scheduleDay(-(Event::EDIT_WINDOW_DAYS + 30));
+    $event = liveEvent($owner, 's', [$past], ['closingDate' => $past, 'description' => 'Original.']);
+
+    $response = EiServer::actingAs(writeToolUser('m'))->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'description' => 'Historical correction.',
+        'confirm_live_edit' => true,
+    ]);
+
+    $response->assertOk();
+    expect($event->fresh()->description)->toBe('Historical correction.');
+});
+
+test('attach-event-image refuses a published event that ended more than 90 days ago', function () {
+    $user = writeToolUser();
+    $past = scheduleDay(-(Event::EDIT_WINDOW_DAYS + 30));
+    $event = liveEvent($user, 's', [$past], ['closingDate' => $past]);
+
+    $response = EiServer::actingAs($user)->tool(\App\Mcp\Tools\AttachEventImage::class, [
+        'event_slug' => $event->slug,
+        'image_url' => 'https://images.example.com/pixel.png',
+        'rank' => 0,
+    ]);
+
+    $response->assertHasErrors()->assertSee('historical record');
+    expect($event->images()->count())->toBe(0);
+});
+
+test('get-event and list-my-events say when the caller is locked out', function () {
+    // So a client can tell the user before an update-event that would only
+    // be refused. The flag is per caller: a moderator is never locked out.
+    $user = writeToolUser();
+    $past = scheduleDay(-(Event::EDIT_WINDOW_DAYS + 30));
+    $event = liveEvent($user, 's', [$past], ['closingDate' => $past]);
+
+    EiServer::actingAs($user)->tool(\App\Mcp\Tools\GetEvent::class, ['event_slug' => $event->slug])
+        ->assertOk()->assertSee('"edit_locked":true');
+    EiServer::actingAs($user)->tool(\App\Mcp\Tools\ListMyEvents::class, [])
+        ->assertOk()->assertSee('"edit_locked":true');
+    EiServer::actingAs(writeToolUser('m'))->tool(\App\Mcp\Tools\GetEvent::class, ['event_slug' => $event->slug])
+        ->assertOk()->assertSee('"edit_locked":false');
 });

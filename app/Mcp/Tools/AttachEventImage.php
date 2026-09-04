@@ -44,6 +44,12 @@ class AttachEventImage extends Tool
             return Response::error('You do not have permission to edit this event.');
         }
 
+        // See UpdateEvent: a long-finished published event is read-only to
+        // its organizers.
+        if ($event->isEditLockedFor($user)) {
+            return Response::error(self::EDIT_LOCKED_MESSAGE);
+        }
+
         // Site rule: once submitted, an event is locked until an admin
         // approves or rejects it (moderators can still edit).
         if ($event->status === 'r' && ! $user->isModerator()) {

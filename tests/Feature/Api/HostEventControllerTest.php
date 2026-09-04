@@ -210,9 +210,11 @@ test('update is denied to non-members (403)', function () {
  * duplicate flow, which starts a new listing at a new URL and abandons the
  * original's favourites and click stats.
  *
- * It is editable now. The record is protected by the narrower rule below
- * instead: Show::saveShows() will not DELETE an already-passed show for a
- * non-moderator, so history can be added to but not erased.
+ * It is editable now, for Event::EDIT_WINDOW_DAYS after the run ends (the
+ * lock that starts after that is tested at the bottom of this file). Inside
+ * the window the record is protected by the narrower rule instead: Show::
+ * saveShows() will not DELETE an already-passed show for a non-moderator, so
+ * history can be added to but not erased.
  */
 test('an organizer can edit an event whose run has already fully ended', function () {
     $organizer = Organizer::factory()->create();
@@ -1075,4 +1077,203 @@ test('echoing an expired sentinel datetime cannot turn it into dated history', f
 
     expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toBe([$future]);
     expect($response->json('warning'))->toContain(substr($sentinel, 0, 10));
+});
+
+// ----- The 90-day edit window (Event::EDIT_WINDOW_DAYS) -----
+
+/*
+ * A published event whose run ended more than 90 days ago is a historical
+ * record. Its organizers can no longer edit, rename or delete it — only
+ * duplicate it into a new listing, which is the route the dashboard's modal
+ * offers. Inside the window a finished run stays editable (the reopen tests
+ * above), and moderators and admins are exempt throughout.
+ */
+function historicalEvent(Organizer $organizer, array $overrides = []): Event
+{
+    return Event::factory()->published()->create(array_merge([
+        'organizer_id' => $organizer->id,
+        'closingDate' => now()->subDays(Event::EDIT_WINDOW_DAYS + 1),
+        'description' => 'What happened.',
+    ], $overrides));
+}
+
+test('an organizer cannot edit a published event that ended more than 90 days ago', function () {
+    $organizer = Organizer::factory()->create();
+    $event = historicalEvent($organizer);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", ['description' => 'Rewriting history.'])
+        ->assertStatus(403)
+        ->assertJsonPath('message', Event::EDIT_LOCKED_MESSAGE);
+
+    expect($event->fresh()->description)->toBe('What happened.');
+});
+
+test('an organizer can still edit a published event that ended within the last 90 days', function () {
+    // The reopen window: a just-finished run can have dates added and come
+    // back at its own URL. The lock starts only once that window has passed.
+    $organizer = Organizer::factory()->create();
+    $event = historicalEvent($organizer, ['closingDate' => now()->subDays(Event::EDIT_WINDOW_DAYS - 1)]);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", ['description' => 'Back for another run.'])
+        ->assertOk();
+
+    expect($event->fresh()->description)->toBe('Back for another run.');
+});
+
+test('a moderator can edit a published event that ended more than 90 days ago', function () {
+    $organizer = Organizer::factory()->create();
+    $event = historicalEvent($organizer);
+    $moderator = User::factory()->create(['type' => 'm']);
+
+    $this->actingAs($moderator)
+        ->postJson("/api/hosting/event/{$event->slug}", ['description' => 'Historical correction.'])
+        ->assertOk();
+
+    expect($event->fresh()->description)->toBe('Historical correction.');
+});
+
+test('an admin can edit a published event that ended more than 90 days ago', function () {
+    $organizer = Organizer::factory()->create();
+    $event = historicalEvent($organizer);
+    $admin = User::factory()->create(['type' => 'a']);
+
+    $this->actingAs($admin)
+        ->postJson("/api/hosting/event/{$event->slug}", ['description' => 'Backfilled.'])
+        ->assertOk();
+
+    expect($event->fresh()->description)->toBe('Backfilled.');
+});
+
+test('a draft whose dates are more than 90 days past is not locked', function () {
+    // Never published, so there is no record to preserve — and a locked
+    // draft could be neither finished nor deleted, only abandoned.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'status' => 'd',
+        'closingDate' => now()->subYear(),
+        'description' => 'Original.',
+    ]);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/hosting/event/{$event->slug}", ['description' => 'Still drafting.'])
+        ->assertOk();
+
+    expect($event->fresh()->description)->toBe('Still drafting.');
+    expect($event->fresh()->isHistorical())->toBeFalse();
+});
+
+test('the edit page for a locked event sends the organizer to the dashboard with the lock named', function () {
+    // A page, not an API call: the dashboard opens the explanation and the
+    // Duplicate offer from ?locked=, wherever the Edit link was.
+    $organizer = Organizer::factory()->create();
+    $event = historicalEvent($organizer);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->get("/hosting/event/{$event->slug}/edit")
+        ->assertRedirect(route('hosting.dashboard', ['locked' => $event->slug]));
+});
+
+test('the edit page for a locked event still loads for a moderator', function () {
+    $organizer = Organizer::factory()->create();
+    $event = historicalEvent($organizer);
+    $moderator = User::factory()->create(['type' => 'm']);
+
+    $this->actingAs($moderator)
+        ->get("/hosting/event/{$event->slug}/edit")
+        ->assertOk();
+});
+
+test('an organizer cannot delete a published event that ended more than 90 days ago', function () {
+    $organizer = Organizer::factory()->create();
+    $event = historicalEvent($organizer);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->deleteJson(route('hosting.event.destroy', $event))
+        ->assertStatus(403);
+
+    expect($event->fresh()->trashed())->toBeFalse();
+});
+
+test('an organizer cannot request a name change on a locked event', function () {
+    $organizer = Organizer::factory()->create();
+    $event = historicalEvent($organizer, ['name' => 'The Archive']);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson(route('hosting.event.name.change', $event), [
+            'requested_name' => 'The Archive Rewritten',
+            'current_name' => 'The Archive',
+        ])
+        ->assertStatus(403);
+
+    expect($event->nameChangeRequests()->count())->toBe(0);
+});
+
+test('an organizer can still duplicate a locked event, which is the route offered', function () {
+    $organizer = Organizer::factory()->create();
+    $event = historicalEvent($organizer, ['name' => 'The Archive']);
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)
+        ->postJson("/api/events/{$event->slug}/duplicate")
+        ->assertCreated();
+
+    expect(Event::where('name', 'The Archive (Copy)')->where('status', '0')->exists())->toBeTrue();
+    expect($event->fresh()->name)->toBe('The Archive');
+});
+
+test('the lock is appended to the event JSON for the signed-in viewer', function () {
+    // The dashboard reads this rather than working the rule out from
+    // closingDate itself, so it cannot disagree with the refusal behind it.
+    $organizer = Organizer::factory()->create();
+    $event = historicalEvent($organizer);
+    $inWindow = historicalEvent($organizer, ['closingDate' => now()->subDays(10)]);
+    $user = memberOf($organizer);
+    $moderator = User::factory()->create(['type' => 'm']);
+
+    $this->actingAs($user);
+    expect($event->fresh()->toArray()['isEditLocked'])->toBeTrue();
+    expect($inWindow->fresh()->toArray()['isEditLocked'])->toBeFalse();
+
+    $this->actingAs($moderator);
+    expect($event->fresh()->toArray()['isEditLocked'])->toBeFalse();
+});
+
+test('the lock predicate: boundary, statuses, null closing date, and no signed-in user', function () {
+    $organizer = Organizer::factory()->create();
+    $window = Event::EDIT_WINDOW_DAYS;
+
+    // "More than 90 days" is strict: a minute inside the window is still editable.
+    expect(historicalEvent($organizer, ['closingDate' => now()->subDays($window)->addMinute()])->isHistorical())->toBeFalse();
+    expect(historicalEvent($organizer, ['closingDate' => now()->subDays($window)->subMinute()])->isHistorical())->toBeTrue();
+
+    // Embargoed is approved content and locks like published.
+    expect(historicalEvent($organizer, ['status' => 'e'])->isHistorical())->toBeTrue();
+
+    // A published event with no closing date cannot be judged, so it is not locked.
+    expect(historicalEvent($organizer, ['closingDate' => null])->isHistorical())->toBeFalse();
+
+    // A closing date still ahead — e.g. an always-available event's six-month
+    // default (Show::calculateLastDate) — is not historical.
+    expect(historicalEvent($organizer, ['showtype' => 'a', 'closingDate' => now()->addMonths(6)])->isHistorical())->toBeFalse();
+
+    // Nothing that was never published locks, whatever its dates: wizard step
+    // markers, rejected, under review, or the bare draft.
+    foreach (['0', '1', '7', 'C', 'd', 'n', 'r'] as $status) {
+        $event = Event::factory()->create(['organizer_id' => $organizer->id, 'status' => $status, 'closingDate' => now()->subYear()]);
+        expect($event->isHistorical())->toBeFalse("status {$status} should not be historical");
+    }
+
+    // With nobody signed in (a queued job, the CLI) the appended flag reports
+    // the event as locked rather than guessing at an exemption.
+    auth()->logout();
+    expect(historicalEvent($organizer)->toArray()['isEditLocked'])->toBeTrue();
 });

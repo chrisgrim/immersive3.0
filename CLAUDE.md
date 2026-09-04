@@ -118,6 +118,7 @@ GitHub Actions (`.github/workflows/deploy.yml`). ⚠️ **Trigger → target:** 
 
 - **NEVER `git push` or trigger remote deploys without explicit user permission.** Local commits are fine. `git push`, `gh workflow run`, and anything that hits CI/CD or prod requires an explicit "push" / "ship" / "deploy" from the user each time. This applies even if the previous push went green and the next change looks small. Don't auto-push between iterations during a review cycle.
 - Events use `SoftDeletes` — always check for soft-deleted records
+- **90-day edit lock**: a published/embargoed event whose `closingDate` is more than `Event::EDIT_WINDOW_DAYS` (90) in the past is read-only to organizers on every write path (hosting controller + MCP tools) via `Event::isEditLockedFor()`; moderators/admins exempt, drafts never locked, `duplicate` stays open. Appended to event JSON as `isEditLocked`; the dashboard shows a modal offering Duplicate, and `/hosting/event/{slug}/edit` redirects there with `?locked=`.
 - Event search index only includes published events (`shouldBeSearchable()` checks `status === 'p'`)
 - Image paths stored on models (`largeImagePath`, `thumbImagePath`) AND in polymorphic `images` table
 - The `closingDate` on events determines visibility; shows have individual dates

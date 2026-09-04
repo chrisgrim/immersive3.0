@@ -20,24 +20,36 @@ class HostEventController extends Controller
         $this->nameChangeService = $nameChangeService;
     }
 
-    /*
-     * A finished run is NOT read-only. Editing one used to 403 for anyone but
-     * a moderator, on the reasoning that rewriting a past event's details
-     * misrepresents what happened — but it also blocked the most ordinary
-     * reason an organizer comes back to a finished event: they are running
-     * the show again and want to add dates. Their only route was duplicating,
-     * which starts a new listing at a new URL and abandons the original's
-     * favourites, click stats and search history.
+    /**
+     * A published event whose run ended more than Event::EDIT_WINDOW_DAYS ago
+     * is a historical record. Its organizers can no longer edit, rename or
+     * delete it; the one route left open on purpose is duplicate(), which
+     * starts the new listing the dashboard's modal offers. Moderators and
+     * admins stay exempt for corrections and backfills.
      *
-     * What actually protects the record is narrower and lives deeper: Show::
-     * saveShows() refuses to delete a show whose date has already passed for
-     * any non-moderator, on every write path, and reports the ones it kept.
-     * So the history cannot be erased, only added to — which is the real
-     * invariant, and it holds without locking the whole event.
+     * Inside the window a finished run is still editable, so an organizer can
+     * add dates to a just-ended event and bring it back at its own URL rather
+     * than as a new listing; Show::saveShows() keeps the past shows from
+     * being erased meanwhile. The rule itself lives on the model
+     * (Event::isEditLockedFor), shared with the MCP tools, and is appended
+     * to the event JSON as isEditLocked so the dashboard can explain before
+     * it asks.
      */
+    private function assertEditable(Event $event): void
+    {
+        abort_if($event->isEditLockedFor(auth()->user()), 403, Event::EDIT_LOCKED_MESSAGE);
+    }
 
     public function edit(Event $event)
     {
+        // A page, not an API call: rather than a bare 403 wall, land on the
+        // dashboard with the lock explained and the duplicate offered. Every
+        // other Edit link ends up here too (the public event page, admin
+        // lists, inbox links, bookmarks), so one modal covers them all.
+        if ($event->isEditLockedFor(auth()->user())) {
+            return redirect()->route('hosting.dashboard', ['locked' => $event->slug]);
+        }
+
         $event->load([
             'shows.tickets',
             'location',
@@ -64,6 +76,8 @@ class HostEventController extends Controller
 
     public function update(StoreEventRequest $request, Event $event, UpdateEventAction $updateEvent)
     {
+        $this->assertEditable($event);
+
         $validatedData = $request->validated();
 
         // Check for duplicate event names if name is being updated (skip if user acknowledged)
@@ -140,6 +154,8 @@ class HostEventController extends Controller
 
     public function destroy(Event $event)
     {
+        $this->assertEditable($event);
+
         $wasPublished = in_array($event->status, ['p', 'e']);
 
         $event->delete();
@@ -220,6 +236,8 @@ class HostEventController extends Controller
 
     public function nameChange(Request $request, Event $event)
     {
+        $this->assertEditable($event);
+
         try {
             $wouldBeSlug = \Illuminate\Support\Str::slug($request->requested_name);
 

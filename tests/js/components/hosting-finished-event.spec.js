@@ -8,11 +8,13 @@
  * add dates. Their only route was duplicating, which starts a new listing at a
  * new URL and abandons the original's favourites and click stats.
  *
- * A finished run is editable now. What protects the record is narrower and
- * lives in Show::saveShows(), which refuses to DELETE an already-passed show
- * for a non-moderator on every write path — history can be added to, not
- * erased. So there is nothing left for this dashboard to refuse; these lock in
- * that it doesn't, and that it opens where the organizer actually needs to be.
+ * A finished run is editable now, for 90 days (Event::EDIT_WINDOW_DAYS). What
+ * protects the record meanwhile is narrower and lives in Show::saveShows(),
+ * which refuses to DELETE an already-passed show for a non-moderator on every
+ * write path — history can be added to, not erased. So inside that window
+ * there is nothing for this dashboard to refuse; these lock in that it
+ * doesn't, and that it opens where the organizer actually needs to be. What
+ * happens once the window has passed is hosting-locked-event.spec.js.
  */
 import { mount } from '@vue/test-utils';
 import HostingDashboard from '@/PageComponents/Creation/index.vue';

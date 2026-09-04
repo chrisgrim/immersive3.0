@@ -326,6 +326,65 @@
 			</div>
 		</div>
 
+		<!-- Locked Event Modal — a published run that ended more than 90 days ago (Event::EDIT_WINDOW_DAYS) -->
+		<teleport to="body">
+			<div v-if="lockedEvent"
+				 class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50"
+				 @click="closeLockedModal">
+				<div class="bg-white w-full md:max-w-[56rem] md:mx-4 rounded-t-[3.2rem] md:rounded-[3.2rem] shadow-2xl relative max-h-[92vh] overflow-y-auto px-[2.4rem] pt-[5.2rem] pb-[3.2rem] md:px-[4rem] md:pt-[5.6rem] md:pb-[4rem]"
+					 role="dialog"
+					 aria-modal="true"
+					 aria-labelledby="locked-event-title"
+					 @click.stop>
+					<button
+						@click="closeLockedModal"
+						aria-label="Close"
+						class="absolute top-[1.6rem] right-[1.6rem] w-[4rem] h-[4rem] rounded-full flex items-center justify-center hover:bg-gray-100">
+						<svg class="w-[2rem] h-[2rem]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+							<path stroke-linecap="round" d="M6 6l12 12M18 6L6 18" />
+						</svg>
+					</button>
+
+					<div class="text-center">
+						<p class="text-[1.6rem] font-medium text-gray-500">{{ lockedEventEnded }}</p>
+
+						<div class="flex justify-center my-[2.8rem]">
+							<img v-if="lockedEventImage"
+								 :src="lockedEventImage"
+								 :alt="lockedEvent.name || ''"
+								 class="h-[15rem] w-[11.25rem] object-cover rounded-[1.2rem] shadow-lg">
+							<div v-else class="h-[15rem] w-[11.25rem] rounded-[1.2rem] bg-gray-100 flex items-center justify-center">
+								<svg class="w-[4.8rem] h-[4.8rem] text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+									<rect x="3" y="5" width="18" height="16" rx="2" />
+									<path stroke-linecap="round" d="M3 10h18M8 3v4M16 3v4" />
+									<path stroke-linecap="round" stroke-linejoin="round" d="M12 13v3l2 1" />
+								</svg>
+							</div>
+						</div>
+
+						<h3 id="locked-event-title" class="text-[2.6rem] md:text-[3rem] leading-[1.15] tracking-tight font-bold break-words hyphens-auto">
+							Trying to edit an event that is over 90 days old?
+						</h3>
+
+						<p class="mt-[1.6rem] text-[1.6rem] text-gray-500 leading-[1.5] max-w-[42rem] mx-auto">
+							If you wish to add new dates to your event, please duplicate the existing one and create a new listing, e.g. “Event Name ({{ suggestionYear }})”.
+						</p>
+
+						<button
+							@click="duplicateLockedEvent"
+							:disabled="duplicatingLocked"
+							class="mt-[3.2rem] w-full md:w-auto h-[4.8rem] px-[3.2rem] bg-black text-white text-[1.6rem] font-semibold rounded-[1.2rem] hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed">
+							{{ duplicatingLocked ? 'Duplicating…' : 'Duplicate event' }}
+						</button>
+
+						<p class="mt-[3.2rem] text-[1.1rem] text-gray-500 leading-[1.6]">
+							This helps us preserve the historical record of past events. Need help? Contact us at: <a href="mailto:support@everythingimmersive.com" class="underline hover:text-black">support@everythingimmersive.com</a>
+						</p>
+					</div>
+				</div>
+			</div>
+		</teleport>
+
 		<!-- Name Change Modal -->
 		<teleport to="body">
 			<div v-if="showNameChangeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
@@ -414,6 +473,16 @@ onMounted(() => {
 		submittedEventName.value = submitted;
 		showSubmissionModal.value = true;
 	}
+
+	// /hosting/event/{slug}/edit sends a locked event here, from wherever
+	// the Edit link was (the public event page, an inbox link, a bookmark),
+	// so the explanation lives in one place. The event may belong to one of
+	// the user's OTHER organizers and so be absent from this list; the modal
+	// only needs the slug to offer the duplicate.
+	const locked = urlParams.get('locked');
+	if (locked) {
+		lockedEvent.value = props.organizer?.events?.find((e) => e.slug === locked) || { slug: locked };
+	}
 });
 
 // Modal functions
@@ -440,6 +509,11 @@ const editEvent = (event) => {
 		return;
 	}
 
+	if (event.isEditLocked) {
+		openLockedModal(event);
+		return;
+	}
+
 	// Get the status info to determine the correct view
 	const statusInfo = getStatusInfo(event, cleanDate);
 
@@ -449,6 +523,11 @@ const editEvent = (event) => {
 };
 
 const confirmRemoveEvent = async (event) => {
+	if (event.isEditLocked) {
+		openLockedModal(event);
+		return;
+	}
+
 	if (confirm('Are you sure you want to remove this event?')) {
 		try {
 			await axios.delete(`/hosting/event/${event.slug}`);
@@ -647,6 +726,70 @@ const cancelNameChange = () => {
 const selectFilter = (id) => {
 	currentFilter.value = id;
 	isOpen.value = false;
+};
+
+// The event an organizer just tried to edit or delete after its run ended
+// more than 90 days ago. isEditLocked is the SERVER's answer, appended to
+// the event JSON (Event::isEditLockedFor — it already exempts moderators
+// and admins), so this never disagrees with the refusal behind it; the
+// modal just gets there first and offers the duplicate.
+const lockedEvent = ref(null);
+const duplicatingLocked = ref(false);
+
+// The year in the suggested "Event Name (2026)" is always the current one.
+const suggestionYear = new Date().getFullYear();
+
+// The event's own poster is the hero, like the rows above use; the redirect
+// case may only know the slug, and then a placeholder stands in.
+const lockedEventImage = computed(() => {
+	const event = lockedEvent.value;
+	if (!event) return null;
+	if (event.images?.length) return `${imageUrl}${event.images[0].large_image_path}`;
+	if (event.thumbImagePath) return `${imageUrl}${event.thumbImagePath}`;
+	return null;
+});
+
+const lockedEventEnded = computed(() =>
+	lockedEvent.value?.closingDate ? `Ended ${cleanDate(lockedEvent.value.closingDate)}` : 'Past event'
+);
+
+const openLockedModal = (event) => {
+	lockedEvent.value = event;
+	closeModal();
+};
+
+const closeLockedModal = () => {
+	lockedEvent.value = null;
+
+	// Arrived by redirect? Drop the ?locked= so a reload doesn't reopen this.
+	if (new URLSearchParams(window.location.search).has('locked')) {
+		window.history.replaceState({}, document.title, window.location.pathname);
+	}
+};
+
+// The answer to "so what do I do instead?": Event::duplicate() copies the
+// description, category, genres and advisories but drops the dates, tickets
+// and closing date — the shape of a new run. No confirm(): this modal IS the
+// prompt. The copy opens in the wizard, where the organizer renames it.
+const duplicateLockedEvent = async () => {
+	const event = lockedEvent.value;
+	if (!event) return;
+
+	duplicatingLocked.value = true;
+
+	try {
+		// The slug may have come straight from ?locked=, so it is encoded here.
+		const response = await axios.post(`/api/events/${encodeURIComponent(event.slug)}/duplicate`);
+		window.location.href = `/hosting/event/${response.data.event.slug}/edit`;
+	} catch (error) {
+		duplicatingLocked.value = false;
+		if (error.response?.status === 422) {
+			alert(error.response.data.message);
+		} else {
+			console.error('Error duplicating event:', error);
+			alert('Failed to duplicate event. Please try again.');
+		}
+	}
 };
 
 const duplicateEvent = async (event) => {

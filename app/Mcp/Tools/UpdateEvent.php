@@ -18,7 +18,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Partially update an event: send only the fields you are changing. Works on any event you can manage — for moderators and admins that is EVERY event on the platform, not just your own organizers (find slugs with list-all-events). Uses the same validation as the website. All dates are UTC "Y-m-d H:i:s". Set showtype + dates before or together with tickets. Publishing is impossible from here — use submit-event-for-review when the draft is complete.')]
+#[Description('Partially update an event: send only the fields you are changing. Works on any event you can manage — for moderators and admins that is EVERY event on the platform, not just your own organizers (find slugs with list-all-events). Uses the same validation as the website. An event whose run ended more than 90 days ago is a historical record: organizers can no longer edit it (moderators and admins can) — create a new listing with create-event-draft instead. All dates are UTC "Y-m-d H:i:s". Set showtype + dates before or together with tickets. Publishing is impossible from here — use submit-event-for-review when the draft is complete.')]
 class UpdateEvent extends Tool
 {
     use BuildsSyntheticRequests;
@@ -109,10 +109,14 @@ class UpdateEvent extends Tool
             }
         }
 
-        // A finished run is editable — see the note in HostEventController
-        // where the matching web-wizard lock used to be. What stops history
-        // being rewritten is Show::saveShows() refusing to delete an
-        // already-passed show for a non-moderator, not a lock on the event.
+        // Same rule as HostEventController::assertEditable(): a published
+        // event closed for more than Event::EDIT_WINDOW_DAYS is a historical
+        // record that only staff may change. Inside the window a finished
+        // run is still editable — Show::saveShows() keeps its past shows
+        // from being erased meanwhile.
+        if ($event->isEditLockedFor($user)) {
+            return Response::error(self::EDIT_LOCKED_MESSAGE);
+        }
 
         // Site rule: once submitted, an event is locked until an admin
         // approves or rejects it (moderators can still edit).

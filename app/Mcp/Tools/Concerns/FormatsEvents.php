@@ -7,6 +7,14 @@ use App\Models\Event;
 trait FormatsEvents
 {
     /**
+     * Refusal for a write to an event that has left its edit window
+     * (Event::EDIT_WINDOW_DAYS). The website's version of this message points
+     * at the Duplicate button; there is no duplicate tool here, so it points
+     * at the draft tool instead.
+     */
+    protected const EDIT_LOCKED_MESSAGE = 'This event ended more than 90 days ago and is kept as a historical record, so its organizers can no longer edit it (moderators and admins can). To run it again, create a new listing with create-event-draft — e.g. "Event Name (2026)" or "Event Name (Fall 2026)". Need help? Contact support@everythingimmersive.com';
+
+    /**
      * Human-readable label for an event status char.
      */
     protected function statusLabel(?string $status): string

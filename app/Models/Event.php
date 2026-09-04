@@ -49,7 +49,7 @@ class Event extends Model
         'slug', 'user_id', 'timezone', 'category_id', 'attendance_type_id', 'interactive_level_id', 'organizer_id', 'description', 'name', 'largeImagePath', 'thumbImagePath', 'advisories_id', 'organizer_id', 'location_latlon', 'closingDate', 'websiteUrl', 'ticketUrl', 'show_times', 'price_range', 'status', 'tag_line', 'hasLocation', 'showtype', 'showtype_config', 'start_date', 'embargo_date', 'remote_description', 'published_at', 'call_to_action', 'age_limits_id', 'rank', 'archived',
     ];
 
-    protected $appends = ['isFavorited', 'isShowing'];
+    protected $appends = ['isFavorited', 'isShowing', 'isEditLocked'];
 
     protected $hidden = ['favorites', 'currentUserFavorite'];
 
@@ -217,6 +217,63 @@ class Event extends Model
     public function getIsShowingAttribute()
     {
         return $this->closingDate >= Carbon::now();
+    }
+
+    /**
+     * How long after its run ends an event stays editable by its organizers.
+     * Past this a published event is a historical record: only moderators
+     * and admins can change it, and an organizer running the show again
+     * duplicates it into a new listing instead (duplicate() below). Inside
+     * the window a finished run is still editable, so an organizer can add
+     * dates to a just-ended event and bring it back at its own URL.
+     */
+    public const EDIT_WINDOW_DAYS = 90;
+
+    /**
+     * What an organizer is told wherever the lock is hit on the website. The
+     * dashboard's modal (Creation/index.vue) carries the same words.
+     */
+    public const EDIT_LOCKED_MESSAGE = 'Trying to edit an event that is over 90 days old? If you wish to add new dates to your event, please duplicate the existing one and create a new listing, e.g. "Event Name (2026)" or "Event Name (Fall 2026)". This helps us preserve the historical record of past events. Need help? Contact us at: support@everythingimmersive.com';
+
+    /**
+     * Whether the event has left its edit window: published (or embargoed,
+     * which is approved content) and closed more than EDIT_WINDOW_DAYS ago.
+     *
+     * A draft never qualifies, whatever its dates: it was never on the site,
+     * so there is no record to preserve, and locking it would strand an
+     * abandoned draft that could then be neither finished nor deleted. A
+     * null closingDate means no schedule yet, not "long ago".
+     */
+    public function isHistorical(): bool
+    {
+        if (! in_array($this->status, ['p', 'e'], true) || $this->closingDate === null) {
+            return false;
+        }
+
+        return Carbon::parse((string) $this->closingDate)
+            ->lt(Carbon::now()->subDays(self::EDIT_WINDOW_DAYS));
+    }
+
+    /**
+     * Whether $user is refused changes to this event because it is
+     * historical. Moderators and admins keep it for corrections and
+     * backfills. Every write path — the hosting controller and the MCP
+     * tools — asks this one question, so the rule cannot drift between them.
+     */
+    public function isEditLockedFor(?User $user): bool
+    {
+        return $this->isHistorical() && ! $user?->isModerator();
+    }
+
+    /**
+     * The same answer for the signed-in viewer, appended to the JSON so the
+     * dashboard can show the lock modal instead of sending a request that
+     * would be refused. Runs no query: closingDate is a column and the user
+     * is already loaded, so it is safe on bulk serialization.
+     */
+    public function getIsEditLockedAttribute(): bool
+    {
+        return $this->isEditLockedFor(auth()->user());
     }
 
     /**

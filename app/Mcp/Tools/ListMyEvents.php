@@ -45,6 +45,9 @@ class ListMyEvents extends Tool
             'events' => $events->map(fn (Event $event) => $this->eventSummary($event) + [
                 'updated_at' => $event->updated_at?->toIso8601String(),
                 'archived' => (bool) $event->archived,
+                // See GetEvent: a long-finished published event is read-only
+                // to its organizers.
+                'edit_locked' => $event->isEditLockedFor($request->user()),
             ]),
         ]);
     }
