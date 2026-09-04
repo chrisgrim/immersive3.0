@@ -415,13 +415,36 @@ class Show extends Model
             ->format('Y-m-d H:i:s');
     }
 
-    /** A junk or blank timezone must never 500 a save or a page: read it as UTC. */
+    /**
+     * Legacy aliases still stored on some events (US/Eastern on nine
+     * published ones). The server's PHP reads the system tz database, which
+     * carries none of the "backward" aliases, so these must be mapped rather
+     * than trusted — a local PHP with the bundled database accepts them,
+     * which is how the difference went unnoticed until the first prod run.
+     */
+    private const TIMEZONE_ALIASES = [
+        'US/Eastern' => 'America/New_York',
+        'US/Central' => 'America/Chicago',
+        'US/Mountain' => 'America/Denver',
+        'US/Arizona' => 'America/Phoenix',
+        'US/Pacific' => 'America/Los_Angeles',
+        'US/Alaska' => 'America/Anchorage',
+        'US/Hawaii' => 'Pacific/Honolulu',
+    ];
+
+    /**
+     * A timezone the running PHP will accept: legacy aliases mapped to their
+     * canonical zone, anything blank or unknown read as UTC. A junk value
+     * must never 500 a save or a page.
+     */
     public static function validTimezone(?string $tz): string
     {
-        try {
-            new \DateTimeZone($tz ?: 'UTC');
+        $tz = self::TIMEZONE_ALIASES[$tz] ?? ($tz ?: 'UTC');
 
-            return $tz ?: 'UTC';
+        try {
+            new \DateTimeZone($tz);
+
+            return $tz;
         } catch (\Throwable) {
             return 'UTC';
         }
@@ -768,7 +791,7 @@ class Show extends Model
      */
     private static function normalizationPlan(Event $event, bool $onlyShifted, bool $lock): array
     {
-        $tz = $event->timezone ?: 'UTC';
+        $tz = self::validTimezone($event->timezone);
         $query = self::withoutGlobalScope(DateScope::class)
             ->where('event_id', $event->id)
             ->orderBy('id');
@@ -864,7 +887,7 @@ class Show extends Model
     private static function calculateLastDate(Event $event, string $type, $request = null): string
     {
         // Get the event's timezone, default to UTC
-        $timezone = $request->timezone ?? $event->timezone ?? 'UTC';
+        $timezone = self::validTimezone($request->timezone ?? $event->timezone ?? 'UTC');
 
         // The sentinel types have no real performances: their one show row IS
         // the end date (targetDatesFor), so the config is the schedule.

@@ -269,7 +269,7 @@ class UpdateEvent extends Tool
             && isset($validated['ongoing_config'])) {
             $cfg = $validated['ongoing_config'];
             if (! empty($cfg['startDate']) && ! empty($cfg['endDate']) && ! empty($cfg['daysOfWeek'])) {
-                $tz = $validated['timezone'] ?? $event->timezone ?? 'UTC';
+                $tz = Show::validTimezone($validated['timezone'] ?? $event->timezone ?? 'UTC');
 
                 try {
                     $validated['dateArray'] = RecurringDates::expand($cfg['daysOfWeek'], $cfg['startDate'], $cfg['endDate'], $tz);
@@ -305,7 +305,7 @@ class UpdateEvent extends Tool
         // event's timezone) to a single show. The time-of-day belongs in the
         // free-text show_times field, not in duplicate shows.
         if (isset($validated['dateArray']) && is_array($validated['dateArray'])) {
-            $tz = $validated['timezone'] ?? $event->timezone ?? 'UTC';
+            $tz = Show::validTimezone($validated['timezone'] ?? $event->timezone ?? 'UTC');
             $validated['dateArray'] = $this->collapseToOneShowPerDay($validated['dateArray'], $tz);
         }
 
@@ -318,7 +318,7 @@ class UpdateEvent extends Tool
         // shows on a past day are always preserved (a running event legitimately
         // has past occurrences); offenders are named so the caller can correct them.
         if (! empty($validated['dateArray']) && is_array($validated['dateArray'])) {
-            $tz = $validated['timezone'] ?? $event->timezone ?? 'UTC';
+            $tz = Show::validTimezone($validated['timezone'] ?? $event->timezone ?? 'UTC');
             $floor = $user->isAdmin()
                 ? \Illuminate\Support\Carbon::now($tz)->subYears(10)->toDateString()
                 : \Illuminate\Support\Carbon::now($tz)->toDateString();
@@ -560,7 +560,7 @@ class UpdateEvent extends Tool
         // list that names the same days at different times removes nothing,
         // so it must not demand a confirmation for a deletion that won't happen.
         if (isset($validated['dateArray']) && in_array($showtype, ['s', 'o'], true)) {
-            $tz = $validated['timezone'] ?? $event->timezone ?? 'UTC';
+            $tz = Show::validTimezone($validated['timezone'] ?? $event->timezone ?? 'UTC');
             $keptDays = collect($validated['dateArray'])
                 ->map(function ($d) use ($tz) {
                     try {

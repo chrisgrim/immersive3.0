@@ -385,3 +385,36 @@ test('a genuinely new day still tells favoriters', function () {
         'dateArray' => [HOUSTON_NOON_UTC, '2030-11-02 17:00:00'],
     ])->assertOk();
 });
+
+// ============================================================
+// Timezones the running PHP may not know
+// ============================================================
+
+test('a legacy timezone alias is mapped to its zone, junk falls back to UTC', function () {
+    // The server's PHP uses the system tz database, which has none of the
+    // "backward" aliases; nine published events still say US/Eastern.
+    expect(Show::validTimezone('US/Eastern'))->toBe('America/New_York');
+    expect(Show::validTimezone('US/Pacific'))->toBe('America/Los_Angeles');
+    expect(Show::validTimezone('America/Chicago'))->toBe('America/Chicago');
+    expect(Show::validTimezone('Nowhere/Nothing'))->toBe('UTC');
+    expect(Show::validTimezone(''))->toBe('UTC');
+    expect(Show::validTimezone(null))->toBe('UTC');
+});
+
+test('an event on a legacy alias saves, reads and repairs as its real zone', function () {
+    $this->actingAs(localDayModerator());
+    $event = localDayEvent(['timezone' => 'US/Eastern']);
+    FakeSearchEngine::install([]);
+
+    // 8 PM Eastern on Oct 31 = 01:00 UTC Nov 1 (EDT); stored at noon New York.
+    $request = localDayRequest(['2030-11-01 00:00:00'], 's', 'US/Eastern');
+    Show::saveShows($request, $event);
+    Show::updateEvent($request, $event);
+
+    $event->refresh();
+    // Midnight input is the date itself (Nov 1), stored at noon EDT = 16:00 UTC.
+    expect($event->shows->first()->date)->toBe('2030-11-01 16:00:00');
+    expect((string) $event->closingDate)->toBe('2030-11-01 23:59:59');
+    expect($event->localDate('2030-11-01 16:00:00'))->toBe('2030-11-01');
+    expect(Show::normalizeToLocalNoon($event, apply: false)['updated'])->toBe(0);
+});
