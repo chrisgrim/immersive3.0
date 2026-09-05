@@ -11,27 +11,38 @@ class Location extends Model
     use HasFactory;
 
     /**
-    * What protected variables are allowed to be passed to the database
-    *
-    * @var array
-    */
+     * What protected variables are allowed to be passed to the database
+     *
+     * @var array
+     */
     protected $fillable = [
-    	'hiddenLocation','home','street','city','region','region_long','country','country_long','postal_code','longitude','latitude','event_id', 'hiddenLocationToggle', 'venue'
+        'hiddenLocation', 'home', 'street', 'city', 'region', 'region_long', 'country', 'country_long', 'postal_code', 'longitude', 'latitude', 'event_id', 'hiddenLocationToggle', 'venue',
     ];
-    
+
     /**
      * Each Location belongs to an Event Model.
      */
-
-    public function event() 
+    public function event()
     {
         return $this->belongsTo(Event::class);
     }
 
     /**
+     * "Brooklyn, NY" in the US, "London, United Kingdom" elsewhere — the
+     * same shape the event cards print (event-grid.vue).
+     */
+    public function placeLabel(): string
+    {
+        $area = in_array($this->country, ['US', 'United States'], true)
+            ? $this->region
+            : ($this->country_long ?: $this->country);
+
+        return implode(', ', array_filter([Str::ucfirst((string) $this->city), $area]));
+    }
+
+    /**
         Store Event Physical Location to Database
      */
-
     public static function storeEventLocation($request, $event)
     {
         $event->location->update($request->all());
@@ -47,18 +58,17 @@ class Location extends Model
     /**
         Store Event Remote Location
      */
-
     public static function storeRemoteLocation($request, $event)
     {
         foreach ($request->remote as $loc) {
             RemoteLocation::firstOrCreate([
-                'slug' => Str::slug($loc)
+                'slug' => Str::slug($loc),
             ],
-            [
-                'name' => $loc,
-                'user_id' => auth()->user()->id,
-            ]);
-        };
+                [
+                    'name' => $loc,
+                    'user_id' => auth()->user()->id,
+                ]);
+        }
         $newSync = RemoteLocation::whereIn('slug', collect($request->remote)->map(function ($item) {
             return Str::slug($item);
         })->toArray())->get();
@@ -70,6 +80,5 @@ class Location extends Model
             'remote_description' => $request->description,
         ]);
 
-        
     }
 }

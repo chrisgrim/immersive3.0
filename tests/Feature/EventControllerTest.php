@@ -383,3 +383,31 @@ test('getOrganizerPaginatedEvents 404s for an unknown organizer slug', function 
     $this->getJson('/api/organizers/no-such-organizer/events')
         ->assertNotFound();
 });
+
+// ----- the Venue line (events/show/about.blade.php) -----
+
+test('show names the place when an in-person event has no venue name, not "Remote Event"', function () {
+    // The venue name is optional; ~1,500 published in-person events go
+    // without one, and the fallback used to be the remote-event wording.
+    $event = makeShowableEvent();
+    $event->location->update(['venue' => '', 'city' => 'Brooklyn', 'region' => 'NY', 'country' => 'US']);
+
+    $html = $this->get("/events/{$event->slug}")->assertOk()->getContent();
+
+    expect($html)->toContain('Brooklyn, NY')
+        ->not->toContain('Remote Event');
+});
+
+test('show still prints the venue name when there is one', function () {
+    $event = makeShowableEvent();
+    $event->location->update(['venue' => 'The Bushwick Starr', 'city' => 'Brooklyn', 'region' => 'NY', 'country' => 'US']);
+
+    $this->get("/events/{$event->slug}")->assertOk()->assertSee('The Bushwick Starr');
+});
+
+test('a place label is city and state at home, city and country abroad', function () {
+    expect((new Location(['city' => 'brooklyn', 'region' => 'NY', 'country' => 'US']))->placeLabel())->toBe('Brooklyn, NY')
+        ->and((new Location(['city' => 'London', 'country' => 'GB', 'country_long' => 'United Kingdom']))->placeLabel())->toBe('London, United Kingdom')
+        ->and((new Location(['city' => 'Paris', 'country' => 'France']))->placeLabel())->toBe('Paris, France')
+        ->and((new Location(['city' => 'Reykjavik']))->placeLabel())->toBe('Reykjavik');
+});
