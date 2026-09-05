@@ -177,6 +177,7 @@ import SearchStore from '@/Stores/SearchStore.vue';
 import SearchFilterButton from './search-filter-button.vue';
 import RecentSearchesList from './recent-searches-list.vue';
 import { saveSearch } from '@/composables/useSavedSearches';
+import { parseSearchDate } from '@/composables/useSavedSearchDateRange';
 
 // Props
 const props = defineProps({
@@ -548,18 +549,15 @@ onMounted(() => {
         searchInput.value = cityParts[0].trim();
     }
 
-    // Initialize dates from props if available
-    if (props.initialStartDate && props.initialEndDate) {
-        try {
-            const startDate = new Date(props.initialStartDate);
-            const endDate = new Date(props.initialEndDate);
-
-            if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
-                date.value = [startDate, endDate];
-            }
-        } catch (e) {
-            console.error('Error parsing initial dates:', e);
-        }
+    // Dates come from the URL like the city above, not only from the
+    // initial-*-date props: nav-search hydrates the store those props read
+    // from in ITS onMounted, which runs after this child's, so on a cold
+    // load they are still empty here. Left null, the pill said "Dates" over
+    // a date-filtered result list, and a Search click dropped the range.
+    const start = parseSearchDate(params.get('start') || props.initialStartDate);
+    const end = parseSearchDate(params.get('end') || props.initialEndDate);
+    if (start && end) {
+        date.value = [start, end];
     }
 
     // This IS the committed state at this point — either hydrated from the
@@ -685,17 +683,6 @@ function toggleDateDropdown() {
        // while Filters was already open left both panels rendered at once,
        // visually overlapping (Filters is positioned over the same area).
        emit('close-filters');
-
-       // Check if parent component has dates and we don't
-       const params = new URLSearchParams(window.location.search);
-       if (params.has('start') && params.has('end') && (!date.value || date.value === null)) {
-           const startDate = new Date(params.get('start'));
-           const endDate = new Date(params.get('end'));
-           if (startDate && endDate) {
-               // Update our local date ref with the parent's values
-               date.value = [startDate, endDate];
-           }
-       }
    }
 }
 
