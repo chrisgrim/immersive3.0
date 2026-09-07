@@ -60,3 +60,60 @@ export const isShowUpcoming = (utcDateTime, timezone, now = new Date(), curtainT
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     return day >= today;
 };
+
+/**
+ * A schedule's span, "Oct 31, 2026" for one day or "Oct 31, 2026 - Nov 4,
+ * 2026" across several. "No dates set" when there is nothing to show.
+ */
+export const NO_DATES = 'No dates set';
+
+export const formatShowDayRange = (shows, timezone) => {
+    if (!shows?.length) return NO_DATES;
+
+    const curtainTimes = usesCurtainTimes(shows);
+    const days = shows.map((show) => showDay(show.date, timezone, curtainTimes)).filter(Boolean).sort();
+    if (!days.length) return NO_DATES;
+
+    const first = dayjs(days[0]).format('MMM D, YYYY');
+    const last = dayjs(days[days.length - 1]).format('MMM D, YYYY');
+
+    return first === last ? first : `${first} - ${last}`;
+};
+
+/**
+ * The sentinel show types have no performances: their ONE stored row IS the
+ * listing's end date. Show::targetDatesFor() in PHP returns a single-element
+ * array for 'a' (always available) and 'l' (the retired limited type), and
+ * closingDate comes from always_config rather than from the rows.
+ *
+ * So rendering that row the way a real schedule is rendered — a date plus a
+ * show count — states the opposite of the truth: "Mar 7, 2027 / 1 show" reads
+ * as "this happens once, on that date" when it means "available every day
+ * until then". Both review screens (the approval queue's EventReview.vue and
+ * the wizard's own review.vue) call this so they cannot drift apart.
+ *
+ * @returns {{primary: string, secondary: string}} the two lines to render
+ */
+const SENTINEL_SHOWTYPES = ['a', 'l'];
+
+export const summarizeSchedule = (event) => {
+    const shows = event?.shows ?? [];
+    const showtype = event?.showtype;
+
+    if (SENTINEL_SHOWTYPES.includes(showtype)) {
+        // A row that carries no readable date is the same as having no row:
+        // ask the formatter rather than trusting shows.length, or a malformed
+        // sentinel reads "Searchable until No dates set".
+        const endDate = formatShowDayRange(shows, event?.timezone);
+
+        return {
+            primary: showtype === 'a' ? 'Always available' : 'Limited run',
+            secondary: endDate === NO_DATES ? 'No end date set' : `Searchable until ${endDate}`,
+        };
+    }
+
+    return {
+        primary: formatShowDayRange(shows, event?.timezone),
+        secondary: `${shows.length} show${shows.length !== 1 ? 's' : ''}`,
+    };
+};

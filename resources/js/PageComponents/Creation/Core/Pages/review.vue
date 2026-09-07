@@ -191,8 +191,8 @@
                 <div class="p-8 shadow-custom-1 rounded-3xl">
                     <h3 class="text-xl font-semibold mb-4">Dates:</h3>
                     <div class="flex justify-between items-center mb-4">
-                        <p class="text-gray-600">{{ formatDateRange(event.shows) }}</p>
-                        <p class="text-gray-600">{{ event.shows?.length || 0 }} show{{ event.shows?.length !== 1 ? 's' : '' }}</p>
+                        <p class="text-gray-600">{{ scheduleSummary.primary }}</p>
+                        <p class="text-gray-600">{{ scheduleSummary.secondary }}</p>
                     </div>
                     
                     <!-- Show Times -->
@@ -300,7 +300,7 @@
 <script setup>
 import { ref, computed, inject, onMounted } from 'vue';
 import moment from 'moment-timezone';
-import { showDay, usesCurtainTimes } from '@/composables/useShowDates';
+import { summarizeSchedule } from '@/composables/useShowDates';
 import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -309,18 +309,9 @@ import { formatPrice } from '@/composables/useCurrency';
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const event = inject('event');
 
-// Days in the EVENT's timezone — a raw shows.date is UTC, and an evening
-// show is stored on the next UTC day (composables/useShowDates.js).
-const formatDateRange = (shows) => {
-    if (!shows?.length) return 'No dates set';
-
-    const curtainTimes = usesCurtainTimes(shows);
-    const days = shows.map(show => showDay(show.date, event.timezone, curtainTimes)).filter(Boolean).sort();
-    const firstDate = moment(days[0]).format('MMM D, YYYY');
-    const lastDate = moment(days[days.length - 1]).format('MMM D, YYYY');
-
-    return firstDate === lastDate ? firstDate : `${firstDate} - ${lastDate}`;
-};
+// Days in the EVENT's timezone, and showtype-aware so an always-available
+// listing does not read as a one-off (composables/useShowDates.js).
+const scheduleSummary = computed(() => summarizeSchedule(event));
 
 const formatEmbargoDate = (date) => {
     return moment(date).format('MMM D, YYYY');

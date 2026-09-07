@@ -3,7 +3,7 @@
  * EVENT's timezone. The old code handed the raw UTC string to dayjs / new
  * Date() as local wall time, so an evening US show read as the next day.
  */
-import { showDay, showDayAsDate, formatShowDay, isShowUpcoming, usesCurtainTimes } from '@/composables/useShowDates';
+import { showDay, showDayAsDate, formatShowDay, isShowUpcoming, usesCurtainTimes, formatShowDayRange, summarizeSchedule } from '@/composables/useShowDates';
 
 describe('useShowDates', () => {
     it('reads an evening US show on the day it plays, not the next UTC day', () => {
@@ -74,5 +74,82 @@ describe('useShowDates', () => {
         expect(showDay('2026-11-01 01:00:00', 'Mars/Olympus')).toBe('2026-11-01');
 
         console.warn.mockRestore();
+    });
+});
+
+/**
+ * The sentinel showtypes ('a' always available, 'l' the retired limited type)
+ * store ONE row that is the listing's END DATE, not a performance. Rendering
+ * it like a real schedule told a moderator "Mar 7, 2027 / 1 show", i.e. the
+ * event happens once on that date — the opposite of what it means.
+ */
+describe('summarizeSchedule', () => {
+    const alwaysAvailable = {
+        showtype: 'a',
+        timezone: 'America/Los_Angeles',
+        shows: [{ date: '2027-03-07 12:00:00' }],
+    };
+
+    it('reads an always-available listing as available, not as a one-off', () => {
+        expect(summarizeSchedule(alwaysAvailable)).toEqual({
+            primary: 'Always available',
+            secondary: 'Searchable until Mar 7, 2027',
+        });
+    });
+
+    it('does the same for the retired limited type', () => {
+        expect(summarizeSchedule({ ...alwaysAvailable, showtype: 'l' })).toEqual({
+            primary: 'Limited run',
+            secondary: 'Searchable until Mar 7, 2027',
+        });
+    });
+
+    it('says so when a sentinel listing has no row to read an end date from', () => {
+        expect(summarizeSchedule({ ...alwaysAvailable, shows: [] })).toEqual({
+            primary: 'Always available',
+            secondary: 'No end date set',
+        });
+    });
+
+    it('treats a sentinel row with no readable date as having no end date', () => {
+        expect(summarizeSchedule({ ...alwaysAvailable, shows: [{}] })).toEqual({
+            primary: 'Always available',
+            secondary: 'No end date set',
+        });
+    });
+
+    it('still counts real performances for specific dates', () => {
+        expect(summarizeSchedule({
+            showtype: 's',
+            timezone: 'Europe/London',
+            shows: [{ date: '2026-09-14 12:00:00' }, { date: '2026-09-28 12:00:00' }],
+        })).toEqual({
+            primary: 'Sep 14, 2026 - Sep 28, 2026',
+            secondary: '2 shows',
+        });
+    });
+
+    it('keeps the singular for a one-date run, which is genuinely one show', () => {
+        expect(summarizeSchedule({
+            showtype: 's',
+            timezone: 'Europe/London',
+            shows: [{ date: '2026-09-14 12:00:00' }],
+        })).toEqual({
+            primary: 'Sep 14, 2026',
+            secondary: '1 show',
+        });
+    });
+
+    it('survives an event with no schedule at all', () => {
+        expect(summarizeSchedule(undefined)).toEqual({
+            primary: 'No dates set',
+            secondary: '0 shows',
+        });
+    });
+
+    it('reads the range in the EVENT timezone, so an evening show keeps its own day', () => {
+        // 01:00 UTC on Nov 1 is 8 PM Oct 31 in Chicago.
+        expect(formatShowDayRange([{ date: '2026-11-01 01:00:00' }], 'America/Chicago'))
+            .toBe('Oct 31, 2026');
     });
 });
