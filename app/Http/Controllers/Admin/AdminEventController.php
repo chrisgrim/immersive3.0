@@ -105,6 +105,10 @@ class AdminEventController extends Controller
             'images',
             'category',
             'organizer',
+            // The account that created the event (and gets the approve/reject
+            // email) — shown on the review page so a moderator can tell WHO is
+            // submitting, not just which organizer.
+            'user:id,name,email',
             'eventreviews',
             'videos',
             'staffpick',

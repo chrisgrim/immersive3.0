@@ -232,6 +232,15 @@
                         </div>
                     </div>
 
+                    <!-- User Section: the account that created the event. Any
+                         member of the organizer's team can, so it is not always
+                         the organizer's owner. -->
+                    <div v-if="props.event?.user" class="p-8 shadow-custom-1 rounded-3xl">
+                        <h3 class="text-xl font-semibold mb-4">User:</h3>
+                        <h4 class="text-4xl font-medium">{{ props.event.user.name }}</h4>
+                        <p class="text-gray-600 text-xl">{{ props.event.user.email }}</p>
+                    </div>
+
                     <!-- Location Section -->
                     <div class="p-8 shadow-custom-1 rounded-3xl">
                         <h3 class="text-xl font-semibold mb-4">

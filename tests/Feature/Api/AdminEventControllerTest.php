@@ -155,3 +155,32 @@ test('reject is denied to non-moderators', function () {
         ->postJson("/api/admin/approve/events/{$event->slug}/reject", ['reason' => 'no'])
         ->assertStatus(403);
 });
+
+// ----- show() -----
+
+test('show includes the account that created the event, name and email only', function () {
+    $creator = User::factory()->create(['name' => 'Ada Lovelace', 'email' => 'ada@example.com']);
+    $event = Event::factory()->inReview()->create(['user_id' => $creator->id]);
+
+    $response = $this->actingAs($this->moderator)
+        ->getJson("/api/admin/events/{$event->slug}")
+        ->assertOk();
+
+    expect($response->json('user.id'))->toBe($creator->id);
+    expect($response->json('user.name'))->toBe('Ada Lovelace');
+    expect($response->json('user.email'))->toBe('ada@example.com');
+    expect($response->json('user'))->not->toHaveKey('password');
+    expect($response->json('user'))->not->toHaveKey('phone');
+});
+
+test('show still works when the creating account is gone', function () {
+    // users has no FK from events and no soft deletes, so a deleted account
+    // leaves a dangling user_id behind.
+    $event = Event::factory()->inReview()->create(['user_id' => 999999]);
+
+    $response = $this->actingAs($this->moderator)
+        ->getJson("/api/admin/events/{$event->slug}")
+        ->assertOk();
+
+    expect($response->json('user'))->toBeNull();
+});
