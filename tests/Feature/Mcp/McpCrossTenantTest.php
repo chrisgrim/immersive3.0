@@ -7,6 +7,7 @@ use App\Mcp\Tools\CreateOrganizer;
 use App\Mcp\Tools\GetEvent;
 use App\Mcp\Tools\ListAllEvents;
 use App\Mcp\Tools\ListMyEvents;
+use App\Mcp\Tools\RemoveEventImage;
 use App\Mcp\Tools\SubmitEventForReview;
 use App\Mcp\Tools\UpdateEvent;
 use App\Mcp\Tools\UpdateOrganizer;
@@ -65,8 +66,11 @@ test('a stranger cannot read, edit, illustrate or submit another organizer\'s ev
         viaToken($stranger)->tool(UpdateEvent::class, ['event_slug' => $event->slug, 'name' => 'Hijacked'])->assertHasErrors();
         viaToken($stranger)->tool(AttachEventImage::class, ['event_slug' => $event->slug, 'image_url' => 'https://example.com/poster.jpg', 'rank' => 0])->assertHasErrors();
 
+        $poster = $event->images()->create(['large_image_path' => "event-images/{$event->slug}/poster.webp", 'thumb_image_path' => "event-images/{$event->slug}/poster-thumb.webp", 'rank' => 0]);
+        viaToken($stranger)->tool(RemoveEventImage::class, ['event_slug' => $event->slug, 'image_id' => $poster->id])->assertHasErrors();
+
         expect($event->fresh()->name)->not->toBe('Hijacked');
-        expect($event->fresh()->images()->count())->toBe(0);
+        expect($event->fresh()->images()->count())->toBe(1);
     }
 
     viaToken($stranger)->tool(SubmitEventForReview::class, ['event_slug' => $draft->slug])->assertHasErrors();

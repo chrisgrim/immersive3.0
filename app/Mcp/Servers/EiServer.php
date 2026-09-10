@@ -10,6 +10,7 @@ use App\Mcp\Tools\GetEvent;
 use App\Mcp\Tools\ListAllEvents;
 use App\Mcp\Tools\ListEventAttributes;
 use App\Mcp\Tools\ListMyEvents;
+use App\Mcp\Tools\RemoveEventImage;
 use App\Mcp\Tools\SubmitEventForReview;
 use App\Mcp\Tools\UpdateEvent;
 use App\Mcp\Tools\UpdateOrganizer;
@@ -51,7 +52,10 @@ class EiServer extends Server
        then tickets (1-10 tiers), the ticket purchase URL, and button text.
        All datetimes are UTC "Y-m-d H:i:s". For show dates, a value at exactly
        00:00:00 means that calendar date; any other time is the real UTC instant.
-    7. Primary image via `attach-event-image` (rank 0; gallery = ranks 1-4)
+    7. Primary image via `attach-event-image` (rank 0; gallery = ranks 1-4).
+       `remove-event-image` deletes one image by its id (from get-event) —
+       for good, so confirm with the user first; a submitted or live event
+       keeps its primary image (replace it instead).
     8. Advisories — ask each explicitly: contact level, age limit, interaction
        level, the audience's role, whether there is sexual content (description
        required if yes), at least one content advisory, wheelchair accessibility
@@ -99,6 +103,7 @@ class EiServer extends Server
         CreateEventDraft::class,
         UpdateEvent::class,
         AttachEventImage::class,
+        RemoveEventImage::class,
         SubmitEventForReview::class,
     ];
 }
