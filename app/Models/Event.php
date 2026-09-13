@@ -91,15 +91,21 @@ class Event extends Model
 
         // Re-read: callers often hold an instance whose relations (shows,
         // genres, price range) are stale, and toSearchableArray() reads them.
-        $fresh = static::withoutGlobalScopes()->find($this->getKey());
+        // withoutGlobalScopes() drops SoftDeletingScope too, so a trashed row
+        // is found and handled below rather than treated as "gone".
+        $this->syncSearchIndexFrom(static::withoutGlobalScopes()->find($this->getKey()));
+    }
 
-        if (! $fresh) {
-            $this->unsearchable(); // soft-deleted or gone
+    /** Index $fresh if it is a live published event; otherwise drop this key from the index. */
+    private function syncSearchIndexFrom(?Event $fresh): void
+    {
+        if (! $fresh || $fresh->trashed() || ! $fresh->shouldBeSearchable()) {
+            $this->unsearchable();
 
             return;
         }
 
-        $fresh->shouldBeSearchable() ? $fresh->searchable() : $fresh->unsearchable();
+        $fresh->searchable();
     }
 
     /**
@@ -107,6 +113,13 @@ class Event extends Model
      * syncSearchIndex() call deferred; then sync each touched event once,
      * after commit. If the callback throws, nothing is synced. Nested calls
      * join the outermost block.
+     *
+     * Enter this at transaction level 0 (as UpdateEventAction and
+     * Show::normalizeToLocalNoon do). With scout.after_commit on, Scout runs
+     * its observer at commit time, so if the caller is itself inside a
+     * transaction the observer fires after this block has re-enabled syncing
+     * and each save inside becomes its own (still correct, just not batched)
+     * job.
      */
     public static function deferringSearchSync(callable $callback)
     {
@@ -136,8 +149,8 @@ class Event extends Model
                 $found = static::withoutGlobalScopes()->whereKey($ids)->get()->keyBy('id');
 
                 foreach ($ids as $id) {
-                    $event = $found[$id] ?? (new static)->setAttribute('id', $id);
-                    $event->syncSearchIndex();
+                    // A key-only stub is enough for RemoveFromSearch when the row is gone.
+                    (new static)->setAttribute('id', $id)->syncSearchIndexFrom($found[$id] ?? null);
                 }
             });
         }

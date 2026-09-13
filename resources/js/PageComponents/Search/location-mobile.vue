@@ -57,7 +57,7 @@
                         />
                         
                         <SimilarResults 
-                            v-if="!hasEvents"
+                            v-if="!hasEvents && !events.search_unavailable"
                             :event="{id: 0, slug: 'placeholder'}"
                             :user="user"
                             :columns="2"

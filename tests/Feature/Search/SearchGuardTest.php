@@ -1,6 +1,7 @@
 <?php
 
 use App\Support\Search\SearchGuard;
+use Elastic\Elasticsearch\Exception\ClientResponseException;
 use Elastic\Elasticsearch\Exception\ServerResponseException;
 use Elastic\Transport\Exception\NoNodeAvailableException;
 use Illuminate\Support\Facades\Exceptions;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Exceptions;
  * reboot). SearchGuard turns a cluster failure into the fallback value
  * and a Sentry report; anything else still propagates.
  */
+beforeEach(fn () => SearchGuard::reset());
+
 test('returns the fallback and reports when no node is available', function () {
     Exceptions::fake();
 
@@ -55,4 +58,30 @@ test('lets unrelated exceptions propagate', function () {
     }, []))->toThrow(RuntimeException::class);
 
     Exceptions::assertNothingReported();
+});
+
+test('lets a 4xx from a bad query propagate: that is our bug, not an outage', function () {
+    Exceptions::fake();
+
+    expect(fn () => SearchGuard::run(function () {
+        throw new ClientResponseException('400 bad request');
+    }, []))->toThrow(ClientResponseException::class);
+});
+
+test('after one failure, later reads in the same request short-circuit without retrying or re-reporting', function () {
+    Exceptions::fake();
+    $attempts = 0;
+    $query = function () use (&$attempts) {
+        $attempts++;
+        throw new NoNodeAvailableException('No alive nodes');
+    };
+
+    SearchGuard::run($query, 'a');
+    $second = SearchGuard::run($query, 'b');
+    $third = SearchGuard::run(fn () => 'would have worked', 'c');
+
+    expect($attempts)->toBe(1);
+    expect($second)->toBe('b');
+    expect($third)->toBe('c');
+    Exceptions::assertReportedCount(1);
 });

@@ -134,3 +134,55 @@ test('a full event update through UpdateEventAction (MCP update-event) queues ex
     Queue::assertPushed(MakeSearchable::class, 1);
     Queue::assertNotPushed(RemoveFromSearch::class);
 });
+
+$fullSchedulePayload = function (Event $event): array {
+    $day = fn (int $days) => now('America/New_York')->addDays($days)->setTime(12, 0, 0)->utc()->format('Y-m-d H:i:s');
+
+    return [
+        'event_slug' => $event->slug,
+        'timezone' => 'America/New_York',
+        'showtype' => 's',
+        'dateArray' => [$day(30), $day(31)],
+        'tickets' => [
+            ['name' => 'General', 'ticket_price' => 35.00, 'currency' => 'USD', 'description' => 'Standard entry'],
+        ],
+        'confirm_live_edit' => true,
+    ];
+};
+
+test('a schedule + tickets update (inner transactions in Show and Ticket) still queues exactly one index job', function () use ($publishedEvent, $fullSchedulePayload) {
+    $event = $publishedEvent();
+    Queue::fake();
+
+    EiServer::actingAs($event->user)->tool(UpdateEvent::class, $fullSchedulePayload($event))->assertOk();
+
+    expect($event->fresh()->shows()->count())->toBe(2);
+    expect($event->fresh()->shows()->first()->tickets()->count())->toBe(1);
+    Queue::assertPushed(MakeSearchable::class, 1);
+    Queue::assertNotPushed(RemoveFromSearch::class);
+});
+
+test('the same update on a draft queues one RemoveFromSearch and never indexes it', function () use ($publishedEvent, $fullSchedulePayload) {
+    $event = $publishedEvent();
+    $event->update(['status' => 'd']);
+    Queue::fake();
+
+    $payload = $fullSchedulePayload($event);
+    unset($payload['confirm_live_edit']);
+    EiServer::actingAs($event->user)->tool(UpdateEvent::class, $payload)->assertOk();
+
+    expect($event->fresh()->shows()->count())->toBe(2);
+    Queue::assertPushed(RemoveFromSearch::class, 1);
+    Queue::assertNotPushed(MakeSearchable::class);
+});
+
+test('syncSearchIndex on a soft-deleted published event removes it from the index', function () use ($publishedEvent) {
+    $event = $publishedEvent();
+    $event->delete();
+    Queue::fake();
+
+    $event->syncSearchIndex();
+
+    Queue::assertPushed(RemoveFromSearch::class, 1);
+    Queue::assertNotPushed(MakeSearchable::class);
+});

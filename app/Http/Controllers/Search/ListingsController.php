@@ -6,9 +6,9 @@ use App\Actions\Search\EventSearchFilterBuilder;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Event;
-use App\Support\Search\SearchGuard;
 use App\Models\Events\RemoteLocation;
 use App\Models\Genre;
+use App\Support\Search\SearchGuard;
 use Elastic\ScoutDriverPlus\Support\Query;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -507,7 +507,7 @@ class ListingsController extends Controller
             ->map(fn ($document) => (int) $document->id())
             ->all(), []);
 
-        return $ids === [] ? [] : Event::mapPins($ids);
+        return Event::mapPins($ids);
     }
 
     public function index(Request $request)

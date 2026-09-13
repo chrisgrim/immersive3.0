@@ -740,40 +740,42 @@ class Show extends Model
         // Plan and write under one lock, taken in the same order a schedule
         // save takes it (UpdateEventAction: the event row first, then its
         // shows), so a save landing at the same moment waits rather than
-        // deadlocking, and cannot be overwritten from a stale plan. Nothing
-        // here reaches the search index: that happens below, after the
-        // commit.
-        $report = DB::transaction(function () use ($event, $onlyShifted) {
-            Event::withoutGlobalScopes()->whereKey($event->id)->lockForUpdate()->first();
-            $event->refresh();
+        // deadlocking, and cannot be overwritten from a stale plan. The
+        // search index is touched once, after the commit: the deferring
+        // block collects the closingDate save and the explicit sync below.
+        return Event::deferringSearchSync(function () use ($event, $onlyShifted) {
+            $report = DB::transaction(function () use ($event, $onlyShifted) {
+                Event::withoutGlobalScopes()->whereKey($event->id)->lockForUpdate()->first();
+                $event->refresh();
 
-            $plan = self::normalizationPlan($event, $onlyShifted, lock: true);
+                $plan = self::normalizationPlan($event, $onlyShifted, lock: true);
 
-            if (! $plan['changed']) {
+                if (! $plan['changed']) {
+                    return $plan['report'];
+                }
+
+                $now = now();
+                foreach ($plan['moves'] as $id => $date) {
+                    self::withoutGlobalScope(DateScope::class)->whereKey($id)->update(['date' => $date, 'updated_at' => $now]);
+                }
+                foreach ($plan['duplicates'] as $duplicateId => $survivorId) {
+                    self::mergeDuplicateShow($survivorId, $duplicateId);
+                }
+                if ($plan['report']['closing_after'] !== (string) $event->closingDate) {
+                    $event->update(['closingDate' => $plan['report']['closing_after']]);
+                }
+
                 return $plan['report'];
+            });
+
+            // The index carries the shows and closingDate; refresh it from the
+            // committed rows.
+            if (($report['updated'] > 0 || $report['merged'] > 0 || $report['closing_before'] !== $report['closing_after'])) {
+                $event->syncSearchIndex();
             }
 
-            $now = now();
-            foreach ($plan['moves'] as $id => $date) {
-                self::withoutGlobalScope(DateScope::class)->whereKey($id)->update(['date' => $date, 'updated_at' => $now]);
-            }
-            foreach ($plan['duplicates'] as $duplicateId => $survivorId) {
-                self::mergeDuplicateShow($survivorId, $duplicateId);
-            }
-            if ($plan['report']['closing_after'] !== (string) $event->closingDate) {
-                Event::withoutSyncingToSearch(fn () => $event->update(['closingDate' => $plan['report']['closing_after']]));
-            }
-
-            return $plan['report'];
+            return $report;
         });
-
-        // The index carries the shows and closingDate; refresh it from the
-        // committed rows.
-        if (($report['updated'] > 0 || $report['merged'] > 0 || $report['closing_before'] !== $report['closing_after'])) {
-            $event->syncSearchIndex();
-        }
-
-        return $report;
     }
 
     /**
