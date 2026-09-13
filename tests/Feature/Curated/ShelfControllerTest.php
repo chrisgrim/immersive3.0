@@ -272,3 +272,29 @@ test('toggleHidden is denied to a non-curator', function () {
 
     expect($shelf->fresh()->is_hidden)->toBe(0);
 });
+
+// ----- scoped bindings: a shelf from another community is unreachable -----
+
+test('destroy cannot reach a shelf that belongs to another community', function () {
+    $otherOwner = User::factory()->create(['type' => 'u']);
+    $other = Community::factory()->create(['user_id' => $otherOwner->id, 'status' => 'p']);
+    $victim = Shelf::factory()->create(['community_id' => $other->id]);
+
+    $this->actingAs($this->curator)
+        ->deleteJson("/communities/{$this->community->slug}/shelves/{$victim->id}")
+        ->assertNotFound();
+
+    expect(Shelf::find($victim->id))->not->toBeNull();
+});
+
+test('update cannot reach a shelf that belongs to another community', function () {
+    $otherOwner = User::factory()->create(['type' => 'u']);
+    $other = Community::factory()->create(['user_id' => $otherOwner->id, 'status' => 'p']);
+    $victim = Shelf::factory()->create(['community_id' => $other->id, 'name' => 'Untouched']);
+
+    $this->actingAs($this->curator)
+        ->putJson("/communities/{$this->community->slug}/shelves/{$victim->id}", ['name' => 'Hijacked'])
+        ->assertNotFound();
+
+    expect($victim->fresh()->name)->toBe('Untouched');
+});

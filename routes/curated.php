@@ -79,13 +79,18 @@ Route::prefix('communities')->name('communities.')->group(function () {
             Route::PUT('/posts/order', [PostController::class, 'order'])->name('posts.order')->middleware('can:update,community');
 
             // Post-specific routes
-            Route::GET('/posts/{post}/edit', [PostController::class, 'edit'])->name('posts.edit')->middleware('can:update,community');
-            Route::POST('/posts/{post}', [PostController::class, 'update'])->name('posts.update')->middleware('can:update,community');
-            Route::PATCH('/posts/{post}/toggle-hidden', [PostController::class, 'toggleHidden'])->name('posts.toggle-hidden')->middleware('can:update,community');
-            Route::DELETE('/posts/{post}', [PostController::class, 'destroy'])->name('posts.destroy')->middleware('can:update,community');
+            // scopeBindings() makes {post} resolve through $community->posts(), so a
+            // curator of community A cannot edit/delete community B's post by slug.
+            Route::scopeBindings()->group(function () {
+                Route::GET('/posts/{post}/edit', [PostController::class, 'edit'])->name('posts.edit')->middleware('can:update,community');
+                Route::POST('/posts/{post}', [PostController::class, 'update'])->name('posts.update')->middleware('can:update,community');
+                Route::PATCH('/posts/{post}/toggle-hidden', [PostController::class, 'toggleHidden'])->name('posts.toggle-hidden')->middleware('can:update,community');
+                Route::DELETE('/posts/{post}', [PostController::class, 'destroy'])->name('posts.destroy')->middleware('can:update,community');
+            });
 
             // Shelves
-            Route::controller(ShelfController::class)->middleware('can:update,community')->group(function () {
+            // Same scoping for {shelf}: it must belong to {community}.
+            Route::controller(ShelfController::class)->middleware('can:update,community')->scopeBindings()->group(function () {
                 Route::POST('/shelves', 'store');
                 Route::POST('/shelves/order', 'order');
                 Route::PUT('/shelves/{shelf}', 'update');
@@ -109,6 +114,6 @@ Route::prefix('communities')->name('communities.')->group(function () {
         });
 
         // Public routes - place after the protected routes to avoid conflicts
-        Route::GET('/posts/{post}', [PostController::class, 'show'])->name('posts.show');
+        Route::GET('/posts/{post}', [PostController::class, 'show'])->name('posts.show')->scopeBindings();
     });
 });

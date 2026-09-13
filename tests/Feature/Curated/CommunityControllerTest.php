@@ -721,3 +721,32 @@ test('destroy deletes the community and its images', function () {
     expect(Community::find($community->id))->toBeNull();
     expect(Image::find($image->id))->toBeNull();
 });
+
+// ----- ownership transfer is owner-only, even through the generic update route -----
+
+test('a curator who is not the owner cannot transfer ownership through update', function () {
+    $owner = User::factory()->create(['type' => 'u']);
+    $community = Community::factory()->create(['user_id' => $owner->id, 'status' => 'p']);
+    $curator = User::factory()->create(['type' => 'u']);
+    $community->curators()->attach([$owner->id, $curator->id]);
+
+    $this->actingAs($curator)
+        ->postJson("/communities/{$community->slug}", [
+            'curator_ids' => [$curator->id],
+            'new_owner_id' => $curator->id,
+        ])
+        ->assertStatus(403);
+
+    expect($community->fresh()->user_id)->toBe($owner->id);
+    expect($community->curators()->where('users.id', $owner->id)->exists())->toBeTrue();
+});
+
+test('the public community page does not expose curator emails', function () {
+    $owner = User::factory()->create(['type' => 'u', 'email' => 'curator-secret@example.com']);
+    $community = Community::factory()->create(['user_id' => $owner->id, 'status' => 'p']);
+    $community->curators()->attach($owner->id);
+
+    $this->get("/communities/{$community->slug}")
+        ->assertOk()
+        ->assertDontSee('curator-secret@example.com');
+});

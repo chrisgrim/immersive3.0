@@ -543,3 +543,29 @@ test('show via the wrong post 404s even across communities (scopeBindings IDOR p
 
     expect($foreignCard->fresh()->name)->toBe('Foreign');
 });
+
+// ----- card links must be web addresses or site-relative paths -----
+
+test('store rejects a javascript: url', function () {
+    $this->actingAs($this->curator)
+        ->postJson("/communities/{$this->community->slug}/posts/{$this->post->slug}/cards", [
+            'name' => 'Bad link',
+            'url' => 'javascript:alert(1)',
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('url');
+
+    expect(Card::where('name', 'Bad link')->exists())->toBeFalse();
+});
+
+test('store accepts a site-relative link to an event page', function () {
+    $this->actingAs($this->curator)
+        ->postJson("/communities/{$this->community->slug}/posts/{$this->post->slug}/cards", [
+            'name' => 'Good link',
+            'url' => '/events/some-show',
+            'type' => 'b',
+        ])
+        ->assertOk();
+
+    expect(Card::where('name', 'Good link')->value('url'))->toBe('/events/some-show');
+});

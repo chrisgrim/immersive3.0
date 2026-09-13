@@ -463,3 +463,29 @@ test('destroy is denied to a non-curator', function () {
 // the only /communities/{community}/paginate route is bound to
 // CommunityController::paginate (a different shape). Reported in bugsFound;
 // no test here since the method is dead/unrouted in PostController.
+
+// ----- scoped bindings: a post from another community is unreachable -----
+
+test('update cannot reach a post that belongs to another community', function () {
+    $otherOwner = User::factory()->create(['type' => 'u']);
+    $other = Community::factory()->create(['user_id' => $otherOwner->id, 'status' => 'p']);
+    $victim = Post::factory()->create(['community_id' => $other->id, 'name' => 'Untouched']);
+
+    $this->actingAs($this->curator)
+        ->postJson("/communities/{$this->community->slug}/posts/{$victim->slug}", ['name' => 'Hijacked'])
+        ->assertNotFound();
+
+    expect($victim->fresh()->name)->toBe('Untouched');
+});
+
+test('destroy cannot reach a post that belongs to another community', function () {
+    $otherOwner = User::factory()->create(['type' => 'u']);
+    $other = Community::factory()->create(['user_id' => $otherOwner->id, 'status' => 'p']);
+    $victim = Post::factory()->create(['community_id' => $other->id]);
+
+    $this->actingAs($this->curator)
+        ->deleteJson("/communities/{$this->community->slug}/posts/{$victim->slug}")
+        ->assertNotFound();
+
+    expect(Post::find($victim->id))->not->toBeNull();
+});

@@ -502,7 +502,7 @@
                                                     {{ getCardTypeName(card.type) }}
                                                     <span v-if="card.order !== undefined" class="ml-1">(#{{ card.order + 1 }})</span>
                                                 </div>
-                                                <div v-if="card.blurb" class="text-xs text-gray-600 mt-0.5 line-clamp-1 max-w-full" v-html="truncateText(stripHtml(card.blurb), 50)"></div>
+                                                <div v-if="card.blurb" class="text-xs text-gray-600 mt-0.5 line-clamp-1 max-w-full">{{ truncateText(stripHtml(card.blurb), 50) }}</div>
                                             </label>
                                         </div>
                                     </div>
@@ -986,11 +986,12 @@ const getPostImage = (post) => {
 }
 
 // Text utility functions
+// Card blurbs are written by any community curator, so treat them as untrusted.
+// DOMParser never runs scripts or loads resources; assigning innerHTML on a
+// detached element still fires <img onerror>, which is why that version is gone.
 const stripHtml = (html) => {
     if (!html) return ''
-    const tmp = document.createElement('div')
-    tmp.innerHTML = html
-    return tmp.textContent || tmp.innerText || ''
+    return new DOMParser().parseFromString(html, 'text/html').body.textContent || ''
 }
 
 const truncateText = (text, maxLength) => {

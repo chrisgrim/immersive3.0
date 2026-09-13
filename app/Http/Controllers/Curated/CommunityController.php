@@ -62,7 +62,10 @@ class CommunityController extends Controller
             return $shelf->setRelation('published_posts', $shelf->publishedPosts()->with('limitedCards')->paginate(8));
         });
 
-        $community->load('curators', 'images');
+        // Public page: the whole model is serialized into the Vue prop, so only
+        // load the curator columns the page shows. User::$hidden does not cover
+        // email/type/preferences, and this page is visible to anyone.
+        $community->load(['curators:id,name,largeImagePath,thumbImagePath', 'images']);
 
         return view('curated.communities.show', compact('community', 'shelves'));
     }
@@ -155,6 +158,17 @@ class CommunityController extends Controller
         try {
             // Handle curator updates
             if ($request->has('curator_ids')) {
+                // The route only requires `update` (any curator). Changing who the
+                // curators are, and above all who OWNS the community, is owner-only,
+                // exactly like the dedicated /curators routes.
+                $this->authorize('manageCurators', $community);
+
+                $request->validate([
+                    'curator_ids' => 'array',
+                    'curator_ids.*' => 'integer|exists:users,id',
+                    'new_owner_id' => 'nullable|integer|exists:users,id',
+                ]);
+
                 // Handle ownership transfer first if requested
                 if ($request->has('new_owner_id')) {
                     // Capture the current owner BEFORE the transfer — updateOwner() mutates
@@ -388,6 +402,12 @@ class CommunityController extends Controller
     public function updateCurators(Request $request, Community $community, CommunityActions $communityActions)
     {
         $this->authorize('manageCurators', $community);
+
+        $request->validate([
+            'curator_ids' => 'array',
+            'curator_ids.*' => 'integer|exists:users,id',
+            'new_owner_id' => 'nullable|integer|exists:users,id',
+        ]);
 
         if ($request->has('curator_ids')) {
             // Handle ownership transfer first if requested

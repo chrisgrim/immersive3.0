@@ -13,8 +13,28 @@ class CardActions
     /**
      * Create a new card
      */
+    /**
+     * Card fields are written by any curator and rendered on public pages, so the
+     * link must be a real web address (https://…) or a site-relative path
+     * (/events/…): no javascript:, data: or other schemes.
+     */
+    public static function rules(): array
+    {
+        return [
+            'name' => 'nullable|string|max:255',
+            'blurb' => 'nullable|string|max:20000',
+            'url' => ['nullable', 'string', 'max:500', 'regex:#^(/|https?://)#i'],
+            'button_text' => 'nullable|string|max:100',
+            'event_id' => 'nullable|integer|exists:events,id',
+            'order' => 'nullable|integer|min:0',
+            'type' => 'nullable|string|max:20',
+        ];
+    }
+
     public function create(Request $request, Post $post)
     {
+        $request->validate(self::rules());
+
         // Validate the image (if any) BEFORE creating the card / shifting orders, so a bad
         // upload 422s cleanly without leaving an orphaned card or shifted siblings behind.
         if ($request->hasFile('image')) {
@@ -51,6 +71,8 @@ class CardActions
      */
     public function update(Request $request, Card $card)
     {
+        $request->validate(self::rules());
+
         // Allow-list. Notably excluding `post_id` — without this, a curator could
         // POST a different post_id and yank any card into their own post.
         $card->update($request->only(['name', 'blurb', 'url', 'button_text', 'order', 'event_id', 'type']));
