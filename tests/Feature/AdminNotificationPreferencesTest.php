@@ -61,9 +61,10 @@ test('a moderator cannot change another admin notification preferences', functio
 
     $this->actingAs($mod)
         ->postJson("/users/{$admin->id}", ['notification_preferences' => ['organizers' => false]])
-        ->assertOk();
+        ->assertStatus(403);
 
-    // The field is personal to the admin — a moderator's write is ignored.
+    // Moderators can no longer edit admin accounts at all (UserPolicy::update),
+    // so the request is refused outright rather than silently ignored.
     expect($admin->fresh()->wantsNotification('organizers'))->toBeTrue();
 });
 
