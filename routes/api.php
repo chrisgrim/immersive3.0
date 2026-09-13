@@ -251,7 +251,6 @@ Route::middleware(['throttle:120,1'])->group(function () {
         Route::GET('search/nav/events', 'navEvents');
         Route::GET('search/nav/organizers', 'navOrganizers');
         Route::GET('search/nav/names', 'navNames');
-        Route::GET('search/nav/genres', 'navGenres');
     });
 });
 

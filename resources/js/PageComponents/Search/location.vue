@@ -30,8 +30,11 @@
                         @more="handleShowMore"
                     />
                     
+                    <p v-if="!hasEvents && events.search_unavailable" class="text-2.5xl text-black font-medium py-8">
+                        Search is temporarily unavailable. Please try again in a minute.
+                    </p>
                     <SimilarResults
-                        v-if="!hasEvents"
+                        v-else-if="!hasEvents"
                         :event="{id: 0, slug: 'placeholder'}"
                         :user="user"
                         :columns="gridColumns"

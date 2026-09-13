@@ -67,6 +67,20 @@ class UpdateEventAction
 
     public function handle(Event $event, array $validatedData, Request $request): Event
     {
+        // One search-index update per save, dispatched after the last
+        // transaction commits. Every save()/update() below and every
+        // syncSearchIndex() inside Show/Ticket/Genre is collected instead of
+        // hitting Elasticsearch (up to ten round trips per save before this).
+        return Event::deferringSearchSync(function () use ($event, $validatedData, $request) {
+            $event = $this->apply($event, $validatedData, $request);
+            $event->syncSearchIndex();
+
+            return $event;
+        });
+    }
+
+    private function apply(Event $event, array $validatedData, Request $request): Event
+    {
         $wasPublished = in_array($event->status, ['p', 'e']);
         $oldStatus = $event->status;  // Store original status
         $oldCategoryId = $event->category_id;

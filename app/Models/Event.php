@@ -63,6 +63,88 @@ class Event extends Model
         return $this->status === 'p';
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Search-index sync
+    |--------------------------------------------------------------------------
+    | Every write path ends in syncSearchIndex(): index the event if it is
+    | published, drop it otherwise. Inside deferringSearchSync() the calls are
+    | collected and replayed once, after the outermost DB transaction commits,
+    | so a save that touches the event, its shows, tickets and genres costs one
+    | index update instead of up to ten. With scout.queue on, each update is a
+    | queued MakeSearchable/RemoveFromSearch job, so a slow or unreachable
+    | Elasticsearch never fails the request.
+    */
+
+    protected static bool $deferringSearchSync = false;
+
+    /** @var array<int, true> */
+    protected static array $deferredSearchSyncIds = [];
+
+    public function syncSearchIndex(): void
+    {
+        if (static::$deferringSearchSync) {
+            static::$deferredSearchSyncIds[$this->getKey()] = true;
+
+            return;
+        }
+
+        // Re-read: callers often hold an instance whose relations (shows,
+        // genres, price range) are stale, and toSearchableArray() reads them.
+        $fresh = static::withoutGlobalScopes()->find($this->getKey());
+
+        if (! $fresh) {
+            $this->unsearchable(); // soft-deleted or gone
+
+            return;
+        }
+
+        $fresh->shouldBeSearchable() ? $fresh->searchable() : $fresh->unsearchable();
+    }
+
+    /**
+     * Run $callback with Scout's observer silenced for Event and every
+     * syncSearchIndex() call deferred; then sync each touched event once,
+     * after commit. If the callback throws, nothing is synced. Nested calls
+     * join the outermost block.
+     */
+    public static function deferringSearchSync(callable $callback)
+    {
+        if (static::$deferringSearchSync) {
+            return $callback();
+        }
+
+        static::$deferringSearchSync = true;
+        static::$deferredSearchSyncIds = [];
+
+        try {
+            $result = static::withoutSyncingToSearch($callback);
+        } catch (\Throwable $e) {
+            static::$deferringSearchSync = false;
+            static::$deferredSearchSyncIds = [];
+
+            throw $e;
+        }
+
+        $ids = array_keys(static::$deferredSearchSyncIds);
+        static::$deferringSearchSync = false;
+        static::$deferredSearchSyncIds = [];
+
+        if ($ids !== []) {
+            // Runs immediately when no transaction is open.
+            DB::afterCommit(function () use ($ids) {
+                $found = static::withoutGlobalScopes()->whereKey($ids)->get()->keyBy('id');
+
+                foreach ($ids as $id) {
+                    $event = $found[$id] ?? (new static)->setAttribute('id', $id);
+                    $event->syncSearchIndex();
+                }
+            });
+        }
+
+        return $result;
+    }
+
     public function toSearchableArray()
     {
         // Get the location data

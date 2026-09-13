@@ -6,6 +6,7 @@ use App\Actions\Search\EventSearchFilterBuilder;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Event;
+use App\Support\Search\SearchGuard;
 use App\Models\Events\RemoteLocation;
 use App\Models\Genre;
 use Elastic\ScoutDriverPlus\Support\Query;
@@ -367,11 +368,11 @@ class ListingsController extends Controller
     /** The price slider's ceiling: the dearest ticket across the results, price filter excluded. */
     private function maxPriceFor(array $searchFilters, array $locationFilters, $boundaryFilter, Request $request, bool $applyGeoFilter): float
     {
-        return (float) (Event::searchQuery($this->maxPriceQuery($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter))
+        return SearchGuard::run(fn () => (float) (Event::searchQuery($this->maxPriceQuery($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter))
             ->aggregate('max_price', ['max' => ['field' => 'priceranges.price']])
             ->execute()
             ->aggregations()
-            ->get('max_price')['value'] ?? 0);
+            ->get('max_price')['value'] ?? 0), 0.0);
     }
 
     /**
@@ -407,6 +408,22 @@ class ListingsController extends Controller
         return $currentPage >= self::MAX_INITIAL_PAGES && $currentPage < $lastPage;
     }
 
+    /** The result shape with nothing in it; the client normalizes from these keys. */
+    private function emptyPayload(): array
+    {
+        return [
+            'data' => [],
+            'total' => 0,
+            'current_page' => 1,
+            'per_page' => self::PER_PAGE,
+            'from' => null,
+            'to' => null,
+            'last_page' => 1,
+            'has_more' => false,
+            'limit_reached' => false,
+        ];
+    }
+
     /**
      * Run the results query and shape the answer. $window is "pages
      * 1..$window in one go" (a cold load of ?page=N, a Show more click);
@@ -418,23 +435,18 @@ class ListingsController extends Controller
             ->load(['genres', 'category', 'location', 'attendanceType', 'currentUserFavorite', 'remotelocations'])
             ->sortRaw(['published_at' => 'desc']);
 
-        $results = $window
+        $results = SearchGuard::run(fn () => $window
             ? $builder->paginate(self::PER_PAGE * $window, 'page', 1)
-            : $builder->paginate(self::PER_PAGE, 'page', $page);
+            : $builder->paginate(self::PER_PAGE, 'page', $page));
+
+        // Elasticsearch unreachable: an empty page that says so, not a 500.
+        if ($results === null) {
+            return $this->emptyPayload() + ['search_unavailable' => true];
+        }
 
         // Always the same structure, even with no results.
         if ($results->total() === 0) {
-            return [
-                'data' => [],
-                'total' => 0,
-                'current_page' => 1,
-                'per_page' => self::PER_PAGE,
-                'from' => null,
-                'to' => null,
-                'last_page' => 1,
-                'has_more' => false,
-                'limit_reached' => false,
-            ];
+            return $this->emptyPayload();
         }
 
         $content = $results->toArray();
@@ -484,7 +496,7 @@ class ListingsController extends Controller
      */
     private function mapPins(array $searchFilters, array $locationFilters, $boundaryFilter, Request $request, bool $applyGeoFilter): array
     {
-        $ids = Event::searchQuery($this->buildMapPinsQuery($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter))
+        $ids = SearchGuard::run(fn () => Event::searchQuery($this->buildMapPinsQuery($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter))
             // Same order as the list, so if the cap ever bites it drops the
             // oldest listings, not an arbitrary set.
             ->sortRaw(['published_at' => 'desc'])
@@ -493,9 +505,9 @@ class ListingsController extends Controller
             ->execute()
             ->documents()
             ->map(fn ($document) => (int) $document->id())
-            ->all();
+            ->all(), []);
 
-        return Event::mapPins($ids);
+        return $ids === [] ? [] : Event::mapPins($ids);
     }
 
     public function index(Request $request)

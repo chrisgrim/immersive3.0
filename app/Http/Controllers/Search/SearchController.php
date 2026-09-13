@@ -4,10 +4,9 @@ namespace App\Http\Controllers\Search;
 
 use App\Actions\Search\SearchActions;
 use App\Http\Controllers\Controller;
-use App\Models\Category;
 use App\Models\Event;
-use App\Models\Genre;
 use App\Models\Organizer;
+use App\Support\Search\SearchGuard;
 use Illuminate\Http\Request;
 
 class SearchController extends Controller
@@ -28,9 +27,7 @@ class SearchController extends Controller
             $query->trackScores(true);
         }
 
-        $results = $query->execute();
-
-        return $results->hits();
+        return SearchGuard::run(fn () => $query->execute()->hits(), fn () => collect());
     }
 
     public function navOrganizers(Request $request, SearchActions $searchActions)
@@ -48,9 +45,7 @@ class SearchController extends Controller
             $query->trackScores(true);
         }
 
-        $results = $query->execute();
-
-        return $results->hits();
+        return SearchGuard::run(fn () => $query->execute()->hits(), fn () => collect());
     }
 
     public function navNames(Request $request, SearchActions $searchActions)
@@ -69,24 +64,6 @@ class SearchController extends Controller
             $query->sort('published_at', 'desc');
         }
 
-        $results = $query->execute();
-
-        return $results->hits();
-    }
-
-    public function navGenres(Request $request, SearchActions $searchActions)
-    {
-        $query = Genre::searchQuery($searchActions->nameSearch($request))
-            ->join(Category::class)
-            ->size(6);
-
-        // Only sort by relevance when performing a keyword search
-        if ($request->keywords) {
-            $query->trackScores(true);
-        }
-
-        $results = $query->execute();
-
-        return $results->hits();
+        return SearchGuard::run(fn () => $query->execute()->hits(), fn () => collect());
     }
 }

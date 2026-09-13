@@ -244,3 +244,30 @@ test('moveEvents is denied to non-moderators', function () {
         ])
         ->assertStatus(403);
 });
+
+test('moveEvents reindexes every moved event (the bulk update bypasses Eloquent)', function () {
+    config(['scout.queue' => true]);
+    \Illuminate\Support\Facades\Queue::fake();
+
+    $source = Organizer::factory()->create(['status' => 'p']);
+    $destination = Organizer::factory()->create(['status' => 'p']);
+    $moved = Event::factory()->count(2)->create(['organizer_id' => $source->id, 'status' => 'p']);
+    Event::factory()->create(['organizer_id' => $destination->id, 'status' => 'p']); // untouched
+
+    // Creating the rows above queued their own index jobs; count only the move's.
+    \Illuminate\Support\Facades\Queue::fake();
+
+    $this->actingAs($this->moderator)
+        ->postJson("/api/admin/manage/organizers/{$source->slug}/move-events", [
+            'destination_organizer_id' => $destination->id,
+        ])
+        ->assertOk();
+
+    \Illuminate\Support\Facades\Queue::assertPushed(\Laravel\Scout\Jobs\MakeSearchable::class, 2);
+    foreach ($moved as $event) {
+        \Illuminate\Support\Facades\Queue::assertPushed(
+            \Laravel\Scout\Jobs\MakeSearchable::class,
+            fn ($job) => $job->models->contains('id', $event->id)
+        );
+    }
+});

@@ -110,8 +110,8 @@ class Genre extends Model
         // not touch the event, so nothing re-indexed it. Every tag added
         // after an event was last saved was invisible to the tag search
         // until some unrelated edit happened to refresh the document.
-        // fresh(), so the genre relation is read again rather than served
-        // from whatever this instance had loaded.
-        $event->fresh()->searchable();
+        // syncSearchIndex() re-reads the event, so the genre relation is
+        // fresh, and batches to one reindex under UpdateEventAction.
+        $event->syncSearchIndex();
     }
 }

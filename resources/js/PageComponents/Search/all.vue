@@ -27,11 +27,13 @@
              untrue when no filters were on. -->
         <div v-else class="py-8">
             <h2 class="text-2.5xl text-black font-medium">
-                {{ ['Sorry, we couldn\'t find any events', context].filter(Boolean).join(' ') }}
+                {{ events.search_unavailable
+                    ? 'Search is temporarily unavailable. Please try again in a minute.'
+                    : ['Sorry, we couldn\'t find any events', context].filter(Boolean).join(' ') }}
             </h2>
 
             <button
-                v-if="hasActiveFilters"
+                v-if="hasActiveFilters && !events.search_unavailable"
                 type="button"
                 @click="openFilters"
                 class="text-xl text-gray-700 mt-2 leading-tight underline underline-offset-4 decoration-gray-400 hover:text-black hover:decoration-current focus-visible:text-black focus-visible:outline-none">

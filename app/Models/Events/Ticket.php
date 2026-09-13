@@ -157,15 +157,14 @@ class Ticket extends Model
             }
         });
 
-        // Deliberately OUTSIDE the transaction: Event is Scout-Searchable and
-        // scout.after_commit is false, so saving it indexes to Elasticsearch
-        // immediately. Inside the transaction a later rollback would leave the
-        // index describing rows that no longer exist.
+        // Deliberately OUTSIDE the transaction so the index never describes
+        // rows a rollback removed. syncSearchIndex() re-reads the event and is
+        // batched to one reindex when UpdateEventAction is driving the save.
         $event->update([
             'price_range' => self::getPriceRange($prices, $currency, $names),
         ]);
 
-        $event->fresh()->searchable();
+        $event->syncSearchIndex();
     }
 
     public static function getPriceRange($prices, $currency, $names = [])

@@ -16,4 +16,7 @@ export const normalizeSearchResults = (raw = {}) => ({
     // it can be off: the list is as deep as one search goes.
     has_more: raw?.has_more ?? false,
     limit_reached: raw?.limit_reached ?? false,
+    // The server could not reach Elasticsearch: show "search is temporarily
+    // unavailable" rather than "no events found".
+    search_unavailable: raw?.search_unavailable ?? false,
 });

@@ -280,9 +280,7 @@ class Show extends Model
 
         // Reindex in Elasticsearch AFTER the transaction commits — an external
         // side effect must not run inside the DB transaction.
-        if ($event->shouldBeSearchable()) {
-            $event->searchable();
-        }
+        $event->syncSearchIndex();
 
         // Two lists, two different refusals: dates that already happened and
         // were KEPT against the caller's wishes, and dates in the past the
@@ -599,9 +597,7 @@ class Show extends Model
         $event->update($updateData);
 
         // Force reindex the event in Elasticsearch
-        if ($event->shouldBeSearchable()) {
-            $event->searchable();
-        }
+        $event->syncSearchIndex();
     }
 
     /**
@@ -631,9 +627,7 @@ class Show extends Model
         if ($event->status === 'e' && ! $request->embargo_date) {
             $event->update(['status' => 'p']);
 
-            if ($event->shouldBeSearchable()) {
-                $event->searchable();
-            }
+            $event->syncSearchIndex();
 
             return false;
         }
@@ -663,7 +657,7 @@ class Show extends Model
 
         if (! $hasEnded || auth()->user()?->isModerator()) {
             $event->update(['status' => 'e']);
-            $event->unsearchable();
+            $event->syncSearchIndex();
 
             return false;
         }
@@ -775,9 +769,8 @@ class Show extends Model
 
         // The index carries the shows and closingDate; refresh it from the
         // committed rows.
-        if (($report['updated'] > 0 || $report['merged'] > 0 || $report['closing_before'] !== $report['closing_after'])
-            && $event->shouldBeSearchable()) {
-            $event->refresh()->searchable();
+        if (($report['updated'] > 0 || $report['merged'] > 0 || $report['closing_before'] !== $report['closing_after'])) {
+            $event->syncSearchIndex();
         }
 
         return $report;
