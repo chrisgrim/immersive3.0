@@ -23,3 +23,6 @@ yarn-error.log
 /.idea
 /.vscode
 .env.local
+
+# Private per-machine notes for Claude Code (server access etc.)
+CLAUDE.local.md

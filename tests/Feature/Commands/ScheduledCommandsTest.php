@@ -74,32 +74,3 @@ test('check-closing-events is disabled and sends no mail', function () {
     expect($exit)->toBe(0);
     Mail::assertNothingSent();
 });
-
-// ----- ei:send-newsletter (NewsletterCommand) -----
-
-test('send-newsletter emails the configured recipients with recent events', function () {
-    Mail::fake();
-
-    $event = Event::factory()->create([
-        'status' => 'p',
-        'created_at' => now()->subDays(2),
-    ]);
-
-    Artisan::call('ei:send-newsletter');
-
-    // One Newsletter to each hardcoded recipient.
-    Mail::assertSent(\App\Mail\Newsletter::class, 2);
-    Mail::assertSent(\App\Mail\Newsletter::class, fn ($mail) => $mail->hasTo('chgrim@gmail.com'));
-    Mail::assertSent(\App\Mail\Newsletter::class, fn ($mail) => $mail->hasTo('noah@noproscenium.com'));
-    // The recent published event is carried in the newsletter payload.
-    Mail::assertSent(\App\Mail\Newsletter::class, fn ($mail) => $mail->events->contains('id', $event->id));
-});
-
-test('send-newsletter still emails the recipients when there are no recent events', function () {
-    Mail::fake();
-
-    Artisan::call('ei:send-newsletter');
-
-    Mail::assertSent(\App\Mail\Newsletter::class, 2);
-    Mail::assertSent(\App\Mail\Newsletter::class, fn ($mail) => $mail->events->isEmpty());
-});

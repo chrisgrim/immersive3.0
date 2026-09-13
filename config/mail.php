@@ -105,7 +105,7 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
-    'admin_email' => env('MAIL_ADMIN_EMAIL', 'chgrim@email.com'),
+    'admin_email' => env('MAIL_ADMIN_EMAIL'),
 
     // There is no legal@ inbox — support@ is the only mailbox that actually
     // exists, so it's the fallback (and the address used in Terms/Help/
