@@ -113,7 +113,7 @@ class PostController extends Controller
      */
     public function order(Request $request, Community $community, PostActions $postActions)
     {
-        return $postActions->reorder($request);
+        return $postActions->reorder($request, $community);
     }
 
     /**

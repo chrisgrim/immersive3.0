@@ -489,3 +489,65 @@ test('destroy cannot reach a post that belongs to another community', function (
 
     expect(Post::find($victim->id))->not->toBeNull();
 });
+
+// ----- request-body ids and shelf_id are scoped to the community too -----
+
+test('order cannot reorder a post that belongs to another community', function () {
+    $otherOwner = User::factory()->create(['type' => 'u']);
+    $other = Community::factory()->create(['user_id' => $otherOwner->id, 'status' => 'p']);
+    $victim = Post::factory()->create(['community_id' => $other->id, 'order' => 0]);
+    $mine = Post::factory()->create(['community_id' => $this->community->id, 'order' => 0]);
+
+    $this->actingAs($this->curator)
+        ->putJson("/communities/{$this->community->slug}/posts/order", [
+            ['id' => $victim->id, 'order' => 9],
+            ['id' => $mine->id, 'order' => 4],
+        ])
+        ->assertOk();
+
+    expect($victim->fresh()->order)->toBe(0);
+    expect($mine->fresh()->order)->toBe(4);
+});
+
+test('store cannot put a post on another community shelf', function () {
+    $otherOwner = User::factory()->create(['type' => 'u']);
+    $other = Community::factory()->create(['user_id' => $otherOwner->id, 'status' => 'p']);
+    $foreignShelf = Shelf::factory()->create(['community_id' => $other->id]);
+
+    $this->actingAs($this->curator)
+        ->postJson("/communities/{$this->community->slug}/posts", [
+            'name' => 'Sneaky',
+            'blurb' => 'A blurb',
+            'shelf_id' => $foreignShelf->id,
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('shelf_id');
+
+    expect(Post::where('name', 'Sneaky')->exists())->toBeFalse();
+});
+
+test('update cannot move a post onto another community shelf', function () {
+    $otherOwner = User::factory()->create(['type' => 'u']);
+    $other = Community::factory()->create(['user_id' => $otherOwner->id, 'status' => 'p']);
+    $foreignShelf = Shelf::factory()->create(['community_id' => $other->id]);
+    $ownShelf = Shelf::factory()->create(['community_id' => $this->community->id]);
+    $post = Post::factory()->create(['community_id' => $this->community->id, 'shelf_id' => $ownShelf->id]);
+
+    $this->actingAs($this->curator)
+        ->postJson("/communities/{$this->community->slug}/posts/{$post->slug}", ['shelf_id' => $foreignShelf->id])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('shelf_id');
+
+    expect($post->fresh()->shelf_id)->toBe($ownShelf->id);
+});
+
+test('update still accepts a null-ish shelf_id to unshelve a post', function () {
+    $ownShelf = Shelf::factory()->create(['community_id' => $this->community->id]);
+    $post = Post::factory()->create(['community_id' => $this->community->id, 'shelf_id' => $ownShelf->id]);
+
+    $this->actingAs($this->curator)
+        ->postJson("/communities/{$this->community->slug}/posts/{$post->slug}", ['shelf_id' => 'null'])
+        ->assertOk();
+
+    expect($post->fresh()->shelf_id)->toBeNull();
+});

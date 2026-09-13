@@ -7,6 +7,7 @@ use App\Models\Curated\Post;
 use App\Services\ImageHandler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class PostActions
 {
@@ -22,7 +23,7 @@ class PostActions
             'name' => $request->name,
             'slug' => Str::slug($request->name).'-'.$community->id,
             'user_id' => auth()->user()->id,
-            'shelf_id' => $request->shelf_id,
+            'shelf_id' => $this->shelfIdWithin($community, $request->shelf_id),
         ]);
 
         if ($request->hasFile('image')) {
@@ -48,8 +49,8 @@ class PostActions
         // or would otherwise let a curator reparent / self-publish posts.
         $data = $request->only(['name', 'blurb', 'shelf_id', 'order', 'type', 'event_id', 'image_type']);
 
-        if (isset($data['shelf_id']) && ($data['shelf_id'] === null || $data['shelf_id'] === 'null' || $data['shelf_id'] === '')) {
-            $data['shelf_id'] = null;
+        if (array_key_exists('shelf_id', $data)) {
+            $data['shelf_id'] = $this->shelfIdWithin($post->community, $data['shelf_id']);
         }
 
         // Store old slug for image path updates
@@ -122,12 +123,36 @@ class PostActions
      *
      * @return void
      */
-    public function reorder(Request $request)
+    public function reorder(Request $request, Community $community)
     {
+        // Ids come from the request body, which scopeBindings() cannot check,
+        // so constrain every update to this community's own posts.
         foreach ($request->all() as $list) {
-            Post::find($list['id'])->update([
-                'order' => $list['order'],
+            if (! is_array($list) || ! isset($list['id'], $list['order'])) {
+                continue;
+            }
+            $community->posts()->whereKey((int) $list['id'])->update([
+                'order' => (int) $list['order'],
             ]);
         }
+    }
+
+    /**
+     * A post may only sit on a shelf of its own community. Accepts the
+     * frontend's null-ish spellings ('', 'null') and returns the normalized id.
+     */
+    private function shelfIdWithin(Community $community, $shelfId): ?int
+    {
+        if ($shelfId === null || $shelfId === '' || $shelfId === 'null') {
+            return null;
+        }
+
+        if (! $community->shelves()->whereKey((int) $shelfId)->exists()) {
+            throw ValidationException::withMessages([
+                'shelf_id' => 'That shelf does not belong to this community.',
+            ]);
+        }
+
+        return (int) $shelfId;
     }
 }

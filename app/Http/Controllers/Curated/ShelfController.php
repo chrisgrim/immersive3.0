@@ -2,19 +2,17 @@
 
 namespace App\Http\Controllers\Curated;
 
-use Illuminate\Http\Request;
+use App\Actions\Curated\ShelfActions;
+use App\Http\Controllers\Controller;
 use App\Models\Curated\Community;
 use App\Models\Curated\Shelf;
-use App\Http\Controllers\Controller;
-use App\Actions\Curated\ShelfActions;
+use Illuminate\Http\Request;
 
 class ShelfController extends Controller
 {
-
     /**
      * Store a newly created resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
     public function store(Request $request, Community $community, ShelfActions $shelfActions)
@@ -25,9 +23,6 @@ class ShelfController extends Controller
     /**
      * update an existing model
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Curated\Community  $community
-     * @param  \App\Models\Curated\Shelf  $shelf
      * @return \Illuminate\Http\Response
      */
     public function update(Request $request, Community $community, Shelf $shelf, ShelfActions $shelfActions)
@@ -38,8 +33,6 @@ class ShelfController extends Controller
     /**
      * Destroy the specified resource.
      *
-     * @param  \App\Models\Curated\Community  $community
-     * @param  \App\Models\Curated\Shelf  $shelf
      * @return \Illuminate\Http\Response
      */
     public function destroy(Community $community, Shelf $shelf, ShelfActions $shelfActions)
@@ -50,9 +43,6 @@ class ShelfController extends Controller
     /**
      * Paginate the specified resource.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Curated\Community  $community
-     * @param  \App\Models\Curated\Shelf  $shelf
      * @return \Illuminate\Http\Response
      */
     public function paginate(Request $request, Community $community, Shelf $shelf, ShelfActions $shelfActions)
@@ -60,6 +50,7 @@ class ShelfController extends Controller
         if ($request->type === 'published') {
             return $shelf->publishedPosts()->paginate(8);
         }
+
         return $shelf->posts()->paginate(8);
     }
 
@@ -71,24 +62,22 @@ class ShelfController extends Controller
      */
     public function order(Request $request, Community $community, ShelfActions $shelfActions)
     {
-        return $shelfActions->reorder($request);
+        return $shelfActions->reorder($request, $community);
     }
 
     /**
      * Toggle the hidden status of the specified shelf.
      *
-     * @param  \App\Models\Curated\Community  $community
-     * @param  \App\Models\Curated\Shelf  $shelf
      * @return \Illuminate\Http\Response
      */
     public function toggleHidden(Community $community, Shelf $shelf)
     {
-        $shelf->update(['is_hidden' => !$shelf->is_hidden]);
-        
+        $shelf->update(['is_hidden' => ! $shelf->is_hidden]);
+
         return response()->json([
             'success' => true,
             'is_hidden' => $shelf->is_hidden,
-            'message' => $shelf->is_hidden ? 'Shelf hidden successfully' : 'Shelf shown successfully'
+            'message' => $shelf->is_hidden ? 'Shelf hidden successfully' : 'Shelf shown successfully',
         ]);
     }
 }

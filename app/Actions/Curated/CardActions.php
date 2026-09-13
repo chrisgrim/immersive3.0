@@ -22,8 +22,10 @@ class CardActions
     {
         return [
             'name' => 'nullable|string|max:255',
-            'blurb' => 'nullable|string|max:20000',
-            'url' => ['nullable', 'string', 'max:500', 'regex:#^(/|https?://)#i'],
+            // 40000 matches the editor's own limit (block-text.vue / card-edit.vue).
+            'blurb' => 'nullable|string|max:40000',
+            // "/" but not "//host" (protocol-relative), or an absolute http(s) URL.
+            'url' => ['nullable', 'string', 'max:500', 'regex:#^(/(?!/)|https?://)#i'],
             'button_text' => 'nullable|string|max:100',
             'event_id' => 'nullable|integer|exists:events,id',
             'order' => 'nullable|integer|min:0',
@@ -113,7 +115,7 @@ class CardActions
     /**
      * Reorder cards
      */
-    public function reorder(Request $request)
+    public function reorder(Request $request, Post $post)
     {
         // Card::find()->update() per row cost 2 queries plus Card's $with
         // (event, images) eager load on every find — one drag-and-drop reorder
@@ -141,7 +143,10 @@ class CardActions
             ->map(fn ($card) => sprintf('WHEN %d THEN %d', (int) $card['id'], (int) $card['order']))
             ->implode(' ');
 
-        Card::whereIn('id', $cards->keys())
+        // Ids come from the request body, which scopeBindings() cannot check,
+        // so only this post's own cards may be touched.
+        Card::where('post_id', $post->id)
+            ->whereIn('id', $cards->keys())
             ->update([
                 'order' => DB::raw("CASE id {$cases} END"),
                 'updated_at' => now(),

@@ -2,11 +2,9 @@
 
 namespace App\Actions\Curated;
 
-use Illuminate\Http\Request;
-use App\Models\Curated\Card;
-use App\Models\Curated\Post;
-use App\Models\Curated\Shelf;
 use App\Models\Curated\Community;
+use App\Models\Curated\Shelf;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
 class ShelfActions
@@ -23,7 +21,7 @@ class ShelfActions
         $community->shelves()->create([
             'user_id' => auth()->id(),
             'name' => 'New Shelf',
-            'order' => 0
+            'order' => 0,
         ]);
 
         return $community->shelves()
@@ -31,7 +29,7 @@ class ShelfActions
             ->orderByDesc('order')
             ->get()
             ->map(fn (Shelf $shelf) => $shelf->setRelation(
-                'posts', 
+                'posts',
                 $shelf->posts()->paginate(8)
             ));
     }
@@ -42,11 +40,11 @@ class ShelfActions
     public function update(Request $request, Shelf $shelf): Shelf
     {
         $shelf->update([
-            'name' => $request->name
+            'name' => $request->name,
         ]);
 
         return $shelf->setRelation(
-            'posts', 
+            'posts',
             $shelf->posts()->paginate(4)
         );
     }
@@ -62,7 +60,7 @@ class ShelfActions
             ->limit(3)
             ->get()
             ->map(fn (Shelf $shelf) => $shelf->setRelation(
-                'posts', 
+                'posts',
                 $shelf->posts()->paginate(4)
             ));
     }
@@ -70,12 +68,16 @@ class ShelfActions
     /**
      * Reorder shelves.
      */
-    public function reorder(Request $request): void
+    public function reorder(Request $request, Community $community): void
     {
-        collect($request->all())->each(function (array $item) {
-            Shelf::find($item['id'])->update([
-                'order' => $item['order']
-            ]);
-        });
+        // Ids come from the request body, which scopeBindings() cannot check,
+        // so constrain every update to this community's own shelves.
+        collect($request->all())
+            ->filter(fn ($item) => is_array($item) && isset($item['id'], $item['order']))
+            ->each(function (array $item) use ($community) {
+                $community->shelves()->whereKey((int) $item['id'])->update([
+                    'order' => (int) $item['order'],
+                ]);
+            });
     }
 }

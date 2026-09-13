@@ -14,7 +14,7 @@
                             <p class="text-gray-500 text-xl">Curated by:</p>
                             <transition name="fade" mode="out-in">
                                 <p :key="currentCuratorIndex" class="text-2xl font-semibold">
-                                    {{ community.curators[currentCuratorIndex].name || community.curators[currentCuratorIndex].email }}
+                                    {{ community.curators[currentCuratorIndex].name || 'Community curator' }}
                                 </p>
                             </transition>
                         </div>

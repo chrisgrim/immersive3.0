@@ -298,3 +298,20 @@ test('update cannot reach a shelf that belongs to another community', function (
 
     expect($victim->fresh()->name)->toBe('Untouched');
 });
+
+test('order cannot reorder a shelf that belongs to another community', function () {
+    $otherOwner = User::factory()->create(['type' => 'u']);
+    $other = Community::factory()->create(['user_id' => $otherOwner->id, 'status' => 'p']);
+    $victim = Shelf::factory()->create(['community_id' => $other->id, 'order' => 0]);
+    $mine = Shelf::factory()->create(['community_id' => $this->community->id, 'order' => 0]);
+
+    $this->actingAs($this->curator)
+        ->postJson("/communities/{$this->community->slug}/shelves/order", [
+            ['id' => $victim->id, 'order' => 9],
+            ['id' => $mine->id, 'order' => 4],
+        ])
+        ->assertOk();
+
+    expect($victim->fresh()->order)->toBe(0);
+    expect($mine->fresh()->order)->toBe(4);
+});

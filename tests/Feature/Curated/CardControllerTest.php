@@ -569,3 +569,51 @@ test('store accepts a site-relative link to an event page', function () {
 
     expect(Card::where('name', 'Good link')->value('url'))->toBe('/events/some-show');
 });
+
+test('order cannot reorder a card that belongs to another post', function () {
+    $otherPost = Post::factory()->create(['community_id' => $this->community->id]);
+    $victim = Card::factory()->create(['post_id' => $otherPost->id, 'order' => 0]);
+    $mine = Card::factory()->create(['post_id' => $this->post->id, 'order' => 0]);
+
+    $this->actingAs($this->curator)
+        ->putJson(cardUrl($this->community, $this->post, null, '/order'), [
+            ['id' => $victim->id, 'order' => 9],
+            ['id' => $mine->id, 'order' => 4],
+        ])
+        ->assertOk();
+
+    expect($victim->fresh()->order)->toBe(0);
+    expect($mine->fresh()->order)->toBe(4);
+});
+
+test('store rejects a protocol-relative url', function () {
+    $this->actingAs($this->curator)
+        ->postJson("/communities/{$this->community->slug}/posts/{$this->post->slug}/cards", [
+            'name' => 'Sneaky link',
+            'url' => '//evil.example/x',
+            'type' => 'b',
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('url');
+});
+
+test('update rejects a javascript: url', function () {
+    $card = Card::factory()->create(['post_id' => $this->post->id, 'url' => 'https://ok.example']);
+
+    $this->actingAs($this->curator)
+        ->postJson(cardUrl($this->community, $this->post, $card), ['url' => 'javascript:alert(1)'])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('url');
+
+    expect($card->fresh()->url)->toBe('https://ok.example');
+});
+
+test('store accepts a blurb as long as the editor allows', function () {
+    $this->actingAs($this->curator)
+        ->postJson("/communities/{$this->community->slug}/posts/{$this->post->slug}/cards", [
+            'name' => 'Long one',
+            'blurb' => '<p>'.str_repeat('a', 39000).'</p>',
+            'type' => 'b',
+        ])
+        ->assertOk();
+});
