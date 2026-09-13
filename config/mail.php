@@ -45,7 +45,11 @@ return [
             'encryption' => env('MAIL_ENCRYPTION', 'tls'),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
-            'timeout' => null,
+            // Seconds to wait for the SMTP host before giving up. PHP's default
+            // is 60s, which is how long a visitor sat on the login page when the
+            // mail provider was unreachable on 2026-09-12. Fail fast instead so
+            // the controller can tell them to retry.
+            'timeout' => (int) env('MAIL_TIMEOUT', 10),
             'local_domain' => env('MAIL_EHLO_DOMAIN'),
         ],
 

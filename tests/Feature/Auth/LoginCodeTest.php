@@ -26,6 +26,24 @@ test('sendCode creates a new user, caches a 6-digit code, and emails it', functi
     Mail::assertSent(LoginCode::class, fn ($mail) => $mail->hasTo('new@example.com'));
 });
 
+test('sendCode tells the visitor to retry when the mail server cannot be reached', function () {
+    // A real outage: the SMTP host timed out for 40 minutes on 2026-09-12 and
+    // the visitor saw a bare "An error occurred" after a minute of waiting.
+    Mail::shouldReceive('to')->once()->andThrow(
+        new \Symfony\Component\Mailer\Exception\TransportException('Connection to "arrow.mxrouting.net:587" timed out.')
+    );
+
+    $response = $this->postJson('/login/code', ['email' => 'unlucky@example.com']);
+
+    $response->assertStatus(503)
+        ->assertJsonPath('errors.email.0', "We couldn't send the email right now. Please try again in a few minutes.");
+
+    // The failed attempt still counts toward the 5-per-hour limit, so a
+    // failing mail server cannot be hammered. ((int): the Redis-backed test
+    // cache hands numbers back as strings.)
+    expect((int) Cache::get('login_code_requests:unlucky@example.com'))->toBe(1);
+});
+
 test('sendCode reuses an existing user', function () {
     $user = User::factory()->create(['email' => 'existing@example.com']);
 
