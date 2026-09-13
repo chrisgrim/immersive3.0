@@ -158,3 +158,67 @@ test('an admin can change another users role', function () use ($asAdmin) {
 
     expect($target->fresh()->type)->toBe('m');
 });
+
+/**
+ * Moderators must never edit admin accounts. Login is passwordless and keyed
+ * on email, so a moderator who could rewrite an admin's email could request
+ * a login code for it and take the account over. Both write paths are
+ * covered: the admin management endpoint and the legacy profile update.
+ */
+test('a moderator cannot change an admin email through the admin endpoint', function () use ($asModerator, $asAdmin) {
+    $moderator = $asModerator();
+    $admin = $asAdmin();
+    $originalEmail = $admin->email;
+
+    $this->actingAs($moderator)
+        ->patchJson("/api/admin/manage/users/{$admin->id}", ['email' => 'attacker@example.com'])
+        ->assertStatus(403);
+
+    expect($admin->fresh()->email)->toBe($originalEmail);
+});
+
+test('a moderator cannot change an admin name or verification either', function () use ($asModerator, $asAdmin) {
+    $moderator = $asModerator();
+    $admin = $asAdmin();
+
+    $this->actingAs($moderator)
+        ->patchJson("/api/admin/manage/users/{$admin->id}", ['name' => 'Renamed', 'verified' => false])
+        ->assertStatus(403);
+
+    expect($admin->fresh()->name)->not->toBe('Renamed');
+    expect($admin->fresh()->email_verified_at)->not->toBeNull();
+});
+
+test('an admin can still edit another admin', function () use ($asAdmin) {
+    $admin = $asAdmin();
+    $other = $asAdmin();
+
+    $this->actingAs($admin)
+        ->patchJson("/api/admin/manage/users/{$other->id}", ['name' => 'Renamed'])
+        ->assertOk();
+
+    expect($other->fresh()->name)->toBe('Renamed');
+});
+
+test('a moderator can still edit an ordinary user', function () use ($asModerator) {
+    $moderator = $asModerator();
+    $target = User::factory()->create();
+
+    $this->actingAs($moderator)
+        ->patchJson("/api/admin/manage/users/{$target->id}", ['name' => 'Renamed'])
+        ->assertOk();
+
+    expect($target->fresh()->name)->toBe('Renamed');
+});
+
+test('a moderator cannot edit an admin through the profile update route', function () use ($asModerator, $asAdmin) {
+    $moderator = $asModerator();
+    $admin = $asAdmin();
+    $originalEmail = $admin->email;
+
+    $this->actingAs($moderator)
+        ->postJson("/users/{$admin->id}", ['email' => 'attacker@example.com'])
+        ->assertStatus(403);
+
+    expect($admin->fresh()->email)->toBe($originalEmail);
+});

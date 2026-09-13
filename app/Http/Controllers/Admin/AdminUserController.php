@@ -39,6 +39,15 @@ class AdminUserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        // A moderator must never be able to touch an admin account. Login is
+        // passwordless and keyed on email, so rewriting an admin's email is a
+        // full account takeover; name/verified edits are refused too so the
+        // rule is simple: only admins edit admins. (Same rule in UserPolicy
+        // for the profile-edit path.)
+        if ($user->type === 'a' && ! auth()->user()->isAdmin()) {
+            abort(403, 'Only admins can edit admin users.');
+        }
+
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'email' => [
@@ -57,7 +66,7 @@ class AdminUserController extends Controller
         // callers — even admins — to prevent a sole admin from demoting
         // themselves and locking the system out of admin entirely.
         if (array_key_exists('type', $validated)) {
-            if (auth()->user()->type !== 'a') {
+            if (! auth()->user()->isAdmin()) {
                 abort(403, 'Only admins can change user roles.');
             }
             if ($user->id === auth()->id()) {
@@ -84,7 +93,7 @@ class AdminUserController extends Controller
             ], 403);
         }
 
-        if ($user->type === 'a' && auth()->user()->type !== 'a') {
+        if ($user->type === 'a' && ! auth()->user()->isAdmin()) {
             return response()->json([
                 'message' => 'You do not have permission to delete admin users',
             ], 403);

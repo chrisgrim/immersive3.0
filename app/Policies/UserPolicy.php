@@ -14,6 +14,17 @@ class UserPolicy
      */
     public function update(User $user, User $model): bool
     {
-        return $user->id === $model->id || $user->isModerator();
+        if ($user->id === $model->id) {
+            return true;
+        }
+
+        // Moderators may edit ordinary users but never admins: this path can
+        // change the email, and email is the login credential. Mirrors the
+        // guard in AdminUserController::update.
+        if ($model->type === 'a') {
+            return $user->isAdmin();
+        }
+
+        return $user->isModerator();
     }
 }
