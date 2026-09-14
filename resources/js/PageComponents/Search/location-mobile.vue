@@ -35,7 +35,7 @@
                     <div 
                         @click="hideFullMap"
                         class="w-full flex items-center gap-4 pt-4 h-28 relative before:content-[''] before:block before:absolute before:top-6 before:left-1/2 before:-translate-x-5 before:w-16 before:h-2 before:rounded-full before:bg-[#351b1b7a]">
-                        <p class="text-black text-1xl font-medium w-full text-center" v-if="hasEvents">{{ events.total }} immersive events.</p>
+                        <p class="text-black text-1xl font-medium w-full text-center" v-if="hasEvents">{{ events.total }} immersive events.{{ events.search_unavailable ? ' Some search features are temporarily unavailable.' : '' }}</p>
                         <p class="text-black text-1xl font-medium w-full text-center" v-else>{{ events.search_unavailable ? 'Search is temporarily unavailable.' : 'No events found.' }}</p>
                     </div>
                     <div class="p-8 mt-[-1rem] overflow-y-auto overflow-x-hidden gap-x-6 scrolling-touch min-h-[64vh]">

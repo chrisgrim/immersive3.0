@@ -9,6 +9,7 @@
                 <div class="px-8 pt-16">
                     <!-- See all.vue: gated on hasEvents so the count and the
                          empty state can never appear together. -->
+                    <p v-if="hasEvents && events.search_unavailable" class="text-lg text-gray-700 mb-4">Some search features (prices, map pins) are temporarily unavailable.</p>
                     <results-header v-if="hasEvents" :total="events.total" />
                 </div>
                 

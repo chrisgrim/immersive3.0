@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Jobs\SyncEventSearchIndex;
 use App\Models\Admin\CuratedEventCheck;
 use App\Models\Admin\ReviewEvent;
 use App\Models\Admin\StaffPick;
@@ -37,7 +38,11 @@ use Illuminate\Support\Str;
  */
 class Event extends Model
 {
-    use Favoritable, HasFactory, Searchable, SoftDeletes;
+    use Favoritable, HasFactory, SoftDeletes;
+    use Searchable {
+        queueMakeSearchable as protected scoutQueueMakeSearchable;
+        queueRemoveFromSearch as protected scoutQueueRemoveFromSearch;
+    }
 
     protected $casts = [
         'location_latlon' => 'array',
@@ -60,26 +65,54 @@ class Event extends Model
 
     public function shouldBeSearchable()
     {
-        return $this->status === 'p';
+        return $this->status === 'p' && ! $this->trashed();
     }
 
     /*
     |--------------------------------------------------------------------------
     | Search-index sync
     |--------------------------------------------------------------------------
-    | Every write path ends in syncSearchIndex(): index the event if it is
-    | published, drop it otherwise. Inside deferringSearchSync() the calls are
-    | collected and replayed once, after the outermost DB transaction commits,
-    | so a save that touches the event, its shows, tickets and genres costs one
-    | index update instead of up to ten. With scout.queue on, each update is a
-    | queued MakeSearchable/RemoveFromSearch job, so a slow or unreachable
-    | Elasticsearch never fails the request.
+    | Every index write for an Event, whether Scout's observer or an explicit
+    | syncSearchIndex(), becomes "reconcile event N": re-read the row and
+    | index it if it is live and published, otherwise delete it from the
+    | index. With scout.queue on that is a queued SyncEventSearchIndex job
+    | that decides when it RUNS (tries 3, backoff 30s/120s), so a delayed
+    | retry can never resurrect an event that was deleted or unpublished in
+    | the meantime, and a slow or unreachable cluster never fails the
+    | request. Inside deferringSearchSync() the calls are collected and
+    | replayed once per event after the outermost transaction commits, so a
+    | save that touches the event, its shows, tickets and genres costs one
+    | job instead of up to ten.
     */
 
     protected static bool $deferringSearchSync = false;
 
     /** @var array<int, true> */
     protected static array $deferredSearchSyncIds = [];
+
+    /** Scout hook: a single model's searchable() becomes a reconcile; a bulk collection (scout:import) keeps Scout's chunked job. */
+    public function queueMakeSearchable($models)
+    {
+        if ($models->count() > 1) {
+            return $this->scoutQueueMakeSearchable($models);
+        }
+
+        foreach ($models as $model) {
+            static::queueSearchIndexSync($model->getKey());
+        }
+    }
+
+    /** Scout hook: same as queueMakeSearchable, for unsearchable(). */
+    public function queueRemoveFromSearch($models)
+    {
+        if ($models->count() > 1) {
+            return $this->scoutQueueRemoveFromSearch($models);
+        }
+
+        foreach ($models as $model) {
+            static::queueSearchIndexSync($model->getKey());
+        }
+    }
 
     public function syncSearchIndex(): void
     {
@@ -89,30 +122,53 @@ class Event extends Model
             return;
         }
 
-        // Re-read: callers often hold an instance whose relations (shows,
-        // genres, price range) are stale, and toSearchableArray() reads them.
-        // withoutGlobalScopes() drops SoftDeletingScope too, so a trashed row
-        // is found and handled below rather than treated as "gone".
-        $this->syncSearchIndexFrom(static::withoutGlobalScopes()->find($this->getKey()));
+        static::queueSearchIndexSync($this->getKey());
     }
 
-    /** Index $fresh if it is a live published event; otherwise drop this key from the index. */
-    private function syncSearchIndexFrom(?Event $fresh): void
+    /** Queue the reconcile (scout.queue on) or do it now (off: local dev, tests). */
+    protected static function queueSearchIndexSync(int $id): void
     {
-        if (! $fresh || $fresh->trashed() || ! $fresh->shouldBeSearchable()) {
-            $this->unsearchable();
+        if (! config('scout.queue')) {
+            static::reconcileSearchIndex($id);
 
             return;
         }
 
-        $fresh->searchable();
+        $model = new static;
+
+        SyncEventSearchIndex::dispatch($id)
+            ->onConnection($model->syncWithSearchUsing())
+            ->onQueue($model->syncWithSearchUsingQueue());
+    }
+
+    /**
+     * The one place the index is actually written for an event: read the
+     * current row (no scopes, so a trashed row is seen and removed) and
+     * index or delete accordingly. Called by SyncEventSearchIndex at run
+     * time, or inline when scout.queue is off.
+     */
+    public static function reconcileSearchIndex(int $id): void
+    {
+        $fresh = static::withoutGlobalScopes()->find($id);
+
+        if ($fresh && $fresh->shouldBeSearchable()) {
+            $fresh->syncMakeSearchable($fresh->newCollection([$fresh]));
+
+            return;
+        }
+
+        // A key-only stub is all the engine needs to delete the document.
+        $stub = (new static)->setAttribute('id', $id);
+        $stub->syncRemoveFromSearch($stub->newCollection([$stub]));
     }
 
     /**
      * Run $callback with Scout's observer silenced for Event and every
-     * syncSearchIndex() call deferred; then sync each touched event once,
-     * after commit. If the callback throws, nothing is synced. Nested calls
-     * join the outermost block.
+     * syncSearchIndex() call deferred; then reconcile each touched event
+     * once, after commit. If the callback throws, the events touched so far
+     * are still reconciled (their rows may have committed before the
+     * failure; a reconcile only ever reflects what is in the database).
+     * Nested calls join the outermost block.
      *
      * Enter this at transaction level 0 (as UpdateEventAction and
      * Show::normalizeToLocalNoon do). With scout.after_commit on, Scout runs
@@ -131,31 +187,22 @@ class Event extends Model
         static::$deferredSearchSyncIds = [];
 
         try {
-            $result = static::withoutSyncingToSearch($callback);
-        } catch (\Throwable $e) {
+            return static::withoutSyncingToSearch($callback);
+        } finally {
+            $ids = array_keys(static::$deferredSearchSyncIds);
             static::$deferringSearchSync = false;
             static::$deferredSearchSyncIds = [];
 
-            throw $e;
+            if ($ids !== []) {
+                // Runs immediately when no transaction is open; is dropped
+                // with the transaction on rollback (nothing to reconcile then).
+                DB::afterCommit(function () use ($ids) {
+                    foreach ($ids as $id) {
+                        static::queueSearchIndexSync($id);
+                    }
+                });
+            }
         }
-
-        $ids = array_keys(static::$deferredSearchSyncIds);
-        static::$deferringSearchSync = false;
-        static::$deferredSearchSyncIds = [];
-
-        if ($ids !== []) {
-            // Runs immediately when no transaction is open.
-            DB::afterCommit(function () use ($ids) {
-                $found = static::withoutGlobalScopes()->whereKey($ids)->get()->keyBy('id');
-
-                foreach ($ids as $id) {
-                    // A key-only stub is enough for RemoveFromSearch when the row is gone.
-                    (new static)->setAttribute('id', $id)->syncSearchIndexFrom($found[$id] ?? null);
-                }
-            });
-        }
-
-        return $result;
     }
 
     public function toSearchableArray()

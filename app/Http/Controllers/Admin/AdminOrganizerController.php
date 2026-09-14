@@ -126,15 +126,8 @@ class AdminOrganizerController extends Controller
         $sourceSlug = $organizer->slug;
         $movedCount = 0;
 
-        $movedIds = [];
-
-        DB::transaction(function () use ($organizer, $destination, $validated, $sourceSlug, &$movedCount, &$movedIds) {
+        DB::transaction(function () use ($organizer, $destination, $validated, $sourceSlug, &$movedCount) {
             // Move events. Includes soft-deleted in case admin wants those moved too.
-            $movedIds = Event::withTrashed()
-                ->where('organizer_id', $organizer->id)
-                ->pluck('id')
-                ->all();
-
             $movedCount = Event::withTrashed()
                 ->where('organizer_id', $organizer->id)
                 ->update(['organizer_id' => $destination->id]);
@@ -146,10 +139,6 @@ class AdminOrganizerController extends Controller
                 $destination->update(['slug' => $sourceSlug]);
             }
         });
-
-        // The bulk update bypasses Eloquent, so nothing reindexed the moved
-        // events; their search documents carry the organizer and went stale.
-        Event::whereKey($movedIds)->get()->each->syncSearchIndex();
 
         // Notify the source organizer's owner — they need to know events moved.
         if ($organizer->user && auth()->id() !== $organizer->user->id) {

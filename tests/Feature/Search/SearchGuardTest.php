@@ -3,6 +3,7 @@
 use App\Support\Search\SearchGuard;
 use Elastic\Elasticsearch\Exception\ClientResponseException;
 use Elastic\Elasticsearch\Exception\ServerResponseException;
+use Elastic\Transport\Exception\InvalidArgumentException as TransportInvalidArgumentException;
 use Elastic\Transport\Exception\NoNodeAvailableException;
 use Illuminate\Support\Facades\Exceptions;
 
@@ -84,4 +85,27 @@ test('after one failure, later reads in the same request short-circuit without r
     expect($second)->toBe('b');
     expect($third)->toBe('c');
     Exceptions::assertReportedCount(1);
+});
+
+test('lets a transport configuration error propagate: that is a bug, not an outage', function () {
+    Exceptions::fake();
+
+    expect(fn () => SearchGuard::run(function () {
+        throw new TransportInvalidArgumentException('bad transport config');
+    }, []))->toThrow(TransportInvalidArgumentException::class);
+
+    Exceptions::assertNothingReported();
+});
+
+test('failedThisRequest reports whether any guarded read failed in this request', function () {
+    Exceptions::fake();
+
+    expect(SearchGuard::failedThisRequest())->toBeFalse();
+    SearchGuard::run(fn () => 'fine', null);
+    expect(SearchGuard::failedThisRequest())->toBeFalse();
+
+    SearchGuard::run(function () {
+        throw new NoNodeAvailableException('No alive nodes');
+    }, null);
+    expect(SearchGuard::failedThisRequest())->toBeTrue();
 });

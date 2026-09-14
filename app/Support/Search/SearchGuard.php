@@ -5,7 +5,7 @@ namespace App\Support\Search;
 use Closure;
 use Elastic\Elasticsearch\Exception\ProductCheckException;
 use Elastic\Elasticsearch\Exception\ServerResponseException;
-use Elastic\Transport\Exception\TransportException;
+use Elastic\Transport\Exception\NoNodeAvailableException;
 use Throwable;
 
 /**
@@ -15,9 +15,10 @@ use Throwable;
  * ~55 s NoNodeAvailable gap after the auto-reboot; the search page and the
  * nav autocomplete used to 500 for that whole window.
  *
- * Only cluster failures are caught: no node reachable (transport), a 5xx
- * from the cluster, or the product check failing. A 4xx is a bad query,
- * which is our bug and still propagates so it shows up as an error.
+ * Only cluster failures are caught: no node reachable (the transport wraps
+ * every network error in NoNodeAvailableException), a 5xx from the cluster,
+ * or the product check failing. A 4xx is a bad query, which is our bug, and
+ * transport configuration/serialization errors are bugs too; both propagate.
  *
  * After the first failure in a request every later read short-circuits to
  * its fallback: the listings page makes three reads per view, and during an
@@ -55,29 +56,45 @@ final class SearchGuard
 
     public static function isSearchFailure(Throwable $e): bool
     {
-        return $e instanceof TransportException
+        return $e instanceof NoNodeAvailableException
             || $e instanceof ServerResponseException
             || $e instanceof ProductCheckException;
+    }
+
+    /** Did a guarded read fail earlier in this request? Lets a response flag a partial failure. */
+    public static function failedThisRequest(): bool
+    {
+        return self::unavailable();
     }
 
     /** Forget a failure seen earlier in this request (tests). */
     public static function reset(): void
     {
-        if (app()->bound('request')) {
+        if (self::memoizes()) {
             request()->attributes->remove(self::MEMO);
         }
     }
 
     private static function unavailable(): bool
     {
-        return app()->bound('request') && request()->attributes->get(self::MEMO) === true;
+        return self::memoizes() && request()->attributes->get(self::MEMO) === true;
     }
 
     private static function markUnavailable(): void
     {
-        if (app()->bound('request')) {
+        if (self::memoizes()) {
             request()->attributes->set(self::MEMO, true);
         }
+    }
+
+    /**
+     * Only HTTP requests (and tests) get a fresh Request per unit of work; a
+     * queue worker or artisan command keeps one console Request for its whole
+     * life, so memoizing there would silence reads across jobs.
+     */
+    private static function memoizes(): bool
+    {
+        return app()->bound('request') && (! app()->runningInConsole() || app()->runningUnitTests());
     }
 
     private static function resolve(mixed $fallback): mixed

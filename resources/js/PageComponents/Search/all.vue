@@ -5,6 +5,7 @@
              number outruns the results (a real total, an empty page), and
              the header would then count events beside "we couldn't find
              any". The empty state below owns that case. -->
+        <p v-if="hasEvents && events.search_unavailable" class="text-lg text-gray-700 mb-4">Some search features (prices, map pins) are temporarily unavailable.</p>
         <results-header v-if="hasEvents" :total="events.total" :initial-remote-location="searchedRemoteLocation" />
 
         <!-- Main Content -->

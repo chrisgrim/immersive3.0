@@ -556,6 +556,12 @@ class ListingsController extends Controller
             ? $this->mapPins($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter)
             : [];
 
+        // A failed price or pins read after successful results: say so rather
+        // than presenting a silently degraded page as complete.
+        if (SearchGuard::failedThisRequest()) {
+            $viewData['searchedEvents']['search_unavailable'] = true;
+        }
+
         $viewData = array_merge($viewData, $locationFilters);
 
         return $request->searchType === 'inPerson' && isset($request->live)
@@ -611,6 +617,10 @@ class ListingsController extends Controller
             // The cap was hit, so the map is not showing every match. Nothing
             // renders this yet; it is here so the limit is never silent.
             $response['pins_truncated'] = count($response['pins']) >= self::MAX_MAP_PINS;
+        }
+
+        if (SearchGuard::failedThisRequest()) {
+            $response['search_unavailable'] = true;
         }
 
         return $response;
