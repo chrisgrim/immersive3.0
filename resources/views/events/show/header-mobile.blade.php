@@ -149,7 +149,7 @@
         </button>
 
         <vue-event-actions
-            :event="{!! $eventJson !!}"
+            :event="pageData.event"
             :user="user"
             {{-- A Vue template expression, not a DOM onclick — compiled at
                  runtime inside `with(_ctx)`, whose proxy claims every

@@ -26,4 +26,9 @@ export function installBladeBridge(app) {
     // isMobile split (unlike handleShare), and it locks background scroll
     // while the modal is open.
     app.config.globalProperties.toggleShareModal = () => window.toggleShareModal?.();
+
+    // Page data a Blade template serialized once into window.Laravel.page
+    // (the event page: `:event="pageData.event"` on every island instead of
+    // the full model inlined as an attribute on each one).
+    app.config.globalProperties.pageData = window.Laravel?.page ?? {};
 }

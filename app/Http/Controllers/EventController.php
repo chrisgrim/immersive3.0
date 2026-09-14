@@ -5,9 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Event;
 use App\Models\Organizer;
 use Illuminate\Http\Request;
+use Illuminate\Support\Js;
 
 class EventController extends Controller
 {
+    /** Upper bound on upcoming show rows embedded in the event page. */
+    public const MAX_PAGE_SHOWS = 1000;
+
     /**
      * $event is the slug, not implicit route-model binding — implicit
      * binding's default query excludes soft-deleted rows (SoftDeletes'
@@ -58,10 +62,11 @@ class EventController extends Controller
             'remotelocations',
             'genres',
             'priceranges',
-            'shows',
             'age_limits',
             'images',
         ]);
+
+        $this->loadShowsForPage($event);
 
         $event->load(['organizer' => function ($query) {
             $query->withCount(['events' => function ($eventsQuery) {
@@ -78,18 +83,67 @@ class EventController extends Controller
 
         $event->append('first_show_tickets');
 
-        // Computed once and reused everywhere show.blade.php/show-mobile.
-        // blade.php/header-mobile.blade.php bind `:event="..."` on a Vue
-        // component — those templates used to write `{{ $event }}` inline
-        // at each of up to 7 (desktop) / 5 (mobile) call sites, and Blade's
-        // `{{ }}` re-serializes the ENTIRE model (every loaded relation,
-        // including `shows` — some of this app's long-running events carry
-        // 2,000+ show rows) from scratch every single time it's written.
-        // For a heavily-recurring event that was measured taking >1.4s of
-        // pure render time for a single request; this cuts it to one pass.
-        $eventJson = e($event);
+        // Serialized ONCE, into `window.Laravel.page.event` (see
+        // show.blade.php); every Vue island on the page binds
+        // `:event="pageData.event"` (bladeBridge.js). The page used to inline
+        // the full model as an attribute on each of 7 desktop / 5 mobile
+        // components, and with every show row loaded a long-running event's
+        // page was 2.5 MB (desktop) / 4.1 MB (mobile) of HTML before any
+        // asset. Js::from emits a JSON.parse('…') with <, >, quotes and
+        // slashes hex-escaped, so user text can't break out of the script.
+        $pageEvent = Js::from($event);
 
-        return view('events.show', compact('event', 'eventJson'));
+        return view('events.show', compact('event', 'pageEvent'));
+    }
+
+    /**
+     * The page needs the run's summary (first/last date, count) and the
+     * calendar's upcoming days, not every row ever scheduled. One event has
+     * 3,542 show rows; the page's components read only `date`.
+     *
+     * `shows` is replaced with the upcoming rows (newest first, as the
+     * components expect; a day of slack so a show that ended a few hours
+     * ago still counts). When the run has ended, the last ten rows are kept
+     * so the page can still describe it. `show_summary` carries the whole
+     * run's first/last date and count for the "Start date / End date" block,
+     * the JSON-LD and the purchase box's date range.
+     */
+    private function loadShowsForPage(Event $event): void
+    {
+        // reorder() drops both the relation's DESC order and Show's DateScope
+        // (an ORDER BY on an aggregate query is refused under
+        // ONLY_FULL_GROUP_BY).
+        $summary = $event->shows()
+            ->reorder()
+            ->selectRaw('MIN(date) as first_date, MAX(date) as last_date, COUNT(*) as total')
+            ->first();
+
+        $event->setAttribute('show_summary', [
+            'first_date' => $summary?->first_date ? (string) $summary->first_date : null,
+            'last_date' => $summary?->last_date ? (string) $summary->last_date : null,
+            'total' => (int) ($summary?->total ?? 0),
+        ]);
+
+        $columns = ['id', 'event_id', 'date'];
+
+        $upcoming = $event->shows()
+            ->select($columns)
+            ->where('date', '>=', now()->subDay())
+            ->reorder('date', 'asc')
+            ->limit(self::MAX_PAGE_SHOWS)
+            ->get()
+            ->sortByDesc('date')
+            ->values();
+
+        if ($upcoming->isEmpty()) {
+            $upcoming = $event->shows()
+                ->select($columns)
+                ->reorder('date', 'desc')
+                ->limit(10)
+                ->get();
+        }
+
+        $event->setRelation('shows', $upcoming);
     }
 
     public function getOrganizerPaginatedEvents(Organizer $organizer, Request $request)

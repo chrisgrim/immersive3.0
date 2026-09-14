@@ -94,7 +94,7 @@
         "@type": "Event",
         "name": @json($event->name),
         "description": @json($event->tag_line ? $event->tag_line : $event->description),
-        "startDate": "{{ $event->shows->isEmpty() ? \Carbon\Carbon::parse($event->created_at)->toIso8601String() : \Carbon\Carbon::parse($event->shows[0]->date)->toIso8601String() }}",
+        "startDate": "{{ \Carbon\Carbon::parse($event->show_summary['first_date'] ?? $event->created_at)->toIso8601String() }}",
         "endDate": "{{ \Carbon\Carbon::parse($event->closingDate)->toIso8601String() }}",
         "eventStatus": "https://schema.org/EventScheduled",
         "eventAttendanceMode": "{{ $event->hasLocation ? 'https://schema.org/OfflineEventAttendanceMode' : 'https://schema.org/OnlineEventAttendanceMode' }}",
@@ -230,6 +230,16 @@
         @endif
         "typicalAgeRange": @json($event->age_limits ? $event->age_limits['name'] : ($event->advisories['ageRestriction'] ?? ''))
     }
+    </script>
+
+    {{-- The event, serialized once. Every Vue island on this page binds
+         :event="pageData.event" (resources/js/bladeBridge.js exposes
+         window.Laravel.page as `pageData`; in-DOM bindings cannot reach
+         `window` directly). This runs before the deferred module script
+         that mounts the app. --}}
+    <script>
+        window.Laravel = window.Laravel || {};
+        window.Laravel.page = { event: {!! $pageEvent !!} };
     </script>
 
     @if (Browser::isMobile())
@@ -446,7 +456,7 @@
                                     
                                     <div class="flex items-center gap-8 mt-4">
                                         <vue-event-actions
-                                            :event="{!! $eventJson !!}"
+                                            :event="pageData.event"
                                             :user="user"
                                             @share="toggleShareModal()"
                                         ></vue-event-actions>
@@ -470,7 +480,7 @@
                                 
                                 <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
                                     <vue-show-purchase
-                                        :event="{!! $eventJson !!}"
+                                        :event="pageData.event"
                                         :single-image="true"
                                         :user="user"
                                     ></vue-show-purchase>
@@ -486,7 +496,7 @@
                                  the photo (which covers actual photo content on a busy image). --}}
                             <div class="flex justify-end mt-4">
                                 <vue-event-actions
-                                    :event="{!! $eventJson !!}"
+                                    :event="pageData.event"
                                     :user="user"
                                     @share="toggleShareModal()"
                                 ></vue-event-actions>
@@ -542,7 +552,7 @@
                                                     target="_blank"
                                                 >
                                                     <button class="font-medium py-6 px-20 rounded-2xl border-none text-white bg-gradient-to-r from-button-red-1 via-button-red-2 to-button-red-3 hover:from-button-red-2 hover:via-button-red-3 hover:to-button-red-1 whitespace-nowrap inline-block">
-                                                        @if(count($event->shows) > 0)
+                                                        @if(($event->show_summary['total'] ?? 0) > 0)
                                                             @if(isset($event->priceranges[0]) && $event->priceranges[0]->price == 0)
                                                                 {{ isset($event->call_to_action) && !empty($event->call_to_action) ? $event->call_to_action : 'Free Event' }}
                                                             @elseif(isset($event->priceranges[0]) && strtolower($event->priceranges[0]->name) == 'pwyc')
@@ -635,7 +645,7 @@
                                 
                                 <div class="w-full relative inline-block md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
                                     <vue-show-purchase
-                                        :event="{!! $eventJson !!}"
+                                        :event="pageData.event"
                                         :single-image="true"
                                         :user="user"
                                     ></vue-show-purchase>
@@ -689,7 +699,7 @@
                                     
                                     <div class="flex items-center gap-8 mt-4">
                                         <vue-event-actions
-                                            :event="{!! $eventJson !!}"
+                                            :event="pageData.event"
                                             :user="user"
                                             @share="toggleShareModal()"
                                         ></vue-event-actions>
@@ -714,7 +724,7 @@
 
                                 <div class="w-full relative shrink-0 md:min-w-[30rem] lg:min-w-[37rem] md:w-[37rem]">
                                     <vue-show-purchase
-                                        :event="{!! $eventJson !!}"
+                                        :event="pageData.event"
                                         :single-image="false"
                                         :user="user"
                                     ></vue-show-purchase>
@@ -725,7 +735,7 @@
 
                     {{-- Rest of your content --}}
                     <div class="relative w-full m-auto px-10 lg-air:px-16 2xl-air:px-32 max-w-screen-xl">
-                        <vue-show-map :event="{!! $eventJson !!}"></vue-show-map>
+                        <vue-show-map :event="pageData.event"></vue-show-map>
                         @include('events.show.organizer')
                     </div>
                 </div>

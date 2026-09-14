@@ -81,14 +81,14 @@
                 </div>
             @endif
 
-            @if($event->shows->isNotEmpty())
+            @if(($event->show_summary['total'] ?? 0) > 0)
                 <div class="flex items-start gap-4">
                     <svg class="w-8 h-8 flex-shrink-0 mt-1" xmlns="http://www.w3.org/2000/svg">
                         <use xlink:href="/storage/website-files/icons.svg#ri-calendar-line" />
                     </svg>
                     <div>
                         <p class="text-2xl md:text-1xl leading-tight font-semibold">Start date</p>
-                        <p class="text-xl font-medium text-neutral-500">{{ $event->localDate($event->shows->min('date'), 'F jS, Y') }}</p>
+                        <p class="text-xl font-medium text-neutral-500">{{ $event->localDate($event->show_summary['first_date'], 'F jS, Y') }}</p>
                     </div>
                 </div>
 
@@ -98,7 +98,7 @@
                     </svg>
                     <div>
                         <p class="text-2xl md:text-1xl leading-tight font-semibold">End date</p>
-                        <p class="text-xl font-medium text-neutral-500">{{ $event->localDate($event->shows->max('date'), 'F jS, Y') }}</p>
+                        <p class="text-xl font-medium text-neutral-500">{{ $event->localDate($event->show_summary['last_date'], 'F jS, Y') }}</p>
                     </div>
                 </div>
             @endif

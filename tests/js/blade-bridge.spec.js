@@ -118,3 +118,82 @@ describe('the Blade @share bindings', () => {
         page.unmount();
     });
 });
+
+/**
+ * The event page serializes the event ONCE into window.Laravel.page and every
+ * island binds `:event="pageData.event"`. Same mechanism as the share
+ * handler: an in-DOM binding can only reach what is on globalProperties.
+ */
+describe('the Blade :event="pageData.event" bindings', () => {
+    const EVENT_BLADES = [
+        'resources/views/events/show.blade.php',
+        'resources/views/events/show-mobile.blade.php',
+        'resources/views/events/show/header-mobile.blade.php',
+    ];
+
+    function eventBindings() {
+        const found = [];
+        for (const file of EVENT_BLADES) {
+            const source = fs.readFileSync(path.resolve(process.cwd(), file), 'utf8');
+            for (const [, expression] of source.matchAll(/:event="([^"]+)"/g)) {
+                found.push({ file, expression });
+            }
+        }
+        return found;
+    }
+
+    function mountWithEvent(expression, { bridge = true } = {}) {
+        const host = document.createElement('div');
+        host.innerHTML = `<vue-show-purchase :event="${expression}"></vue-show-purchase>`;
+        document.body.appendChild(host);
+
+        const received = [];
+        const errors = [];
+        const app = createApp({ data: () => ({ user: null, maxPrice: null }) });
+        app.config.warnHandler = () => {};
+        app.config.errorHandler = (err) => errors.push(err);
+        app.component('vue-show-purchase', {
+            props: ['event'],
+            setup(props) {
+                received.push(props.event);
+                return {};
+            },
+            template: '<div>{{ event ? event.slug : "none" }}</div>',
+        });
+        if (bridge) installBladeBridge(app);
+        app.mount(host);
+
+        return { received, errors, text: host.textContent, unmount: () => { app.unmount(); host.remove(); } };
+    }
+
+    let previousLaravel;
+    beforeEach(() => {
+        previousLaravel = window.Laravel;
+        window.Laravel = { ...(window.Laravel || {}), page: { event: { slug: 'sleep-no-more', shows: [] } } };
+    });
+    afterEach(() => {
+        window.Laravel = previousLaravel;
+    });
+
+    it('every :event binding in the event Blade files reads pageData.event', () => {
+        const bindings = eventBindings();
+        expect(bindings.length).toBeGreaterThan(0);
+        for (const { file, expression } of bindings) {
+            expect(expression, `${file}: ${expression}`).toBe('pageData.event');
+        }
+    });
+
+    it('delivers window.Laravel.page.event to the component through the bridge', () => {
+        const page = mountWithEvent('pageData.event');
+        expect(page.errors).toEqual([]);
+        expect(page.received[0]?.slug).toBe('sleep-no-more');
+        expect(page.text).toContain('sleep-no-more');
+        page.unmount();
+    });
+
+    it('without the bridge the same binding resolves to nothing (negative control)', () => {
+        const page = mountWithEvent('pageData.event', { bridge: false });
+        expect(page.received[0]).toBeUndefined();
+        page.unmount();
+    });
+});

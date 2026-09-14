@@ -185,7 +185,16 @@ const eventUrl = computed(() => {
     return props.event.organizer.website;
 });
 
+// The whole run's range. The page embeds only the upcoming shows, so the
+// server also sends the run's first/last date (show_summary); fall back to
+// the list for callers that don't.
 const showDateRange = computed(() => {
+    const summary = props.event.show_summary;
+    if (summary?.first_date && summary?.last_date) {
+        return summary.first_date === summary.last_date
+            ? cleanDate({ date: summary.first_date })
+            : `${cleanDate({ date: summary.first_date })} - ${cleanDate({ date: summary.last_date })}`;
+    }
     if (props.event.shows.length > 1) {
         return `${cleanDate(props.event.shows[props.event.shows.length - 1])} - ${cleanDate(props.event.shows[0])}`;
     }

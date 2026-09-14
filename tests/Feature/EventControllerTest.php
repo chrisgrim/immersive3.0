@@ -411,3 +411,125 @@ test('a place label is city and state at home, city and country abroad', functio
         ->and((new Location(['city' => 'Paris', 'country' => 'France']))->placeLabel())->toBe('Paris, France')
         ->and((new Location(['city' => 'Reykjavik']))->placeLabel())->toBe('Reykjavik');
 });
+
+// ----- page payload: one embed, upcoming shows only, run summary -----
+//
+// A long-running event (one has 3,542 show rows) made its page 2.5 MB on
+// desktop and 4.1 MB on mobile: every row, with timestamps, inlined as an
+// attribute on each of 7 (desktop) / 5 (mobile) Vue islands. The page now
+// serializes the event once into window.Laravel.page with only the upcoming
+// shows (id, event_id, date) and a summary of the whole run.
+
+test('show embeds the event JSON exactly once and every island binds pageData.event', function () {
+    $event = makeShowableEvent();
+
+    $html = $this->get("/events/{$event->slug}")->assertOk()->getContent();
+
+    expect(substr_count($html, 'window.Laravel.page = { event:'))->toBe(1);
+    // The serialized model appears once (Js::from hex-escapes the quotes around keys).
+    expect(substr_count($html, 'first_show_tickets'))->toBe(1);
+    expect($html)->toContain(':event="pageData.event"');
+    expect($html)->not->toContain('{!! $eventJson !!}');
+});
+
+test('show loads only upcoming shows, newest first, with only id, event_id and date', function () {
+    $event = makeShowableEvent();
+    $event->shows()->delete();
+    foreach ([-30, -10, -3] as $days) {
+        Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays($days)]);
+    }
+    $soon = Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(2)]);
+    $later = Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(9)]);
+
+    $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
+
+    expect($viewEvent->shows->pluck('id')->all())->toBe([$later->id, $soon->id]);
+    expect(array_keys($viewEvent->shows->first()->getAttributes()))->toBe(['id', 'event_id', 'date']);
+});
+
+test('show_summary describes the whole run even though only upcoming shows are embedded', function () {
+    $event = makeShowableEvent();
+    $event->shows()->delete();
+    $first = now()->subDays(40)->startOfMinute();
+    $last = now()->addDays(12)->startOfMinute();
+    Show::factory()->create(['event_id' => $event->id, 'date' => $first]);
+    Show::factory()->create(['event_id' => $event->id, 'date' => now()->subDays(20)]);
+    Show::factory()->create(['event_id' => $event->id, 'date' => $last]);
+
+    $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
+
+    expect($viewEvent->show_summary['total'])->toBe(3);
+    expect($viewEvent->show_summary['first_date'])->toBe($first->format('Y-m-d H:i:s'));
+    expect($viewEvent->show_summary['last_date'])->toBe($last->format('Y-m-d H:i:s'));
+    expect($viewEvent->shows)->toHaveCount(1);
+});
+
+test('an ended run still embeds its most recent shows so the page can describe it', function () {
+    $event = makeShowableEvent();
+    $event->shows()->delete();
+    foreach (range(1, 12) as $i) {
+        Show::factory()->create(['event_id' => $event->id, 'date' => now()->subDays(30 + $i)]);
+    }
+
+    $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
+
+    expect($viewEvent->shows)->toHaveCount(10);
+    expect($viewEvent->show_summary['total'])->toBe(12);
+    // Newest first, like the live relation.
+    expect($viewEvent->shows->first()->date)->toBe($viewEvent->shows->max('date'));
+});
+
+test('first_show_tickets are the earliest UPCOMING show tickets, not an old past show', function () {
+    $event = makeShowableEvent();
+    $event->shows()->delete();
+    $past = Show::factory()->create(['event_id' => $event->id, 'date' => now()->subDays(20)]);
+    $past->tickets()->create(['name' => 'Early bird', 'ticket_price' => '10.00', 'currency' => 'USD', 'type' => 's']);
+    $next = Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(3)]);
+    $next->tickets()->create(['name' => 'General', 'ticket_price' => '20.00', 'currency' => 'USD', 'type' => 's']);
+    Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(10)]);
+
+    $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
+
+    expect($viewEvent->first_show_tickets->pluck('name')->all())->toBe(['General']);
+});
+
+test('the about block and the CTA still render for an ended run (summary-driven, not shows-driven)', function () {
+    $event = makeShowableEvent();
+    $event->shows()->delete();
+    Show::factory()->create(['event_id' => $event->id, 'date' => now()->subDays(40)]);
+    Show::factory()->create(['event_id' => $event->id, 'date' => now()->subDays(5)]);
+    Image::factory()->create(['imageable_id' => $event->id, 'imageable_type' => Event::class]);
+
+    $response = $this->get("/events/{$event->slug}")->assertOk();
+
+    $response->assertSee('Start date')->assertSee('End date');
+    $response->assertSee($event->localDate(now()->subDays(40), 'F jS, Y'), false);
+});
+
+test('the JSON-LD startDate is the run\'s FIRST show, not its latest', function () {
+    $event = makeShowableEvent();
+    $event->shows()->delete();
+    $first = now()->addDays(2)->startOfMinute();
+    Show::factory()->create(['event_id' => $event->id, 'date' => $first]);
+    Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(20)]);
+
+    $html = $this->get("/events/{$event->slug}")->assertOk()->getContent();
+
+    expect($html)->toContain('"startDate": "'.\Carbon\Carbon::parse($first->format('Y-m-d H:i:s'))->toIso8601String().'"');
+});
+
+test('a description containing a closing script tag cannot break out of the page payload', function () {
+    $event = makeShowableEvent(['description' => 'Bad </script><script>alert(1)</script> \'quote\' "dq" <!--']);
+
+    $html = $this->get("/events/{$event->slug}")->assertOk()->getContent();
+
+    // The raw sequence never appears inside the payload script: Js::from
+    // hex-escapes <, >, quotes and slashes, so the browser sees the script
+    // end where we wrote it and JSON.parse restores the text on the client.
+    $payload = substr($html, strpos($html, 'window.Laravel.page = { event:'));
+    $payload = substr($payload, 0, strpos($payload, '</script>'));
+    expect($payload)->not->toContain('<');
+    expect($payload)->not->toContain('"');
+    expect($payload)->toContain('u003C');
+    expect($payload)->toContain('alert(1)');
+});
