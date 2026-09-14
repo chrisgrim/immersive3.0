@@ -94,7 +94,10 @@
         "@type": "Event",
         "name": @json($event->name),
         "description": @json($event->tag_line ? $event->tag_line : $event->description),
-        "startDate": "{{ \Carbon\Carbon::parse($event->show_summary['first_date'] ?? $event->created_at)->toIso8601String() }}",
+        {{-- The next upcoming show (shows are newest-first, so ->last()), so a
+             years-long run does not advertise a start date years in the past;
+             the run's first date when nothing is upcoming. --}}
+        "startDate": "{{ \Carbon\Carbon::parse(($event->show_summary['upcoming_total'] ?? 0) > 0 ? $event->shows->last()->date : ($event->show_summary['first_date'] ?? $event->created_at))->toIso8601String() }}",
         "endDate": "{{ \Carbon\Carbon::parse($event->closingDate)->toIso8601String() }}",
         "eventStatus": "https://schema.org/EventScheduled",
         "eventAttendanceMode": "{{ $event->hasLocation ? 'https://schema.org/OfflineEventAttendanceMode' : 'https://schema.org/OnlineEventAttendanceMode' }}",
@@ -392,19 +395,19 @@
     
 @endsection
 
-@section('content')
+@push('after-laravel')
     {{-- The event, serialized once. Every Vue island on this page binds
          :event="pageData.event" (resources/js/bladeBridge.js exposes
          window.Laravel.page as `pageData`; in-DOM bindings cannot reach
-         `window` directly). This sits in the content section on purpose:
-         the layout assigns a fresh `window.Laravel = {…}` in the head, so
-         anything set from the meta section would be wiped. It still runs
-         before the deferred module script that mounts the app. --}}
+         `window` directly). The stack renders right after the layout's own
+         `window.Laravel = {…}` (which would otherwise wipe this) and before
+         the deferred module script that mounts the app. --}}
     <script>
-        window.Laravel = window.Laravel || {};
         window.Laravel.page = { event: {!! $pageEvent !!} };
     </script>
+@endpush
 
+@section('content')
     @if (Browser::isMobile())
         @include('events.show-mobile')
     @else

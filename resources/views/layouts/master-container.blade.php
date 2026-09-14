@@ -55,6 +55,10 @@
                 mcpPublic: {!! config('services.mcp.public') ? 'true' : 'false' !!}
             };
         </script>
+        {{-- Page payloads (window.Laravel.page = …): after the object above so
+             they are not wiped by it, before the deferred module that mounts
+             the app, and outside #app so the runtime compiler never sees them. --}}
+        @stack('after-laravel')
         <style type="text/css">html{font-size:62.5%;font-family:'Montserrat',sans-serif;height:100%}body{font-size:1.6rem;line-height:2rem;font-family:'Montserrat',sans-serif;margin:0;height:100%;color:#000}</style>
 
         @vite(['resources/js/app.js'])

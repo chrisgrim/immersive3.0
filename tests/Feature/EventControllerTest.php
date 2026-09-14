@@ -428,6 +428,17 @@ test('show embeds the event JSON exactly once and every island binds pageData.ev
     expect(substr_count($html, 'window.Laravel.page = { event:'))->toBe(1);
     // The serialized model appears once (Js::from hex-escapes the quotes around keys).
     expect(substr_count($html, 'first_show_tickets'))->toBe(1);
+
+    // Order matters: the layout assigns a fresh `window.Laravel = {…}`; the
+    // payload must come AFTER it (or it is wiped) and outside the Vue root
+    // (#app is the <body>), before the module script that mounts the app.
+    $layout = strpos($html, 'window.Laravel = {');
+    $page = strpos($html, 'window.Laravel.page = { event:');
+    $body = strpos($html, '<body');
+    expect($layout)->not->toBeFalse()->and($page)->not->toBeFalse();
+    expect($layout)->toBeLessThan($page);
+    expect($page)->toBeLessThan($body);
+    expect(strpos($html, 'resources/js/app.js'))->not->toBeFalse();
     expect($html)->toContain(':event="pageData.event"');
     expect($html)->not->toContain('{!! $eventJson !!}');
 });
@@ -476,9 +487,9 @@ test('an ended run still embeds its most recent shows so the page can describe i
     expect($viewEvent->shows)->toHaveCount(10);
     expect($viewEvent->show_summary['total'])->toBe(12);
     expect($viewEvent->show_summary['upcoming_total'])->toBe(0);
-    // Exactly the newest ten, newest first, like the live relation.
-    $newestTen = $event->shows()->reorder('date', 'desc')->limit(10)->pluck('id')->all();
-    expect($viewEvent->shows->pluck('id')->all())->toBe($newestTen);
+    // Exactly the newest ten (days 31..40 back), newest first, like the live relation.
+    expect($viewEvent->shows->pluck('date')->map(fn ($d) => substr((string) $d, 0, 10))->all())
+        ->toBe(collect(range(1, 10))->map(fn ($i) => now()->subDays(30 + $i)->toDateString())->all());
 });
 
 test('first_show_tickets are the earliest UPCOMING show tickets, not an old past show', function () {
@@ -544,26 +555,71 @@ test('curtain times are judged from the whole run, not just the embedded upcomin
     expect(\App\Models\Events\Show::usesCurtainTimes($viewEvent->shows))->toBeFalse();
 });
 
-test('the upcoming cutoff is the event\'s local day: a late evening in Los Angeles still keeps today\'s date-only show', function () {
+test('cutoff, date-only schedule: 11:30pm in Los Angeles (already tomorrow in UTC) still keeps today\'s show', function () {
     $tz = 'America/Los_Angeles';
-    // 11:30pm in LA: UTC has already rolled over to tomorrow.
     \Carbon\Carbon::setTestNow(\Carbon\Carbon::parse('2026-09-14 23:30:00', $tz));
     $event = makeShowableEvent(['timezone' => $tz]);
     $event->shows()->delete();
-    $todayDateOnly = Show::factory()->create(['event_id' => $event->id, 'date' => '2026-09-14 00:00:00']);   // today (date-only convention)
-    $tonightTimed = Show::factory()->create(['event_id' => $event->id, 'date' => '2026-09-15 03:00:00']);     // 8pm LA today, a real instant
+    $today = Show::factory()->create(['event_id' => $event->id, 'date' => '2026-09-14 00:00:00']);
     $yesterday = Show::factory()->create(['event_id' => $event->id, 'date' => '2026-09-13 00:00:00']);
-    Show::factory()->create(['event_id' => $event->id, 'date' => '2026-09-20 00:00:00']);
+    $next = Show::factory()->create(['event_id' => $event->id, 'date' => '2026-09-20 00:00:00']);
 
     $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
 
-    $ids = $viewEvent->shows->pluck('id')->all();
-    expect($ids)->toContain($todayDateOnly->id)->toContain($tonightTimed->id);
-    expect($ids)->not->toContain($yesterday->id);
-    expect($viewEvent->show_summary['upcoming_total'])->toBe(3);
+    expect($viewEvent->shows->pluck('id')->all())->toBe([$next->id, $today->id]);
+    expect($viewEvent->show_summary['upcoming_total'])->toBe(2);
+    expect($viewEvent->show_summary['curtain_times'])->toBeFalse();
 });
 
-test('the JSON-LD startDate is the run\'s FIRST show, not its latest', function () {
+test('cutoff, curtain-time schedule: 12:30am in Tokyo keeps tonight\'s 8am show and drops last night\'s', function () {
+    $tz = 'Asia/Tokyo';
+    \Carbon\Carbon::setTestNow(\Carbon\Carbon::parse('2026-09-14 00:30:00', $tz));
+    $event = makeShowableEvent(['timezone' => $tz]);
+    $event->shows()->delete();
+    $thisMorning = Show::factory()->create(['event_id' => $event->id, 'date' => '2026-09-13 23:00:00']); // 08:00 JST today
+    $lastNight = Show::factory()->create(['event_id' => $event->id, 'date' => '2026-09-13 14:00:00']);   // 23:00 JST yesterday
+    $tonight = Show::factory()->create(['event_id' => $event->id, 'date' => '2026-09-14 11:00:00']);     // 20:00 JST today
+
+    $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
+
+    expect($viewEvent->shows->pluck('id')->all())->toBe([$tonight->id, $thisMorning->id]);
+    expect($viewEvent->shows->pluck('id')->all())->not->toContain($lastNight->id);
+    expect($viewEvent->show_summary['upcoming_total'])->toBe(2);
+    expect($viewEvent->show_summary['curtain_times'])->toBeTrue();
+});
+
+test('the earliest upcoming show arrives with its tickets loaded, so first_show_tickets costs no extra query per access', function () {
+    $event = makeShowableEvent();
+    $event->shows()->delete();
+    $next = Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(3)]);
+    $next->tickets()->create(['name' => 'General', 'ticket_price' => '20.00', 'currency' => 'USD', 'type' => 's']);
+    Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(10)]);
+
+    $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
+
+    $loadedNext = $viewEvent->shows->firstWhere('id', $next->id);
+    expect($loadedNext->relationLoaded('tickets'))->toBeTrue();
+    expect($viewEvent->first_show_tickets->pluck('name')->all())->toBe(['General']);
+});
+
+test('the JSON-LD startDate is the NEXT upcoming show for a live run, and the first date once it has ended', function () {
+    $event = makeShowableEvent();
+    $event->shows()->delete();
+    Show::factory()->create(['event_id' => $event->id, 'date' => now()->subYears(3)->startOfMinute()]);
+    $next = now()->addDays(2)->startOfMinute();
+    Show::factory()->create(['event_id' => $event->id, 'date' => $next]);
+    Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(20)]);
+
+    $html = $this->get("/events/{$event->slug}")->assertOk()->getContent();
+    expect($html)->toContain('"startDate": "'.\Carbon\Carbon::parse($next->format('Y-m-d H:i:s'))->toIso8601String().'"');
+
+    $event->shows()->where('date', '>', now())->delete();
+    $first = $event->shows()->reorder('date', 'asc')->value('date');
+    $html = $this->get("/events/{$event->slug}")->assertOk()->getContent();
+    expect($html)->toContain('"startDate": "'.\Carbon\Carbon::parse((string) $first)->toIso8601String().'"');
+});
+
+test('the JSON-LD startDate for an all-upcoming run is its first show, not its latest', function () {
     $event = makeShowableEvent();
     $event->shows()->delete();
     $first = now()->addDays(2)->startOfMinute();

@@ -78,7 +78,7 @@ const getDates = () => {
       remaining.value.push(show.date);
     }
 
-    // Add all dates to highlightedDates, regardless of whether they're past or future
+    // Highlight every embedded date. The page embeds only the upcoming rows (plus the last ten of an ended run), so past months are no longer highlighted
     highlightedDates.value.push(day);
 
     // Keep all dates for reference

@@ -89,8 +89,8 @@ class EventController extends Controller
         // the full model as an attribute on each of 7 desktop / 5 mobile
         // components, and with every show row loaded a long-running event's
         // page was 2.5 MB (desktop) / 4.1 MB (mobile) of HTML before any
-        // asset. Js::from emits a JSON.parse('…') with <, >, quotes and
-        // slashes hex-escaped, so user text can't break out of the script.
+        // asset. Js::from emits a JSON.parse('…') with <, >, & and quotes
+        // hex-escaped (and / as \/), so user text can't break out of the script.
         $pageEvent = Js::from($event);
 
         return view('events.show', compact('event', 'pageEvent'));
@@ -114,8 +114,9 @@ class EventController extends Controller
         $cutoff = $this->showCutoff($event);
 
         // withoutGlobalScope(DateScope) + reorder(): global scopes are applied
-        // when the query runs, after reorder(), and an ORDER BY on an
-        // aggregate is refused under ONLY_FULL_GROUP_BY on stricter servers.
+        // when the query runs, AFTER reorder(), so reorder() alone leaves the
+        // scope's ORDER BY on an aggregate query (pointless, and refused by
+        // some engines).
         $summary = $event->shows()
             ->withoutGlobalScope(DateScope::class)
             ->reorder()
@@ -128,8 +129,10 @@ class EventController extends Controller
             ->first();
 
         // Event::usesCurtainTimes() reads this aggregate when present, so
-        // localDate() in the Blade partials judges the whole run.
+        // localDate() in the Blade partials judges the whole run. Vue gets the
+        // same answer as show_summary.curtain_times, so keep this off the wire.
         $event->setAttribute('timed_shows_count', (int) ($summary?->timed_shows_count ?? 0));
+        $event->makeHidden('timed_shows_count');
 
         $event->setAttribute('show_summary', [
             'first_date' => $summary?->first_date ? (string) $summary->first_date : null,
@@ -158,6 +161,10 @@ class EventController extends Controller
                 ->limit(10)
                 ->get();
         }
+
+        // first_show_tickets reads the earliest loaded show's tickets and the
+        // page asks for it up to nine times; load them once here.
+        $upcoming->sortBy('date')->first()?->load('tickets');
 
         $event->setRelation('shows', $upcoming);
     }

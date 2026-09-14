@@ -16,6 +16,12 @@ import { utcDateTimeToLocalDate } from './dateUtils';
  * means whoever wrote it was recording curtain times (8 PM Eastern is 00:00
  * UTC). Same rule as Show::usesCurtainTimes() in PHP.
  */
+export const usesCurtainTimes = (shows) =>
+    Array.isArray(shows) && shows.some((show) => {
+        const date = typeof show === 'string' ? show : show?.date;
+        return typeof date === 'string' && date.length >= 19 && date.slice(11, 19) !== '00:00:00';
+    });
+
 /**
  * Whether an EVENT's schedule uses curtain times. The event page embeds only
  * the upcoming rows, so the server also sends the whole-run answer in
@@ -26,12 +32,6 @@ export const eventUsesCurtainTimes = (event) =>
     typeof event?.show_summary?.curtain_times === 'boolean'
         ? event.show_summary.curtain_times
         : usesCurtainTimes(event?.shows);
-
-export const usesCurtainTimes = (shows) =>
-    Array.isArray(shows) && shows.some((show) => {
-        const date = typeof show === 'string' ? show : show?.date;
-        return typeof date === 'string' && date.length >= 19 && date.slice(11, 19) !== '00:00:00';
-    });
 
 const isDateOnly = (utcDateTime, curtainTimes) =>
     !curtainTimes && typeof utcDateTime === 'string' && utcDateTime.endsWith('00:00:00');
