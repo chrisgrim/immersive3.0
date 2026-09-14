@@ -172,8 +172,9 @@ class EventController extends Controller
         // The calendars also highlight the dates that already happened (a
         // curator paging back through a long run's history relies on it).
         // Those are sent as bare date strings, newest first, so they cost
-        // ~24 bytes each instead of a row; the oldest are dropped past the cap.
-        $pastCap = (int) config('ei.event_page_max_past_dates', 3000);
+        // ~32 bytes each on the wire instead of a row; the oldest are dropped
+        // past the cap (config/ei.php).
+        $pastCap = (int) config('ei.event_page_max_past_dates', 6000);
         $event->setAttribute('past_show_dates', $event->shows()
             ->withoutGlobalScope(DateScope::class)
             ->where('date', '<', $cutoff)

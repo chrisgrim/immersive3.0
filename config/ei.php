@@ -44,8 +44,19 @@ return [
 
     'event_page_max_shows' => 2000,
 
-    // Past show dates embedded (as bare strings) so the calendars can still
-    // highlight a long run's history; the oldest are dropped past this cap.
-    'event_page_max_past_dates' => 3000,
+    /*
+    |--------------------------------------------------------------------------
+    | Event page: past show dates embedded in the page
+    |--------------------------------------------------------------------------
+    |
+    | Dates that already happened are sent as bare strings (~32 bytes each on
+    | the wire) so the calendars can highlight a long run's history; a curator
+    | pages back through it. The oldest are dropped past this cap. The
+    | longest live runs (teamLab and friends) have 3,000 to 3,200 past dates
+    | and grow by one a day, so 6,000 is a runaway guard, not a working limit.
+    |
+    */
+
+    'event_page_max_past_dates' => 6000,
 
 ];
