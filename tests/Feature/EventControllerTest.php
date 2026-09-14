@@ -458,6 +458,36 @@ test('show loads only upcoming shows, newest first, with only id, event_id and d
     expect(array_keys($viewEvent->shows->first()->getAttributes()))->toBe(['id', 'event_id', 'date']);
 });
 
+test('past show dates are embedded as bare strings, newest first, so the calendars can highlight history', function () {
+    $event = makeShowableEvent();
+    $event->shows()->delete();
+    $old = now()->subDays(40)->startOfMinute();
+    $recent = now()->subDays(5)->startOfMinute();
+    Show::factory()->create(['event_id' => $event->id, 'date' => $old]);
+    Show::factory()->create(['event_id' => $event->id, 'date' => $recent]);
+    Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(3)]);
+
+    $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
+
+    expect($viewEvent->past_show_dates)->toBe([$recent->format('Y-m-d H:i:s'), $old->format('Y-m-d H:i:s')]);
+    expect($viewEvent->shows)->toHaveCount(1);
+});
+
+test('past show dates are capped, dropping the oldest first', function () {
+    config(['ei.event_page_max_past_dates' => 2]);
+    $event = makeShowableEvent();
+    $event->shows()->delete();
+    foreach ([30, 20, 10] as $days) {
+        Show::factory()->create(['event_id' => $event->id, 'date' => now()->subDays($days)->startOfMinute()]);
+    }
+
+    $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
+
+    expect($viewEvent->past_show_dates)->toHaveCount(2);
+    expect(substr($viewEvent->past_show_dates[0], 0, 10))->toBe(now()->subDays(10)->toDateString());
+    expect(substr($viewEvent->past_show_dates[1], 0, 10))->toBe(now()->subDays(20)->toDateString());
+});
+
 test('show_summary describes the whole run even though only upcoming shows are embedded', function () {
     $event = makeShowableEvent();
     $event->shows()->delete();

@@ -103,7 +103,8 @@ class EventController extends Controller
      *
      * `shows` is replaced with the still-relevant rows (newest first, as the
      * components expect), capped. When the run has ended, the last ten rows
-     * are kept so the page can still describe it. `show_summary` carries the
+     * are kept so the page can still describe it. `past_show_dates` carries
+     * the dates that already happened, as bare strings, for the calendars. `show_summary` carries the
      * whole run's first/last date, its total, the number of upcoming rows
      * (uncapped, so the "N dates remaining" text stays honest if the cap
      * bites) and whether the run uses curtain times, which PHP and Vue must
@@ -167,6 +168,20 @@ class EventController extends Controller
         $upcoming->sortBy('date')->first()?->load('tickets');
 
         $event->setRelation('shows', $upcoming);
+
+        // The calendars also highlight the dates that already happened (a
+        // curator paging back through a long run's history relies on it).
+        // Those are sent as bare date strings, newest first, so they cost
+        // ~24 bytes each instead of a row; the oldest are dropped past the cap.
+        $pastCap = (int) config('ei.event_page_max_past_dates', 3000);
+        $event->setAttribute('past_show_dates', $event->shows()
+            ->withoutGlobalScope(DateScope::class)
+            ->where('date', '<', $cutoff)
+            ->reorder('date', 'desc')
+            ->limit($pastCap)
+            ->pluck('date')
+            ->map(fn ($d) => (string) $d)
+            ->all());
     }
 
     /**

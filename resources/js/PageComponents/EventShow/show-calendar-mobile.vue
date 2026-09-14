@@ -78,11 +78,17 @@ const getDates = () => {
       remaining.value.push(show.date);
     }
 
-    // Highlight every embedded date. The page embeds only the upcoming rows (plus the last ten of an ended run), so past months are no longer highlighted
     highlightedDates.value.push(day);
 
     // Keep all dates for reference
     dates.value.push(show.date);
+  });
+
+  // Dates that already happened (past_show_dates, bare strings): highlighted
+  // so the history can be paged through, never counted as remaining.
+  (props.event.past_show_dates ?? []).forEach((date) => {
+    const day = showDayAsDate(date, props.event.timezone, curtainTimes);
+    if (day) highlightedDates.value.push(day);
   });
 
   // Set selectedDates AFTER calendar is initialized

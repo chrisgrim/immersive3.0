@@ -44,4 +44,8 @@ return [
 
     'event_page_max_shows' => 2000,
 
+    // Past show dates embedded (as bare strings) so the calendars can still
+    // highlight a long run's history; the oldest are dropped past this cap.
+    'event_page_max_past_dates' => 3000,
+
 ];
