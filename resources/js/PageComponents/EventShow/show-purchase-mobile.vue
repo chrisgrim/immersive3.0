@@ -86,7 +86,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import axios from 'axios';
 import ShowMore from '@/GlobalComponents/show-more.vue';
-import { isShowUpcoming, usesCurtainTimes } from '@/composables/useShowDates';
+import { isShowUpcoming, eventUsesCurtainTimes } from '@/composables/useShowDates';
 import { formatPrice } from '@/composables/useCurrency';
 
 const props = defineProps({
@@ -176,7 +176,7 @@ const storeClick = () => {
 // Days in the EVENT's timezone — see composables/useShowDates.js.
 const getDates = () => {
     if (!props.event.shows) return;
-    const curtainTimes = usesCurtainTimes(props.event.shows);
+    const curtainTimes = eventUsesCurtainTimes(props.event);
     props.event.shows.forEach(show => {
         if (isShowUpcoming(show.date, props.event.timezone, new Date(), curtainTimes)) {
             remaining.value.push(show.date);

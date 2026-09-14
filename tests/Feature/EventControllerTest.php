@@ -475,8 +475,10 @@ test('an ended run still embeds its most recent shows so the page can describe i
 
     expect($viewEvent->shows)->toHaveCount(10);
     expect($viewEvent->show_summary['total'])->toBe(12);
-    // Newest first, like the live relation.
-    expect($viewEvent->shows->first()->date)->toBe($viewEvent->shows->max('date'));
+    expect($viewEvent->show_summary['upcoming_total'])->toBe(0);
+    // Exactly the newest ten, newest first, like the live relation.
+    $newestTen = $event->shows()->reorder('date', 'desc')->limit(10)->pluck('id')->all();
+    expect($viewEvent->shows->pluck('id')->all())->toBe($newestTen);
 });
 
 test('first_show_tickets are the earliest UPCOMING show tickets, not an old past show', function () {
@@ -504,6 +506,61 @@ test('the about block and the CTA still render for an ended run (summary-driven,
 
     $response->assertSee('Start date')->assertSee('End date');
     $response->assertSee($event->localDate(now()->subDays(40), 'F jS, Y'), false);
+    // The single-image layout's Blade CTA is gated on the run having shows at all.
+    $response->assertSee('Get Tickets');
+});
+
+test('the embedded show list is capped but the summary count is not', function () {
+    config(['ei.event_page_max_shows' => 3]);
+    $event = makeShowableEvent();
+    $event->shows()->delete();
+    foreach (range(1, 5) as $i) {
+        Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays($i)]);
+    }
+
+    $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
+
+    expect($viewEvent->shows)->toHaveCount(3);
+    expect($viewEvent->show_summary['upcoming_total'])->toBe(5);
+    expect($viewEvent->show_summary['total'])->toBe(5);
+    // The soonest three, so the calendar's next dates are never the ones dropped.
+    expect($viewEvent->shows->pluck('date')->map(fn ($d) => substr((string) $d, 0, 10))->sort()->values()->all())
+        ->toBe(collect([1, 2, 3])->map(fn ($i) => now()->addDays($i)->toDateString())->all());
+});
+
+test('curtain times are judged from the whole run, not just the embedded upcoming rows', function () {
+    $event = makeShowableEvent();
+    $event->shows()->delete();
+    // Only a PAST row carries a real time; the upcoming rows are date-only.
+    Show::factory()->create(['event_id' => $event->id, 'date' => now()->subDays(10)->setTime(19, 30)]);
+    Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(3)->setTime(0, 0, 0)]);
+
+    $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
+
+    expect($viewEvent->show_summary['curtain_times'])->toBeTrue();
+    expect($viewEvent->timed_shows_count)->toBe(1);
+    // PHP-side: Event::usesCurtainTimes() reads the aggregate, not the truncated relation.
+    expect($viewEvent->usesCurtainTimes())->toBeTrue();
+    expect(\App\Models\Events\Show::usesCurtainTimes($viewEvent->shows))->toBeFalse();
+});
+
+test('the upcoming cutoff is the event\'s local day: a late evening in Los Angeles still keeps today\'s date-only show', function () {
+    $tz = 'America/Los_Angeles';
+    // 11:30pm in LA: UTC has already rolled over to tomorrow.
+    \Carbon\Carbon::setTestNow(\Carbon\Carbon::parse('2026-09-14 23:30:00', $tz));
+    $event = makeShowableEvent(['timezone' => $tz]);
+    $event->shows()->delete();
+    $todayDateOnly = Show::factory()->create(['event_id' => $event->id, 'date' => '2026-09-14 00:00:00']);   // today (date-only convention)
+    $tonightTimed = Show::factory()->create(['event_id' => $event->id, 'date' => '2026-09-15 03:00:00']);     // 8pm LA today, a real instant
+    $yesterday = Show::factory()->create(['event_id' => $event->id, 'date' => '2026-09-13 00:00:00']);
+    Show::factory()->create(['event_id' => $event->id, 'date' => '2026-09-20 00:00:00']);
+
+    $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
+
+    $ids = $viewEvent->shows->pluck('id')->all();
+    expect($ids)->toContain($todayDateOnly->id)->toContain($tonightTimed->id);
+    expect($ids)->not->toContain($yesterday->id);
+    expect($viewEvent->show_summary['upcoming_total'])->toBe(3);
 });
 
 test('the JSON-LD startDate is the run\'s FIRST show, not its latest', function () {

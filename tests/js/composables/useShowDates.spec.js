@@ -3,7 +3,7 @@
  * EVENT's timezone. The old code handed the raw UTC string to dayjs / new
  * Date() as local wall time, so an evening US show read as the next day.
  */
-import { showDay, showDayAsDate, formatShowDay, isShowUpcoming, usesCurtainTimes, formatShowDayRange, summarizeSchedule } from '@/composables/useShowDates';
+import { showDay, showDayAsDate, formatShowDay, isShowUpcoming, usesCurtainTimes, eventUsesCurtainTimes, formatShowDayRange, summarizeSchedule } from '@/composables/useShowDates';
 
 describe('useShowDates', () => {
     it('reads an evening US show on the day it plays, not the next UTC day', () => {
@@ -151,5 +151,20 @@ describe('summarizeSchedule', () => {
         // 01:00 UTC on Nov 1 is 8 PM Oct 31 in Chicago.
         expect(formatShowDayRange([{ date: '2026-11-01 01:00:00' }], 'America/Chicago'))
             .toBe('Oct 31, 2026');
+    });
+});
+
+describe('eventUsesCurtainTimes', () => {
+    it('prefers the whole-run flag the server sends, since the page embeds only upcoming rows', () => {
+        // Upcoming rows are all date-only, but the run (per the server) has curtain times.
+        const event = { shows: [{ date: '2026-10-01 00:00:00' }], show_summary: { curtain_times: true } };
+        expect(eventUsesCurtainTimes(event)).toBe(true);
+        expect(eventUsesCurtainTimes({ shows: [{ date: '2026-10-01 19:30:00' }], show_summary: { curtain_times: false } })).toBe(false);
+    });
+
+    it('falls back to inspecting the shows when there is no summary (editor, admin review)', () => {
+        expect(eventUsesCurtainTimes({ shows: [{ date: '2026-10-01 19:30:00' }] })).toBe(true);
+        expect(eventUsesCurtainTimes({ shows: [{ date: '2026-10-01 00:00:00' }] })).toBe(false);
+        expect(eventUsesCurtainTimes(null)).toBe(false);
     });
 });

@@ -29,4 +29,19 @@ return [
 
     'interleave_review_queue' => env('EI_INTERLEAVE_REVIEW_QUEUE', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Event page: upcoming show rows embedded in the page
+    |--------------------------------------------------------------------------
+    |
+    | The event page serializes the event once into window.Laravel.page with
+    | only its upcoming show rows (id, event_id, date; ~40 bytes each). This
+    | caps that list; show_summary.upcoming_total still reports the true
+    | count. No live event comes near it (the recurrence expander stops at
+    | 4,000 occurrences and the largest schedule has a few hundred upcoming).
+    |
+    */
+
+    'event_page_max_shows' => 2000,
+
 ];

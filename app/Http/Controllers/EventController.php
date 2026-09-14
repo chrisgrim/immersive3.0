@@ -3,15 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\Events\Show;
 use App\Models\Organizer;
+use App\Scopes\DateScope;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Js;
 
 class EventController extends Controller
 {
-    /** Upper bound on upcoming show rows embedded in the event page. */
-    public const MAX_PAGE_SHOWS = 1000;
-
     /**
      * $event is the slug, not implicit route-model binding — implicit
      * binding's default query excludes soft-deleted rows (SoftDeletes'
@@ -101,36 +101,52 @@ class EventController extends Controller
      * calendar's upcoming days, not every row ever scheduled. One event has
      * 3,542 show rows; the page's components read only `date`.
      *
-     * `shows` is replaced with the upcoming rows (newest first, as the
-     * components expect; a day of slack so a show that ended a few hours
-     * ago still counts). When the run has ended, the last ten rows are kept
-     * so the page can still describe it. `show_summary` carries the whole
-     * run's first/last date and count for the "Start date / End date" block,
-     * the JSON-LD and the purchase box's date range.
+     * `shows` is replaced with the still-relevant rows (newest first, as the
+     * components expect), capped. When the run has ended, the last ten rows
+     * are kept so the page can still describe it. `show_summary` carries the
+     * whole run's first/last date, its total, the number of upcoming rows
+     * (uncapped, so the "N dates remaining" text stays honest if the cap
+     * bites) and whether the run uses curtain times, which PHP and Vue must
+     * decide from the WHOLE schedule, not the embedded subset.
      */
     private function loadShowsForPage(Event $event): void
     {
-        // reorder() drops both the relation's DESC order and Show's DateScope
-        // (an ORDER BY on an aggregate query is refused under
-        // ONLY_FULL_GROUP_BY).
+        $cutoff = $this->showCutoff($event);
+
+        // withoutGlobalScope(DateScope) + reorder(): global scopes are applied
+        // when the query runs, after reorder(), and an ORDER BY on an
+        // aggregate is refused under ONLY_FULL_GROUP_BY on stricter servers.
         $summary = $event->shows()
+            ->withoutGlobalScope(DateScope::class)
             ->reorder()
-            ->selectRaw('MIN(date) as first_date, MAX(date) as last_date, COUNT(*) as total')
+            ->selectRaw(
+                'MIN(date) as first_date, MAX(date) as last_date, COUNT(*) as total, '
+                ."SUM(TIME(date) <> '00:00:00') as timed_shows_count, "
+                .'SUM(date >= ?) as upcoming_total',
+                [$cutoff]
+            )
             ->first();
+
+        // Event::usesCurtainTimes() reads this aggregate when present, so
+        // localDate() in the Blade partials judges the whole run.
+        $event->setAttribute('timed_shows_count', (int) ($summary?->timed_shows_count ?? 0));
 
         $event->setAttribute('show_summary', [
             'first_date' => $summary?->first_date ? (string) $summary->first_date : null,
             'last_date' => $summary?->last_date ? (string) $summary->last_date : null,
             'total' => (int) ($summary?->total ?? 0),
+            'upcoming_total' => (int) ($summary?->upcoming_total ?? 0),
+            'curtain_times' => (int) ($summary?->timed_shows_count ?? 0) > 0,
         ]);
 
         $columns = ['id', 'event_id', 'date'];
+        $cap = (int) config('ei.event_page_max_shows', 2000);
 
         $upcoming = $event->shows()
             ->select($columns)
-            ->where('date', '>=', now()->subDay())
+            ->where('date', '>=', $cutoff)
             ->reorder('date', 'asc')
-            ->limit(self::MAX_PAGE_SHOWS)
+            ->limit($cap)
             ->get()
             ->sortByDesc('date')
             ->values();
@@ -144,6 +160,27 @@ class EventController extends Controller
         }
 
         $event->setRelation('shows', $upcoming);
+    }
+
+    /**
+     * The earliest stored value that can still be "today" for this event.
+     * A show at exactly 00:00:00 UTC means that calendar date; any other
+     * time is a real UTC instant (see Show::localDay). Today's date-only row
+     * is stored as today 00:00 UTC; today's earliest timed row is at the
+     * event timezone's start of day. The smaller of the two keeps both.
+     */
+    private function showCutoff(Event $event): string
+    {
+        $tz = Show::validTimezone($event->timezone);
+        $localToday = Carbon::today($tz);
+
+        // Today's timed rows start at the local start of day (as UTC); today's
+        // date-only row is the LOCAL date at 00:00 UTC (not UTC's own date:
+        // at 11pm in Los Angeles UTC is already tomorrow).
+        $timedStart = $localToday->copy()->utc();
+        $dateOnly = Carbon::parse($localToday->toDateString().' 00:00:00', 'UTC');
+
+        return $timedStart->min($dateOnly)->format('Y-m-d H:i:s');
     }
 
     public function getOrganizerPaginatedEvents(Organizer $organizer, Request $request)

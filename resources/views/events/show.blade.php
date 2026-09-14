@@ -232,16 +232,6 @@
     }
     </script>
 
-    {{-- The event, serialized once. Every Vue island on this page binds
-         :event="pageData.event" (resources/js/bladeBridge.js exposes
-         window.Laravel.page as `pageData`; in-DOM bindings cannot reach
-         `window` directly). This runs before the deferred module script
-         that mounts the app. --}}
-    <script>
-        window.Laravel = window.Laravel || {};
-        window.Laravel.page = { event: {!! $pageEvent !!} };
-    </script>
-
     @if (Browser::isMobile())
         @foreach($event->images as $image)
             <link rel="preload" as="image" type="image/webp" imagesrcset="{{ config('app.image_url') . $image->thumb_image_path }}">
@@ -403,6 +393,18 @@
 @endsection
 
 @section('content')
+    {{-- The event, serialized once. Every Vue island on this page binds
+         :event="pageData.event" (resources/js/bladeBridge.js exposes
+         window.Laravel.page as `pageData`; in-DOM bindings cannot reach
+         `window` directly). This sits in the content section on purpose:
+         the layout assigns a fresh `window.Laravel = {…}` in the head, so
+         anything set from the meta section would be wiped. It still runs
+         before the deferred module script that mounts the app. --}}
+    <script>
+        window.Laravel = window.Laravel || {};
+        window.Laravel.page = { event: {!! $pageEvent !!} };
+    </script>
+
     @if (Browser::isMobile())
         @include('events.show-mobile')
     @else

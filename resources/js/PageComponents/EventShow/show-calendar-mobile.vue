@@ -3,7 +3,7 @@
     <p class="text-5xl font-medium text-black mb-8">
       Show Dates
       <span v-if="remaining.length > 0 && event.showtype !== 'a'" class="text-3xl font-normal text-neutral-600 ml-2">
-        ({{ remaining.length }} {{ remaining.length === 1 ? 'date' : 'dates' }} remaining)
+        ({{ remainingLabel }} {{ remaining.length === 1 ? 'date' : 'dates' }} remaining)
       </span>
     </p>
     
@@ -42,7 +42,7 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue';
-import { showDayAsDate, isShowUpcoming, usesCurtainTimes } from '@/composables/useShowDates';
+import { showDayAsDate, isShowUpcoming, eventUsesCurtainTimes } from '@/composables/useShowDates';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
 
@@ -57,13 +57,19 @@ const selectedDates = ref([]);  // Start empty like dates.vue
 const highlightedDates = ref([]);
 const dates = ref([]);
 const remaining = ref([]);
+
+// Honest when the server capped the embedded rows (see show-purchase.vue).
+const remainingLabel = computed(() => {
+  const total = props.event.show_summary?.upcoming_total ?? 0;
+  return props.event.shows?.length < total ? `${remaining.value.length}+` : `${remaining.value.length}`;
+});
 const maxDate = ref(new Date(new Date().setFullYear(new Date().getFullYear() + 1)));
 const previewDate = ref(new Date());
 
 // Days in the EVENT's timezone — see composables/useShowDates.js.
 const getDates = () => {
   if (!props.event.shows) return;
-  const curtainTimes = usesCurtainTimes(props.event.shows);
+  const curtainTimes = eventUsesCurtainTimes(props.event);
   props.event.shows.forEach(show => {
     const day = showDayAsDate(show.date, props.event.timezone, curtainTimes);
     if (!day) return;

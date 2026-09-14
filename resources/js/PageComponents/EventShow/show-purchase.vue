@@ -49,7 +49,7 @@
                         <span class="text-2xl font-medium">{{ showDateRange }}</span>
                         <span 
                             v-if="remaining && remaining.length > 1 ? remaining.length : ''" 
-                            class="text-xl">{{ remaining.length }} show dates remaining</span>
+                            class="text-xl">{{ remainingLabel }} show dates remaining</span>
                         <span 
                             v-else-if="remaining && remaining.length == 1 ? remaining.length : ''" 
                             class="text-xl">{{ remaining.length }} date remaining</span>
@@ -147,7 +147,7 @@ import ShowMore from '@/GlobalComponents/show-more.vue';
 import { formatPrice } from '@/composables/useCurrency';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
-import { formatShowDay, showDayAsDate, isShowUpcoming, usesCurtainTimes } from '@/composables/useShowDates';
+import { formatShowDay, showDayAsDate, isShowUpcoming, eventUsesCurtainTimes } from '@/composables/useShowDates';
 
 const props = defineProps({
     event: Object,
@@ -208,6 +208,15 @@ const selectedDates = ref(null); // This is just for the v-model of VueDatePicke
 const highlightedDates = ref([]);
 const week = ref(props.event ? props.event.show_on_going : '');
 const remaining = ref([]);
+
+// The page embeds at most config('ei.event_page_max_shows') upcoming rows;
+// show_summary.upcoming_total is the uncapped count from the server. When the
+// cap bit, say "1000+" rather than a silently wrong number.
+const remainingLabel = computed(() => {
+    const total = props.event.show_summary?.upcoming_total ?? 0;
+    const capped = props.event.shows?.length < total;
+    return capped ? `${remaining.value.length}+` : `${remaining.value.length}`;
+});
 const ticketsVisible = ref(false);
 const datesVisible = ref(false);
 const datePickerRef = ref(null);
@@ -239,7 +248,7 @@ const hide = () => {
 };
 
 // Whether this schedule's rows carry real times (composables/useShowDates.js).
-const curtainTimes = computed(() => usesCurtainTimes(props.event.shows));
+const curtainTimes = computed(() => eventUsesCurtainTimes(props.event));
 
 // Every show becomes a calendar day in the EVENT's timezone — see
 // composables/useShowDates.js for why the raw UTC string must never be
