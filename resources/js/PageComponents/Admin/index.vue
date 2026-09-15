@@ -207,7 +207,12 @@ const handleNavigation = (view) => {
         url.searchParams.delete('eventSlug')
         url.searchParams.delete('organizerSlug')
         url.searchParams.delete('communitySlug')
-        url.searchParams.delete('search')
+        // A linked-in Users search (?search=, see Users.vue) belongs to that
+        // tab only: drop it when leaving, keep it when re-clicking the same
+        // tab so the URL still matches what the tab is showing.
+        if (view !== currentView.value) {
+            url.searchParams.delete('search')
+        }
         window.history.pushState({}, '', url)
     } else {
         const url = new URL(window.location)

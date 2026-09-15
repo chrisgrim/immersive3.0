@@ -241,11 +241,23 @@ const closeOrgList = (e) => {
     }
 }
 
+// Linked here from another admin tab (e.g. an event's "Submitted by") with
+// ?search=<email>. The URL is the source of truth for that filter: applied on
+// mount and again on Back/Forward, since the admin shell keeps this tab
+// mounted across history entries. The search watcher does the fetching.
+const searchFromUrl = () => new URLSearchParams(window.location.search).get('search') || ''
+
+const syncSearchFromUrl = () => {
+    const linked = searchFromUrl()
+    if (linked !== filters.value.search) {
+        filters.value.search = linked
+    }
+}
+
 onMounted(() => {
     document.addEventListener('click', closeOrgList)
-    // Linked here from another admin tab (e.g. an event's "Submitted by"):
-    // start with that search filled in (the search watcher then fetches).
-    const linked = new URLSearchParams(window.location.search).get('search')
+    window.addEventListener('popstate', syncSearchFromUrl)
+    const linked = searchFromUrl()
     if (linked) {
         filters.value.search = linked
     } else {
@@ -255,6 +267,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     document.removeEventListener('click', closeOrgList)
+    window.removeEventListener('popstate', syncSearchFromUrl)
 })
 
 const toggleOrgList = (user) => {
