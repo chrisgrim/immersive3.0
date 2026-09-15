@@ -63,7 +63,7 @@
            <div v-click-outside="closeDateDropdown">
                <button
                    @click.stop="handleDateClick"
-                   @mouseenter="dateHover = true"
+                   @mouseenter="dateHover = true; preloadDatePicker()"
                    @mouseleave="dateHover = false"
                    class="text-1xl rounded-full font-bold flex items-center gap-2 at-home-search-date-btn"
                >
@@ -155,8 +155,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useRecentSearches } from '@/composables/useRecentSearches';
 import { useRemoteTypeSearch, ALL_TYPES_OPTION } from '@/composables/useRemoteTypeSearch';
 import axios from 'axios';
-import VueDatePicker from '@vuepic/vue-datepicker';
-import '@vuepic/vue-datepicker/dist/main.css'
+import { LazyDatePicker as VueDatePicker, preloadDatePicker } from '@/composables/useLazyDatePicker';
 import Filters from './filters.vue';
 import SearchStore from '@/Stores/SearchStore.vue';
 import SearchFilterButton from './search-filter-button.vue';
@@ -437,6 +436,8 @@ function handleDateChange(newDate) {
 function toggleDateDropdown() {
    dateDropdown.value = !dateDropdown.value;
    dropdown.value = false;
+   // Keyboard/touch users never hovered: start fetching the calendar now.
+   preloadDatePicker();
 
    if (dateDropdown.value) {
        // See location-search.vue's identical fix — Filters is parent-owned

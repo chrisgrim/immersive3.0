@@ -167,8 +167,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useRecentSearches } from '@/composables/useRecentSearches';
-import VueDatePicker from '@vuepic/vue-datepicker';
-import '@vuepic/vue-datepicker/dist/main.css'
+import { LazyDatePicker as VueDatePicker, preloadDatePicker } from '@/composables/useLazyDatePicker';
 import axios from 'axios';
 import { importMapsLibrary } from '@/composables/useGoogleMaps';
 import RecentSearchesList from './recent-searches-list.vue';
@@ -407,7 +406,11 @@ const initGoogleMaps = async () => {
 };
 
 // Initialize from URL parameters
-onMounted(() => {    
+onMounted(() => {
+    // This sheet mounts when the search opens and the calendar is one tap
+    // away: fetch its chunk now so "When?" is ready when the user gets there.
+    preloadDatePicker();
+
     // Initialize city from URL or props
     const params = new URLSearchParams(window.location.search);
     if (params.get('city')) {

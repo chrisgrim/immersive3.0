@@ -73,7 +73,7 @@
            <div v-click-outside="closeDateDropdown">
                <button
                    @click.stop="handleDateClick"
-                   @mouseenter="dateHover = true"
+                   @mouseenter="dateHover = true; preloadDatePicker()"
                    @mouseleave="dateHover = false"
                    class="text-1xl rounded-full font-bold flex items-center gap-2 location-search-date-btn"
                >
@@ -168,8 +168,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useRecentSearches } from '@/composables/useRecentSearches';
-import VueDatePicker from '@vuepic/vue-datepicker';
-import '@vuepic/vue-datepicker/dist/main.css'
+import { LazyDatePicker as VueDatePicker, preloadDatePicker } from '@/composables/useLazyDatePicker';
 import { importMapsLibrary } from '@/composables/useGoogleMaps';
 import axios from 'axios';
 import Filters from './filters.vue';
@@ -674,6 +673,8 @@ function handleDateChange(newDate) {
 function toggleDateDropdown() {
    dateDropdown.value = !dateDropdown.value;
    dropdown.value = false;
+   // Keyboard/touch users never hovered: start fetching the calendar now.
+   preloadDatePicker();
 
    // Synchronize date values when opening the dropdown
    if (dateDropdown.value) {

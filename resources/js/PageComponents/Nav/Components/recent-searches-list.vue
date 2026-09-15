@@ -47,7 +47,14 @@
 // (PATCH / navigate) rather than bubbling events up, since neither needs
 // anything from the host pill.
 import axios from 'axios';
-import moment from 'moment-timezone';
+// dayjs + relativeTime, not moment-timezone: this list is inside the nav,
+// so whatever it imports loads on every page, and moment-timezone (with its
+// whole zone database) cost ~58 KB gzipped for one "3 days ago". dayjs's
+// relativeTime plugin renders the same strings moment's fromNow() did.
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+
+dayjs.extend(relativeTime);
 import { RiHistoryLine, RiPushpinFill, RiPushpinLine } from '@remixicon/vue';
 
 defineProps({
@@ -103,7 +110,7 @@ const summaryFor = (search) => {
     const summary = parts.length ? parts.join(' · ') : 'All events';
     const when = search.updated_at || search.created_at;
 
-    return when ? `${summary} · ${moment(when).fromNow()}` : summary;
+    return when ? `${summary} · ${dayjs(when).fromNow()}` : summary;
 };
 
 // Mutates the passed-in search object directly rather than emitting an

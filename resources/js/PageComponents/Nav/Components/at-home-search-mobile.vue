@@ -164,8 +164,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useRecentSearches } from '@/composables/useRecentSearches';
 import { useRemoteTypeSearch, ALL_TYPES_OPTION } from '@/composables/useRemoteTypeSearch';
-import VueDatePicker from '@vuepic/vue-datepicker';
-import '@vuepic/vue-datepicker/dist/main.css'
+import { LazyDatePicker as VueDatePicker, preloadDatePicker } from '@/composables/useLazyDatePicker';
 import axios from 'axios';
 import RecentSearchesList from './recent-searches-list.vue';
 import SearchStore from '@/Stores/SearchStore.vue';
@@ -399,6 +398,10 @@ watch(isVisible, (newValue) => {
 });
 
 onMounted(() => {
+    // This sheet mounts when the search opens and the calendar is one tap
+    // away: fetch its chunk now so "When?" is ready when the user gets there.
+    preloadDatePicker();
+
     const params = new URLSearchParams(window.location.search);
     const remoteLocationSlug = params.get('remoteLocation');
 
