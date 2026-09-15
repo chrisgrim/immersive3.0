@@ -186,9 +186,15 @@ class ConversationsController extends Controller
         $receiver->update(['unread' => 'm']);
 
         if ($wasCaughtUp) {
+            // emails/message.blade.php is shared with App\Mail\Comments and
+            // prints $attributes['title']; this array never carried one, so
+            // every inbox notification threw inside the view and was swallowed
+            // by the catch below (surfaced by Sentry EI-LARAVEL-1E on
+            // 2026-09-15, once caught exceptions started being reported).
             $attributes = [
                 'email' => $receiver->email,
                 'receiver' => $receiver->name,
+                'title' => 'New Message From '.auth()->user()->name,
                 'body' => 'You have a new message about '.$conversation->subject,
                 'sender' => auth()->user()->name,
                 'subject' => $conversation->subject,
