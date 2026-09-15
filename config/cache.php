@@ -15,7 +15,10 @@ return [
     |
     */
 
-    'default' => env('CACHE_DRIVER', 'redis'),
+    // Laravel 11+ reads CACHE_STORE (phpunit.xml sets it to `array` so tests
+    // never touch the real store). The live servers' .env files still carry the
+    // Laravel-8-era CACHE_DRIVER key, so it stays honoured as the fallback.
+    'default' => env('CACHE_STORE', env('CACHE_DRIVER', 'redis')),
 
     /*
     |--------------------------------------------------------------------------
@@ -90,7 +93,6 @@ return [
         ],
 
     ],
-
 
     /*
     |--------------------------------------------------------------------------
