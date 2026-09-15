@@ -179,6 +179,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { preloadDatePickerWhenIdle } from '@/composables/useLazyDatePicker';
 import SearchLocation from './Components/location-search-mobile.vue';
 import SearchEvent from './Components/events-search-mobile.vue';
 import SearchAtHome from './Components/at-home-search-mobile.vue';
@@ -737,6 +738,8 @@ watch(search, (value) => {
 onMounted(() => {
     // Initialize the SearchStore from URL and props
     SearchStore.initializeFromUrl(props.searchedEvents, props.maxPrice === undefined ? null : props.maxPrice);
+    // The date picker is lazy (useLazyDatePicker); fetch it once the page is idle.
+    preloadDatePickerWhenIdle();
     
     // Additional check to ensure date parameters are read correctly
     const params = new URLSearchParams(window.location.search);

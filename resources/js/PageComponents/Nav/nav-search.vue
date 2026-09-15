@@ -158,6 +158,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { preloadDatePickerWhenIdle } from '@/composables/useLazyDatePicker';
 import SearchLocation from './Components/location-search.vue';
 import SearchEvent from './Components/events-search.vue';
 import SearchAtHome from './Components/at-home-search.vue';
@@ -911,6 +912,8 @@ const setupEventListeners = () => {
 // Lifecycle hooks
 onMounted(() => {
   SearchStore.initializeFromUrl(props.searchedEvents, props.maxPrice === undefined ? null : props.maxPrice);
+  // The date picker is lazy (useLazyDatePicker); fetch it once the page is idle.
+  preloadDatePickerWhenIdle();
   subscribeToMapStore();
   setupEventListeners();
   updateShellBounds();

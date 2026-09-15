@@ -45,7 +45,11 @@ class FutureEmbargoDateRule implements DataAwareRule, ValidationRule
             return;
         }
 
-        $timezone = Show::validTimezone($this->data['timezone'] ?? $this->eventTimezone ?? null);
+        // The sibling is unvalidated at this point (rules run per attribute),
+        // so anything but a string is ignored rather than passed to a typed
+        // helper; the `timezone` field's own rules report it.
+        $sibling = $this->data['timezone'] ?? null;
+        $timezone = Show::validTimezone(is_string($sibling) ? $sibling : $this->eventTimezone);
 
         try {
             $liftsAt = Carbon::createFromFormat('Y-m-d H:i:s', (string) $value, $timezone);

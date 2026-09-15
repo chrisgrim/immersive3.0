@@ -103,6 +103,13 @@ test('the validator accepts an embargo that is still ahead where the event is', 
     expect($rulesFor(['embargo_date' => '2026-01-15 12:00:00'], $la)->passes())->toBeTrue()
         ->and($rulesFor(['embargo_date' => '2026-01-15 12:00:00'], $seoul)->passes())->toBeFalse();
 
+    // A junk sibling timezone (array, number) must not crash the rule
+    // (Codex review, 2026-09-14): it falls back to the event's timezone and
+    // the timezone field's own rules report the junk.
+    expect($rulesFor(['timezone' => ['Asia/Seoul'], 'embargo_date' => '2026-01-15 12:00:00'], $la)->errors()->has('embargo_date'))->toBeFalse()
+        ->and($rulesFor(['timezone' => 42, 'embargo_date' => '2026-01-15 12:00:00'], $seoul)->errors()->first('embargo_date'))
+        ->toBe('The embargo date must be in the future.');
+
     // Clearing an embargo is always fine; a malformed value is reported by
     // date_format, not by the future check.
     expect($rulesFor(['embargo_date' => null])->passes())->toBeTrue()
