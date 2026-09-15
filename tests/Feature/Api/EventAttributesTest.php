@@ -13,11 +13,10 @@ beforeEach(function () {
     $this->user = User::factory()->create();
 
     // publicRemoteLocations() caches its eligibility query for an hour (see
-    // its own comment) — phpunit.xml sets CACHE_STORE, but config/cache.php
-    // reads the legacy CACHE_DRIVER key, so tests actually hit real local
-    // Redis, not an isolated store (a known, separately-tracked bug). Forget
-    // this key explicitly so one test's eligible-locations set can't leak
-    // into the next.
+    // its own comment). Tests use the array cache store (config/cache.php
+    // honours phpunit.xml's CACHE_STORE since 2026-09-14), but the store
+    // lives for the whole process, so forget this key explicitly so one
+    // test's eligible-locations set can't leak into the next.
     Cache::forget('at-home-eligible-remote-location-ids');
 });
 

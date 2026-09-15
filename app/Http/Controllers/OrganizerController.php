@@ -249,7 +249,6 @@ class OrganizerController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            report($e);
             Log::error('Error in searchTeams:', [
                 'error' => $e->getMessage(),
                 'user_id' => auth()->id(),

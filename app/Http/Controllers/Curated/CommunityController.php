@@ -267,7 +267,6 @@ class CommunityController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            report($e);
             Log::error('Failed to update community: '.$e->getMessage());
             throw $e;
         }

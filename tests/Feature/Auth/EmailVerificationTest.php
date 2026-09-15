@@ -84,11 +84,11 @@ test('sendVerificationCode requires authentication', function () {
 test('the email-verification endpoints are rate limited', function () {
     // throttle:6,1 caps requests per minute, blocking the brute-force / DoS vector
     // (each verify guess would otherwise be an unthrottled DB-cache round-trip).
-    // Flushed first: phpunit.xml's CACHE_STORE=array is silently ignored
-    // (config/cache.php still reads the legacy CACHE_DRIVER key), so this
-    // throttle actually hits real local Redis — without flushing, its
-    // counter can carry over from an earlier test/run within the same
-    // rate-limit window and make this test flake.
+    // Flushed first: until 2026-09-14 config/cache.php ignored phpunit.xml's
+    // CACHE_STORE=array (it read the legacy CACHE_DRIVER key), so this
+    // throttle hit real local Redis and its counter could carry over from an
+    // earlier test/run within the same rate-limit window and flake. Kept:
+    // the array store still lives for the whole test process.
     Cache::flush();
 
     for ($i = 0; $i < 6; $i++) {

@@ -52,6 +52,8 @@ class EiServer extends Server
        then tickets (1-10 tiers), the ticket purchase URL, and button text.
        All datetimes are UTC "Y-m-d H:i:s". For show dates, a value at exactly
        00:00:00 means that calendar date; any other time is the real UTC instant.
+       The one exception is embargo_date: a wall-clock time in the event's own
+       timezone (the website stores noon on the chosen day).
     7. Primary image via `attach-event-image` (rank 0; gallery = ranks 1-4).
        `remove-event-image` deletes one image by its id (from get-event) —
        for good, so confirm with the user first; a submitted or live event
