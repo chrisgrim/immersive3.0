@@ -35,6 +35,7 @@ class AdminSubmissionNotifier
             try {
                 Mail::to($admin)->send($makeMailable());
             } catch (\Exception $e) {
+                report($e);
                 Log::error('Failed to send admin submission notification:', [
                     'type' => $prefKey,
                     'admin_id' => $admin->id,

@@ -63,6 +63,7 @@ class EventScraperService
 
                     return $result;
                 } catch (\Exception $e) {
+                    report($e);
                     Log::error('EventScraper: Scraper failed', [
                         'url' => $url,
                         'scraper' => get_class($scraper),

@@ -347,6 +347,7 @@ class AdminEventController extends Controller
                 'event' => $event->fresh(['images', 'organizer']),
             ]);
         } catch (\Exception $e) {
+            report($e);
             \Log::error('Error approving event: '.$e->getMessage());
 
             return response()->json([

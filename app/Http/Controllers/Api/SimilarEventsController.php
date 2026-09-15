@@ -73,6 +73,7 @@ class SimilarEventsController extends Controller
 
             return $result;
         } catch (\Exception $e) {
+            report($e);
             \Log::error("Error fetching similar events for {$event->id}: ".$e->getMessage());
 
             return [
@@ -105,6 +106,7 @@ class SimilarEventsController extends Controller
                 ->take(6)
                 ->get();
         } catch (\Exception $e) {
+            report($e);
             \Log::error('Error in getEventsByCityQuickly: '.$e->getMessage());
 
             return collect([]);
@@ -128,6 +130,7 @@ class SimilarEventsController extends Controller
                 ->take($limit)
                 ->get();
         } catch (\Exception $e) {
+            report($e);
             \Log::error('Error in getEventsByCategoryQuickly: '.$e->getMessage());
 
             return collect([]);
@@ -170,6 +173,7 @@ class SimilarEventsController extends Controller
 
             return $sameCategoryEvents->concat($otherCategoryEvents);
         } catch (\Exception $e) {
+            report($e);
             \Log::error('Error in getRemoteEvents: '.$e->getMessage());
 
             return collect([]);
@@ -211,6 +215,7 @@ class SimilarEventsController extends Controller
                 'isRemote' => true,
             ];
         } catch (\Exception $e) {
+            report($e);
             \Log::error('Error in getSimilarByLocation: '.$e->getMessage());
 
             return [

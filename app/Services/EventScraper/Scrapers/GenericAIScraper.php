@@ -163,6 +163,7 @@ class GenericAIScraper implements ScraperInterface
 
             return null;
         } catch (\Exception $e) {
+            report($e);
             Log::error('EventScraper: Exception fetching page', [
                 'url' => $url,
                 'error' => $e->getMessage(),
@@ -247,6 +248,7 @@ class GenericAIScraper implements ScraperInterface
 
             return [];
         } catch (\Exception $e) {
+            report($e);
             Log::error('EventScraper: Exception calling Claude', [
                 'error' => $e->getMessage(),
             ]);
@@ -293,6 +295,7 @@ class GenericAIScraper implements ScraperInterface
 
             return [];
         } catch (\Exception $e) {
+            report($e);
             Log::error('EventScraper: Exception calling OpenAI', [
                 'error' => $e->getMessage(),
             ]);

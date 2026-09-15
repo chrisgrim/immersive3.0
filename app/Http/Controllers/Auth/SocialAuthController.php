@@ -77,6 +77,7 @@ class SocialAuthController extends Controller
 
             return redirect()->intended('/');
         } catch (\Exception $e) {
+            report($e);
             Log::error('Google login error: ', [
                 'message' => $e->getMessage(),
                 'code' => $e->getCode(),
@@ -128,6 +129,7 @@ class SocialAuthController extends Controller
                 ->redirect()
                 ->withCookie($bindingCookie);
         } catch (\Exception $e) {
+            report($e);
             Log::error('Apple redirect error: '.$e->getMessage());
 
             return redirect()->route('login')
@@ -201,6 +203,7 @@ class SocialAuthController extends Controller
             return redirect()->intended('/');
 
         } catch (\Exception $e) {
+            report($e);
             Log::error('Apple login error: '.$e->getMessage());
 
             return redirect()->route('login')
@@ -322,6 +325,7 @@ class SocialAuthController extends Controller
             return redirect()->intended('/');
 
         } catch (\Exception $e) {
+            report($e);
             Log::error('GitHub login error: '.$e->getMessage());
 
             return redirect()->route('login')

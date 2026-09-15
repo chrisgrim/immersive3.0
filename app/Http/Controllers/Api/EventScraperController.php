@@ -86,6 +86,7 @@ class EventScraperController extends Controller
                 'duplicates' => $duplicates,
             ]);
         } catch (\Exception $e) {
+            report($e);
             \Log::error('EventScraper: Extract failed', [
                 'urls' => $urls,
                 'error' => $e->getMessage(),

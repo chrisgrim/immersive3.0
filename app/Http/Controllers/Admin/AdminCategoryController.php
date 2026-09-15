@@ -68,6 +68,7 @@ class AdminCategoryController extends Controller
 
             return $category->load('images');
         } catch (\Exception $e) {
+            report($e);
             \Log::error('Category creation failed', [
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),

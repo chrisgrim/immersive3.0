@@ -189,6 +189,7 @@ class OwnershipClaimService
             try {
                 Mail::to($admin)->send(new OwnershipClaimNotification($claim, true));
             } catch (\Exception $e) {
+                report($e);
                 Log::error('Failed to send ownership-claim admin notification:', ['admin_id' => $admin->id, 'error' => $e->getMessage()]);
             }
         }
@@ -202,6 +203,7 @@ class OwnershipClaimService
                 Mail::to($claim->user)->send(new OwnershipClaimNotification($claim, false));
             }
         } catch (\Exception $e) {
+            report($e);
             Log::error('Failed to send ownership-claim approval email:', ['error' => $e->getMessage()]);
         }
 
@@ -210,6 +212,7 @@ class OwnershipClaimService
             // is delivered to them.
             Message::notification($organizer, 'Your ownership claim for '.$organizer->name.' was approved. Welcome aboard!', $organizer->slug);
         } catch (\Exception $e) {
+            report($e);
             Log::error('Failed to send ownership-claim in-app notification:', ['error' => $e->getMessage()]);
         }
     }
@@ -222,6 +225,7 @@ class OwnershipClaimService
                 Mail::to($claim->user)->send(new OwnershipClaimNotification($claim, false));
             }
         } catch (\Exception $e) {
+            report($e);
             Log::error('Failed to send ownership-claim rejection email:', ['error' => $e->getMessage()]);
         }
     }

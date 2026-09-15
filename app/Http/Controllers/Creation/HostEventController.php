@@ -287,6 +287,7 @@ class HostEventController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            report($e);
             \Log::error('Failed to submit name change request: '.$e->getMessage());
 
             return response()->json([
@@ -337,6 +338,7 @@ class HostEventController extends Controller
                 ]),
             ], 201);
         } catch (\Exception $e) {
+            report($e);
             \Log::error('Failed to duplicate event: '.$e->getMessage());
 
             return response()->json([

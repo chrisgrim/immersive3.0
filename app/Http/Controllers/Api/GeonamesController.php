@@ -44,6 +44,7 @@ class GeonamesController extends Controller
 
             return response()->json($response->json());
         } catch (\Exception $e) {
+            report($e);
             Log::error('Geonames lookup exception: '.$e->getMessage());
 
             return response()->json(['error' => 'Geonames lookup failed.'], 502);

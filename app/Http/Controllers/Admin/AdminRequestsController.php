@@ -75,6 +75,7 @@ class AdminRequestsController extends Controller
         try {
             Mail::to($request->user)->send(new NameChangeNotification($request, false));
         } catch (\Exception $e) {
+            report($e);
             \Log::error('Failed to send rejection notification:', [
                 'error' => $e->getMessage()
             ]);

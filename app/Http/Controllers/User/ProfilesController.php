@@ -118,6 +118,7 @@ class ProfilesController extends Controller
             return $result;
 
         } catch (\Exception $e) {
+            report($e);
             \Log::error('Update failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),

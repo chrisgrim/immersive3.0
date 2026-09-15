@@ -66,6 +66,7 @@ class Card extends Model
             $this->deleteCardImages($card);
             $card->delete();
         } catch (\Exception $e) {
+            report($e);
             \Log::error('Failed to delete card:', [
                 'card_id' => $card->id,
                 'error' => $e->getMessage()

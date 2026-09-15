@@ -42,6 +42,7 @@ class NameChangeRequestService
                 Mail::to($admin)->send(new NameChangeNotification($request, true));
             }
         } catch (\Exception $e) {
+            report($e);
             \Log::error('Failed to send admin notifications:', [
                 'error' => $e->getMessage(),
             ]);
@@ -92,6 +93,7 @@ class NameChangeRequestService
                 Mail::to($owner)->send(new NameChangeNotification($changeData, false));
             }
         } catch (\Exception $e) {
+            report($e);
             \Log::error('Failed to send user notification:', [
                 'error' => $e->getMessage(),
             ]);

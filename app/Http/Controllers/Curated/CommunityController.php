@@ -267,6 +267,7 @@ class CommunityController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            report($e);
             Log::error('Failed to update community: '.$e->getMessage());
             throw $e;
         }
@@ -481,6 +482,7 @@ class CommunityController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            report($e);
             Log::error('Failed to submit name change request: '.$e->getMessage());
 
             return response()->json([

@@ -93,6 +93,7 @@ class OrganizerController extends Controller
                 return response()->json(['redirect' => route('hosting.event.edit', ['event' => $event->slug])], 200);
             }
         } catch (\Exception $e) {
+            report($e);
             Log::error('Failed to create organizer: '.$e->getMessage());
 
             return response()->json([
@@ -135,6 +136,7 @@ class OrganizerController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            report($e);
             Log::error('Failed to submit name change request: '.$e->getMessage());
 
             return response()->json([
@@ -204,6 +206,7 @@ class OrganizerController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            report($e);
             Log::error('Failed to update organizer: '.$e->getMessage());
 
             return response()->json([
@@ -246,6 +249,7 @@ class OrganizerController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            report($e);
             Log::error('Error in searchTeams:', [
                 'error' => $e->getMessage(),
                 'user_id' => auth()->id(),
@@ -280,6 +284,7 @@ class OrganizerController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            report($e);
             Log::error('Failed to submit organizer: '.$e->getMessage());
 
             return response()->json([

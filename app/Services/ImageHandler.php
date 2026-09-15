@@ -232,6 +232,7 @@ class ImageHandler
                     $model->save();
                 }
             } catch (\Exception $e) {
+                report($e);
                 \Log::error("Failed to copy image: " . $e->getMessage());
             }
         }
@@ -242,6 +243,7 @@ class ImageHandler
             try {
                 Storage::disk('digitalocean')->deleteDirectory("/public/$directory");
             } catch (\Exception $e) {
+                report($e);
                 \Log::error("Failed to delete directory: " . $e->getMessage());
             }
         }
@@ -332,6 +334,7 @@ class ImageHandler
                 }
                 
             } catch (\Exception $e) {
+                report($e);
                 Log::error("Failed to duplicate image {$originalImage->id}: " . $e->getMessage());
             }
         }
@@ -419,6 +422,7 @@ class ImageHandler
                         $model->save();
                     }
                 } catch (\Exception $e) {
+                    report($e);
                     Log::error("Error processing image {$image->id}: {$e->getMessage()}");
                 }
             }
@@ -436,6 +440,7 @@ class ImageHandler
                             Storage::disk('digitalocean')->deleteDirectory("/public/$originalDirectory");
                         }
                     } catch (\Exception $e) {
+                        report($e);
                         Log::error("Error deleting directory /public/$originalDirectory: {$e->getMessage()}");
                     }
                 }

@@ -154,6 +154,7 @@ class EventScheduleAssistant
                     'messages' => $messages,
                 ]);
         } catch (\Throwable $e) {
+            report($e);
             Log::error('Schedule assistant API call failed', ['error' => $e->getMessage()]);
 
             return null;

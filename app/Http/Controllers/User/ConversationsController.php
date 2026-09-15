@@ -200,6 +200,7 @@ class ConversationsController extends Controller
                 Mail::to($receiver->email)->send(new Message($attributes));
             } catch (\Exception $e) {
                 // Keep this one error log for critical failures
+                report($e);
                 \Log::error('Failed to send email: '.$e->getMessage());
             }
         }
