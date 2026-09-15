@@ -8,8 +8,9 @@ use Illuminate\Support\Facades\Artisan;
 // has passed *in the event's own timezone*. Timezone handling is the critical bit.
 //
 // note: embargo_date is NOT in Event::$casts, so it is stored/read as a raw string.
-// The command parses it via Carbon::parse($event->embargo_date, $eventTimezone),
-// i.e. it interprets the stored wall-clock string AS-IF it were in the event timezone.
+// Event::embargoLiftsAt() interprets the stored wall-clock string AS-IF it were in
+// the event timezone (since 2026-09-14 the wizard, admin approval and validation
+// all agree on that reading; see tests/Feature/Models/EventEmbargoTest.php).
 
 afterEach(function () {
     Carbon::setTestNow();

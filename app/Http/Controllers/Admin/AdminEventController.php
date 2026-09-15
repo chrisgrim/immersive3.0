@@ -9,7 +9,6 @@ use App\Models\Messaging\Message;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Services\EventNotificationDispatcher;
 use App\Services\ImageHandler;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -311,10 +310,9 @@ class AdminEventController extends Controller
             // Finalize images with the new slug
             ImageHandler::finalize($event, $slug, 'event');
 
-            // Determine status based on embargo date
-            $status = $event->embargo_date && $event->embargo_date > Carbon::now()
-                ? 'e'
-                : 'p';
+            // Determine status based on embargo date (a wall-clock time in the
+            // event's own timezone; the model decides, same as the publish cron)
+            $status = $event->embargoIsPending() ? 'e' : 'p';
 
             // Format the date explicitly to match Elasticsearch mapping
             $event->update([

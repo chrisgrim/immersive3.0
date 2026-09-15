@@ -122,6 +122,42 @@ export const formatDateForAPI = (date, timezone) => {
 };
 
 /**
+ * Format a picked embargo day for the API.
+ *
+ * Unlike show dates (formatDateForAPI, UTC), an embargo is a WALL-CLOCK time
+ * in the event's own timezone: the server stores "YYYY-MM-DD 12:00:00" and
+ * publishes at noon on that day where the event is (Event::embargoLiftsAt on
+ * the backend decides, for the cron, admin approval and validation alike).
+ * Never run the picked Date through toISOString(): that reads it as UTC and
+ * moves the day for any event east of Greenwich picked in the morning, or
+ * west of it picked late at night.
+ *
+ * @param {Date|string} date - The day the organizer picked, as the date picker emits it
+ * @param {string} timezone - The event's IANA timezone
+ * @returns {string|null} "YYYY-MM-DD 12:00:00", or null
+ */
+export const embargoDateForAPI = (date, timezone) => {
+    const day = normalizeDateToTimezone(date, timezone);
+
+    return day ? `${day} 12:00:00` : null;
+};
+
+/**
+ * The READ counterpart of embargoDateForAPI: the stored "YYYY-MM-DD 12:00:00"
+ * as a Date at noon in the event's timezone, for the date picker and for
+ * formatDateForDisplay (pass the same timezone there).
+ *
+ * @param {string|null} embargoDate - As stored, "YYYY-MM-DD HH:mm:ss"
+ * @param {string} timezone - The event's IANA timezone
+ * @returns {Date|null}
+ */
+export const embargoDateToDate = (embargoDate, timezone) => {
+    if (!embargoDate) return null;
+
+    return createDateAtNoon(String(embargoDate).slice(0, 10), timezone);
+};
+
+/**
  * Parse a date string from YYYY-MM-DD format into a Date object
  * Ensures the date is interpreted in the specified timezone
  * 

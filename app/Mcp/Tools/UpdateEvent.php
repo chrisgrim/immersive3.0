@@ -145,7 +145,7 @@ class UpdateEvent extends Tool
 
         $validator = Validator::make(
             $input,
-            collect(EventUpdateRules::rules())->except(self::STRIPPED_KEYS)->all(),
+            collect(EventUpdateRules::rules($event->timezone))->except(self::STRIPPED_KEYS)->all(),
             EventUpdateRules::messages(),
             EventUpdateRules::attributes()
         );
@@ -684,7 +684,7 @@ class UpdateEvent extends Tool
             'contentAdvisories' => $schema->array()->description('Content warnings: [{"name": "Loud noises"}]. At least 1 beyond the automatic sexual-content chip is required before submission, max 16 total. Offer the user the options from list-event-attributes first; free-form names are allowed but prefer existing ones.'),
             'mobilityAdvisories' => $schema->array()->description('Mobility/accessibility notes: [{"name": "Extended standing"}]. At least 1 beyond the automatic wheelchair chip is required before submission, max 16 total. Offer options from list-event-attributes first.'),
             'wheelchairReady' => $schema->boolean()->description('ALWAYS ask the user whether the event is wheelchair accessible — an explicit yes/no is required before submission. Answering automatically adds the matching "Wheelchair Accessible"/"Not Wheelchair Accessible" mobility chip.'),
-            'embargo_date' => $schema->string()->description('Optional UTC "Y-m-d H:i:s" in the future: if set, the event stays hidden until this date after approval. Send null to lift an embargo and publish immediately. Omitting it leaves any existing embargo untouched.'),
+            'embargo_date' => $schema->string()->description('Optional "Y-m-d H:i:s" as a wall-clock time in the EVENT\'S OWN timezone (not UTC), in the future: if set, the event stays hidden until then after approval. The website stores noon on the chosen day, e.g. "2026-10-01 12:00:00"; the publisher runs every two hours. Send null to lift an embargo and publish immediately. Omitting it leaves any existing embargo untouched.'),
             'videos' => $schema->array()->description('Optional, up to 4: [{"platform": "youtube"|"tiktok", "url": "...", "id": "platform video id", "rank": 0}]. Instagram is not supported.'),
             'acknowledge_duplicate' => $schema->boolean()->description('Set true only after the user confirms a duplicate-name warning.'),
             'confirm_live_edit' => $schema->boolean()->description('Required when editing a PUBLISHED or EMBARGOED event: the first call returns a current-vs-proposed diff instead of applying. Show the user the diff, get their explicit confirmation, then retry with this set to true.'),

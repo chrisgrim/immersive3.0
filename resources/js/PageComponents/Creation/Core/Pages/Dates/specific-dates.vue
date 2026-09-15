@@ -290,7 +290,10 @@ import {
     normalizeDateToTimezone,
     createDateAtNoon,
     formatDateForAPI,
-    parseDateString
+    parseDateString,
+    formatDateForDisplay,
+    embargoDateForAPI,
+    embargoDateToDate
 } from '@/composables/dateUtils';
 
 // Props and emits
@@ -403,14 +406,11 @@ const shouldUseRowLayout = computed(() => {
 });
 
 const hasEmbargoDate = computed(() => !!event.embargo_date);
+// The embargo is a day in the EVENT's timezone (see embargoDateForAPI), so
+// it is read and shown in that timezone, never the browser's.
 const formattedEmbargoDate = computed(() => {
     if (!event.embargo_date) return '';
-    return new Date(event.embargo_date).toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
+    return formatDateForDisplay(embargoDateToDate(event.embargo_date, localTimezone.value), localTimezone.value);
 });
 
 const showTimesError = computed(() => {
@@ -589,7 +589,7 @@ const handleEmbargoToggleChange = (value) => {
 
 const showEmbargoCalendar = () => {
     if (event.embargo_date) {
-        tempEmbargoDate.value = new Date(event.embargo_date);
+        tempEmbargoDate.value = embargoDateToDate(event.embargo_date, localTimezone.value);
     }
     showEmbargoModal.value = true;
 };
@@ -600,9 +600,7 @@ const selectEmbargoDate = (selectedDate) => {
 
 const confirmEmbargoDate = () => {
     if (tempEmbargoDate.value) {
-        const date = new Date(tempEmbargoDate.value);
-        date.setUTCHours(12, 0, 0, 0);
-        event.embargo_date = date.toISOString().slice(0, 19).replace('T', ' ');
+        event.embargo_date = embargoDateForAPI(tempEmbargoDate.value, localTimezone.value);
         embargoToggle.value = true; // Ensure toggle is set to Yes
         showEmbargoModal.value = false;
         tempEmbargoDate.value = null;

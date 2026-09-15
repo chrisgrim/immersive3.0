@@ -45,7 +45,7 @@ class StoreEventRequest extends FormRequest
 
     public function rules(): array
     {
-        return EventUpdateRules::rules();
+        return EventUpdateRules::rules($this->route('event')?->timezone);
     }
 
     public function attributes()

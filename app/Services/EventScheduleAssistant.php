@@ -399,7 +399,7 @@ class EventScheduleAssistant
                         ],
                         'embargo_date' => [
                             'type' => 'string',
-                            'description' => 'UTC "Y-m-d H:i:s" when the event should auto-publish, or null to clear.',
+                            'description' => '"Y-m-d H:i:s" wall-clock time in the event\'s own timezone (not UTC) when it should auto-publish, or null to clear. The website stores noon on the chosen day.',
                         ],
                         'confirm_schedule_replace' => [
                             'type' => 'boolean',

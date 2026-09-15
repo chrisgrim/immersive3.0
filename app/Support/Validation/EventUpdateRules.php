@@ -2,6 +2,7 @@
 
 namespace App\Support\Validation;
 
+use App\Rules\FutureEmbargoDateRule;
 use App\Rules\ZeroDecimalPriceRule;
 use App\Support\Currency;
 
@@ -62,7 +63,12 @@ class EventUpdateRules
      */
     public const MAX_TICKET_PRICE = 999999.99;
 
-    public static function rules(): array
+    /**
+     * @param  string|null  $eventTimezone  The timezone of the event being
+     *                                      edited, for the embargo check when
+     *                                      the save itself carries none.
+     */
+    public static function rules(?string $eventTimezone = null): array
     {
         return [
             'category_id' => 'nullable|exists:categories,id',
@@ -82,7 +88,7 @@ class EventUpdateRules
             'show_times' => 'nullable|string|max:500',
             'tag_line' => 'sometimes|string|max:255',
             'hasLocation' => 'sometimes|boolean',
-            'embargo_date' => 'nullable|date_format:Y-m-d H:i:s|after:now',
+            'embargo_date' => ['nullable', 'date_format:Y-m-d H:i:s', new FutureEmbargoDateRule($eventTimezone)],
             'remote_description' => 'nullable|string|max:3000',
             'call_to_action' => 'nullable|string|max:255',
             'video' => 'nullable|string|max:255',

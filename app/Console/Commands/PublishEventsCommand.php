@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Event;
+use App\Models\Events\Show;
 use App\Services\EventNotificationDispatcher;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -53,25 +54,19 @@ class PublishEventsCommand extends Command
         $publishedCount = 0;
 
         foreach ($events as $event) {
-            // Get event's timezone or fall back to Etc/UTC (using the same Region/City format)
-            $eventTimezone = $event->timezone ?? 'Etc/UTC';
-
-            // Convert embargo_date to Carbon using the event's timezone
-            $embargoDate = Carbon::parse($event->embargo_date, $eventTimezone);
-
-            // Get current time in event's timezone
-            $nowInEventTimezone = $now->copy()->setTimezone($eventTimezone);
+            // embargo_date is a wall-clock time in the event's own timezone;
+            // Event::embargoLiftsAt() is the one place that interprets it.
+            $liftsAt = $event->embargoLiftsAt();
 
             if ($debug) {
                 $this->info("Event #{$event->id} ({$event->name}):");
-                $this->info("- Timezone: {$eventTimezone}");
-                $this->info("- Embargo: {$embargoDate->toDateTimeString()}");
-                $this->info("- Current: {$nowInEventTimezone->toDateTimeString()}");
-                $this->info('- Publish: '.($embargoDate->lte($nowInEventTimezone) ? 'Yes' : 'No'));
+                $this->info('- Timezone: '.Show::validTimezone($event->timezone));
+                $this->info("- Embargo: {$event->embargo_date} (lifts {$liftsAt->toIso8601String()})");
+                $this->info("- Current: {$now->toIso8601String()}");
+                $this->info('- Publish: '.($event->embargoIsPending($now) ? 'No' : 'Yes'));
             }
 
-            // Check if embargo date has passed in the event's timezone
-            if ($embargoDate->lte($nowInEventTimezone)) {
+            if (! $event->embargoIsPending($now)) {
                 if ($debug) {
                     $this->info("Publishing event #{$event->id}: {$event->name}");
                 }

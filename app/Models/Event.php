@@ -488,6 +488,37 @@ class Event extends Model
     }
 
     /**
+     * The moment an embargoed event goes live, as a real instant.
+     *
+     * embargo_date is deliberately NOT cast: it is a wall-clock time in the
+     * event's own timezone, "Y-m-d H:i:s" (the wizard stores noon on the day
+     * the organizer picked, so "publish on the 20th" means the 20th where the
+     * event is, not the 20th in London). Every reader that compares it with
+     * "now" must go through here so the publish cron, admin approval and
+     * validation cannot disagree about what the stored value means. A blank
+     * or junk timezone reads as UTC (Show::validTimezone), as the cron always
+     * did for a blank one.
+     */
+    public function embargoLiftsAt(): ?Carbon
+    {
+        if (! $this->embargo_date) {
+            return null;
+        }
+
+        return Carbon::parse((string) $this->embargo_date, Show::validTimezone($this->timezone));
+    }
+
+    /**
+     * Whether the embargo is still holding the event back at $now.
+     */
+    public function embargoIsPending(?Carbon $now = null): bool
+    {
+        $liftsAt = $this->embargoLiftsAt();
+
+        return $liftsAt !== null && $liftsAt->gt($now ?? Carbon::now());
+    }
+
+    /**
      * The same answer for the signed-in viewer, appended to the JSON so the
      * dashboard can show the lock modal instead of sending a request that
      * would be refused. Runs no query: closingDate is a column and the user

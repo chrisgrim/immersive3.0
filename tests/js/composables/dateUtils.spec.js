@@ -5,6 +5,8 @@ import {
     createDateAtNoon,
     utcDateTimeToLocalDate,
     formatDateForAPI,
+    embargoDateForAPI,
+    embargoDateToDate,
     parseDateString,
     addMonths,
     endOfDay,
@@ -101,6 +103,52 @@ describe('dateUtils', () => {
             // 2025-03-09 is the spring-forward day in NY; noon is well clear of the
             // 02:00->03:00 gap, so it is unambiguously EDT (UTC-4) -> 16:00 UTC.
             expect(formatDateForAPI('2025-03-09', NY)).toBe('2025-03-09 16:00:00');
+        });
+    });
+
+    describe('embargoDateForAPI / embargoDateToDate', () => {
+        // An embargo is a wall-clock day in the EVENT's timezone: the server
+        // stores noon on that day and Event::embargoLiftsAt publishes at noon
+        // where the event is. The old wizard code ran the picked Date through
+        // toISOString(), which reads it as UTC and moved the day for any event
+        // east of Greenwich picked in the morning (or west, late at night).
+        it('returns null for falsy input', () => {
+            expect(embargoDateForAPI(null, NY)).toBeNull();
+            expect(embargoDateToDate(null, NY)).toBeNull();
+        });
+
+        it('stores the picked day at noon with no UTC conversion', () => {
+            expect(embargoDateForAPI('2026-01-15', NY)).toBe('2026-01-15 12:00:00');
+            expect(embargoDateForAPI('2026-07-15', NY)).toBe('2026-07-15 12:00:00');
+            expect(embargoDateForAPI('2026-01-15', 'Asia/Seoul')).toBe('2026-01-15 12:00:00');
+        });
+
+        it('keeps the picked day where the event is, whatever the UTC date of the instant', () => {
+            // The picker emits midnight-ish in the event timezone. In Seoul
+            // that instant is still the previous day in UTC; the old code
+            // stored the 14th.
+            const seoulMidnight = moment.tz('2026-01-15 00:00', 'Asia/Seoul').toDate();
+            expect(seoulMidnight.toISOString()).toBe('2026-01-14T15:00:00.000Z');
+            expect(embargoDateForAPI(seoulMidnight, 'Asia/Seoul')).toBe('2026-01-15 12:00:00');
+
+            // Late evening in New York is already the next day in UTC.
+            const nyEvening = moment.tz('2026-01-15 22:30', NY).toDate();
+            expect(nyEvening.toISOString()).toBe('2026-01-16T03:30:00.000Z');
+            expect(embargoDateForAPI(nyEvening, NY)).toBe('2026-01-15 12:00:00');
+        });
+
+        it('reads the stored value back as noon in the event timezone', () => {
+            const ny = embargoDateToDate('2026-01-15 12:00:00', NY);
+            expect(moment.tz(ny, NY).format('YYYY-MM-DD HH:mm')).toBe('2026-01-15 12:00');
+            expect(ny.toISOString()).toBe('2026-01-15T17:00:00.000Z');
+
+            const seoul = embargoDateToDate('2026-01-15 12:00:00', 'Asia/Seoul');
+            expect(seoul.toISOString()).toBe('2026-01-15T03:00:00.000Z');
+        });
+
+        it('round-trips', () => {
+            const stored = embargoDateForAPI(moment.tz('2026-03-08 00:00', NY).toDate(), NY); // DST starts that day
+            expect(embargoDateForAPI(embargoDateToDate(stored, NY), NY)).toBe(stored);
         });
     });
 
