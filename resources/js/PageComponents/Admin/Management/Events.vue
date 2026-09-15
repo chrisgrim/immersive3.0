@@ -51,6 +51,7 @@
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider min-w-[4rem]">Image</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider min-w-[18rem]">Name</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider min-w-[18rem]">Organization</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider min-w-[16rem]">Submitted by</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Location</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Category</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Days Left</th>
@@ -100,6 +101,18 @@
                             >
                                 {{ event.organizer?.name || 'Assign Organizer' }}
                             </button>
+                        </td>
+                        <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words">
+                            <!-- Opens the Users tab already searched for this account -->
+                            <a
+                                v-if="event.user"
+                                :href="`/admin/dashboard?view=manage-users&search=${encodeURIComponent(event.user.email)}`"
+                                class="text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                                <span class="block">{{ event.user.name }}</span>
+                                <span class="block text-lg text-gray-500">{{ event.user.email }}</span>
+                            </a>
+                            <span v-else class="text-gray-400">Unknown</span>
                         </td>
                         <td @click="showActionModal(event)" class="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-ne">
                             {{ formatLocation(event) }}

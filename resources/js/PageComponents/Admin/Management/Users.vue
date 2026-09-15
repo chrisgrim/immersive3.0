@@ -243,7 +243,14 @@ const closeOrgList = (e) => {
 
 onMounted(() => {
     document.addEventListener('click', closeOrgList)
-    fetchUsers()
+    // Linked here from another admin tab (e.g. an event's "Submitted by"):
+    // start with that search filled in (the search watcher then fetches).
+    const linked = new URLSearchParams(window.location.search).get('search')
+    if (linked) {
+        filters.value.search = linked
+    } else {
+        fetchUsers()
+    }
 })
 
 onUnmounted(() => {

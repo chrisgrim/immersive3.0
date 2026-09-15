@@ -207,6 +207,7 @@ const handleNavigation = (view) => {
         url.searchParams.delete('eventSlug')
         url.searchParams.delete('organizerSlug')
         url.searchParams.delete('communitySlug')
+        url.searchParams.delete('search')
         window.history.pushState({}, '', url)
     } else {
         const url = new URL(window.location)

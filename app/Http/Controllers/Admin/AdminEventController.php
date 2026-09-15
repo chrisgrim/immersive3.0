@@ -31,6 +31,9 @@ class AdminEventController extends Controller
                 'curatedCheck',
                 'currentUserFavorite',
                 'category' => fn ($q) => $q->withCount('events'),
+                // Who submitted it: the admin Events table links name/email to
+                // the Users tab. Columns only; User's appends need just id/type.
+                'user:id,name,email,type',
             ])
             ->withCount('clicks as total_clicks')
             ->withCount(['clicks as unique_visitors' => function ($q) {

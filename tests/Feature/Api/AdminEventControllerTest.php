@@ -184,3 +184,24 @@ test('show still works when the creating account is gone', function () {
 
     expect($response->json('user'))->toBeNull();
 });
+
+// ----- index() (Admin → Events table) -----
+
+test('the events table includes who submitted each event, with just the columns the link needs', function () {
+    $submitter = User::factory()->create(['name' => 'Ada Organizer', 'email' => 'ada@example.com']);
+    $event = Event::factory()->create([
+        'user_id' => $submitter->id,
+        'organizer_id' => Organizer::factory()->create()->id,
+        'status' => 'p',
+    ]);
+
+    $response = $this->actingAs($this->moderator)
+        ->getJson('/api/admin/manage/events?search='.$event->id)
+        ->assertOk();
+
+    $row = collect($response->json('data'))->firstWhere('id', $event->id);
+
+    expect($row['user']['name'])->toBe('Ada Organizer')
+        ->and($row['user']['email'])->toBe('ada@example.com')
+        ->and($row['user'])->not->toHaveKeys(['password', 'remember_token', 'phone', 'notification_preferences']);
+});
