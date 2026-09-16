@@ -56,3 +56,56 @@ test('the handler the bridge calls is defined on both sides of the mobile split'
 
     expect(substr_count($source, 'window.toggleShareModal = function'))->toBe(2);
 });
+
+/**
+ * The share modals' own buttons are plain `onclick="name()"` attributes, so
+ * each name has to be assigned on window by an inline script in the SAME
+ * rendered page. Desktop only got toggleShareModal; its "Copy Link" button
+ * threw "copyLink is not defined" (Sentry EI-VUE-16) the moment desktop
+ * Share started opening again. Render both sides of the isMobile split and
+ * check every inline handler against the page it shipped with.
+ */
+function shareModalPage(?string $userAgent): string
+{
+    $organizer = \App\Models\Organizer::factory()->create(['status' => 'p']);
+    $event = \App\Models\Event::factory()->published()->create([
+        'organizer_id' => $organizer->id,
+        'closingDate' => now()->addDays(30),
+        'hasLocation' => true,
+    ]);
+    \App\Models\Events\Location::factory()->create(['event_id' => $event->id]);
+    \App\Models\Events\Show::factory()->create(['event_id' => $event->id]);
+    $event->priceranges()->create(['price' => '25']);
+    $event->advisories()->create(['wheelchairReady' => true]);
+
+    $request = $userAgent ? test()->withHeader('User-Agent', $userAgent) : test();
+
+    return $request->get("/events/{$event->slug}")->assertOk()->getContent();
+}
+
+test('every inline onclick handler on the event page is defined by that same page', function (?string $userAgent) {
+    $html = shareModalPage($userAgent);
+
+    preg_match_all('/onclick="([^"]+)"/', $html, $attributes);
+    expect($attributes[1])->not->toBeEmpty();
+
+    $called = collect($attributes[1])
+        ->flatMap(function (string $expression) {
+            // Bare `name()` calls only: `window.history.back()` is a method.
+            preg_match_all('/(?<![.\w])([A-Za-z_]\w*)\(\)/', $expression, $names);
+
+            return $names[1];
+        })
+        ->unique()
+        ->values();
+
+    expect($called)->toContain('copyLink');
+
+    foreach ($called as $name) {
+        expect(str_contains($html, "window.{$name} = function"))
+            ->toBeTrue("onclick=\"{$name}()\" is rendered but window.{$name} is never assigned on this page");
+    }
+})->with([
+    'desktop' => [null],
+    'mobile' => ['Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'],
+]);

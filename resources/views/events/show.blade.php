@@ -246,6 +246,34 @@
     @endif
     @vite(['resources/css/flatpickr.css'])
 
+    <script>
+        // Shared by both layouts: the mobile share sheet and the desktop
+        // share modal each have a "Copy Link" button wired to copyLink().
+        // It used to live only in the mobile branch below, so on desktop the
+        // button threw "copyLink is not defined" (Sentry EI-VUE-16) as soon
+        // as desktop Share started opening again (d685dc1). Assigned
+        // eagerly for the same reason as the branch scripts below.
+        window.closeShareModal = function() {
+            document.getElementById('shareModal').classList.add('hidden');
+            // toggleShareModal locks background scroll on open, and this is
+            // the only close path the mobile modal's X and copyLink use,
+            // so it has to unlock: unless the mobile photo gallery is open
+            // underneath, which locked the page itself and is still showing.
+            document.body.style.overflow = document.getElementById('photoGallery') ? 'hidden' : 'auto';
+        };
+
+        window.copyLink = function() {
+            const tempInput = document.createElement('input');
+            tempInput.value = window.location.href;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            alert('Link copied to clipboard!');
+            closeShareModal();
+        };
+    </script>
+
     @if (Browser::isMobile())
         <script>
             // Assigned immediately, NOT gated behind DOMContentLoaded — Vite's
@@ -278,15 +306,6 @@
                 document.getElementById('shareModal').classList.remove('hidden');
             };
 
-            window.closeShareModal = function() {
-                document.getElementById('shareModal').classList.add('hidden');
-                // toggleShareModal locks background scroll on open, and this is
-                // the only close path the mobile modal's X and copyLink use,
-                // so it has to unlock — unless the photo gallery is open
-                // underneath: that locked the page itself and is still showing.
-                document.body.style.overflow = document.getElementById('photoGallery') ? 'hidden' : 'auto';
-            };
-
             window.toggleShareModal = function() {
                 const modal = document.getElementById('shareModal');
                 if (modal.classList.contains('hidden')) {
@@ -296,17 +315,6 @@
                     modal.classList.add('hidden');
                     document.body.style.overflow = 'auto';
                 }
-            };
-
-            window.copyLink = function() {
-                const tempInput = document.createElement('input');
-                tempInput.value = window.location.href;
-                document.body.appendChild(tempInput);
-                tempInput.select();
-                document.execCommand('copy');
-                document.body.removeChild(tempInput);
-                alert('Link copied to clipboard!');
-                closeShareModal();
             };
         </script>
     @else
