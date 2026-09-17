@@ -86,6 +86,10 @@ function shareModalPage(?string $userAgent): string
 test('every inline onclick handler on the event page is defined by that same page', function (?string $userAgent) {
     $html = shareModalPage($userAgent);
 
+    // Tripwire: the mobile dataset must really render the mobile branch, or
+    // it silently becomes a second copy of the desktop run.
+    expect(str_contains($html, 'window.showPhotoGallery = function'))->toBe($userAgent !== null);
+
     preg_match_all('/onclick="([^"]+)"/', $html, $attributes);
     expect($attributes[1])->not->toBeEmpty();
 

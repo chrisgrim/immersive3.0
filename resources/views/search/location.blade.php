@@ -1,7 +1,7 @@
 @extends('layouts.master-container')
 
 @section('meta')
-
+    @include('search.meta')
 @endsection 
 
 @section('nav')
