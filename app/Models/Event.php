@@ -477,6 +477,15 @@ class Event extends Model
     }
 
     /**
+     * Whether the ticket button opens an email (mailto:) instead of a web
+     * page, for shows with no website that sell tickets by email only.
+     */
+    public function ticketsByEmail(): bool
+    {
+        return is_string($this->ticketUrl) && str_starts_with(strtolower($this->ticketUrl), 'mailto:');
+    }
+
+    /**
      * Whether $user is refused changes to this event because it is
      * historical. Moderators and admins keep it for corrections and
      * backfills. Every write path — the hosting controller and the MCP

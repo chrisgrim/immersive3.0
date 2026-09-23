@@ -234,13 +234,14 @@
                                     }"
                                     type="url" 
                                     v-model="state.ticketUrl" 
-                                    placeholder="Ticket Url"
+                                    placeholder="Ticket link or email address"
                                     @input="validateTicketUrl"
+                                    @blur="emailToMailto"
                                     maxlength="255"
                                 >
                                 <div v-if="state.ticketUrlError || (!state.ticketUrl && $v.$dirty)" 
                                     class="text-red-500 text-1xl mt-2 px-4">
-                                    {{ !state.ticketUrl ? 'Ticket URL is required' : 'Please enter a valid URL (e.g., https://example.com)' }}
+                                    {{ !state.ticketUrl ? 'Ticket URL is required' : 'Please enter a valid URL (e.g., https://example.com) or email address' }}
                                 </div>
                             </div>
                             
@@ -340,6 +341,7 @@ const activeCurrency = () => tickets[0]?.currency || state.value.selectedCurrenc
 const MAX_DESCRIPTION_LENGTH = 60;
 const MAX_CALL_TO_ACTION_LENGTH = 20;
 const MAX_URL_LENGTH = 255;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TICKET_NAME_OPTIONS = [
   { id: 'general', name: 'General' },
   { id: 'student', name: 'Student' },
@@ -464,9 +466,12 @@ const rules = {
         required,
         maxLength: maxLength(MAX_URL_LENGTH),
         url: helpers.withMessage(
-            'Please enter a valid URL (e.g., https://example.com)',
+            'Please enter a valid URL (e.g., https://example.com) or email address',
             (value) => {
                 if (!value) return true;
+                // Shows that sell tickets only by email have no web address.
+                if (/^mailto:/i.test(value)) return EMAIL_PATTERN.test(value.slice(7));
+                if (/^https?:\/\/mailto:/i.test(value)) return false;
                 try {
                     new URL(value);
                     return true;
@@ -647,8 +652,13 @@ const validateTicketUrl = () => {
         state.value.ticketUrl = state.value.ticketUrl.slice(0, MAX_URL_LENGTH);
     }
     
-    // Ensure URL starts with https://
-    if (state.value.ticketUrl && !state.value.ticketUrl.match(/^https:\/\//i)) {
+    // Typing "mailto:" gets https:// prepended at the first letter; undo that.
+    if (state.value.ticketUrl?.match(/^https?:\/\/mailto:/i)) {
+        state.value.ticketUrl = state.value.ticketUrl.replace(/^https?:\/\//i, '');
+    }
+
+    // Ensure URL starts with https:// (email links excepted)
+    if (state.value.ticketUrl && !state.value.ticketUrl.match(/^(https:\/\/|mailto:)/i)) {
         // If URL doesn't start with http:// or https://, prepend https://
         if (!state.value.ticketUrl.match(/^http:\/\//i)) {
             state.value.ticketUrl = 'https://' + state.value.ticketUrl.replace(/^[\/\\]+/, '');
@@ -658,6 +668,16 @@ const validateTicketUrl = () => {
     // Only touch the ticketUrl field, not the entire validation object
     $v.value.ticketUrl.$touch();
     state.value.ticketUrlError = $v.value.ticketUrl.$error;
+};
+
+// A bare email address typed in becomes "https://name@example.com" while
+// typing; once they leave the field, turn it into an email link.
+const emailToMailto = () => {
+    const match = state.value.ticketUrl?.match(/^https?:\/\/([^\/?#\s]+@[^\/?#\s]+)$/i);
+    if (match && EMAIL_PATTERN.test(match[1])) {
+        state.value.ticketUrl = `mailto:${match[1]}`;
+        validateTicketUrl();
+    }
 };
 
 // Strip URL parameters (admin only)

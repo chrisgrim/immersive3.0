@@ -49,7 +49,7 @@
                         @click="storeClick"
                         class="w-full"
                         rel="noreferrer noopener" 
-                        target="_blank">
+                        :target="isMailto ? null : '_blank'">
                         <button class="font-medium text-3.5xl py-6 px-4 rounded-2xl w-full border-none text-white float-right bg-gradient-to-r from-button-red-1 via-button-red-2 to-button-red-3 hover:from-button-red-2 hover:via-button-red-3 hover:to-button-red-1">
                             <span v-if="remaining && remaining.length">{{ event.call_to_action ? event.call_to_action : 'Get Tickets' }}</span>
                             <span v-else>View Event</span>
@@ -64,7 +64,7 @@
                 :href="eventUrl"
                 @click="storeClick"
                 rel="noreferrer noopener" 
-                target="_blank">
+                :target="isMailto ? null : '_blank'">
                 <button class="font-medium text-3.5xl py-6 px-4 rounded-2xl w-full border-none text-white float-right bg-gradient-to-r from-button-red-1 via-button-red-2 to-button-red-3 hover:from-button-red-2 hover:via-button-red-3 hover:to-button-red-1">
                     <span v-if="remaining && remaining.length">{{ event.call_to_action ? event.call_to_action : 'Get Tickets' }}</span>
                     <span v-else>View Event</span>
@@ -129,6 +129,10 @@ const canEdit = computed(() =>
         props.user.organizer?.id === props.event.organizer_id
     )
 );
+
+// Shows with no website sell tickets by email; a new tab for a mailto:
+// link just leaves an empty tab behind.
+const isMailto = computed(() => /^mailto:/i.test(eventUrl.value || ''));
 
 const eventUrl = computed(() => {
     if (props.event.ticketUrl) return props.event.ticketUrl;

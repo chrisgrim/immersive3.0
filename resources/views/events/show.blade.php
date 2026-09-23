@@ -110,7 +110,7 @@
         ],
         "offers": {
             "@type": "AggregateOffer",
-            "url": "{{$event->ticketUrl ? $event->ticketUrl : ($event->websiteUrl ? $event->websiteUrl : Request::url())}}",
+            "url": "{{$event->ticketUrl && ! $event->ticketsByEmail() ? $event->ticketUrl : ($event->websiteUrl ? $event->websiteUrl : Request::url())}}",
             @php
                 $hasPWYC = false;
                 $hasFreeTicket = false;
@@ -219,7 +219,7 @@
         @else
         "location": {
             "@type": "VirtualLocation",
-            "url": "{{$event->websiteUrl ? $event->websiteUrl : ($event->ticketUrl ? $event->ticketUrl : Request::url())}}"
+            "url": "{{$event->websiteUrl ? $event->websiteUrl : ($event->ticketUrl && ! $event->ticketsByEmail() ? $event->ticketUrl : Request::url())}}"
         },
         @endif
         "performer": {
@@ -562,7 +562,7 @@
                                                     href="{{ $event->ticketUrl ?: ($event->websiteUrl ?: $event->organizer->website) }}"
                                                     onclick="axios.post('/api/events/{{ $event->id }}/track-click', { click_type: 'ticket_button' }).catch(() => {})"
                                                     rel="noreferrer noopener" 
-                                                    target="_blank"
+                                                    @unless($event->ticketsByEmail()) target="_blank" @endunless
                                                 >
                                                     <button class="font-medium py-6 px-20 rounded-2xl border-none text-white bg-gradient-to-r from-button-red-1 via-button-red-2 to-button-red-3 hover:from-button-red-2 hover:via-button-red-3 hover:to-button-red-1 whitespace-nowrap inline-block">
                                                         @if(($event->show_summary['total'] ?? 0) > 0)

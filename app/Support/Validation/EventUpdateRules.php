@@ -3,6 +3,7 @@
 namespace App\Support\Validation;
 
 use App\Rules\FutureEmbargoDateRule;
+use App\Rules\TicketUrlRule;
 use App\Rules\ZeroDecimalPriceRule;
 use App\Support\Currency;
 
@@ -84,7 +85,7 @@ class EventUpdateRules
             // MCP tool already refused it for exactly this reason
             // (UpdateEvent::DERIVED); the web path never did.
             'websiteUrl' => 'sometimes|url|max:255',
-            'ticketUrl' => 'nullable|url|max:255',
+            'ticketUrl' => ['nullable', 'max:255', new TicketUrlRule],
             'show_times' => 'nullable|string|max:500',
             'tag_line' => 'sometimes|string|max:255',
             'hasLocation' => 'sometimes|boolean',
