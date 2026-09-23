@@ -341,7 +341,9 @@ const activeCurrency = () => tickets[0]?.currency || state.value.selectedCurrenc
 const MAX_DESCRIPTION_LENGTH = 60;
 const MAX_CALL_TO_ACTION_LENGTH = 20;
 const MAX_URL_LENGTH = 255;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// A bare address only: no slash, ?, # or colon, so a web link that merely
+// carries an email in its path or query is never mistaken for one.
+const EMAIL_PATTERN = /^[^\s@\/?#:]+@[^\s@\/?#:]+\.[^\s@\/?#:]+$/;
 const TICKET_NAME_OPTIONS = [
   { id: 'general', name: 'General' },
   { id: 'student', name: 'Student' },
