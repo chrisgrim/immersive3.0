@@ -236,7 +236,7 @@
                                     v-model="state.ticketUrl" 
                                     placeholder="Ticket link or email address"
                                     @input="validateTicketUrl"
-                                    @blur="emailToMailto"
+                                    @blur="normalizeTicketUrl"
                                     maxlength="255"
                                 >
                                 <div v-if="state.ticketUrlError || (!state.ticketUrl && $v.$dirty)" 
@@ -647,37 +647,33 @@ const updateAdditionalDetails = (e) => {
     tickets[state.value.currentMedia].description = value;
 };
 
+// While typing, only trim to length and clear a stale error. Adding
+// "https://" on every keystroke turned an email address into
+// "https://name@…" mid-word, so tidying waits until they leave the box.
 const validateTicketUrl = () => {
     if (state.value.ticketUrl?.length > MAX_URL_LENGTH) {
         state.value.ticketUrl = state.value.ticketUrl.slice(0, MAX_URL_LENGTH);
     }
-    
-    // Typing "mailto:" gets https:// prepended at the first letter; undo that.
-    if (state.value.ticketUrl?.match(/^https?:\/\/mailto:/i)) {
-        state.value.ticketUrl = state.value.ticketUrl.replace(/^https?:\/\//i, '');
-    }
-
-    // Ensure URL starts with https:// (email links excepted)
-    if (state.value.ticketUrl && !state.value.ticketUrl.match(/^(https:\/\/|mailto:)/i)) {
-        // If URL doesn't start with http:// or https://, prepend https://
-        if (!state.value.ticketUrl.match(/^http:\/\//i)) {
-            state.value.ticketUrl = 'https://' + state.value.ticketUrl.replace(/^[\/\\]+/, '');
-        }
-    }
-    
-    // Only touch the ticketUrl field, not the entire validation object
-    $v.value.ticketUrl.$touch();
-    state.value.ticketUrlError = $v.value.ticketUrl.$error;
+    state.value.ticketUrlError = false;
 };
 
-// A bare email address typed in becomes "https://name@example.com" while
-// typing; once they leave the field, turn it into an email link.
-const emailToMailto = () => {
-    const match = state.value.ticketUrl?.match(/^https?:\/\/([^\/?#\s]+@[^\/?#\s]+)$/i);
-    if (match && EMAIL_PATTERN.test(match[1])) {
-        state.value.ticketUrl = `mailto:${match[1]}`;
-        validateTicketUrl();
+// On leaving the box (and before saving): a bare email address or
+// "mailto:" becomes an email link, anything else gets https:// if it has
+// no scheme; then check it.
+const normalizeTicketUrl = () => {
+    let value = state.value.ticketUrl?.trim() || '';
+
+    value = value.replace(/^https?:\/\/(?=mailto:)/i, '');
+    if (!/^mailto:/i.test(value) && EMAIL_PATTERN.test(value.replace(/^https?:\/\//i, ''))) {
+        value = `mailto:${value.replace(/^https?:\/\//i, '')}`;
     }
+    if (value && !/^(https?:\/\/|mailto:)/i.test(value)) {
+        value = 'https://' + value.replace(/^[\/\\]+/, '');
+    }
+
+    state.value.ticketUrl = value.slice(0, MAX_URL_LENGTH);
+    $v.value.ticketUrl.$touch();
+    state.value.ticketUrlError = !!state.value.ticketUrl && $v.value.ticketUrl.$error;
 };
 
 // Strip URL parameters (admin only)
@@ -751,6 +747,7 @@ const selectCurrency = (currency) => {
 defineExpose({
     isValid: async () => {
         // This is where we want to check validation - only when the user tries to proceed
+        normalizeTicketUrl();
         $v.value.$touch(); // Mark all fields as touched to trigger validation
         
         if (!state.value.ticketUrl) {
