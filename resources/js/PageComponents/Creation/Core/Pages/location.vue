@@ -162,6 +162,7 @@ import 'leaflet/dist/leaflet.css'
 import { RiCheckboxBlankLine, RiCheckboxLine } from "@remixicon/vue";
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
 import { importMapsLibrary } from '@/composables/useGoogleMaps';
+import { localLanguageFor, browserSpeaks } from '@/composables/localLanguage';
 
 const event = inject('event');
 const errors = inject('errors');
@@ -362,13 +363,26 @@ const selectLocation = async (location) => {
     try {
         // Use the new Place class via the shared bootstrap loader.
         const { Place } = await importMapsLibrary("places");
-        const placeResult = new Place({ id: location.place_id });
-        
-        // Fetch the necessary fields with correct field names
-        await placeResult.fetchFields({
-            fields: ["formattedAddress", "addressComponents", "displayName", "location"]
-        });
-        
+        const fields = ["formattedAddress", "addressComponents", "displayName", "location"];
+        let placeResult = new Place({ id: location.place_id });
+        await placeResult.fetchFields({ fields });
+
+        // Google answered in this browser's language; re-ask in the language
+        // of the country the place is in (see localLanguage.js). If that
+        // lookup fails, keep the first answer rather than lose the address.
+        const countryCode = placeResult.addressComponents
+            ?.find(c => c.types?.includes('country'))?.shortText;
+        const language = localLanguageFor(countryCode);
+        if (language && !browserSpeaks(language)) {
+            try {
+                const localPlace = new Place({ id: location.place_id, requestedLanguage: language });
+                await localPlace.fetchFields({ fields });
+                placeResult = localPlace;
+            } catch (error) {
+                console.error('Error fetching local-language place details:', error);
+            }
+        }
+
         setPlace(placeResult);
         userInput.value = location.description;
         dropdown.value = false;
