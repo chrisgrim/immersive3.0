@@ -99,11 +99,9 @@ class AdminOrganizerController extends Controller
                 DB::transaction(function () use ($organizer, $newOwner, $previousOwnerId) {
                     $organizer->update(['user_id' => $newOwner->id]);
 
-                    // The new owner is a member with the owner role; the old
-                    // owner, if still a member, stays on as a regular member
-                    // (remove_member can take them off entirely).
-                    $organizer->users()->syncWithoutDetaching([$newOwner->id => ['role' => 'owner']]);
-                    $organizer->users()->updateExistingPivot($newOwner->id, ['role' => 'owner']);
+                    // Organizer's saved hook makes the new owner an owner member.
+                    // The old owner, if still a member, stays on as a regular
+                    // member (remove_member can take them off entirely).
                     if ($previousOwnerId && $previousOwnerId != $newOwner->id) {
                         $organizer->users()->updateExistingPivot($previousOwnerId, ['role' => 'moderator']);
                     }

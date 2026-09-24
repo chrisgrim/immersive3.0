@@ -32,8 +32,8 @@ class CreateOrganizerAction
         // Create the organizer with user_id
         $organizer = $user->organizers()->create($validated);
 
-        // Also attach the creating user as owner in pivot table
-        $organizer->users()->attach($user->id, ['role' => 'owner']);
+        // The creating user is attached as an owner member by Organizer's own
+        // saved hook (the owner is always a member).
 
         if ($image) {
             ImageHandler::saveImage($image, $organizer, 800, 800, 'organizer-images');

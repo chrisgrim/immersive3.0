@@ -33,6 +33,20 @@ class Organizer extends Model
                 $organizer->slug = static::generateUniqueSlug($organizer->name, $organizer->id);
             }
         });
+
+        // The owner (user_id) is always also a member with the owner role.
+        // Most access checks read membership (organizer_user) only: hosting,
+        // team search, the MCP whoami, the admin user list. An owner missing
+        // from it could edit the organizer but not reach any of those, and a
+        // "removed" owner kept access through user_id. Holding this here
+        // covers every way ownership is set: creation, admin owner changes,
+        // ownership claims, direct updates.
+        static::saved(function ($organizer) {
+            if ($organizer->user_id && ($organizer->wasRecentlyCreated || $organizer->wasChanged('user_id'))) {
+                $organizer->users()->syncWithoutDetaching([$organizer->user_id => ['role' => 'owner']]);
+                $organizer->users()->updateExistingPivot($organizer->user_id, ['role' => 'owner']);
+            }
+        });
     }
 
     /**
