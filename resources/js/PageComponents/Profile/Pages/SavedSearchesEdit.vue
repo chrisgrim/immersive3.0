@@ -54,8 +54,12 @@
                     <span v-if="whereSummary" class="ml-auto text-lg font-medium text-neutral-500 truncate">{{ whereSummary }}</span>
                 </div>
 
+                <!-- Keyed by the search: the picker reads its map center and city
+                     text once, on mount, so switching between saved searches
+                     reused the old map and it never moved. -->
                 <saved-search-location-picker
                     v-if="draft.criteria.searchType === 'inPerson'"
+                    :key="search?.id"
                     :lat="draft.criteria.lat"
                     :lng="draft.criteria.lng"
                     :city="draft.criteria.city"
