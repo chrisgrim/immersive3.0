@@ -77,7 +77,7 @@
                         <td class="px-6 py-4 whitespace-nowrap">
                             <button 
                                 @click="toggleOwnerSearch(organizer)"
-                                class="px-2 py-1 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-xl"
+                                class="px-3 py-1 border rounded-md hover:bg-neutral-100 focus:outline-none"
                             >
                                 {{ organizer.owner?.name }}
                             </button>
