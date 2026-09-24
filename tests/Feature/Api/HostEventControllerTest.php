@@ -105,6 +105,66 @@ test('create rejects users who have no teams', function () {
         ->assertStatus(403);
 });
 
+test('create refuses an organizer the user does not belong to', function () {
+    // A member of one organizer used to be able to create drafts under any
+    // other organizer by sending its id (the route only checks can:host).
+    $user = User::factory()->create(['type' => 'u']);
+    Organizer::factory()->create(['user_id' => $user->id]);
+    $other = Organizer::factory()->create();
+
+    $this->actingAs($user)
+        ->postJson(route('hosting.event.create'), ['organizer_id' => $other->id])
+        ->assertStatus(403);
+
+    expect(Event::where('organizer_id', $other->id)->exists())->toBeFalse();
+});
+
+test('create refuses a removed member of the organizer', function () {
+    $owner = User::factory()->create(['type' => 'u']);
+    $organizer = Organizer::factory()->create(['user_id' => $owner->id]);
+    $former = User::factory()->create(['type' => 'u']);
+    Organizer::factory()->create(['user_id' => $former->id]); // still hosts elsewhere
+    $organizer->users()->attach($former->id, ['role' => 'moderator']);
+    $organizer->users()->detach($former->id);
+
+    $this->actingAs($former)
+        ->postJson(route('hosting.event.create'), ['organizer_id' => $organizer->id])
+        ->assertStatus(403);
+});
+
+test('create lets a member create under their own organizer', function () {
+    $owner = User::factory()->create(['type' => 'u']);
+    $organizer = Organizer::factory()->create(['user_id' => $owner->id]);
+    $member = User::factory()->create(['type' => 'u']);
+    $organizer->users()->attach($member->id, ['role' => 'moderator']);
+
+    $this->actingAs($member)
+        ->postJson(route('hosting.event.create'), ['organizer_id' => $organizer->id])
+        ->assertCreated();
+});
+
+test('create lets a moderator create under any organizer', function () {
+    $moderator = User::factory()->create(['type' => 'm']);
+    $organizer = Organizer::factory()->create();
+
+    $this->actingAs($moderator)
+        ->postJson(route('hosting.event.create'), ['organizer_id' => $organizer->id])
+        ->assertCreated();
+});
+
+test('create requires an existing organizer id', function () {
+    $user = User::factory()->create(['type' => 'u']);
+    Organizer::factory()->create(['user_id' => $user->id]);
+
+    $this->actingAs($user)
+        ->postJson(route('hosting.event.create'), [])
+        ->assertStatus(422);
+
+    $this->actingAs($user)
+        ->postJson(route('hosting.event.create'), ['organizer_id' => 999999])
+        ->assertStatus(422);
+});
+
 test('create returns 409 when a duplicate name exists without acknowledgement', function () {
     $organizer = Organizer::factory()->create();
     $user = memberOf($organizer);

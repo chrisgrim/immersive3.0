@@ -7,6 +7,7 @@ use App\Actions\Events\UpdateEventAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreEventRequest;
 use App\Models\Event;
+use App\Models\Organizer;
 use App\Services\NameChangeRequestService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -172,7 +173,16 @@ class HostEventController extends Controller
 
     public function create(Request $request)
     {
-        $organizerId = $request->input('organizer_id');
+        $validated = $request->validate([
+            'organizer_id' => 'required|integer|exists:organizers,id',
+        ]);
+
+        // The route's can:host only asks "does this user belong to any
+        // team?". Without this, a member of one organizer could create
+        // drafts under any other organizer by sending its id.
+        $organizer = Organizer::findOrFail($validated['organizer_id']);
+        $this->authorize('edit', $organizer);
+        $organizerId = $organizer->id;
 
         // Check unpublished events count (bypass for admins)
         $unpublishedCount = Event::countUnpublishedEvents($organizerId);
