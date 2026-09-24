@@ -363,6 +363,20 @@ test('teams renders the teams view for a user who belongs to an organizer', func
         ->assertViewIs('organizers.teams');
 });
 
+test('teams renders for a member an admin added who owns no organizer', function () {
+    // Regression: the gate checked ownership only, so a person added to a
+    // team (organizer_user row, no organizers.user_id) got a 403 here.
+    $owner = User::factory()->create(['type' => 'u']);
+    $organizer = Organizer::factory()->create(['user_id' => $owner->id, 'status' => 'p']);
+    $member = User::factory()->create(['type' => 'g']);
+    $organizer->users()->attach($member->id, ['role' => 'moderator']);
+
+    $this->actingAs($member)
+        ->get('/teams')
+        ->assertOk()
+        ->assertViewIs('organizers.teams');
+});
+
 test('teams is denied to a user who belongs to no organizer', function () {
     // note: the /teams route is gated by can:viewAny — a regular user with no
     // organizers cannot view it.

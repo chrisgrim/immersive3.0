@@ -4,8 +4,6 @@ namespace App\Policies;
 
 use App\Models\Organizer;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
-use Illuminate\Support\Facades\Log;
 
 class OrganizerPolicy
 {
@@ -18,9 +16,12 @@ class OrganizerPolicy
         if ($user->isModerator()) {
             return true;
         }
-        
-        // Regular users can only view if they belong to at least one organizer
-        return $user->organizers()->exists();
+
+        // Regular users can view if they own OR are a member of an organizer.
+        // organizers() is only the ones they created (organizers.user_id); a
+        // person an admin added to a team exists only in organizer_user, and
+        // checking ownership alone gave them a 403 on the Organizations page.
+        return $user->teams()->exists() || $user->organizers()->exists();
     }
 
     /**
@@ -28,7 +29,7 @@ class OrganizerPolicy
      */
     public function edit(User $user, Organizer $organizer): bool
     {
-        return $user->ownsOrganization($organizer) || 
+        return $user->ownsOrganization($organizer) ||
                $user->belongsToOrganization($organizer) ||
                $user->isModerator();  // This includes both moderators and admins
     }

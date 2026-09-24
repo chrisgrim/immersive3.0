@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\Comments;
 use App\Models\Event;
+use App\Models\Messaging\Message;
 use App\Models\Organizer;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\Comments;
-use App\Models\Messaging\Message;
 
 class AdminOrganizerController extends Controller
 {
@@ -22,8 +22,8 @@ class AdminOrganizerController extends Controller
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
-                      ->orWhere('email', 'like', "%{$search}%")
-                      ->orWhere('id', 'like', "%{$search}%");
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('id', 'like', "%{$search}%");
                 });
             })
             ->when($request->sort, function ($query, $sort) {
@@ -45,27 +45,41 @@ class AdminOrganizerController extends Controller
 
     public function update(Request $request, Organizer $organizer)
     {
-        switch($request->action) {
+        switch ($request->action) {
             case 'add_member':
                 $organizer->users()->syncWithoutDetaching([$request->user_id => ['role' => 'moderator']]);
-                
+
                 // Update user's current_team_id if they don't have one set
                 $user = User::find($request->user_id);
                 if ($user && is_null($user->current_team_id)) {
                     $user->update(['current_team_id' => $organizer->id]);
                 }
                 break;
-            
+
             case 'remove_member':
                 $user = User::find($request->user_id);
-                
+
+                // The owner (organizers.user_id) keeps edit access through
+                // ownsOrganization() whether or not they are in organizer_user,
+                // so detaching the pivot alone looked like a removal while
+                // leaving them in full control. Make the admin hand ownership
+                // to someone else first.
+                if ($user && $user->ownsOrganization($organizer)) {
+                    return response()->json([
+                        'message' => "{$user->name} is this organizer's owner. Change the owner to someone else first, then remove them.",
+                    ], 422);
+                }
+
                 // Check if this organizer is the user's current team
                 if ($user && $user->current_team_id == $organizer->id) {
-                    // Find another organization this user belongs to
-                    $otherOrganizer = $user->organizers()
-                        ->where('id', '!=', $organizer->id)
-                        ->first();
-                    
+                    // Find another organization this user owns or belongs to
+                    $otherOrganizer = $user->teams()
+                        ->where('organizers.id', '!=', $organizer->id)
+                        ->first()
+                        ?? $user->organizers()
+                            ->where('id', '!=', $organizer->id)
+                            ->first();
+
                     if ($otherOrganizer) {
                         // Set current_team_id to another organization
                         $user->update(['current_team_id' => $otherOrganizer->id]);
@@ -74,20 +88,38 @@ class AdminOrganizerController extends Controller
                         $user->update(['current_team_id' => null]);
                     }
                 }
-                
+
                 $organizer->users()->detach($request->user_id);
                 break;
-            
+
             case 'update_owner':
-                $organizer->update(['user_id' => $request->user_id]);
+                $newOwner = User::findOrFail($request->user_id);
+                $previousOwnerId = $organizer->user_id;
+
+                DB::transaction(function () use ($organizer, $newOwner, $previousOwnerId) {
+                    $organizer->update(['user_id' => $newOwner->id]);
+
+                    // The new owner is a member with the owner role; the old
+                    // owner, if still a member, stays on as a regular member
+                    // (remove_member can take them off entirely).
+                    $organizer->users()->syncWithoutDetaching([$newOwner->id => ['role' => 'owner']]);
+                    $organizer->users()->updateExistingPivot($newOwner->id, ['role' => 'owner']);
+                    if ($previousOwnerId && $previousOwnerId != $newOwner->id) {
+                        $organizer->users()->updateExistingPivot($previousOwnerId, ['role' => 'moderator']);
+                    }
+
+                    if (is_null($newOwner->current_team_id)) {
+                        $newOwner->update(['current_team_id' => $organizer->id]);
+                    }
+                });
                 break;
-            
+
             default:
                 $validated = $request->validate([
                     'name' => ['sometimes', 'required', 'string', 'max:255'],
                     'email' => ['sometimes', 'required', 'email'],
                 ]);
-                
+
                 $organizer->update($validated);
         }
 
@@ -97,6 +129,7 @@ class AdminOrganizerController extends Controller
     public function destroy(Organizer $organizer)
     {
         $organizer->deleteOrganizer($organizer);
+
         return response()->json(['message' => 'Organizer deleted successfully']);
     }
 
@@ -142,7 +175,7 @@ class AdminOrganizerController extends Controller
 
         // Notify the source organizer's owner — they need to know events moved.
         if ($organizer->user && auth()->id() !== $organizer->user->id) {
-            $body = Message::MESSAGES['EVENTS_MOVED'] .
+            $body = Message::MESSAGES['EVENTS_MOVED'].
                 " {$movedCount} event(s) were moved from \"{$organizer->name}\" to \"{$destination->name}\".";
 
             try {
@@ -199,7 +232,7 @@ class AdminOrganizerController extends Controller
         return $organizer->load([
             'owner',
             'images',
-            'users'
+            'users',
         ]);
     }
 
@@ -223,10 +256,10 @@ class AdminOrganizerController extends Controller
         // Send notifications if not self-approving
         if (auth()->id() !== $organizer->user_id) {
             $message = Message::MESSAGES['ORGANIZER_APPROVED'];
-            
+
             // Send in-app notification
             Message::notification($organizer, $message, $organizer->slug);
-            
+
             // Send email notification
             Mail::to($organizer->user)->send(new Comments($organizer, $message, 'approved'));
         }
@@ -237,31 +270,31 @@ class AdminOrganizerController extends Controller
     public function reject(Request $request, Organizer $organizer)
     {
         $validated = $request->validate([
-            'reason' => 'required|string|max:1000'
+            'reason' => 'required|string|max:1000',
         ]);
 
         $organizer->update([
             'status' => 'n',
-            'rejection_reason' => $validated['reason']
+            'rejection_reason' => $validated['reason'],
         ]);
 
         // Create rejection message with reason
         $message = "We've reviewed your organizer and have some feedback that needs to be addressed.\n\nReason: {$validated['reason']}";
         $inAppMessage = "We've reviewed your organizer and have some feedback that needs to be addressed.\n\nReason: {$validated['reason']}";
-        
-        if(auth()->id() !== $organizer->user_id) {
-            $message = Message::MESSAGES['ORGANIZER_REJECTED'] . "\n\nReason: {$validated['reason']}";
-            
+
+        if (auth()->id() !== $organizer->user_id) {
+            $message = Message::MESSAGES['ORGANIZER_REJECTED']."\n\nReason: {$validated['reason']}";
+
             // Send in-app notification
             Message::notification($organizer, $inAppMessage, $organizer->slug);
-            
+
             // Send email notification
             Mail::to($organizer->user)->send(new Comments($organizer, $message, 'rejected'));
         }
 
         return response()->json([
             'message' => 'Organizer rejected successfully',
-            'organizer' => $organizer->fresh()
+            'organizer' => $organizer->fresh(),
         ]);
     }
-} 
+}

@@ -244,3 +244,72 @@ test('moveEvents is denied to non-moderators', function () {
         ])
         ->assertStatus(403);
 });
+
+// ----- update(): members and ownership -----
+
+test('remove_member refuses to remove the owner, who would keep access through ownership', function () {
+    $owner = User::factory()->create(['type' => 'u']);
+    $organizer = Organizer::factory()->create(['user_id' => $owner->id, 'status' => 'p']);
+
+    $this->actingAs($this->moderator)
+        ->patchJson("/api/admin/manage/organizers/{$organizer->slug}", ['action' => 'remove_member', 'user_id' => $owner->id])
+        ->assertStatus(422);
+
+    expect($organizer->fresh()->user_id)->toBe($owner->id)
+        ->and($organizer->users()->whereKey($owner->id)->exists())->toBeTrue();
+});
+
+test('remove_member takes a regular member off the team and away from edit access', function () {
+    $owner = User::factory()->create(['type' => 'u']);
+    $organizer = Organizer::factory()->create(['user_id' => $owner->id, 'status' => 'p']);
+    $member = User::factory()->create(['type' => 'u', 'current_team_id' => $organizer->id]);
+    $organizer->users()->attach($member->id, ['role' => 'moderator']);
+
+    $this->actingAs($this->moderator)
+        ->patchJson("/api/admin/manage/organizers/{$organizer->slug}", ['action' => 'remove_member', 'user_id' => $member->id])
+        ->assertOk();
+
+    expect($member->fresh()->can('edit', $organizer->fresh()))->toBeFalse()
+        ->and($member->fresh()->current_team_id)->toBeNull();
+});
+
+test('update_owner hands over ownership, so the old owner can then be removed for good', function () {
+    // The Palace Theater case: the old contact must lose access, the new one
+    // must have it.
+    $oldOwner = User::factory()->create(['type' => 'u']);
+    $organizer = Organizer::factory()->create(['user_id' => $oldOwner->id, 'status' => 'p']);
+    $newOwner = User::factory()->create(['type' => 'g']);
+
+    $this->actingAs($this->moderator)
+        ->patchJson("/api/admin/manage/organizers/{$organizer->slug}", ['action' => 'update_owner', 'user_id' => $newOwner->id])
+        ->assertOk();
+
+    $organizer->refresh();
+    expect($organizer->user_id)->toBe($newOwner->id)
+        ->and($organizer->users()->whereKey($newOwner->id)->first()->membership->role)->toBe('owner')
+        ->and($organizer->users()->whereKey($oldOwner->id)->first()->membership->role)->toBe('moderator')
+        ->and($newOwner->fresh()->current_team_id)->toBe($organizer->id);
+
+    $this->actingAs($this->moderator)
+        ->patchJson("/api/admin/manage/organizers/{$organizer->slug}", ['action' => 'remove_member', 'user_id' => $oldOwner->id])
+        ->assertOk();
+
+    expect($oldOwner->fresh()->can('edit', $organizer->fresh()))->toBeFalse()
+        ->and($newOwner->fresh()->can('edit', $organizer->fresh()))->toBeTrue();
+});
+
+test('update_owner works when the old owner had no member row at all', function () {
+    $oldOwner = User::factory()->create(['type' => 'u']);
+    $organizer = Organizer::factory()->create(['user_id' => $oldOwner->id, 'status' => 'p']);
+    // The factory adds the owner as a member; production org 1494 had none.
+    $organizer->users()->detach($oldOwner->id);
+    $newOwner = User::factory()->create(['type' => 'u']);
+    $organizer->users()->attach($newOwner->id, ['role' => 'moderator']);
+
+    $this->actingAs($this->moderator)
+        ->patchJson("/api/admin/manage/organizers/{$organizer->slug}", ['action' => 'update_owner', 'user_id' => $newOwner->id])
+        ->assertOk();
+
+    expect($oldOwner->fresh()->can('edit', $organizer->fresh()))->toBeFalse()
+        ->and($organizer->users()->whereKey($newOwner->id)->first()->membership->role)->toBe('owner');
+});
