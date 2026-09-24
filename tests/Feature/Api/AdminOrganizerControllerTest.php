@@ -313,3 +313,15 @@ test('update_owner works when the old owner had no member row at all', function 
     expect($oldOwner->fresh()->can('edit', $organizer->fresh()))->toBeFalse()
         ->and($organizer->users()->whereKey($newOwner->id)->first()->membership->role)->toBe('owner');
 });
+
+test('update_owner with the current owner repairs a missing membership', function () {
+    $owner = User::factory()->create(['type' => 'u']);
+    $organizer = Organizer::factory()->create(['user_id' => $owner->id, 'status' => 'p']);
+    $organizer->users()->detach($owner->id);
+
+    $this->actingAs($this->moderator)
+        ->patchJson("/api/admin/manage/organizers/{$organizer->slug}", ['action' => 'update_owner', 'user_id' => $owner->id])
+        ->assertOk();
+
+    expect($organizer->users()->whereKey($owner->id)->first()?->membership->role)->toBe('owner');
+});

@@ -42,11 +42,24 @@ class Organizer extends Model
         // covers every way ownership is set: creation, admin owner changes,
         // ownership claims, direct updates.
         static::saved(function ($organizer) {
-            if ($organizer->user_id && ($organizer->wasRecentlyCreated || $organizer->wasChanged('user_id'))) {
-                $organizer->users()->syncWithoutDetaching([$organizer->user_id => ['role' => 'owner']]);
-                $organizer->users()->updateExistingPivot($organizer->user_id, ['role' => 'owner']);
+            if ($organizer->wasRecentlyCreated || $organizer->wasChanged('user_id')) {
+                $organizer->ensureOwnerMembership();
             }
         });
+    }
+
+    /**
+     * Make the owner (user_id) an owner member. Idempotent; also repairs an
+     * organizer whose owner went missing from organizer_user.
+     */
+    public function ensureOwnerMembership(): void
+    {
+        if (! $this->user_id) {
+            return;
+        }
+
+        $this->users()->syncWithoutDetaching([$this->user_id => ['role' => 'owner']]);
+        $this->users()->updateExistingPivot($this->user_id, ['role' => 'owner']);
     }
 
     /**

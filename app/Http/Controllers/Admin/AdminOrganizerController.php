@@ -99,7 +99,10 @@ class AdminOrganizerController extends Controller
                 DB::transaction(function () use ($organizer, $newOwner, $previousOwnerId) {
                     $organizer->update(['user_id' => $newOwner->id]);
 
-                    // Organizer's saved hook makes the new owner an owner member.
+                    // Explicit rather than left to the saved hook, which only
+                    // runs when user_id changes: re-picking the same owner
+                    // should still repair a missing membership.
+                    $organizer->ensureOwnerMembership();
                     // The old owner, if still a member, stays on as a regular
                     // member (remove_member can take them off entirely).
                     if ($previousOwnerId && $previousOwnerId != $newOwner->id) {
