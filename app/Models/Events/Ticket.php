@@ -292,7 +292,15 @@ class Ticket extends Model
                 array_push($bindings, $names[$i], $names[$j]);
             }
         }
-        $equal = (array) DB::selectOne('SELECT '.implode(', ', $columns), $bindings);
+        try {
+            $equal = (array) DB::selectOne('SELECT '.implode(', ', $columns), $bindings);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // E.g. a column charset the COLLATE clause cannot apply to. Saving
+            // without the fold beats failing the save.
+            report($e);
+
+            return $tickets;
+        }
 
         return array_values(array_filter($tickets, function ($tier, $i) use ($count, $equal) {
             for ($j = $i + 1; $j < $count; $j++) {
