@@ -394,3 +394,34 @@ test('mcp get-event lists no tiers for an event without dates, matching its read
         ->assertOk()
         ->assertSee('"tickets":[]', false);
 });
+
+test('two look-alike names in one save end with the same tier everywhere', function () {
+    $user = flowUser();
+    $event = flowEvent($user);
+    $save = fn (array $data) => $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", $data)->assertOk();
+
+    $save(['timezone' => 'America/New_York', 'showtype' => 's', 'dateArray' => [flowDay(5), flowDay(6)], 'tickets' => [flowTier('GA', 10)]]);
+    // "ga" and "GA" are the same name to the database; the last one wins.
+    $save([
+        'showtype' => 's', 'dateArray' => [flowDay(5), flowDay(6), flowDay(7)],
+        'tickets' => [flowTier('ga', 20, 'lower'), flowTier('GA', 30, 'upper')],
+    ]);
+
+    expectTierParity($event, ['GA']);
+    expect((float) $event->tickets()->value('ticket_price'))->toBe(30.0)
+        ->and($event->fresh()->price_range)->toBe('$30');
+});
+
+test('names the database keeps apart are never merged', function () {
+    $user = flowUser();
+    $event = flowEvent($user);
+
+    // Accent-insensitive, but й and и are distinct letters to the collation.
+    $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'timezone' => 'America/New_York', 'showtype' => 's', 'dateArray' => [flowDay(5)],
+        'tickets' => [flowTier('Билет й', 10), flowTier('Билет и', 20)],
+    ])->assertOk();
+
+    expect($event->tickets()->count())->toBe(2);
+    expectTierParity($event, ['Билет и', 'Билет й']);
+});

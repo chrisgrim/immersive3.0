@@ -47,7 +47,12 @@ class Ticket extends Model
         // Unlike the old loop, the collapsed list also drives the price ranges, so
         // a duplicated name contributes one price instead of one per submission —
         // the range now always describes tiers that actually exist.
-        $tiers = collect($request->tickets)->keyBy('name');
+        // First fold names the database treats as the same (case, accents,
+        // trailing spaces), keeping the last, then key by the name as sent.
+        // Without the fold, "ga" and "GA" in one save reach the per-show and
+        // event writes as two tiers, and the unique index settles them in a
+        // different order on each side.
+        $tiers = collect(self::foldCollationDuplicates($request->tickets))->keyBy('name');
         // As strings: keyBy turns an all-digit name like "10" into an integer
         // key, and an integer bound against the name column makes MySQL compare
         // numerically, which strict mode rejects mid-delete.
@@ -223,17 +228,19 @@ class Ticket extends Model
             return;
         }
 
-        // A tier new to the event set copies the name and the legacy `type`
-        // ('f' free, 'p' pay what you can, still read by the event page but
-        // never edited any more) of its show copy, found with the column's
-        // collation like every other match here. The per-show upsert never
-        // renames a row, so a "GA" saved as "ga" stays "GA" on the shows and
-        // must stay "GA" on the event too. An existing event row keeps its own
-        // name and type (the upsert does not update them). At most ten
-        // indexed lookups.
-        $showCopies = $showIds->isEmpty() ? collect() : $tiers->keys()->mapWithKeys(fn ($name) => [
+        // An event whose set is still empty (saved only before the event set
+        // existed) takes each tier's name and legacy `type` ('f' free, 'p' pay
+        // what you can, still read by the event page but never edited any more)
+        // from its latest show's copy, matched with the column's collation like
+        // every other match here, which is also where the backfill copies
+        // from. The per-show upsert never renames a row, so a "GA" saved as
+        // "ga" stays "GA" on the shows and must stay "GA" on the event too.
+        // Once the set exists its rows keep their own name and type (the
+        // upsert does not update them), so there is nothing to look up.
+        $latestShowId = $showIds->first();
+        $showCopies = ($existing->isNotEmpty() || $latestShowId === null) ? collect() : $tiers->keys()->mapWithKeys(fn ($name) => [
             (string) $name => self::where('ticket_type', Show::class)
-                ->whereIn('ticket_id', $showIds)
+                ->where('ticket_id', $latestShowId)
                 ->where('name', (string) $name)
                 ->first(['name', 'type']),
         ])->filter();
@@ -257,6 +264,63 @@ class Ticket extends Model
             ['ticket_type', 'ticket_id', 'name'],
             ['description', 'currency', 'ticket_price', 'updated_at'],
         );
+    }
+
+    /**
+     * Drop every tier that a LATER tier's name equals under the tickets.name
+     * column collation, so the last one wins, as it already did for exact
+     * duplicates. The database itself makes the comparison: only it knows
+     * exactly which names its collation treats as equal ("GA" = "ga " =
+     * "gá", but "й" <> "и").
+     */
+    private static function foldCollationDuplicates(array $tickets): array
+    {
+        $tickets = array_values($tickets);
+        $count = count($tickets);
+        $collation = self::nameCollation();
+
+        if ($count < 2 || $collation === null) {
+            return $tickets;
+        }
+
+        $names = array_map(fn ($tier) => (string) ($tier['name'] ?? ''), $tickets);
+        $columns = [];
+        $bindings = [];
+        for ($i = 0; $i < $count; $i++) {
+            for ($j = $i + 1; $j < $count; $j++) {
+                $columns[] = "(CAST(? AS CHAR) COLLATE {$collation}) = (CAST(? AS CHAR) COLLATE {$collation}) AS p{$i}_{$j}";
+                array_push($bindings, $names[$i], $names[$j]);
+            }
+        }
+        $equal = (array) DB::selectOne('SELECT '.implode(', ', $columns), $bindings);
+
+        return array_values(array_filter($tickets, function ($tier, $i) use ($count, $equal) {
+            for ($j = $i + 1; $j < $count; $j++) {
+                if ((int) $equal["p{$i}_{$j}"] === 1) {
+                    return false;
+                }
+            }
+
+            return true;
+        }, ARRAY_FILTER_USE_BOTH));
+    }
+
+    /** The tickets.name collation, or null off MySQL (then only exact names fold). */
+    private static function nameCollation(): ?string
+    {
+        static $collation = false;
+
+        if ($collation === false) {
+            $collation = null;
+            if (DB::connection()->getDriverName() === 'mysql') {
+                $found = DB::selectOne(
+                    "SELECT collation_name AS c FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'tickets' AND column_name = 'name'"
+                )?->c;
+                $collation = is_string($found) && preg_match('/^[a-z0-9_]+$/', $found) ? $found : null;
+            }
+        }
+
+        return $collation;
     }
 
     public static function getPriceRange($prices, $currency, $names = [])

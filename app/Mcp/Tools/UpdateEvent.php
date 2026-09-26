@@ -632,7 +632,7 @@ class UpdateEvent extends Tool
             'showtype' => $event->showtype,
             'dateArray' => $event->shows->pluck('date'),
             'ongoing_config', 'always_config' => $event->showtype_config,
-            'tickets' => $event->currentTickets()->map->only(['name', 'ticket_price', 'currency', 'description'])->values(),
+            'tickets' => $event->shows->isEmpty() ? [] : $event->currentTickets()->map->only(['name', 'ticket_price', 'currency', 'description'])->values(),
             'genres' => $event->genres->pluck('name'),
             'contentAdvisories' => $event->contentAdvisories->pluck('name'),
             'mobilityAdvisories' => $event->mobilityAdvisories->pluck('name'),
