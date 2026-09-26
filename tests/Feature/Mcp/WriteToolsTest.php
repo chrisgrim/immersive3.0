@@ -1597,6 +1597,19 @@ test('submit-event-for-review submits a complete draft and notifies admins', fun
     Mail::assertSent(\App\Mail\EventSubmittedNotification::class);
 });
 
+test('submit-event-for-review accepts tickets held only on the event itself', function () {
+    User::factory()->create(['type' => 'a']);
+    $user = writeToolUser();
+    $event = completeDraft($user);
+    // Move the tier from the show onto the event: readiness must read the event set.
+    \App\Models\Events\Ticket::where('ticket_type', \App\Models\Events\Show::class)->update([
+        'ticket_type' => Event::class, 'ticket_id' => $event->id,
+    ]);
+
+    EiServer::actingAs($user)->tool(SubmitEventForReview::class, ['event_slug' => $event->slug])
+        ->assertOk()->assertSee('submitted for review');
+});
+
 test('submit-event-for-review rejects an event whose only image is a gallery image', function () {
     $user = writeToolUser();
     $event = completeDraft($user);

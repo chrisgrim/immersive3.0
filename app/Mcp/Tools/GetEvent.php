@@ -87,7 +87,8 @@ class GetEvent extends Tool
                 'show_times' => $event->show_times,
                 'closing_date' => $event->closingDate,
                 'embargo_date' => $event->embargo_date,
-                'tickets' => $event->currentTickets()->map->only(['name', 'ticket_price', 'currency', 'description'])->values(),
+                // Tiers hang off dates, as readiness says: none listed without shows.
+                'tickets' => $event->shows->isEmpty() ? [] : $event->currentTickets()->map->only(['name', 'ticket_price', 'currency', 'description'])->values(),
                 'price_range' => $event->price_range,
                 'genres' => $event->genres->map->only(['id', 'name']),
                 'content_advisories' => $event->contentAdvisories->pluck('name'),

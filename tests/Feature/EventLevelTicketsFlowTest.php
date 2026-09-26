@@ -334,3 +334,63 @@ test('an event with tiers but no dates offers no tickets on its page', function 
 
     expect(Event::withoutGlobalScopes()->find($event->id)->first_show_tickets)->toHaveCount(0);
 });
+
+test('a tier named only with digits saves and can be kept alone', function () {
+    $user = flowUser();
+    $event = flowEvent($user);
+    $save = fn (array $data) => $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", $data);
+
+    $save(['timezone' => 'America/New_York', 'showtype' => 's', 'dateArray' => [flowDay(5)], 'tickets' => [flowTier('10', 10), flowTier('GA', 25)]])->assertOk();
+    // Keeping only the all-digit tier used to fail the delete with a numeric comparison.
+    $save(['tickets' => [flowTier('10', 12)]])->assertOk();
+
+    expectTierParity($event, ['10']);
+});
+
+test('an event with only show copies keeps their name and type when a tier is renamed by case', function () {
+    $user = flowUser();
+    $event = flowEvent($user);
+    $save = fn (array $data) => $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", $data)->assertOk();
+
+    $save(['timezone' => 'America/New_York', 'showtype' => 's', 'dateArray' => [flowDay(5), flowDay(6)], 'tickets' => [flowTier('GA', 0)]]);
+    // Simulate an event saved before the event set existed, with a legacy
+    // pay-what-you-can tier.
+    Ticket::where('ticket_type', Event::class)->delete();
+    Ticket::where('ticket_type', Show::class)->update(['type' => 'p']);
+
+    $save(['tickets' => [flowTier('ga', 0), flowTier('VIP', 80)]]);
+
+    expectTierParity($event, ['GA', 'VIP']);
+    expect($event->tickets()->where('name', 'GA')->value('type'))->toBe('p');
+
+    // A date added afterwards copies the same name and type.
+    $save(['showtype' => 's', 'dateArray' => [flowDay(5), flowDay(6), flowDay(9)]]);
+    expectTierParity($event, ['GA', 'VIP']);
+});
+
+test('the event page reads no show copies when the event has its own set', function () {
+    $user = flowUser();
+    $event = flowEventWithDriftedCopies($user);
+    $event->update(['status' => 'p', 'published_at' => now(), 'ticketUrl' => 'https://example.com']);
+
+    $showTicketQueries = 0;
+    \Illuminate\Support\Facades\DB::listen(function ($q) use (&$showTicketQueries) {
+        if (str_contains($q->sql, '`tickets`') && in_array(Show::class, $q->bindings, true)) {
+            $showTicketQueries++;
+        }
+    });
+
+    $this->get("/events/{$event->slug}")->assertOk();
+
+    expect($showTicketQueries)->toBe(0);
+})->skip(fn () => ! file_exists(public_path('hot')) && ! file_exists(public_path('build/manifest.json')), 'needs built assets');
+
+test('mcp get-event lists no tiers for an event without dates, matching its readiness', function () {
+    $user = flowUser();
+    $event = flowEvent($user);
+    Ticket::handleTickets(\Illuminate\Http\Request::create('/', 'POST', ['tickets' => [flowTier('GA', 25)]]), $event);
+
+    EiServer::actingAs($user)->tool(\App\Mcp\Tools\GetEvent::class, ['event_slug' => $event->slug])
+        ->assertOk()
+        ->assertSee('"tickets":[]', false);
+});

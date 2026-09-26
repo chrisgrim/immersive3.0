@@ -48,7 +48,10 @@ class Ticket extends Model
         // a duplicated name contributes one price instead of one per submission —
         // the range now always describes tiers that actually exist.
         $tiers = collect($request->tickets)->keyBy('name');
-        $submittedNames = $tiers->keys()->all();
+        // As strings: keyBy turns an all-digit name like "10" into an integer
+        // key, and an integer bound against the name column makes MySQL compare
+        // numerically, which strict mode rejects mid-delete.
+        $submittedNames = array_map('strval', $tiers->keys()->all());
 
         $prices = [];
         $names = [];
@@ -124,7 +127,7 @@ class Ticket extends Model
                         $rowsToInsert[] = [
                             'ticket_type' => Show::class,
                             'ticket_id' => $showId,
-                            'name' => $name,
+                            'name' => (string) $name,
                             'description' => $ticketData['description'] ?? '',
                             'currency' => $ticketData['currency'] ?? Currency::DEFAULT,
                             'ticket_price' => $ticketData['ticket_price'] ?? 0,
@@ -203,7 +206,9 @@ class Ticket extends Model
         // no rows yet that range delete takes a gap lock, and two saves of
         // DIFFERENT events sharing the gap would deadlock on their inserts.
         // Which rows survive is decided by the database, with the column's own
-        // collation (case, accents and trailing spaces all compare equal), the
+        // collation (utf8mb4_unicode_ci on the servers: case, accents and
+        // trailing spaces all compare equal; the test database's default
+        // collation does not ignore trailing spaces), the
         // same rule the per-show delete uses: renaming "Café" to "cafe" keeps
         // the row on the event exactly as it does on the shows.
         $keptIds = $existing->isEmpty() ? collect() : self::whereIn('id', $existing->pluck('id'))
@@ -218,15 +223,20 @@ class Ticket extends Model
             return;
         }
 
-        // The legacy `type` column ('f' free, 'p' pay what you can) is still read
-        // by the event page but never edited any more. A tier new to the event
-        // set takes it from the show copy of the same name, so the set never
-        // disagrees with the shows; an existing row keeps its own (the upsert
-        // does not update it).
-        $legacyTypes = $showIds->isEmpty() ? collect() : self::where('ticket_type', Show::class)
-            ->whereIn('ticket_id', $showIds)
-            ->whereIn('name', $submittedNames)
-            ->pluck('type', 'name');
+        // A tier new to the event set copies the name and the legacy `type`
+        // ('f' free, 'p' pay what you can, still read by the event page but
+        // never edited any more) of its show copy, found with the column's
+        // collation like every other match here. The per-show upsert never
+        // renames a row, so a "GA" saved as "ga" stays "GA" on the shows and
+        // must stay "GA" on the event too. An existing event row keeps its own
+        // name and type (the upsert does not update them). At most ten
+        // indexed lookups.
+        $showCopies = $showIds->isEmpty() ? collect() : $tiers->keys()->mapWithKeys(fn ($name) => [
+            (string) $name => self::where('ticket_type', Show::class)
+                ->whereIn('ticket_id', $showIds)
+                ->where('name', (string) $name)
+                ->first(['name', 'type']),
+        ])->filter();
 
         $now = now();
 
@@ -236,11 +246,11 @@ class Ticket extends Model
             $tiers->map(fn ($ticketData, $name) => [
                 'ticket_type' => Event::class,
                 'ticket_id' => $event->id,
-                'name' => $name,
+                'name' => $showCopies->get((string) $name)?->name ?? (string) $name,
                 'description' => $ticketData['description'] ?? '',
                 'currency' => $ticketData['currency'] ?? Currency::DEFAULT,
                 'ticket_price' => $ticketData['ticket_price'] ?? 0,
-                'type' => $legacyTypes->get($name) ?? 's',
+                'type' => $showCopies->get((string) $name)?->type ?? 's',
                 'created_at' => $now,
                 'updated_at' => $now,
             ])->values()->all(),
