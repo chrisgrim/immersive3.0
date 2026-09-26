@@ -41,7 +41,7 @@ class SubmitEventForReview extends Tool
         }
 
         $missing = collect($this->readiness($event->load([
-            'shows.tickets', 'location', 'advisories', 'contentAdvisories', 'mobilityAdvisories',
+            'shows', 'tickets', 'location', 'advisories', 'contentAdvisories', 'mobilityAdvisories',
             'contactLevels', 'interactive_level', 'category', 'genres', 'remotelocations', 'images',
         ])))->reject(fn ($ok) => $ok)->keys();
 

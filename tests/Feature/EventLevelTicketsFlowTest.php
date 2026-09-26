@@ -186,3 +186,75 @@ test('mcp: draft, dates, tickets, weekly run and edits keep everything in step',
     $update(['tickets' => [flowTier('GA', 28)]]);
     expectTierParity($event, ['GA']);
 });
+
+// ----- step 2: readers use the event set -----
+
+/** An event with dates and tiers, whose show copies have drifted to 'Stale'. */
+function flowEventWithDriftedCopies(User $user): Event
+{
+    $event = flowEvent($user);
+    test()->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'timezone' => 'America/New_York',
+        'showtype' => 's',
+        'dateArray' => [flowDay(5), flowDay(6)],
+        'tickets' => [flowTier('GA', 25)],
+    ])->assertOk();
+    // Only here so a reader still on the show copies shows up as 'Stale'.
+    Ticket::where('ticket_type', Show::class)->update(['name' => 'Stale']);
+
+    return $event;
+}
+
+test('the public event page reads the event set', function () {
+    $user = flowUser();
+    $event = flowEventWithDriftedCopies($user);
+
+    $page = Event::withoutGlobalScopes()->find($event->id);
+    expect($page->first_show_tickets->pluck('name')->all())->toBe(['GA']);
+});
+
+test('the event page still falls back to a show copy when the event set is empty', function () {
+    $user = flowUser();
+    $event = flowEventWithDriftedCopies($user);
+    Ticket::where('ticket_type', Event::class)->delete();
+
+    $page = Event::withoutGlobalScopes()->find($event->id);
+    expect($page->first_show_tickets->pluck('name')->all())->toBe(['Stale']);
+});
+
+test('the editor gets the event set on load and after every save', function () {
+    $user = flowUser();
+    $event = flowEventWithDriftedCopies($user);
+
+    $this->actingAs($user)->get("/hosting/event/{$event->slug}/edit")
+        ->assertOk()
+        ->assertViewHas('event', fn ($e) => $e->relationLoaded('tickets')
+            && $e->toArray()['tickets'][0]['name'] === 'GA');
+
+    // A dates-only save must still send the tiers back, or the wizard's
+    // Object.assign would keep stale ones and could re-save them.
+    $response = $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'showtype' => 's', 'dateArray' => [flowDay(5), flowDay(6), flowDay(7)],
+    ])->assertOk();
+
+    expect(collect($response->json('event.tickets'))->pluck('name')->all())->toBe(['GA']);
+});
+
+test('the admin review screen gets the event set', function () {
+    $user = flowUser();
+    $event = flowEventWithDriftedCopies($user);
+
+    $response = $this->actingAs(flowUser('a'))->getJson("/api/admin/events/{$event->slug}")->assertOk();
+
+    expect(collect($response->json('tickets'))->pluck('name')->all())->toBe(['GA']);
+});
+
+test('mcp get-event returns the event set', function () {
+    $user = flowUser();
+    $event = flowEventWithDriftedCopies($user);
+
+    EiServer::actingAs($user)->tool(\App\Mcp\Tools\GetEvent::class, ['event_slug' => $event->slug])
+        ->assertOk()
+        ->assertSee('"name":"GA"', false)
+        ->assertDontSee('Stale');
+});

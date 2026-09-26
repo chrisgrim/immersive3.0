@@ -103,6 +103,7 @@ class AdminEventController extends Controller
             'genres',
             'priceranges',
             'shows.tickets',
+            'tickets',
             'age_limits',
             'images',
             'category',

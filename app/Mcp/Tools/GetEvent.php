@@ -39,7 +39,8 @@ class GetEvent extends Tool
         }
 
         $event->load([
-            'shows.tickets',
+            'shows',
+            'tickets',
             'location',
             'advisories',
             'mobilityAdvisories',
@@ -86,7 +87,7 @@ class GetEvent extends Tool
                 'show_times' => $event->show_times,
                 'closing_date' => $event->closingDate,
                 'embargo_date' => $event->embargo_date,
-                'tickets' => $event->shows->first()?->tickets->map->only(['name', 'ticket_price', 'currency', 'description']) ?? [],
+                'tickets' => $event->currentTickets()->map->only(['name', 'ticket_price', 'currency', 'description'])->values(),
                 'price_range' => $event->price_range,
                 'genres' => $event->genres->map->only(['id', 'name']),
                 'content_advisories' => $event->contentAdvisories->pluck('name'),

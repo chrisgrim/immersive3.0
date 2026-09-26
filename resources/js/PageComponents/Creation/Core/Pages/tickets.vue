@@ -376,7 +376,10 @@ const isAdmin = computed(() => user && (user.isAdmin || false));
 // has no country yet, starts in USD. The MCP tool applies the same rule
 // server-side for a tier sent without a currency.
 const show = event?.shows?.[0];
-const savedCurrency = show?.tickets?.[0]?.currency || null;
+// The event's own tier set; a show's copy only if that is ever missing
+// (a tab opened before the event-level set existed).
+const savedTickets = event?.tickets?.length ? event.tickets : (show?.tickets ?? []);
+const savedCurrency = savedTickets[0]?.currency || null;
 const inPerson = event?.attendance_type_id === 1 || !!event?.hasLocation;
 const locationCurrency = inPerson ? currencyForCountry(event?.location?.country) : null;
 const initialCurrency = savedCurrency || locationCurrency || DEFAULT_CURRENCY;
@@ -403,9 +406,8 @@ const state = ref({
     callToAction: event?.call_to_action || 'Get Tickets',
 });
 
-// Get tickets from the first show
-const tickets = reactive(show?.tickets?.length 
-    ? show.tickets.map(ticket => ({
+const tickets = reactive(savedTickets.length
+    ? savedTickets.map(ticket => ({
         name: ticket.name || '',
         ticket_price: ticket.ticket_price !== undefined ? parseFloat(ticket.ticket_price) : '',
         description: ticket.description || '',

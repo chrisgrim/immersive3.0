@@ -444,7 +444,7 @@ class UpdateEvent extends Tool
         }
 
         $readiness = $this->readiness($event->load([
-            'shows.tickets', 'location', 'advisories', 'contentAdvisories', 'mobilityAdvisories',
+            'shows', 'tickets', 'location', 'advisories', 'contentAdvisories', 'mobilityAdvisories',
             'contactLevels', 'interactive_level', 'category', 'genres', 'remotelocations', 'images', 'organizer',
         ]));
 
@@ -625,14 +625,14 @@ class UpdateEvent extends Tool
      */
     protected function changePreview(Event $event, array $validated): array
     {
-        $event->loadMissing(['location', 'shows.tickets', 'genres', 'contentAdvisories', 'mobilityAdvisories', 'advisories', 'contactLevels', 'interactive_level', 'age_limits', 'remotelocations', 'videos']);
+        $event->loadMissing(['location', 'shows', 'tickets', 'genres', 'contentAdvisories', 'mobilityAdvisories', 'advisories', 'contactLevels', 'interactive_level', 'age_limits', 'remotelocations', 'videos']);
 
         $current = fn (string $key) => match ($key) {
             'location' => $event->location?->only(['venue', 'home', 'street', 'city', 'region', 'country', 'postal_code', 'latitude', 'longitude', 'hiddenLocationToggle', 'hiddenLocation']),
             'showtype' => $event->showtype,
             'dateArray' => $event->shows->pluck('date'),
             'ongoing_config', 'always_config' => $event->showtype_config,
-            'tickets' => $event->shows->first()?->tickets->map->only(['name', 'ticket_price', 'currency', 'description']),
+            'tickets' => $event->currentTickets()->map->only(['name', 'ticket_price', 'currency', 'description'])->values(),
             'genres' => $event->genres->pluck('name'),
             'contentAdvisories' => $event->contentAdvisories->pluck('name'),
             'mobilityAdvisories' => $event->mobilityAdvisories->pluck('name'),

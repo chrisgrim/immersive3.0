@@ -382,7 +382,10 @@ class UpdateEventAction
     public static function editorRelations(): array
     {
         return [
+            // shows.tickets stays until the per-show copies are removed: an
+            // editor tab opened before this deploy still reads them.
             'shows.tickets',
+            'tickets',
             'location',
             'images',
             'advisories',

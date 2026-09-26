@@ -53,6 +53,7 @@ class HostEventController extends Controller
 
         $event->load([
             'shows.tickets',
+            'tickets',
             'location',
             'contentAdvisories',
             'contactLevels',

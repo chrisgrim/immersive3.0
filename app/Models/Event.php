@@ -685,13 +685,31 @@ class Event extends Model
      *
      * Tiers used to live only on each show (an identical copy per date). While
      * the move to event-level rows is in progress, Ticket::handleTickets writes
-     * both, and ei:backfill-event-tickets fills this set for older events.
+     * both, and ei:backfill-event-tickets filled this set for older events.
+     * Readers go through currentTickets() / first_show_tickets, which fall
+     * back to a show's copy if this set is ever empty.
      *
      * @return \Illuminate\Database\Eloquent\Relations\MorphMany
      */
     public function tickets()
     {
-        return $this->morphMany(Ticket::class, 'ticket');
+        return $this->morphMany(Ticket::class, 'ticket')->orderBy('id');
+    }
+
+    /**
+     * The event's tiers: its own set, or while the per-show copies still
+     * exist, the latest show's copy when the own set is empty (the copy the
+     * editor always showed).
+     */
+    public function currentTickets(): \Illuminate\Support\Collection
+    {
+        if ($this->tickets->isNotEmpty()) {
+            return $this->tickets;
+        }
+
+        $latest = $this->relationLoaded('shows') ? $this->shows->first() : $this->shows()->first();
+
+        return $latest ? $latest->tickets : collect();
     }
 
     /**
@@ -1152,6 +1170,13 @@ class Event extends Model
 
     public function getFirstShowTicketsAttribute()
     {
+        // The event's own tier set. The name and the fallback below date from
+        // when tiers lived only on each show; the fallback stays until the
+        // per-show copies are removed.
+        if ($this->tickets->isNotEmpty()) {
+            return $this->tickets;
+        }
+
         // First check if shows are already loaded to avoid additional query
         if ($this->relationLoaded('shows')) {
             // shows() orders date DESC, so sort the loaded collection ascending to get

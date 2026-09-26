@@ -439,12 +439,15 @@ const formatShowDates = computed(() => {
     return `${props.event.dateArray.length} dates scheduled`;
 });
 
-const ticketCount = computed(() => {
-    return props.event.shows?.[0]?.tickets?.length || 0;
-});
+// The event's own tier set; a show's copy only if that is ever missing.
+const savedTickets = computed(() => (
+    props.event.tickets?.length ? props.event.tickets : (props.event.shows?.[0]?.tickets || [])
+));
+
+const ticketCount = computed(() => savedTickets.value.length);
 
 const ticketPriceRange = computed(() => {
-    const tickets = props.event.shows?.[0]?.tickets || [];
+    const tickets = savedTickets.value;
     if (!tickets.length) return 'No tickets set';
 
     const prices = tickets.map(t => parseFloat(t.ticket_price));

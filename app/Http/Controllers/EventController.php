@@ -64,6 +64,7 @@ class EventController extends Controller
             'priceranges',
             'age_limits',
             'images',
+            'tickets',
         ]);
 
         $this->loadShowsForPage($event);

@@ -77,7 +77,8 @@ trait FormatsEvents
     protected function readiness(Event $event): array
     {
         $hasShows = $event->shows->isNotEmpty();
-        $hasTickets = $hasShows && $event->shows->first()->tickets->isNotEmpty();
+        // Tickets still only count once there are dates, as before.
+        $hasTickets = $hasShows && $event->currentTickets()->isNotEmpty();
 
         $locationReady = $event->hasLocation
             ? (bool) ($event->location?->latitude && $event->location?->longitude)
