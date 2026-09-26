@@ -59,7 +59,7 @@ function expectTierParity(Event $event, array $names): void
     $event = Event::withoutGlobalScopes()->find($event->id);
     $eventSet = flowTierSet($event->tickets()->get());
 
-    expect($event->tickets()->orderBy('name')->pluck('name')->all())->toBe($names);
+    expect($event->tickets()->reorder('name')->pluck('name')->all())->toBe($names);
 
     $shows = Show::withoutGlobalScopes()->where('event_id', $event->id)->get();
     foreach ($shows as $show) {
@@ -257,4 +257,43 @@ test('mcp get-event returns the event set', function () {
         ->assertOk()
         ->assertSee('"name":"GA"', false)
         ->assertDontSee('Stale');
+});
+
+test('the real event page shows the event set in its data, JSON-LD and button', function () {
+    $user = flowUser();
+    $event = flowEventWithDriftedCopies($user);
+    $event->update(['status' => 'p', 'published_at' => now(), 'ticketUrl' => 'https://example.com']);
+
+    $html = $this->get("/events/{$event->slug}")->assertOk()->getContent();
+
+    // The page data is JSON.parse('...') with quotes written as \u0022.
+    expect($html)->toContain('name\u0022:\u0022GA\u0022')
+        ->and($html)->not->toContain('Stale')
+        ->and($html)->toContain('"lowPrice": "25"');
+})->skip(fn () => ! file_exists(public_path('hot')) && ! file_exists(public_path('build/manifest.json')), 'needs built assets');
+
+test('tiers are listed alphabetically, as the show copies always were', function () {
+    $user = flowUser();
+    $event = flowEvent($user);
+
+    $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'timezone' => 'America/New_York', 'showtype' => 's', 'dateArray' => [flowDay(5)],
+        'tickets' => [flowTier('VIP', 80), flowTier('Adult', 30), flowTier('Child', 10)],
+    ])->assertOk();
+    $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'tickets' => [flowTier('VIP', 80), flowTier('Adult', 30), flowTier('Child', 10), flowTier('Balcony', 20)],
+    ])->assertOk();
+
+    $page = Event::withoutGlobalScopes()->find($event->id);
+    expect($page->first_show_tickets->pluck('name')->all())->toBe(['Adult', 'Balcony', 'Child', 'VIP']);
+});
+
+test('mcp submit readiness counts the event set', function () {
+    $user = flowUser();
+    $event = flowEventWithDriftedCopies($user);
+
+    // Readiness lists what is still missing; tickets must not be among them.
+    EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateEvent::class, ['event_slug' => $event->slug, 'tag_line' => 'Still a draft'])
+        ->assertOk()
+        ->assertSee('"tickets":true', false);
 });

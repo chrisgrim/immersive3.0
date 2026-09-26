@@ -693,7 +693,10 @@ class Event extends Model
      */
     public function tickets()
     {
-        return $this->morphMany(Ticket::class, 'ticket')->orderBy('id');
+        // By name: the show copies were always read back through the
+        // (ticket_type, ticket_id, name) index, so hosts and visitors have
+        // always seen tiers alphabetically.
+        return $this->morphMany(Ticket::class, 'ticket')->orderBy('name')->orderBy('id');
     }
 
     /**

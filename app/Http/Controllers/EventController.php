@@ -83,6 +83,8 @@ class EventController extends Controller
         }]);
 
         $event->append('first_show_tickets');
+        // Already sent as first_show_tickets; no need to ship the tiers twice.
+        $event->makeHidden('tickets');
 
         // Serialized ONCE, into `window.Laravel.page.event` (see
         // show.blade.php); every Vue island on the page binds
@@ -164,9 +166,12 @@ class EventController extends Controller
                 ->get();
         }
 
-        // first_show_tickets reads the earliest loaded show's tickets and the
-        // page asks for it up to nine times; load them once here.
-        $upcoming->sortBy('date')->first()?->load('tickets');
+        // first_show_tickets reads the event's own tiers; only an event without
+        // them falls back to the earliest loaded show's copy, which the page
+        // asks for up to nine times, so load it once here.
+        if ($event->tickets->isEmpty()) {
+            $upcoming->sortBy('date')->first()?->load('tickets');
+        }
 
         $event->setRelation('shows', $upcoming);
 
