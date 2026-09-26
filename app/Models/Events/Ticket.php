@@ -75,7 +75,8 @@ class Ticket extends Model
         // land in the same gap at the top of the tickets unique index and can
         // still deadlock. attempts: 3 retries that case. A retry is safe
         // because everything the closure depends on from the database is read
-        // inside it.
+        // inside it. ei:backfill-event-tickets takes the same lock, so it can
+        // never re-add a tier this save just removed.
         DB::transaction(function () use ($event, $tiers, $submittedNames, $prices) {
             Event::whereKey($event->id)->lockForUpdate()->first();
 
@@ -83,6 +84,8 @@ class Ticket extends Model
             // (or in a concurrent save) and may have just created or removed rows
             // an already-loaded $event->shows relation knows nothing of.
             $showIds = $event->shows()->pluck('id');
+
+            self::syncEventTiers($event, $tiers, $submittedNames, $showIds);
 
             if ($showIds->isNotEmpty()) {
                 // --- Drop removed tiers across every show in ONE delete. This
@@ -181,6 +184,66 @@ class Ticket extends Model
         ]);
 
         $event->syncSearchIndex();
+    }
+
+    /**
+     * Make the event's own tier rows match the submitted tiers exactly.
+     *
+     * Written whether or not the event has shows yet: the event-level set is
+     * the one that will survive the move away from per-show copies. Runs under
+     * the event row lock taken by handleTickets.
+     */
+    private static function syncEventTiers(Event $event, $tiers, array $submittedNames, $showIds): void
+    {
+        $existing = self::where('ticket_type', Event::class)
+            ->where('ticket_id', $event->id)
+            ->get(['id', 'name']);
+
+        // Delete by primary key, not "type + id + name NOT IN": on an event with
+        // no rows yet that range delete takes a gap lock, and two saves of
+        // DIFFERENT events sharing the gap would deadlock on their inserts.
+        // Compared case-insensitively, like the column's collation (and so the
+        // per-show delete): renaming "ga" to "GA" keeps the row, as it does on
+        // the shows.
+        $keep = array_map('mb_strtolower', $submittedNames);
+        $removedIds = $existing->reject(fn ($row) => in_array(mb_strtolower((string) $row->name), $keep, true))->pluck('id');
+        if ($removedIds->isNotEmpty()) {
+            self::whereIn('id', $removedIds)->delete();
+        }
+
+        if ($tiers->isEmpty()) {
+            return;
+        }
+
+        // The legacy `type` column ('f' free, 'p' pay what you can) is still read
+        // by the event page but never edited any more. A tier new to the event
+        // set takes it from the show copy of the same name, so the set never
+        // disagrees with the shows; an existing row keeps its own (the upsert
+        // does not update it).
+        $legacyTypes = $showIds->isEmpty() ? collect() : self::where('ticket_type', Show::class)
+            ->whereIn('ticket_id', $showIds)
+            ->whereIn('name', $submittedNames)
+            ->pluck('type', 'name');
+
+        $now = now();
+
+        // Same unique key as the per-show rows (tickets_owner_name_unique), so a
+        // retried or racing save updates one row instead of adding two.
+        self::upsert(
+            $tiers->map(fn ($ticketData, $name) => [
+                'ticket_type' => Event::class,
+                'ticket_id' => $event->id,
+                'name' => $name,
+                'description' => $ticketData['description'] ?? '',
+                'currency' => $ticketData['currency'] ?? Currency::DEFAULT,
+                'ticket_price' => $ticketData['ticket_price'] ?? 0,
+                'type' => $legacyTypes->get($name) ?? 's',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->values()->all(),
+            ['ticket_type', 'ticket_id', 'name'],
+            ['description', 'currency', 'ticket_price', 'updated_at'],
+        );
     }
 
     public static function getPriceRange($prices, $currency, $names = [])

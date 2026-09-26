@@ -85,8 +85,14 @@ class Show extends Model
 
         // Capture the event's ticket tiers before any deletes so they can be
         // re-applied to newly created shows (tickets are uniform across shows).
-        $firstShow = $event->shows()->first();
-        $oldTickets = $firstShow && $firstShow->tickets()->exists() ? $firstShow->tickets()->get() : null;
+        // The event's own set comes first: it survives a showtype switch and
+        // exists even before the first date, so new shows' copies never drift
+        // from it. Older events not yet backfilled fall back to a show's copy.
+        $oldTickets = $event->tickets()->get();
+        if ($oldTickets->isEmpty()) {
+            $firstShow = $event->shows()->first();
+            $oldTickets = $firstShow && $firstShow->tickets()->exists() ? $firstShow->tickets()->get() : null;
+        }
 
         // The exact set of show datetimes this save should end with, normalised
         // to UTC "Y-m-d H:i:s" so they compare byte-for-byte with stored dates.

@@ -18,6 +18,7 @@ use App\Models\Events\PriceRange;
 use App\Models\Events\RemoteLocation;
 use App\Models\Events\Show;
 use App\Models\Events\ShowChangeLog;
+use App\Models\Events\Ticket;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Services\ImageHandler;
 use App\Support\Slug;
@@ -677,6 +678,20 @@ class Event extends Model
     public function shows()
     {
         return $this->hasMany(Show::class)->orderBy('date', 'DESC');
+    }
+
+    /**
+     * The event's ticket tiers, stored once per event.
+     *
+     * Tiers used to live only on each show (an identical copy per date). While
+     * the move to event-level rows is in progress, Ticket::handleTickets writes
+     * both, and ei:backfill-event-tickets fills this set for older events.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\MorphMany
+     */
+    public function tickets()
+    {
+        return $this->morphMany(Ticket::class, 'ticket');
     }
 
     /**

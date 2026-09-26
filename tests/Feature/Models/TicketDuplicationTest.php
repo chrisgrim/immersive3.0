@@ -126,7 +126,7 @@ test('distinct tier names on one show are unaffected', function () {
         ['name' => 'Child', 'ticket_price' => 18, 'currency' => 'USD', 'description' => ''],
     ]);
 
-    expect(Ticket::where('ticket_id', $show->id)->count())->toBe(2);
+    expect(Ticket::where('ticket_type', Show::class)->where('ticket_id', $show->id)->count())->toBe(2);
 });
 
 test('the same tier name on two different shows is still allowed', function () {
@@ -137,7 +137,7 @@ test('the same tier name on two different shows is still allowed', function () {
 
     saveTiers($event, [['name' => 'General', 'ticket_price' => 25, 'currency' => 'USD', 'description' => '']]);
 
-    expect(Ticket::where('name', 'General')->count())->toBe(2);
+    expect(Ticket::where('ticket_type', Show::class)->where('name', 'General')->count())->toBe(2);
 });
 
 test('re-saving an existing tier updates it rather than adding another', function () {
@@ -147,7 +147,7 @@ test('re-saving an existing tier updates it rather than adding another', functio
     saveTiers($event, [['name' => 'General', 'ticket_price' => 25, 'currency' => 'USD', 'description' => 'first']]);
     saveTiers($event, [['name' => 'General', 'ticket_price' => 30, 'currency' => 'USD', 'description' => 'second']]);
 
-    $tickets = Ticket::where('ticket_id', $show->id)->get();
+    $tickets = Ticket::where('ticket_type', Show::class)->where('ticket_id', $show->id)->get();
 
     expect($tickets)->toHaveCount(1);
     expect($tickets->first()->description)->toBe('second');
@@ -200,7 +200,7 @@ test('adding dates to an event whose tiers were duplicated does not spread the d
     $copy->setAccessible(true);
     $copy->invoke(null, $duplicated, collect([$newShow->id]));
 
-    expect(Ticket::where('ticket_id', $newShow->id)->count())->toBe(1);
+    expect(Ticket::where('ticket_type', Show::class)->where('ticket_id', $newShow->id)->count())->toBe(1);
     expect($source->tickets()->count())->toBe(0);
 });
 
@@ -220,7 +220,7 @@ test('copying tiers onto a show that already has them updates rather than errori
     $again = collect([(object) ['name' => 'General', 'description' => 'second', 'currency' => 'USD', 'ticket_price' => 40, 'type' => 's']]);
     $copy->invoke(null, $again, collect([$show->id]));
 
-    $tickets = Ticket::where('ticket_id', $show->id)->get();
+    $tickets = Ticket::where('ticket_type', Show::class)->where('ticket_id', $show->id)->get();
     expect($tickets)->toHaveCount(1);
     expect($tickets->first()->description)->toBe('second');
 });
