@@ -286,14 +286,51 @@ test('tiers are listed alphabetically, as the show copies always were', function
 
     $page = Event::withoutGlobalScopes()->find($event->id);
     expect($page->first_show_tickets->pluck('name')->all())->toBe(['Adult', 'Balcony', 'Child', 'VIP']);
+    // MySQL happens to return these in name order via the unique index even
+    // without ORDER BY, so also pin the explicit ordering itself.
+    expect(strtolower($event->tickets()->toSql()))->toContain('order by `name` asc, `id` asc');
 });
 
 test('mcp submit readiness counts the event set', function () {
     $user = flowUser();
     $event = flowEventWithDriftedCopies($user);
+    // With no show copies left, only the event set can say tickets exist.
+    Ticket::where('ticket_type', Show::class)->delete();
 
     // Readiness lists what is still missing; tickets must not be among them.
     EiServer::actingAs($user)->tool(\App\Mcp\Tools\UpdateEvent::class, ['event_slug' => $event->slug, 'tag_line' => 'Still a draft'])
         ->assertOk()
         ->assertSee('"tickets":true', false);
+});
+
+test('currentTickets falls back to the latest show copy when the event set is empty', function () {
+    $user = flowUser();
+    $event = flowEventWithDriftedCopies($user);
+    Ticket::where('ticket_type', Event::class)->delete();
+
+    expect(Event::withoutGlobalScopes()->find($event->id)->currentTickets()->pluck('name')->all())->toBe(['Stale']);
+});
+
+test('an accent-only rename keeps the same row on the event and the shows', function () {
+    $user = flowUser();
+    $event = flowEvent($user);
+    $save = fn (array $data) => $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", $data)->assertOk();
+
+    $save(['timezone' => 'America/New_York', 'showtype' => 's', 'dateArray' => [flowDay(5), flowDay(6)], 'tickets' => [flowTier('Café', 20)]]);
+    $id = $event->tickets()->value('id');
+
+    // The column's collation treats these as the same name, so the shows keep
+    // their row; the event must too, or the two copies would disagree.
+    $save(['tickets' => [flowTier('cafe', 22)]]);
+
+    expect($event->tickets()->pluck('id')->all())->toBe([$id]);
+    expectTierParity($event, ['Café']);
+});
+
+test('an event with tiers but no dates offers no tickets on its page', function () {
+    $user = flowUser();
+    $event = flowEvent($user);
+    Ticket::handleTickets(\Illuminate\Http\Request::create('/', 'POST', ['tickets' => [flowTier('GA', 25)]]), $event);
+
+    expect(Event::withoutGlobalScopes()->find($event->id)->first_show_tickets)->toHaveCount(0);
 });

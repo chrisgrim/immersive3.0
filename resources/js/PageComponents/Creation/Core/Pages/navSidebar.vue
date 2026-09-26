@@ -383,6 +383,7 @@ import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatPrice } from '@/composables/useCurrency';
+import { savedTiers } from '@/composables/useEventTickets';
 import { isShowUpcoming, usesCurtainTimes } from '@/composables/useShowDates';
 
 const props = defineProps({
@@ -439,10 +440,7 @@ const formatShowDates = computed(() => {
     return `${props.event.dateArray.length} dates scheduled`;
 });
 
-// The event's own tier set; a show's copy only if that is ever missing.
-const savedTickets = computed(() => (
-    props.event.tickets?.length ? props.event.tickets : (props.event.shows?.[0]?.tickets || [])
-));
+const savedTickets = computed(() => savedTiers(props.event));
 
 const ticketCount = computed(() => savedTickets.value.length);
 

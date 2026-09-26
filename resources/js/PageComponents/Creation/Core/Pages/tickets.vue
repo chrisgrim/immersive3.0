@@ -297,6 +297,7 @@ import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import Dropdown from '@/GlobalComponents/dropdown.vue';
 import List from '@/GlobalComponents/dropdown-list.vue';
 import CurrencyPicker from '@/GlobalComponents/currency-picker.vue';
+import { savedTiers } from '@/composables/useEventTickets';
 import {
     DEFAULT_CURRENCY,
     currencyDecimals,
@@ -376,9 +377,7 @@ const isAdmin = computed(() => user && (user.isAdmin || false));
 // has no country yet, starts in USD. The MCP tool applies the same rule
 // server-side for a tier sent without a currency.
 const show = event?.shows?.[0];
-// The event's own tier set; a show's copy only if that is ever missing
-// (a tab opened before the event-level set existed).
-const savedTickets = event?.tickets?.length ? event.tickets : (show?.tickets ?? []);
+const savedTickets = savedTiers(event);
 const savedCurrency = savedTickets[0]?.currency || null;
 const inPerson = event?.attendance_type_id === 1 || !!event?.hasLocation;
 const locationCurrency = inPerson ? currencyForCountry(event?.location?.country) : null;

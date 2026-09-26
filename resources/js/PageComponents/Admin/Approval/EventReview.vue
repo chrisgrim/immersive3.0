@@ -348,7 +348,7 @@
 
                         <h3 class="text-xl font-semibold mb-4 mt-16">Tickets:</h3>
                         <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                            <div v-for="ticket in (props.event?.tickets?.length ? props.event.tickets : props.event?.shows?.[0]?.tickets)" 
+                            <div v-for="ticket in savedTiers(props.event)"
                                  :key="ticket.id"
                                  class="flex flex-col border border-neutral-300 rounded-2xl">
                                 <p class="px-4 pt-4 text-1xl font-semibold break-words hyphens-auto">{{ ticket.name }}</p>
@@ -560,6 +560,7 @@
 import { computed, ref } from 'vue';
 import moment from 'moment-timezone';
 import { summarizeSchedule } from '@/composables/useShowDates';
+import { savedTiers } from '@/composables/useEventTickets';
 import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";

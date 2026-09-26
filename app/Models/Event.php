@@ -1173,6 +1173,14 @@ class Event extends Model
 
     public function getFirstShowTicketsAttribute()
     {
+        // No dates, no offer: the event set outlives a deleted schedule, but
+        // the page (and its JSON-LD) never listed tiers for an event with no
+        // shows.
+        $hasShows = $this->relationLoaded('shows') ? $this->shows->isNotEmpty() : $this->shows()->exists();
+        if (! $hasShows) {
+            return collect();
+        }
+
         // The event's own tier set. The name and the fallback below date from
         // when tiers lived only on each show; the fallback stays until the
         // per-show copies are removed.

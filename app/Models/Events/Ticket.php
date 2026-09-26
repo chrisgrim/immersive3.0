@@ -202,11 +202,14 @@ class Ticket extends Model
         // Delete by primary key, not "type + id + name NOT IN": on an event with
         // no rows yet that range delete takes a gap lock, and two saves of
         // DIFFERENT events sharing the gap would deadlock on their inserts.
-        // Compared case-insensitively, like the column's collation (and so the
-        // per-show delete): renaming "ga" to "GA" keeps the row, as it does on
-        // the shows.
-        $keep = array_map('mb_strtolower', $submittedNames);
-        $removedIds = $existing->reject(fn ($row) => in_array(mb_strtolower((string) $row->name), $keep, true))->pluck('id');
+        // Which rows survive is decided by the database, with the column's own
+        // collation (case, accents and trailing spaces all compare equal), the
+        // same rule the per-show delete uses: renaming "Café" to "cafe" keeps
+        // the row on the event exactly as it does on the shows.
+        $keptIds = $existing->isEmpty() ? collect() : self::whereIn('id', $existing->pluck('id'))
+            ->whereIn('name', $submittedNames)
+            ->pluck('id');
+        $removedIds = $existing->pluck('id')->diff($keptIds);
         if ($removedIds->isNotEmpty()) {
             self::whereIn('id', $removedIds)->delete();
         }
