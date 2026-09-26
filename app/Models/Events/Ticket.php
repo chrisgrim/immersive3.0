@@ -70,9 +70,12 @@ class Ticket extends Model
         // parallel update-event calls did this on prod, EI-LARAVEL-1H) deadlocked
         // on the tickets index. Locking the event row first, the same order the
         // schedule transaction in UpdateEventAction uses, makes concurrent saves
-        // of one event queue up instead. attempts: 3 is the backstop; a retry is
-        // safe because everything the closure depends on from the database is
-        // read inside it.
+        // of one event queue up instead. The lock cannot help two DIFFERENT
+        // events saving at once: new shows get the newest ids, so both writes
+        // land in the same gap at the top of the tickets unique index and can
+        // still deadlock. attempts: 3 retries that case. A retry is safe
+        // because everything the closure depends on from the database is read
+        // inside it.
         DB::transaction(function () use ($event, $tiers, $submittedNames, $prices) {
             Event::whereKey($event->id)->lockForUpdate()->first();
 
@@ -170,6 +173,9 @@ class Ticket extends Model
         // Deliberately OUTSIDE the transaction so the index never describes
         // rows a rollback removed. syncSearchIndex() re-reads the event and is
         // batched to one reindex when UpdateEventAction is driving the save.
+        // Keep this Eloquent update out of the retried closure too: after a
+        // rolled-back first attempt Eloquent thinks price_range is already
+        // saved, so the retry would silently write nothing.
         $event->update([
             'price_range' => self::getPriceRange($prices, $currency, $names),
         ]);

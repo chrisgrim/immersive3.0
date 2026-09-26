@@ -253,3 +253,25 @@ test('handleTickets query count stays flat as the number of shows grows', functi
     expect($onUpdate)->toBeLessThan(20);
     expect(Ticket::where('ticket_type', Show::class)->count())->toBe(80);
 });
+
+test('handleTickets locks the event row before touching any ticket', function () {
+    // Two saves of one event deadlocked on the tickets index in production
+    // (EI-LARAVEL-1H). Taking the event row lock first, the same order the
+    // schedule save uses, makes them queue up instead. Guards against the
+    // lock being removed or moved below the first tickets query.
+    showsFor($this->event, 2);
+
+    $queries = [];
+    DB::listen(function ($query) use (&$queries) {
+        $queries[] = strtolower($query->sql);
+    });
+
+    Ticket::handleTickets(ticketRequest([gaTier()]), $this->event);
+
+    $lock = collect($queries)->search(fn ($sql) => str_contains($sql, 'from `events`') && str_contains($sql, 'for update'));
+    $firstTickets = collect($queries)->search(fn ($sql) => str_contains($sql, '`tickets`'));
+
+    expect($lock)->not->toBeFalse()
+        ->and($firstTickets)->not->toBeFalse()
+        ->and($lock)->toBeLessThan($firstTickets);
+});
