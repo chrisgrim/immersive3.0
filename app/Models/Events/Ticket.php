@@ -70,6 +70,11 @@ class Ticket extends Model
             $currency = $ticketData['currency'] ?? Currency::DEFAULT;
         }
 
+        // Two saves of the same event landing together (an AI assistant firing
+        // parallel update-event calls did this on prod, EI-LARAVEL-1H) can
+        // deadlock on the tickets index: MySQL kills one transaction outright.
+        // Everything the closure writes is re-read inside it, so simply running
+        // it again is safe; Laravel only retries on deadlock/serialization errors.
         DB::transaction(function () use ($event, $tiers, $submittedNames, $showIds, $prices) {
             if ($showIds->isNotEmpty()) {
                 // --- Drop removed tiers across every show in ONE delete. This
@@ -155,7 +160,7 @@ class Ticket extends Model
                     'updated_at' => $now,
                 ], $prices));
             }
-        });
+        }, attempts: 3);
 
         // Deliberately OUTSIDE the transaction so the index never describes
         // rows a rollback removed. syncSearchIndex() re-reads the event and is
