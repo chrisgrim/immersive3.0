@@ -50,10 +50,6 @@ class Ticket extends Model
         $tiers = collect($request->tickets)->keyBy('name');
         $submittedNames = $tiers->keys()->all();
 
-        // Read the show ids fresh: saveShows runs before this and may have just
-        // created rows an already-loaded $event->shows relation knows nothing of.
-        $showIds = $event->shows()->pluck('id');
-
         $prices = [];
         $names = [];
         $currency = '';
@@ -71,11 +67,20 @@ class Ticket extends Model
         }
 
         // Two saves of the same event landing together (an AI assistant firing
-        // parallel update-event calls did this on prod, EI-LARAVEL-1H) can
-        // deadlock on the tickets index: MySQL kills one transaction outright.
-        // Everything the closure writes is re-read inside it, so simply running
-        // it again is safe; Laravel only retries on deadlock/serialization errors.
-        DB::transaction(function () use ($event, $tiers, $submittedNames, $showIds, $prices) {
+        // parallel update-event calls did this on prod, EI-LARAVEL-1H) deadlocked
+        // on the tickets index. Locking the event row first, the same order the
+        // schedule transaction in UpdateEventAction uses, makes concurrent saves
+        // of one event queue up instead. attempts: 3 is the backstop; a retry is
+        // safe because everything the closure depends on from the database is
+        // read inside it.
+        DB::transaction(function () use ($event, $tiers, $submittedNames, $prices) {
+            Event::whereKey($event->id)->lockForUpdate()->first();
+
+            // Read the show ids fresh, under the lock: saveShows runs before this
+            // (or in a concurrent save) and may have just created or removed rows
+            // an already-loaded $event->shows relation knows nothing of.
+            $showIds = $event->shows()->pluck('id');
+
             if ($showIds->isNotEmpty()) {
                 // --- Drop removed tiers across every show in ONE delete. This
                 //     whole block used to run a delete plus a select and a write
