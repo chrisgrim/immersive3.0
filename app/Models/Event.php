@@ -941,6 +941,9 @@ class Event extends Model
             // Create new event with duplicated attributes (excluding location, ticket, and price data)
             $newEvent = $this->replicate(['location_latlon', 'ticketUrl', 'price_range', 'closingDate', 'show_times', 'showtype']);
             $newEvent->slug = Str::slug('new-event-'.Str::random(6));
+            // The copy is credited to whoever made it (the admin "Submitted by"
+            // column), not to the author of the event it was copied from.
+            $newEvent->user_id = auth()->id() ?? $this->user_id;
             $newEvent->status = '0'; // Set as draft
             $newEvent->name = $this->name.' (Copy)';
             $newEvent->published_at = null;

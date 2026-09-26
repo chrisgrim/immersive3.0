@@ -598,6 +598,24 @@ test('duplicate creates a new event for an organizer member', function () {
     expect(Event::count())->toBe($before + 1);
 });
 
+test('duplicate credits the copy to the user who made it, not the original author', function () {
+    $organizer = Organizer::factory()->create();
+    $author = memberOf($organizer);
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'user_id' => $author->id,
+    ]);
+    $copier = memberOf($organizer);
+
+    $this->actingAs($copier)
+        ->postJson("/api/events/{$event->slug}/duplicate")
+        ->assertStatus(201);
+
+    $copy = Event::withoutGlobalScopes()->latest('id')->first();
+    expect($copy->id)->not->toBe($event->id)
+        ->and($copy->user_id)->toBe($copier->id);
+});
+
 test('duplicate is denied to non-members (403)', function () {
     $organizer = Organizer::factory()->create();
     $event = Event::factory()->create(['organizer_id' => $organizer->id]);
