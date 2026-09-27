@@ -16,7 +16,7 @@
                ref="typeInput"
                class="at-home-search-input relative text-1xl rounded-full h-full bg-transparent w-full font-bold z-40 focus:border-none focus:rounded-full focus:bg-white focus:shadow-custom-7 placeholder-black"
                v-model="searchInput"
-               :placeholder="compact ? 'Search' : 'Search At Home Type'"
+               :placeholder="compact ? 'At Home' : 'Search At Home Type'"
                @input="updateTypes"
                @focus="onInputFocus"
                autocomplete="off"

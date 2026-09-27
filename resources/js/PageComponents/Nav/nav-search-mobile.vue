@@ -126,7 +126,7 @@
                                 </span>
                             </template>
                             <template v-else-if="state.dates.start">
-                                <span class="text-black text-1xl font-bold truncate" @click.stop="openLocationSearch">All Events</span>
+                                <span class="text-black text-1xl font-bold truncate" @click.stop="openLocationSearch">{{ state.filters.atHome ? 'At Home' : 'All Events' }}</span>
                                 <span class="text-gray-300 mx-4">|</span>
                                 <span class="text-black text-1xl font-bold truncate" @click.stop="openDateSearch">
                                     {{ formatDateDisplay }}
@@ -137,7 +137,7 @@
                                     <svg class="w-6 h-6 fill-[#ff385c] mr-2">
                                         <use :xlink:href="`/storage/website-files/icons.svg#ri-search-line`" />
                                     </svg>
-                                    <span class="text-black font-bold text-3xl">Search</span>
+                                    <span class="text-black font-bold text-3xl">{{ state.filters.atHome ? 'At Home' : 'Search' }}</span>
                                 </div>
                             </template>
                         </p>
