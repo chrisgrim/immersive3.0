@@ -367,7 +367,7 @@ class EventScheduleAssistant
                         'showtype' => [
                             'type' => 'string',
                             'enum' => ['s', 'o', 'a'],
-                            'description' => 's = specific dates, o = ongoing/recurring (weekly), a = always available. Changing this wipes existing shows and tickets.',
+                            'description' => 's = specific dates, o = ongoing/recurring (weekly), a = always available. Changing this wipes existing shows (ticket tiers are kept).',
                         ],
                         'timezone' => [
                             'type' => 'string',

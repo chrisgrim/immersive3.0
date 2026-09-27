@@ -88,10 +88,15 @@ class Ticket extends Model
             // Clear this event's leftover per-show copies from before tiers
             // moved onto the event. Nothing reads them, but left behind they
             // would still hold tiers the host just removed, which the backfill
-            // command or a rollback to the old readers would bring back.
-            $event->shows()->pluck('id')->chunk(500)->each(
-                fn ($ids) => self::where('ticket_type', Show::class)->whereIn('ticket_id', $ids)->delete()
-            );
+            // command or a rollback to the old readers would bring back. A
+            // plain (non-locking) look first: a DELETE that matches nothing
+            // still takes gap locks, which would make other events' saves wait.
+            $event->shows()->pluck('id')->chunk(500)->each(function ($ids) {
+                $copies = self::where('ticket_type', Show::class)->whereIn('ticket_id', $ids);
+                if ($copies->clone()->exists()) {
+                    $copies->delete();
+                }
+            });
 
             $event->priceranges()->delete();
 

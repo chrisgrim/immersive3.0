@@ -132,6 +132,35 @@ test('saving tickets clears the event leftover show copies, so a cleared set sta
         ->and(Ticket::where('ticket_type', Show::class)->where('name', 'Other')->count())->toBe(1);
 });
 
+test('a normal tickets save clears leftover copies on every show, past the 500-id chunk', function () {
+    $now = now();
+    Show::insert(collect(range(1, 501))->map(fn ($i) => [
+        'event_id' => $this->event->id,
+        'date' => now()->addDays($i)->format('Y-m-d 12:00:00'),
+        'created_at' => $now,
+        'updated_at' => $now,
+    ])->all());
+    $showIds = Show::withoutGlobalScopes()->where('event_id', $this->event->id)->pluck('id');
+    Ticket::insert($showIds->map(fn ($id) => [
+        'ticket_type' => Show::class, 'ticket_id' => $id, 'name' => 'Stale', 'ticket_price' => 1,
+        'currency' => 'USD', 'description' => '', 'created_at' => $now, 'updated_at' => $now,
+    ])->all());
+
+    Ticket::handleTickets(eventTierRequest([eventTier('GA', 25)]), $this->event);
+
+    expect(Ticket::where('ticket_type', Show::class)->count())->toBe(0)
+        ->and(eventLevelNames($this->event))->toBe(['GA']);
+});
+
+test('a malformed request leaves leftover copies alone too', function () {
+    eventTierShows($this->event, 1);
+    $this->event->shows()->first()->tickets()->create(['name' => 'Stale', 'ticket_price' => 1, 'currency' => 'USD', 'description' => '']);
+
+    Ticket::handleTickets(Request::create('/', 'POST'), $this->event);
+
+    expect(Ticket::where('ticket_type', Show::class)->count())->toBe(1);
+});
+
 test('renaming a tier only by case keeps the event row', function () {
     eventTierShows($this->event, 1);
     Ticket::handleTickets(eventTierRequest([eventTier('ga', 25)]), $this->event);
