@@ -21,6 +21,7 @@
                 <ul class="list-none p-0 m-0 space-y-3 text-lg">
                     <li><a href="/index/search" class="text-neutral-600 hover:text-black transition-colors">Search Events</a></li>
                     <li><a href="/communities" class="text-neutral-600 hover:text-black transition-colors">Communities</a></li>
+                    <li><vue-suggest-event class="text-neutral-600 hover:text-black transition-colors text-left">Tell us about an event</vue-suggest-event></li>
                 </ul>
             </div>
 

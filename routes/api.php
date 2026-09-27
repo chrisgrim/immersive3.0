@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\AdminCommunityController;
 use App\Http\Controllers\Admin\AdminDocksController;
 use App\Http\Controllers\Admin\AdminEventController;
 // Controller Imports - Admin
+use App\Http\Controllers\Admin\AdminEventSuggestionController;
 use App\Http\Controllers\Admin\AdminGenreController;
 use App\Http\Controllers\Admin\AdminOrganizerController;
 use App\Http\Controllers\Admin\AdminOwnershipClaimController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\CachedDataController;
 use App\Http\Controllers\Creation\EventClickController;
 // Controller Imports - Other
 use App\Http\Controllers\Creation\HostEventController;
+use App\Http\Controllers\EventSuggestionController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\FollowController;
 use App\Http\Controllers\NotificationFeedController;
@@ -91,6 +93,19 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
 
     Route::GET('/events/{eventId}/click-stats', [EventClickController::class, 'getStats'])
         ->name('event.click.stats');
+});
+
+// "Suggest an event" footer form — open to everyone. The challenge is fetched
+// once per form open; submissions are capped at 10 an hour per person (user id
+// when logged in, IP otherwise) on top of the form's own proof-of-work check.
+// Both limiters are named in AppServiceProvider so they keep their own counters.
+Route::middleware(['throttle:event-suggestion-challenge'])->group(function () {
+    Route::GET('/event-suggestions/challenge', [EventSuggestionController::class, 'challenge'])
+        ->name('event-suggestions.challenge');
+});
+Route::middleware(['throttle:event-suggestion-send'])->group(function () {
+    Route::POST('/event-suggestions', [EventSuggestionController::class, 'store'])
+        ->name('event-suggestions.store');
 });
 
 // Geonames timezone proxy — keeps the GeoNames username out of the JS bundle.
@@ -352,6 +367,13 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
                 Route::GET('/claims', 'index');
                 Route::POST('/claims/{claim}/approve', 'approve');
                 Route::POST('/claims/{claim}/reject', 'reject');
+            });
+
+            // Event suggestions from the public footer form
+            Route::controller(AdminEventSuggestionController::class)->group(function () {
+                Route::GET('/suggestions', 'index');
+                Route::POST('/suggestions/{suggestion}/done', 'done');
+                Route::DELETE('/suggestions/{suggestion}', 'destroy');
             });
         });
 

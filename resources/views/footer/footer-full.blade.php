@@ -19,6 +19,8 @@
                     <a href="/sitemap" class="hover:underline">Sitemap</a>
                     <span class="mx-2">·</span>
                     <a href="/privacy" class="hover:underline">Privacy</a>
+                    <span class="mx-2">·</span>
+                    <vue-suggest-event class="hover:underline">Tell us about an event</vue-suggest-event>
                 </div>
             </div>
         </div>

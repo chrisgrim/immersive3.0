@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Curated\Community;
 use App\Models\Event;
+use App\Models\EventSuggestion;
 use App\Models\NameChangeRequest;
 use App\Models\Organizer;
 use App\Models\OwnershipClaim;
@@ -33,6 +34,7 @@ class DashboardController extends Controller
             // "Requests" is a catch-all queue: name-change requests + ownership claims.
             'requests' => NameChangeRequest::where('status', 'pending')->count()
                 + OwnershipClaim::where('status', 'pending')->count(),
+            'suggestions' => EventSuggestion::where('status', 'pending')->count(),
         ]);
     }
 }

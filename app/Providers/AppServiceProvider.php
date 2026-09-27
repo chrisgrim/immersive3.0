@@ -95,5 +95,15 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('oauth-metadata', fn (Request $request) => Limit::perMinute(60)
             ->by('oauth-metadata:'.$request->ip()));
+
+        // "Missing an event?" form. Named (not `throttle:N,M`) so the counters
+        // are their own: unnamed throttles share one key per user/IP across
+        // every route, which let a challenge fetch reset the send window and
+        // let ordinary searching use up a person's send allowance.
+        RateLimiter::for('event-suggestion-challenge', fn (Request $request) => Limit::perMinute(30)
+            ->by('event-suggestion-challenge:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
+        RateLimiter::for('event-suggestion-send', fn (Request $request) => Limit::perHour(10)
+            ->by('event-suggestion-send:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
     }
 }

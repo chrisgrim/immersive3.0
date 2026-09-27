@@ -351,4 +351,5 @@
 
 @section('footer')
     @include('footer.footer-padded')
+    @include('footer.suggest-event-button')
 @endsection 
