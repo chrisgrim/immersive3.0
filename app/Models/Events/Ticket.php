@@ -85,6 +85,14 @@ class Ticket extends Model
 
             self::syncEventTiers($event, $tiers, $submittedNames);
 
+            // Clear this event's leftover per-show copies from before tiers
+            // moved onto the event. Nothing reads them, but left behind they
+            // would still hold tiers the host just removed, which the backfill
+            // command or a rollback to the old readers would bring back.
+            $event->shows()->pluck('id')->chunk(500)->each(
+                fn ($ids) => self::where('ticket_type', Show::class)->whereIn('ticket_id', $ids)->delete()
+            );
+
             $event->priceranges()->delete();
 
             // Was a create() per tier; one insert instead.

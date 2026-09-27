@@ -130,7 +130,7 @@ test('web update showtype change wipes and recreates shows and tickets', functio
     $event->refresh();
     expect($event->showtype)->toBe('a');
     expect($event->shows)->toHaveCount(1);
-    // Old tickets are carried onto the recreated show (web behavior).
+    // The tiers live on the event, so the new schedule keeps them.
     expect($event->tickets->pluck('name'))->toContain('GA');
 });
 

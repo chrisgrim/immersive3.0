@@ -684,8 +684,8 @@ class Event extends Model
      * The event's ticket tiers, stored once per event.
      *
      * Tiers used to live on each show as an identical copy per date;
-     * ei:backfill-event-tickets moved them here and nothing writes or reads
-     * the show copies any more.
+     * ei:backfill-event-tickets moved them here. Nothing reads the leftover
+     * show copies; they go when their show does or the tickets are next saved.
      *
      * @return \Illuminate\Database\Eloquent\Relations\MorphMany
      */
@@ -1048,11 +1048,6 @@ class Event extends Model
         });
     }
 
-    /**
-     * Get tickets from just the first show as an accessor
-     *
-     * @return \Illuminate\Database\Eloquent\Collection
-     */
     /**
      * How much longer this event is bookable, in words. Reads the aggregate
      * `remaining_shows_count`/`next_show_date` columns a caller must select onto

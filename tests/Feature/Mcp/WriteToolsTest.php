@@ -1291,7 +1291,7 @@ test('extending a ticketed schedule keeps the tiers on the event, not the new sh
     expect(\App\Models\Events\Ticket::where('ticket_type', \App\Models\Events\Show::class)->count())->toBe(0);
 });
 
-test('switching show type wipes every existing show and its tickets', function () {
+test('switching show type wipes every existing show and its leftover ticket copies but keeps the tiers', function () {
     $admin = writeToolUser('a');
     $event = draftFor(writeToolOrganizer($admin), $admin);
     $tz = 'America/Toronto';
@@ -1306,6 +1306,10 @@ test('switching show type wipes every existing show and its tickets', function (
     ])->assertOk();
 
     $oldShowIds = $event->fresh()->shows()->pluck('id')->all();
+    // Leftover per-show copies from before tiers moved onto the event.
+    foreach ($oldShowIds as $showId) {
+        \App\Models\Events\Ticket::create(['ticket_type' => \App\Models\Events\Show::class, 'ticket_id' => $showId, 'name' => 'Old', 'ticket_price' => 1, 'currency' => 'USD', 'description' => '']);
+    }
 
     // Switch to always-available — this deletes the old shows and recreates one.
     EiServer::actingAs($admin)->tool(UpdateEvent::class, [
@@ -1314,6 +1318,8 @@ test('switching show type wipes every existing show and its tickets', function (
 
     expect($event->fresh()->shows()->count())->toBe(1);
     expect(\App\Models\Events\Ticket::where('ticket_type', \App\Models\Events\Show::class)->whereIn('ticket_id', $oldShowIds)->count())->toBe(0);
+    // The tiers themselves live on the event and survive the switch.
+    expect($event->fresh()->first_show_tickets->pluck('name')->all())->toBe(['GA']);
 });
 
 // ── regression guards: never silently wipe / never over-expand (review findings) ──

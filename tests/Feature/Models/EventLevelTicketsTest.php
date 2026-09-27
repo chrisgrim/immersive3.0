@@ -114,6 +114,24 @@ test('new shows get no ticket copies and the event keeps its set', function () {
         ->and($this->event->fresh()->first_show_tickets->pluck('name')->all())->toBe(['GA']);
 });
 
+test('saving tickets clears the event leftover show copies, so a cleared set stays cleared', function () {
+    eventTierShows($this->event, 2);
+    Ticket::handleTickets(eventTierRequest([eventTier('GA', 25)]), $this->event);
+    // Leftover copies from before tiers moved onto the event.
+    $this->event->shows->each(fn ($show) => $show->tickets()->create(['name' => 'GA', 'ticket_price' => 25, 'currency' => 'USD', 'description' => '']));
+    $other = Event::factory()->create(['organizer_id' => $this->event->organizer_id]);
+    eventTierShows($other, 1);
+    $other->shows()->first()->tickets()->create(['name' => 'Other', 'ticket_price' => 5, 'currency' => 'USD', 'description' => '']);
+
+    Ticket::handleTickets(eventTierRequest([]), $this->event);
+
+    expect($this->event->tickets()->count())->toBe(0)
+        ->and(Ticket::where('ticket_type', Show::class)->whereIn('ticket_id', $this->event->shows()->pluck('id'))->count())->toBe(0)
+        ->and($this->event->fresh()->first_show_tickets)->toHaveCount(0)
+        // Another event's copies are not this save's business.
+        ->and(Ticket::where('ticket_type', Show::class)->where('name', 'Other')->count())->toBe(1);
+});
+
 test('renaming a tier only by case keeps the event row', function () {
     eventTierShows($this->event, 1);
     Ticket::handleTickets(eventTierRequest([eventTier('ga', 25)]), $this->event);
