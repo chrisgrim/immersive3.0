@@ -30,10 +30,7 @@ class RecurringDates
      * "9999-12-31" is rejected after a few thousand iterations rather than
      * spinning millions of times and exhausting memory.
      *
-     * This is a runaway guard, NOT a policy limit on how long a run may be — the
-     * web wizard applies no occurrence cap at all, and an MCP caller that
-     * enumerates dateArray by hand isn't capped either. So it is sized to sit
-     * ABOVE anything staff can build: they can reach
+     * It is sized to sit ABOVE anything staff can build: admins can reach
      * Show::STAFF_LOOKBACK_YEARS (20) back and up to 60 months ahead in the
      * wizard, and a 7-day-a-week run across that 25-year window is ~9,130
      * shows.

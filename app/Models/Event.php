@@ -249,7 +249,19 @@ class Event extends Model
         // refresh()-per-model baseline (which reloaded the whole model, not
         // just this one relation), just not the full fix a batch reindex
         // could theoretically get.
-        $this->load('showsSelect');
+        //
+        // Only shows from two days ago on: search only ever asks about dates
+        // from today forward (every search date picker's minimum is today;
+        // the two days cover timezones), and each show is a nested object in
+        // this document, which Elasticsearch refuses past 10,000. A long run
+        // with years of history would otherwise become unindexable. Future
+        // shows can't pass the cap: every one comes from a dateArray, which
+        // EventUpdateRules limits to RecurringDates::MAX_OCCURRENCES; the
+        // limit() is a belt-and-braces guard.
+        $this->load(['showsSelect' => fn ($q) => $q
+            ->where('date', '>=', now()->subDays(2)->startOfDay())
+            ->reorder('date')
+            ->limit(\App\Support\RecurringDates::MAX_OCCURRENCES)]);
         $shows = $this->showsSelect;
 
         return [

@@ -173,7 +173,7 @@ class EventController extends Controller
         // Those are sent as bare date strings, newest first, so they cost
         // ~32 bytes each on the wire instead of a row; the oldest are dropped
         // past the cap (config/ei.php).
-        $pastCap = (int) config('ei.event_page_max_past_dates', 6000);
+        $pastCap = (int) config('ei.event_page_max_past_dates', 9500);
         $event->setAttribute('past_show_dates', $event->shows()
             ->withoutGlobalScope(DateScope::class)
             ->where('date', '<', $cutoff)

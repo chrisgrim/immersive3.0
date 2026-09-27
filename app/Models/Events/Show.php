@@ -12,9 +12,10 @@ use Illuminate\Support\Facades\DB;
 class Show extends Model
 {
     /**
-     * How far back moderators and admins may add historical dates. Anything
-     * older is almost always a wrong year. Keep specific-dates.vue and
-     * ongoing-dates.vue in step.
+     * How far back staff may add historical dates. Anything older is almost
+     * always a wrong year. Enforced for admins by the MCP past-date guard and
+     * mirrored in the wizard's pickers (specific-dates.vue for moderators and
+     * admins, ongoing-dates.vue for admins); keep those in step.
      */
     public const STAFF_LOOKBACK_YEARS = 20;
 

@@ -317,6 +317,20 @@ test('toSearchableArray reflects a show added after showsSelect was already load
     expect($array['shows'])->toHaveCount(2);
 });
 
+test('toSearchableArray sends only recent and upcoming shows, so years of history stay indexable', function () {
+    // Each show is a nested object and Elasticsearch refuses a document with
+    // more than 10,000; search only ever asks about today onward.
+    $event = Event::factory()->published()->create();
+    $event->shows()->create(['date' => now()->subYears(15)]);
+    $event->shows()->create(['date' => now()->subDays(10)]);
+    $event->shows()->create(['date' => now()->subDay()]);
+    $event->shows()->create(['date' => now()->addWeek()]);
+
+    $dates = collect($event->toSearchableArray()['shows'])->map(fn ($s) => substr((string) $s->date, 0, 10))->all();
+
+    expect($dates)->toBe([now()->subDay()->toDateString(), now()->addWeek()->toDateString()]);
+});
+
 test('toSearchableArray returns the ids of every attached remote location', function () {
     $event = Event::factory()->published()->create();
     $zoom = RemoteLocation::create(['name' => 'Zoom', 'slug' => 'zoom', 'admin' => true, 'rank' => 0, 'user_id' => $this->user->id]);
