@@ -11,6 +11,13 @@ use Illuminate\Support\Facades\DB;
 
 class Show extends Model
 {
+    /**
+     * How far back moderators and admins may add historical dates. Anything
+     * older is almost always a wrong year. Keep specific-dates.vue and
+     * ongoing-dates.vue in step.
+     */
+    public const STAFF_LOOKBACK_YEARS = 20;
+
     use HasFactory;
 
     /** Rows per bulk insert — keeps any single statement well under the DB's bind-parameter limit. */

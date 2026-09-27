@@ -325,7 +325,7 @@ class EventScheduleAssistant
           with the user before applying — e.g. "That's June 18 – Nov 29, 2026, which is in the
           past; scheduling it as a historical run, right?" — then apply it once they confirm.
           Do not re-ask about the past dates after they have confirmed. The tool only rejects
-          dates more than ~10 years back (error=past_dates), which really is a wrong year — fix
+          dates more than ~20 years back (error=past_dates), which really is a wrong year — fix
           those with the user.
         - An event must always keep at least one date; it cannot have an empty schedule. If the
           user says "remove all the dates" or "clear the schedule", do NOT send an empty

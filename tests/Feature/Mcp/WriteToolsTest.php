@@ -1084,10 +1084,10 @@ test('update-event lets an admin backfill a recent historical date', function ()
     $admin = writeToolUser('a');
     $event = draftFor(writeToolOrganizer($admin), $admin);
 
-    // Admins may backfill HISTORICAL shows (mirrors the web calendar's 10-year
-    // admin lookback). A past date within that window saves rather than being
-    // rejected as it would be for a regular user.
-    $recentPast = now('America/Los_Angeles')->subMonths(2)->format('Y-m-d').' 19:00:00';
+    // Admins may backfill HISTORICAL shows (mirrors the web calendar's 20-year
+    // staff lookback). A past date within that window, even 19 years back,
+    // saves rather than being rejected as it would be for a regular user.
+    $recentPast = now('America/Los_Angeles')->subYears(19)->format('Y-m-d').' 19:00:00';
     $future = now('America/Los_Angeles')->addMonths(2)->format('Y-m-d').' 19:00:00';
 
     EiServer::actingAs($admin)->tool(UpdateEvent::class, [
@@ -1099,13 +1099,13 @@ test('update-event lets an admin backfill a recent historical date', function ()
     expect($event->fresh()->shows()->count())->toBe(2);
 });
 
-test('update-event still blocks an admin date more than a decade back', function () {
+test('update-event still blocks an admin date more than 20 years back', function () {
     $admin = writeToolUser('a');
     $event = draftFor(writeToolOrganizer($admin), $admin);
 
-    // Beyond the 10-year window is almost always a wrong year — rejected even
+    // Beyond the 20-year window is almost always a wrong year — rejected even
     // for an admin, with the offending day named.
-    $farPastDay = now('America/Los_Angeles')->subYears(11)->format('Y-m-d');
+    $farPastDay = now('America/Los_Angeles')->subYears(21)->format('Y-m-d');
     $future = now('America/Los_Angeles')->addMonths(2)->format('Y-m-d').' 19:00:00';
 
     EiServer::actingAs($admin)->tool(UpdateEvent::class, [

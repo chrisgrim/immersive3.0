@@ -516,8 +516,9 @@ const canShowMorePreviousMonths = computed(() => {
     const monthsDiff = (today.getFullYear() - previewDate.getFullYear()) * 12 + 
                        (today.getMonth() - previewDate.getMonth());
     
-    // Admins can go back up to 48 months (4 years), regular users 12 months
-    const maxMonthsBack = isAdmin.value ? 60 : 12;
+    // Moderators and admins can go back 20 years (Show::STAFF_LOOKBACK_YEARS
+    // on the server), regular users 12 months
+    const maxMonthsBack = isAdmin.value ? 240 : 12;
     return monthsDiff < maxMonthsBack;
 });
 

@@ -311,16 +311,16 @@ class UpdateEvent extends Tool
 
         // Past-date guard, mirroring the web calendar's lookback policy: admins
         // may backfill HISTORICAL shows (the web date picker lets them pick up to
-        // 10 years back), while everyone else is limited to today or later. Only
+        // Show::STAFF_LOOKBACK_YEARS back), while everyone else is limited to today or later. Only
         // NEW dates before that floor are rejected — for a regular user any past
-        // day, for an admin only a day more than a decade back, which is almost
+        // day, for an admin only a day older than that window, which is almost
         // always a wrong year rather than an intended historical date. Existing
         // shows on a past day are always preserved (a running event legitimately
         // has past occurrences); offenders are named so the caller can correct them.
         if (! empty($validated['dateArray']) && is_array($validated['dateArray'])) {
             $tz = Show::validTimezone($validated['timezone'] ?? $event->timezone ?? 'UTC');
             $floor = $user->isAdmin()
-                ? \Illuminate\Support\Carbon::now($tz)->subYears(10)->toDateString()
+                ? \Illuminate\Support\Carbon::now($tz)->subYears(Show::STAFF_LOOKBACK_YEARS)->toDateString()
                 : \Illuminate\Support\Carbon::now($tz)->toDateString();
             // Already-saved shows are recognised by their local DAY, not the
             // exact datetime: the stored time is a convention (noon local,
@@ -348,7 +348,7 @@ class UpdateEvent extends Tool
                 sort($tooFarBack);
 
                 $limit = $user->isAdmin()
-                    ? 'more than 10 years in the past'
+                    ? 'more than '.Show::STAFF_LOOKBACK_YEARS.' years in the past'
                     : 'in the past';
 
                 return Response::json([

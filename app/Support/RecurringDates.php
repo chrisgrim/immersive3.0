@@ -33,17 +33,16 @@ class RecurringDates
      * This is a runaway guard, NOT a policy limit on how long a run may be — the
      * web wizard applies no occurrence cap at all, and an MCP caller that
      * enumerates dateArray by hand isn't capped either. So it is sized to sit
-     * ABOVE anything the wizard's own date picker can build: an admin there can
-     * reach 60 months back and 60 months ahead (ongoing-dates.vue), and a
-     * 7-day-a-week run across that 10-year window is ~3,653 shows. 4,000 clears
+     * ABOVE anything staff can build: moderators and admins can reach
+     * Show::STAFF_LOOKBACK_YEARS (20) back and 12 months ahead in the wizard,
+     * and a 7-day-a-week run across ~21 years is ~7,700 shows. 20,000 clears
      * that with headroom while still rejecting the absurd.
      *
-     * It was 1,000, which was stricter than the UI and rejected real runs — a
-     * Thursday–Sunday London show from Jan 2022 to Apr 2027 is 1,101 shows. At
-     * 4,000 the same recipe expands; a weekly show now fits ~76 years, a
-     * 4-day-a-week run ~19 years, and a daily run ~11 years.
+     * It was 1,000, then 4,000; both rejected real runs. Permanent artworks
+     * open daily since the early 2010s (a Kusama room, a Turrell) need well
+     * over 4,000 dates. At 20,000 a daily run fits ~54 years.
      */
-    public const MAX_OCCURRENCES = 4000;
+    public const MAX_OCCURRENCES = 20000;
 
     /**
      * Expand a weekly recurrence into its concrete show datetimes.

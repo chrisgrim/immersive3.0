@@ -121,11 +121,11 @@ it('allows a run longer than the old 1000-show cap', function () {
 });
 
 it('allows a large recurrence up to the cap and stays bounded', function () {
-    // Daily across the widest window the wizard's admin date picker can build
-    // (60 months back + 60 months ahead) is ~3,653 shows — under the cap, so
-    // the server never rejects a schedule a human could assemble by hand.
-    $dates = RecurringDates::expand([0, 1, 2, 3, 4, 5, 6], '2021-01-01 12:00:00', '2030-12-31 12:00:00', 'UTC');
-    expect(count($dates))->toBeGreaterThan(3600)
+    // Daily across 25 years (wider than staff's 20 years back + 12 months
+    // ahead) is ~9,100 shows — under the cap, so the server never rejects a
+    // schedule a human could assemble by hand.
+    $dates = RecurringDates::expand([0, 1, 2, 3, 4, 5, 6], '2006-01-01 12:00:00', '2030-12-31 12:00:00', 'UTC');
+    expect(count($dates))->toBeGreaterThan(9000)
         ->and(count($dates))->toBeLessThanOrEqual(RecurringDates::MAX_OCCURRENCES);
 });
 
