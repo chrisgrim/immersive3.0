@@ -332,7 +332,11 @@ class UpdateEvent extends Tool
             $tooFarBack = [];
             foreach ($validated['dateArray'] as $datetime) {
                 try {
-                    $day = \Illuminate\Support\Carbon::parse($datetime, 'UTC')->setTimezone($tz)->toDateString();
+                    // localDay, not a plain UTC->tz shift: an incoming midnight
+                    // means that calendar date (see the tool description), and
+                    // shifting it named yesterday in every US timezone, so a
+                    // regular user could not add today.
+                    $day = Show::localDay($datetime, $tz);
                 } catch (\Throwable $e) {
                     continue; // malformed values are handled by field validation
                 }
@@ -507,7 +511,8 @@ class UpdateEvent extends Tool
 
         foreach ($dateArray as $datetime) {
             try {
-                $day = \Illuminate\Support\Carbon::parse($datetime, 'UTC')->setTimezone($timezone)->toDateString();
+                // Same midnight-means-that-date rule as the past-date guard.
+                $day = Show::localDay($datetime, $timezone);
             } catch (\Throwable $e) {
                 // Leave a malformed value in place; validation rejects it upstream.
                 $result[] = $datetime;

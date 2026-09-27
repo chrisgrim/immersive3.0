@@ -996,6 +996,36 @@ test('update-event does not confirm when only adding shows', function () {
     expect($event->fresh()->shows()->count())->toBe(3);
 });
 
+test('update-event lets a regular user add today as a midnight date in a US timezone', function () {
+    // 20:00 in Los Angeles on Sep 26 is already Sep 27 in UTC. A midnight
+    // value means that calendar date; reading it as a UTC instant named
+    // Sep 25 and refused today as "in the past".
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-09-27 03:00:00', 'UTC'));
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => ['2026-09-26 00:00:00', '2026-10-01 00:00:00'],
+    ])->assertOk()->assertDontSee('past_dates');
+    expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('update-event names a refused midnight date as the date that was sent', function () {
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-09-27 03:00:00', 'UTC'));
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => ['2026-09-20 00:00:00', '2026-10-01 00:00:00'],
+    ])->assertOk()->assertSee('past_dates')->assertSee('2026-09-20')->assertDontSee('2026-09-19');
+});
+
 test('update-event rejects a new show scheduled in the past', function () {
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);
