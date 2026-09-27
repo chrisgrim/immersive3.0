@@ -200,7 +200,10 @@ test('the editor gets the event set on load and after every save', function () {
     $this->actingAs($user)->get("/hosting/event/{$event->slug}/edit")
         ->assertOk()
         ->assertViewHas('event', fn ($e) => $e->relationLoaded('tickets')
-            && $e->toArray()['tickets'][0]['name'] === 'GA');
+            && $e->toArray()['tickets'][0]['name'] === 'GA'
+            // The Dates step and sidebar read the schedule from here; losing
+            // it opened the editor with no dates (2026-09-27).
+            && count($e->toArray()['shows'] ?? []) === 2);
 
     // A dates-only save must still send the tiers back, or the wizard's
     // Object.assign would keep stale ones and could re-save them.
@@ -209,6 +212,7 @@ test('the editor gets the event set on load and after every save', function () {
     ])->assertOk();
 
     expect(collect($response->json('event.tickets'))->pluck('name')->all())->toBe(['GA']);
+    expect($response->json('event.shows'))->toHaveCount(3);
 });
 
 test('the admin review screen gets the event set', function () {
@@ -218,6 +222,7 @@ test('the admin review screen gets the event set', function () {
     $response = $this->actingAs(flowUser('a'))->getJson("/api/admin/events/{$event->slug}")->assertOk();
 
     expect(collect($response->json('tickets'))->pluck('name')->all())->toBe(['GA']);
+    expect($response->json('shows'))->toHaveCount(2);
 });
 
 test('mcp get-event returns the event set', function () {

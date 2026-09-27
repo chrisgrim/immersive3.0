@@ -102,6 +102,7 @@ class AdminEventController extends Controller
             'remotelocations',
             'genres',
             'priceranges',
+            'shows',
             'tickets',
             'age_limits',
             'images',

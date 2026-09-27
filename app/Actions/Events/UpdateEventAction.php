@@ -379,6 +379,7 @@ class UpdateEventAction
     public static function editorRelations(): array
     {
         return [
+            'shows',
             'tickets',
             'location',
             'images',
