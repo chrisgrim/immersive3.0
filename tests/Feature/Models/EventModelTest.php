@@ -320,15 +320,16 @@ test('toSearchableArray reflects a show added after showsSelect was already load
 test('toSearchableArray sends only recent and upcoming shows, so years of history stay indexable', function () {
     // Each show is a nested object and Elasticsearch refuses a document with
     // more than 10,000; search only ever asks about today onward.
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-09-27 15:00:00', 'UTC'));
     $event = Event::factory()->published()->create();
-    $event->shows()->create(['date' => now()->subYears(15)]);
-    $event->shows()->create(['date' => now()->subDays(10)]);
-    $event->shows()->create(['date' => now()->subDay()]);
-    $event->shows()->create(['date' => now()->addWeek()]);
+    $event->shows()->create(['date' => '2011-06-01 12:00:00']);
+    $event->shows()->create(['date' => '2026-09-24 23:59:59']); // just before the window
+    $event->shows()->create(['date' => '2026-09-25 00:00:00']); // first moment kept
+    $event->shows()->create(['date' => '2026-10-04 12:00:00']);
 
-    $dates = collect($event->toSearchableArray()['shows'])->map(fn ($s) => substr((string) $s->date, 0, 10))->all();
+    $dates = collect($event->toSearchableArray()['shows'])->map(fn ($s) => (string) $s->date)->all();
 
-    expect($dates)->toBe([now()->subDay()->toDateString(), now()->addWeek()->toDateString()]);
+    expect($dates)->toBe(['2026-09-25 00:00:00', '2026-10-04 12:00:00']);
 });
 
 test('toSearchableArray returns the ids of every attached remote location', function () {

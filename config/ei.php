@@ -53,8 +53,9 @@ return [
     | Dates that already happened are sent as bare strings (~32 bytes each on
     | the wire) so the calendars can highlight a long run's history; a curator
     | pages back through it. The oldest are dropped past this cap. Staff can
-    | now add up to 20 years of history, so this matches the most dates a
-    | schedule can hold (RecurringDates::MAX_OCCURRENCES): nothing is dropped.
+    | now add up to 20 years of history, so it matches the most dates one save
+    | can send (RecurringDates::MAX_OCCURRENCES); only a run that keeps
+    | growing past that loses its oldest dates here.
     |
     */
 

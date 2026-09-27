@@ -252,7 +252,8 @@ class Event extends Model
         //
         // Only shows from two days ago on: search only ever asks about dates
         // from today forward (every search date picker's minimum is today;
-        // the two days cover timezones), and each show is a nested object in
+        // the two days cover timezones; a hand-edited URL or an aged saved
+        // search with a past start just matches fewer past shows), and each show is a nested object in
         // this document, which Elasticsearch refuses past 10,000. A long run
         // with years of history would otherwise become unindexable. Future
         // shows can't pass the cap: every one comes from a dateArray, which
