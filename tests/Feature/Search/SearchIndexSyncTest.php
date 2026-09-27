@@ -268,7 +268,7 @@ test('a schedule + tickets update (inner transactions in Show and Ticket) still 
     EiServer::actingAs($event->user)->tool(UpdateEvent::class, $fullSchedulePayload($event))->assertOk();
 
     expect($event->fresh()->shows()->count())->toBe(2);
-    expect($event->fresh()->shows()->first()->tickets()->count())->toBe(1);
+    expect($event->fresh()->tickets()->count())->toBe(1);
     Queue::assertPushed(SyncEventSearchIndex::class, 1);
 
     runQueuedSearchSyncs();

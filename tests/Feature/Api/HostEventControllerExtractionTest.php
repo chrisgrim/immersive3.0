@@ -106,7 +106,7 @@ test('web update creates shows then tickets, price ranges, and closing date', fu
 
     $event->refresh();
     expect($event->shows)->toHaveCount(2);
-    expect($event->shows->first()->tickets)->toHaveCount(2);
+    expect($event->tickets)->toHaveCount(2);
     expect($event->priceranges)->toHaveCount(2);
     expect($event->price_range)->toBe('PWYC - $80');
     expect($event->closingDate)->not->toBeNull();
@@ -131,7 +131,7 @@ test('web update showtype change wipes and recreates shows and tickets', functio
     expect($event->showtype)->toBe('a');
     expect($event->shows)->toHaveCount(1);
     // Old tickets are carried onto the recreated show (web behavior).
-    expect($event->shows->first()->tickets->pluck('name'))->toContain('GA');
+    expect($event->tickets->pluck('name'))->toContain('GA');
 });
 
 // ── embargo flips ──────────────────────────────────────────────────────

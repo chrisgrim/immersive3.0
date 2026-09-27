@@ -185,43 +185,16 @@ test('countUnpublishedEvents is scoped to the given organizer', function () {
 
 // ----- getFirstShowTicketsAttribute -----
 
-test('firstShowTickets returns the tickets of the earliest show when shows are not loaded', function () {
+test('firstShowTickets returns the event tiers and ignores leftover show copies', function () {
     $event = Event::factory()->create();
 
-    $earlier = Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(1)]);
-    $later = Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(20)]);
+    $show = Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(1)]);
+    $event->tickets()->create(['name' => 'General', 'ticket_price' => 20]);
+    // A stale per-show copy from before tiers moved onto the event.
+    $show->tickets()->create(['name' => 'Old Copy', 'ticket_price' => 99]);
 
-    $earlier->tickets()->create(['name' => 'Early Bird', 'ticket_price' => 10]);
-    $later->tickets()->create(['name' => 'Late', 'ticket_price' => 99]);
-
-    // fresh instance with no relations loaded
-    $fresh = Event::findOrFail($event->id);
-    expect($fresh->relationLoaded('shows'))->toBeFalse();
-
-    $tickets = $fresh->firstShowTickets;
-    expect($tickets)->toHaveCount(1);
-    // The accessor now reorders ascending, so it returns the earliest show's tickets.
-    expect($tickets->first()->name)->toBe('Early Bird');
-});
-
-test('firstShowTickets returns the same earliest-show tickets when shows are eager loaded', function () {
-    $event = Event::factory()->create();
-
-    $earlier = Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(2)]);
-    $later = Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(15)]);
-
-    $earlier->tickets()->create(['name' => 'First Show Ticket', 'ticket_price' => 5]);
-    $later->tickets()->create(['name' => 'Second Show Ticket', 'ticket_price' => 50]);
-
-    // eager-load shows (and tickets) so the accessor uses the loaded path
-    $loaded = Event::with('shows.tickets')->findOrFail($event->id);
-    expect($loaded->relationLoaded('shows'))->toBeTrue();
-
-    $tickets = $loaded->firstShowTickets;
-    expect($tickets)->toHaveCount(1);
-    // With shows eager-loaded the accessor sorts the loaded collection ascending, so it
-    // returns the earliest show's tickets even though shows() loads them DESC.
-    expect($tickets->first()->name)->toBe('First Show Ticket');
+    expect(Event::findOrFail($event->id)->firstShowTickets->pluck('name')->all())->toBe(['General']);
+    expect(Event::with('shows.tickets')->findOrFail($event->id)->firstShowTickets->pluck('name')->all())->toBe(['General']);
 });
 
 test('firstShowTickets returns an empty collection when the event has no shows', function () {

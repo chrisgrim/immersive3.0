@@ -166,13 +166,6 @@ class EventController extends Controller
                 ->get();
         }
 
-        // first_show_tickets reads the event's own tiers; only an event without
-        // them falls back to the earliest loaded show's copy, which the page
-        // asks for up to nine times, so load it once here.
-        if ($event->tickets->isEmpty()) {
-            $upcoming->sortBy('date')->first()?->load('tickets');
-        }
-
         $event->setRelation('shows', $upcoming);
 
         // The calendars also highlight the dates that already happened (a

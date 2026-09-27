@@ -9,10 +9,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Ticket::handleTickets writes the event's tier list onto every one of its
- * shows. It used to do that with 3 queries per show, which Sentry flagged as an
- * N+1 (EI-LARAVEL-Q) once recurrence expansion started producing large
- * schedules. These cover both the resulting rows and the query count.
+ * Ticket::handleTickets writes the event's tier list once, onto the event.
+ * It used to copy it onto every show with 3 queries per show, which Sentry
+ * flagged as an N+1 (EI-LARAVEL-Q) once recurrence expansion started
+ * producing large schedules. These cover both the resulting rows and the
+ * query count.
  */
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -42,7 +43,7 @@ function gaTier(float $price = 25, string $description = 'Standard entry'): arra
     return ['name' => 'GA', 'ticket_price' => $price, 'currency' => 'USD', 'description' => $description];
 }
 
-test('handleTickets writes every tier onto every show', function () {
+test('handleTickets writes every tier onto the event and none onto its shows', function () {
     showsFor($this->event, 3);
 
     Ticket::handleTickets(ticketRequest([
@@ -50,28 +51,24 @@ test('handleTickets writes every tier onto every show', function () {
         ['name' => 'VIP', 'ticket_price' => 80, 'currency' => 'USD', 'description' => 'Front row'],
     ]), $this->event);
 
-    $shows = $this->event->fresh()->shows;
-    expect($shows)->toHaveCount(3);
-
-    $shows->each(function ($show) {
-        $tickets = $show->tickets()->get()->keyBy('name');
-        expect($tickets)->toHaveCount(2);
-        expect($tickets['GA']->ticket_price)->toEqual(25);
-        expect($tickets['GA']->description)->toBe('Standard entry');
-        expect($tickets['VIP']->ticket_price)->toEqual(80);
-    });
+    $tickets = $this->event->tickets()->get()->keyBy('name');
+    expect($tickets)->toHaveCount(2);
+    expect($tickets['GA']->ticket_price)->toEqual(25);
+    expect($tickets['GA']->description)->toBe('Standard entry');
+    expect($tickets['VIP']->ticket_price)->toEqual(80);
+    expect(Ticket::where('ticket_type', Show::class)->count())->toBe(0);
 });
 
 test('handleTickets updates existing tiers in place rather than duplicating them', function () {
     showsFor($this->event, 3);
 
     Ticket::handleTickets(ticketRequest([gaTier()]), $this->event);
-    $firstIds = Ticket::where('ticket_type', Show::class)->pluck('id')->sort()->values();
+    $firstIds = Ticket::where('ticket_type', Event::class)->pluck('id')->sort()->values();
 
     Ticket::handleTickets(ticketRequest([gaTier(30, 'Now pricier')]), $this->event);
 
-    $tickets = Ticket::where('ticket_type', Show::class)->get();
-    expect($tickets)->toHaveCount(3);
+    $tickets = Ticket::where('ticket_type', Event::class)->get();
+    expect($tickets)->toHaveCount(1);
     expect($tickets->pluck('id')->sort()->values()->all())->toBe($firstIds->all());
     $tickets->each(function ($ticket) {
         expect($ticket->ticket_price)->toEqual(30);
@@ -79,36 +76,20 @@ test('handleTickets updates existing tiers in place rather than duplicating them
     });
 });
 
-test('handleTickets deletes tiers the user removed, on every show', function () {
+test('handleTickets deletes tiers the user removed', function () {
     showsFor($this->event, 3);
 
     Ticket::handleTickets(ticketRequest([
         gaTier(),
         ['name' => 'VIP', 'ticket_price' => 80, 'currency' => 'USD', 'description' => 'Front row'],
     ]), $this->event);
-    expect(Ticket::where('ticket_type', Show::class)->count())->toBe(6);
+    expect(Ticket::where('ticket_type', Event::class)->count())->toBe(2);
 
     Ticket::handleTickets(ticketRequest([gaTier()]), $this->event);
 
-    $remaining = Ticket::where('ticket_type', Show::class)->get();
-    expect($remaining)->toHaveCount(3);
+    $remaining = Ticket::where('ticket_type', Event::class)->get();
+    expect($remaining)->toHaveCount(1);
     expect($remaining->pluck('name')->unique()->all())->toBe(['GA']);
-});
-
-test('handleTickets adds a tier to shows created after the first save', function () {
-    showsFor($this->event, 2);
-    Ticket::handleTickets(ticketRequest([gaTier()]), $this->event);
-
-    // A show added later (as recurrence expansion does) has no tickets yet.
-    $late = Show::factory()->create([
-        'event_id' => $this->event->id,
-        'date' => now()->addDays(9)->format('Y-m-d H:i:s'),
-    ]);
-
-    Ticket::handleTickets(ticketRequest([gaTier()]), $this->event);
-
-    expect($late->tickets()->where('name', 'GA')->exists())->toBeTrue();
-    expect(Ticket::where('ticket_type', Show::class)->count())->toBe(3);
 });
 
 test('handleTickets keeps the last of a duplicated tier name without inserting twice', function () {
@@ -119,8 +100,8 @@ test('handleTickets keeps the last of a duplicated tier name without inserting t
         gaTier(40, 'second'),
     ]), $this->event);
 
-    $tickets = Ticket::where('ticket_type', Show::class)->get();
-    expect($tickets)->toHaveCount(2);
+    $tickets = Ticket::where('ticket_type', Event::class)->get();
+    expect($tickets)->toHaveCount(1);
     $tickets->each(function ($ticket) {
         expect($ticket->ticket_price)->toEqual(40);
         expect($ticket->description)->toBe('second');
@@ -143,7 +124,7 @@ test('handleTickets leaves other events tickets alone', function () {
     showsFor($other, 2);
     // Same tier names, so a delete missing its event scope would take these too.
     Ticket::handleTickets(ticketRequest([gaTier(99, 'other event')]), $other);
-    $otherIds = $other->shows()->first()->tickets()->pluck('id');
+    $otherIds = $other->tickets()->pluck('id');
 
     Ticket::handleTickets(ticketRequest([
         ['name' => 'VIP', 'ticket_price' => 80, 'currency' => 'USD', 'description' => 'Front row'],
@@ -161,11 +142,11 @@ test('handleTickets leaves other events tickets alone', function () {
 test('handleTickets with an explicitly empty list removes every tier and range', function () {
     showsFor($this->event, 2);
     Ticket::handleTickets(ticketRequest([gaTier()]), $this->event);
-    expect(Ticket::where('ticket_type', Show::class)->count())->toBe(2);
+    expect(Ticket::where('ticket_type', Event::class)->count())->toBe(1);
 
     Ticket::handleTickets(ticketRequest([]), $this->event);
 
-    expect(Ticket::where('ticket_type', Show::class)->count())->toBe(0);
+    expect(Ticket::where('ticket_type', Event::class)->count())->toBe(0);
     expect($this->event->priceranges()->count())->toBe(0);
 
     // Documenting existing behaviour, not endorsing it: with no tiers left,
@@ -203,7 +184,7 @@ test('handleTickets ignores a request with no tickets field rather than wiping t
     // A malformed/partial request must not be read as "remove every tier".
     Ticket::handleTickets(Request::create('/', 'POST'), $this->event);
 
-    expect(Ticket::where('ticket_type', Show::class)->count())->toBe(2);
+    expect(Ticket::where('ticket_type', Event::class)->count())->toBe(1);
     expect($this->event->priceranges()->count())->toBe(1);
     expect($this->event->fresh()->price_range)->toBe($before);
 });
@@ -251,7 +232,7 @@ test('handleTickets query count stays flat as the number of shows grows', functi
 
     expect($onInsert)->toBeLessThan(20);
     expect($onUpdate)->toBeLessThan(20);
-    expect(Ticket::where('ticket_type', Show::class)->count())->toBe(80);
+    expect(Ticket::where('ticket_type', Event::class)->count())->toBe(2);
 });
 
 test('handleTickets locks the event row before touching any ticket', function () {

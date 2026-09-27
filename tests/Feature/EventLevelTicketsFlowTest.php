@@ -10,11 +10,9 @@ use App\Models\Organizer;
 use App\Models\User;
 
 /**
- * End-to-end guard for step 1 of storing tiers once per event: whatever a
- * host does through the web wizard or the MCP tools, the event's own tier
- * set and every show's copy must say exactly the same thing. Step 2 switches
- * the readers to the event set, so any drift here would become a visible
- * change then.
+ * End-to-end guard for storing tiers once per event: whatever a host does
+ * through the web wizard or the MCP tools, the event's own tier set holds
+ * exactly the tiers they saved and no show gets a copy.
  */
 function flowUser(string $type = 'u'): User
 {
@@ -45,26 +43,15 @@ function flowTier(string $name, float $price, string $description = ''): array
     return ['name' => $name, 'ticket_price' => $price, 'currency' => 'USD', 'description' => $description];
 }
 
-/** One comparable line per tier. */
-function flowTierSet($tickets): array
-{
-    return collect($tickets)
-        ->map(fn ($t) => json_encode([$t->name, (float) $t->ticket_price, $t->currency, (string) $t->description, $t->type]))
-        ->sort()->values()->all();
-}
-
-/** The event set equals every show's copy, and holds exactly $names. */
+/** The event set holds exactly $names, and none of its shows has a copy. */
 function expectTierParity(Event $event, array $names): void
 {
     $event = Event::withoutGlobalScopes()->find($event->id);
-    $eventSet = flowTierSet($event->tickets()->get());
 
     expect($event->tickets()->reorder('name')->pluck('name')->all())->toBe($names);
 
-    $shows = Show::withoutGlobalScopes()->where('event_id', $event->id)->get();
-    foreach ($shows as $show) {
-        expect(flowTierSet($show->tickets()->get()))->toBe($eventSet);
-    }
+    $showIds = Show::withoutGlobalScopes()->where('event_id', $event->id)->pluck('id');
+    expect(Ticket::where('ticket_type', Show::class)->whereIn('ticket_id', $showIds)->count())->toBe(0);
 }
 
 // ----- web wizard (POST /api/hosting/event/{slug}, one step at a time) -----
@@ -83,7 +70,7 @@ test('web: a new event saved step by step keeps the event set and every date in 
     $save(['tickets' => [flowTier('GA', 30), flowTier('Student', 15)]]);
     expectTierParity($event, ['GA', 'Student']);
 
-    // More dates later: the new ones get the same tiers.
+    // More dates later.
     $save(['showtype' => 's', 'dateArray' => [flowDay(10), flowDay(11), flowDay(12), flowDay(20)]]);
     expectTierParity($event, ['GA', 'Student']);
     expect(Show::withoutGlobalScopes()->where('event_id', $event->id)->count())->toBe(4);
@@ -135,25 +122,6 @@ test('web: removing every tier empties both', function () {
     expect(Ticket::where('ticket_type', Show::class)->count())->toBe(0);
 });
 
-test('web: an event saved before this shipped (show copies only) catches up on its next save', function () {
-    $user = flowUser();
-    $event = flowEvent($user);
-    $save = fn (array $data) => $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", $data)->assertOk();
-
-    $save(['timezone' => 'America/New_York', 'showtype' => 's', 'dateArray' => [flowDay(5), flowDay(6)], 'tickets' => [flowTier('GA', 20)]]);
-    // Simulate the old code: no event-level rows, only show copies.
-    Ticket::where('ticket_type', Event::class)->delete();
-
-    // Adding a date still copies from a show, exactly as before.
-    $save(['showtype' => 's', 'dateArray' => [flowDay(5), flowDay(6), flowDay(9)]]);
-    Show::withoutGlobalScopes()->where('event_id', $event->id)->get()
-        ->each(fn ($s) => expect($s->tickets()->pluck('name')->all())->toBe(['GA']));
-
-    // The next tickets save writes the event set too.
-    $save(['tickets' => [flowTier('GA', 22)]]);
-    expectTierParity($event, ['GA']);
-});
-
 // ----- MCP tools -----
 
 test('mcp: draft, dates, tickets, weekly run and edits keep everything in step', function () {
@@ -199,8 +167,10 @@ function flowEventWithDriftedCopies(User $user): Event
         'dateArray' => [flowDay(5), flowDay(6)],
         'tickets' => [flowTier('GA', 25)],
     ])->assertOk();
-    // Only here so a reader still on the show copies shows up as 'Stale'.
-    Ticket::where('ticket_type', Show::class)->update(['name' => 'Stale']);
+    // Leftover per-show copies from before tiers moved onto the event, so a
+    // reader still on them shows up as 'Stale'.
+    Show::withoutGlobalScopes()->where('event_id', $event->id)->get()
+        ->each(fn ($show) => $show->tickets()->create(['name' => 'Stale', 'ticket_price' => 1, 'currency' => 'USD', 'description' => '']));
 
     return $event;
 }
@@ -213,13 +183,14 @@ test('the public event page reads the event set', function () {
     expect($page->first_show_tickets->pluck('name')->all())->toBe(['GA']);
 });
 
-test('the event page still falls back to a show copy when the event set is empty', function () {
+test('leftover show copies are never read, even when the event set is empty', function () {
     $user = flowUser();
     $event = flowEventWithDriftedCopies($user);
     Ticket::where('ticket_type', Event::class)->delete();
 
     $page = Event::withoutGlobalScopes()->find($event->id);
-    expect($page->first_show_tickets->pluck('name')->all())->toBe(['Stale']);
+    expect($page->first_show_tickets)->toHaveCount(0)
+        ->and($page->currentTickets())->toHaveCount(0);
 });
 
 test('the editor gets the event set on load and after every save', function () {
@@ -303,15 +274,7 @@ test('mcp submit readiness counts the event set', function () {
         ->assertSee('"tickets":true', false);
 });
 
-test('currentTickets falls back to the latest show copy when the event set is empty', function () {
-    $user = flowUser();
-    $event = flowEventWithDriftedCopies($user);
-    Ticket::where('ticket_type', Event::class)->delete();
-
-    expect(Event::withoutGlobalScopes()->find($event->id)->currentTickets()->pluck('name')->all())->toBe(['Stale']);
-});
-
-test('an accent-only rename keeps the same row on the event and the shows', function () {
+test('an accent-only rename keeps the same row', function () {
     $user = flowUser();
     $event = flowEvent($user);
     $save = fn (array $data) => $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", $data)->assertOk();
@@ -319,8 +282,8 @@ test('an accent-only rename keeps the same row on the event and the shows', func
     $save(['timezone' => 'America/New_York', 'showtype' => 's', 'dateArray' => [flowDay(5), flowDay(6)], 'tickets' => [flowTier('Café', 20)]]);
     $id = $event->tickets()->value('id');
 
-    // The column's collation treats these as the same name, so the shows keep
-    // their row; the event must too, or the two copies would disagree.
+    // The column's collation treats these as the same name, so the row and
+    // its name stay as they were.
     $save(['tickets' => [flowTier('cafe', 22)]]);
 
     expect($event->tickets()->pluck('id')->all())->toBe([$id]);
@@ -345,27 +308,6 @@ test('a tier named only with digits saves and can be kept alone', function () {
     $save(['tickets' => [flowTier('10', 12)]])->assertOk();
 
     expectTierParity($event, ['10']);
-});
-
-test('an event with only show copies keeps their name and type when a tier is renamed by case', function () {
-    $user = flowUser();
-    $event = flowEvent($user);
-    $save = fn (array $data) => $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", $data)->assertOk();
-
-    $save(['timezone' => 'America/New_York', 'showtype' => 's', 'dateArray' => [flowDay(5), flowDay(6)], 'tickets' => [flowTier('GA', 0)]]);
-    // Simulate an event saved before the event set existed, with a legacy
-    // pay-what-you-can tier.
-    Ticket::where('ticket_type', Event::class)->delete();
-    Ticket::where('ticket_type', Show::class)->update(['type' => 'p']);
-
-    $save(['tickets' => [flowTier('ga', 0), flowTier('VIP', 80)]]);
-
-    expectTierParity($event, ['GA', 'VIP']);
-    expect($event->tickets()->where('name', 'GA')->value('type'))->toBe('p');
-
-    // A date added afterwards copies the same name and type.
-    $save(['showtype' => 's', 'dateArray' => [flowDay(5), flowDay(6), flowDay(9)]]);
-    expectTierParity($event, ['GA', 'VIP']);
 });
 
 test('the event page reads no show copies when the event has its own set', function () {

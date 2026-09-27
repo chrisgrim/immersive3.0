@@ -87,10 +87,9 @@ test('show eager-loads event relations', function () {
     expect($viewEvent->relationLoaded('genres'))->toBeTrue();
 });
 
-test('show returns the first show tickets in the appended attribute', function () {
+test('show returns the event tickets in the appended attribute', function () {
     $event = makeShowableEvent();
-    $firstShow = $event->shows()->orderBy('date', 'asc')->first();
-    $firstShow->tickets()->create([
+    $event->tickets()->create([
         'name' => 'General',
         'ticket_price' => '20.00',
         'currency' => 'USD',
@@ -109,7 +108,7 @@ test('show formats a zero-decimal currency price without cents', function () {
     // so a KRW/JPY/CNY event (none of which have a minor unit) rendered
     // "₩25.00" instead of the correct "₩25". The CTA's displayed price
     // comes from priceranges (makeShowableEvent() seeds one at 25), while
-    // the currency symbol comes from the first show's ticket — two
+    // the currency symbol comes from the event's ticket — two
     // separate sources this template already combines, unrelated to this
     // fix.
     //
@@ -120,8 +119,7 @@ test('show formats a zero-decimal currency price without cents', function () {
     // never executes client-side JS.
     $event = makeShowableEvent();
     Image::factory()->create(['imageable_id' => $event->id, 'imageable_type' => Event::class]);
-    $firstShow = $event->shows()->orderBy('date', 'asc')->first();
-    $firstShow->tickets()->create([
+    $event->tickets()->create([
         'name' => 'General',
         'ticket_price' => '25.00',
         'currency' => 'KRW',
@@ -137,8 +135,7 @@ test('show formats a zero-decimal currency price without cents', function () {
 test('show still shows two decimal places for a currency with a minor unit', function () {
     $event = makeShowableEvent();
     Image::factory()->create(['imageable_id' => $event->id, 'imageable_type' => Event::class]);
-    $firstShow = $event->shows()->orderBy('date', 'asc')->first();
-    $firstShow->tickets()->create([
+    $event->tickets()->create([
         'name' => 'General',
         'ticket_price' => '25.00',
         'currency' => 'USD',
@@ -522,20 +519,6 @@ test('an ended run still embeds its most recent shows so the page can describe i
         ->toBe(collect(range(1, 10))->map(fn ($i) => now()->subDays(30 + $i)->toDateString())->all());
 });
 
-test('first_show_tickets are the earliest UPCOMING show tickets, not an old past show', function () {
-    $event = makeShowableEvent();
-    $event->shows()->delete();
-    $past = Show::factory()->create(['event_id' => $event->id, 'date' => now()->subDays(20)]);
-    $past->tickets()->create(['name' => 'Early bird', 'ticket_price' => '10.00', 'currency' => 'USD', 'type' => 's']);
-    $next = Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(3)]);
-    $next->tickets()->create(['name' => 'General', 'ticket_price' => '20.00', 'currency' => 'USD', 'type' => 's']);
-    Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(10)]);
-
-    $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
-
-    expect($viewEvent->first_show_tickets->pluck('name')->all())->toBe(['General']);
-});
-
 test('the about block and the CTA still render for an ended run (summary-driven, not shows-driven)', function () {
     $event = makeShowableEvent();
     $event->shows()->delete();
@@ -616,20 +599,6 @@ test('cutoff, curtain-time schedule: 12:30am in Tokyo keeps tonight\'s 8am show 
     expect($viewEvent->shows->pluck('id')->all())->not->toContain($lastNight->id);
     expect($viewEvent->show_summary['upcoming_total'])->toBe(2);
     expect($viewEvent->show_summary['curtain_times'])->toBeTrue();
-});
-
-test('the earliest upcoming show arrives with its tickets loaded, so first_show_tickets costs no extra query per access', function () {
-    $event = makeShowableEvent();
-    $event->shows()->delete();
-    $next = Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(3)]);
-    $next->tickets()->create(['name' => 'General', 'ticket_price' => '20.00', 'currency' => 'USD', 'type' => 's']);
-    Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(10)]);
-
-    $viewEvent = $this->get("/events/{$event->slug}")->assertOk()->viewData('event');
-
-    $loadedNext = $viewEvent->shows->firstWhere('id', $next->id);
-    expect($loadedNext->relationLoaded('tickets'))->toBeTrue();
-    expect($viewEvent->first_show_tickets->pluck('name')->all())->toBe(['General']);
 });
 
 test('the JSON-LD startDate is the NEXT upcoming show for a live run, and the first date once it has ended', function () {

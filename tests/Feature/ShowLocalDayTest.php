@@ -318,7 +318,8 @@ test('the normaliser repairs a closing date the UTC-day rule got wrong even when
     expect($engine->indexed)->toContain($event->id);
 });
 
-test('merging a duplicate day hands its tickets to a survivor that had none', function () {
+test('merging a duplicate day removes the duplicate and its leftover ticket copies', function () {
+    // Tiers live on the event, so nothing needs to move to the survivor.
     $event = localDayEvent();
     $survivor = Show::factory()->create(['event_id' => $event->id, 'date' => HOUSTON_EVENING_UTC]);
     $duplicate = Show::factory()->create(['event_id' => $event->id, 'date' => HOUSTON_NOON_UTC]);
@@ -328,25 +329,8 @@ test('merging a duplicate day hands its tickets to a survivor that had none', fu
     Show::normalizeToLocalNoon($event, apply: true);
 
     expect(Show::withoutGlobalScopes()->find($duplicate->id))->toBeNull();
-    expect($ticket->refresh()->ticket_id)->toBe($survivor->id);
-    expect($survivor->refresh()->tickets)->toHaveCount(1);
-});
-
-test('merging carries over tiers by name: the survivor keeps its own version of a shared name and gains the rest', function () {
-    $event = localDayEvent();
-    $survivor = Show::factory()->create(['event_id' => $event->id, 'date' => HOUSTON_EVENING_UTC]);
-    $survivor->tickets()->create(['name' => 'General', 'ticket_price' => 20, 'currency' => 'USD', 'type' => 'p', 'description' => '']);
-    $duplicate = Show::factory()->create(['event_id' => $event->id, 'date' => HOUSTON_NOON_UTC]);
-    $duplicate->tickets()->create(['name' => 'General', 'ticket_price' => 99, 'currency' => 'USD', 'type' => 'p', 'description' => '']);
-    $duplicate->tickets()->create(['name' => 'VIP', 'ticket_price' => 150, 'currency' => 'USD', 'type' => 'p', 'description' => '']);
-    FakeSearchEngine::install([]);
-
-    Show::normalizeToLocalNoon($event, apply: true);
-
-    $tickets = $survivor->refresh()->tickets->sortBy('name')->values();
-    expect($tickets->pluck('name')->all())->toBe(['General', 'VIP']);
-    // The survivor's own General, not the duplicate's.
-    expect((float) $tickets->firstWhere('name', 'General')->ticket_price)->toBe(20.0);
+    expect(Show::withoutGlobalScopes()->find($survivor->id))->not->toBeNull();
+    expect(\App\Models\Events\Ticket::find($ticket->id))->toBeNull();
 });
 
 // ============================================================

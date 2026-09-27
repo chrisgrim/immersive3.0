@@ -583,7 +583,7 @@ test('update-event saves shows and tickets together in the right order', functio
     $response->assertOk();
     $event->refresh();
     expect($event->shows)->toHaveCount(2);
-    expect($event->shows->first()->tickets)->toHaveCount(1);
+    expect($event->tickets)->toHaveCount(1);
     expect($event->price_range)->toContain('35');
     expect($event->showtype)->toBe('s');
 });
@@ -613,7 +613,7 @@ test('update-event enforces the ticket tier cap it advertises', function () {
     $response->assertOk()->assertSee('validation_failed')->assertSee('tickets');
 
     $event->refresh();
-    expect($event->shows->first()?->tickets ?? collect())->toHaveCount(0);
+    expect($event->tickets)->toHaveCount(0);
 });
 
 test('update-event accepts a tier count right at the cap', function () {
@@ -633,7 +633,7 @@ test('update-event accepts a tier count right at the cap', function () {
     ])->assertOk();
 
     $event->refresh();
-    expect($event->shows->first()->tickets)->toHaveCount(\App\Support\Validation\EventUpdateRules::MAX_TICKET_TIERS);
+    expect($event->tickets)->toHaveCount(\App\Support\Validation\EventUpdateRules::MAX_TICKET_TIERS);
 });
 
 test('update-event refuses tickets before dates exist', function () {
@@ -1265,7 +1265,7 @@ test('a partial schedule change keeps surviving shows, drops removed ones, and a
     expect($event->fresh()->shows()->where('date', $norm($b))->first()->id)->toBe($keptId);
 });
 
-test('extending a ticketed schedule copies the ticket tiers onto the newly added shows', function () {
+test('extending a ticketed schedule keeps the tiers on the event, not the new shows', function () {
     $admin = writeToolUser('a');
     $event = draftFor(writeToolOrganizer($admin), $admin);
     $tz = 'America/Toronto';
@@ -1280,15 +1280,15 @@ test('extending a ticketed schedule copies the ticket tiers onto the newly added
         'tickets' => [['name' => 'GA', 'ticket_price' => 25, 'currency' => '$', 'description' => '']],
     ])->assertOk();
 
-    // Add a third date — the new show should inherit the GA tier via the batched copy.
+    // Add a third date: the event keeps its tier and no show gets a copy.
     EiServer::actingAs($admin)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => $tz,
         'dateArray' => [scheduleDay(10, $tz), scheduleDay(11, $tz), scheduleDay(12, $tz)],
     ])->assertOk();
 
-    $shows = $event->fresh()->shows;
-    expect($shows)->toHaveCount(3);
-    $shows->each(fn ($s) => expect($s->tickets()->where('name', 'GA')->exists())->toBeTrue());
+    expect($event->fresh()->shows)->toHaveCount(3);
+    expect($event->fresh()->first_show_tickets->pluck('name')->all())->toBe(['GA']);
+    expect(\App\Models\Events\Ticket::where('ticket_type', \App\Models\Events\Show::class)->count())->toBe(0);
 });
 
 test('switching show type wipes every existing show and its tickets', function () {
@@ -1577,8 +1577,8 @@ function completeDraft(User $user): Event
     $event->genres()->sync([
         \App\Models\Genre::firstOrCreate(['slug' => 'horror'], ['name' => 'Horror', 'user_id' => $user->id, 'admin' => false])->id,
     ]);
-    $show = $event->shows()->create(['date' => scheduleDay(30)]);
-    $show->tickets()->create(['name' => 'GA', 'ticket_price' => 20, 'currency' => '$', 'ticket_id' => $show->id, 'ticket_type' => get_class($show), 'description' => '']);
+    $event->shows()->create(['date' => scheduleDay(30)]);
+    $event->tickets()->create(['name' => 'GA', 'ticket_price' => 20, 'currency' => '$', 'description' => '']);
 
     return $event;
 }
@@ -1595,19 +1595,6 @@ test('submit-event-for-review submits a complete draft and notifies admins', fun
     $response->assertOk()->assertSee('submitted for review');
     expect($event->fresh()->status)->toBe('r');
     Mail::assertSent(\App\Mail\EventSubmittedNotification::class);
-});
-
-test('submit-event-for-review accepts tickets held only on the event itself', function () {
-    User::factory()->create(['type' => 'a']);
-    $user = writeToolUser();
-    $event = completeDraft($user);
-    // Move the tier from the show onto the event: readiness must read the event set.
-    \App\Models\Events\Ticket::where('ticket_type', \App\Models\Events\Show::class)->update([
-        'ticket_type' => Event::class, 'ticket_id' => $event->id,
-    ]);
-
-    EiServer::actingAs($user)->tool(SubmitEventForReview::class, ['event_slug' => $event->slug])
-        ->assertOk()->assertSee('submitted for review');
 });
 
 test('submit-event-for-review rejects an event whose only image is a gallery image', function () {
@@ -1735,7 +1722,7 @@ test('update-event accepts a ticket tier with no description', function () {
     $response->assertOk();
 
     $event->refresh();
-    $ticket = $event->shows->first()->tickets->first();
+    $ticket = $event->tickets->first();
     expect($ticket->name)->toBe('General Admission');
     expect((float) $ticket->ticket_price)->toBe(31.00);
     expect($ticket->description)->toBe('');
@@ -1763,7 +1750,7 @@ test('update-event reports a field error for a tier missing its price', function
             'tickets' => [$tier],
         ])->assertOk()->assertSee(['validation_failed', "tickets.0.{$omitted}"]);
 
-        expect($event->fresh()->shows->first()?->tickets ?? collect())->toHaveCount(0);
+        expect($event->fresh()->tickets)->toHaveCount(0);
     }
 });
 
@@ -2111,7 +2098,7 @@ test('a currency symbol is normalized to the ISO code the site stores', function
         'tickets' => [['name' => 'General', 'ticket_price' => 17.00, 'currency' => '$']],
     ])->assertOk()->assertSee('Event updated.');
 
-    expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe('USD');
+    expect($event->fresh()->tickets->first()->currency)->toBe('USD');
 });
 
 test('the other symbols, and lower-case or padded codes, normalize too', function () {
@@ -2125,7 +2112,7 @@ test('the other symbols, and lower-case or padded codes, normalize too', functio
             'tickets' => [['name' => 'General', 'ticket_price' => 20, 'currency' => $sent]],
         ])->assertOk();
 
-        expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe($stored);
+        expect($event->fresh()->tickets->first()->currency)->toBe($stored);
     }
 });
 
@@ -2143,7 +2130,7 @@ test('an unrecognised currency is refused with the list of valid symbols', funct
         'ISO 4217',
     ]);
 
-    expect($event->fresh()->shows->first()->tickets)->toHaveCount(0);
+    expect($event->fresh()->tickets)->toHaveCount(0);
 });
 
 test('an ISO code is stored untouched', function () {
@@ -2157,7 +2144,7 @@ test('an ISO code is stored untouched', function () {
             'tickets' => [['name' => 'General', 'ticket_price' => 20, 'currency' => $code]],
         ])->assertOk();
 
-        expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe($code);
+        expect($event->fresh()->tickets->first()->currency)->toBe($code);
     }
 });
 
@@ -2174,7 +2161,7 @@ test('a tier sent without a currency takes the currency of the event location', 
         'tickets' => [['name' => 'General', 'ticket_price' => 45]],
     ])->assertOk()->assertSee('Event updated.');
 
-    expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe('SGD');
+    expect($event->fresh()->tickets->first()->currency)->toBe('SGD');
 });
 
 test('a tier sent without a currency falls back to USD when the location has no country', function () {
@@ -2186,7 +2173,7 @@ test('a tier sent without a currency falls back to USD when the location has no 
         'tickets' => [['name' => 'General', 'ticket_price' => 45]],
     ])->assertOk();
 
-    expect($event->fresh()->shows->first()->tickets->first()->currency)->toBe('USD');
+    expect($event->fresh()->tickets->first()->currency)->toBe('USD');
 });
 
 // ── fields this tool refuses to set ────────────────────────────────────

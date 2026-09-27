@@ -24,9 +24,6 @@ use Illuminate\Support\Str;
  * carries the pieces the web flow sends outside the validated payload (file
  * uploads, JSON-encoded currentImages/deletedImages/videos); MCP callers pass
  * a synthesized Request whose file/JSON branches simply never trigger.
- *
- * The internal ordering matters: shows are saved before tickets because
- * Ticket::handleTickets binds tickets to the event's existing shows.
  */
 class UpdateEventAction
 {
@@ -382,9 +379,6 @@ class UpdateEventAction
     public static function editorRelations(): array
     {
         return [
-            // shows.tickets stays until the per-show copies are removed: an
-            // editor tab opened before this deploy still reads them.
-            'shows.tickets',
             'tickets',
             'location',
             'images',

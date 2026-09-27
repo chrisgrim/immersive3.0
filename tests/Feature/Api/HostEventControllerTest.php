@@ -1007,8 +1007,8 @@ test('closing an always-available event by a past end date keeps its ticket tier
     // new (past) one, and left the event with no shows and its tickets gone.
     $organizer = Organizer::factory()->create();
     $event = Event::factory()->create(['organizer_id' => $organizer->id, 'showtype' => 'a', 'status' => 'p']);
-    $sentinel = $event->shows()->create(['date' => now()->addDays(20)->format('Y-m-d H:i:s')]);
-    $sentinel->tickets()->create(['name' => 'General', 'ticket_price' => '20.00', 'currency' => 'USD', 'type' => 's']);
+    $event->shows()->create(['date' => now()->addDays(20)->format('Y-m-d H:i:s')]);
+    $event->tickets()->create(['name' => 'General', 'ticket_price' => '20.00', 'currency' => 'USD', 'type' => 's']);
     $user = memberOf($organizer);
     $yesterday = now()->subDay()->format('Y-m-d H:i:s');
 
@@ -1023,7 +1023,7 @@ test('closing an always-available event by a past end date keeps its ticket tier
     $event->refresh();
     expect($event->shows()->count())->toBe(1);
     expect((string) $event->shows()->first()->date)->toBe($yesterday);
-    expect($event->shows()->first()->tickets()->count())->toBe(1);
+    expect($event->fresh()->first_show_tickets)->toHaveCount(1);
     expect($event->isShowing)->toBeFalse();
     expect($response->json('warning'))->toBeNull();
 });

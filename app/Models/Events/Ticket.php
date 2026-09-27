@@ -9,9 +9,6 @@ use Illuminate\Support\Facades\DB;
 
 class Ticket extends Model
 {
-    /** Rows per bulk insert — keeps any single statement well under the DB's bind-parameter limit. */
-    private const INSERT_CHUNK = 500;
-
     /**
      * What protected variables are allowed to be passed to the database
      *
@@ -49,9 +46,8 @@ class Ticket extends Model
         // the range now always describes tiers that actually exist.
         // First fold names the database treats as the same (case, accents,
         // trailing spaces), keeping the last, then key by the name as sent.
-        // Without the fold, "ga" and "GA" in one save reach the per-show and
-        // event writes as two tiers, and the unique index settles them in a
-        // different order on each side.
+        // Without the fold, "ga" and "GA" in one save reach the write as two
+        // tiers and the unique index keeps whichever it meets first.
         $tiers = collect(self::foldCollationDuplicates($request->tickets))->keyBy('name');
         // As strings: keyBy turns an all-digit name like "10" into an integer
         // key, and an integer bound against the name column makes MySQL compare
@@ -79,93 +75,15 @@ class Ticket extends Model
         // on the tickets index. Locking the event row first, the same order the
         // schedule transaction in UpdateEventAction uses, makes concurrent saves
         // of one event queue up instead. The lock cannot help two DIFFERENT
-        // events saving at once: new shows get the newest ids, so both writes
-        // land in the same gap at the top of the tickets unique index and can
+        // events saving at once: new events get the newest ids, so both writes
+        // can land in the same gap at the top of the tickets unique index and
         // still deadlock. attempts: 3 retries that case. A retry is safe
         // because everything the closure depends on from the database is read
-        // inside it. ei:backfill-event-tickets takes the same lock, so it can
-        // never re-add a tier this save just removed.
+        // inside it.
         DB::transaction(function () use ($event, $tiers, $submittedNames, $prices) {
             Event::whereKey($event->id)->lockForUpdate()->first();
 
-            // Read the show ids fresh, under the lock: saveShows runs before this
-            // (or in a concurrent save) and may have just created or removed rows
-            // an already-loaded $event->shows relation knows nothing of.
-            $showIds = $event->shows()->pluck('id');
-
-            self::syncEventTiers($event, $tiers, $submittedNames, $showIds);
-
-            if ($showIds->isNotEmpty()) {
-                // --- Drop removed tiers across every show in ONE delete. This
-                //     whole block used to run a delete plus a select and a write
-                //     per tier per show — 3 queries a show, which crawls now that
-                //     recurrence expansion can produce hundreds of shows. ---
-                self::where('ticket_type', Show::class)
-                    ->whereIn('ticket_id', $showIds)
-                    ->whereNotIn('name', $submittedNames)
-                    ->delete();
-
-                $existingByName = self::where('ticket_type', Show::class)
-                    ->whereIn('ticket_id', $showIds)
-                    ->get(['id', 'ticket_id', 'name'])
-                    ->groupBy('name');
-
-                $now = now();
-                $rowsToInsert = [];
-
-                foreach ($tiers as $name => $ticketData) {
-                    $existing = $existingByName->get($name, collect());
-
-                    // Every surviving row for this tier takes the same values,
-                    // so one UPDATE covers all of them.
-                    if ($existing->isNotEmpty()) {
-                        self::whereIn('id', $existing->pluck('id'))->update([
-                            'description' => $ticketData['description'] ?? '',
-                            'currency' => $ticketData['currency'] ?? Currency::DEFAULT,
-                            'ticket_price' => $ticketData['ticket_price'] ?? 0,
-                            'updated_at' => $now,
-                        ]);
-                    }
-
-                    // Shows that don't have this tier yet get it in one bulk insert.
-                    foreach ($showIds->diff($existing->pluck('ticket_id')) as $showId) {
-                        $rowsToInsert[] = [
-                            'ticket_type' => Show::class,
-                            'ticket_id' => $showId,
-                            'name' => (string) $name,
-                            'description' => $ticketData['description'] ?? '',
-                            'currency' => $ticketData['currency'] ?? Currency::DEFAULT,
-                            'ticket_price' => $ticketData['ticket_price'] ?? 0,
-                            'created_at' => $now,
-                            'updated_at' => $now,
-                        ];
-                    }
-                }
-
-                // upsert(), not insert(). The block above is read-then-write:
-                // it reads which shows are missing a tier, then writes them. Two
-                // saves landing together both read "missing" and, with a plain
-                // insert, both wrote — which is exactly how 148 duplicate rows
-                // got into production, 147 of them created within the same
-                // second. Matching on the same columns as the unique index
-                // (see the tickets_owner_name_unique migration) makes the loser
-                // of that race update the winner's row instead of adding a
-                // second one, rather than erroring on the constraint.
-                //
-                // keyBy('name') above already collapses duplicates WITHIN one
-                // request; this is the across-requests half, which that could
-                // never cover.
-                //
-                // Chunked so an enormous schedule can never exceed the DB's
-                // bind-parameter limit.
-                collect($rowsToInsert)
-                    ->chunk(self::INSERT_CHUNK)
-                    ->each(fn ($chunk) => self::upsert(
-                        $chunk->values()->all(),
-                        ['ticket_type', 'ticket_id', 'name'],
-                        ['description', 'currency', 'ticket_price', 'updated_at'],
-                    ));
-            }
+            self::syncEventTiers($event, $tiers, $submittedNames);
 
             $event->priceranges()->delete();
 
@@ -197,11 +115,10 @@ class Ticket extends Model
     /**
      * Make the event's own tier rows match the submitted tiers exactly.
      *
-     * Written whether or not the event has shows yet: the event-level set is
-     * the one that will survive the move away from per-show copies. Runs under
-     * the event row lock taken by handleTickets.
+     * Written whether or not the event has shows yet. Runs under the event row
+     * lock taken by handleTickets.
      */
-    private static function syncEventTiers(Event $event, $tiers, array $submittedNames, $showIds): void
+    private static function syncEventTiers(Event $event, $tiers, array $submittedNames): void
     {
         $existing = self::where('ticket_type', Event::class)
             ->where('ticket_id', $event->id)
@@ -213,9 +130,8 @@ class Ticket extends Model
         // Which rows survive is decided by the database, with the column's own
         // collation (utf8mb4_unicode_ci on the servers: case, accents and
         // trailing spaces all compare equal; the test database's default
-        // collation does not ignore trailing spaces), the
-        // same rule the per-show delete uses: renaming "Café" to "cafe" keeps
-        // the row on the event exactly as it does on the shows.
+        // collation does not ignore trailing spaces): renaming "Café" to
+        // "cafe" keeps the row, and its name, as it was.
         $keptIds = $existing->isEmpty() ? collect() : self::whereIn('id', $existing->pluck('id'))
             ->whereIn('name', $submittedNames)
             ->pluck('id');
@@ -228,36 +144,21 @@ class Ticket extends Model
             return;
         }
 
-        // An event whose set is still empty (saved only before the event set
-        // existed) takes each tier's name and legacy `type` ('f' free, 'p' pay
-        // what you can, still read by the event page but never edited any more)
-        // from its latest show's copy, matched with the column's collation like
-        // every other match here, which is also where the backfill copies
-        // from. The per-show upsert never renames a row, so a "GA" saved as
-        // "ga" stays "GA" on the shows and must stay "GA" on the event too.
-        // Once the set exists its rows keep their own name and type (the
-        // upsert does not update them), so there is nothing to look up.
-        $latestShowId = $showIds->first();
-        $showCopies = ($existing->isNotEmpty() || $latestShowId === null) ? collect() : $tiers->keys()->mapWithKeys(fn ($name) => [
-            (string) $name => self::where('ticket_type', Show::class)
-                ->where('ticket_id', $latestShowId)
-                ->where('name', (string) $name)
-                ->first(['name', 'type']),
-        ])->filter();
-
         $now = now();
 
-        // Same unique key as the per-show rows (tickets_owner_name_unique), so a
-        // retried or racing save updates one row instead of adding two.
+        // Matches the unique index (tickets_owner_name_unique), so a retried or
+        // racing save updates one row instead of adding two. An existing row
+        // keeps its own name and legacy `type` ('f' free, 'p' pay what you
+        // can, still read by the event page but never edited any more).
         self::upsert(
             $tiers->map(fn ($ticketData, $name) => [
                 'ticket_type' => Event::class,
                 'ticket_id' => $event->id,
-                'name' => $showCopies->get((string) $name)?->name ?? (string) $name,
+                'name' => (string) $name,
                 'description' => $ticketData['description'] ?? '',
                 'currency' => $ticketData['currency'] ?? Currency::DEFAULT,
                 'ticket_price' => $ticketData['ticket_price'] ?? 0,
-                'type' => $showCopies->get((string) $name)?->type ?? 's',
+                'type' => 's',
                 'created_at' => $now,
                 'updated_at' => $now,
             ])->values()->all(),

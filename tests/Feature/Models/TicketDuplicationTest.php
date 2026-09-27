@@ -9,16 +9,22 @@ use Illuminate\Support\Facades\DB;
 /**
  * A tier name identifies a tier. Nothing enforced that: the only index on
  * tickets was a NON-unique (ticket_type, ticket_id) that didn't include name,
- * and handleTickets is read-then-write — it reads which shows are missing a
- * tier, then writes them. Two saves landing together both read "missing" and
- * both wrote, which put 148 duplicate groups into production, 147 of them
- * created within the same second.
+ * and the old per-show write was read-then-write — it read which shows were
+ * missing a tier, then wrote them. Two saves landing together both read
+ * "missing" and both wrote, which put 148 duplicate groups into production,
+ * 147 of them created within the same second. The event-level write is
+ * read-then-write too, so the same constraint and upsert still guard it.
  */
 function showWithEvent(): Show
 {
     $event = Event::factory()->published()->create();
 
     return Show::factory()->create(['event_id' => $event->id]);
+}
+
+function eventTiers(Event $event)
+{
+    return Ticket::where('ticket_type', Event::class)->where('ticket_id', $event->id)->get();
 }
 
 function saveTiers(Event $event, array $tiers): void
@@ -41,9 +47,9 @@ test('the database refuses a second tier with the same name on one show', functi
 });
 
 test('the losing side of a concurrent save updates the winners row instead of erroring', function () {
-    // handleTickets reads which shows are missing a tier, then writes them.
-    // Two saves landing together both read "missing" and both write — the race
-    // that put 148 duplicate rows into production.
+    // handleTickets reads which tiers the event already has, then writes the
+    // rest. Two saves landing together both read "missing" and both write —
+    // the race that put 148 duplicate rows into production.
     //
     // A single-process test can't interleave two real requests, so this stages
     // the losing side directly: the write half of handleTickets, carrying a row
@@ -55,8 +61,8 @@ test('the losing side of a concurrent save updates the winners row instead of er
     saveTiers($show->event, [['name' => 'General', 'ticket_price' => 42, 'currency' => 'USD', 'description' => 'winner']]);
 
     $losingWrite = [[
-        'ticket_type' => Show::class,
-        'ticket_id' => $show->id,
+        'ticket_type' => Event::class,
+        'ticket_id' => $show->event_id,
         'name' => 'General',
         'description' => 'loser',
         'currency' => 'USD',
@@ -69,7 +75,7 @@ test('the losing side of a concurrent save updates the winners row instead of er
     // columns — if those drift from the unique index, this is what breaks.
     Ticket::upsert($losingWrite, ['ticket_type', 'ticket_id', 'name'], ['description', 'currency', 'ticket_price', 'updated_at']);
 
-    $tickets = Ticket::where('ticket_type', Show::class)->where('ticket_id', $show->id)->get();
+    $tickets = eventTiers($show->event);
 
     expect($tickets)->toHaveCount(1);
     expect((float) $tickets->first()->ticket_price)->toBe(40.0);
@@ -83,7 +89,7 @@ test('a plain insert on that same write would have duplicated, which is what ups
     saveTiers($show->event, [['name' => 'General', 'ticket_price' => 42, 'currency' => 'USD', 'description' => '']]);
 
     expect(fn () => Ticket::insert([[
-        'ticket_type' => Show::class, 'ticket_id' => $show->id, 'name' => 'General',
+        'ticket_type' => Event::class, 'ticket_id' => $show->event_id, 'name' => 'General',
         'description' => '', 'currency' => 'USD', 'ticket_price' => 40,
         'created_at' => now(), 'updated_at' => now(),
     ]]))->toThrow(Illuminate\Database\UniqueConstraintViolationException::class);
@@ -96,7 +102,7 @@ test('two sequential saves of the same tier keep one row', function () {
     saveTiers($event, [['name' => 'General', 'ticket_price' => 42, 'currency' => 'USD', 'description' => '']]);
     saveTiers($event, [['name' => 'General', 'ticket_price' => 40, 'currency' => 'USD', 'description' => '']]);
 
-    $tickets = Ticket::where('ticket_type', Show::class)->where('ticket_id', $show->id)->get();
+    $tickets = eventTiers($show->event);
 
     expect($tickets)->toHaveCount(1);
     expect((float) $tickets->first()->ticket_price)->toBe(40.0);
@@ -112,13 +118,13 @@ test('a payload carrying the same tier name twice keeps only one', function () {
         ['name' => 'General', 'ticket_price' => 40, 'currency' => 'USD', 'description' => ''],
     ]);
 
-    $tickets = Ticket::where('ticket_type', Show::class)->where('ticket_id', $show->id)->get();
+    $tickets = eventTiers($show->event);
 
     expect($tickets)->toHaveCount(1);
     expect((float) $tickets->first()->ticket_price)->toBe(40.0);
 });
 
-test('distinct tier names on one show are unaffected', function () {
+test('distinct tier names on one event are unaffected', function () {
     $show = showWithEvent();
 
     saveTiers($show->event, [
@@ -126,18 +132,18 @@ test('distinct tier names on one show are unaffected', function () {
         ['name' => 'Child', 'ticket_price' => 18, 'currency' => 'USD', 'description' => ''],
     ]);
 
-    expect(Ticket::where('ticket_type', Show::class)->where('ticket_id', $show->id)->count())->toBe(2);
+    expect(eventTiers($show->event))->toHaveCount(2);
 });
 
-test('the same tier name on two different shows is still allowed', function () {
-    // The constraint is per show, not per name — every show of an event
-    // carries its own copy of the tier set.
-    $event = Event::factory()->published()->create();
-    Show::factory()->count(2)->create(['event_id' => $event->id]);
+test('the same tier name on two different events is still allowed', function () {
+    // The constraint is per owner, not per name.
+    $first = Event::factory()->published()->create();
+    $second = Event::factory()->published()->create();
 
-    saveTiers($event, [['name' => 'General', 'ticket_price' => 25, 'currency' => 'USD', 'description' => '']]);
+    saveTiers($first, [['name' => 'General', 'ticket_price' => 25, 'currency' => 'USD', 'description' => '']]);
+    saveTiers($second, [['name' => 'General', 'ticket_price' => 25, 'currency' => 'USD', 'description' => '']]);
 
-    expect(Ticket::where('ticket_type', Show::class)->where('name', 'General')->count())->toBe(2);
+    expect(Ticket::where('ticket_type', Event::class)->where('name', 'General')->count())->toBe(2);
 });
 
 test('re-saving an existing tier updates it rather than adding another', function () {
@@ -147,7 +153,7 @@ test('re-saving an existing tier updates it rather than adding another', functio
     saveTiers($event, [['name' => 'General', 'ticket_price' => 25, 'currency' => 'USD', 'description' => 'first']]);
     saveTiers($event, [['name' => 'General', 'ticket_price' => 30, 'currency' => 'USD', 'description' => 'second']]);
 
-    $tickets = Ticket::where('ticket_type', Show::class)->where('ticket_id', $show->id)->get();
+    $tickets = eventTiers($show->event);
 
     expect($tickets)->toHaveCount(1);
     expect($tickets->first()->description)->toBe('second');
@@ -169,7 +175,7 @@ test('the upsert matches on exactly the columns the unique index covers', functi
     preg_match("/->unique\(\[(.*?)\], 'tickets_owner_name_unique'\)/s", $migration, $indexMatch);
     expect($indexMatch)->not->toBeEmpty('unique index definition not found — was the migration renamed?');
 
-    preg_match('/self::upsert\(\s*\$chunk->values\(\)->all\(\),\s*\[(.*?)\],/s', $ticketSource, $upsertMatch);
+    preg_match('/self::upsert\(.*?->values\(\)->all\(\),\s*\[(.*?)\],/s', $ticketSource, $upsertMatch);
     expect($upsertMatch)->not->toBeEmpty('upsert match columns not found — was handleTickets rewritten?');
 
     $columns = function (string $raw) {
@@ -179,48 +185,4 @@ test('the upsert matches on exactly the columns the unique index covers', functi
     };
 
     expect($columns($upsertMatch[1]))->toBe($columns($indexMatch[1]));
-});
-
-test('adding dates to an event whose tiers were duplicated does not spread the duplicates', function () {
-    // Show::copyTicketsToShows() reads tiers off an existing show and copies
-    // them to each new date. When that source show carried duplicate names —
-    // as 148 shows in production did — every date added afterwards inherited
-    // them, which is how a single bad save propagated across a schedule.
-    $event = Event::factory()->published()->create();
-    $source = Show::factory()->create(['event_id' => $event->id]);
-
-    $duplicated = collect([
-        (object) ['name' => 'General', 'description' => '', 'currency' => 'USD', 'ticket_price' => 42, 'type' => 's'],
-        (object) ['name' => 'General', 'description' => '', 'currency' => 'USD', 'ticket_price' => 40, 'type' => 's'],
-    ]);
-
-    $newShow = Show::factory()->create(['event_id' => $event->id]);
-
-    $copy = new ReflectionMethod(Show::class, 'copyTicketsToShows');
-    $copy->setAccessible(true);
-    $copy->invoke(null, $duplicated, collect([$newShow->id]));
-
-    expect(Ticket::where('ticket_type', Show::class)->where('ticket_id', $newShow->id)->count())->toBe(1);
-    expect($source->tickets()->count())->toBe(0);
-});
-
-test('copying tiers onto a show that already has them updates rather than erroring', function () {
-    // The concurrent case: two saves adding dates each build rows for shows the
-    // other just created. With a plain insert this hits the unique constraint
-    // and 500s; the upsert collapses it.
-    $event = Event::factory()->published()->create();
-    $show = Show::factory()->create(['event_id' => $event->id]);
-
-    $tiers = collect([(object) ['name' => 'General', 'description' => 'first', 'currency' => 'USD', 'ticket_price' => 42, 'type' => 's']]);
-
-    $copy = new ReflectionMethod(Show::class, 'copyTicketsToShows');
-    $copy->setAccessible(true);
-    $copy->invoke(null, $tiers, collect([$show->id]));
-
-    $again = collect([(object) ['name' => 'General', 'description' => 'second', 'currency' => 'USD', 'ticket_price' => 40, 'type' => 's']]);
-    $copy->invoke(null, $again, collect([$show->id]));
-
-    $tickets = Ticket::where('ticket_type', Show::class)->where('ticket_id', $show->id)->get();
-    expect($tickets)->toHaveCount(1);
-    expect($tickets->first()->description)->toBe('second');
 });

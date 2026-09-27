@@ -683,11 +683,9 @@ class Event extends Model
     /**
      * The event's ticket tiers, stored once per event.
      *
-     * Tiers used to live only on each show (an identical copy per date). While
-     * the move to event-level rows is in progress, Ticket::handleTickets writes
-     * both, and ei:backfill-event-tickets filled this set for older events.
-     * Readers go through currentTickets() / first_show_tickets, which fall
-     * back to a show's copy if this set is ever empty.
+     * Tiers used to live on each show as an identical copy per date;
+     * ei:backfill-event-tickets moved them here and nothing writes or reads
+     * the show copies any more.
      *
      * @return \Illuminate\Database\Eloquent\Relations\MorphMany
      */
@@ -699,20 +697,10 @@ class Event extends Model
         return $this->morphMany(Ticket::class, 'ticket')->orderBy('name')->orderBy('id');
     }
 
-    /**
-     * The event's tiers: its own set, or while the per-show copies still
-     * exist, the latest show's copy when the own set is empty (the copy the
-     * editor always showed).
-     */
+    /** The event's tiers. */
     public function currentTickets(): \Illuminate\Support\Collection
     {
-        if ($this->tickets->isNotEmpty()) {
-            return $this->tickets;
-        }
-
-        $latest = $this->relationLoaded('shows') ? $this->shows->first() : $this->shows()->first();
-
-        return $latest ? $latest->tickets : collect();
+        return $this->tickets;
     }
 
     /**
@@ -1181,34 +1169,8 @@ class Event extends Model
             return collect();
         }
 
-        // The event's own tier set. The name and the fallback below date from
-        // when tiers lived only on each show; the fallback stays until the
-        // per-show copies are removed.
-        if ($this->tickets->isNotEmpty()) {
-            return $this->tickets;
-        }
-
-        // First check if shows are already loaded to avoid additional query
-        if ($this->relationLoaded('shows')) {
-            // shows() orders date DESC, so sort the loaded collection ascending to get
-            // the genuinely earliest-dated ("first") show rather than the last.
-            $firstShow = $this->shows->sortBy('date')->first();
-
-            // If the first show exists and tickets are loaded
-            if ($firstShow && $firstShow->relationLoaded('tickets')) {
-                return $firstShow->tickets;
-            }
-
-            // If the first show exists but tickets aren't loaded
-            if ($firstShow) {
-                return $firstShow->tickets()->get();
-            }
-        }
-
-        // Fall back to query if shows aren't loaded. reorder() clears the shows() relation's
-        // DESC ordering so the earliest-dated show is selected.
-        $firstShow = $this->shows()->reorder('date', 'asc')->with('tickets')->first();
-
-        return $firstShow ? $firstShow->tickets : collect();
+        // The event's own tier set. The name dates from when tiers lived on
+        // each show.
+        return $this->tickets;
     }
 }

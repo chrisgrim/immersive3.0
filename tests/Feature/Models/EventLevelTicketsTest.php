@@ -8,10 +8,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 
 /**
- * Step 1 of storing tiers once per event instead of once per show: every save
- * writes the event's own set alongside the per-show copies, new shows copy
- * from the event's set, and ei:backfill-event-tickets fills the set for
- * events saved before this shipped. Readers still use the per-show copies.
+ * Tiers are stored once per event instead of once per show: every save
+ * writes only the event's own set, and ei:backfill-event-tickets filled the
+ * set for events saved before it existed.
  */
 beforeEach(function () {
     $this->event = Event::factory()->create([
@@ -46,7 +45,7 @@ function eventLevelNames(Event $event): array
     return $event->tickets()->orderBy('name')->pluck('name')->all();
 }
 
-test('handleTickets writes the tiers onto the event as well as every show', function () {
+test('handleTickets writes the tiers onto the event only', function () {
     eventTierShows($this->event, 3);
 
     Ticket::handleTickets(eventTierRequest([eventTier('GA', 25), eventTier('VIP', 80)]), $this->event);
@@ -55,7 +54,7 @@ test('handleTickets writes the tiers onto the event as well as every show', func
     expect($tiers)->toHaveCount(2)
         ->and($tiers['GA']->ticket_price)->toEqual(25)
         ->and($tiers['VIP']->currency)->toBe('USD')
-        ->and(Ticket::where('ticket_type', Show::class)->count())->toBe(6);
+        ->and(Ticket::where('ticket_type', Show::class)->count())->toBe(0);
 });
 
 test('handleTickets writes the event tiers even before the event has any dates', function () {
@@ -98,12 +97,10 @@ test('saving one event never touches another event tiers', function () {
     Ticket::handleTickets(eventTierRequest([eventTier('GA', 25)]), $this->event);
     Ticket::handleTickets(eventTierRequest([]), $this->event);
 
-    expect(eventLevelNames($other))->toBe(['Other'])
-        ->and(Ticket::where('ticket_type', Show::class)->count())->toBe(1);
+    expect(eventLevelNames($other))->toBe(['Other']);
 });
 
-test('new shows copy their tiers from the event set', function () {
-    // Tiers saved before any dates exist live only on the event.
+test('new shows get no ticket copies and the event keeps its set', function () {
     Ticket::handleTickets(eventTierRequest([eventTier('GA', 25)]), $this->event);
 
     $request = Request::create('/', 'POST', [
@@ -112,41 +109,12 @@ test('new shows copy their tiers from the event set', function () {
     ]);
     Show::saveShows($request, $this->event->fresh(), 's');
 
-    $shows = $this->event->fresh()->shows;
-    expect($shows)->toHaveCount(2);
-    $shows->each(fn ($show) => expect($show->tickets()->pluck('name')->all())->toBe(['GA']));
+    expect($this->event->fresh()->shows)->toHaveCount(2)
+        ->and(Ticket::where('ticket_type', Show::class)->count())->toBe(0)
+        ->and($this->event->fresh()->first_show_tickets->pluck('name')->all())->toBe(['GA']);
 });
 
-test('new shows copy the event set even when an older show copy differs', function () {
-    eventTierShows($this->event, 1);
-    Ticket::handleTickets(eventTierRequest([eventTier('GA', 25)]), $this->event);
-    // A show copy that drifted (only possible for data written before the
-    // event set existed) must not be what new dates inherit.
-    Ticket::where('ticket_type', Show::class)->update(['name' => 'Stale']);
-
-    $request = Request::create('/', 'POST', [
-        'showtype' => 's',
-        'dateArray' => [now()->addDays(1)->format('Y-m-d 00:00:00'), now()->addDays(7)->format('Y-m-d 00:00:00')],
-    ]);
-    Show::saveShows($request, $this->event->fresh(), 's');
-
-    $newShow = $this->event->fresh()->shows->first();
-    expect($newShow->tickets()->pluck('name')->all())->toBe(['GA']);
-});
-
-test('a tier new to the event set takes the legacy type of its show copy', function () {
-    eventTierShows($this->event, 2);
-    Ticket::handleTickets(eventTierRequest([eventTier('Donation', 0)]), $this->event);
-    // Old rows carry 'p' (pay what you can); the editor never writes it.
-    Ticket::where('ticket_type', Show::class)->update(['type' => 'p']);
-    Ticket::where('ticket_type', Event::class)->delete();
-
-    Ticket::handleTickets(eventTierRequest([eventTier('Donation', 0)]), $this->event);
-
-    expect($this->event->tickets()->value('type'))->toBe('p');
-});
-
-test('renaming a tier only by case keeps the event row, like the show rows', function () {
+test('renaming a tier only by case keeps the event row', function () {
     eventTierShows($this->event, 1);
     Ticket::handleTickets(eventTierRequest([eventTier('ga', 25)]), $this->event);
     $id = $this->event->tickets()->value('id');

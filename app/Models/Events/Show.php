@@ -83,17 +83,6 @@ class Show extends Model
             ->map($storedDay)
             ->sort()->values()->toArray();
 
-        // Capture the event's ticket tiers before any deletes so they can be
-        // re-applied to newly created shows (tickets are uniform across shows).
-        // The event's own set comes first: it survives a showtype switch and
-        // exists even before the first date, so new shows' copies never drift
-        // from it. Older events not yet backfilled fall back to a show's copy.
-        $oldTickets = $event->tickets()->get();
-        if ($oldTickets->isEmpty()) {
-            $firstShow = $event->shows()->first();
-            $oldTickets = $firstShow && $firstShow->tickets()->exists() ? $firstShow->tickets()->get() : null;
-        }
-
         // The exact set of show datetimes this save should end with, normalised
         // to UTC "Y-m-d H:i:s" so they compare byte-for-byte with stored dates.
         $targetDates = self::targetDatesFor($request, $tz);
@@ -122,7 +111,7 @@ class Show extends Model
         $preservedPastDates = [];
         $rejectedPastDates = [];
 
-        DB::transaction(function () use ($request, $event, $previousShowtype, $targetDates, $showtypeChanged, $existingRows, $oldDates, $oldTickets, $tz, $localDay, $storedDay, &$preservedPastDates, &$rejectedPastDates) {
+        DB::transaction(function () use ($request, $event, $previousShowtype, $targetDates, $showtypeChanged, $existingRows, $oldDates, $tz, $localDay, $storedDay, &$preservedPastDates, &$rejectedPastDates) {
             // --- Match existing rows to the target set by LOCAL DAY, not by
             //     exact datetime: a show's identity is the day it plays, and
             //     rows written before the noon convention don't share the
@@ -264,15 +253,6 @@ class Show extends Model
                     ])
                     ->chunk(self::INSERT_CHUNK)
                     ->each(fn ($chunk) => self::insert($chunk->values()->all()));
-
-                // Copy the ticket tiers onto the freshly created shows in bulk.
-                if ($oldTickets && $oldTickets->isNotEmpty()) {
-                    $newShowIds = self::withoutGlobalScope(DateScope::class)
-                        ->where('event_id', $event->id)
-                        ->whereIn('date', $datesToCreate->all())
-                        ->pluck('id');
-                    self::copyTicketsToShows($oldTickets, $newShowIds);
-                }
             }
 
             // Log date changes only for published events
@@ -466,66 +446,6 @@ class Show extends Model
 
         Ticket::where('ticket_type', self::class)->whereIn('ticket_id', $ids)->delete();
         self::withoutGlobalScope(DateScope::class)->whereIn('id', $ids)->delete();
-    }
-
-    /**
-     * Bulk-copy each ticket tier onto every newly created show.
-     *
-     * This is the SECOND writer of tickets, alongside Ticket::handleTickets(),
-     * and it needs the same protection for the same reasons — a point missed
-     * when handleTickets was hardened, so it kept a plain insert() for a while
-     * after the other path stopped using one.
-     *
-     * Two ways a plain insert breaks here, both now impossible since
-     * (ticket_type, ticket_id, name) is unique:
-     *
-     *  - Two saves adding dates at the same time each build rows for shows the
-     *    other just created. Before the constraint that silently duplicated;
-     *    with it, one of them would 500 instead.
-     *  - $oldTickets is read from an existing show, so if THAT show carried
-     *    duplicate names (as 148 shows in production did), every new date
-     *    inherited the duplicates — which is how a data bug spread itself
-     *    across a schedule every time someone added dates.
-     *
-     * The upsert is what makes both cases safe. keyBy('name') is an efficiency
-     * measure on top, not a second guard: a duplicated source tier would
-     * otherwise build two rows per date and send both, which on a 4,000-date
-     * schedule is 4,000 redundant rows for the database to collapse one at a
-     * time. Matching columns are kept in step with the unique index by
-     * tests/Feature/Models/TicketDuplicationTest.php.
-     */
-    private static function copyTicketsToShows($oldTickets, $showIds): void
-    {
-        $now = now();
-        $rows = [];
-
-        // Same collapse handleTickets does. The upsert below would fold these
-        // anyway; doing it here keeps the payload the size it should be.
-        $tiers = collect($oldTickets)->keyBy('name');
-
-        foreach ($showIds as $showId) {
-            foreach ($tiers as $ticket) {
-                $rows[] = [
-                    'ticket_type' => self::class,
-                    'ticket_id' => $showId,
-                    'name' => $ticket->name,
-                    'description' => $ticket->description,
-                    'currency' => $ticket->currency,
-                    'ticket_price' => $ticket->ticket_price,
-                    'type' => $ticket->type,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
-        }
-
-        collect($rows)
-            ->chunk(self::INSERT_CHUNK)
-            ->each(fn ($chunk) => Ticket::upsert(
-                $chunk->values()->all(),
-                ['ticket_type', 'ticket_id', 'name'],
-                ['description', 'currency', 'ticket_price', 'updated_at'],
-            ));
     }
 
     /**
@@ -863,25 +783,11 @@ class Show extends Model
 
     /**
      * Fold a second row for the same local day into the first. The survivor
-     * keeps its id and its tickets; if it has none, it adopts the
-     * duplicate's rather than losing the only tiers that day had. Then the
-     * duplicate and whatever tickets are left on it go.
+     * keeps its id; the duplicate goes. Tiers live on the event, so no ticket
+     * moves with it.
      */
     private static function mergeDuplicateShow(int $survivorId, int $duplicateId): void
     {
-        // A tier's identity is its name — the same key handleTickets() and
-        // copyTicketsToShows() collapse on. Tiers the survivor lacks move
-        // across; a tier it already has keeps the survivor's version.
-        $survivorTierNames = Ticket::where('ticket_type', self::class)
-            ->where('ticket_id', $survivorId)
-            ->pluck('name')
-            ->all();
-
-        Ticket::where('ticket_type', self::class)
-            ->where('ticket_id', $duplicateId)
-            ->whereNotIn('name', $survivorTierNames)
-            ->update(['ticket_id' => $survivorId]);
-
         self::deleteShowsByIds(collect([$duplicateId]));
     }
 
