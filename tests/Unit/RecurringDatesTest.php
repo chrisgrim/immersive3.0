@@ -142,3 +142,9 @@ it('accepts exactly the cap and rejects one over it', function () {
     expect(fn () => RecurringDates::expand([0, 1, 2, 3, 4, 5, 6], $start, $endOverCap, 'UTC'))
         ->toThrow(RangeException::class);
 });
+
+it('stays under the search index limit on nested objects per event', function () {
+    // Every show is a nested object in the event's search document, and
+    // Elasticsearch refuses a document with more than 10,000 of them.
+    expect(RecurringDates::MAX_OCCURRENCES)->toBeLessThan(10000);
+});

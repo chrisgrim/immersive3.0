@@ -129,6 +129,10 @@ class EventUpdateRules
             'dateArray' => [
                 'required_if:showtype,s',
                 'array',
+                // Same ceiling as a recurrence (see RecurringDates): each show
+                // is a nested object in the search document, and more than
+                // 10,000 of them can never be indexed.
+                'max:'.\App\Support\RecurringDates::MAX_OCCURRENCES,
             ],
             'dateArray.*' => 'required_if:showtype,s|date_format:Y-m-d H:i:s',
             // Ongoing/always config (used by M11 showtype_config persistence)

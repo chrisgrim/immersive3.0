@@ -429,7 +429,14 @@ class UpdateEventAction
         }
 
         $datesAfterUpdate = $this->scheduleDays($event);
-        $addedDates = array_diff($datesAfterUpdate, $datesBeforeUpdate);
+        // Only days still to come are news: staff backfilling a long run's
+        // history (years of past dates) must not tell every favoriter there
+        // are "new dates".
+        $today = now(Show::validTimezone($event->timezone))->toDateString();
+        $addedDates = array_filter(
+            array_diff($datesAfterUpdate, $datesBeforeUpdate),
+            fn ($day) => $day >= $today
+        );
 
         if (empty($addedDates)) {
             return;

@@ -516,8 +516,8 @@ const canShowMorePreviousMonths = computed(() => {
     const monthsDiff = (today.getFullYear() - previewDate.getFullYear()) * 12 + 
                        (today.getMonth() - previewDate.getMonth());
     
-    // Moderators and admins can go back 20 years (Show::STAFF_LOOKBACK_YEARS
-    // on the server), regular users 12 months
+    // Admins can go back 20 years (Show::STAFF_LOOKBACK_YEARS on the
+    // server), regular users 12 months
     const maxMonthsBack = isAdmin.value ? 240 : 12;
     return monthsDiff < maxMonthsBack;
 });
@@ -544,8 +544,9 @@ const canShowMorePreviousMonthsEnd = computed(() => {
     const previewDate = new Date(previewDateEndModal.value);
     const monthsDiff = (today.getFullYear() - previewDate.getFullYear()) * 12 + 
                        (today.getMonth() - previewDate.getMonth());
-    // Admins can go back up to 48 months (4 years), regular users 12 months
-    const maxMonthsBack = isAdmin.value ? 48 : 12;
+    // Same window as the start date: a run that ended years ago needs its
+    // end date that far back too. Admins 20 years, regular users 12 months.
+    const maxMonthsBack = isAdmin.value ? 240 : 12;
     return monthsDiff < maxMonthsBack;
 });
 

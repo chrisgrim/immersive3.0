@@ -37,8 +37,9 @@ return [
     | The event page serializes the event once into window.Laravel.page with
     | only its upcoming show rows (id, event_id, date; ~40 bytes each). This
     | caps that list; show_summary.upcoming_total still reports the true
-    | count. No live event comes near it (the recurrence expander stops at
-    | 4,000 occurrences and the largest schedule has a few hundred upcoming).
+    | count. No live event comes near it (a schedule holds at most 9,500
+    | dates, RecurringDates::MAX_OCCURRENCES, and the largest has a few
+    | hundred upcoming).
     |
     */
 
@@ -51,12 +52,12 @@ return [
     |
     | Dates that already happened are sent as bare strings (~32 bytes each on
     | the wire) so the calendars can highlight a long run's history; a curator
-    | pages back through it. The oldest are dropped past this cap. The
-    | longest live runs (teamLab and friends) have 3,000 to 3,200 past dates
-    | and grow by one a day, so 6,000 is a runaway guard, not a working limit.
+    | pages back through it. The oldest are dropped past this cap. Staff can
+    | now add up to 20 years of history, so this matches the most dates a
+    | schedule can hold (RecurringDates::MAX_OCCURRENCES): nothing is dropped.
     |
     */
 
-    'event_page_max_past_dates' => 6000,
+    'event_page_max_past_dates' => 9500,
 
 ];

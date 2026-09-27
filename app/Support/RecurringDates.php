@@ -33,16 +33,20 @@ class RecurringDates
      * This is a runaway guard, NOT a policy limit on how long a run may be — the
      * web wizard applies no occurrence cap at all, and an MCP caller that
      * enumerates dateArray by hand isn't capped either. So it is sized to sit
-     * ABOVE anything staff can build: moderators and admins can reach
-     * Show::STAFF_LOOKBACK_YEARS (20) back and 12 months ahead in the wizard,
-     * and a 7-day-a-week run across ~21 years is ~7,700 shows. 20,000 clears
-     * that with headroom while still rejecting the absurd.
+     * ABOVE anything staff can build: they can reach
+     * Show::STAFF_LOOKBACK_YEARS (20) back and up to 60 months ahead in the
+     * wizard, and a 7-day-a-week run across that 25-year window is ~9,130
+     * shows.
      *
      * It was 1,000, then 4,000; both rejected real runs. Permanent artworks
      * open daily since the early 2010s (a Kusama room, a Turrell) need well
-     * over 4,000 dates. At 20,000 a daily run fits ~54 years.
+     * over 4,000 dates. It must stay under Elasticsearch's default
+     * index.mapping.nested_objects.limit of 10,000: every show is a nested
+     * object in the event's search document, and an event over that limit
+     * can never be indexed. EventUpdateRules caps a hand-written dateArray at
+     * the same number.
      */
-    public const MAX_OCCURRENCES = 20000;
+    public const MAX_OCCURRENCES = 9500;
 
     /**
      * Expand a weekly recurrence into its concrete show datetimes.

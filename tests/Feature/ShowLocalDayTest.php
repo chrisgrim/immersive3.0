@@ -370,6 +370,48 @@ test('a genuinely new day still tells favoriters', function () {
     ])->assertOk();
 });
 
+test('backfilling past days on a live event does not tell favoriters', function () {
+    // Staff adding years of a long run's history is not news to anyone who
+    // saved the event.
+    $this->actingAs(localDayModerator());
+    $event = localDayEvent();
+    Show::factory()->create(['event_id' => $event->id, 'date' => '2030-11-01 17:00:00']);
+    FakeSearchEngine::install([]);
+    $this->mock(\App\Services\EventNotificationDispatcher::class)
+        ->shouldNotReceive('newDatesForSavedEvent');
+
+    $this->postJson("/api/hosting/event/{$event->slug}", [
+        'showtype' => 's',
+        'timezone' => 'America/Chicago',
+        'dateArray' => [
+            now('America/Chicago')->subYears(5)->format('Y-m-d').' 17:00:00',
+            now('America/Chicago')->subDays(3)->format('Y-m-d').' 17:00:00',
+            '2030-11-01 17:00:00',
+        ],
+    ])->assertOk();
+
+    expect($event->fresh()->shows()->count())->toBe(3);
+});
+
+test('a past day and a future day added together still tell favoriters once', function () {
+    $this->actingAs(localDayModerator());
+    $event = localDayEvent();
+    Show::factory()->create(['event_id' => $event->id, 'date' => '2030-11-01 17:00:00']);
+    FakeSearchEngine::install([]);
+    $this->mock(\App\Services\EventNotificationDispatcher::class)
+        ->shouldReceive('newDatesForSavedEvent')->once();
+
+    $this->postJson("/api/hosting/event/{$event->slug}", [
+        'showtype' => 's',
+        'timezone' => 'America/Chicago',
+        'dateArray' => [
+            now('America/Chicago')->subYears(2)->format('Y-m-d').' 17:00:00',
+            '2030-11-01 17:00:00',
+            '2030-11-05 17:00:00',
+        ],
+    ])->assertOk();
+});
+
 // ============================================================
 // Timezones the running PHP may not know
 // ============================================================
