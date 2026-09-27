@@ -451,7 +451,13 @@ class Show extends Model
             return;
         }
 
-        Ticket::where('ticket_type', self::class)->whereIn('ticket_id', $ids)->delete();
+        // Leftover ticket copies from before tiers moved onto the event. A plain
+        // look first: prod has none left, and a DELETE that matches nothing
+        // still takes a gap lock that makes other events' ticket saves wait.
+        $copies = Ticket::where('ticket_type', self::class)->whereIn('ticket_id', $ids);
+        if ($copies->clone()->exists()) {
+            $copies->delete();
+        }
         self::withoutGlobalScope(DateScope::class)->whereIn('id', $ids)->delete();
     }
 
