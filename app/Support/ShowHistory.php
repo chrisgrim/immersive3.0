@@ -8,10 +8,13 @@ use Carbon\CarbonImmutable;
  * The compact form of an event's old show days, stored in events.show_history.
  *
  * A permanent artwork open every day since 1977 has about 18,000 show days,
- * far more than the shows table can hold per event (RecurringDates::MAX_OCCURRENCES,
- * set by Elasticsearch's nested-object limit). Days older than a cutoff are
- * therefore kept here as weekly runs instead of one row each, and only the
- * recent and upcoming days stay rows.
+ * far more than the shows table can hold per event (Show::MAX_ROWS, set by
+ * Elasticsearch's nested-object limit). Days more than a year old
+ * (Show::HISTORY_AFTER_YEARS) are therefore kept here as weekly runs instead
+ * of one row each, and only the recent and upcoming days stay rows. The
+ * writers are Show::saveShows() and ei:fold-show-history (Show::foldHistory);
+ * every reader of a schedule counts both. The frontend twin of days() is
+ * showHistoryDays() in resources/js/composables/useShowDates.js.
  *
  * Shape:
  *   {
@@ -25,9 +28,11 @@ use Carbon\CarbonImmutable;
  * Show::localDay), never a UTC instant. A run means: every day from `from` to
  * `to` (inclusive) whose weekday (0 = Sunday ... 6 = Saturday, as in
  * RecurringDates) is in `days` was a show day, and no other day in that span
- * was. Runs are sorted and never overlap. `through` is the last day this
- * history speaks for: every show day on or before it is in the runs, and the
- * shows table holds only days after it.
+ * was. Runs are sorted and never overlap. `through` is the last day the
+ * most recent fold covered. The history and the rows are kept apart (readers
+ * de-duplicate by day all the same), and
+ * the event's newest show day is always a row, even when it is older than
+ * `through`.
  *
  * The encoding is lossless: pack() then days() gives back exactly the days put
  * in. A closure (a holiday, a season off) simply ends one run and starts the

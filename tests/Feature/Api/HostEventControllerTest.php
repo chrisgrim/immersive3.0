@@ -345,7 +345,8 @@ test('reopening the event does not let an organizer erase its past dates', funct
         ->assertOk();
 
     expect($response->json('warning'))->toContain('2020-01-01');
-    expect($event->fresh()->shows()->pluck('date')->map(fn ($d) => (string) $d))->toContain($past);
+    // Kept, in the compact show history now that it is more than a year old.
+    expect(\App\Models\Events\Show::scheduleDaysOf($event->fresh(), $tz))->toContain('2020-01-01');
 });
 
 test('a moderator can still edit an event whose run has already fully ended', function () {
@@ -415,7 +416,8 @@ test('update preserves a past show date a non-staff user tries to remove, and wa
         ->assertJsonStructure(['warning']);
 
     expect($response->json('warning'))->toContain('2020-01-01');
-    expect($event->fresh()->shows()->count())->toBe(2);
+    // Rows plus the compact show history (2020 is more than a year old).
+    expect(\App\Models\Events\Show::scheduleDaysOf($event->fresh(), $tz))->toHaveCount(2);
 });
 
 test('update lets a moderator remove a past show date with no warning', function () {
@@ -767,7 +769,8 @@ test('a moderator can backfill a show in the past', function () {
         ])
         ->assertOk();
 
-    expect($event->fresh()->shows()->count())->toBe(2);
+    // Rows plus the compact show history (2019 is more than a year old).
+    expect(\App\Models\Events\Show::scheduleDaysOf($event->fresh(), 'UTC'))->toHaveCount(2)->toContain('2019-06-01');
 });
 
 test('an existing past show is still preserved, not re-rejected as a new one', function () {
@@ -789,7 +792,8 @@ test('an existing past show is still preserved, not re-rejected as a new one', f
         ])
         ->assertOk();
 
-    expect($event->fresh()->shows()->count())->toBe(2);
+    // Rows plus the compact show history (2019 is more than a year old).
+    expect(\App\Models\Events\Show::scheduleDaysOf($event->fresh(), 'UTC'))->toHaveCount(2)->toContain('2019-06-01');
 });
 
 test('a published event with no closing date cannot be cycled through embargo either', function () {

@@ -121,10 +121,10 @@ it('allows a run longer than the old 1000-show cap', function () {
 });
 
 it('allows a large recurrence up to the cap and stays bounded', function () {
-    // Daily across 25 years (staff's 20 years back + 60 months ahead) is ~9,100 shows — under the cap, so the server never rejects a
-    // schedule a human could assemble by hand.
-    $dates = RecurringDates::expand([0, 1, 2, 3, 4, 5, 6], '2006-01-01 12:00:00', '2030-12-31 12:00:00', 'UTC');
-    expect(count($dates))->toBeGreaterThan(9000)
+    // Daily across 105 years (staff's 100 years back + 60 months ahead) is ~38,350 shows — under the cap, so the server never rejects a
+    // schedule a human could assemble by hand. Days more than a year old become show history, not rows.
+    $dates = RecurringDates::expand([0, 1, 2, 3, 4, 5, 6], '1926-01-01 12:00:00', '2030-12-31 12:00:00', 'UTC');
+    expect(count($dates))->toBeGreaterThan(38000)
         ->and(count($dates))->toBeLessThanOrEqual(RecurringDates::MAX_OCCURRENCES);
 });
 
@@ -142,8 +142,9 @@ it('accepts exactly the cap and rejects one over it', function () {
         ->toThrow(RangeException::class);
 });
 
-it('stays under the search index limit on nested objects per event', function () {
-    // Every show is a nested object in the event's search document, and
-    // Elasticsearch refuses a document with more than 10,000 of them.
-    expect(RecurringDates::MAX_OCCURRENCES)->toBeLessThan(10000);
+it('keeps the rows under the search index limit on nested objects per event', function () {
+    // Every show row is a nested object in the event's search document, and
+    // Elasticsearch refuses a document with more than 10,000 of them. Older
+    // days go to the show history, so only the rows need this ceiling.
+    expect(\App\Models\Events\Show::MAX_ROWS)->toBeLessThan(10000);
 });

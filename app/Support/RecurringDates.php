@@ -31,19 +31,19 @@ class RecurringDates
      * spinning millions of times and exhausting memory.
      *
      * It is sized to sit ABOVE anything staff can build: admins can reach
-     * Show::STAFF_LOOKBACK_YEARS (20) back and up to 60 months ahead in the
-     * wizard, and a 7-day-a-week run across that 25-year window is ~9,130
-     * shows.
+     * Show::STAFF_LOOKBACK_YEARS (100) back and up to 60 months ahead in the
+     * wizard, and a 7-day-a-week run across that 105-year window is ~38,350
+     * shows. EventUpdateRules caps a hand-written dateArray at the same
+     * number.
      *
-     * It was 1,000, then 4,000; both rejected real runs. Permanent artworks
-     * open daily since the early 2010s (a Kusama room, a Turrell) need well
-     * over 4,000 dates. It must stay under Elasticsearch's default
-     * index.mapping.nested_objects.limit of 10,000: every show is a nested
-     * object in the event's search document, and an event over that limit
-     * can never be indexed. EventUpdateRules caps a hand-written dateArray at
-     * the same number.
+     * It was 1,000, then 4,000, then 9,500; each rejected real runs (a
+     * skyspace open daily since 1974). It no longer has to stay under
+     * Elasticsearch's 10,000 nested objects per document: days more than a
+     * year old are kept in the event's compact show history, not as rows,
+     * and the rows (the part the search document holds) have their own
+     * ceiling, Show::MAX_ROWS.
      */
-    public const MAX_OCCURRENCES = 9500;
+    public const MAX_OCCURRENCES = 40000;
 
     /**
      * Expand a weekly recurrence into its concrete show datetimes.

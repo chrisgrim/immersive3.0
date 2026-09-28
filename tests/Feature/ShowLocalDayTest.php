@@ -390,7 +390,8 @@ test('backfilling past days on a live event does not tell favoriters', function 
         ],
     ])->assertOk();
 
-    expect($event->fresh()->shows()->count())->toBe(3);
+    // Rows plus the compact show history (five years back is more than a year old).
+    expect(Show::scheduleDaysOf($event->fresh(), 'America/Chicago'))->toHaveCount(3);
 });
 
 test('adding today counts as a new date, even when UTC is already tomorrow', function () {

@@ -4,7 +4,9 @@ namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\FormatsEvents;
 use App\Models\Event;
+use App\Models\Events\Show;
 use App\Scopes\LatestPublishedFirstScope;
+use App\Support\ShowHistory;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
@@ -131,23 +133,51 @@ class GetEvent extends Tool
         // calendar days in the event's own timezone, which is what "when
         // does it play" means. Read the days: a show stored at 01:00 UTC is
         // the evening BEFORE in Houston.
+        // Days older than a year are not rows: they are in the compact show
+        // history (App\Support\ShowHistory), listed here as weekly runs.
+        $history = $event->show_history ? ['older_show_days' => self::historySummary($event)] : [];
+
         if (! $summary) {
             return [
                 'show_dates' => $event->shows->pluck('date'),
                 'show_days' => $event->shows->map(fn ($show) => $event->localDate($show->date))->unique()->values(),
-            ];
+            ] + $history;
         }
 
         // By day, not by stored instant: a date-only midnight row and a
         // curtain-time row can sort the other way round as instants.
         $days = $event->shows->map(fn ($show) => $event->localDate($show->date))->filter();
+        $historyFirst = ShowHistory::firstDay($event->show_history);
 
         return [
-            'shows_count' => $event->shows->count(),
-            'first_show_date' => $event->shows->min('date'),
+            'shows_count' => $event->shows->count() + ShowHistory::count($event->show_history),
+            'first_show_date' => $historyFirst !== null
+                ? Show::storedFromLocalDay($historyFirst, Show::validTimezone($event->timezone))
+                : $event->shows->min('date'),
             'last_show_date' => $event->shows->max('date'),
-            'first_show_day' => $days->min(),
+            'first_show_day' => $historyFirst ?? $days->min(),
             'last_show_day' => $days->max(),
+        ] + $history;
+    }
+
+    /**
+     * An event's compact show history for a client: how many old show days,
+     * the span, and the weekly runs themselves. Each run is every day from
+     * `from` to `to` whose weekday (0 = Sunday) is in `days`. Null when the
+     * event has none.
+     */
+    public static function historySummary(Event $event): ?array
+    {
+        if (! $event->show_history) {
+            return null;
+        }
+
+        return [
+            'note' => 'Show days more than a year old, kept as weekly runs rather than listed one by one. They are part of the schedule: a dateArray that leaves them out removes them.',
+            'count' => ShowHistory::count($event->show_history),
+            'first_day' => ShowHistory::firstDay($event->show_history),
+            'last_day' => ShowHistory::lastDay($event->show_history),
+            'runs' => $event->show_history['runs'] ?? [],
         ];
     }
 

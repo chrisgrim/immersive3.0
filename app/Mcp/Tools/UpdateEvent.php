@@ -11,6 +11,7 @@ use App\Models\Events\Show;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Support\Currency;
 use App\Support\RecurringDates;
+use App\Support\ShowHistory;
 use App\Support\Validation\EventUpdateRules;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\Validator;
@@ -279,6 +280,16 @@ class UpdateEvent extends Tool
                         'message' => 'That recurrence would create more than '.RecurringDates::MAX_OCCURRENCES.' shows — almost always a wrong end year. Check the end date with the user and try again.',
                     ]);
                 }
+
+                // The expanded list skipped validation, so apply its row
+                // ceiling here: days from a year ago on are stored one row
+                // each, and those are capped (EventUpdateRules, dateArray).
+                if (Show::countRowDays($validated['dateArray'], $tz) > Show::MAX_ROWS) {
+                    return Response::json([
+                        'error' => 'schedule_too_long',
+                        'message' => 'That recurrence would create more than '.Show::MAX_ROWS.' shows from the last year on, which is almost always a wrong end year. Check the end date with the user and try again.',
+                    ]);
+                }
             }
         }
 
@@ -328,7 +339,14 @@ class UpdateEvent extends Tool
             // written before that convention carry the curtain time.
             $existingRows = $event->shows()->pluck('date');
             $curtainTimes = Show::usesCurtainTimes($existingRows);
-            $existingDays = $existingRows->map(fn ($d) => Show::localDay($d, $tz, $curtainTimes))->all();
+            // Days in the compact show history (older than a year) are
+            // already-saved shows too.
+            $existingDays = array_fill_keys(
+                $existingRows->map(fn ($d) => Show::localDay($d, $tz, $curtainTimes))
+                    ->merge(ShowHistory::days($event->show_history))
+                    ->all(),
+                true
+            );
             $tooFarBack = [];
             foreach ($validated['dateArray'] as $datetime) {
                 try {
@@ -340,7 +358,7 @@ class UpdateEvent extends Tool
                 } catch (\Throwable $e) {
                     continue; // malformed values are handled by field validation
                 }
-                if (in_array($day, $existingDays, true)) {
+                if (isset($existingDays[$day])) {
                     continue; // already-saved show — leave it be
                 }
                 if ($day < $floor) {
@@ -373,7 +391,7 @@ class UpdateEvent extends Tool
                 'action_required' => 'confirm_schedule_replace',
                 'message' => "This change deletes {$showsRemoved} existing show(s), which cannot be undone. Show the user exactly what will be removed, get their explicit confirmation, then call this tool again with the same arguments plus confirm_schedule_replace=true.",
                 'event' => $this->eventSummary($event),
-                'existing_shows' => $event->shows()->count(),
+                'existing_shows' => $event->shows()->count() + ShowHistory::count($event->show_history),
                 'shows_to_remove' => $showsRemoved,
             ]);
         }
@@ -543,9 +561,13 @@ class UpdateEvent extends Tool
             return 0;
         }
 
+        // Old show days kept in the compact history count as shows too: a
+        // save can drop them just the same.
+        $historyDays = ShowHistory::days($event->show_history);
+
         // Switching show type wipes all shows (the ticket tiers stay on the event).
         if (isset($validated['showtype']) && $validated['showtype'] !== $event->showtype) {
-            return $event->shows()->count();
+            return $event->shows()->count() + count($historyDays);
         }
 
         $showtype = $validated['showtype'] ?? $event->showtype;
@@ -575,6 +597,7 @@ class UpdateEvent extends Tool
                     }
                 })
                 ->filter()
+                ->flip()
                 ->all();
 
             $rows = $event->shows()->pluck('date');
@@ -582,7 +605,9 @@ class UpdateEvent extends Tool
 
             return $rows
                 ->map(fn ($d) => Show::localDay($d, $tz, $curtainTimes))
-                ->reject(fn ($day) => in_array($day, $keptDays, true))
+                ->merge($historyDays)
+                ->unique()
+                ->reject(fn ($day) => isset($keptDays[$day]))
                 ->count();
         }
 
@@ -635,7 +660,11 @@ class UpdateEvent extends Tool
         $current = fn (string $key) => match ($key) {
             'location' => $event->location?->only(['venue', 'home', 'street', 'city', 'region', 'country', 'postal_code', 'latitude', 'longitude', 'hiddenLocationToggle', 'hiddenLocation']),
             'showtype' => $event->showtype,
-            'dateArray' => $event->shows->pluck('date'),
+            // Days older than a year live in the compact show history, not
+            // the rows; name them so a diff never looks like they vanished.
+            'dateArray' => $event->show_history
+                ? ['rows' => $event->shows->pluck('date'), 'older_days' => GetEvent::historySummary($event)]
+                : $event->shows->pluck('date'),
             'ongoing_config', 'always_config' => $event->showtype_config,
             'tickets' => $event->shows->isEmpty() ? [] : $event->currentTickets()->map->only(['name', 'ticket_price', 'currency', 'description'])->values(),
             'genres' => $event->genres->pluck('name'),
@@ -674,8 +703,8 @@ class UpdateEvent extends Tool
             'remote_description' => $schema->string()->description('For remote events: how attendees join, max 3000 chars.'),
             'timezone' => $schema->string()->description('IANA timezone of the event, e.g. "America/New_York". geocode-address results include coordinates you can infer it from.'),
             'showtype' => $schema->string()->enum(['s', 'o', 'a'])->description('s = specific dates, o = ongoing/recurring, a = always available. WARNING: changing this wipes and recreates all shows (ticket tiers are kept). Always-available events have no embargo on the website, so clear it explicitly with embargo_date=null when switching to "a".'),
-            'dateArray' => $schema->array()->description('The calendar dates the event plays, each as "Y-m-d 00:00:00" — exactly midnight means that date in the event timezone, whatever the timezone ("2026-10-31 00:00:00" = Oct 31). Do not convert curtain times to UTC here: a value with any other time is read as a real UTC instant and lands on whatever local day that is (8 PM Eastern is 00:00 UTC, which would then read as a date). Times of day belong in show_times. One show is stored per calendar day. REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it.'),
-            'ongoing_config' => $schema->object()->description('For showtype=o: {startDate, endDate (UTC "Y-m-d H:i:s", anchored at noon in the event timezone), daysOfWeek: [0-6, Sunday=0]}. The server generates the concrete occurrence dates from this rule — send it alone, WITHOUT dateArray, for a normal weekly run.'),
+            'dateArray' => $schema->array()->description('The calendar dates the event plays, each as "Y-m-d 00:00:00" — exactly midnight means that date in the event timezone, whatever the timezone ("2026-10-31 00:00:00" = Oct 31). Do not convert curtain times to UTC here: a value with any other time is read as a real UTC instant and lands on whatever local day that is (8 PM Eastern is 00:00 UTC, which would then read as a date). Times of day belong in show_times. One show is stored per calendar day. REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it. That full list includes the older show days get-event reports under older_show_days (days more than a year old, kept as weekly runs): leave them out and they are removed.'),
+            'ongoing_config' => $schema->object()->description('For showtype=o: {startDate, endDate (UTC "Y-m-d H:i:s", anchored at noon in the event timezone), daysOfWeek: [0-6, Sunday=0]}. The server generates the concrete occurrence dates from this rule — send it alone, WITHOUT dateArray, for a normal weekly run. startDate is the day the run really began, however long ago (staff can go back up to '.Show::STAFF_LOOKBACK_YEARS.' years): days more than a year old are kept compactly, so a run open since the 1970s is fine. To extend a run, keep its original startDate and move endDate; a later startDate removes the days before it.'),
             'always_config' => $schema->object()->description('For showtype=a: {endDate (UTC "Y-m-d H:i:s")} — when the listing should close. Defaults to 6 months out if omitted.'),
             'show_times' => $schema->string()->description('Human-readable showtimes text, max 500 chars, e.g. "Fridays 8pm, Saturdays 6pm & 9pm".'),
             'tickets' => $schema->array()->description('1-'.EventUpdateRules::MAX_TICKET_TIERS.' ticket tiers for the event: [{"name": "General", "ticket_price": 25.00, "currency": "USD", "description": ""}]. Names must be unique; name "Free" requires price 0; name "PWYC" = pay-what-you-can; description shows truncated around 60 chars. Currency is a 3-letter ISO 4217 code (USD, GBP, EUR, AUD, SGD, JPY, INR…) — any current currency is accepted; omit it and the event\'s location country decides (USD for remote events). Requires dates to exist first.'),

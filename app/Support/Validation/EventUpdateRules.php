@@ -129,10 +129,20 @@ class EventUpdateRules
             'dateArray' => [
                 'required_if:showtype,s',
                 'array',
-                // Same ceiling as a recurrence (see RecurringDates): each show
-                // is a nested object in the search document, and more than
-                // 10,000 of them can never be indexed.
+                // Same ceiling as a recurrence (see RecurringDates).
                 'max:'.\App\Support\RecurringDates::MAX_OCCURRENCES,
+                // Only the last year and the future become rows; older days go
+                // to the compact show history (Show::HISTORY_AFTER_YEARS). The
+                // rows are what the search document holds, one nested object
+                // each, and Elasticsearch refuses more than 10,000.
+                function ($attribute, $value, $fail) use ($eventTimezone) {
+                    if (! is_array($value) || count($value) <= \App\Models\Events\Show::MAX_ROWS) {
+                        return;
+                    }
+                    if (\App\Models\Events\Show::countRowDays($value, $eventTimezone) > \App\Models\Events\Show::MAX_ROWS) {
+                        $fail('A schedule can hold at most '.\App\Models\Events\Show::MAX_ROWS.' dates from the last year on.');
+                    }
+                },
             ],
             'dateArray.*' => 'required_if:showtype,s|date_format:Y-m-d H:i:s',
             // Ongoing/always config (used by M11 showtype_config persistence)

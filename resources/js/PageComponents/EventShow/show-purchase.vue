@@ -65,7 +65,7 @@
                         <div class="absolute border shadow-custom-1 bg-white px-8 pt-36 pb-8 max-h-[calc(100vh-20rem)] overflow-y-scroll overflow-x-hidden rounded-2xl top-[-2rem] right-[-2rem] graydates shadow-hidden lockedcalendar show-purchase-calendar z-20">
                             <VueDatePicker
                                 v-model="selectedDates"
-                                :model-value="highlightedDates"
+                                :model-value="pickerDates"
                                 :enable-time-picker="false"
                                 :disable-month-year-select="false"
                                 :prevent-min-max-navigation="false"
@@ -91,6 +91,7 @@
                                 :dark="isDark"
                                 ref="datePickerRef"
                                 @update:model-value="preventDefault"
+                                @update-month-year="onMonthYear"
                             />
                             <div class="overflow-hidden mt-8">
                                 <ShowMore
@@ -147,7 +148,7 @@ import ShowMore from '@/GlobalComponents/show-more.vue';
 import { formatPrice } from '@/composables/useCurrency';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
-import { formatShowDay, showDayAsDate, isShowUpcoming, eventUsesCurtainTimes } from '@/composables/useShowDates';
+import { formatShowDay, showDayAsDate, showHistoryDates, datesNearMonths, isShowUpcoming, eventUsesCurtainTimes } from '@/composables/useShowDates';
 
 const props = defineProps({
     event: Object,
@@ -228,6 +229,21 @@ const isDark = ref(false);
 const maxDate = ref(new Date(new Date().setFullYear(new Date().getFullYear() + 1)));
 const openDateValue = ref(new Date());
 
+// The months on screen, per calendar (two, each paged on its own). Only the
+// dates near them go to the picker: see datesNearMonths().
+const monthsFrom = (date) => ({
+    0: { month: date.getMonth(), year: date.getFullYear() },
+    1: { month: date.getMonth() + 1 > 11 ? 0 : date.getMonth() + 1, year: date.getFullYear() + (date.getMonth() === 11 ? 1 : 0) },
+});
+const viewedMonths = ref(monthsFrom(new Date()));
+const pickerDates = computed(() => datesNearMonths(highlightedDates.value, Object.values(viewedMonths.value)));
+// Some changes (picking a year) name only the year: keep that calendar's month.
+const onMonthYear = ({ instance, month, year }) => {
+    const key = instance ?? 0;
+    const current = viewedMonths.value[key] ?? {};
+    viewedMonths.value = { ...viewedMonths.value, [key]: { month: month ?? current.month, year: year ?? current.year } };
+};
+
 const showDates = () => {
     ticketsVisible.value = false;
     datesVisible.value = !datesVisible.value;
@@ -235,6 +251,7 @@ const showDates = () => {
     // Update the open date when showing the calendar
     if (datesVisible.value) {
         openDateValue.value = new Date();
+        viewedMonths.value = monthsFrom(openDateValue.value);
     }
 };
 
@@ -280,6 +297,9 @@ const getDates = () => {
         const day = showDayAsDate(date, props.event.timezone, curtainTimes.value);
         if (day) highlightedDates.value.push(day);
     });
+
+    // Days more than a year old come as weekly runs (show_history).
+    highlightedDates.value = highlightedDates.value.concat(showHistoryDates(props.event.show_history));
 };
 
 const cleanDate = (show) => formatShowDay(show.date, props.event.timezone, 'MMM D, YYYY', curtainTimes.value);

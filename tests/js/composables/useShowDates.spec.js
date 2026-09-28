@@ -3,7 +3,11 @@
  * EVENT's timezone. The old code handed the raw UTC string to dayjs / new
  * Date() as local wall time, so an evening US show read as the next day.
  */
-import { showDay, showDayAsDate, formatShowDay, isShowUpcoming, usesCurtainTimes, eventUsesCurtainTimes, formatShowDayRange, summarizeSchedule } from '@/composables/useShowDates';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import { showDay, showDayAsDate, formatShowDay, isShowUpcoming, usesCurtainTimes, eventUsesCurtainTimes, formatShowDayRange, summarizeSchedule, showHistoryDays, showHistoryDates, datesNearMonths } from '@/composables/useShowDates';
+
+dayjs.extend(utc);
 
 describe('useShowDates', () => {
     it('reads an evening US show on the day it plays, not the next UTC day', () => {
@@ -166,5 +170,77 @@ describe('eventUsesCurtainTimes', () => {
         expect(eventUsesCurtainTimes({ shows: [{ date: '2026-10-01 19:30:00' }] })).toBe(true);
         expect(eventUsesCurtainTimes({ shows: [{ date: '2026-10-01 00:00:00' }] })).toBe(false);
         expect(eventUsesCurtainTimes(null)).toBe(false);
+    });
+});
+
+describe('show history (days more than a year old, kept as weekly runs)', () => {
+    // Every day from `from` to `to` on one of `weekdays`, the slow obvious way.
+    const reference = (from, to, weekdays) => {
+        const out = [];
+        for (let d = dayjs.utc(from); !d.isAfter(dayjs.utc(to), 'day'); d = d.add(1, 'day')) {
+            if (weekdays.includes(d.day())) out.push(d.format('YYYY-MM-DD'));
+        }
+        return out;
+    };
+
+    it('expands a run open Tuesday to Sunday since 1977', () => {
+        const history = { through: '2025-09-27', runs: [{ from: '1977-10-01', to: '2025-09-27', days: [0, 2, 3, 4, 5, 6] }] };
+        const days = showHistoryDays(history);
+
+        expect(days).toEqual(reference('1977-10-01', '2025-09-27', [0, 2, 3, 4, 5, 6]));
+        expect(days[0]).toBe('1977-10-01');
+        expect(days).not.toContain('1977-10-03'); // a Monday
+    });
+
+    it('never moves a day across daylight saving, whatever the browser timezone', () => {
+        // US DST began 2024-03-10 and ended 2024-11-03.
+        const history = { runs: [{ from: '2024-03-09', to: '2024-03-11', days: [0, 1, 6] }, { from: '2024-11-02', to: '2024-11-04', days: [0, 1, 6] }] };
+
+        expect(showHistoryDays(history)).toEqual(['2024-03-09', '2024-03-10', '2024-03-11', '2024-11-02', '2024-11-03', '2024-11-04']);
+    });
+
+    it('gives calendar Dates at local midnight', () => {
+        const [date] = showHistoryDates({ runs: [{ from: '2001-05-04', to: '2001-05-04', days: [5] }] });
+
+        expect([date.getFullYear(), date.getMonth(), date.getDate(), date.getHours()]).toEqual([2001, 4, 4, 0]);
+    });
+
+    it('tolerates no history and malformed runs', () => {
+        expect(showHistoryDays(null)).toEqual([]);
+        expect(showHistoryDays({})).toEqual([]);
+        expect(showHistoryDays({ runs: [{ from: 'x' }, null] })).toEqual([]);
+    });
+
+    it('counts history days in the review summary and starts the range at the first one', () => {
+        const event = {
+            showtype: 'o',
+            timezone: 'America/New_York',
+            show_history: { runs: [{ from: '1990-01-01', to: '1990-01-03', days: [0, 1, 2, 3, 4, 5, 6] }] },
+            shows: [{ date: '2026-10-01 16:00:00' }, { date: '2026-10-02 16:00:00' }],
+        };
+
+        expect(summarizeSchedule(event)).toEqual({ primary: 'Jan 1, 1990 - Oct 2, 2026', secondary: '5 shows' });
+    });
+});
+
+describe('datesNearMonths', () => {
+    const days = [];
+    for (let y = 1977; y <= 2027; y++) for (let m = 0; m < 12; m++) days.push(new Date(y, m, 15));
+
+    it('keeps only the dates around the months on screen', () => {
+        const near = datesNearMonths(days, [{ month: 6, year: 2001 }]);
+
+        expect(near.map((d) => `${d.getFullYear()}-${d.getMonth()}`)).toEqual(['2001-5', '2001-6', '2001-7', '2001-8']);
+    });
+
+    it('covers each calendar when two are paged separately, across a year end', () => {
+        const near = datesNearMonths(days, [{ month: 0, year: 1990 }, { month: 11, year: 2020 }]);
+
+        expect(near.map((d) => `${d.getFullYear()}-${d.getMonth()}`)).toEqual(['1989-11', '1990-0', '1990-1', '1990-2', '2020-10', '2020-11', '2021-0', '2021-1']);
+    });
+
+    it('hands back everything when it does not know the month', () => {
+        expect(datesNearMonths(days, [{ year: 2001 }])).toBe(days);
+        expect(datesNearMonths(days, [])).toBe(days);
     });
 });

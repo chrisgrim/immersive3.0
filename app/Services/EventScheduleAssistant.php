@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Mcp\Tools\GetEvent;
 use App\Mcp\Tools\UpdateEvent;
 use App\Models\Event;
+use App\Support\ShowHistory;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -249,6 +251,10 @@ class EventScheduleAssistant
     {
         $event->loadMissing('shows');
         $dates = $event->shows->pluck('date')->map(fn ($d) => (string) $d)->values();
+        // Read fresh: the update tool saves through its own copy of the event.
+        $raw = Event::withoutGlobalScopes()->withTrashed()->whereKey($event->id)->value('show_history');
+        $event->show_history = is_string($raw) ? json_decode($raw, true) : null;
+        $event->syncOriginalAttribute('show_history');
 
         return [
             'showtype' => $event->showtype,
@@ -259,8 +265,10 @@ class EventScheduleAssistant
                 default => 'not set',
             },
             'timezone' => $event->timezone,
-            'show_count' => $dates->count(),
+            'show_count' => $dates->count() + ShowHistory::count($event->show_history),
             'show_dates' => $dates->all(),
+            // Days more than a year old, as weekly runs (not in show_dates).
+            'older_show_days' => GetEvent::historySummary($event),
             'show_times' => $event->show_times,
             'embargo_date' => $event->embargo_date,
             'closing_date' => $event->closingDate,
@@ -325,8 +333,10 @@ class EventScheduleAssistant
           with the user before applying — e.g. "That's June 18 – Nov 29, 2026, which is in the
           past; scheduling it as a historical run, right?" — then apply it once they confirm.
           Do not re-ask about the past dates after they have confirmed. The tool only rejects
-          dates more than ~20 years back (error=past_dates), which really is a wrong year — fix
-          those with the user.
+          dates more than ~100 years back (error=past_dates), which really is a wrong year — fix
+          those with the user. Show days more than a year old are kept compactly as weekly runs
+          (older_show_days in the snapshot); they are part of the schedule, so keep them when
+          rewriting it.
         - An event must always keep at least one date; it cannot have an empty schedule. If the
           user says "remove all the dates" or "clear the schedule", do NOT send an empty
           dateArray — ask which dates should replace the current ones, then send those.

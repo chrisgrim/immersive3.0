@@ -4,6 +4,7 @@ namespace App\Models\Events;
 
 use App\Models\Event;
 use App\Scopes\DateScope;
+use App\Support\ShowHistory;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,8 +17,31 @@ class Show extends Model
      * always a wrong year. Enforced for admins by the MCP past-date guard and
      * mirrored in the wizard's pickers (specific-dates.vue for moderators and
      * admins, ongoing-dates.vue for admins); keep those in step.
+     *
+     * It was 20 until permanent artworks open since the 1970s needed more.
+     * Days that old never become rows: they live in events.show_history
+     * (see HISTORY_AFTER_YEARS), so this reach costs the shows table nothing.
      */
-    public const STAFF_LOOKBACK_YEARS = 20;
+    public const STAFF_LOOKBACK_YEARS = 100;
+
+    /**
+     * A show day more than this many years old is kept in the event's
+     * compact show history (events.show_history, App\Support\ShowHistory)
+     * instead of as a row. Rows then only ever hold the last year and the
+     * future, which keeps a decades-long run inside the shows table's
+     * per-event ceiling (MAX_ROWS). The newest show day always stays a row,
+     * whatever its age: closingDate, the ticket tiers and every "does this
+     * event have dates" check read the rows.
+     */
+    public const HISTORY_AFTER_YEARS = 1;
+
+    /**
+     * The most show rows one event may hold. Every row from two days ago on
+     * is a nested object in the event's search document, and Elasticsearch
+     * refuses more than 10,000 of those, so this stays under it. Older days
+     * move to the show history, so only the last year and the future count.
+     */
+    public const MAX_ROWS = 9500;
 
     use HasFactory;
 
@@ -86,10 +110,18 @@ class Show extends Model
         $curtainTimes = self::usesCurtainTimes($existingRows);
         $storedDay = fn ($d) => self::localDay($d, $tz, $curtainTimes);
 
-        // Capture current show dates before any changes (for change logging)
-        $oldDates = $existingRows->pluck('date')
-            ->map($storedDay)
-            ->sort()->values()->toArray();
+        // The old show days kept in the compact history, read fresh under the
+        // caller's lock rather than from a model loaded before it.
+        $historyBefore = ShowHistory::days(
+            Event::withoutGlobalScopes()->withTrashed()->whereKey($event->id)->first(['id', 'show_history'])?->show_history
+        );
+
+        // Capture current show dates before any changes (for change logging).
+        // History days are part of the schedule: a save that only moves days
+        // between the rows and the history changes nothing a person chose.
+        $oldDates = collect($existingRows->pluck('date')->map($storedDay))
+            ->merge($historyBefore)
+            ->unique()->sort()->values()->toArray();
 
         // The exact set of show datetimes this save should end with, normalised
         // to UTC "Y-m-d H:i:s" so they compare byte-for-byte with stored dates.
@@ -119,7 +151,7 @@ class Show extends Model
         $preservedPastDates = [];
         $rejectedPastDates = [];
 
-        DB::transaction(function () use ($request, $event, $previousShowtype, $targetDates, $showtypeChanged, $existingRows, $oldDates, $tz, $localDay, $storedDay, &$preservedPastDates, &$rejectedPastDates) {
+        DB::transaction(function () use ($request, $event, $previousShowtype, $targetDates, $showtypeChanged, $existingRows, $oldDates, $historyBefore, $tz, $localDay, $storedDay, &$preservedPastDates, &$rejectedPastDates) {
             // --- Match existing rows to the target set by LOCAL DAY, not by
             //     exact datetime: a show's identity is the day it plays, and
             //     rows written before the noon convention don't share the
@@ -129,6 +161,51 @@ class Show extends Model
             //     id and tickets; only `date` moves. One bulk delete, one
             //     UPDATE per row that actually moves; a type switch wipes all. ---
             $targetByDay = collect($targetDates)->mapWithKeys(fn ($d) => [$localDay($d) => $d]);
+
+            // --- The compact history (days more than a year old). The same
+            //     rules as the rows below, by day: staff edit it freely (a day
+            //     missing from the schedule is dropped), anyone else can never
+            //     erase a day that already happened (every history day has),
+            //     and a switch of show type clears it like it wipes the rows.
+            //     Target days already held there are satisfied there, and a
+            //     staff member's new days that old go straight in rather than
+            //     becoming rows only to be folded away again. ---
+            $isStaff = (bool) auth()->user()?->isModerator();
+            $protectPast = ! $isStaff && in_array($previousShowtype, ['s', 'o'], true);
+            $dated = in_array($request->showtype, ['s', 'o'], true);
+            $historyKeep = [];
+            $preservedFromHistory = [];
+
+            if ($historyBefore !== []) {
+                if ($protectPast) {
+                    $historyKeep = $historyBefore;
+                    $preservedFromHistory = $showtypeChanged
+                        ? $historyBefore
+                        : array_values(array_filter($historyBefore, fn ($day) => ! $targetByDay->has($day)));
+                } elseif (! $showtypeChanged) {
+                    $historyKeep = array_values(array_filter($historyBefore, fn ($day) => $targetByDay->has($day)));
+                }
+            }
+
+            $keepSet = array_fill_keys($historyKeep, true);
+            $staffOldDays = [];
+
+            if ($isStaff && $dated && $targetByDay->isNotEmpty()) {
+                $cutoff = self::historyCutoff($tz);
+                $newestTarget = $targetByDay->keys()->max();
+                $rowDays = $showtypeChanged
+                    ? []
+                    : array_fill_keys($existingRows->pluck('date')->map($storedDay)->all(), true);
+
+                foreach ($targetByDay->keys() as $day) {
+                    if ($day < $cutoff && $day !== $newestTarget && ! isset($rowDays[$day]) && ! isset($keepSet[$day])) {
+                        $staffOldDays[$day] = true;
+                    }
+                }
+            }
+
+            $targetByDay = $targetByDay->reject(fn ($d, $day) => isset($keepSet[$day]) || isset($staffOldDays[$day]));
+
             $idsToDelete = collect();
             $datesToMove = []; // id => the target datetime on that row's day
             $duplicatesToMerge = []; // duplicate id => the surviving row's id
@@ -263,6 +340,17 @@ class Show extends Model
                     ->each(fn ($chunk) => self::insert($chunk->values()->all()));
             }
 
+            // Days the caller left out of the history that were kept anyway,
+            // reported alongside the kept rows.
+            if ($preservedFromHistory !== []) {
+                $preservedPastDates = collect($preservedPastDates)->merge($preservedFromHistory)
+                    ->unique()->sort()->values()->all();
+            }
+
+            // Move days more than a year old out of the rows and write the
+            // history the rules above settled on.
+            self::settleHistory($event, $tz, array_merge($historyKeep, array_keys($staffOldDays)), $dated);
+
             // Log date changes only for published events
             if ($event->status === 'p') {
                 self::logDateChanges($event, $oldDates, $tz);
@@ -291,7 +379,8 @@ class Show extends Model
         $curtainTimes = self::usesCurtainTimes($newRows);
         $newDates = $newRows
             ->map(fn ($d) => self::localDay($d, $tz, $curtainTimes))
-            ->sort()->values()->toArray();
+            ->merge(ShowHistory::days($event->show_history))
+            ->unique()->sort()->values()->toArray();
 
         $added = array_values(array_diff($newDates, $oldDates));
         $removed = array_values(array_diff($oldDates, $newDates));
@@ -440,6 +529,185 @@ class Show extends Model
         } catch (\Throwable) {
             return 'UTC';
         }
+    }
+
+    /**
+     * The first calendar day (in $tz) that is still kept as a row: anything
+     * older belongs in the show history. See HISTORY_AFTER_YEARS.
+     */
+    public static function historyCutoff(string $tz): string
+    {
+        return Carbon::now(self::validTimezone($tz))->subYears(self::HISTORY_AFTER_YEARS)->toDateString();
+    }
+
+    /**
+     * How many of these incoming dates (a dateArray) would be kept as rows,
+     * that is fall on or after historyCutoff(). Malformed values are left
+     * to the field's own validation.
+     *
+     * @param  array<int, mixed>  $dates
+     */
+    public static function countRowDays(array $dates, ?string $tz): int
+    {
+        $tz = self::validTimezone($tz);
+        $cutoff = self::historyCutoff($tz);
+        $count = 0;
+        foreach ($dates as $date) {
+            try {
+                if (is_string($date) && self::localDay($date, $tz) >= $cutoff) {
+                    $count++;
+                }
+            } catch (\Throwable) {
+                continue;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * A local calendar day as the UTC "Y-m-d H:i:s" a show row stores for it
+     * (noon in $tz). A value at noon local reads as that same day whether or
+     * not the schedule uses curtain times, which is why history days are
+     * handed to readers that expect stored values in this form.
+     */
+    public static function storedFromLocalDay(string $day, string $tz): string
+    {
+        return Carbon::parse($day.' 12:00:00', self::validTimezone($tz))->utc()->format('Y-m-d H:i:s');
+    }
+
+    /**
+     * Fold an event's rows older than a year into its show history, for
+     * ei:fold-show-history. Takes the event's row lock itself, the same lock
+     * every save holds, so it can never interleave with an edit. Returns how
+     * many rows were folded.
+     */
+    public static function foldHistory(Event $event): int
+    {
+        return DB::transaction(function () use ($event) {
+            $locked = Event::withoutGlobalScopes()->whereKey($event->id)->lockForUpdate()->first();
+            if (! $locked || ! in_array($locked->showtype, ['s', 'o'], true)) {
+                return 0;
+            }
+
+            $tz = self::validTimezone($locked->timezone);
+            $before = self::withoutGlobalScope(DateScope::class)->where('event_id', $locked->id)->count();
+            $daysBefore = self::scheduleDaysOf($locked, $tz);
+
+            self::settleHistory($locked, $tz, ShowHistory::days($locked->show_history), true);
+
+            // Folding moves days between the rows and the history; it must
+            // never add or lose one. Throwing rolls the whole fold back.
+            if (self::scheduleDaysOf($locked, $tz) !== $daysBefore) {
+                throw new \RuntimeException("Folding event {$locked->id} would have changed its show days; rolled back.");
+            }
+
+            $folded = $before - self::withoutGlobalScope(DateScope::class)->where('event_id', $locked->id)->count();
+            $event->show_history = $locked->show_history;
+            $event->syncOriginalAttribute('show_history');
+
+            return $folded;
+        });
+    }
+
+    /**
+     * Every show day of an event as stored right now, rows and history
+     * together, sorted and de-duplicated.
+     *
+     * @return array<int, string>
+     */
+    public static function scheduleDaysOf(Event $event, string $tz): array
+    {
+        $rows = self::withoutGlobalScope(DateScope::class)->where('event_id', $event->id)->pluck('date');
+        $curtainTimes = self::usesCurtainTimes($rows);
+        $raw = DB::table('events')->where('id', $event->id)->value('show_history');
+
+        return $rows->map(fn ($d) => self::localDay($d, $tz, $curtainTimes))
+            ->merge(ShowHistory::days(is_string($raw) ? json_decode($raw, true) : null))
+            ->unique()->sort()->values()->all();
+    }
+
+    /**
+     * Write an event's show history and fold its old rows into it. Runs
+     * inside the caller's transaction, under the event's row lock.
+     *
+     * $historyDays are the local days the history should hold before this
+     * fold. For a dated schedule ($dated: specific or ongoing), every row
+     * whose day is before historyCutoff() joins them, except the newest
+     * show day, which always stays a row (a day that is only in the history
+     * is put back as a row). A sentinel schedule (always available) keeps
+     * whatever history it is given and folds nothing: its one row is an end
+     * date, not a show.
+     *
+     * Folding must not change how the remaining rows read. Whether a
+     * midnight row means "this date" or a real UTC instant is decided from
+     * the whole schedule (usesCurtainTimes), so if the only timed rows are
+     * the ones folded away, the remaining midnight rows would suddenly read
+     * a day early in the Americas. Those are moved to noon of the day they
+     * already meant, which reads the same under either rule.
+     *
+     * @param  array<int, string>  $historyDays
+     */
+    private static function settleHistory(Event $event, string $tz, array $historyDays, bool $dated): void
+    {
+        $historySet = array_fill_keys($historyDays, true);
+        $cutoff = self::historyCutoff($tz);
+
+        if ($dated) {
+            $rows = self::withoutGlobalScope(DateScope::class)->where('event_id', $event->id)->orderBy('id')->get(['id', 'date']);
+            $curtainTimes = self::usesCurtainTimes($rows);
+            $byDay = $rows->groupBy(fn ($row) => self::localDay($row->date, $tz, $curtainTimes));
+
+            $allDays = array_merge(array_keys($historySet), $byDay->keys()->all());
+            $newest = $allDays === [] ? null : max($allDays);
+
+            $foldIds = collect();
+            foreach ($byDay as $day => $group) {
+                if ($day < $cutoff && $day !== $newest) {
+                    $historySet[$day] = true;
+                    $foldIds = $foldIds->merge($group->pluck('id'));
+                }
+            }
+
+            $remaining = $rows->reject(fn ($row) => $foldIds->contains($row->id));
+            if ($foldIds->isNotEmpty() && $curtainTimes && ! self::usesCurtainTimes($remaining)) {
+                $now = now();
+                foreach ($remaining as $row) {
+                    self::withoutGlobalScope(DateScope::class)->whereKey($row->id)
+                        ->update(['date' => self::atLocalNoon($row->date, $tz, true), 'updated_at' => $now]);
+                }
+            }
+
+            self::deleteShowsByIds($foldIds);
+
+            // The newest day only in the history: every row was older or gone
+            // (all of them folded above). Put it back as the one row.
+            if ($newest !== null && ! $byDay->has($newest)) {
+                unset($historySet[$newest]);
+                $now = now();
+                self::insert([
+                    'event_id' => $event->id,
+                    'date' => self::storedFromLocalDay($newest, $tz),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+        }
+
+        $days = array_keys($historySet);
+        $history = null;
+        if ($days !== []) {
+            $through = max(max($days), Carbon::parse($cutoff)->subDay()->toDateString());
+            $history = ShowHistory::pack($days, $through);
+        }
+
+        // A plain column write: the history is not something the search
+        // document, the change log or updated_at should see.
+        DB::table('events')->where('id', $event->id)->update([
+            'show_history' => $history === null ? null : json_encode($history),
+        ]);
+        $event->show_history = $history;
+        $event->syncOriginalAttribute('show_history');
     }
 
     /**

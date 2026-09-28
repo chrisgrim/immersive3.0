@@ -21,6 +21,7 @@ use App\Models\Events\ShowChangeLog;
 use App\Models\Events\Ticket;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Services\ImageHandler;
+use App\Support\ShowHistory;
 use App\Support\Slug;
 use App\Traits\Favoritable;
 use Carbon\Carbon;
@@ -257,8 +258,9 @@ class Event extends Model
         // search with a past start just matches fewer past shows), and each show is a nested object in
         // this document, which Elasticsearch refuses past 10,000. A long run
         // with years of history would otherwise become unindexable. Future
-        // shows can't pass the cap: every one comes from a dateArray, which
-        // EventUpdateRules limits to RecurringDates::MAX_OCCURRENCES, plus
+        // shows can't pass the cap: every one comes from a dateArray, whose
+        // days from a year ago on EventUpdateRules limits to Show::MAX_ROWS
+        // (older ones go to the show history, never rows), plus
         // at most a couple of days of just-past rows a save keeps. The
         // limit() is a guard set above that and under Elasticsearch's 10,000,
         // so it never trims a real upcoming date.
@@ -1127,7 +1129,7 @@ class Event extends Model
             return null;
         }
 
-        $first = $this->showDayInLocalTime($this->first_show_date);
+        $first = $this->firstRunDay();
         $last = $this->last_show_date ? $this->showDayInLocalTime($this->last_show_date) : $first;
 
         if ($first->isSameDay($last)) {
@@ -1149,6 +1151,24 @@ class Event extends Model
     }
 
     /**
+     * The run's first day, at noon in this event's timezone: the oldest day
+     * in the compact show history when it holds one (days more than a year
+     * old are not rows), otherwise the first_show_date aggregate.
+     */
+    private function firstRunDay(): Carbon
+    {
+        $tz = Show::validTimezone($this->timezone);
+        $rowsFirst = $this->showDayInLocalTime($this->first_show_date);
+        $historyFirst = ShowHistory::firstDay($this->show_history);
+
+        if ($historyFirst !== null && $historyFirst < $rowsFirst->toDateString()) {
+            return Carbon::parse($historyFirst.' 12:00:00', $tz);
+        }
+
+        return $rowsFirst;
+    }
+
+    /**
      * First/last run dates broken into day-abbreviation + day-number pieces
      * (e.g. ['day' => 'Sat', 'date' => 21]) for the Liked Events detail page's
      * check-in/checkout-style timeline. Same timezone handling as
@@ -1161,7 +1181,7 @@ class Event extends Model
             return null;
         }
 
-        $first = $this->showDayInLocalTime($this->first_show_date);
+        $first = $this->firstRunDay();
         $last = $this->last_show_date ? $this->showDayInLocalTime($this->last_show_date) : $first;
 
         return [

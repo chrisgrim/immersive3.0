@@ -47,6 +47,15 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->dailyAt('04:20')
                 ->timezone('America/Los_Angeles');
 
+            // Show rows more than a year old move into each running event's
+            // compact show history (see FoldShowHistory's docblock). Clear of
+            // the ~4am Pacific apt restarts and the ~5:30am auto-reboot.
+            $schedule->command('ei:fold-show-history', ['--apply'])
+                ->weeklyOn(1, '03:00')
+                ->timezone('America/Los_Angeles')
+                ->withoutOverlapping()
+                ->appendOutputTo(storage_path('logs/fold-show-history.log'));
+
             // Saved-search "notify me about new events" pilot — see
             // NotifySavedSearchMatchesCommand's own docblock.
             $schedule->command('ei:notify-saved-searches')

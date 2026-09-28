@@ -350,7 +350,7 @@ test('toSearchableArray keeps every upcoming show of a schedule at the cap, plus
     $this->travelTo(\Illuminate\Support\Carbon::parse('2026-09-27 15:00:00', 'UTC'));
     $event = Event::factory()->published()->create();
     $now = now();
-    $rows = collect(range(1, \App\Support\RecurringDates::MAX_OCCURRENCES))
+    $rows = collect(range(1, \App\Models\Events\Show::MAX_ROWS))
         ->map(fn ($i) => ['event_id' => $event->id, 'date' => $now->copy()->addDays($i)->format('Y-m-d 12:00:00'), 'created_at' => $now, 'updated_at' => $now])
         ->push(['event_id' => $event->id, 'date' => '2026-09-26 12:00:00', 'created_at' => $now, 'updated_at' => $now])
         ->push(['event_id' => $event->id, 'date' => '2026-09-25 12:00:00', 'created_at' => $now, 'updated_at' => $now]);
@@ -358,8 +358,8 @@ test('toSearchableArray keeps every upcoming show of a schedule at the cap, plus
 
     $shows = $event->toSearchableArray()['shows'];
 
-    expect($shows)->toHaveCount(\App\Support\RecurringDates::MAX_OCCURRENCES + 2)
-        ->and((string) collect($shows)->last()->date)->toBe($now->copy()->addDays(\App\Support\RecurringDates::MAX_OCCURRENCES)->format('Y-m-d 12:00:00'));
+    expect($shows)->toHaveCount(\App\Models\Events\Show::MAX_ROWS + 2)
+        ->and((string) collect($shows)->last()->date)->toBe($now->copy()->addDays(\App\Models\Events\Show::MAX_ROWS)->format('Y-m-d 12:00:00'));
 });
 
 test('toSearchableArray returns the ids of every attached remote location', function () {

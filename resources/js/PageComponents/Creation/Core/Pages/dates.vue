@@ -130,7 +130,7 @@ import {
     getBrowserTimezone,
     utcDateTimeToLocalDate
 } from '@/composables/dateUtils';
-import { showDay, usesCurtainTimes } from '@/composables/useShowDates';
+import { showDay, showHistoryDays, usesCurtainTimes } from '@/composables/useShowDates';
 
 const emit = defineEmits(['toggle-sidebar']);
 
@@ -444,9 +444,19 @@ const hydrateFromEvent = () => {
         // it as an instant put a Friday show on Thursday in the picker, and a
         // re-save then moved the row to Thursday.
         const curtainTimes = usesCurtainTimes(event.shows);
-        const localShowDates = event.shows.map(show =>
+        const rowDays = event.shows.map(show =>
             showDay(show.date, selectedTimezone.value, curtainTimes)
         );
+        // Days more than a year old are not rows: they are in the compact
+        // show history, and they are part of the schedule. Leaving them out
+        // here would drop them on the next save (staff) or report them as
+        // "kept anyway" (everyone else). Only dated schedules have one.
+        const historyDays = (event.showtype === 's' || event.showtype === 'o')
+            ? showHistoryDays(event.show_history)
+            : [];
+        const localShowDates = historyDays.length
+            ? [...new Set([...historyDays, ...rowDays])].sort()
+            : rowDays;
 
         date.value = localShowDates.map(dateStr => parseDateString(dateStr, selectedTimezone.value));
         selectedDates.value = localShowDates;
@@ -489,6 +499,8 @@ const onScheduleUpdated = (schedule) => {
         selectedTimezone.value = schedule.timezone;
     }
     event.shows = (schedule.show_dates || []).map(d => ({ date: d }));
+    // Days more than a year old come as weekly runs, not in show_dates.
+    event.show_history = schedule.older_show_days ? { runs: schedule.older_show_days.runs || [] } : null;
     event.show_times = schedule.show_times ?? event.show_times;
     event.embargo_date = schedule.embargo_date ?? null;
     if (schedule.closing_date !== undefined) {

@@ -509,8 +509,8 @@ const endDateCalendarRef = ref(null);
 // Admin check
 const isAdmin = computed(() => user && (user.isAdmin || false));
 
-// The exact first day an admin may start a run on: 20 years ago today,
-// matching Show::STAFF_LOOKBACK_YEARS on the server (paging back 240 months
+// The exact first day an admin may start a run on: 100 years ago today,
+// matching Show::STAFF_LOOKBACK_YEARS on the server (paging back 1200 months
 // alone would still expose the rest of that month). The end date's own
 // min-date is the start date, so it inherits this floor.
 const staffLookbackFloor = computed(() => {
@@ -519,7 +519,7 @@ const staffLookbackFloor = computed(() => {
     }
     const floor = new Date();
     floor.setHours(0, 0, 0, 0);
-    floor.setFullYear(floor.getFullYear() - 20);
+    floor.setFullYear(floor.getFullYear() - 100);
     return floor;
 });
 
@@ -531,9 +531,9 @@ const canShowMorePreviousMonths = computed(() => {
     const monthsDiff = (today.getFullYear() - previewDate.getFullYear()) * 12 + 
                        (today.getMonth() - previewDate.getMonth());
     
-    // Admins can go back 20 years (Show::STAFF_LOOKBACK_YEARS on the
+    // Admins can go back 100 years (Show::STAFF_LOOKBACK_YEARS on the
     // server), regular users 12 months
-    const maxMonthsBack = isAdmin.value ? 240 : 12;
+    const maxMonthsBack = isAdmin.value ? 1200 : 12;
     return monthsDiff < maxMonthsBack;
 });
 
@@ -560,8 +560,8 @@ const canShowMorePreviousMonthsEnd = computed(() => {
     const monthsDiff = (today.getFullYear() - previewDate.getFullYear()) * 12 + 
                        (today.getMonth() - previewDate.getMonth());
     // Same window as the start date: a run that ended years ago needs its
-    // end date that far back too. Admins 20 years, regular users 12 months.
-    const maxMonthsBack = isAdmin.value ? 240 : 12;
+    // end date that far back too. Admins 100 years, regular users 12 months.
+    const maxMonthsBack = isAdmin.value ? 1200 : 12;
     return monthsDiff < maxMonthsBack;
 });
 

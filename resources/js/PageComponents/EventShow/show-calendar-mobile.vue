@@ -15,7 +15,7 @@
     <!-- Show calendar for other showtypes -->
     <div v-else class="calendar-container">
       <VueDatePicker
-        v-model="selectedDates"
+        :model-value="pickerDates"
         :preview-date="previewDate"
         :enable-time-picker="false"
         :disable-month-year-select="false"
@@ -35,6 +35,7 @@
         hide-offset-dates
         week-start="0"
         @update:model-value="preventDefault"
+        @update-month-year="onMonthYear"
       />
     </div>
   </div>
@@ -42,7 +43,7 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue';
-import { showDayAsDate, isShowUpcoming, eventUsesCurtainTimes } from '@/composables/useShowDates';
+import { showDayAsDate, showHistoryDates, datesNearMonths, isShowUpcoming, eventUsesCurtainTimes } from '@/composables/useShowDates';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
 
@@ -65,6 +66,15 @@ const remainingLabel = computed(() => {
 });
 const maxDate = ref(new Date(new Date().setFullYear(new Date().getFullYear() + 1)));
 const previewDate = ref(new Date());
+
+// Only the dates near the month on screen go to the picker: see
+// datesNearMonths() for why.
+const viewedMonth = ref({ month: previewDate.value.getMonth(), year: previewDate.value.getFullYear() });
+const pickerDates = computed(() => datesNearMonths(selectedDates.value ?? [], [viewedMonth.value]));
+// Some changes (picking a year) name only the year: keep the month.
+const onMonthYear = ({ month, year }) => {
+  viewedMonth.value = { month: month ?? viewedMonth.value.month, year: year ?? viewedMonth.value.year };
+};
 
 // Days in the EVENT's timezone — see composables/useShowDates.js.
 const getDates = () => {
@@ -90,6 +100,9 @@ const getDates = () => {
     const day = showDayAsDate(date, props.event.timezone, curtainTimes);
     if (day) highlightedDates.value.push(day);
   });
+
+  // Days more than a year old come as weekly runs (show_history).
+  highlightedDates.value = highlightedDates.value.concat(showHistoryDates(props.event.show_history));
 
   // Set selectedDates AFTER calendar is initialized
   nextTick(() => {

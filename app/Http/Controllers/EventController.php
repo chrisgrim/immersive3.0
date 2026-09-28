@@ -6,6 +6,7 @@ use App\Models\Event;
 use App\Models\Events\Show;
 use App\Models\Organizer;
 use App\Scopes\DateScope;
+use App\Support\ShowHistory;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Js;
@@ -138,10 +139,20 @@ class EventController extends Controller
         $event->setAttribute('timed_shows_count', (int) ($summary?->timed_shows_count ?? 0));
         $event->makeHidden('timed_shows_count');
 
+        // Days more than a year old are in the compact show history, not the
+        // rows. They count towards the run (its real first day, its total);
+        // the calendars read the runs themselves (the event's show_history). A history day is sent as noon in the event's timezone,
+        // which reads as that day under either curtain-time rule.
+        $firstDate = $summary?->first_date ? (string) $summary->first_date : null;
+        $historyFirst = ShowHistory::firstDay($event->show_history);
+        if ($historyFirst !== null && ($firstDate === null || $historyFirst < $event->localDate($firstDate))) {
+            $firstDate = Show::storedFromLocalDay($historyFirst, Show::validTimezone($event->timezone));
+        }
+
         $event->setAttribute('show_summary', [
-            'first_date' => $summary?->first_date ? (string) $summary->first_date : null,
+            'first_date' => $firstDate,
             'last_date' => $summary?->last_date ? (string) $summary->last_date : null,
-            'total' => (int) ($summary?->total ?? 0),
+            'total' => (int) ($summary?->total ?? 0) + ShowHistory::count($event->show_history),
             'upcoming_total' => (int) ($summary?->upcoming_total ?? 0),
             'curtain_times' => (int) ($summary?->timed_shows_count ?? 0) > 0,
         ]);

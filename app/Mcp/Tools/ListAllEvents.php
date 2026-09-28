@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Event;
 use App\Models\Organizer;
 use App\Scopes\LatestPublishedFirstScope;
+use App\Support\ShowHistory;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Database\Eloquent\Builder;
 use Laravel\Mcp\Request;
@@ -143,7 +144,8 @@ class ListAllEvents extends Tool
                 'showtype' => $event->showtype,
                 'showtype_label' => $this->showtypeLabel($event->showtype),
                 'closing_date' => $event->closingDate,
-                'shows' => $event->shows_count,
+                // Rows plus the days older than a year kept in the show history.
+                'shows' => $event->shows_count + ShowHistory::count($event->show_history),
                 'updated_at' => $event->updated_at?->toIso8601String(),
                 'archived' => (bool) $event->archived,
             ]),

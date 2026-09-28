@@ -1074,7 +1074,8 @@ test('update-event preserves an existing past show when re-saving', function () 
         'timezone' => $tz,
         'dateArray' => ['2020-01-01 12:00:00', $upcoming],
     ])->assertOk();
-    expect($event->fresh()->shows()->count())->toBe(2);
+    // Rows and the compact history together (2020 is more than a year old).
+    expect(\App\Models\Events\Show::scheduleDaysOf($event->fresh(), $tz))->toHaveCount(2);
 });
 
 test('update-event preserves a past show a non-staff user tries to remove, and reports it', function () {
@@ -1098,9 +1099,8 @@ test('update-event preserves a past show a non-staff user tries to remove, and r
         'confirm_schedule_replace' => true,
     ])->assertOk()->assertSee('preserved_past_dates')->assertSee('2020-01-01');
 
-    $event->refresh();
-    expect($event->shows()->count())->toBe(2);
-    expect($event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all())->toContain($past);
+    // Kept, in the compact history now that it is more than a year old.
+    expect(\App\Models\Events\Show::scheduleDaysOf($event->fresh(), $tz))->toHaveCount(2)->toContain('2020-01-01');
 });
 
 test('update-event lets a moderator remove a past show with no preserved-dates notice', function () {
@@ -1130,9 +1130,9 @@ test('update-event lets an admin backfill a recent historical date', function ()
     $admin = writeToolUser('a');
     $event = draftFor(writeToolOrganizer($admin), $admin);
 
-    // Admins may backfill HISTORICAL shows (mirrors the web calendar's 20-year
-    // staff lookback). A past date within that window, even 19 years back,
-    // saves rather than being rejected as it would be for a regular user.
+    // Admins may backfill HISTORICAL shows (mirrors the web calendar's staff
+    // lookback). A past date within that window, even 19 years back, saves
+    // rather than being rejected as it would be for a regular user.
     $recentPast = now('America/Los_Angeles')->subYears(19)->format('Y-m-d').' 19:00:00';
     $future = now('America/Los_Angeles')->addMonths(2)->format('Y-m-d').' 19:00:00';
 
@@ -1142,16 +1142,16 @@ test('update-event lets an admin backfill a recent historical date', function ()
         'timezone' => 'America/Los_Angeles',
         'dateArray' => [$recentPast, $future],
     ])->assertOk()->assertDontSee('past_dates');
-    expect($event->fresh()->shows()->count())->toBe(2);
+    expect(\App\Models\Events\Show::scheduleDaysOf($event->fresh(), 'America/Los_Angeles'))->toHaveCount(2);
 });
 
-test('update-event still blocks an admin date more than 20 years back', function () {
+test('update-event still blocks an admin date more than 100 years back', function () {
     $admin = writeToolUser('a');
     $event = draftFor(writeToolOrganizer($admin), $admin);
 
-    // Beyond the 20-year window is almost always a wrong year — rejected even
+    // Beyond the 100-year window is almost always a wrong year — rejected even
     // for an admin, with the offending day named.
-    $farPastDay = now('America/Los_Angeles')->subYears(21)->format('Y-m-d');
+    $farPastDay = now('America/Los_Angeles')->subYears(101)->format('Y-m-d');
     $future = now('America/Los_Angeles')->addMonths(2)->format('Y-m-d').' 19:00:00';
 
     EiServer::actingAs($admin)->tool(UpdateEvent::class, [
@@ -1445,8 +1445,8 @@ test('a multi-year run past the old 1000-show cap expands end to end', function 
     ])->assertOk()->assertSee('Event updated.');
 
     // Five years of four-day weeks is ~1,040 shows — over the old cap, and every
-    // one of them persisted (the bulk insert chunks, so none are dropped).
-    $shows = $event->fresh()->shows()->withoutGlobalScopes()->count();
+    // one of them persisted (as rows, or as show history once over a year old).
+    $shows = count(\App\Models\Events\Show::scheduleDaysOf($event->fresh(), $tz));
     expect($shows)->toBeGreaterThan(1000)
         ->and($shows)->toBe(count(RecurringDates::expand(
             [4, 5, 6, 0], scheduleDay(-365 * 4, $tz), scheduleDay(365, $tz), $tz

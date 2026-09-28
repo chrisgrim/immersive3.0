@@ -384,7 +384,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatPrice } from '@/composables/useCurrency';
 import { savedTiers } from '@/composables/useEventTickets';
-import { isShowUpcoming, usesCurtainTimes } from '@/composables/useShowDates';
+import { isShowUpcoming, showHistoryDays, usesCurtainTimes } from '@/composables/useShowDates';
 
 const props = defineProps({
     event: {
@@ -504,7 +504,9 @@ const onMapReady = () => {
 
 const showsCount = computed(() => {
     if (props.event.showtype === 'a') return 'Anytime';
-    return props.event.shows ? Object.keys(props.event.shows).length : 0;
+    // Plus the days more than a year old kept in the compact show history.
+    const rows = props.event.shows ? Object.keys(props.event.shows).length : 0;
+    return rows + showHistoryDays(props.event.show_history).length;
 });
 
 const remainingShows = computed(() => {

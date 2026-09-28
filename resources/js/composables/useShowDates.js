@@ -73,6 +73,65 @@ export const isShowUpcoming = (utcDateTime, timezone, now = new Date(), curtainT
 };
 
 /**
+ * Every show day in an event's compact show history (event.show_history),
+ * oldest first, as 'YYYY-MM-DD' in the event's timezone. Days more than a
+ * year old are kept there as weekly runs instead of one row each; a run is
+ * every day from `from` to `to` whose weekday (0 = Sunday) is in `days`.
+ * The twin of App\Support\ShowHistory::days() in PHP. Calendar arithmetic
+ * only (UTC dates), so the browser's timezone and DST never move a day.
+ */
+export const showHistoryDays = (history) => {
+    const out = [];
+    const runs = Array.isArray(history?.runs) ? history.runs : [];
+    const pad = (n) => String(n).padStart(2, '0');
+
+    runs.forEach((run) => {
+        if (typeof run?.from !== 'string' || typeof run?.to !== 'string' || !Array.isArray(run?.days)) return;
+        const weekdays = new Set(run.days.map(Number));
+        const [fy, fm, fd] = run.from.split('-').map(Number);
+        const [ty, tm, td] = run.to.split('-').map(Number);
+        const end = Date.UTC(ty, tm - 1, td);
+        if (Number.isNaN(end)) return;
+
+        for (let t = Date.UTC(fy, fm - 1, fd); t <= end; t += 86400000) {
+            const d = new Date(t);
+            if (weekdays.has(d.getUTCDay())) {
+                out.push(`${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`);
+            }
+        }
+    });
+
+    return out;
+};
+
+/**
+ * The history's days as Dates at local midnight, for VueDatePicker
+ * highlighting (same shape as showDayAsDate()).
+ */
+export const showHistoryDates = (history) =>
+    showHistoryDays(history).map((day) => {
+        const [year, month, date] = day.split('-').map(Number);
+        return new Date(year, month - 1, date);
+    });
+
+/**
+ * Only the dates a calendar can show right now: those within `before` months
+ * before and `after` months after any of the months on screen (`months`, a
+ * list of { month (0-11), year }). VueDatePicker checks every day cell
+ * against every date it is given, so handing it a whole run (tens of
+ * thousands of days for a permanent artwork) made each month change take
+ * seconds. Filtering here is one cheap pass.
+ */
+export const datesNearMonths = (dates, months, before = 1, after = 2) => {
+    const windows = (months ?? [])
+        .filter((m) => Number.isInteger(m?.month) && Number.isInteger(m?.year))
+        .map(({ month, year }) => [new Date(year, month - before, 1), new Date(year, month + after + 1, 1)]);
+    if (!windows.length) return dates;
+
+    return dates.filter((date) => windows.some(([start, end]) => date >= start && date < end));
+};
+
+/**
  * A schedule's span, "Oct 31, 2026" for one day or "Oct 31, 2026 - Nov 4,
  * 2026" across several. "No dates set" when there is nothing to show.
  */
@@ -123,8 +182,19 @@ export const summarizeSchedule = (event) => {
         };
     }
 
+    // Days more than a year old are in the compact show history, not rows:
+    // they start the range and count towards the total.
+    const historyDays = showHistoryDays(event?.show_history);
+    const total = shows.length + historyDays.length;
+    let primary = formatShowDayRange(shows, event?.timezone);
+    if (historyDays.length) {
+        const first = dayjs(historyDays[0]).format('MMM D, YYYY');
+        const last = primary === NO_DATES ? dayjs(historyDays[historyDays.length - 1]).format('MMM D, YYYY') : primary.split(' - ').pop();
+        primary = first === last ? first : `${first} - ${last}`;
+    }
+
     return {
-        primary: formatShowDayRange(shows, event?.timezone),
-        secondary: `${shows.length} show${shows.length !== 1 ? 's' : ''}`,
+        primary,
+        secondary: `${total} show${total !== 1 ? 's' : ''}`,
     };
 };

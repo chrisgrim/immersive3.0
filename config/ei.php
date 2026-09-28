@@ -38,7 +38,7 @@ return [
     | only its upcoming show rows (id, event_id, date; ~40 bytes each). This
     | caps that list; show_summary.upcoming_total still reports the true
     | count. No live event comes near it (a schedule holds at most 9,500
-    | dates, RecurringDates::MAX_OCCURRENCES, and the largest has a few
+    | rows from a year ago on, Show::MAX_ROWS, and the largest has a few
     | hundred upcoming).
     |
     */
@@ -52,10 +52,11 @@ return [
     |
     | Dates that already happened are sent as bare strings (~32 bytes each on
     | the wire) so the calendars can highlight a long run's history; a curator
-    | pages back through it. The oldest are dropped past this cap. Staff can
-    | now add up to 20 years of history, so it matches the most dates one save
-    | can send (RecurringDates::MAX_OCCURRENCES); only a run that keeps
-    | growing past that loses its oldest dates here.
+    | pages back through it. The oldest are dropped past this cap. Days more
+    | than a year old are normally not rows at all: they are in the event's
+    | compact show history (Show::HISTORY_AFTER_YEARS), which the calendars
+    | read separately and in full, so this only bites a finished run whose
+    | rows were never folded (ei:fold-show-history --all).
     |
     */
 
