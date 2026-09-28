@@ -108,13 +108,22 @@ class UpdateEvent extends Tool
         }
 
         // "Delete these older show days" on its own: the schedule stays as it
-        // is (its rows, as stored) and the merge below keeps the rest of the
-        // history, so the call goes through the normal confirmations.
+        // is (its rows, as the calendar days they stand for) and the merge
+        // below keeps the rest of the history, so the call goes through the
+        // normal confirmations. Days, not the stored values: a stored
+        // midnight in a schedule with timed rows is a real UTC instant (the
+        // evening before in New York), while an incoming midnight means that
+        // calendar date, so copying it would move the show a day.
         if (! empty($request->get('remove_older_show_days'))
             && ! isset($input['dateArray']) && ! isset($input['ongoing_config'])
             && $event->show_history
             && in_array($event->showtype, ['s', 'o'], true)) {
-            $input['dateArray'] = $event->shows()->pluck('date')->map(fn ($d) => (string) $d)->all();
+            $rowsTz = Show::validTimezone($event->timezone);
+            $stored = $event->shows()->pluck('date');
+            $rowsCurtain = Show::usesCurtainTimes($stored);
+            $input['dateArray'] = $stored
+                ->map(fn ($d) => Show::localDay($d, $rowsTz, $rowsCurtain).' 00:00:00')
+                ->unique()->values()->all();
             $input['showtype'] ??= $event->showtype;
         }
 
@@ -361,6 +370,13 @@ class UpdateEvent extends Tool
             $cutoff = Show::historyCutoff($mergeTz);
             $historyDays = ShowHistory::days($event->show_history);
             $historySet = array_fill_keys($historyDays, true);
+            // Days already stored as rows are real shows too, however old
+            // (rows wait for the weekly fold, and a finished run keeps its
+            // newest day as a row for good): a recipe keeps them.
+            $rowsTz = Show::validTimezone($event->timezone ?? $mergeTz);
+            $storedRows = $event->shows()->pluck('date');
+            $storedCurtain = Show::usesCurtainTimes($storedRows);
+            $rowDaySet = array_fill_keys($storedRows->map(fn ($d) => Show::localDay($d, $rowsTz, $storedCurtain))->all(), true);
             $remove = array_fill_keys(array_map('strval', (array) ($request->get('remove_older_show_days') ?? [])), true);
 
             $sentDates = [];
@@ -375,7 +391,7 @@ class UpdateEvent extends Tool
                 if (isset($remove[$day]) || isset($historySet[$day])) {
                     continue; // removed, or re-added from the history below
                 }
-                if ($fromRecipe && $day < $cutoff) {
+                if ($fromRecipe && $day < $cutoff && ! isset($rowDaySet[$day])) {
                     $olderDaysNotAdded++;
 
                     continue;

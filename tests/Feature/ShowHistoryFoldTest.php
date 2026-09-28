@@ -791,3 +791,43 @@ test('a live-edit preview of a long recipe shows a summary, not the list', funct
     $response->assertOk()->assertSee('confirm_live_edit')->assertSee('"count":'.count(foldDays('2025-09-28', '2027-06-30')), false);
     expect(strlen((string) json_encode($response)))->toBeLessThan(100000);
 });
+
+test('removing an older day on its own leaves upcoming curtain-time shows on their day', function () {
+    $admin = User::factory()->create(['type' => 'a', 'email_verified_at' => now()]);
+    $event = foldEvent(['status' => '0', 'showtype' => 's', 'user_id' => $admin->id]);
+    // Curtain times: 8 PM New York is midnight UTC the next day, next to a
+    // timed row, so it reads as the evening of Oct 1.
+    Show::create(['event_id' => $event->id, 'date' => '2026-10-02 00:00:00']);
+    Show::create(['event_id' => $event->id, 'date' => '2026-10-09 23:30:00']);
+    $event->forceFill(['show_history' => ShowHistory::pack(['2001-02-03', '2001-02-04'], '2025-09-27')])->save();
+    $event->update(['closingDate' => '2026-10-09 23:59:59']);
+    expect(foldAllDays($event))->toBe(['2001-02-03', '2001-02-04', '2026-10-01', '2026-10-09']);
+
+    $args = ['event_slug' => $event->slug, 'remove_older_show_days' => ['2001-02-03'], 'confirm_schedule_replace' => true];
+    \App\Mcp\Servers\EiServer::actingAs($admin)->tool(\App\Mcp\Tools\UpdateEvent::class, $args)->assertOk()->assertSee('Event updated');
+
+    expect(foldAllDays($event))->toBe(['2001-02-04', '2026-10-01', '2026-10-09']);
+});
+
+test('a recipe keeps old days that are still rows, waiting for the fold', function () {
+    $admin = User::factory()->create(['type' => 'a', 'email_verified_at' => now()]);
+    $event = foldEvent(['status' => '0', 'user_id' => $admin->id]);
+    foldSave($event, foldDays('2020-01-01', '2026-12-31'), $admin);
+    // Time passes: days that were in the last year are now older than a
+    // year but still rows until the weekly fold.
+    $this->travelTo(CarbonImmutable::parse('2026-11-15 18:00:00', 'UTC'));
+    $before = foldAllDays($event);
+
+    \App\Mcp\Servers\EiServer::actingAs($admin)->tool(\App\Mcp\Tools\UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 'o',
+        'timezone' => FOLD_TZ,
+        'ongoing_config' => [
+            'startDate' => Show::storedFromLocalDay('2020-01-01', FOLD_TZ),
+            'endDate' => Show::storedFromLocalDay('2026-12-31', FOLD_TZ),
+            'daysOfWeek' => [0, 1, 2, 3, 4, 5, 6],
+        ],
+    ])->assertOk()->assertDontSee('confirm_schedule_replace')->assertDontSee('older_days_not_added');
+
+    expect(foldAllDays($event))->toBe($before);
+});
