@@ -4,11 +4,13 @@ namespace App\Models\Events;
 
 use App\Models\Event;
 use App\Scopes\DateScope;
+use App\Support\RecurringDates;
 use App\Support\ShowHistory;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class Show extends Model
 {
@@ -85,7 +87,7 @@ class Show extends Model
         return $this->morphMany(Ticket::class, 'ticket');
     }
 
-    public static function saveShows($request, $event, ?string $previousShowtype = null)
+    public static function saveShows($request, $event, ?string $previousShowtype = null, ?string $previousTimezone = null)
     {
         // The type the rows being replaced were created under. UpdateEventAction
         // has mass-assigned the NEW type onto $event by the time this runs, so
@@ -100,6 +102,12 @@ class Show extends Model
         // the same local day; the change log used to take the UTC date part
         // and recorded a Houston show's Oct 31 as "2026-11-01".
         $tz = self::validTimezone($request->timezone ?? $event->timezone ?? 'UTC');
+        // Stored rows are read in the timezone they were written for. A save
+        // that also changes the timezone has already written the new one onto
+        // $event (UpdateEventAction), so the caller passes the old one: read in
+        // the new zone, a noon row can land on the neighbouring day, and that
+        // day then looks like a new past date, refused for non-staff.
+        $storedTz = self::validTimezone($previousTimezone ?? $request->timezone ?? $event->timezone ?? 'UTC');
         // Incoming values: a midnight value means "this date" (localDay()).
         $localDay = fn ($d) => self::localDay($d, $tz);
         // Stored rows, read once (the caller holds the event's lock), by the
@@ -108,7 +116,7 @@ class Show extends Model
         // normalizeToLocalNoon() picks too.
         $existingRows = $event->shows()->reorder()->orderBy('id')->get(['id', 'date']);
         $curtainTimes = self::usesCurtainTimes($existingRows);
-        $storedDay = fn ($d) => self::localDay($d, $tz, $curtainTimes);
+        $storedDay = fn ($d) => self::localDay($d, $storedTz, $curtainTimes);
 
         // The old show days kept in the compact history, read fresh under the
         // caller's lock rather than from a model loaded before it.
@@ -151,7 +159,7 @@ class Show extends Model
         $preservedPastDates = [];
         $rejectedPastDates = [];
 
-        DB::transaction(function () use ($request, $event, $previousShowtype, $targetDates, $showtypeChanged, $existingRows, $oldDates, $historyBefore, $tz, $localDay, $storedDay, &$preservedPastDates, &$rejectedPastDates) {
+        DB::transaction(function () use ($request, $event, $previousShowtype, $previousTimezone, $targetDates, $showtypeChanged, $existingRows, $oldDates, $historyBefore, $tz, $storedTz, $localDay, $storedDay, &$preservedPastDates, &$rejectedPastDates) {
             // --- Match existing rows to the target set by LOCAL DAY, not by
             //     exact datetime: a show's identity is the day it plays, and
             //     rows written before the noon convention don't share the
@@ -171,19 +179,29 @@ class Show extends Model
             //     staff member's new days that old go straight in rather than
             //     becoming rows only to be folded away again. ---
             $isStaff = (bool) auth()->user()?->isModerator();
-            $protectPast = ! $isStaff && in_array($previousShowtype, ['s', 'o'], true);
             $dated = in_array($request->showtype, ['s', 'o'], true);
             $historyKeep = [];
             $preservedFromHistory = [];
 
+            // Unlike a sentinel row, every history day is a show that really
+            // happened, so it is protected from non-staff whatever the type
+            // before this save: an organizer who switched a run to "always
+            // available" keeps its history there, and must not lose it on the
+            // next save of that sentinel. A sentinel save of the same type
+            // says nothing about dated days, so it keeps the history for
+            // everyone; only staff switching the type clear it.
             if ($historyBefore !== []) {
-                if ($protectPast) {
+                if (! $isStaff) {
                     $historyKeep = $historyBefore;
-                    $preservedFromHistory = $showtypeChanged
-                        ? $historyBefore
-                        : array_values(array_filter($historyBefore, fn ($day) => ! $targetByDay->has($day)));
+                    if ($showtypeChanged || $dated) {
+                        $preservedFromHistory = $showtypeChanged
+                            ? $historyBefore
+                            : array_values(array_filter($historyBefore, fn ($day) => ! $targetByDay->has($day)));
+                    }
                 } elseif (! $showtypeChanged) {
-                    $historyKeep = array_values(array_filter($historyBefore, fn ($day) => $targetByDay->has($day)));
+                    $historyKeep = $dated
+                        ? array_values(array_filter($historyBefore, fn ($day) => $targetByDay->has($day)))
+                        : $historyBefore;
                 }
             }
 
@@ -205,6 +223,14 @@ class Show extends Model
             }
 
             $targetByDay = $targetByDay->reject(fn ($d, $day) => isset($keepSet[$day]) || isset($staffOldDays[$day]));
+
+            // The whole schedule after this save, kept history and protected
+            // past rows included, must still fit what one save can send back.
+            // UpdateEventAction checks this before writing anything; this is
+            // the same check under the lock, in case the schedule grew since.
+            if (($problem = self::scheduleSizeProblem($request, $event, $previousShowtype, $previousTimezone)) !== null) {
+                throw ValidationException::withMessages(['dateArray' => $problem]);
+            }
 
             $idsToDelete = collect();
             $datesToMove = []; // id => the target datetime on that row's day
@@ -286,11 +312,34 @@ class Show extends Model
             //     date). Only days without a surviving show are inserted, so
             //     re-saving an unchanged schedule writes nothing. Chunked so an
             //     enormous list can never exceed the DB's bind-parameter limit. ---
-            // Survivors matched to the schedule were moved to noon just above,
-            // so these read as instants either way.
-            $survivingDays = $event->shows()->pluck('date')->map($storedDay)->all();
+            // The days the surviving rows now stand for: a moved row the day
+            // it was moved to (its target, in the save's timezone), any other
+            // the day it was stored for. Worked out from what was done above
+            // rather than re-read, because after a timezone change the moved
+            // and the untouched rows are in different zones.
+            $gone = array_fill_keys($idsToDelete->all(), true) + array_fill_keys(array_keys($duplicatesToMerge), true);
+
+            // After a timezone change, a kept row that was not moved (a past
+            // show protected from a non-staff save) is still at noon of the
+            // OLD zone, and every later reader, the history fold just below
+            // included, reads it in the new one. Put it at noon of the same
+            // day in the new zone, so it keeps meaning the day it was.
+            if ($storedTz !== $tz && in_array($previousShowtype, ['s', 'o'], true)) {
+                foreach ($existingRows as $row) {
+                    if (! isset($gone[$row->id]) && ! isset($datesToMove[$row->id])) {
+                        $datesToMove[$row->id] = self::storedFromLocalDay($storedDay($row->date), $tz);
+                        self::withoutGlobalScope(DateScope::class)->whereKey($row->id)->update(['date' => $datesToMove[$row->id], 'updated_at' => $now]);
+                    }
+                }
+            }
+            $survivingDays = [];
+            foreach ($existingRows as $row) {
+                if (! isset($gone[$row->id])) {
+                    $survivingDays[isset($datesToMove[$row->id]) ? $localDay($datesToMove[$row->id]) : $storedDay($row->date)] = true;
+                }
+            }
             $datesToCreate = $targetByDay
-                ->reject(fn ($d, $day) => in_array($day, $survivingDays, true))
+                ->reject(fn ($d, $day) => isset($survivingDays[$day]))
                 ->values();
 
             // The mirror of the deletion guard above: a non-moderator may not
@@ -541,6 +590,51 @@ class Show extends Model
     }
 
     /**
+     * Why this save's schedule, taken as a whole, would be too big, or null
+     * when it fits. Validation caps the request (RecurringDates::MAX_OCCURRENCES
+     * dates), but a save by anyone but staff also keeps every history day and
+     * every past row it was not sent, so the result can outgrow the request.
+     * A schedule larger than one save can carry could never be re-saved from
+     * the editor. Counts generously (a new past date a non-staff save will
+     * refuse still counts), so it errs on the side of refusing.
+     */
+    public static function scheduleSizeProblem($request, Event $event, ?string $previousShowtype = null, ?string $previousTimezone = null): ?string
+    {
+        if (! in_array($request->showtype, ['s', 'o'], true)) {
+            return null;
+        }
+
+        $tz = self::validTimezone($request->timezone ?? $event->timezone ?? 'UTC');
+        $final = [];
+        foreach (self::targetDatesFor($request, $tz) as $date) {
+            $final[self::localDay($date, $tz)] = true;
+        }
+
+        if (! auth()->user()?->isModerator()) {
+            $history = Event::withoutGlobalScopes()->withTrashed()->whereKey($event->id)->first(['id', 'show_history'])?->show_history;
+            foreach (ShowHistory::days($history) as $day) {
+                $final[$day] = true;
+            }
+
+            if (in_array($previousShowtype ?? $event->showtype, ['s', 'o'], true)) {
+                $storedTz = self::validTimezone($previousTimezone ?? $event->timezone ?? $tz);
+                $rows = self::withoutGlobalScope(DateScope::class)->where('event_id', $event->id)->pluck('date');
+                $curtainTimes = self::usesCurtainTimes($rows);
+                $now = now()->format('Y-m-d H:i:s');
+                foreach ($rows as $date) {
+                    if ((string) $date < $now) {
+                        $final[self::localDay($date, $storedTz, $curtainTimes)] = true;
+                    }
+                }
+            }
+        }
+
+        return count($final) > RecurringDates::MAX_OCCURRENCES
+            ? 'This schedule would hold more than '.RecurringDates::MAX_OCCURRENCES.' dates in all, counting the past dates that are kept.'
+            : null;
+    }
+
+    /**
      * How many of these incoming dates (a dateArray) would be kept as rows,
      * that is fall on or after historyCutoff(). Malformed values are left
      * to the field's own validation.
@@ -661,15 +755,23 @@ class Show extends Model
             $allDays = array_merge(array_keys($historySet), $byDay->keys()->all());
             $newest = $allDays === [] ? null : max($allDays);
 
-            $foldIds = collect();
+            $foldSet = [];
             foreach ($byDay as $day => $group) {
                 if ($day < $cutoff && $day !== $newest) {
                     $historySet[$day] = true;
-                    $foldIds = $foldIds->merge($group->pluck('id'));
+                    foreach ($group as $row) {
+                        $foldSet[$row->id] = true;
+                    }
+                } else {
+                    // A day that stays a row is never also a history day
+                    // (possible only after a timezone change moved it), so
+                    // nothing counts it twice.
+                    unset($historySet[$day]);
                 }
             }
+            $foldIds = collect(array_keys($foldSet));
 
-            $remaining = $rows->reject(fn ($row) => $foldIds->contains($row->id));
+            $remaining = $rows->reject(fn ($row) => isset($foldSet[$row->id]));
             if ($foldIds->isNotEmpty() && $curtainTimes && ! self::usesCurtainTimes($remaining)) {
                 $now = now();
                 foreach ($remaining as $row) {

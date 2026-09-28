@@ -311,6 +311,27 @@ class UpdateEvent extends Tool
             ]);
         }
 
+        // Older show days (more than a year old, the compact show history)
+        // stay unless the caller says otherwise. An assistant cannot echo
+        // back a run open daily since 1977, 18,000 dates, so "dateArray is
+        // the whole schedule" would quietly delete that history on the first
+        // edit. They are added to the list here, as calendar dates, minus any
+        // named in remove_older_show_days; replace_older_show_days=true
+        // makes the list mean exactly what it says. Only for a schedule of
+        // the same dated type: a type switch replaces everything, as before.
+        if (isset($validated['dateArray']) && is_array($validated['dateArray'])
+            && $event->show_history
+            && in_array($resolvedShowtype, ['s', 'o'], true)
+            && $resolvedShowtype === $event->showtype
+            && ! $request->get('replace_older_show_days')) {
+            $remove = array_fill_keys(array_map('strval', (array) ($request->get('remove_older_show_days') ?? [])), true);
+            foreach (ShowHistory::days($event->show_history) as $day) {
+                if (! isset($remove[$day])) {
+                    $validated['dateArray'][] = $day.' 00:00:00';
+                }
+            }
+        }
+
         // One show per calendar day: the web wizard's date picker can't select a
         // day twice, so collapse any datetimes that land on the same day (in the
         // event's timezone) to a single show. The time-of-day belongs in the
@@ -339,10 +360,13 @@ class UpdateEvent extends Tool
             // written before that convention carry the curtain time.
             $existingRows = $event->shows()->pluck('date');
             $curtainTimes = Show::usesCurtainTimes($existingRows);
-            // Days in the compact show history (older than a year) are
-            // already-saved shows too.
+            // Stored rows read in the timezone they were written for (the
+            // event's current one), as Show::saveShows() reads them, even when
+            // this call changes it. Days in the compact show history (older
+            // than a year) are already-saved shows too.
+            $storedTz = Show::validTimezone($event->timezone ?? $tz);
             $existingDays = array_fill_keys(
-                $existingRows->map(fn ($d) => Show::localDay($d, $tz, $curtainTimes))
+                $existingRows->map(fn ($d) => Show::localDay($d, $storedTz, $curtainTimes))
                     ->merge(ShowHistory::days($event->show_history))
                     ->all(),
                 true
@@ -447,11 +471,21 @@ class UpdateEvent extends Tool
 
         if ($rest !== []) {
             $updateAction = app(UpdateEventAction::class);
-            $event = $updateAction->handle(
-                $event,
-                $rest,
-                $this->syntheticRequest($rest, $user)
-            );
+            try {
+                $event = $updateAction->handle(
+                    $event,
+                    $rest,
+                    $this->syntheticRequest($rest, $user)
+                );
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                // Raised under the event lock when the saved schedule as a
+                // whole would be too big (Show::saveShows). The schedule is
+                // left as it was.
+                return Response::json([
+                    'error' => 'validation_failed',
+                    'errors' => $e->errors(),
+                ]);
+            }
             $preservedPastDates = $updateAction->preservedPastDates;
             $rejectedPastDates = $updateAction->rejectedPastDates;
             $embargoRefused = $updateAction->embargoRefused;
@@ -485,13 +519,17 @@ class UpdateEvent extends Tool
             // saveShows() kept these instead of deleting them. Same reasoning
             // as ignored_fields: don't let the caller assume its requested
             // schedule was applied exactly as sent.
-            ...($preservedPastDates === [] ? [] : ['preserved_past_dates' => $preservedPastDates]),
+            // Capped at 50 with a total: a run with decades of history can
+            // put thousands here.
+            ...($preservedPastDates === [] ? [] : ['preserved_past_dates' => array_slice($preservedPastDates, 0, 50)]
+                + (count($preservedPastDates) > 50 ? ['preserved_past_dates_total' => count($preservedPastDates)] : [])),
             // The mirror: dates in the past the caller asked to CREATE and did
             // not get. The pre-check above catches these first in the ordinary
             // case, so this is the floor under it — and when the floor is what
             // fired, "Event updated." with dateArray in updated_fields would
             // have the caller believe a show exists that does not.
-            ...($rejectedPastDates === [] ? [] : ['rejected_past_dates' => $rejectedPastDates]),
+            ...($rejectedPastDates === [] ? [] : ['rejected_past_dates' => array_slice($rejectedPastDates, 0, 50)]
+                + (count($rejectedPastDates) > 50 ? ['rejected_past_dates_total' => count($rejectedPastDates)] : [])),
             // A published event whose run has ended cannot be embargoed by a
             // non-moderator (lifting it again is how an event announces
             // itself to followers), and the date was not stored.
@@ -602,9 +640,11 @@ class UpdateEvent extends Tool
 
             $rows = $event->shows()->pluck('date');
             $curtainTimes = Show::usesCurtainTimes($rows);
+            // Stored rows in the timezone they were written for, as saveShows reads them.
+            $storedTz = Show::validTimezone($event->timezone ?? $tz);
 
             return $rows
-                ->map(fn ($d) => Show::localDay($d, $tz, $curtainTimes))
+                ->map(fn ($d) => Show::localDay($d, $storedTz, $curtainTimes))
                 ->merge($historyDays)
                 ->unique()
                 ->reject(fn ($day) => isset($keptDays[$day]))
@@ -703,8 +743,8 @@ class UpdateEvent extends Tool
             'remote_description' => $schema->string()->description('For remote events: how attendees join, max 3000 chars.'),
             'timezone' => $schema->string()->description('IANA timezone of the event, e.g. "America/New_York". geocode-address results include coordinates you can infer it from.'),
             'showtype' => $schema->string()->enum(['s', 'o', 'a'])->description('s = specific dates, o = ongoing/recurring, a = always available. WARNING: changing this wipes and recreates all shows (ticket tiers are kept). Always-available events have no embargo on the website, so clear it explicitly with embargo_date=null when switching to "a".'),
-            'dateArray' => $schema->array()->description('The calendar dates the event plays, each as "Y-m-d 00:00:00" — exactly midnight means that date in the event timezone, whatever the timezone ("2026-10-31 00:00:00" = Oct 31). Do not convert curtain times to UTC here: a value with any other time is read as a real UTC instant and lands on whatever local day that is (8 PM Eastern is 00:00 UTC, which would then read as a date). Times of day belong in show_times. One show is stored per calendar day. REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it. That full list includes the older show days get-event reports under older_show_days (days more than a year old, kept as weekly runs): leave them out and they are removed.'),
-            'ongoing_config' => $schema->object()->description('For showtype=o: {startDate, endDate (UTC "Y-m-d H:i:s", anchored at noon in the event timezone), daysOfWeek: [0-6, Sunday=0]}. The server generates the concrete occurrence dates from this rule — send it alone, WITHOUT dateArray, for a normal weekly run. startDate is the day the run really began, however long ago (staff can go back up to '.Show::STAFF_LOOKBACK_YEARS.' years): days more than a year old are kept compactly, so a run open since the 1970s is fine. To extend a run, keep its original startDate and move endDate; a later startDate removes the days before it.'),
+            'dateArray' => $schema->array()->description('The calendar dates the event plays, each as "Y-m-d 00:00:00" — exactly midnight means that date in the event timezone, whatever the timezone ("2026-10-31 00:00:00" = Oct 31). Do not convert curtain times to UTC here: a value with any other time is read as a real UTC instant and lands on whatever local day that is (8 PM Eastern is 00:00 UTC, which would then read as a date). Times of day belong in show_times. One show is stored per calendar day. REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it. The one exception is the older show days get-event reports under older_show_days (days more than a year old, kept as weekly runs): they are kept automatically, so do not list them. To drop some, name them in remove_older_show_days.'),
+            'ongoing_config' => $schema->object()->description('For showtype=o: {startDate, endDate (UTC "Y-m-d H:i:s", anchored at noon in the event timezone), daysOfWeek: [0-6, Sunday=0]}. The server generates the concrete occurrence dates from this rule — send it alone, WITHOUT dateArray, for a normal weekly run. startDate is the day the run really began, however long ago (staff can go back up to '.Show::STAFF_LOOKBACK_YEARS.' years): days more than a year old are kept compactly, so a run open since the 1970s is fine. Older show days (older_show_days in get-event) are kept automatically, so a recipe only needs to cover the rows in show_dates onward: to extend a run, start it at the earliest of those and move endDate. An earlier startDate refills every matching weekday back to it, closures included.'),
             'always_config' => $schema->object()->description('For showtype=a: {endDate (UTC "Y-m-d H:i:s")} — when the listing should close. Defaults to 6 months out if omitted.'),
             'show_times' => $schema->string()->description('Human-readable showtimes text, max 500 chars, e.g. "Fridays 8pm, Saturdays 6pm & 9pm".'),
             'tickets' => $schema->array()->description('1-'.EventUpdateRules::MAX_TICKET_TIERS.' ticket tiers for the event: [{"name": "General", "ticket_price": 25.00, "currency": "USD", "description": ""}]. Names must be unique; name "Free" requires price 0; name "PWYC" = pay-what-you-can; description shows truncated around 60 chars. Currency is a 3-letter ISO 4217 code (USD, GBP, EUR, AUD, SGD, JPY, INR…) — any current currency is accepted; omit it and the event\'s location country decides (USD for remote events). Requires dates to exist first.'),
@@ -722,6 +762,8 @@ class UpdateEvent extends Tool
             'videos' => $schema->array()->description('Optional, up to 4: [{"platform": "youtube"|"tiktok", "url": "...", "id": "platform video id", "rank": 0}]. Instagram is not supported.'),
             'acknowledge_duplicate' => $schema->boolean()->description('Set true only after the user confirms a duplicate-name warning.'),
             'confirm_live_edit' => $schema->boolean()->description('Required when editing a PUBLISHED or EMBARGOED event: the first call returns a current-vs-proposed diff instead of applying. Show the user the diff, get their explicit confirmation, then retry with this set to true.'),
+            'remove_older_show_days' => $schema->array()->description('Older show days to delete, as calendar dates "Y-m-d" (days listed under older_show_days in get-event). Those days are otherwise always kept when you send dateArray or ongoing_config. Deleting a day that already happened is staff-only; for anyone else it is kept and reported under preserved_past_dates.'),
+            'replace_older_show_days' => $schema->boolean()->description('Rarely needed. true makes dateArray (or the ongoing_config expansion) the WHOLE schedule, older show days included, so any older day it leaves out is deleted (staff only). Default false: older show days are kept.'),
             'confirm_schedule_replace' => $schema->boolean()->description('Required when a schedule change would DELETE existing shows (a showtype switch, or a dateArray that drops dates): the first call returns action_required=confirm_schedule_replace with the count. Shows are hard-deleted with no undo — tell the user how many will be removed, get their explicit confirmation, then retry with this set to true.'),
         ];
     }

@@ -143,8 +143,23 @@ class EventUpdateRules
                         $fail('A schedule can hold at most '.\App\Models\Events\Show::MAX_ROWS.' dates from the last year on.');
                     }
                 },
+                // Each entry is a "Y-m-d H:i:s", checked in one pass. This was
+                // a 'dateArray.*' wildcard rule, which Laravel expands into
+                // one attribute per entry: fine for a few hundred dates, but
+                // ten seconds for the 40,000 a century-long run can send.
+                // Errors still name the entry ("dateArray.3").
+                function ($attribute, $value, $fail) {
+                    if (! is_array($value) || count($value) > \App\Support\RecurringDates::MAX_OCCURRENCES) {
+                        return; // 'array' and 'max' above already say so
+                    }
+                    foreach ($value as $i => $date) {
+                        $parsed = is_string($date) ? \DateTime::createFromFormat('!Y-m-d H:i:s', $date) : false;
+                        if ($parsed === false || $parsed->format('Y-m-d H:i:s') !== $date) {
+                            $fail("{$attribute}.{$i}", "The {$attribute}.{$i} field must match the format Y-m-d H:i:s.");
+                        }
+                    }
+                },
             ],
-            'dateArray.*' => 'required_if:showtype,s|date_format:Y-m-d H:i:s',
             // Ongoing/always config (used by M11 showtype_config persistence)
             'ongoing_config' => 'sometimes|nullable|array',
             'ongoing_config.startDate' => 'sometimes|nullable|date_format:Y-m-d H:i:s',

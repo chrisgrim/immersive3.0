@@ -173,7 +173,7 @@ class GetEvent extends Tool
         }
 
         return [
-            'note' => 'Show days more than a year old, kept as weekly runs rather than listed one by one. They are part of the schedule: a dateArray that leaves them out removes them.',
+            'note' => 'Show days more than a year old, kept as weekly runs rather than listed one by one (each run: every day from `from` to `to` whose weekday, 0 = Sunday, is in `days`). They are part of the schedule and stay when update-event gets a new dateArray or ongoing_config; to delete some, pass them in remove_older_show_days.',
             'count' => ShowHistory::count($event->show_history),
             'first_day' => ShowHistory::firstDay($event->show_history),
             'last_day' => ShowHistory::lastDay($event->show_history),

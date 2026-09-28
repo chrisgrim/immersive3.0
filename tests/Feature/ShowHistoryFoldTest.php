@@ -459,12 +459,13 @@ test('get-event reports the older days, and extending with the same start remove
     expect(foldAllDays($event))->toBe(foldDays('1977-10-01', '2027-08-31'));
 });
 
-test('update-event counts history days it would drop and asks first', function () {
+test('a recipe starting today keeps the older days and asks before dropping the last year', function () {
     $admin = User::factory()->create(['type' => 'a', 'email_verified_at' => now()]);
     $event = foldEvent(['status' => '0', 'user_id' => $admin->id]);
     foldSave($event, foldDays('2000-01-01', '2026-12-31'), $admin);
 
-    // Starting the recipe today would drop every day before it.
+    // Starting the recipe today drops the past rows (the last year); the
+    // older days are kept whatever the recipe says.
     $response = \App\Mcp\Servers\EiServer::actingAs($admin)->tool(\App\Mcp\Tools\UpdateEvent::class, [
         'event_slug' => $event->slug,
         'showtype' => 'o',
@@ -476,7 +477,7 @@ test('update-event counts history days it would drop and asks first', function (
         ],
     ]);
 
-    $removed = count(foldDays('2000-01-01', '2026-09-27'));
+    $removed = count(foldDays('2025-09-28', '2026-09-27'));
     $response->assertOk()->assertSee('confirm_schedule_replace')->assertSee('"shows_to_remove":'.$removed, false);
     expect(foldAllDays($event))->toBe(foldDays('2000-01-01', '2026-12-31'));
 });
@@ -497,4 +498,151 @@ test('update-event refuses a recurrence with more than the row cap from the last
     ])->assertOk()->assertSee('schedule_too_long');
 
     expect(Show::withoutGlobalScopes()->where('event_id', $event->id)->count())->toBe(0);
+});
+
+// ============================================================
+// Review follow-ups
+// ============================================================
+
+test('the schedule assistant snapshot carries the history, so the editor keeps it', function () {
+    $event = foldEvent();
+    foldSave($event, foldDays('1990-01-01', '2026-12-31'), foldStaff());
+
+    $snapshot = app(\App\Services\EventScheduleAssistant::class)->scheduleSnapshot(Event::findOrFail($event->id));
+
+    expect($snapshot['older_show_days']['first_day'])->toBe('1990-01-01')
+        ->and($snapshot['older_show_days']['runs'])->not->toBeEmpty()
+        ->and($snapshot['show_count'])->toBe(count(foldDays('1990-01-01', '2026-12-31')));
+});
+
+test('an organizer keeps a run\'s history through "always available" and back', function () {
+    $event = foldEvent();
+    $days = foldDays('2012-05-01', '2026-12-31');
+    foldSave($event, $days, foldStaff());
+    $organizer = foldOrganizer($event);
+    $history = foldDays('2012-05-01', '2025-09-27');
+
+    test()->actingAs($organizer);
+    $always = ['showtype' => 'a', 'always_config' => ['endDate' => '2027-06-01 12:00:00'], 'timezone' => FOLD_TZ];
+    $action = app(UpdateEventAction::class);
+    $action->handle(Event::findOrFail($event->id), $always, new Request($always));
+    expect(ShowHistory::days(Event::findOrFail($event->id)->show_history))->toBe($history);
+
+    // A second save of the same sentinel type must not drop it either.
+    $action = app(UpdateEventAction::class);
+    $action->handle(Event::findOrFail($event->id), $always, new Request($always));
+    expect(ShowHistory::days(Event::findOrFail($event->id)->show_history))->toBe($history)
+        ->and($action->preservedPastDates)->toBe([]);
+});
+
+test('a save whose whole schedule would pass the total cap is refused and changes nothing', function () {
+    $event = foldEvent(['showtype' => 's']);
+    // History straight into the column: close to the total cap already.
+    $old = array_slice(foldDays('1900-01-01', '2025-01-01'), 0, RecurringDates::MAX_OCCURRENCES - 10);
+    expect($old)->toHaveCount(RecurringDates::MAX_OCCURRENCES - 10);
+    $event->forceFill(['show_history' => ShowHistory::pack($old, '2025-01-01')])->save();
+    Show::create(['event_id' => $event->id, 'date' => Show::storedFromLocalDay('2026-10-01', FOLD_TZ)]);
+    $organizer = foldOrganizer($event);
+
+    // Twenty new future days: a small request, but the kept history makes it
+    // too big. Sent with a new name and a switch to ongoing, neither of which
+    // may be saved when the schedule is refused.
+    test()->actingAs($organizer);
+    $data = ['showtype' => 'o', 'dateArray' => foldPayload(foldDays('2026-10-01', '2026-10-20')), 'timezone' => FOLD_TZ, 'name' => 'Renamed'];
+    expect(fn () => app(UpdateEventAction::class)->handle(Event::findOrFail($event->id), $data, new Request($data)))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
+
+    $after = Event::findOrFail($event->id);
+    expect(foldRowDays($event))->toBe(['2026-10-01'])
+        ->and(ShowHistory::count($after->show_history))->toBe(count($old))
+        ->and($after->name)->not->toBe('Renamed')
+        ->and($after->showtype)->toBe('s');
+});
+
+test('validating 40,000 dates takes one quick pass and still names a bad entry', function () {
+    $dates = foldPayload(array_slice(foldDays('1920-01-01', '2031-12-31'), 0, RecurringDates::MAX_OCCURRENCES));
+    $rules = collect(EventUpdateRules::rules(FOLD_TZ))->only(['showtype', 'dateArray', 'dateArray.*'])->all();
+
+    $start = microtime(true);
+    $ok = validator(['showtype' => 'o', 'dateArray' => $dates], $rules);
+    expect($ok->passes())->toBeTrue()
+        ->and(microtime(true) - $start)->toBeLessThan(3.0);
+
+    $dates[3] = '2026-05-28';
+    $bad = validator(['showtype' => 'o', 'dateArray' => $dates], $rules);
+    expect($bad->fails())->toBeTrue()
+        ->and($bad->errors()->has('dateArray.3'))->toBeTrue();
+});
+
+test('update-event keeps older days when a dateArray leaves them out, and drops only the ones named', function () {
+    $admin = User::factory()->create(['type' => 'a', 'email_verified_at' => now()]);
+    $event = foldEvent(['status' => '0', 'showtype' => 's', 'user_id' => $admin->id]);
+    $old = foldDays('2001-01-01', '2001-12-31', [6]);
+    foldSave($event, array_merge($old, ['2026-10-10']), $admin, 's');
+
+    // Just the upcoming days, as an assistant would send them, dropping one
+    // older day: that is a removal, so it is confirmed first.
+    $args = [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => FOLD_TZ,
+        'dateArray' => ['2026-10-10 00:00:00', '2026-10-17 00:00:00'],
+        'remove_older_show_days' => ['2001-01-06'],
+    ];
+    \App\Mcp\Servers\EiServer::actingAs($admin)->tool(\App\Mcp\Tools\UpdateEvent::class, $args)
+        ->assertOk()->assertSee('"shows_to_remove":1', false);
+    \App\Mcp\Servers\EiServer::actingAs($admin)->tool(\App\Mcp\Tools\UpdateEvent::class, $args + ['confirm_schedule_replace' => true])
+        ->assertOk()->assertSee('Event updated');
+
+    $kept = array_values(array_diff($old, ['2001-01-06']));
+    expect(foldAllDays($event))->toBe(array_merge($kept, ['2026-10-10', '2026-10-17']));
+});
+
+test('update-event with replace_older_show_days asks before dropping the older days', function () {
+    $admin = User::factory()->create(['type' => 'a', 'email_verified_at' => now()]);
+    $event = foldEvent(['status' => '0', 'showtype' => 's', 'user_id' => $admin->id]);
+    foldSave($event, array_merge(foldDays('2001-01-01', '2001-01-31'), ['2026-10-10']), $admin, 's');
+
+    \App\Mcp\Servers\EiServer::actingAs($admin)->tool(\App\Mcp\Tools\UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => FOLD_TZ,
+        'dateArray' => ['2026-10-10 00:00:00'],
+        'replace_older_show_days' => true,
+    ])->assertOk()->assertSee('confirm_schedule_replace')->assertSee('"shows_to_remove":31', false);
+});
+
+test('changing the timezone in the same save keeps every day, for an organizer too', function () {
+    $event = foldEvent();
+    $days = foldDays('2024-01-01', '2026-12-31');
+    foldSave($event, $days, foldStaff());
+    $organizer = foldOrganizer($event);
+
+    // The same days, sent for Tokyo: an organizer's editor re-sends the whole schedule.
+    test()->actingAs($organizer);
+    $data = ['showtype' => 'o', 'timezone' => 'Asia/Tokyo', 'dateArray' => array_map(fn ($d) => Show::storedFromLocalDay($d, 'Asia/Tokyo'), $days)];
+    $action = app(UpdateEventAction::class);
+    $action->handle(Event::findOrFail($event->id), $data, new Request($data));
+
+    expect(Show::scheduleDaysOf(Event::findOrFail($event->id), 'Asia/Tokyo'))->toBe($days)
+        ->and($action->rejectedPastDates)->toBe([])
+        ->and($action->preservedPastDates)->toBe([])
+        // One row per day, no duplicates from the move.
+        // (A year ago in Tokyo is a day later than in New York.)
+        ->and(Show::withoutGlobalScopes()->where('event_id', $event->id)->count())->toBe(count(foldDays('2025-09-29', '2026-12-31')));
+});
+
+test('an organizer\'s kept past rows stay on their day when the timezone changes', function () {
+    $event = foldEvent(['showtype' => 's']);
+    foldSave($event, ['2026-09-01', '2026-09-02', '2026-12-01'], foldStaff(), 's');
+    $organizer = foldOrganizer($event);
+
+    // Only the future day, for Tokyo: the two past days are kept anyway.
+    test()->actingAs($organizer);
+    $data = ['showtype' => 's', 'timezone' => 'Asia/Tokyo', 'dateArray' => [Show::storedFromLocalDay('2026-12-01', 'Asia/Tokyo')]];
+    $action = app(UpdateEventAction::class);
+    $action->handle(Event::findOrFail($event->id), $data, new Request($data));
+
+    expect(Show::scheduleDaysOf(Event::findOrFail($event->id), 'Asia/Tokyo'))->toBe(['2026-09-01', '2026-09-02', '2026-12-01'])
+        ->and($action->preservedPastDates)->toBe(['2026-09-01', '2026-09-02']);
 });

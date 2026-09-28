@@ -81,11 +81,11 @@ class EiServer extends Server
     Editing a schedule: send the field that matches the event's showtype —
     `dateArray` for "s", `ongoing_config` for "o", `always_config` for "a".
     Sending the wrong one is rejected rather than silently ignored. `dateArray`
-    REPLACES the whole schedule, so include the past dates you want to keep
-    (get-event lists days more than a year old under `older_show_days`, as
-    weekly runs); `ongoing_config` regenerates the run from its recipe, so keep
-    its original startDate when extending it. Fields you do not send are left
-    alone.
+    REPLACES the whole schedule, so include the past dates you want to keep,
+    except the days more than a year old that get-event lists under
+    `older_show_days` (as weekly runs): those are always kept unless named in
+    `remove_older_show_days`. `ongoing_config` regenerates the run from its
+    recipe. Fields you do not send are left alone.
 
     Safety rules:
     - Events only go live after a human admin approves them; you cannot publish.

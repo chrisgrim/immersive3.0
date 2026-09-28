@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The single write path for partial event updates.
@@ -85,6 +86,8 @@ class UpdateEventAction
         // onto $event, so the only place the previous one still exists is here.
         // Show::updateEvent needs it to tell a real type switch from a bare echo.
         $oldShowtype = $event->showtype;
+        // Same for the timezone: the rows already stored were written for it.
+        $oldTimezone = $event->timezone;
 
         // Guard the showtype/shows invariant: switching INTO a specific/ongoing
         // type with no dates would flip showtype (mass-assigned below) while the
@@ -99,6 +102,15 @@ class UpdateEventAction
             && empty($validatedData['dateArray'] ?? [])
             && $validatedData['showtype'] !== $event->showtype) {
             unset($validatedData['showtype']);
+        }
+
+        // Refuse a schedule that would be too big as a whole BEFORE anything
+        // is written: the fields below are saved outside the schedule's
+        // transaction, so refusing later would keep them and drop the rest.
+        // Show::saveShows() repeats the check under the lock.
+        if (isset($validatedData['showtype'])
+            && ($problem = Show::scheduleSizeProblem($request, $event, $oldShowtype, $oldTimezone)) !== null) {
+            throw ValidationException::withMessages(['dateArray' => $problem]);
         }
 
         // Handle attendance type changes (using either hasLocation or attendance_type_id)
@@ -155,7 +167,7 @@ class UpdateEventAction
         }
 
         if (isset($validatedData['showtype'])) {
-            DB::transaction(function () use ($event, $request, $oldShowtype) {
+            DB::transaction(function () use ($event, $request, $oldShowtype, $oldTimezone) {
                 // Serializes concurrent editors of the same event's
                 // schedule — without this, two near-simultaneous saves
                 // (double submit, two editors) could both read the same
@@ -168,7 +180,7 @@ class UpdateEventAction
                 // favoriters actually saved the event under, not the new one.
                 $datesBeforeUpdate = $this->scheduleDays($event);
 
-                $showResult = Show::saveShows($request, $event, $oldShowtype);
+                $showResult = Show::saveShows($request, $event, $oldShowtype, $oldTimezone);
                 $this->preservedPastDates = $showResult['preserved'];
                 $this->rejectedPastDates = $showResult['rejected'];
                 Show::updateEvent($request, $event, $oldShowtype);

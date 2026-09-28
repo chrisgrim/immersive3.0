@@ -224,6 +224,11 @@ class EventScheduleAssistant
                 $payload['confirm_schedule_replace'] = true;
             }
 
+            // Older show days to delete (they are kept otherwise).
+            if (! empty($input['remove_older_show_days']) && is_array($input['remove_older_show_days'])) {
+                $payload['remove_older_show_days'] = array_values($input['remove_older_show_days']);
+            }
+
             $payload['event_slug'] = $event->slug;
 
             $mcpRequest = new McpRequest($payload);
@@ -252,8 +257,8 @@ class EventScheduleAssistant
         $event->loadMissing('shows');
         $dates = $event->shows->pluck('date')->map(fn ($d) => (string) $d)->values();
         // Read fresh: the update tool saves through its own copy of the event.
-        $raw = Event::withoutGlobalScopes()->withTrashed()->whereKey($event->id)->value('show_history');
-        $event->show_history = is_string($raw) ? json_decode($raw, true) : null;
+        // (Through the model, so the column's array cast applies.)
+        $event->show_history = Event::withoutGlobalScopes()->withTrashed()->whereKey($event->id)->first(['id', 'show_history'])?->show_history;
         $event->syncOriginalAttribute('show_history');
 
         return [
@@ -335,8 +340,8 @@ class EventScheduleAssistant
           Do not re-ask about the past dates after they have confirmed. The tool only rejects
           dates more than ~100 years back (error=past_dates), which really is a wrong year — fix
           those with the user. Show days more than a year old are kept compactly as weekly runs
-          (older_show_days in the snapshot); they are part of the schedule, so keep them when
-          rewriting it.
+          (older_show_days in the snapshot). They are kept automatically when you rewrite the
+          schedule, so do not list them; to delete some, pass them in remove_older_show_days.
         - An event must always keep at least one date; it cannot have an empty schedule. If the
           user says "remove all the dates" or "clear the schedule", do NOT send an empty
           dateArray — ask which dates should replace the current ones, then send those.
@@ -396,6 +401,11 @@ class EventScheduleAssistant
                                 'endDate' => ['type' => 'string'],
                                 'daysOfWeek' => ['type' => 'array', 'items' => ['type' => 'integer']],
                             ],
+                        ],
+                        'remove_older_show_days' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Older show days (older_show_days in the schedule) to delete, as "Y-m-d". They are kept otherwise, whatever dateArray or ongoing_config says.',
                         ],
                         'always_config' => [
                             'type' => 'object',

@@ -453,9 +453,12 @@ const onDateSelect = (dates) => {
     const newSelectedDates = dates.map(d => normalizeDateToTimezone(d, selectedTimezone.value));
     const previousSelectedDates = [...selectedDates.value]; // Create a copy for comparison
 
-    // Only find truly new or removed dates by comparing the normalized date strings
-    const addedDate = newSelectedDates.find(d => !previousSelectedDates.includes(d));
-    const removedDate = previousSelectedDates.find(d => !newSelectedDates.includes(d));
+    // Only find truly new or removed dates by comparing the normalized date strings.
+    // Sets, not includes(): a long run's history can hold tens of thousands of days.
+    const previousSet = new Set(previousSelectedDates);
+    const newSet = new Set(newSelectedDates);
+    const addedDate = newSelectedDates.find(d => !previousSet.has(d));
+    const removedDate = previousSelectedDates.find(d => !newSet.has(d));
 
     // Update the internal state
     date.value = dates;

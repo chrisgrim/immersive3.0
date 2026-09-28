@@ -76,6 +76,19 @@ class HostEventController extends Controller
         return view('creation.edit', compact('event'));
     }
 
+    /**
+     * Dates for a warning, the first ten and a count of the rest: a run with
+     * decades of history can put thousands in one of these lists.
+     *
+     * @param  array<int, string>  $dates
+     */
+    private static function dateList(array $dates): string
+    {
+        $shown = implode(', ', array_slice($dates, 0, 10));
+
+        return count($dates) > 10 ? $shown.' and '.(count($dates) - 10).' more' : $shown;
+    }
+
     public function update(StoreEventRequest $request, Event $event, UpdateEventAction $updateEvent)
     {
         $this->assertEditable($event);
@@ -108,14 +121,14 @@ class HostEventController extends Controller
 
         if (! empty($updateEvent->preservedPastDates)) {
             $warnings[] = 'Dates that have already passed ('
-                .implode(', ', $updateEvent->preservedPastDates)
+                .self::dateList($updateEvent->preservedPastDates)
                 .') were kept and not removed. Only admins and moderators can remove past dates.';
         }
 
         // The mirror refusal — see UpdateEventAction::$rejectedPastDates.
         if (! empty($updateEvent->rejectedPastDates)) {
             $warnings[] = 'Dates in the past ('
-                .implode(', ', $updateEvent->rejectedPastDates)
+                .self::dateList($updateEvent->rejectedPastDates)
                 .') were not added. Only admins and moderators can add dates that have already passed.';
         }
 
