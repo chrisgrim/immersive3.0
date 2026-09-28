@@ -53,8 +53,19 @@ class UpdateEvent extends Tool
         'slug' => 'the slug is fixed once the event is created',
     ];
 
+    /**
+     * The dateArray as the caller sent it, plus a count of the older show
+     * days kept alongside it, for the live-edit preview. Null when no older
+     * days were merged in.
+     *
+     * @var array<string, mixed>|null
+     */
+    protected ?array $dateArrayPreview = null;
+
     public function handle(Request $request): Response
     {
+        $this->dateArrayPreview = null; // a tool instance can serve several calls
+
         $user = $request->user();
 
         $stripped = array_values(array_intersect(
@@ -325,11 +336,20 @@ class UpdateEvent extends Tool
             && $resolvedShowtype === $event->showtype
             && ! $request->get('replace_older_show_days')) {
             $remove = array_fill_keys(array_map('strval', (array) ($request->get('remove_older_show_days') ?? [])), true);
+            $sentDates = $validated['dateArray'];
+            $kept = 0;
+            $removed = [];
             foreach (ShowHistory::days($event->show_history) as $day) {
-                if (! isset($remove[$day])) {
+                if (isset($remove[$day])) {
+                    $removed[] = $day;
+                } else {
                     $validated['dateArray'][] = $day.' 00:00:00';
+                    $kept++;
                 }
             }
+            // What a live-edit preview shows instead of the merged list: tens
+            // of thousands of kept days would bury the change being confirmed.
+            $this->dateArrayPreview = ['dates' => $sentDates, 'older_days_kept' => $kept, 'older_days_removed' => $removed];
         }
 
         // One show per calendar day: the web wizard's date picker can't select a
@@ -721,7 +741,7 @@ class UpdateEvent extends Tool
         };
 
         return collect($validated)->mapWithKeys(fn ($proposed, $key) => [
-            $key => ['current' => $current($key), 'proposed' => $proposed],
+            $key => ['current' => $current($key), 'proposed' => $key === 'dateArray' && $this->dateArrayPreview !== null ? $this->dateArrayPreview : $proposed],
         ])->all();
     }
 

@@ -178,7 +178,10 @@ class UpdateEventAction
 
                 // Captured before the write so it reflects the schedule
                 // favoriters actually saved the event under, not the new one.
-                $datesBeforeUpdate = $this->scheduleDays($event);
+                // In the timezone the rows were written for: the new one is
+                // already on $event, and reading old rows in it after a
+                // timezone fix made every day look new to favoriters.
+                $datesBeforeUpdate = $this->scheduleDays($event, $oldTimezone);
 
                 $showResult = Show::saveShows($request, $event, $oldShowtype, $oldTimezone);
                 $this->preservedPastDates = $showResult['preserved'];
@@ -466,9 +469,9 @@ class UpdateEventAction
      *
      * @return string[]
      */
-    private function scheduleDays(Event $event): array
+    private function scheduleDays(Event $event, ?string $timezone = null): array
     {
-        $tz = Show::validTimezone($event->timezone);
+        $tz = Show::validTimezone($timezone ?? $event->timezone);
         $rows = $event->shows()->pluck('date');
         $curtainTimes = Show::usesCurtainTimes($rows);
 

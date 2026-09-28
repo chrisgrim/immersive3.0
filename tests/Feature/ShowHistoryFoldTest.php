@@ -646,3 +646,36 @@ test('an organizer\'s kept past rows stay on their day when the timezone changes
     expect(Show::scheduleDaysOf(Event::findOrFail($event->id), 'Asia/Tokyo'))->toBe(['2026-09-01', '2026-09-02', '2026-12-01'])
         ->and($action->preservedPastDates)->toBe(['2026-09-01', '2026-09-02']);
 });
+
+test('a live-edit preview shows the dates sent and a count of the older days kept, not every one', function () {
+    $admin = User::factory()->create(['type' => 'a', 'email_verified_at' => now()]);
+    $event = foldEvent(['showtype' => 's', 'user_id' => $admin->id]);
+    foldSave($event, array_merge(foldDays('1980-01-01', '2000-12-31'), ['2026-10-10']), $admin, 's');
+
+    $response = \App\Mcp\Servers\EiServer::actingAs($admin)->tool(\App\Mcp\Tools\UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => FOLD_TZ,
+        'dateArray' => ['2026-10-10 00:00:00', '2026-10-17 00:00:00'],
+    ]);
+
+    $response->assertOk()->assertSee('confirm_live_edit')
+        ->assertSee('"older_days_kept":'.count(foldDays('1980-01-01', '2000-12-31')), false)
+        ->assertDontSee('1990-06-15');
+});
+
+test('fixing a timezone does not tell favoriters about new dates', function () {
+    $event = foldEvent(['timezone' => 'Australia/Sydney']);
+    $days = foldDays('2026-10-02', '2026-12-25', [5]);
+    test()->actingAs(foldStaff());
+    $data = ['showtype' => 'o', 'timezone' => 'Australia/Sydney', 'dateArray' => array_map(fn ($d) => Show::storedFromLocalDay($d, 'Australia/Sydney'), $days)];
+    app(UpdateEventAction::class)->handle(Event::findOrFail($event->id), $data, new Request($data));
+
+    $this->mock(\App\Services\EventNotificationDispatcher::class)->shouldNotReceive('newDatesForSavedEvent');
+
+    // The same Fridays, now for New York.
+    $data = ['showtype' => 'o', 'timezone' => FOLD_TZ, 'dateArray' => foldPayload($days)];
+    app(UpdateEventAction::class)->handle(Event::findOrFail($event->id), $data, new Request($data));
+
+    expect(foldAllDays($event))->toBe($days);
+});

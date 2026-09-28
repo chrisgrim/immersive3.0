@@ -227,7 +227,8 @@ class Show extends Model
             // The whole schedule after this save, kept history and protected
             // past rows included, must still fit what one save can send back.
             // UpdateEventAction checks this before writing anything; this is
-            // the same check under the lock, in case the schedule grew since.
+            // the same check under the lock, in case the schedule grew since
+            // (a race: if it fires here, fields saved before the schedule stay).
             if (($problem = self::scheduleSizeProblem($request, $event, $previousShowtype, $previousTimezone)) !== null) {
                 throw ValidationException::withMessages(['dateArray' => $problem]);
             }
