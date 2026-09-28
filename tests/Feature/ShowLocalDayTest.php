@@ -393,6 +393,23 @@ test('backfilling past days on a live event does not tell favoriters', function 
     expect($event->fresh()->shows()->count())->toBe(3);
 });
 
+test('adding today counts as a new date, even when UTC is already tomorrow', function () {
+    // 20:00 in Chicago on Sep 26 is Sep 27 in UTC; Sep 26 is still today there.
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-09-27 01:00:00', 'UTC'));
+    $this->actingAs(localDayModerator());
+    $event = localDayEvent();
+    Show::factory()->create(['event_id' => $event->id, 'date' => '2030-11-01 17:00:00']);
+    FakeSearchEngine::install([]);
+    $this->mock(\App\Services\EventNotificationDispatcher::class)
+        ->shouldReceive('newDatesForSavedEvent')->once();
+
+    $this->postJson("/api/hosting/event/{$event->slug}", [
+        'showtype' => 's',
+        'timezone' => 'America/Chicago',
+        'dateArray' => ['2026-09-26 00:00:00', '2030-11-01 17:00:00'],
+    ])->assertOk();
+});
+
 test('a past day and a future day added together still tell favoriters once', function () {
     $this->actingAs(localDayModerator());
     $event = localDayEvent();

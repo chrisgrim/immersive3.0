@@ -887,6 +887,22 @@ test('update-event does not regress the wizard step marker', function () {
     expect($event->fresh()->status)->toBe('9');
 });
 
+test('update-event collapses a midnight date and a curtain time on the same calendar day', function () {
+    // "2030-06-10 00:00:00" means June 10; 02:00 UTC on June 11 is 19:00 on
+    // June 10 in Los Angeles. Same day, so one show.
+    $admin = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($admin), $admin);
+
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 's',
+        'timezone' => 'America/Los_Angeles',
+        'dateArray' => ['2030-06-10 00:00:00', '2030-06-11 02:00:00', '2030-06-12 00:00:00'],
+    ])->assertOk();
+
+    expect($event->fresh()->shows()->count())->toBe(2);
+});
+
 test('update-event collapses multiple datetimes on the same day to one show', function () {
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);

@@ -291,6 +291,7 @@
                                     :preview-date="previewDateStartModal"
                                     :multi-calendars="displayedMonthsStartModal"
                                     multi-calendars-solo
+                                    :min-date="staffLookbackFloor"
                                     inline
                                     auto-apply
                                     month-name-format="long"
@@ -507,6 +508,20 @@ const endDateCalendarRef = ref(null);
 
 // Admin check
 const isAdmin = computed(() => user && (user.isAdmin || false));
+
+// The exact first day an admin may start a run on: 20 years ago today,
+// matching Show::STAFF_LOOKBACK_YEARS on the server (paging back 240 months
+// alone would still expose the rest of that month). The end date's own
+// min-date is the start date, so it inherits this floor.
+const staffLookbackFloor = computed(() => {
+    if (!isAdmin.value) {
+        return null;
+    }
+    const floor = new Date();
+    floor.setHours(0, 0, 0, 0);
+    floor.setFullYear(floor.getFullYear() - 20);
+    return floor;
+});
 
 // Computed property to check if we can show more previous months
 const canShowMorePreviousMonths = computed(() => {

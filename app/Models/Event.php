@@ -257,12 +257,14 @@ class Event extends Model
         // this document, which Elasticsearch refuses past 10,000. A long run
         // with years of history would otherwise become unindexable. Future
         // shows can't pass the cap: every one comes from a dateArray, which
-        // EventUpdateRules limits to RecurringDates::MAX_OCCURRENCES; the
-        // limit() is a belt-and-braces guard.
+        // EventUpdateRules limits to RecurringDates::MAX_OCCURRENCES, plus
+        // at most a couple of days of just-past rows a save keeps. The
+        // limit() is a guard set above that and under Elasticsearch's 10,000,
+        // so it never trims a real upcoming date.
         $this->load(['showsSelect' => fn ($q) => $q
             ->where('date', '>=', now()->subDays(2)->startOfDay())
             ->reorder('date')
-            ->limit(\App\Support\RecurringDates::MAX_OCCURRENCES)]);
+            ->limit(9900)]);
         $shows = $this->showsSelect;
 
         return [

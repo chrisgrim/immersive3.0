@@ -332,6 +332,22 @@ test('toSearchableArray sends only recent and upcoming shows, so years of histor
     expect($dates)->toBe(['2026-09-25 00:00:00', '2026-10-04 12:00:00']);
 });
 
+test('toSearchableArray keeps every upcoming show of a schedule at the cap, plus the just-past ones', function () {
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-09-27 15:00:00', 'UTC'));
+    $event = Event::factory()->published()->create();
+    $now = now();
+    $rows = collect(range(1, \App\Support\RecurringDates::MAX_OCCURRENCES))
+        ->map(fn ($i) => ['event_id' => $event->id, 'date' => $now->copy()->addDays($i)->format('Y-m-d 12:00:00'), 'created_at' => $now, 'updated_at' => $now])
+        ->push(['event_id' => $event->id, 'date' => '2026-09-26 12:00:00', 'created_at' => $now, 'updated_at' => $now])
+        ->push(['event_id' => $event->id, 'date' => '2026-09-25 12:00:00', 'created_at' => $now, 'updated_at' => $now]);
+    $rows->chunk(1000)->each(fn ($chunk) => \App\Models\Events\Show::insert($chunk->values()->all()));
+
+    $shows = $event->toSearchableArray()['shows'];
+
+    expect($shows)->toHaveCount(\App\Support\RecurringDates::MAX_OCCURRENCES + 2)
+        ->and((string) collect($shows)->last()->date)->toBe($now->copy()->addDays(\App\Support\RecurringDates::MAX_OCCURRENCES)->format('Y-m-d 12:00:00'));
+});
+
 test('toSearchableArray returns the ids of every attached remote location', function () {
     $event = Event::factory()->published()->create();
     $zoom = RemoteLocation::create(['name' => 'Zoom', 'slug' => 'zoom', 'admin' => true, 'rank' => 0, 'user_id' => $this->user->id]);
