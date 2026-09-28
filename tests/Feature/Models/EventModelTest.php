@@ -231,6 +231,20 @@ test('duplicate creates a distinct row with its own slug copy name and draft sta
     expect(Event::withTrashed()->whereIn('id', [$event->id, $copy->id])->count())->toBe(2);
 });
 
+test('duplicate leaves the old show history behind, like the shows', function () {
+    Storage::fake('digitalocean');
+
+    $event = Event::factory()->published()->create(['attendance_type_id' => 1]);
+    $event->advisories()->create([]);
+    $event->forceFill(['show_history' => \App\Support\ShowHistory::pack(['2001-05-01', '2001-05-02'], '2001-12-31')])->save();
+
+    expect(Event::findOrFail($event->id)->show_history['runs'])->toHaveCount(1);
+
+    $copy = $event->duplicate();
+
+    expect(Event::findOrFail($copy->id)->show_history)->toBeNull();
+});
+
 test('duplicate clones genres and creates fresh empty location and advisories rows', function () {
     Storage::fake('digitalocean');
 

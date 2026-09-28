@@ -49,6 +49,7 @@ class Event extends Model
         'location_latlon' => 'array',
         'hasLocation' => 'boolean',
         'showtype_config' => 'array',
+        'show_history' => 'array',
     ];
 
     protected $fillable = [
@@ -978,7 +979,7 @@ class Event extends Model
     {
         return DB::transaction(function () {
             // Create new event with duplicated attributes (excluding location, ticket, and price data)
-            $newEvent = $this->replicate(['location_latlon', 'ticketUrl', 'price_range', 'closingDate', 'show_times', 'showtype']);
+            $newEvent = $this->replicate(['location_latlon', 'ticketUrl', 'price_range', 'closingDate', 'show_times', 'showtype', 'show_history']);
             $newEvent->slug = Str::slug('new-event-'.Str::random(6));
             // The copy is credited to whoever made it (the admin "Submitted by"
             // column), not to the author of the event it was copied from.
