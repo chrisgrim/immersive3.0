@@ -679,3 +679,115 @@ test('fixing a timezone does not tell favoriters about new dates', function () {
 
     expect(foldAllDays($event))->toBe($days);
 });
+
+// ============================================================
+// The undo: ei:unfold-show-history
+// ============================================================
+
+test('unfolding puts every history day back as a row and clears the history', function () {
+    $event = foldEvent();
+    $days = foldDays('1990-01-01', '2026-12-31', [0, 3, 5]);
+    foldSave($event, $days, foldStaff());
+    expect(Event::findOrFail($event->id)->show_history)->not->toBeNull();
+
+    $this->artisan('ei:unfold-show-history')->expectsOutputToContain('Dry run (nothing written; add --apply): 1 events')->assertSuccessful();
+    expect(Event::findOrFail($event->id)->show_history)->not->toBeNull();
+
+    $this->artisan('ei:unfold-show-history', ['--apply' => true])->assertSuccessful();
+
+    expect(Event::findOrFail($event->id)->show_history)->toBeNull()
+        ->and(foldRowDays($event))->toBe($days)
+        ->and(foldAllDays($event))->toBe($days);
+});
+
+test('unfolding next to legacy midnight rows does not shift them', function () {
+    // Midnight rows with no timed rows are calendar dates. Adding noon rows
+    // would make them read as instants (a day early in New York) unless
+    // they are moved first.
+    $event = foldEvent(['showtype' => 's']);
+    Show::create(['event_id' => $event->id, 'date' => '2026-10-05 00:00:00']);
+    $event->forceFill(['show_history' => ShowHistory::pack(['2001-02-03'], '2001-12-31')])->save();
+    expect(foldAllDays($event))->toBe(['2001-02-03', '2026-10-05']);
+
+    $this->artisan('ei:unfold-show-history', ['--apply' => true])->assertSuccessful();
+
+    expect(foldAllDays($event))->toBe(['2001-02-03', '2026-10-05'])
+        ->and(Event::findOrFail($event->id)->show_history)->toBeNull();
+});
+
+test('rolling the migration back refuses while any history exists', function () {
+    $event = foldEvent();
+    $event->forceFill(['show_history' => ShowHistory::pack(['2001-02-03'], '2001-12-31')])->save();
+    $migration = require database_path('migrations/2026_09_28_120000_add_show_history_to_events_table.php');
+
+    expect(fn () => $migration->down())->toThrow(RuntimeException::class, 'ei:unfold-show-history');
+    expect(\Illuminate\Support\Facades\Schema::hasColumn('events', 'show_history'))->toBeTrue();
+});
+
+test('a recipe reaching back past the history does not refill its closures, and removals always apply', function () {
+    $admin = User::factory()->create(['type' => 'a', 'email_verified_at' => now()]);
+    $event = foldEvent(['status' => '0', 'user_id' => $admin->id]);
+    // Daily since 1980, closed every Christmas.
+    $days = array_values(array_filter(foldDays('1980-01-01', '2026-12-31'), fn ($d) => ! str_ends_with($d, '-12-25')));
+    foldSave($event, $days, $admin);
+
+    $args = [
+        'event_slug' => $event->slug,
+        'showtype' => 'o',
+        'timezone' => FOLD_TZ,
+        'ongoing_config' => [
+            'startDate' => Show::storedFromLocalDay('1980-01-01', FOLD_TZ),
+            'endDate' => Show::storedFromLocalDay('2026-12-31', FOLD_TZ),
+            'daysOfWeek' => [0, 1, 2, 3, 4, 5, 6],
+        ],
+        'remove_older_show_days' => ['1990-07-04'],
+    ];
+    \App\Mcp\Servers\EiServer::actingAs($admin)->tool(\App\Mcp\Tools\UpdateEvent::class, $args)
+        ->assertOk()->assertSee('"shows_to_remove":1', false);
+    \App\Mcp\Servers\EiServer::actingAs($admin)->tool(\App\Mcp\Tools\UpdateEvent::class, $args + ['confirm_schedule_replace' => true])
+        ->assertOk()->assertSee('Event updated')->assertSee('older_days_not_added');
+
+    $after = foldAllDays($event);
+    expect($after)->not->toContain('1990-07-04')
+        ->and($after)->not->toContain('2001-12-25')
+        // The last year and the future are rows: the recipe covers them
+        // exactly as before, so their two Christmases are added.
+        ->and($after)->toContain('2025-12-25')
+        ->and($after)->toContain('2026-12-25')
+        ->and(count($after))->toBe(count($days) - 1 + 2);
+});
+
+test('removing older days on their own goes through the usual confirmation', function () {
+    $admin = User::factory()->create(['type' => 'a', 'email_verified_at' => now()]);
+    $event = foldEvent(['status' => '0', 'showtype' => 's', 'user_id' => $admin->id]);
+    $days = array_merge(foldDays('2001-01-01', '2001-01-10'), ['2026-10-10', '2026-10-11']);
+    foldSave($event, $days, $admin, 's');
+
+    $args = ['event_slug' => $event->slug, 'remove_older_show_days' => ['2001-01-03', '2001-01-04']];
+    \App\Mcp\Servers\EiServer::actingAs($admin)->tool(\App\Mcp\Tools\UpdateEvent::class, $args)
+        ->assertOk()->assertSee('"shows_to_remove":2', false);
+    \App\Mcp\Servers\EiServer::actingAs($admin)->tool(\App\Mcp\Tools\UpdateEvent::class, $args + ['confirm_schedule_replace' => true])
+        ->assertOk()->assertSee('Event updated');
+
+    expect(foldAllDays($event))->toBe(array_values(array_diff($days, ['2001-01-03', '2001-01-04'])));
+});
+
+test('a live-edit preview of a long recipe shows a summary, not the list', function () {
+    $admin = User::factory()->create(['type' => 'a', 'email_verified_at' => now()]);
+    $event = foldEvent(['user_id' => $admin->id]);
+    foldSave($event, foldDays('1980-01-01', '2026-12-31'), $admin);
+
+    $response = \App\Mcp\Servers\EiServer::actingAs($admin)->tool(\App\Mcp\Tools\UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'showtype' => 'o',
+        'timezone' => FOLD_TZ,
+        'ongoing_config' => [
+            'startDate' => Show::storedFromLocalDay('2025-09-28', FOLD_TZ),
+            'endDate' => Show::storedFromLocalDay('2027-06-30', FOLD_TZ),
+            'daysOfWeek' => [0, 1, 2, 3, 4, 5, 6],
+        ],
+    ]);
+
+    $response->assertOk()->assertSee('confirm_live_edit')->assertSee('"count":'.count(foldDays('2025-09-28', '2027-06-30')), false);
+    expect(strlen((string) json_encode($response)))->toBeLessThan(100000);
+});

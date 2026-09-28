@@ -698,10 +698,74 @@ class Show extends Model
             }
 
             $folded = $before - self::withoutGlobalScope(DateScope::class)->where('event_id', $locked->id)->count();
+            if ($folded > 0) {
+                // After the commit: a fold can move the times of the rows it
+                // keeps (the curtain-time case), which the search document
+                // holds. Same day either way; this just keeps it tidy.
+                DB::afterCommit(fn () => $locked->syncSearchIndex());
+            }
             $event->show_history = $locked->show_history;
             $event->syncOriginalAttribute('show_history');
 
             return $folded;
+        });
+    }
+
+    /**
+     * The undo of foldHistory(): every history day back as a row (noon in the
+     * event's timezone) and the history cleared, for ei:unfold-show-history
+     * and before the show_history column could ever be dropped. Same lock,
+     * same check that no day is gained or lost. What it cannot bring back is
+     * the time of day an old curtain-time row once carried (the history keeps
+     * days), which no reader needs. Returns how many rows it wrote.
+     */
+    public static function unfoldHistory(Event $event): int
+    {
+        return DB::transaction(function () use ($event) {
+            $locked = Event::withoutGlobalScopes()->whereKey($event->id)->lockForUpdate()->first();
+            if (! $locked || ! $locked->show_history) {
+                return 0;
+            }
+
+            $tz = self::validTimezone($locked->timezone);
+            $daysBefore = self::scheduleDaysOf($locked, $tz);
+
+            $rows = self::withoutGlobalScope(DateScope::class)->where('event_id', $locked->id)->get(['id', 'date']);
+            $curtainTimes = self::usesCurtainTimes($rows);
+            $now = now();
+
+            // The new rows are at noon, which makes the schedule read as
+            // curtain times. Rows that were dates (midnight, in a schedule
+            // with no timed rows) would then shift, so first move them to
+            // noon of the day they mean.
+            if (! $curtainTimes) {
+                foreach ($rows as $row) {
+                    self::withoutGlobalScope(DateScope::class)->whereKey($row->id)
+                        ->update(['date' => self::atLocalNoon($row->date, $tz, false), 'updated_at' => $now]);
+                }
+            }
+
+            $rowDays = array_fill_keys($rows->map(fn ($row) => self::localDay($row->date, $tz, $curtainTimes))->all(), true);
+            $inserts = [];
+            foreach (ShowHistory::days($locked->show_history) as $day) {
+                if (! isset($rowDays[$day])) {
+                    $inserts[] = ['event_id' => $locked->id, 'date' => self::storedFromLocalDay($day, $tz), 'created_at' => $now, 'updated_at' => $now];
+                }
+            }
+            foreach (array_chunk($inserts, self::INSERT_CHUNK) as $chunk) {
+                self::insert($chunk);
+            }
+
+            DB::table('events')->where('id', $locked->id)->update(['show_history' => null]);
+
+            if (self::scheduleDaysOf($locked, $tz) !== $daysBefore) {
+                throw new \RuntimeException("Unfolding event {$locked->id} would have changed its show days; rolled back.");
+            }
+
+            $event->show_history = null;
+            $event->syncOriginalAttribute('show_history');
+
+            return count($inserts);
         });
     }
 

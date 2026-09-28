@@ -214,8 +214,10 @@ class EventScheduleAssistant
             // Whitelist to schedule fields and pin the event — Claude can never
             // set the slug or reach any other event or non-schedule field.
             $payload = collect($input)->only(self::SCHEDULE_FIELDS)->all();
+            $removesOlderDays = ! empty($input['remove_older_show_days']) && is_array($input['remove_older_show_days']);
 
-            if ($payload === []) {
+            // Deleting some older show days is a schedule change on its own.
+            if ($payload === [] && ! $removesOlderDays) {
                 return ['No schedule fields were provided to update.', true, false];
             }
 
@@ -225,7 +227,7 @@ class EventScheduleAssistant
             }
 
             // Older show days to delete (they are kept otherwise).
-            if (! empty($input['remove_older_show_days']) && is_array($input['remove_older_show_days'])) {
+            if ($removesOlderDays) {
                 $payload['remove_older_show_days'] = array_values($input['remove_older_show_days']);
             }
 
