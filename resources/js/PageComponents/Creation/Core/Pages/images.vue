@@ -144,6 +144,7 @@
                     :image-restriction="'none'"
                     :default-size="maximizeCropperSize"
                     :resize-image="{ wheel: false, touch: false }"
+                    :canvas="false"
                     @change="onChange"
                 />
                 
@@ -247,6 +248,7 @@ const debounce = (fn, delay) => {
 const MAX_FILE_SIZE = 30 * 1024 * 1024; // what can be picked
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024; // what gets sent
 const MAX_EDGE = 2400; // longest side of what gets sent, in px
+const NORMALIZE_EDGE = 4000; // longest side the main photo is cropped from (iOS canvas limit)
 const MIN_DIMENSION = 400; // Minimum pixels for shortest side (lowered from 800)
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/avif'];
 
@@ -257,9 +259,10 @@ const shrinkImage = (file) => {
         const img = new Image();
         const url = URL.createObjectURL(file);
         img.onload = () => {
+            URL.revokeObjectURL(url);
+            try {
             const longest = Math.max(img.naturalWidth, img.naturalHeight);
             if (longest <= MAX_EDGE && file.size <= MAX_UPLOAD_SIZE) {
-                URL.revokeObjectURL(url);
                 return resolve(file);
             }
             const scale = Math.min(1, MAX_EDGE / longest);
@@ -267,15 +270,20 @@ const shrinkImage = (file) => {
             canvas.width = Math.round(img.naturalWidth * scale);
             canvas.height = Math.round(img.naturalHeight * scale);
             const ctx = canvas.getContext('2d');
+            // iOS hands back no context once canvas memory runs out; send the
+            // original rather than leave Next stuck on "still loading"
+            if (!ctx) return resolve(file);
             ctx.fillStyle = '#FFFFFF'; // a transparent PNG becomes white, not black
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            URL.revokeObjectURL(url);
             canvas.toBlob((blob) => {
                 if (!blob || blob.size === 0) return resolve(file);
                 const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
                 resolve(new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() }));
             }, 'image/jpeg', 0.9);
+            } catch (e) {
+                resolve(file);
+            }
         };
         img.onerror = () => {
             URL.revokeObjectURL(url);
@@ -293,24 +301,35 @@ const normalizeImage = (file) => {
         const url = URL.createObjectURL(file);
 
         img.onload = () => {
-            // Use naturalWidth/naturalHeight to get true dimensions
-            const width = img.naturalWidth;
-            const height = img.naturalHeight;
-
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-            // Clear and draw - this forces Safari to properly decode the image
-            ctx.clearRect(0, 0, width, height);
-            ctx.drawImage(img, 0, 0, width, height);
-
             URL.revokeObjectURL(url);
+            try {
+                // Cap the size: iOS Safari can't make a canvas over ~16.7M pixels,
+                // and a 24MP+ phone photo is bigger than that. NORMALIZE_EDGE keeps
+                // plenty of detail to crop from; the crop is capped at MAX_EDGE after.
+                const scale = Math.min(1, NORMALIZE_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+                const width = Math.round(img.naturalWidth * scale);
+                const height = Math.round(img.naturalHeight * scale);
 
-            // Use image/jpeg for better compatibility
-            resolve(canvas.toDataURL('image/jpeg', 0.95));
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                if (!ctx) throw new Error('No canvas context');
+
+                // Clear and draw - this forces Safari to properly decode the image
+                ctx.clearRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Use image/jpeg for better compatibility
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                // A canvas the browser couldn't allocate gives back an empty image
+                if (dataUrl === 'data:,') throw new Error('Canvas too large');
+                resolve(dataUrl);
+            } catch (e) {
+                // the caller falls back to reading the file directly
+                reject(e);
+            }
         };
 
         img.onerror = () => {
