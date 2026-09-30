@@ -18,7 +18,7 @@ function realAvif(): UploadedFile
 {
     $im = imagecreatetruecolor(800, 600);
     imagefill($im, 0, 0, imagecolorallocate($im, 30, 120, 200));
-    $path = tempnam(sys_get_temp_dir(), 'avif').'.avif';
+    $path = sys_get_temp_dir().'/'.uniqid('avif', true).'.avif';
     imageavif($im, $path);
 
     return new UploadedFile($path, 'photo.avif', 'image/avif', null, true);
