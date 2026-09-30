@@ -131,6 +131,7 @@
 </template>
 
 <script setup>
+import { imageType } from '@/composables/imageType';
 import { ref, computed } from 'vue'
 import { useVuelidate } from '@vuelidate/core'
 import { maxLength } from '@vuelidate/validators'
@@ -203,7 +204,7 @@ const onFileChange = (event) => {
     const file = event.target.files[0]
     if (file) {
         // Validate file type
-        if (!ALLOWED_TYPES.includes(file.type)) {
+        if (!ALLOWED_TYPES.includes(imageType(file))) {
             alert('Please upload a valid image file (JPEG, PNG, WebP, or AVIF).');
             event.target.value = '';
             return;

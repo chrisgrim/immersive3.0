@@ -72,6 +72,7 @@
 </template>
 
 <script setup>
+import { imageType } from '@/composables/imageType';
 import { ref, onMounted, inject } from 'vue';
 import { 
     RiImageCircleLine, 
@@ -92,7 +93,7 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
 const validateFile = (file) => {
     return new Promise((resolve, reject) => {
         // Check file type
-        if (!ALLOWED_TYPES.includes(file.type)) {
+        if (!ALLOWED_TYPES.includes(imageType(file))) {
             validationError.value = 'Please use JPEG, PNG, WebP, or AVIF image formats.';
             return resolve(false);
         }

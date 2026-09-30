@@ -65,6 +65,7 @@
 </template>
 
 <script setup>
+import { imageType } from '@/composables/imageType';
 import { ref, inject, onMounted } from 'vue';
 
 const community = inject('community');
@@ -83,7 +84,7 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
 // Methods
 const validateFile = (file) => {
     return new Promise((resolve, reject) => {
-        if (!ALLOWED_TYPES.includes(file.type)) {
+        if (!ALLOWED_TYPES.includes(imageType(file))) {
             validationError.value = 'Please use JPEG, PNG, WebP, or AVIF image formats.';
             return resolve(false);
         }

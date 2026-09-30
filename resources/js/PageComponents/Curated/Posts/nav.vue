@@ -155,6 +155,7 @@
 </template>
 
 <script setup>
+import { imageType } from '@/composables/imageType';
 import { ref, computed, watch } from 'vue'
 import draggable from 'vuedraggable'
 import Dropdown from '@/GlobalComponents/dropdown.vue'
@@ -341,7 +342,7 @@ const handleEventSelect = (event) => {
 
 // Image handling methods
 const validateFile = (file) => {
-    if (!ALLOWED_TYPES.includes(file.type)) {
+    if (!ALLOWED_TYPES.includes(imageType(file))) {
         alert(`File is not a supported image type. Please use JPEG, PNG, GIF, SVG, WebP, or AVIF.`);
         return false;
     }

@@ -221,6 +221,7 @@
 </template>
 
 <script setup>
+import { imageType } from '@/composables/imageType';
 import { ref, computed, onMounted, inject, watch, watchEffect } from 'vue';
 import { RiImageCircleLine, RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
 import { Cropper } from 'vue-advanced-cropper';
@@ -441,7 +442,7 @@ const validateFile = (file) => {
         }
         
         // Check file type
-        if (!ALLOWED_TYPES.includes(file.type)) {
+        if (!ALLOWED_TYPES.includes(imageType(file))) {
             alert(`"${file.name}" is not a supported image type. Please use JPEG, PNG, WebP, or AVIF.`);
             return resolve(false);
         }

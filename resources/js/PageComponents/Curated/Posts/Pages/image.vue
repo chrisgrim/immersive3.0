@@ -87,6 +87,7 @@
 </template>
 
 <script setup>
+import { imageType } from '@/composables/imageType';
 import { ref, computed, inject } from 'vue';
 import { 
     RiImageCircleLine,
@@ -136,7 +137,7 @@ const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
         // Validate file type
-        if (!ALLOWED_TYPES.includes(file.type)) {
+        if (!ALLOWED_TYPES.includes(imageType(file))) {
             alert('Please upload a valid image file (JPEG, PNG, WebP, or AVIF).');
             event.target.value = '';
             return;

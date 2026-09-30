@@ -41,6 +41,7 @@
 </template>
 
 <script setup>
+import { imageType } from '@/composables/imageType';
 import { ref, computed } from 'vue'
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue"
 import axios from 'axios'
@@ -143,7 +144,7 @@ const onFileChange = async (event) => {
     if (!file) return
 
     // Validate file type
-    if (!ALLOWED_TYPES.includes(file.type)) {
+    if (!ALLOWED_TYPES.includes(imageType(file))) {
         alert('Please upload a valid image file (JPEG, PNG, WebP, or AVIF).');
         event.target.value = '';
         return;
