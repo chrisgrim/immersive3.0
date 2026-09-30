@@ -196,8 +196,8 @@ class EventUpdateRules
             'images' => 'nullable|array',
             'images.*' => [
                 'file',
-                'mimes:jpeg,png,jpg,webp,avif', // the photo picker offers AVIF; saveImage re-encodes it to jpg + webp
-                'max:5120',
+                'mimes:jpeg,png,jpg,webp,avif', // saveImage re-encodes every format to jpg + webp
+                'max:10240', // the browser shrinks photos to ~5MB before sending; this is headroom
                 // Removed dimensions validation as it seems to cause issues
             ],
             'ranks' => 'nullable|array',

@@ -238,9 +238,51 @@ const debounce = (fn, delay) => {
 };
 
 // Constants
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+// A photo straight off a phone is often over 5MB. People can pick up to
+// MAX_FILE_SIZE; the browser shrinks anything bigger than MAX_EDGE or
+// MAX_UPLOAD_SIZE before it's sent. The server only keeps a 1200px version, so
+// nothing visible is lost, and the droplet never decodes a 48MP photo in its
+// 128MB PHP memory. The server rule allows 10MB as headroom.
+const MAX_FILE_SIZE = 30 * 1024 * 1024; // what can be picked
+const MAX_UPLOAD_SIZE = 5 * 1024 * 1024; // what gets sent
+const MAX_EDGE = 2400; // longest side of what gets sent, in px
 const MIN_DIMENSION = 400; // Minimum pixels for shortest side (lowered from 800)
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/avif'];
+
+// Shrink a photo that's too big to send: longest side down to MAX_EDGE, as a
+// JPEG. A photo already small enough goes up untouched.
+const shrinkImage = (file) => {
+    return new Promise((resolve) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            const longest = Math.max(img.naturalWidth, img.naturalHeight);
+            if (longest <= MAX_EDGE && file.size <= MAX_UPLOAD_SIZE) {
+                URL.revokeObjectURL(url);
+                return resolve(file);
+            }
+            const scale = Math.min(1, MAX_EDGE / longest);
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(img.naturalWidth * scale);
+            canvas.height = Math.round(img.naturalHeight * scale);
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#FFFFFF'; // a transparent PNG becomes white, not black
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            URL.revokeObjectURL(url);
+            canvas.toBlob((blob) => {
+                if (!blob || blob.size === 0) return resolve(file);
+                const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+                resolve(new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() }));
+            }, 'image/jpeg', 0.9);
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve(file);
+        };
+        img.src = url;
+    });
+};
 
 // Normalize image to fix Safari canvas issues with wide images and WebP
 // Re-renders through canvas to ensure consistent dimensions across browsers
@@ -407,7 +449,7 @@ const validateFile = (file) => {
         // Check file size
         if (file.size > MAX_FILE_SIZE) {
             const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-            alert(`"${file.name}" (${sizeMB}MB) exceeds the 5MB size limit.`);
+            alert(`"${file.name}" (${sizeMB}MB) is over the ${MAX_FILE_SIZE / (1024 * 1024)}MB limit.`);
             return resolve(false);
         }
         
@@ -425,7 +467,7 @@ const validateFile = (file) => {
             URL.revokeObjectURL(img.src);
             alert(`"${file.name}" could not be loaded within a reasonable time. The file might be corrupted.`);
             resolve(false);
-        }, 5000); // 5 second timeout
+        }, 15000); // a 30MB photo can take a few seconds to decode
         
         img.onload = () => {
             clearTimeout(timeoutId);
@@ -483,6 +525,7 @@ const handleFileChange = async (event) => {
                 continue;
             }
             pendingImages.value++;
+            const upload = await shrinkImage(file);
             const reader = new FileReader();
             reader.onerror = () => {
                 pendingImages.value--;
@@ -494,7 +537,7 @@ const handleFileChange = async (event) => {
                 
                 images.value.push({
                     url: e.target.result,
-                    file,
+                    file: upload,
                     rank: nextRank,
                     id: Date.now() + Math.random() // More unique ID for draggable
                 });
@@ -502,7 +545,7 @@ const handleFileChange = async (event) => {
                 // Re-sort by rank to ensure correct order
                 images.value.sort((a, b) => a.rank - b.rank);
             };
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(upload);
         }
     }
     if (skipped) {
@@ -592,9 +635,11 @@ const completeCrop = () => {
                 throw new Error('Invalid crop dimensions');
             }
 
-            // Calculate scale needed to ensure minimum 400px on smallest side
+            // At least 400px on the smallest side; at most MAX_EDGE on the longest
             const smallestSide = Math.min(cropWidth, cropHeight);
-            const scale = smallestSide < 400 ? (400 / smallestSide) : 1;
+            const scale = smallestSide < 400
+                ? (400 / smallestSide)
+                : Math.min(1, MAX_EDGE / Math.max(cropWidth, cropHeight));
 
             const outputCanvas = document.createElement('canvas');
             outputCanvas.width = Math.round(cropWidth * scale);
@@ -631,7 +676,7 @@ const completeCrop = () => {
                     }
 
                     // Check if the blob is too large
-                    if (blob.size > MAX_FILE_SIZE) {
+                    if (blob.size > MAX_UPLOAD_SIZE) {
                         if (quality > 0.5) {
                             // Try again with lower quality
                             createImageBlob(quality - 0.1);
