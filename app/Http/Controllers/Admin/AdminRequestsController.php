@@ -61,7 +61,7 @@ class AdminRequestsController extends Controller
         }
 
         return response()->json([
-            'message' => 'Failed to approve name change request'
+            'message' => $result['message'] ?? 'Failed to approve name change request'
         ], 422);
     }
 

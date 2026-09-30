@@ -14,34 +14,20 @@ use Illuminate\Support\Js;
 class EventController extends Controller
 {
     /**
-     * $event is the slug, not implicit route-model binding — implicit
-     * binding's default query excludes soft-deleted rows (SoftDeletes'
-     * global scope), so a link to an event that was since deleted (e.g. a
-     * notification created back when it still existed — see
-     * SavedEventNewDatesNotification::toDatabase()/
-     * FollowedOrganizerNewEventNotification::toDatabase(), which store the
-     * slug at notify time) would 404 outright instead of explaining what
-     * happened. events.show-deleted already existed fully built (meta tags,
-     * mobile/desktop layouts) for exactly this, just never wired to a route.
+     * $event is the slug. A show page nobody can see — no event goes by the
+     * slug, or the event isn't published — sends the visitor home rather than
+     * to a dead end: old notification links (SavedEventNewDatesNotification /
+     * FollowedOrganizerNewEventNotification store the slug at notify time)
+     * still land somewhere useful. A deleted event gives its slug up when it
+     * is deleted (Event::releaseSlug), so it is never found here, and nothing
+     * of a removed listing — name or image — is shown to anyone.
      */
     public function show(string $event)
     {
-        $event = Event::withTrashed()->where('slug', $event)->firstOrFail();
+        $event = Event::where('slug', $event)->first();
 
-        if ($event->trashed()) {
-            // published_at is set once on approval/embargo-publish (see
-            // AdminEventController::approve()/PublishEventsCommand) and never
-            // cleared afterward, so it's a reliable "was this ever actually
-            // public" flag independent of status at delete time. Without this
-            // check, a deleted draft/rejected event (HostEventController::
-            // destroy() allows soft-deleting from any status) would render
-            // the "removed" page — including its name/image — for something
-            // that never had a public page to remove in the first place.
-            abort_unless($event->published_at !== null, 404);
-
-            $event->load('images');
-
-            return view('events.show-deleted', compact('event'));
+        if (! $event) {
+            return redirect('/');
         }
 
         // If event is embargoed or not published, redirect to home page instead of 404

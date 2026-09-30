@@ -105,8 +105,11 @@ test('finalSlug adds an incremental numeric suffix when base city and organizer 
 });
 
 test('finalSlug counts soft-deleted events as collisions via withTrashed', function () {
+    // Deleting now releases the slug; a row deleted before that still holds
+    // it, and events.slug is unique across trashed rows too.
     $trashed = Event::factory()->create(['name' => 'Ghost Title', 'slug' => 'ghost-title']);
     $trashed->delete();
+    DB::table('events')->where('id', $trashed->id)->update(['slug' => 'ghost-title']);
 
     $organizer = Organizer::factory()->create(['name' => 'Ghost Org']);
     $event = Event::factory()->create([

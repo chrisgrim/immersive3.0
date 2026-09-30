@@ -5,6 +5,7 @@ use App\Models\Events\Show;
 use App\Models\Organizer;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 // Helper: an organizer + member who can host/manage events on it.
 function memberOf(Organizer $organizer, string $type = 'u'): User
@@ -1362,4 +1363,203 @@ test('the lock predicate: boundary, statuses, null closing date, and no signed-i
     // the event as locked rather than guessing at an exemption.
     auth()->logout();
     expect(historicalEvent($organizer)->toArray()['isEditLocked'])->toBeTrue();
+});
+
+// ----- nameChange(): only a listing on EI can hold a name -----
+// Kathryn's case (Sep 29): the live listing "'Little Women Ballet' Autumn
+// Immersive Experience" replaced an earlier copy, deleted a minute before it
+// went up, named "Little Women Ballet: Autumn Immersive Experience (2026)".
+// Adding "(2026)" to the live one was refused, because the deleted copy
+// still held the slug that name makes.
+
+function renameAsAdmin($test, Event $event, string $to): \Illuminate\Testing\TestResponse
+{
+    $admin = User::factory()->create(['type' => 'a']);
+    $test->actingAs($admin);
+
+    $response = $test->postJson(route('hosting.event.name.change', $event), [
+        'requested_name' => $to,
+        'current_name' => $event->name,
+    ]);
+
+    if ($response->status() === 200) {
+        $request = $event->nameChangeRequests()->where('status', 'pending')->sole();
+        $test->postJson("/api/admin/approve/requests/{$request->id}/approve")->assertOk();
+    }
+
+    return $response;
+}
+
+function autumnListing(): Event
+{
+    return Event::factory()->published()->create([
+        'name' => "'Little Women Ballet' Autumn Immersive Experience",
+        'slug' => 'little-women-ballet-autumn-immersive-experience',
+    ]);
+}
+
+test("Kathryn's case: a deleted copy no longer stops the live listing adding (2026)", function () {
+    Illuminate\Support\Facades\Mail::fake();
+    $deleted = Event::factory()->published()->create([
+        'name' => 'Little Women Ballet: Autumn Immersive Experience (2026)',
+        'slug' => 'little-women-ballet-autumn-immersive-experience-2026',
+    ]);
+    $deleted->delete();
+    $live = autumnListing();
+
+    renameAsAdmin($this, $live, "'Little Women Ballet' Autumn Immersive Experience (2026)")->assertOk();
+
+    $live->refresh();
+    expect($live->name)->toBe("'Little Women Ballet' Autumn Immersive Experience (2026)");
+    expect($live->slug)->toBe('little-women-ballet-autumn-immersive-experience-2026');
+});
+
+test('a copy deleted before slugs were released still holds its slug, and the rename steps around it', function () {
+    Illuminate\Support\Facades\Mail::fake();
+    $deleted = Event::factory()->published()->create([
+        'name' => 'Little Women Ballet: Autumn Immersive Experience (2026)',
+    ]);
+    $deleted->delete();
+    // How rows deleted before the release migration look: still holding it.
+    DB::table('events')->where('id', $deleted->id)
+        ->update(['slug' => 'little-women-ballet-autumn-immersive-experience-2026']);
+    $live = autumnListing();
+
+    renameAsAdmin($this, $live, "'Little Women Ballet' Autumn Immersive Experience (2026)")->assertOk();
+
+    expect($live->fresh()->name)->toBe("'Little Women Ballet' Autumn Immersive Experience (2026)");
+    expect($live->fresh()->slug)->toStartWith('little-women-ballet-autumn-immersive-experience-2026-');
+});
+
+test('a rejected resubmission with the same name does not block the rename', function () {
+    Illuminate\Support\Facades\Mail::fake();
+    $live = autumnListing();
+    Event::factory()->create([
+        'name' => "'Little Women Ballet' Autumn Immersive Experience (2026)",
+        'status' => 'n',
+    ]);
+
+    renameAsAdmin($this, $live, "'Little Women Ballet' Autumn Immersive Experience (2026)")->assertOk();
+
+    expect($live->fresh()->name)->toBe("'Little Women Ballet' Autumn Immersive Experience (2026)");
+});
+
+test('a name another listing on EI goes by is refused, even when its slug carries a suffix', function () {
+    $live = autumnListing();
+    Event::factory()->published()->create([
+        'name' => 'Sleep No More',
+        'slug' => 'sleep-no-more-new-york',
+    ]);
+
+    renameAsAdmin($this, $live, 'Sleep No More')
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('requested_name');
+
+    renameAsAdmin($this, $live, 'sleep no more!')
+        ->assertStatus(422);
+
+    expect($live->nameChangeRequests()->count())->toBe(0);
+    expect($live->fresh()->name)->toBe("'Little Women Ballet' Autumn Immersive Experience");
+});
+
+test('an embargoed listing holds its name too', function () {
+    $live = autumnListing();
+    Event::factory()->create(['name' => 'Then She Fell', 'status' => 'e']);
+
+    renameAsAdmin($this, $live, 'Then She Fell')->assertStatus(422);
+});
+
+test('finalSlug keeps counting past 99 instead of handing back a taken slug', function () {
+    $organizer = Organizer::factory()->create(['name' => 'Punchdrunk']);
+    $event = Event::factory()->create(['name' => 'Crowded', 'organizer_id' => $organizer->id]);
+
+    $taken = ['crowded', 'crowded-punchdrunk'];
+    foreach (range(2, 100) as $n) {
+        $taken[] = "crowded-{$n}";
+    }
+    foreach ($taken as $slug) {
+        Event::factory()->create(['slug' => $slug]);
+    }
+
+    expect(Event::finalSlug($event))->toBe('crowded-101');
+});
+
+test('the release migration frees the slugs of events deleted before it', function () {
+    $old = Event::factory()->published()->create(['slug' => 'an-old-show']);
+    $old->delete();
+    DB::table('events')->where('id', $old->id)->update(['slug' => 'an-old-show']);
+    $live = Event::factory()->published()->create(['slug' => 'a-live-show']);
+
+    (require database_path('migrations/2026_09_30_000000_release_slugs_of_deleted_events.php'))->up();
+
+    expect(Event::withTrashed()->find($old->id)->slug)->toBe(Event::releasedSlug($old->id));
+    expect($live->fresh()->slug)->toBe('a-live-show');
+});
+
+test('approval checks the name again: two requests for one free name, only the first goes through', function () {
+    Illuminate\Support\Facades\Mail::fake();
+    $first = Event::factory()->published()->create(['name' => 'Old One']);
+    $second = Event::factory()->published()->create(['name' => 'Old Two']);
+    $admin = User::factory()->create(['type' => 'a']);
+    $this->actingAs($admin);
+
+    foreach ([$first, $second] as $event) {
+        $this->postJson(route('hosting.event.name.change', $event), [
+            'requested_name' => 'New Title',
+            'current_name' => $event->name,
+        ])->assertOk();
+    }
+
+    $approve = fn (Event $event) => $this->postJson('/api/admin/approve/requests/'
+        .$event->nameChangeRequests()->where('status', 'pending')->sole()->id.'/approve');
+
+    $approve($first)->assertOk();
+    $approve($second)->assertStatus(422)->assertJson(['message' => 'Another listing on EI is already called "New Title".']);
+
+    expect($first->fresh()->name)->toBe('New Title');
+    expect($second->fresh()->name)->toBe('Old Two');
+});
+
+test('a name that slugs to "0" still counts as taken', function () {
+    Event::factory()->published()->create(['name' => '0']);
+
+    expect(Event::nameTakenOnSite('0!'))->toBeTrue();
+});
+
+test('renaming a restored listing never deletes pictures another listing still uses', function () {
+    // Codex's case: a deleted listing's slug is taken by its replacement, the
+    // original is restored under a new slug, then renamed. Its pictures sit in
+    // the folder named from its old slug, which the replacement's now share.
+    Illuminate\Support\Facades\Mail::fake();
+    Illuminate\Support\Facades\Storage::fake('digitalocean');
+    $disk = Illuminate\Support\Facades\Storage::disk('digitalocean');
+
+    $original = Event::factory()->published()->create(['name' => 'Sleep No More', 'slug' => 'sleep-no-more']);
+    $original->images()->create([
+        'large_image_path' => 'event-images/sleep-no-more-final/a.webp',
+        'thumb_image_path' => 'event-images/sleep-no-more-final/a-thumb.webp',
+        'rank' => 0,
+    ]);
+    $original->delete();
+
+    $replacement = Event::factory()->published()->create(['name' => 'Sleep No More', 'slug' => 'sleep-no-more']);
+    $replacement->images()->create([
+        'large_image_path' => 'event-images/sleep-no-more-final/b.webp',
+        'thumb_image_path' => 'event-images/sleep-no-more-final/b-thumb.webp',
+        'rank' => 0,
+    ]);
+    foreach (['a', 'a-thumb', 'b', 'b-thumb'] as $file) {
+        $disk->put("public/event-images/sleep-no-more-final/{$file}.webp", 'x');
+    }
+
+    Event::withTrashed()->find($original->id)->restore();
+    $original->refresh();
+    expect($original->slug)->not->toBe('sleep-no-more');
+    renameAsAdmin($this, $original, 'Sleep No More (2011)')->assertOk();
+
+    $disk->assertExists('public/event-images/sleep-no-more-final/b.webp');
+    $disk->assertExists('public/event-images/sleep-no-more-final/b-thumb.webp');
+    foreach ($original->fresh()->images as $image) {
+        $disk->assertExists('public/'.$image->large_image_path);
+    }
 });

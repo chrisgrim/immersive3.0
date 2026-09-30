@@ -96,8 +96,26 @@ class ImageHandler
             throw new \Exception('Cannot delete from root directory');
         }
 
+        // Another row, or an event's or organizer's main-image columns, can
+        // point at the very same file (a duplicated or restored listing).
+        // Then only this row goes; the files stay for the other owner.
+        $sharedElsewhere = \App\Models\Image::where('id', '!=', $image->id)
+                ->where(fn ($q) => $q->where('large_image_path', $image->large_image_path)
+                    ->orWhere('thumb_image_path', $image->thumb_image_path))
+                ->exists()
+            || \App\Models\Event::withoutGlobalScopes()->withTrashed()
+                ->where(fn ($q) => $q->where('largeImagePath', $image->large_image_path)
+                    ->orWhere('thumbImagePath', $image->thumb_image_path))
+                ->when($image->imageable_type === \App\Models\Event::class, fn ($q) => $q->where('id', '!=', $image->imageable_id))
+                ->exists()
+            || \App\Models\Organizer::withoutGlobalScopes()
+                ->where(fn ($q) => $q->where('largeImagePath', $image->large_image_path)
+                    ->orWhere('thumbImagePath', $image->thumb_image_path))
+                ->when($image->imageable_type === \App\Models\Organizer::class, fn ($q) => $q->where('id', '!=', $image->imageable_id))
+                ->exists();
+
         // Delete all image formats
-        Storage::disk('digitalocean')->delete([
+        if (! $sharedElsewhere) Storage::disk('digitalocean')->delete([
             "/public/{$basePath}.webp",
             "/public/{$basePath}.jpg",
             "/public/{$baseThumbPath}.webp",
@@ -216,6 +234,15 @@ class ImageHandler
                         "/public/$newDirectory/$newFileName-thumb.jpg"
                     );
                 }
+
+                // The row moves only once its files have: a copy that failed
+                // leaves the row, and so the folder it points into, untouched.
+                static::assertCopied([
+                    ["/public/$currentPath", "/public/$newDirectory/$newFileName.webp"],
+                    ["/public/$currentJpgPath", "/public/$newDirectory/$newFileName.jpg"],
+                    ["/public/$image->thumb_image_path", "/public/$newDirectory/$newFileName-thumb.webp"],
+                    ["/public/$thumbJpgPath", "/public/$newDirectory/$newFileName-thumb.jpg"],
+                ], $image->id);
                 
                 // Update the image record with new paths
                 $image->update([
@@ -240,11 +267,68 @@ class ImageHandler
         // Clean up original directories after all files are copied
         $uniqueDirectories = array_unique($originalDirectories);
         foreach ($uniqueDirectories as $directory) {
-            try {
+            static::deleteDirectoryIfUnused($directory);
+        }
+    }
+
+    /**
+     * Delete an image directory (a path under /public, as image rows store
+     * it) once nothing points into it any more. Directories are named from
+     * slugs, and a slug a deleted event gave up can be taken by another
+     * listing or come back with a restore, so one directory can hold more
+     * than one owner's files. Deleting it while any image row, or an event's
+     * or organizer's main-image columns, still points there would take those
+     * pictures with it.
+     */
+    public static function deleteDirectoryIfUnused(string $directory): void
+    {
+        // Only ever an owner's own folder, "<type>-images/<name>". A path
+        // with no folder in it makes dirname() give "." or "", and
+        // "/public/." is the whole public/ tree.
+        if (! preg_match('#^[a-z0-9-]+-images/(?!\.{1,2}$)[^/]+$#i', $directory)) {
+            Log::warning("Refused to delete image directory '{$directory}': not an owner folder");
+
+            return;
+        }
+
+        $prefix = $directory.'/';
+        $pointsHere = fn ($query, string $column) => $query->where($column, 'like', str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $prefix).'%');
+
+        $inUse = $pointsHere(\App\Models\Image::query(), 'large_image_path')->exists()
+            || $pointsHere(\App\Models\Image::query(), 'thumb_image_path')->exists()
+            || $pointsHere(\App\Models\Event::withoutGlobalScopes()->withTrashed(), 'largeImagePath')->exists()
+            || $pointsHere(\App\Models\Organizer::withoutGlobalScopes(), 'largeImagePath')->exists();
+
+        if ($inUse) {
+            return;
+        }
+
+        try {
+            if (Storage::disk('digitalocean')->exists("/public/$directory")) {
                 Storage::disk('digitalocean')->deleteDirectory("/public/$directory");
-            } catch (\Exception $e) {
-                report($e);
-                \Log::error("Failed to delete directory: " . $e->getMessage());
+            }
+        } catch (\Exception $e) {
+            report($e);
+            Log::error("Error deleting directory /public/$directory: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Throw unless the main image landed and every other source that exists
+     * has its copy. The disk returns false rather than throwing when a copy
+     * fails, and a row repointed at a copy that never landed is how an
+     * original folder came to be deleted with its only files in it.
+     *
+     * @param  array<int, array{0: string, 1: string}>  $pairs  [from, to]; the first is the main image
+     */
+    private static function assertCopied(array $pairs, $imageId): void
+    {
+        $disk = Storage::disk('digitalocean');
+
+        foreach ($pairs as $i => [$from, $to]) {
+            $mustExist = $i === 0 || $disk->exists($from);
+            if ($mustExist && ! $disk->exists($to)) {
+                throw new \RuntimeException("Image {$imageId}: {$from} was not copied to {$to}; left where it is.");
             }
         }
     }
@@ -405,6 +489,14 @@ class ImageHandler
                         );
                     }
 
+                    // The row moves only once its files have (see finalize).
+                    static::assertCopied([
+                        ["/public/$image->large_image_path", "/public/$newDirectory/$newFileName.webp"],
+                        ["/public/$largeJpgPath", "/public/$newDirectory/$newFileName.jpg"],
+                        ["/public/$image->thumb_image_path", "/public/$newDirectory/$newFileName-thumb.webp"],
+                        ["/public/$thumbJpgPath", "/public/$newDirectory/$newFileName-thumb.jpg"],
+                    ], $image->id);
+
                     // Update image record
                     $oldLargePath = $image->large_image_path;
                     
@@ -434,15 +526,7 @@ class ImageHandler
                 $originalDirectory = str_replace($newSlug, $oldSlug, dirname($image->large_image_path));
                 if (!in_array($originalDirectory, $processedDirectories)) {
                     $processedDirectories[] = $originalDirectory;
-                    
-                    try {
-                        if (Storage::disk('digitalocean')->exists("/public/$originalDirectory")) {
-                            Storage::disk('digitalocean')->deleteDirectory("/public/$originalDirectory");
-                        }
-                    } catch (\Exception $e) {
-                        report($e);
-                        Log::error("Error deleting directory /public/$originalDirectory: {$e->getMessage()}");
-                    }
+                    static::deleteDirectoryIfUnused($originalDirectory);
                 }
             }
         }

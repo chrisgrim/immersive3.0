@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Mail\NameChangeNotification;
+use App\Models\Event;
 use App\Models\User;
 use App\Support\Slug;
 use Illuminate\Support\Facades\Mail;
@@ -57,15 +58,29 @@ class NameChangeRequestService
 
     public function processAdminDirectChange($model, $newName)
     {
+        // Checked again here, not only when the request was filed: another
+        // listing may have taken the name since.
+        if ($model instanceof Event && Event::nameTakenOnSite($newName, $model->id)) {
+            return [
+                'success' => false,
+                'message' => "Another listing on EI is already called \"{$newName}\".",
+                'requiresRefresh' => false,
+            ];
+        }
+
         $oldName = $model->name;
         $oldSlug = $model->slug;
         $type = $this->getModelType($model);
 
         // Update name and slug. Slug::base() guarantees a non-empty, URL-safe slug
         // even for CJK / emoji / symbol-only names (which Str::slug() reduces to '').
+        // An event's slug must also be unique across every event, deleted
+        // ones included (older deletions may still hold theirs), so it gets
+        // the same collision-safe slug approval gives it.
+        $model->name = $newName;
         $model->update([
             'name' => $newName,
-            'slug' => Slug::base($newName, $type),
+            'slug' => $model instanceof Event ? Event::finalSlug($model) : Slug::base($newName, $type),
         ]);
 
         // Organizer/Community regenerate the slug in their own `updating` hook, so

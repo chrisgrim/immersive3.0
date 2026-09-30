@@ -246,46 +246,54 @@ test('show redirects to home for a new (0) status event', function () {
         ->assertRedirect('/');
 });
 
-test('show 404s for an unknown slug', function () {
-    // note: the web fallback route only redirects to '/' in the production env;
-    // in the testing env it abort(404)s, so a missing slug yields a real 404.
+test('show sends a slug no event goes by to the home page', function () {
+    // Only show pages do this; any other missing page still 404s here.
     $this->get('/events/this-slug-does-not-exist')
+        ->assertRedirect('/');
+
+    $this->get('/organizers/this-slug-does-not-exist')
         ->assertNotFound();
 });
 
-test('show renders the events.show-deleted view for a soft-deleted event, not a 404', function () {
-    // Regression: implicit route-model binding's default query excludes
-    // soft-deleted rows, so a link to an event that's since been deleted
-    // (e.g. an old notification — see SavedEventNewDatesNotification::
-    // toDatabase(), which stores the slug at notify time) 404'd outright
-    // with no explanation. events.show-deleted already existed fully built
-    // for exactly this, just was never wired to a route.
-    $event = makeShowableEvent();
+test('a deleted event gives up its slug, and its old URL goes home without showing it', function () {
+    $event = makeShowableEvent(['name' => 'Little Women Ballet', 'slug' => 'little-women-ballet']);
     $event->delete();
 
-    $response = $this->get("/events/{$event->slug}")
-        ->assertOk()
-        ->assertViewIs('events.show-deleted');
+    expect(Event::withTrashed()->find($event->id)->slug)->toBe(Event::releasedSlug($event->id));
+    expect($event->slug)->toBe(Event::releasedSlug($event->id));
 
-    expect($response->viewData('event')->id)->toBe($event->id);
+    $this->get('/events/little-women-ballet')
+        ->assertRedirect('/');
+    $this->get('/events/'.Event::releasedSlug($event->id))
+        ->assertRedirect('/');
 });
 
-test('show 404s for a soft-deleted event that was never published, instead of rendering show-deleted', function () {
-    // Regression: HostEventController::destroy() lets an organizer delete an
-    // event in ANY status, not just published ones — a deleted draft/rejected
-    // event never had a public page, so the "this event was removed" page
-    // (with its name/image) must not render for it either. published_at is
-    // only ever set on approval/embargo-publish and never cleared, so it's
-    // the signal that distinguishes this from the case above.
-    $organizer = Organizer::factory()->create(['status' => 'p']);
-    $event = Event::factory()->create([
-        'organizer_id' => $organizer->id,
-        'status' => 'd',
-        'published_at' => null,
-    ]);
-    $event->delete();
+test('the slug a deleted event gave up is free for the next listing', function () {
+    $gone = makeShowableEvent(['name' => 'Little Women Ballet', 'slug' => 'little-women-ballet']);
+    $gone->delete();
 
-    $this->get("/events/{$event->slug}")->assertNotFound();
+    $next = Event::factory()->create(['name' => 'Little Women Ballet']);
+
+    expect(Event::finalSlug($next))->toBe('little-women-ballet');
+});
+
+test('a restored event takes a slug again: from its name if it was published, a placeholder if not', function () {
+    $published = makeShowableEvent(['name' => 'Little Women Ballet', 'slug' => 'little-women-ballet']);
+    $published->delete();
+    Event::withTrashed()->find($published->id)->restore();
+    expect($published->fresh()->slug)->toBe('little-women-ballet');
+
+    // Its old slug was taken while it was away, so it steps around it.
+    $again = makeShowableEvent(['name' => 'Sleep No More', 'slug' => 'sleep-no-more']);
+    $again->delete();
+    makeShowableEvent(['name' => 'Sleep No More', 'slug' => 'sleep-no-more']);
+    Event::withTrashed()->find($again->id)->restore();
+    expect($again->fresh()->slug)->not->toBe('sleep-no-more')->toStartWith('sleep-no-more-');
+
+    $draft = Event::factory()->create(['status' => 'd', 'published_at' => null]);
+    $draft->delete();
+    Event::withTrashed()->find($draft->id)->restore();
+    expect($draft->fresh()->slug)->toStartWith('new-event-');
 });
 
 // ----- getOrganizerPaginatedEvents() -----
@@ -644,4 +652,12 @@ test('a description containing a closing script tag cannot break out of the page
     expect($payload)->not->toContain('"');
     expect($payload)->toContain('u003C');
     expect($payload)->toContain('alert(1)');
+});
+
+test('restoring a listing that was never deleted leaves its slug alone', function () {
+    $live = makeShowableEvent(['name' => 'Foo', 'slug' => 'foo-london']);
+
+    Event::withTrashed()->find($live->id)->restore();
+
+    expect($live->fresh()->slug)->toBe('foo-london');
 });

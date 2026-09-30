@@ -311,3 +311,97 @@ test('moveImagesForNewSlug is a no-op when the model has no images', function ()
 
     expect($event->images()->count())->toBe(0);
 });
+
+// ----- nothing in use is ever deleted -----
+
+function putImageFiles(string $base): void
+{
+    foreach (['.webp', '.jpg', '-thumb.webp', '-thumb.jpg'] as $suffix) {
+        Storage::disk('digitalocean')->put("public/{$base}{$suffix}", 'x');
+    }
+}
+
+test('a copy that fails leaves the row and its original files where they are', function () {
+    $event = Event::factory()->create(['slug' => 'my-show']);
+    $image = $event->images()->create([
+        'large_image_path' => 'event-images/new-event-abc123/a.webp',
+        'thumb_image_path' => 'event-images/new-event-abc123/a-thumb.webp',
+        'rank' => 0,
+    ]);
+    putImageFiles('event-images/new-event-abc123/a');
+
+    // The DigitalOcean disk reports a failed copy by returning false.
+    $failing = Mockery::mock(Storage::disk('digitalocean'))->makePartial();
+    $failing->shouldReceive('copy')->andReturn(false);
+    Storage::set('digitalocean', $failing);
+
+    ImageHandler::finalize($event->fresh(), 'my-show', 'event');
+
+    expect($image->fresh()->large_image_path)->toBe('event-images/new-event-abc123/a.webp');
+    Storage::disk('digitalocean')->assertExists('public/event-images/new-event-abc123/a.webp');
+    Storage::disk('digitalocean')->assertExists('public/event-images/new-event-abc123/a-thumb.jpg');
+});
+
+test('the folder guard refuses anything but an owner folder', function () {
+    putImageFiles('event-images/someone-else/b');
+
+    foreach (['.', '', '/', 'event-images', 'event-images/..', 'public', 'event-images/x/y'] as $directory) {
+        ImageHandler::deleteDirectoryIfUnused($directory);
+    }
+
+    Storage::disk('digitalocean')->assertExists('public/event-images/someone-else/b.webp');
+});
+
+test('the folder guard keeps a folder any row still points into, and deletes one nobody uses', function () {
+    $other = Event::factory()->create();
+    $other->delete();
+    $other->images()->create([
+        'large_image_path' => 'event-images/shared-final/c.webp',
+        'thumb_image_path' => 'event-images/shared-final/c-thumb.webp',
+        'rank' => 0,
+    ]);
+    putImageFiles('event-images/shared-final/c');
+    putImageFiles('event-images/abandoned/d');
+
+    ImageHandler::deleteDirectoryIfUnused('event-images/shared-final');
+    ImageHandler::deleteDirectoryIfUnused('event-images/abandoned');
+
+    Storage::disk('digitalocean')->assertExists('public/event-images/shared-final/c.webp');
+    Storage::disk('digitalocean')->assertMissing('public/event-images/abandoned/d.webp');
+});
+
+test('removing an image keeps its files when another listing uses the very same file', function () {
+    // Production has this: a deleted copy's image row and the live listing's
+    // cover are the same file.
+    $live = Event::factory()->published()->create([
+        'largeImagePath' => 'event-images/the-hunt/e.webp',
+        'thumbImagePath' => 'event-images/the-hunt/e-thumb.webp',
+    ]);
+    $copy = Event::factory()->create();
+    $shared = $copy->images()->create([
+        'large_image_path' => 'event-images/the-hunt/e.webp',
+        'thumb_image_path' => 'event-images/the-hunt/e-thumb.webp',
+        'rank' => 0,
+    ]);
+    putImageFiles('event-images/the-hunt/e');
+
+    ImageHandler::deleteImage($shared);
+
+    expect(Image::find($shared->id))->toBeNull();
+    Storage::disk('digitalocean')->assertExists('public/event-images/the-hunt/e.webp');
+    Storage::disk('digitalocean')->assertExists('public/event-images/the-hunt/e-thumb.jpg');
+});
+
+test('removing an image nobody else uses still deletes its files', function () {
+    $event = Event::factory()->create();
+    $image = $event->images()->create([
+        'large_image_path' => 'event-images/only-mine/f.webp',
+        'thumb_image_path' => 'event-images/only-mine/f-thumb.webp',
+        'rank' => 1,
+    ]);
+    putImageFiles('event-images/only-mine/f');
+
+    ImageHandler::deleteImage($image);
+
+    Storage::disk('digitalocean')->assertMissing('public/event-images/only-mine/f.webp');
+});

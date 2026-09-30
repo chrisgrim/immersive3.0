@@ -64,6 +64,60 @@ class Event extends Model
     protected static function booted()
     {
         static::addGlobalScope(new LatestPublishedFirstScope);
+
+        // A deleted event is gone from EI, so it gives up its slug: the name
+        // it went by is free for the next listing, and its old URL finds
+        // nothing (EventController::show sends that visitor home).
+        static::deleted(function (Event $event) {
+            if (! $event->isForceDeleting()) {
+                $event->releaseSlug();
+            }
+        });
+
+        // Coming back, it takes a slug again the way it first got one: a
+        // published event a collision-safe one from its name, anything else
+        // the placeholder every unapproved event holds until approval.
+        static::restoring(function (Event $event) {
+            // restore() runs on a live row too (a repeated click, a stale
+            // admin screen); a listing that was never deleted keeps its slug.
+            if (! $event->trashed()) {
+                return;
+            }
+
+            $event->slug = $event->published_at !== null
+                ? static::finalSlug($event)
+                : static::placeholderSlug();
+        });
+    }
+
+    /**
+     * The slug a deleted event holds: unique by its id, and no name can ever
+     * take it, because Str::slug() collapses runs of dashes and so never
+     * produces the double dash.
+     */
+    public static function releasedSlug(int $id): string
+    {
+        return 'deleted--'.$id;
+    }
+
+    /** Swap this (already soft-deleted) event's slug for its released one. */
+    public function releaseSlug(): void
+    {
+        $slug = static::releasedSlug($this->id);
+
+        // Only while it's still deleted, so a restore that lands first keeps its slug.
+        $released = static::withoutGlobalScopes()->whereKey($this->id)->whereNotNull('deleted_at')->update(['slug' => $slug]);
+
+        if ($released) {
+            $this->slug = $slug;
+            $this->syncOriginalAttribute('slug');
+        }
+    }
+
+    /** The random slug an event holds until approval gives it one from its name. */
+    public static function placeholderSlug(): string
+    {
+        return Str::slug('new-event-'.Str::random(6));
     }
 
     public function shouldBeSearchable()
@@ -831,7 +885,7 @@ class Event extends Model
     {
         $event = self::create([
             'user_id' => auth()->id(),
-            'slug' => Str::slug('new-event-'.Str::random(6)),
+            'slug' => static::placeholderSlug(),
             'organizer_id' => $organizerId,
             'status' => '0',
         ]);
@@ -874,6 +928,32 @@ class Event extends Model
     }
 
     /**
+     * Whether a listing on EI (published or embargoed, not deleted) other than
+     * $exceptId already goes by this name. Names match the way their URLs
+     * would, so case and punctuation don't make a different name; one that
+     * slugs to nothing (all CJK / emoji) is compared as written instead.
+     */
+    public static function nameTakenOnSite(string $name, ?int $exceptId = null): bool
+    {
+        $key = function (?string $n): string {
+            $slug = Str::slug((string) $n);
+
+            return $slug !== '' ? $slug : mb_strtolower(trim((string) $n));
+        };
+        $wanted = $key($name);
+
+        if ($wanted === '') {
+            return false;
+        }
+
+        return static::withoutGlobalScope(LatestPublishedFirstScope::class)
+            ->whereIn('status', ['p', 'e'])
+            ->when($exceptId, fn ($query) => $query->where('id', '!=', $exceptId))
+            ->pluck('name')
+            ->contains(fn ($other) => $key($other) === $wanted);
+    }
+
+    /**
      * Generate a unique slug for the event
      */
     public static function finalSlug(Event $event): string
@@ -908,7 +988,7 @@ class Event extends Model
         do {
             $newSlug = $baseSlug.'-'.$count;
             $count++;
-        } while (static::slugExists($newSlug, $event->id) && $count < 100);
+        } while (static::slugExists($newSlug, $event->id));
 
         return $newSlug;
     }
@@ -982,7 +1062,7 @@ class Event extends Model
         return DB::transaction(function () {
             // Create new event with duplicated attributes (excluding location, ticket, and price data)
             $newEvent = $this->replicate(['location_latlon', 'ticketUrl', 'price_range', 'closingDate', 'show_times', 'showtype', 'show_history']);
-            $newEvent->slug = Str::slug('new-event-'.Str::random(6));
+            $newEvent->slug = static::placeholderSlug();
             // The copy is credited to whoever made it (the admin "Submitted by"
             // column), not to the author of the event it was copied from.
             $newEvent->user_id = auth()->id() ?? $this->user_id;

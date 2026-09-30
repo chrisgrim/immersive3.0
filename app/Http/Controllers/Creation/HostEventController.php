@@ -263,19 +263,14 @@ class HostEventController extends Controller
         $this->assertEditable($event);
 
         try {
-            $wouldBeSlug = \Illuminate\Support\Str::slug($request->requested_name);
-
-            // Quick check for any slug conflicts (including soft-deleted)
-            $hasConflict = Event::withTrashed()
-                ->where('slug', $wouldBeSlug)
-                ->where('id', '!=', $event->id)
-                ->exists();
-
-            if ($hasConflict) {
+            // Refuse a name another listing on EI already goes by. The slug
+            // isn't the test: it can carry a suffix, and it belongs to the URL,
+            // which Event::finalSlug keeps unique when the change is applied.
+            if (Event::nameTakenOnSite((string) $request->requested_name, $event->id)) {
                 return response()->json([
                     'message' => 'Validation failed',
                     'errors' => [
-                        'requested_name' => ['An event with this name was created before. Please choose a different name or change it slightly. If you feel this is an error, please contact us at support@everythingimmersive.com'],
+                        'requested_name' => ['Another listing on EI already has this name. Please choose a different name or change it slightly. If you feel this is an error, please contact us at support@everythingimmersive.com'],
                     ],
                 ], 422);
             }
@@ -286,7 +281,6 @@ class HostEventController extends Controller
                     'required',
                     'string',
                     'max:100',
-                    new \App\Rules\UniqueSlugRule($request->requested_name, Event::class, 'slug', $event->id),
                 ],
                 'current_name' => 'required|string',
             ]);
