@@ -70,7 +70,7 @@
                                 type="file" 
                                 ref="fileInput"
                                 class="hidden" 
-                                accept="image/jpeg,image/png,image/webp"
+                                accept="image/jpeg,image/png,image/webp,image/avif"
                                 @change="handleFileChange" 
                             />
                         </div>
@@ -130,14 +130,14 @@ const triggerFileInput = () => {
     fileInput.value.click();
 };
 
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/avif'];
 
 const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
         // Validate file type
         if (!ALLOWED_TYPES.includes(file.type)) {
-            alert('Please upload a valid image file (JPEG, PNG, or WebP).');
+            alert('Please upload a valid image file (JPEG, PNG, WebP, or AVIF).');
             event.target.value = '';
             return;
         }
@@ -185,7 +185,7 @@ const submitData = async (data) => {
         if (error.response?.status === 422 && error.response?.data?.errors) {
             const errors = error.response.data.errors;
             if (errors.image) {
-                alert('Invalid image file. Please upload a JPEG, PNG, or WebP image.');
+                alert('Invalid image file. Please upload a JPEG, PNG, WebP, or AVIF image.');
             } else {
                 const allErrors = Object.values(errors).flat();
                 alert(allErrors.join('\n'));

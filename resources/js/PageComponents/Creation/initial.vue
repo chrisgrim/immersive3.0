@@ -33,7 +33,7 @@
                                         </div>
                                     </label>
                                 </div>
-                                <input type="file" id="image-upload" @change="updateImage" accept="image/jpeg,image/png,image/webp" class="hidden">
+                                <input type="file" id="image-upload" @change="updateImage" accept="image/jpeg,image/png,image/webp,image/avif" class="hidden">
                             </div>
                         </div>
 

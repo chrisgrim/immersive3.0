@@ -33,7 +33,7 @@ class StoreProfileRequest extends FormRequest
             'image' => [
                 'nullable',
                 'file',
-                'mimes:jpeg,png,webp',
+                'mimes:jpeg,png,webp,avif',
                 'max:5120', // 5MB max
             ],
             // Add any other validation rules as needed

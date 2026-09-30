@@ -40,7 +40,7 @@
                                 type="file"
                                 :ref="el => fileInputs[`main_${category.id}`] = el"
                                 class="hidden"
-                                accept="image/jpeg,image/png,image/webp"
+                                accept="image/jpeg,image/png,image/webp,image/avif"
                                 @change="(e) => updateCategoryImage(category, e, 0)"
                             >
                             <div 
@@ -71,7 +71,7 @@
                                 type="file"
                                 :ref="el => fileInputs[`icon_${category.id}`] = el"
                                 class="hidden"
-                                accept="image/jpeg,image/png,image/webp"
+                                accept="image/jpeg,image/png,image/webp,image/avif"
                                 @change="(e) => updateCategoryImage(category, e, 1)"
                             >
                             <div 
@@ -237,7 +237,7 @@
                                     type="file"
                                     ref="mainImageInput"
                                     class="hidden"
-                                    accept="image/jpeg,image/png,image/webp"
+                                    accept="image/jpeg,image/png,image/webp,image/avif"
                                     @change="(e) => handleImageChange(e, 0)"
                                 >
                                 <div 
@@ -268,7 +268,7 @@
                                     type="file"
                                     ref="iconImageInput"
                                     class="hidden"
-                                    accept="image/jpeg,image/png,image/webp"
+                                    accept="image/jpeg,image/png,image/webp,image/avif"
                                     @change="(e) => handleImageChange(e, 1)"
                                 >
                                 <div 

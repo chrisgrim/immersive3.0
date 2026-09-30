@@ -30,7 +30,7 @@
                     </div>
 
                     <template v-if="isOwner">
-                        <input ref="avatarInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="handleAvatarChange">
+                        <input ref="avatarInput" type="file" accept="image/jpeg,image/png,image/webp,image/avif" class="hidden" @change="handleAvatarChange">
                         <button
                             type="button"
                             :disabled="uploadingAvatar"

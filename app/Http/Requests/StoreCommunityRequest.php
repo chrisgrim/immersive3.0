@@ -50,7 +50,7 @@ class StoreCommunityRequest extends FormRequest
             $rules['image'] = [
                 'required',
                 'image',
-                'mimes:jpeg,png,webp',
+                'mimes:jpeg,png,webp,avif',
                 'max:10240', // 10MB
                 'dimensions:min_width=800,min_height=450',
             ];

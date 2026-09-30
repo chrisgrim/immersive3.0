@@ -13,7 +13,7 @@
                         type="file" 
                         ref="fileInput"
                         class="hidden" 
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/jpeg,image/png,image/webp,image/avif"
                         @change="handleFileChange" 
                     />
                     
@@ -56,7 +56,7 @@
                     <ul class="list-disc list-inside">
                         <li>Minimum 400 x 225 pixels</li>
                         <li>Maximum file size: 10MB</li>
-                        <li>Supported formats: JPEG, PNG, WebP</li>
+                        <li>Supported formats: JPEG, PNG, WebP, AVIF</li>
                     </ul>
                 </div>
             </div>
@@ -78,13 +78,13 @@ const validationError = ref('');
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MIN_WIDTH = 400;  // Updated to smaller size
 const MIN_HEIGHT = 225; // Updated to maintain 16:9 ratio
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
 
 // Methods
 const validateFile = (file) => {
     return new Promise((resolve, reject) => {
         if (!ALLOWED_TYPES.includes(file.type)) {
-            validationError.value = 'Please use JPEG, PNG, or WebP image formats.';
+            validationError.value = 'Please use JPEG, PNG, WebP, or AVIF image formats.';
             return resolve(false);
         }
         

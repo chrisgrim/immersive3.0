@@ -8,7 +8,7 @@
                         type="file" 
                         ref="fileInput"
                         class="hidden" 
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/jpeg,image/png,image/webp,image/avif"
                         @change="handleFileChange" 
                     />
                     
@@ -59,7 +59,7 @@
                         <li>Square image (1:1 ratio)</li>
                         <li>Minimum 400x400 pixels</li>
                         <li>Maximum file size: 5MB</li>
-                        <li>Supported formats: JPEG, PNG, WebP</li>
+                        <li>Supported formats: JPEG, PNG, WebP, AVIF</li>
                     </ul>
                 </div>
             </div>
@@ -85,13 +85,13 @@ const user = inject('user');
 // Constants
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MIN_DIMENSION = 400; // Minimum 400x400 pixels
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
 
 const validateFile = (file) => {
     return new Promise((resolve, reject) => {
         // Check file type
         if (!ALLOWED_TYPES.includes(file.type)) {
-            validationError.value = 'Please use JPEG, PNG, or WebP image formats.';
+            validationError.value = 'Please use JPEG, PNG, WebP, or AVIF image formats.';
             return resolve(false);
         }
         

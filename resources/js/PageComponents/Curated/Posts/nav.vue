@@ -66,7 +66,7 @@
                             <input 
                                 type="file" 
                                 class="hidden fileInput" 
-                                accept="image/jpeg,image/png,image/webp"
+                                accept="image/jpeg,image/png,image/webp,image/avif"
                                 @change="handleFileChange" 
                             />
                             <component :is="RiImageCircleLine" style="width:4rem; height: 4rem;" />
@@ -191,7 +191,7 @@ const isDragging = ref(false)
 
 // Constants for image validation
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/svg+xml', 'image/webp'];
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/svg+xml', 'image/webp', 'image/avif'];
 
 // Add this line to get the image URL from environment
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
@@ -342,7 +342,7 @@ const handleEventSelect = (event) => {
 // Image handling methods
 const validateFile = (file) => {
     if (!ALLOWED_TYPES.includes(file.type)) {
-        alert(`File is not a supported image type. Please use JPEG, PNG, GIF, SVG, or WebP.`);
+        alert(`File is not a supported image type. Please use JPEG, PNG, GIF, SVG, WebP, or AVIF.`);
         return false;
     }
     

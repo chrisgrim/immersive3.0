@@ -42,7 +42,7 @@
                                             <input
                                                 type="file"
                                                 class="hidden"
-                                                accept="image/jpeg,image/png,image/webp"
+                                                accept="image/jpeg,image/png,image/webp,image/avif"
                                                 @change="onFileChange">
                                         </label>
                                         
@@ -209,7 +209,7 @@
                             id="image-card-upload"
                             type="file"
                             class="hidden"
-                            accept="image/jpeg,image/png,image/webp"
+                            accept="image/jpeg,image/png,image/webp,image/avif"
                             @change="onFileChange">
                     </label>
                     
@@ -279,7 +279,7 @@
                                     id="regular-image-upload"
                                     type="file"
                                     class="hidden"
-                                    accept="image/jpeg,image/png,image/webp"
+                                    accept="image/jpeg,image/png,image/webp,image/avif"
                                     @change="onFileChange">
                             </label>
                             
@@ -571,7 +571,7 @@ const updateCard = async () => {
             // Build user-friendly error message
             let errorMessages = [];
             if (errors.image) {
-                errorMessages.push('Invalid image file. Please upload a JPEG, PNG, or WebP image.');
+                errorMessages.push('Invalid image file. Please upload a JPEG, PNG, WebP, or AVIF image.');
                 // Clear the invalid image preview
                 imageFile.value = null;
             }
@@ -647,7 +647,7 @@ const cleanDate = (date) => {
     return moment(date).format("dddd, MMMM D YYYY")
 }
 
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/avif'];
 
 const onFileChange = async (event) => {
     const file = event.target.files[0]
@@ -655,7 +655,7 @@ const onFileChange = async (event) => {
 
     // Validate file type
     if (!ALLOWED_TYPES.includes(file.type)) {
-        alert('Please upload a valid image file (JPEG, PNG, or WebP).');
+        alert('Please upload a valid image file (JPEG, PNG, WebP, or AVIF).');
         event.target.value = '';
         return;
     }

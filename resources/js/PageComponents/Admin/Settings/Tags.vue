@@ -124,7 +124,7 @@
                                 type="file"
                                 :ref="el => fileInputs[tag.id] = el"
                                 class="hidden"
-                                accept="image/jpeg,image/png,image/webp"
+                                accept="image/jpeg,image/png,image/webp,image/avif"
                                 @change="(e) => updateTagImage(tag, e)"
                             >
                             <div 
@@ -222,7 +222,7 @@
                                     type="file"
                                     ref="createTagFileInput"
                                     class="hidden"
-                                    accept="image/jpeg,image/png,image/webp"
+                                    accept="image/jpeg,image/png,image/webp,image/avif"
                                     @change="handleCreateTagImage"
                                 >
                                 <div 
