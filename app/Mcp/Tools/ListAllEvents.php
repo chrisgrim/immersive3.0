@@ -17,7 +17,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[IsReadOnly]
-#[Description('Search events across the WHOLE platform, including organizers you do not belong to — use this (not list-my-events) to find any event by name, or to sweep for events needing attention, e.g. closing_before to find listings whose run is about to expire. Moderators and admins see every event in every status and can edit whatever they find with update-event; everyone else sees published events only. Returns a page of summaries; call get-event with a slug for the full detail.')]
+#[Description('Search events across the WHOLE platform, including organizers you do not belong to — use this (not list-my-events) to find any event by name (search), by words in its description such as an artist or studio credited there (text), or to sweep for events needing attention, e.g. closing_before to find listings whose run is about to expire. Moderators and admins see every event in every status and can edit whatever they find with update-event; everyone else sees published events only. Returns a page of summaries; call get-event with a slug for the full detail.')]
 class ListAllEvents extends Tool
 {
     use FormatsEvents;
@@ -43,6 +43,7 @@ class ListAllEvents extends Tool
     {
         $validated = $request->validate([
             'search' => 'nullable|string|max:100',
+            'text' => 'nullable|string|max:100',
             'organizer' => 'nullable|string|max:100',
             'category' => 'nullable|string|max:100',
             'genre' => 'nullable|string|max:100',
@@ -77,6 +78,17 @@ class ListAllEvents extends Tool
         if (filled($validated['search'] ?? null)) {
             $term = '%'.$this->escapeLike($validated['search']).'%';
             $query->where(fn (Builder $q) => $q->where('name', 'LIKE', $term)->orWhere('slug', 'LIKE', $term));
+        }
+
+        // Kept apart from `search` on purpose (Kathryn, 2026-09-30): artists are
+        // often credited only in the copy ("Created by Moment Factory") of a show
+        // named after the piece, but folding the copy into name search would
+        // bury ordinary lookups under passing mentions.
+        if (filled($validated['text'] ?? null)) {
+            $term = '%'.$this->escapeLike($validated['text']).'%';
+            $query->where(fn (Builder $q) => $q->where('description', 'LIKE', $term)
+                ->orWhere('tag_line', 'LIKE', $term)
+                ->orWhere('remote_description', 'LIKE', $term));
         }
 
         if (filled($validated['organizer'] ?? null)) {
@@ -238,7 +250,8 @@ class ListAllEvents extends Tool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'search' => $schema->string()->description('Match against the event name or slug (substring, case-insensitive).'),
+            'search' => $schema->string()->description('Match against the event name or slug (substring, case-insensitive). Names only — use text for words in the description.'),
+            'text' => $schema->string()->description('Match against the description, tag line and online-show description (substring, case-insensitive). Use this to find events crediting an artist, studio or collaborator that is not in the event name, e.g. text="Moment Factory". Expect some passing mentions (a festival listing its speakers), so check each match before acting on it. Combines with every other filter, including search.'),
             'organizer' => $schema->string()->description('Restrict to one organizer: either its numeric id or a fragment of its name.'),
             'status' => $schema->string()
                 ->enum(['published', 'embargoed', 'live', 'in_review', 'needs_revision', 'draft', 'any'])

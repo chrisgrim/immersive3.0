@@ -90,6 +90,60 @@ test('LIKE wildcards in the search term are matched literally', function () {
         ->assertDontSee('1000 Doors');
 });
 
+// Kathryn, 2026-09-30: finding every piece by one artist (Moment Factory,
+// teamLab...) missed shows named after the piece, because the artist is only
+// credited in the description. `text` searches that copy; `search` stays
+// name-only so ordinary lookups stay precise.
+
+test('text finds a show credited only in its description', function () {
+    strangerEvent(['name' => 'Terra Lumina', 'description' => 'A night walk created by Moment Factory.']);
+    strangerEvent(['name' => 'Every Brilliant Thing', 'description' => 'A solo show.']);
+
+    EiServer::actingAs(catalogUser('m'))->tool(ListAllEvents::class, ['text' => 'moment factory'])
+        ->assertOk()
+        ->assertSee('Terra Lumina')
+        ->assertDontSee('Every Brilliant Thing');
+});
+
+test('text also looks at the tag line and the online-show description', function () {
+    strangerEvent(['name' => 'Tagline Credit', 'tag_line' => 'From the makers at teamLab']);
+    strangerEvent(['name' => 'Remote Credit', 'remote_description' => 'Streamed live by teamLab']);
+    strangerEvent(['name' => 'No Credit', 'description' => 'Nothing to see.']);
+
+    EiServer::actingAs(catalogUser('m'))->tool(ListAllEvents::class, ['text' => 'teamlab'])
+        ->assertOk()
+        ->assertSee(['Tagline Credit', 'Remote Credit'])
+        ->assertDontSee('No Credit');
+});
+
+test('search stays name-only and never matches the description', function () {
+    strangerEvent(['name' => 'Terra Lumina', 'description' => 'Created by Moment Factory.']);
+
+    EiServer::actingAs(catalogUser('m'))->tool(ListAllEvents::class, ['search' => 'moment factory'])
+        ->assertOk()
+        ->assertDontSee('Terra Lumina');
+});
+
+test('LIKE wildcards in the text term are matched literally', function () {
+    strangerEvent(['name' => 'Percent Show', 'description' => 'Now 100% interactive.']);
+    strangerEvent(['name' => 'Thousand Show', 'description' => '1000 rooms to explore.']);
+
+    EiServer::actingAs(catalogUser('m'))->tool(ListAllEvents::class, ['text' => '100%'])
+        ->assertOk()
+        ->assertSee('Percent Show')
+        ->assertDontSee('Thousand Show');
+});
+
+test('text search still shows a regular user published events only', function () {
+    strangerEvent(['name' => 'Public Credit', 'description' => 'By Marshmallow Laser Feast.']);
+    strangerEvent(['name' => 'Draft Credit', 'description' => 'By Marshmallow Laser Feast.', 'status' => '3', 'published_at' => null]);
+
+    EiServer::actingAs(catalogUser())->tool(ListAllEvents::class, ['text' => 'marshmallow laser feast'])
+        ->assertOk()
+        ->assertSee('Public Credit')
+        ->assertDontSee('Draft Credit');
+});
+
 test('the organizer filter accepts an id or a name fragment', function () {
     $owner = catalogUser();
     $organizer = Organizer::factory()->create(['user_id' => $owner->id, 'status' => 'p', 'name' => 'Meow Wolf']);
