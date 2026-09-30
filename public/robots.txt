@@ -1,10 +1,9 @@
 User-agent: *
 
-# Don't index query parameter versions of event pages
-Disallow: /events/*?*
-Disallow: /organizers/*?*
-Disallow: /communities/*?*
-Disallow: /*?ref=*
+# Event, organizer and community pages are crawlable with any query string
+# (e.g. ?ref=noproscenium.com): each declares its clean URL as canonical,
+# so Google indexes that one and credits it with links to the variants.
+# Blocking them here would hide the canonical and waste those links.
 Disallow: /*?source=*
 Disallow: /*?name=*
 Disallow: /*?lat=*
