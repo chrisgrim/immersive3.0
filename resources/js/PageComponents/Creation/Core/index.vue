@@ -273,6 +273,7 @@ const goToNext = async () => {
             Object.assign(event, response.data.event);
         }
 
+        errors.value = {};
         const nextStep = steps.value[currentStepIndex.value + 1];
         setStep(nextStep);
     } catch (error) {

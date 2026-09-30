@@ -113,6 +113,10 @@
                    class="text-red-500 text-1xl text-center mb-4">
                     Please add an image for your event
                 </p>
+                <p v-if="imageError"
+                   class="text-red-500 text-1xl text-center mb-4">
+                    {{ imageError }}
+                </p>
                 <Videos 
                     v-model="videos" 
                     :maxVideos="4" 
@@ -319,10 +323,27 @@ const isCustomColor = computed(() => {
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const event = inject('event');
 const setComponentReady = inject('setComponentReady');
+const errors = inject('errors', ref({}));
+
+// The server keeps at most 4 additional images (ranks 1-4).
+const MAX_ADDITIONAL_IMAGES = 4;
+
+// Files picked but not yet read into `images`, so a second quick pick
+// can't claim the same slots.
+const pendingImages = ref(0);
 
 // Computed properties
 const remainingSlots = computed(() => {
-    return Math.max(0, 4 - images.value.length);
+    return Math.max(0, MAX_ADDITIONAL_IMAGES - images.value.length - pendingImages.value);
+});
+
+// A rejected save lands in the wizard's errors; show the image ones here
+// instead of leaving Next silently doing nothing.
+const imageError = computed(() => {
+    const e = errors?.value || {};
+    const key = Object.keys(e).find(k => /^(images|ranks|currentImages|deletedImages)(\.|$)/.test(k));
+    if (key) return e[key][0];
+    return e.general?.[0] || '';
 });
 
 const maximizeCropperSize = ({ imageSize, visibleArea }) => {
@@ -448,11 +469,26 @@ const validateFile = (file) => {
 
 const handleFileChange = async (event) => {
     const files = Array.from(event.target.files);
+    event.target.value = '';
+    let skipped = 0;
     for (const file of files) {
+        if (remainingSlots.value <= 0) {
+            skipped++;
+            continue;
+        }
         const isValid = await validateFile(file);
         if (isValid) {
+            if (remainingSlots.value <= 0) {
+                skipped++;
+                continue;
+            }
+            pendingImages.value++;
             const reader = new FileReader();
+            reader.onerror = () => {
+                pendingImages.value--;
+            };
             reader.onload = (e) => {
+                pendingImages.value--;
                 // Calculate the next rank as the current length + 1
                 const nextRank = images.value.length + 1;
                 
@@ -469,7 +505,9 @@ const handleFileChange = async (event) => {
             reader.readAsDataURL(file);
         }
     }
-    event.target.value = '';
+    if (skipped) {
+        alert(`An event can have up to ${MAX_ADDITIONAL_IMAGES} additional images, so ${skipped} ${skipped === 1 ? 'image was' : 'images were'} left out.`);
+    }
 };
 
 // Create a wrapper function for adding to deletedImages
@@ -484,6 +522,7 @@ const removeImage = (index) => {
         addToDeletedImages(imagePath);
     }
     images.value.splice(index, 1);
+    errors.value = {};
     
     // Reassign ranks sequentially after removing an image
     images.value.forEach((image, idx) => {
@@ -778,6 +817,14 @@ defineExpose({
             return false;
         }
         showMainImageError.value = false;
+        if (pendingImages.value > 0) {
+            errors.value = { images: ['Your images are still loading. Please try again in a moment.'] };
+            return false;
+        }
+        if (images.value.length > MAX_ADDITIONAL_IMAGES) {
+            errors.value = { images: [`An event can have up to ${MAX_ADDITIONAL_IMAGES} additional images. Please remove ${images.value.length - MAX_ADDITIONAL_IMAGES}.`] };
+            return false;
+        }
         return true;
     },
     submitData: () => {

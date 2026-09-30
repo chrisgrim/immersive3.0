@@ -334,6 +334,7 @@ const showToast = (message) => {
 
 const saveChanges = async () => {
     try {
+        errors.value = {};
         const isValid = await currentComponentRef.value.isValid();
         if (!isValid) return;
 
@@ -375,6 +376,9 @@ const saveChanges = async () => {
         // that was opened before the window closed.
         if (error.response?.status === 403 && error.response.data?.message) {
             showToast(error.response.data.message);
+        } else if (error.response?.status === 422 && error.response.data?.errors) {
+            // Let the open step show what the server rejected.
+            errors.value = error.response.data.errors;
         }
         console.error('Error:', error);
     } finally {
