@@ -196,7 +196,7 @@ class EventUpdateRules
             'images' => 'nullable|array',
             'images.*' => [
                 'file',
-                'mimes:jpeg,png,jpg,webp',
+                'mimes:jpeg,png,jpg,webp,avif', // the photo picker offers AVIF; saveImage re-encodes it to jpg + webp
                 'max:5120',
                 // Removed dimensions validation as it seems to cause issues
             ],
