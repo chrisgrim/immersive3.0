@@ -6,6 +6,7 @@ use App\Models\Messaging\Message;
 use App\Models\Organizer;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     Mail::fake();
@@ -204,4 +205,22 @@ test('the events table includes who submitted each event, with just the columns 
     expect($row['user']['name'])->toBe('Ada Organizer')
         ->and($row['user']['email'])->toBe('ada@example.com')
         ->and($row['user'])->not->toHaveKeys(['password', 'remember_token', 'phone', 'notification_preferences']);
+});
+
+test('an inline edit addressed by a slug that starts with digits never edits another event', function () {
+    // MySQL reads "2024-haunted-house" as 2024 when compared with an id.
+    $target = Event::factory()->create(['name' => 'Haunted House', 'slug' => '2024-haunted-house']);
+    $bystander = Event::factory()->create(['name' => 'Bystander']);
+    DB::table('events')->where('id', $bystander->id)->update(['id' => 2024]);
+
+    $this->actingAs($this->moderator)
+        ->patchJson('/api/admin/manage/events/2024-haunted-house', ['name' => 'Renamed'])
+        ->assertNotFound();
+
+    expect(Event::find(2024)->name)->toBe('Bystander');
+
+    $this->actingAs($this->moderator)
+        ->patchJson("/api/admin/manage/events/{$target->id}", ['name' => 'Renamed'])
+        ->assertOk();
+    expect($target->fresh()->name)->toBe('Renamed');
 });

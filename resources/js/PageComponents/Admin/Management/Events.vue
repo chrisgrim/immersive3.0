@@ -501,7 +501,7 @@ const checkAndUpdateField = async (event, field, e) => {
     if (originalValue !== newValue) {
         try {
             if (confirm(`Are you sure you want to update this event's ${field}?`)) {
-                const response = await axios.patch(`/api/admin/manage/events/${event.slug}`, {
+                const response = await axios.patch(`/api/admin/manage/events/${event.id}`, {
                     [field]: newValue
                 })
                 
@@ -521,7 +521,7 @@ const checkAndUpdateField = async (event, field, e) => {
 
 const updateEventStatus = async (event) => {
     try {
-        const response = await axios.patch(`/api/admin/manage/events/${event.slug}`, {
+        const response = await axios.patch(`/api/admin/manage/events/${event.id}`, {
             status: event.status
         })
         Object.assign(event, response.data)

@@ -259,6 +259,10 @@ class AdminEventController extends Controller
 
     public function update(Request $request, $id)
     {
+        // $id is the event's number. Anything else is refused: MySQL reads a
+        // slug like "2024-haunted-house" as 2024 and would edit event #2024.
+        abort_unless(ctype_digit((string) $id), 404);
+
         // Find the event even if it's deleted
         $event = Event::withTrashed()->findOrFail($id);
 
