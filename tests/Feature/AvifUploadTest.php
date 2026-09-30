@@ -21,6 +21,34 @@ function realAvif(): UploadedFile
     return new UploadedFile($path, 'photo.avif', 'image/avif', null, true);
 }
 
+test('every other upload rule accepts an AVIF, dimensions check included', function () {
+    // The rule shapes used by organizer, genre, category, post, card and community uploads.
+    // Laravel's `image` rule doesn't know AVIF, so these use `file` + `mimes`.
+    foreach ([
+        'file|mimes:jpeg,png,jpg,webp,avif|max:8192',
+        ['required', 'file', 'mimes:jpeg,png,webp,avif', 'max:10240', 'dimensions:min_width=800,min_height=450'],
+        ['required', 'file', 'mimes:jpeg,png,webp,avif', 'max:5120'],
+    ] as $rule) {
+        $v = Validator::make(['image' => realAvif()], ['image' => $rule]);
+        expect($v->errors()->all())->toBe([]);
+    }
+});
+
+test('no upload rule pairs Laravel\'s image check with avif', function () {
+    // `image` only allows jpg/jpeg/png/gif/bmp/webp, so image + mimes:...avif
+    // still turns AVIFs away. This caught seven boxes on 2026-09-30.
+    $offenders = [];
+    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(app_path())) as $f) {
+        if ($f->getExtension() !== 'php') continue;
+        foreach (file($f->getPathname()) as $n => $line) {
+            if (str_contains($line, 'avif') && preg_match("/(^|[|'\"])image\|/", $line)) {
+                $offenders[] = str_replace(base_path().'/', '', $f->getPathname()).':'.($n + 1);
+            }
+        }
+    }
+    expect($offenders)->toBe([]);
+});
+
 test('the event rules accept an AVIF photo', function () {
     $v = Validator::make(['images' => [realAvif()]], ['images.*' => EventUpdateRules::rules()['images.*']]);
 

@@ -49,7 +49,7 @@ class StoreCommunityRequest extends FormRequest
         if ($this->hasFile('image')) {
             $rules['image'] = [
                 'required',
-                'image',
+                'file', // not 'image': Laravel's image rule doesn't know AVIF; mimes checks the content
                 'mimes:jpeg,png,webp,avif',
                 'max:10240', // 10MB
                 'dimensions:min_width=800,min_height=450',
@@ -81,7 +81,7 @@ class StoreCommunityRequest extends FormRequest
 
             'image.required' => 'An image file is required',
             'image.image' => 'The file must be an image',
-            'image.mimes' => 'The image must be a JPG, PNG, or WebP file',
+            'image.mimes' => 'The image must be a JPG, PNG, WebP, or AVIF file',
             'image.max' => 'The image file size cannot be larger than 10MB',
             'image.dimensions' => 'The image must be at least 800x450 pixels',
         ];

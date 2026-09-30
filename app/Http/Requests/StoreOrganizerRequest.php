@@ -30,7 +30,7 @@ class StoreOrganizerRequest extends FormRequest
 
         // Only apply image rules if image is being updated
         if ($this->hasFile('image')) {
-            $rules['image'] = 'required|image|mimes:jpeg,png,jpg,webp,avif|max:8192';
+            $rules['image'] = 'required|file|mimes:jpeg,png,jpg,webp,avif|max:8192';
         }
 
         // Social media and contact rules - always validate if present

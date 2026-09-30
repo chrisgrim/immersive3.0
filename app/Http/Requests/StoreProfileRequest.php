@@ -43,7 +43,7 @@ class StoreProfileRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'image.mimes' => 'The image must be a JPEG, PNG, or WebP file.',
+            'image.mimes' => 'The image must be a JPEG, PNG, WebP, or AVIF file.',
             'image.max' => 'The image must be less than 5MB.',
         ];
     }

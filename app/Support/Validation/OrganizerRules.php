@@ -80,7 +80,7 @@ class OrganizerRules
             'patreon.max' => 'The Patreon handle may not be greater than 30 characters.',
             'image.required' => 'An image file is required.',
             'image.image' => 'The file must be an image.',
-            'image.mimes' => 'The image must be a file of type: jpeg, png, jpg, webp.',
+            'image.mimes' => 'The image must be a file of type: jpeg, png, jpg, webp, avif.',
             'image.max' => 'The image may not be greater than 8MB.',
         ];
     }

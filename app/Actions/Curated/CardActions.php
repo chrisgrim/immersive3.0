@@ -41,7 +41,7 @@ class CardActions
         // upload 422s cleanly without leaving an orphaned card or shifted siblings behind.
         if ($request->hasFile('image')) {
             $request->validate([
-                'image' => 'image|mimes:jpeg,png,jpg,webp,avif|max:8192',
+                'image' => 'file|mimes:jpeg,png,jpg,webp,avif|max:8192',
             ]);
         }
 
@@ -81,7 +81,7 @@ class CardActions
 
         if ($request->hasFile('image')) {
             $request->validate([
-                'image' => 'image|mimes:jpeg,png,jpg,webp,avif|max:8192',
+                'image' => 'file|mimes:jpeg,png,jpg,webp,avif|max:8192',
             ]);
             if ($card->images()->exists()) {
                 foreach ($card->images as $image) {
