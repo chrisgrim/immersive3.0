@@ -41,6 +41,14 @@ class ListAllEvents extends Tool
 
     public function handle(Request $request): Response
     {
+        // MCP arguments arrive in the JSON-RPC body, past Laravel's TrimStrings,
+        // so " moment factory " would otherwise match 4 events instead of 28.
+        foreach (['search', 'text'] as $key) {
+            if (is_string($request->get($key))) {
+                $request->merge([$key => trim($request->get($key))]);
+            }
+        }
+
         $validated = $request->validate([
             'search' => 'nullable|string|max:100',
             'text' => 'nullable|string|max:100',
@@ -76,8 +84,7 @@ class ListAllEvents extends Tool
         }
 
         if (filled($validated['search'] ?? null)) {
-            $term = '%'.$this->escapeLike($validated['search']).'%';
-            $query->where(fn (Builder $q) => $q->where('name', 'LIKE', $term)->orWhere('slug', 'LIKE', $term));
+            $this->whereAnyLike($query, ['name', 'slug'], $validated['search']);
         }
 
         // Kept apart from `search` on purpose (Kathryn, 2026-09-30): artists are
@@ -85,10 +92,7 @@ class ListAllEvents extends Tool
         // named after the piece, but folding the copy into name search would
         // bury ordinary lookups under passing mentions.
         if (filled($validated['text'] ?? null)) {
-            $term = '%'.$this->escapeLike($validated['text']).'%';
-            $query->where(fn (Builder $q) => $q->where('description', 'LIKE', $term)
-                ->orWhere('tag_line', 'LIKE', $term)
-                ->orWhere('remote_description', 'LIKE', $term));
+            $this->whereAnyLike($query, ['description', 'tag_line', 'remote_description'], $validated['text']);
         }
 
         if (filled($validated['organizer'] ?? null)) {
@@ -236,6 +240,26 @@ class ListAllEvents extends Tool
     }
 
     /**
+     * Substring match on any of the columns. Straight and curly apostrophes are
+     * different characters to MySQL, and about half the descriptions use curly
+     * ones, so "it's" and "it’s" each missed the other: a term with either is
+     * matched both ways.
+     */
+    protected function whereAnyLike(Builder $query, array $columns, string $raw): void
+    {
+        $straight = str_replace(['’', '‘'], "'", $raw);
+        $terms = array_unique([$straight, str_replace("'", '’', $straight)]);
+
+        $query->where(function (Builder $q) use ($columns, $terms) {
+            foreach ($columns as $column) {
+                foreach ($terms as $term) {
+                    $q->orWhere($column, 'LIKE', '%'.$this->escapeLike($term).'%');
+                }
+            }
+        });
+    }
+
+    /**
      * LIKE wildcards in user input must not widen the search — "100%" should
      * match the literal string, not everything starting with "100".
      */
@@ -251,7 +275,7 @@ class ListAllEvents extends Tool
     {
         return [
             'search' => $schema->string()->description('Match against the event name or slug (substring, case-insensitive). Names only — use text for words in the description.'),
-            'text' => $schema->string()->description('Match against the description, tag line and online-show description (substring, case-insensitive). Use this to find events crediting an artist, studio or collaborator that is not in the event name, e.g. text="Moment Factory". Expect some passing mentions (a festival listing its speakers), so check each match before acting on it. Combines with every other filter, including search.'),
+            'text' => $schema->string()->description('Match against the description, tag line and online-show description (substring, case-insensitive). Use this to find events crediting an artist, studio or collaborator that is not in the event name, e.g. text="Moment Factory". Expect some passing mentions (a festival listing its speakers), so check each match before acting on it. Combines with every other filter, including search. To find ALL of an artist\'s work, run organizer=<artist>, search=<artist> and text=<artist> separately and merge them (plus text=<surname> for a person): many shows by a studio never name it in their copy, and some name only the artist\'s surname.'),
             'organizer' => $schema->string()->description('Restrict to one organizer: either its numeric id or a fragment of its name.'),
             'status' => $schema->string()
                 ->enum(['published', 'embargoed', 'live', 'in_review', 'needs_revision', 'draft', 'any'])

@@ -144,6 +144,28 @@ test('text search still shows a regular user published events only', function ()
         ->assertDontSee('Draft Credit');
 });
 
+test('straight and curly apostrophes match each other', function () {
+    strangerEvent(['name' => 'Curly Credit', 'description' => 'Part of Punchdrunk’s new season.']);
+    strangerEvent(['name' => 'Straight Credit', 'description' => "Part of Punchdrunk's new season."]);
+
+    foreach (["Punchdrunk's", 'Punchdrunk’s'] as $typed) {
+        EiServer::actingAs(catalogUser('m'))->tool(ListAllEvents::class, ['text' => $typed])
+            ->assertOk()
+            ->assertSee(['Curly Credit', 'Straight Credit']);
+    }
+});
+
+test('spaces around a search term are ignored', function () {
+    strangerEvent(['name' => 'Terra Lumina', 'description' => 'Created by Moment Factory.']);
+
+    EiServer::actingAs(catalogUser('m'))->tool(ListAllEvents::class, ['text' => '  moment factory  '])
+        ->assertOk()
+        ->assertSee('Terra Lumina');
+    EiServer::actingAs(catalogUser('m'))->tool(ListAllEvents::class, ['search' => '  terra lumina '])
+        ->assertOk()
+        ->assertSee('Terra Lumina');
+});
+
 test('the organizer filter accepts an id or a name fragment', function () {
     $owner = catalogUser();
     $organizer = Organizer::factory()->create(['user_id' => $owner->id, 'status' => 'p', 'name' => 'Meow Wolf']);
