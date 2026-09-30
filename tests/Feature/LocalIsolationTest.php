@@ -10,9 +10,14 @@ test('the database really is this machine', function () {
     expect(LocalIsolation::databaseProblem())->toBeNull();
 });
 
-test('a tunnel to another server\'s database is caught, even on 127.0.0.1', function () {
-    Illuminate\Support\Facades\DB::shouldReceive('selectOne')->andReturn((object) ['h' => 'the-droplet']);
-    expect(LocalIsolation::databaseProblem())->toContain('the-droplet');
+test('on a Mac, a tunnel to a Linux database is caught, even on 127.0.0.1', function () {
+    Illuminate\Support\Facades\DB::shouldReceive('selectOne')->andReturn((object) ['os' => 'Linux']);
+    expect(LocalIsolation::databaseProblem('Darwin'))->toContain('Linux');
+});
+
+test('on a Mac, a Mac-built database is fine', function () {
+    Illuminate\Support\Facades\DB::shouldReceive('selectOne')->andReturn((object) ['os' => 'macos26.6']);
+    expect(LocalIsolation::databaseProblem('Darwin'))->toBeNull();
 });
 
 test('a local copy refuses any bucket but the test one, in any case', function () {

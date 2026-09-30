@@ -40,8 +40,12 @@ test('no upload rule pairs Laravel\'s image check with avif', function () {
     $offenders = [];
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(app_path())) as $f) {
         if ($f->getExtension() !== 'php') continue;
-        foreach (file($f->getPathname()) as $n => $line) {
-            if (str_contains($line, 'avif') && preg_match("/(^|[|'\"])image\|/", $line)) {
+        $lines = file($f->getPathname());
+        $hasAvif = str_contains(implode('', $lines), 'avif');
+        foreach ($lines as $n => $line) {
+            // image|mimes:...avif on one line, or an array rule with a bare 'image', entry
+            if ((str_contains($line, 'avif') && preg_match("/(^|[|'\"])image\|/", $line))
+                || ($hasAvif && preg_match("/^\s*'image',\s*(\/\/.*)?$/", $line))) {
                 $offenders[] = str_replace(base_path().'/', '', $f->getPathname()).':'.($n + 1);
             }
         }

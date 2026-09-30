@@ -15,10 +15,10 @@ use Throwable;
  *
  * It runs on local and testing, and on any Mac whatever APP_ENV says — the live
  * and dev servers are Linux, so APP_ENV=production on a laptop doesn't switch it
- * off. It checks where things really are, not only what .env claims: the
- * database must be THIS machine (a tunnel to the live DB on 127.0.0.1 passes a
- * host check, but reports the droplet's hostname), and photos may only go to the
- * test bucket (an allowlist, not a denylist).
+ * off. It checks where things really are, not only what .env claims: on a Mac
+ * the database must be a Mac build (a tunnel to the live DB on 127.0.0.1 passes
+ * a host check, but the server reports it was built for Linux), and photos may
+ * only go to the test bucket (an allowlist, not a denylist).
  */
 class LocalIsolation
 {
@@ -90,19 +90,24 @@ class LocalIsolation
         return $problems;
     }
 
-    /** The database server must be this machine. Null when it is (or can't be reached). */
-    public static function databaseProblem(): ?string
+    /**
+     * On a Mac, the database server must be a Mac build too. The live DB is Linux,
+     * so a tunnel to it is caught. (Not @@hostname: macOS makes its hostname up
+     * and can rename itself on a new network, which would lock the site until
+     * MySQL restarted.) Null when fine, or when it can't be reached.
+     */
+    public static function databaseProblem(string $os = PHP_OS_FAMILY): ?string
     {
-        if (config('database.connections.'.config('database.default').'.driver') !== 'mysql') {
+        if ($os !== 'Darwin' || config('database.connections.'.config('database.default').'.driver') !== 'mysql') {
             return null;
         }
         try {
-            $server = DB::selectOne('select @@hostname as h')->h ?? null;
+            $built = DB::selectOne('select @@version_compile_os as os')->os ?? null;
         } catch (Throwable) {
             return null; // no connection means nothing reaches anywhere; the app will say why
         }
-        if ($server !== null && strcasecmp($server, gethostname()) !== 0) {
-            return "the database is running on $server, not this machine";
+        if ($built !== null && stripos($built, 'mac') !== 0 && stripos($built, 'osx') !== 0) {
+            return "the database server is a $built build, not this Mac's (a tunnel or container?)";
         }
 
         return null;
