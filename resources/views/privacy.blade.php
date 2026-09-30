@@ -131,6 +131,9 @@
                 <p>
                     We use cookies and similar tracking technologies to track activity on our website and hold certain information. Cookies are files with a small amount of data that may include an anonymous unique identifier. You can instruct your browser to refuse all cookies or to indicate when a cookie is being sent.
                 </p>
+                <p class="mt-4">
+                    If you search without signing in, we keep your most recent search in your browser's local storage so it appears in the search box next time. It stays on your device and is only sent to us if you sign in, when it is saved to your account.
+                </p>
             </section>
             
             <!-- International Transfers -->
