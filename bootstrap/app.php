@@ -57,6 +57,7 @@ return Application::configure(basePath: dirname(__DIR__))
             // Frontend-related paths (with wildcard patterns)
             '/',
             'index/search', // No leading slash for pattern matching
+            'index/search/replay', // A guest's recent search from the nav dropdown
             'events/*', // Use wildcard without leading slash
             'organizers/*', // Use wildcard without leading slash
             'communities', // Base communities page

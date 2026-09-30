@@ -36,12 +36,32 @@ describe('useRecentSearches', () => {
         expect(recentSearches.value).toHaveLength(6);
     });
 
-    it('asks for nothing at all when the viewer is a guest', async () => {
+    it('asks the server for nothing when the viewer is a guest', async () => {
         window.Laravel = {};
-        const { fetchRecentSearches } = useRecentSearches({ limit: 6 });
+        const { recentSearches, fetchRecentSearches } = useRecentSearches({ limit: 6 });
         await fetchRecentSearches();
 
         expect(axios.get).not.toHaveBeenCalled();
+        expect(recentSearches.value).toEqual([]);
+    });
+
+    it('shows a guest the one search this browser kept, fresh on every open', async () => {
+        window.Laravel = {};
+        window.localStorage.clear();
+        const onLoaded = vi.fn();
+        const { recentSearches, fetchRecentSearches } = useRecentSearches({ limit: 6, once: true, onLoaded });
+
+        await fetchRecentSearches();
+        expect(recentSearches.value).toEqual([]);
+
+        window.localStorage.setItem('ei_guest_search', JSON.stringify({ name: 'New York', criteria: { city: 'New York' }, pinRequestedAt: null }));
+        await fetchRecentSearches();
+
+        expect(recentSearches.value).toHaveLength(1);
+        expect(recentSearches.value[0]).toMatchObject({ id: 'guest', guest: true, name: 'New York' });
+        expect(onLoaded).toHaveBeenCalledOnce();
+        expect(axios.get).not.toHaveBeenCalled();
+        window.localStorage.clear();
     });
 
     it('notifies the caller so it can re-slice its own list', async () => {

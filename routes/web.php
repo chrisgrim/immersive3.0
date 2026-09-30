@@ -8,6 +8,7 @@ use App\Http\Controllers\EventController;
 use App\Http\Controllers\IndexController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\OrganizerController;
+use App\Http\Controllers\SavedSearchController;
 use App\Http\Controllers\Search\ListingsController;
 use App\Http\Controllers\User\ConversationsController;
 use App\Http\Controllers\User\ProfilesController;
@@ -25,6 +26,9 @@ Route::GET('/', [IndexController::class, 'index'])->name('home');
 // API route already has a per-IP limit; a crawler must not get an
 // unmetered way to the same work.
 Route::GET('/index/search', [ListingsController::class, 'index'])->middleware('throttle:120,1')->name('search');
+// A guest's recent search from the nav dropdown (kept in their browser, see
+// SavedSearchController::replay), turned into the results URL.
+Route::GET('/index/search/replay', [SavedSearchController::class, 'replay'])->middleware('throttle:60,1')->name('search.replay');
 
 // Primary canonical routes
 Route::GET('/events/{event}', [EventController::class, 'show'])->name('events.show');

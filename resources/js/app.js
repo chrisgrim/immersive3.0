@@ -4,6 +4,7 @@ import '../css/app.css';
 import axios from 'axios';
 import { ClickOutsideDirective } from './Directives/ClickOutsideDirective';
 import { installPreloadErrorReload, shouldSuppressErrorReports } from './preloadReload';
+import { carryOverGuestSearch } from './composables/useSavedSearches';
 
 installPreloadErrorReload();
 
@@ -198,3 +199,6 @@ app.directive('click-outside', ClickOutsideDirective);
 installBladeBridge(app);
 
 app.mount('#app');
+
+// A search made before logging in moves into the account (see the module).
+carryOverGuestSearch();

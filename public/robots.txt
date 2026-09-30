@@ -23,6 +23,7 @@ Disallow: /index/search-online?*
 # Allow specific category pages but disallow other search parameters
 Allow: /index/search?category=*
 Disallow: /index/search?*
+Disallow: /index/search/replay
 Disallow: */search?*
 Disallow: */search/?*
 

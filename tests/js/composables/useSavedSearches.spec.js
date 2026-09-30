@@ -8,8 +8,9 @@
  *
  * Covers the composable's own documented contract:
  *  - Posts to /api/hub/saved-searches with the exact {name, criteria} shape.
- *  - Guests (no window.Laravel.user.id) are a silent no-op — axios.post is
- *    never called.
+ *  - Guests (no window.Laravel.user.id) never call axios.post; their one
+ *    search is kept in this browser instead, shown in the dropdown, and
+ *    carried into their account when they log in.
  *  - "Fire-and-forget: never throws" — an axios rejection resolves rather
  *    than rejecting/throwing, and is only logged.
  */
@@ -17,17 +18,26 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('axios', () => {
     const post = vi.fn(() => Promise.resolve({ data: {} }));
+    const patch = vi.fn(() => Promise.resolve({ data: {} }));
     return {
-        default: { post },
+        default: { post, patch },
     };
 });
 
 import axios from 'axios';
-import { saveSearch } from '@/composables/useSavedSearches';
+import {
+    saveSearch,
+    readGuestSearch,
+    guestSearchRow,
+    pinGuestSearchAfterLogin,
+    carryOverGuestSearch,
+} from '@/composables/useSavedSearches';
 
 beforeEach(() => {
     axios.post.mockReset();
     axios.post.mockResolvedValue({ data: {} });
+    axios.patch.mockReset();
+    window.localStorage.clear();
     window.Laravel = { user: { id: 1, name: 'Test', email: 't@e.com', type: 'u' } };
 });
 
@@ -70,6 +80,185 @@ describe('useSavedSearches', () => {
             await saveSearch('Boom search', { city: 'Chicago, IL' });
 
             expect(consoleSpy).toHaveBeenCalledWith('[saved-searches] failed to auto-save', boom);
+            consoleSpy.mockRestore();
+        });
+    });
+});
+
+const nyc = { city: 'New York', lat: 40.7, lng: -74, searchType: 'inPerson', live: false };
+const sf = { city: 'San Francisco', lat: 37.7, lng: -122.4, searchType: 'inPerson', live: false };
+const asGuest = () => { window.Laravel = {}; };
+const logIn = () => { window.Laravel = { user: { id: 7 } }; };
+
+describe('guest search (one slot, in this browser)', () => {
+    beforeEach(asGuest);
+
+    it('keeps a guest\'s search in this browser', async () => {
+        await saveSearch('New York', nyc);
+
+        expect(readGuestSearch()).toMatchObject({ name: 'New York', criteria: nyc, pinRequestedAt: null });
+    });
+
+    it('keeps only the last one: a new search replaces it', async () => {
+        await saveSearch('New York', nyc);
+        await saveSearch('San Francisco', sf);
+
+        expect(readGuestSearch()).toMatchObject({ name: 'San Francisco', criteria: sf });
+    });
+
+    it('leaves the browser alone for a logged-in user', async () => {
+        logIn();
+        await saveSearch('New York', nyc);
+
+        expect(readGuestSearch()).toBeNull();
+    });
+
+    it('still runs the search when the browser refuses storage', async () => {
+        const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+
+        await expect(saveSearch('New York', nyc)).resolves.toBeUndefined();
+        setItem.mockRestore();
+    });
+
+    describe('guestSearchRow', () => {
+        it('is nothing until the guest has searched', () => {
+            expect(guestSearchRow()).toBeNull();
+        });
+
+        it('is shaped like an account row, replayed through the server', async () => {
+            await saveSearch('New York', nyc);
+            const row = guestSearchRow();
+
+            expect(row).toMatchObject({ id: 'guest', guest: true, name: 'New York', criteria: nyc, pinned: false });
+            expect(row.url.startsWith('/index/search/replay?criteria=')).toBe(true);
+            expect(JSON.parse(decodeURIComponent(row.url.split('criteria=')[1]))).toEqual(nyc);
+        });
+
+        it('ignores anything unreadable in storage', () => {
+            window.localStorage.setItem('ei_guest_search', '{not json');
+
+            expect(guestSearchRow()).toBeNull();
+        });
+    });
+
+    it('pinning remembers when they asked and opens the login modal', async () => {
+        await saveSearch('New York', nyc);
+        const opened = vi.fn();
+        window.addEventListener('open-login-modal', opened);
+
+        pinGuestSearchAfterLogin();
+
+        expect(Date.parse(readGuestSearch().pinRequestedAt)).toBeGreaterThan(Date.now() - 5000);
+        expect(opened).toHaveBeenCalledOnce();
+        window.removeEventListener('open-login-modal', opened);
+    });
+
+    it('pinning on a phone goes to the login page, since the modal is desktop-only', async () => {
+        await saveSearch('New York', nyc);
+        window.Laravel = { isMobile: true };
+        const opened = vi.fn();
+        window.addEventListener('open-login-modal', opened);
+        const location = window.location;
+        delete window.location;
+        window.location = { href: '/index/search' };
+
+        pinGuestSearchAfterLogin();
+
+        expect(window.location.href).toBe('/login');
+        expect(opened).not.toHaveBeenCalled();
+        expect(readGuestSearch().pinRequestedAt).not.toBeNull();
+        window.location = location;
+        window.removeEventListener('open-login-modal', opened);
+    });
+
+    describe('carryOverGuestSearch', () => {
+        it('does nothing while they are still a guest', async () => {
+            await saveSearch('New York', nyc);
+            await carryOverGuestSearch();
+
+            expect(axios.post).not.toHaveBeenCalled();
+            expect(readGuestSearch()).not.toBeNull();
+        });
+
+        it('moves the search into the account and clears the browser copy', async () => {
+            await saveSearch('New York', nyc);
+            logIn();
+            axios.post.mockResolvedValueOnce({ data: { search: { id: 12, pinned: false } } });
+
+            await carryOverGuestSearch();
+
+            expect(axios.post).toHaveBeenCalledWith('/api/hub/saved-searches', { name: 'New York', criteria: nyc });
+            expect(axios.patch).not.toHaveBeenCalled();
+            expect(readGuestSearch()).toBeNull();
+        });
+
+        it('pins it when they asked to, by setting the pin rather than flipping it', async () => {
+            await saveSearch('New York', nyc);
+            pinGuestSearchAfterLogin();
+            logIn();
+            axios.post.mockResolvedValueOnce({ data: { search: { id: 12, pinned: false } } });
+
+            await carryOverGuestSearch();
+
+            expect(axios.patch).toHaveBeenCalledWith('/api/hub/saved-searches/12/pin', { pinned: true });
+            expect(readGuestSearch()).toBeNull();
+        });
+
+        const ago = (ms) => new Date(Date.now() - ms).toISOString();
+        const HOUR = 60 * 60 * 1000;
+
+        it('drops a guest search older than an hour instead of handing it to whoever logs in', async () => {
+            window.localStorage.setItem('ei_guest_search', JSON.stringify({ name: 'New York', criteria: nyc, updated_at: ago(2 * HOUR), pinRequestedAt: null }));
+            logIn();
+
+            await carryOverGuestSearch();
+
+            expect(axios.post).not.toHaveBeenCalled();
+            expect(readGuestSearch()).toBeNull();
+        });
+
+        it('drops an old pin request, one abandoned when the modal was closed', async () => {
+            window.localStorage.setItem('ei_guest_search', JSON.stringify({ name: 'New York', criteria: nyc, updated_at: ago(3 * HOUR), pinRequestedAt: ago(2 * HOUR) }));
+            logIn();
+
+            await carryOverGuestSearch();
+
+            expect(axios.post).not.toHaveBeenCalled();
+            expect(axios.patch).not.toHaveBeenCalled();
+            expect(readGuestSearch()).toBeNull();
+        });
+
+        it('still pins an older search they have just asked to pin', async () => {
+            window.localStorage.setItem('ei_guest_search', JSON.stringify({ name: 'New York', criteria: nyc, updated_at: ago(5 * HOUR), pinRequestedAt: ago(60 * 1000) }));
+            logIn();
+            axios.post.mockResolvedValueOnce({ data: { search: { id: 12, pinned: false } } });
+
+            await carryOverGuestSearch();
+
+            expect(axios.patch).toHaveBeenCalledWith('/api/hub/saved-searches/12/pin', { pinned: true });
+        });
+
+        it('keeps the browser copy to try again when the request fails', async () => {
+            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            await saveSearch('New York', nyc);
+            logIn();
+            axios.post.mockRejectedValueOnce(new Error('network'));
+
+            await carryOverGuestSearch();
+
+            expect(readGuestSearch()).not.toBeNull();
+            consoleSpy.mockRestore();
+        });
+
+        it('lets it go when the account refuses it (e.g. at its saved-search limit)', async () => {
+            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            await saveSearch('New York', nyc);
+            logIn();
+            axios.post.mockRejectedValueOnce({ response: { status: 422 } });
+
+            await carryOverGuestSearch();
+
+            expect(readGuestSearch()).toBeNull();
             consoleSpy.mockRestore();
         });
     });

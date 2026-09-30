@@ -1003,3 +1003,55 @@ test('editing criteria on a notify-disabled search does not touch the (null) cur
 
     expect($search->fresh()->last_checked_at)->toBeNull();
 });
+
+// ----- replay(): a guest's recent search, kept in their browser -----
+
+test('replay sends a guest to the same results URL an account row would', function () {
+    $category = Category::factory()->create();
+    $criteria = ['city' => 'New York', 'lat' => 40.7, 'lng' => -74.0, 'searchType' => 'inPerson', 'live' => false, 'categories' => [$category->id]];
+
+    $expected = app(App\Actions\Search\BuildSearchUrlAction::class)
+        ->handle(app(App\Actions\Search\NormalizeSavedSearchCriteriaAction::class)->handle($criteria));
+
+    $this->get('/index/search/replay?criteria='.urlencode(json_encode($criteria)))
+        ->assertRedirect($expected);
+
+    expect($expected)->toContain('city=New+York')->toContain('category='.$category->id);
+});
+
+test('replay sends criteria it will not take to a plain search page', function () {
+    foreach (['not json', json_encode(['lat' => 999]), json_encode(['categories' => [999999]]), ''] as $bad) {
+        $this->get('/index/search/replay?criteria='.urlencode($bad))
+            ->assertRedirect(route('search'));
+    }
+});
+
+test('replay needs no account and saves nothing', function () {
+    $this->get('/index/search/replay?criteria='.urlencode(json_encode(['city' => 'Denver'])))
+        ->assertRedirect();
+
+    expect(SavedSearch::count())->toBe(0);
+});
+
+test('pin with pinned=true sets the pin and never flips it off', function () {
+    $user = User::factory()->create();
+    $search = SavedSearch::factory()->create(['user_id' => $user->id, 'pinned' => false]);
+
+    foreach ([1, 2] as $_) {
+        $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/pin", ['pinned' => true])
+            ->assertOk()->assertJsonPath('search.pinned', true);
+    }
+
+    // No body still flips it, as the dropdown's button expects.
+    $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/pin")
+        ->assertJsonPath('search.pinned', false);
+});
+
+test('replay refuses more than 50 categories or tags', function () {
+    $ids = range(1, 51);
+
+    foreach (['categories', 'tags'] as $key) {
+        $this->get('/index/search/replay?criteria='.urlencode(json_encode([$key => $ids])))
+            ->assertRedirect(route('search'));
+    }
+});

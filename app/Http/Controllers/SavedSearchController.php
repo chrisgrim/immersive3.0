@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Search\BuildSearchUrlAction;
+use App\Actions\Search\NormalizeSavedSearchCriteriaAction;
 use App\Actions\Search\SaveSearchAction;
 use App\Actions\Search\UpdateSavedSearchAction;
 use App\Http\Requests\StoreSavedSearchRequest;
 use App\Http\Requests\UpdateSavedSearchRequest;
 use App\Models\SavedSearch;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class SavedSearchController extends Controller
 {
@@ -157,8 +159,13 @@ class SavedSearchController extends Controller
     {
         abort_unless($savedSearch->user_id === $request->user()->id, 404);
 
-        SaveSearchAction::withUserLock($savedSearch->user_id, function () use ($savedSearch) {
-            $savedSearch->pinned = ! $savedSearch->pinned;
+        // No body flips the pin (the dropdown's button). `pinned` sets it
+        // outright, for a caller that must not undo a pin already in place
+        // (a guest's search carried into their account after login).
+        $request->validate(['pinned' => 'sometimes|boolean']);
+
+        SaveSearchAction::withUserLock($savedSearch->user_id, function () use ($savedSearch, $request) {
+            $savedSearch->pinned = $request->has('pinned') ? $request->boolean('pinned') : ! $savedSearch->pinned;
             $savedSearch->save();
         });
 
@@ -212,6 +219,26 @@ class SavedSearchController extends Controller
         ]));
 
         return response()->json(['search' => $this->mapSearch($savedSearch, $buildUrl)]);
+    }
+
+    /**
+     * Run a guest's recent search, which lives in their browser (see
+     * useSavedSearches.js), not in a saved_searches row: the same criteria
+     * checks store() applies, the same normalizing, and the same
+     * BuildSearchUrlAction an account's row goes through, then on to the
+     * results. Criteria it won't take land on a plain search page.
+     */
+    public function replay(Request $request, NormalizeSavedSearchCriteriaAction $normalize, BuildSearchUrlAction $buildUrl)
+    {
+        $criteria = json_decode((string) $request->query('criteria'), true);
+
+        $rules = collect((new StoreSavedSearchRequest)->rules())->except('name')->all();
+
+        if (! is_array($criteria) || Validator::make(['criteria' => $criteria], $rules)->fails()) {
+            return redirect()->route('search');
+        }
+
+        return redirect($buildUrl->handle($normalize->handle($criteria)));
     }
 
     private function mapSearch(SavedSearch $search, BuildSearchUrlAction $buildUrl): array

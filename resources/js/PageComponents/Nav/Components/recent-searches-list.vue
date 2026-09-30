@@ -18,7 +18,7 @@
         </div>
         <button
             type="button"
-            :aria-label="search.pinned ? 'Unpin search' : 'Pin search'"
+            :aria-label="search.guest ? 'Log in or sign up to pin this search' : (search.pinned ? 'Unpin search' : 'Pin search')"
             class="flex-shrink-0 p-4 rounded-full hover:bg-neutral-200"
             @click.stop="togglePin(search)"
         >
@@ -29,6 +29,7 @@
             />
         </button>
         <button
+            v-if="!search.guest"
             type="button"
             class="flex-shrink-0 text-lg font-semibold text-neutral-500 hover:text-black px-2"
             @click.stop="goToEdit(search)"
@@ -45,13 +46,15 @@
 // typed in yet and the user has saved searches (see location-search.vue /
 // at-home-search.vue). Self-contained: pin and Edit both act directly
 // (PATCH / navigate) rather than bubbling events up, since neither needs
-// anything from the host pill.
+// anything from the host pill. A guest's one row (useSavedSearches.js'
+// guestSearchRow) pins by asking them to log in, and has no Edit.
 import axios from 'axios';
 // Not moment-timezone: this list is inside the nav, so whatever it imports
 // loads on every page, and moment (with its whole zone database) cost ~58 KB
 // gzipped for one "3 days ago". fromNow is a port of moment's own wording.
 import { fromNow } from '@/composables/relativeTime';
 import { RiHistoryLine, RiPushpinFill, RiPushpinLine } from '@remixicon/vue';
+import { pinGuestSearchAfterLogin } from '@/composables/useSavedSearches';
 
 defineProps({
     searches: {
@@ -115,6 +118,14 @@ const summaryFor = (search) => {
 // the plan) — pinned-first ordering corrects itself next time this list is
 // re-fetched.
 const togglePin = async (search) => {
+    // A guest's search lives in this browser; pinning it is what an account
+    // is for, so it opens the login/sign-up modal and gets pinned once
+    // they're in (see carryOverGuestSearch).
+    if (search.guest) {
+        pinGuestSearchAfterLogin();
+        return;
+    }
+
     try {
         const { data } = await axios.patch(`/api/hub/saved-searches/${search.id}/pin`);
         search.pinned = data.search.pinned;
@@ -124,8 +135,7 @@ const togglePin = async (search) => {
 };
 
 const goToEdit = (search) => {
-    // Recent Searches only ever shows for a logged-in user (see the fetch
-    // that populates it), so window.Laravel.user is always present here.
+    // Only reachable for an account's own rows: a guest's row hides Edit.
     window.location.href = `/users/${window.Laravel.user.id}/search-preferences/${search.id}`;
 };
 </script>

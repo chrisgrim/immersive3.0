@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import axios from 'axios';
+import { guestSearchRow } from './useSavedSearches';
 
 /**
  * The "Recent searches" block shared by all four nav search panels
@@ -35,8 +36,14 @@ export function useRecentSearches({ limit, onLoaded = () => {}, once = false } =
     let fetched = false;
 
     const fetchRecentSearches = async () => {
-        // Guests have none, and asking would 401 on every panel open.
-        if (!window.Laravel?.user?.id) return;
+        // A guest's one search lives in this browser, not behind the account
+        // endpoint (asking that would 401), so it's read straight from there.
+        if (!window.Laravel?.user?.id) {
+            const row = guestSearchRow();
+            recentSearches.value = row && limit > 0 ? [row] : [];
+            if (row) onLoaded();
+            return;
+        }
         if (once && fetched) return;
 
         // Set before the request, not after: a failed fetch still counts as
