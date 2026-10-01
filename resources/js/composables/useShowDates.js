@@ -5,7 +5,7 @@
  * shared by every component that turns a show into a day.
  */
 import dayjs from 'dayjs';
-import { utcDateTimeToLocalDate } from './dateUtils';
+import { utcDateTimeToLocalDate } from './utcLocalDate';
 
 /**
  * Whether a schedule's stored rows record real times of day.
