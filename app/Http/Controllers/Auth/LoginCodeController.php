@@ -40,12 +40,23 @@ class LoginCodeController extends Controller
     /**
      * Counts one attempt and returns the new total. Atomic, so parallel
      * requests cannot all read the same count and slip under the limit.
+     *
+     * If the key expires between add() and increment(), Redis recreates it
+     * with no expiry and the counter would never reset, locking the email
+     * out. A first hit we did not add ourselves is that case, so give it
+     * its expiry back (the same guard as Laravel's RateLimiter::increment).
      */
     private function countAttempt(string $key, \DateTimeInterface $expires): int
     {
-        Cache::add($key, 0, $expires);
+        $added = Cache::add($key, 0, $expires);
 
-        return (int) Cache::increment($key);
+        $attempts = (int) Cache::increment($key);
+
+        if (! $added && $attempts === 1) {
+            Cache::put($key, 1, $expires);
+        }
+
+        return $attempts;
     }
 
     private function throttleIp(Request $request, string $action, int $max, int $decaySeconds, string $field): void

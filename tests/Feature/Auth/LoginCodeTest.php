@@ -196,3 +196,17 @@ test('logout ends the session', function () {
     $this->actingAs($user)->post('/logout')->assertNoContent();
     $this->assertGuest();
 });
+
+test('a counter recreated without an expiry gets its expiry back, so an email is never locked out for good', function () {
+    // The race: the key expires between add() and increment(), and Redis
+    // recreates it with no expiry. Same shape here: a counter at 0 that
+    // never expires, which add() will not replace.
+    Cache::forever('login_code_requests:race@example.com', 0);
+
+    $this->postJson('/login/code', ['email' => 'race@example.com'])->assertOk();
+    expect((int) Cache::get('login_code_requests:race@example.com'))->toBe(1);
+
+    // An hour later the window has passed and the counter is gone.
+    $this->travel(61)->minutes();
+    expect(Cache::has('login_code_requests:race@example.com'))->toBeFalse();
+});
