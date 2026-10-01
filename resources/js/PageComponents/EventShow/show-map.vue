@@ -42,7 +42,17 @@
                             :center="center" 
                             :options="{ scrollWheelZoom: false, zoomControl: true }">
                             <l-tile-layer :url="url" />
+                            <!-- A secret location gets an area, not a pin on the door. -->
+                            <l-circle
+                                v-if="event.location.hiddenLocationToggle"
+                                :lat-lng="center"
+                                :radius="800"
+                                color="#222222"
+                                fill-color="#222222"
+                                :fill-opacity="0.15"
+                                :weight="2" />
                             <l-marker 
+                                v-else
                                 :icon="icon"
                                 :lat-lng="center">
                             </l-marker>
@@ -75,7 +85,7 @@
 <script setup>
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
+import { LMap, LTileLayer, LMarker, LCircle } from "@vue-leaflet/vue-leaflet";
 import { ref, onMounted } from 'vue';
 
 const props = defineProps({
