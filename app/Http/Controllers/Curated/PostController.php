@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Curated\Community;
 use App\Models\Curated\Post;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class PostController extends Controller
 {
@@ -49,6 +50,10 @@ class PostController extends Controller
         if ($post->is_hidden && ! $isCurator) {
             abort(404);
         }
+
+        // A draft post, or any post of an unpublished community, is for its
+        // curators and moderators only.
+        abort_unless(Gate::allows('preview', $community) && Gate::allows('preview', $post), 404);
 
         $post->load([
             'cards.images',

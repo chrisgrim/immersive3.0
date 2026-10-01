@@ -14,11 +14,14 @@ class SitemapController extends Controller
      */
     public function index()
     {
-        $events = Event::whereIn('status', ['p', 'e'])
+        // Published only: an embargoed event already has its final name-based
+        // slug, so listing it would announce the show before its embargo lifts.
+        $events = Event::where('status', 'p')
             ->whereNotNull('slug')
             ->where('slug', '!=', '')
             ->get();
-        $organizers = Organizer::has('events')
+        $organizers = Organizer::where('status', 'p')
+            ->whereHas('events', fn ($query) => $query->where('status', 'p'))
             ->whereNotNull('slug')
             ->where('slug', '!=', '')
             ->get();

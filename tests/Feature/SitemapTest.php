@@ -32,12 +32,24 @@ test('sitemap includes a published event slug but not a draft event slug', funct
     expect($body)->not->toContain('draft-event-sitemap');
 });
 
-test('sitemap includes embargoed events', function () {
+test('sitemap leaves out embargoed events, so their names stay unannounced', function () {
     Event::factory()->create(['status' => 'e', 'slug' => 'embargoed-event-sitemap']);
 
     $body = $this->get('/sitemap.xml')->assertOk()->getContent();
 
-    expect($body)->toContain('embargoed-event-sitemap');
+    expect($body)->not->toContain('embargoed-event-sitemap');
+});
+
+test('sitemap lists only published organizers that have a published event', function () {
+    $pending = Organizer::factory()->create(['name' => 'Sitemap Org Pending', 'status' => 'r']);
+    Event::factory()->published()->create(['organizer_id' => $pending->id]);
+    $draftsOnly = Organizer::factory()->create(['name' => 'Sitemap Org Drafts Only']);
+    Event::factory()->create(['organizer_id' => $draftsOnly->id, 'status' => 'd']);
+
+    $body = $this->get('/sitemap.xml')->assertOk()->getContent();
+
+    expect($body)->not->toContain("/organizers/{$pending->slug}")
+        ->and($body)->not->toContain("/organizers/{$draftsOnly->slug}");
 });
 
 test('sitemap excludes events that are in review or rejected', function () {

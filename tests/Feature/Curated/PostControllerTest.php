@@ -167,6 +167,24 @@ test('show lets a curator see a hidden post', function () {
         ->assertViewHas('curator', true);
 });
 
+test('a draft post is a 404 to the public but open to its curators', function () {
+    $post = Post::factory()->create(['community_id' => $this->community->id, 'status' => 'd']);
+    $url = "/communities/{$this->community->slug}/posts/{$post->slug}";
+
+    $this->get($url)->assertNotFound();
+    $this->actingAs($this->stranger)->get($url)->assertNotFound();
+    $this->actingAs($this->curator)->get($url)->assertOk();
+});
+
+test('a published post of an unpublished community is a 404 to the public', function () {
+    $this->community->update(['status' => 'r']);
+    $post = Post::factory()->create(['community_id' => $this->community->id, 'status' => 'p']);
+    $url = "/communities/{$this->community->slug}/posts/{$post->slug}";
+
+    $this->get($url)->assertNotFound();
+    $this->actingAs($this->curator)->get($url)->assertOk();
+});
+
 // ----- edit() (GET /communities/{community}/posts/{post}/edit) -----
 
 test('edit renders the edit view for a curator', function () {

@@ -163,13 +163,17 @@ test('show renders a published community to a guest', function () {
     $this->get("/communities/{$community->slug}")->assertOk();
 });
 
-test('show still renders an unpublished community (no status gate on the show route)', function () {
-    // note: CommunityController@show does NOT authorize('preview') nor filter by status,
-    // so an unpublished (status 'r') community is served with a 200 to anyone. Only the
-    // *shelves* are filtered to published. This is a visibility quirk worth flagging.
+test('an unpublished community is a 404 to the public but open to its curators and moderators', function () {
     $community = Community::factory()->pending()->create();
+    $curator = makeCurator($community, User::factory()->create(['type' => 'u']));
 
-    $this->get("/communities/{$community->slug}")->assertOk();
+    $this->get("/communities/{$community->slug}")->assertNotFound();
+    $stranger = User::factory()->create(['type' => 'u']);
+    $this->actingAs($stranger)->get("/communities/{$community->slug}")->assertNotFound();
+    $this->actingAs($stranger)->get("/communities/{$community->slug}/paginate")->assertNotFound();
+
+    $this->actingAs($curator)->get("/communities/{$community->slug}")->assertOk();
+    $this->actingAs(User::factory()->create(['type' => 'm']))->get("/communities/{$community->slug}")->assertOk();
 });
 
 test('show returns 404 for an unknown slug', function () {

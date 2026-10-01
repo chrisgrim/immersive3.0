@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\ImageHandler;
 use App\Services\NameChangeRequestService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
@@ -58,6 +59,10 @@ class CommunityController extends Controller
      */
     public function show(Community $community)
     {
+        // Under review, rejected or draft: only its curators and moderators.
+        // A 404, not a 403, so the slug does not confirm it exists.
+        abort_unless(Gate::allows('preview', $community), 404);
+
         $shelves = $community->publishedShelves()->paginate(4)->through(function ($shelf, $key) {
             return $shelf->setRelation('published_posts', $shelf->publishedPosts()->with('limitedCards')->paginate(8));
         });
@@ -77,6 +82,8 @@ class CommunityController extends Controller
      */
     public function paginate(Request $request, Community $community)
     {
+        abort_unless(Gate::allows('preview', $community), 404);
+
         $shelfOffset = $request->query('shelf_offset', 0);
 
         $shelves = $community->publishedShelves()
