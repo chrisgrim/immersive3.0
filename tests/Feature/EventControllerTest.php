@@ -542,6 +542,16 @@ test('the about block and the CTA still render for an ended run (summary-driven,
     $response->assertSee('Get Tickets');
 });
 
+test('an always-available listing does not show its closing-day placeholder as start and end dates', function () {
+    $event = makeShowableEvent();
+    $event->update(['showtype' => 'a']);
+    $event->shows()->delete();
+    Show::factory()->create(['event_id' => $event->id, 'date' => now()->addDays(60)]);
+
+    $this->get("/events/{$event->slug}")->assertOk()
+        ->assertDontSee('Start date')->assertDontSee('End date');
+});
+
 test('the embedded show list is capped but the summary count is not', function () {
     config(['ei.event_page_max_shows' => 3]);
     $event = makeShowableEvent();
