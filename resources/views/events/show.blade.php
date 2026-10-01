@@ -94,11 +94,18 @@
         "@type": "Event",
         "name": @json($event->name),
         "description": @json($event->tag_line ? $event->tag_line : $event->description),
+        @if(in_array($event->showtype, ['a', 'l'], true))
+        {{-- Always available (and the retired limited type): the one show row is a
+             placeholder on the closing day (often just "six months from now"), not
+             a performance, so say it started when it went live and give no end. --}}
+        "startDate": "{{ \Carbon\Carbon::parse($event->published_at ?? $event->created_at)->toIso8601String() }}",
+        @else
         {{-- The next upcoming show (shows are newest-first, so ->last()), so a
              years-long run does not advertise a start date years in the past;
              the run's first date when nothing is upcoming. --}}
         "startDate": "{{ \Carbon\Carbon::parse(($event->show_summary['upcoming_total'] ?? 0) > 0 ? $event->shows->last()->date : ($event->show_summary['first_date'] ?? $event->created_at))->toIso8601String() }}",
         "endDate": "{{ \Carbon\Carbon::parse($event->closingDate)->toIso8601String() }}",
+        @endif
         "eventStatus": "https://schema.org/EventScheduled",
         "eventAttendanceMode": "{{ $event->hasLocation ? 'https://schema.org/OfflineEventAttendanceMode' : 'https://schema.org/OnlineEventAttendanceMode' }}",
         "image": [
