@@ -249,26 +249,37 @@ test('update reports no slug change when the name is unchanged', function () {
     expect($post->fresh()->slug)->toBe($originalSlug);
 });
 
-test('update ignores non-allow-listed fields like community_id and status', function () {
-    // note: PostActions::update() allow-lists only name/blurb/shelf_id/order/type/event_id/image_type,
-    // so attempts to reparent (community_id) or self-publish (status) are silently dropped.
+test('update ignores non-allow-listed fields like community_id', function () {
+    // note: PostActions::update() allow-lists its fields, so an attempt to
+    // reparent the post (community_id) is silently dropped.
     $otherCommunity = Community::factory()->create();
-    $post = Post::factory()->create([
-        'community_id' => $this->community->id,
-        'status' => 'd',
-    ]);
+    $post = Post::factory()->create(['community_id' => $this->community->id]);
 
     $this->actingAs($this->curator)
         ->postJson("/communities/{$this->community->slug}/posts/{$post->slug}", [
             'name' => $post->name,
             'community_id' => $otherCommunity->id,
-            'status' => 'p',
         ])
         ->assertOk();
 
-    $fresh = $post->fresh();
-    expect($fresh->community_id)->toBe($this->community->id);
-    expect($fresh->status)->toBe('d');
+    expect($post->fresh()->community_id)->toBe($this->community->id);
+});
+
+test('the Live/Draft switch publishes and unpublishes a post, and takes no other status', function () {
+    $post = Post::factory()->create(['community_id' => $this->community->id, 'status' => 'd']);
+    $url = "/communities/{$this->community->slug}/posts/{$post->slug}";
+
+    $this->actingAs($this->curator)->postJson($url, ['status' => 'p'])->assertOk();
+    expect($post->fresh()->status)->toBe('p');
+
+    $this->actingAs($this->curator)->postJson($url, ['status' => 'd'])->assertOk();
+    expect($post->fresh()->status)->toBe('d');
+
+    $this->actingAs($this->curator)->postJson($url, ['status' => 'x'])->assertUnprocessable();
+    expect($post->fresh()->status)->toBe('d');
+
+    $this->actingAs($this->stranger)->postJson($url, ['status' => 'p'])->assertForbidden();
+    expect($post->fresh()->status)->toBe('d');
 });
 
 test('update moves images to the new slug when the name changes', function () {

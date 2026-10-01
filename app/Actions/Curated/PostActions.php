@@ -43,11 +43,18 @@ class PostActions
      */
     public function update(Request $request, Post $post)
     {
-        // Allow-list update fields. Excluding `community_id`, `user_id`, `status`,
-        // `slug`, `largeImagePath`, `thumbImagePath`, `is_hidden`, `section_id` —
-        // these are either set by the server, mutated through dedicated endpoints,
-        // or would otherwise let a curator reparent / self-publish posts.
+        // Allow-list update fields. Excluding `community_id`, `user_id`, `slug`,
+        // `largeImagePath`, `thumbImagePath`, `is_hidden`, `section_id`: these
+        // are either set by the server, mutated through dedicated endpoints, or
+        // would let a curator reparent posts.
         $data = $request->only(['name', 'blurb', 'shelf_id', 'order', 'type', 'event_id', 'image_type']);
+
+        // The editor's Live/Draft switch. Only those two values: the community
+        // itself is what moderators review, and while it is unpublished its
+        // posts stay private whatever their status (PostController::show).
+        if ($request->has('status')) {
+            $data += $request->validate(['status' => 'required|in:p,d']);
+        }
 
         if (array_key_exists('shelf_id', $data)) {
             $data['shelf_id'] = $this->shelfIdWithin($post->community, $data['shelf_id']);
