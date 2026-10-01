@@ -109,11 +109,11 @@ test('verify rejects when no code has been issued', function () {
     $this->assertGuest();
 });
 
-test('verify blocks after 10 failed attempts in 15 minutes', function () {
+test('verify blocks after 20 failed attempts in 15 minutes', function () {
     $user = User::factory()->create(['email' => 'brute@example.com']);
     Cache::put('login_code_brute@example.com', ['code' => '111111', 'user_id' => $user->id], 60);
 
-    for ($i = 0; $i < 10; $i++) {
+    for ($i = 0; $i < 20; $i++) {
         $this->postJson('/login/verify', ['email' => 'brute@example.com', 'code' => '000000'])
             ->assertStatus(422);
     }
@@ -123,6 +123,63 @@ test('verify blocks after 10 failed attempts in 15 minutes', function () {
         ->assertJsonValidationErrors(['code']);
 
     $this->assertGuest();
+});
+
+test('a right code on the 20th try still logs in', function () {
+    $user = User::factory()->create(['email' => 'patient@example.com']);
+    Cache::put('login_code_patient@example.com', ['code' => '111111', 'user_id' => $user->id], 60);
+
+    for ($i = 0; $i < 19; $i++) {
+        $this->postJson('/login/verify', ['email' => 'patient@example.com', 'code' => '000000'])->assertStatus(422);
+    }
+
+    $this->postJson('/login/verify', ['email' => 'patient@example.com', 'code' => '111111'])->assertOk();
+    $this->assertAuthenticatedAs($user);
+});
+
+test('every capitalisation of an email shares one code and one set of limits', function () {
+    $user = User::factory()->create(['email' => 'mixed@example.com']);
+
+    $this->postJson('/login/code', ['email' => ' Mixed@Example.com '])
+        ->assertOk()
+        ->assertJsonPath('email', 'mixed@example.com');
+    $code = Cache::get('login_code_mixed@example.com')['code'];
+
+    // Guesses under other spellings use up the same 20.
+    for ($i = 0; $i < 20; $i++) {
+        $this->postJson('/login/verify', ['email' => $i % 2 ? 'MIXED@example.com' : 'mIxEd@EXAMPLE.com', 'code' => '000000'])
+            ->assertStatus(422);
+    }
+    $this->postJson('/login/verify', ['email' => 'mixed@example.com', 'code' => $code])->assertStatus(422);
+    $this->assertGuest();
+
+    // And sends under other spellings share the same 5 per hour.
+    foreach (['MIXED@example.com', 'mixed@EXAMPLE.com', 'Mixed@example.COM', 'mixeD@example.com'] as $spelling) {
+        $this->postJson('/login/code', ['email' => $spelling])->assertOk();
+    }
+    $this->postJson('/login/code', ['email' => 'MIXED@EXAMPLE.COM'])->assertStatus(422);
+});
+
+test('the person still logs in with any capitalisation of their email', function () {
+    $user = User::factory()->unverified()->create(['email' => 'caps@example.com']);
+
+    $this->postJson('/login/code', ['email' => 'Caps@Example.com'])->assertOk();
+    $code = Cache::get('login_code_caps@example.com')['code'];
+
+    $this->postJson('/login/verify', ['email' => 'CAPS@example.com', 'code' => $code])->assertOk();
+    $this->assertAuthenticatedAs($user);
+});
+
+test('one connection can only send so many codes, whatever the addresses', function () {
+    $max = \App\Http\Controllers\Auth\LoginCodeController::IP_SENDS_PER_HOUR;
+
+    for ($i = 0; $i < $max; $i++) {
+        $this->postJson('/login/code', ['email' => "person{$i}@example.com"])->assertOk();
+    }
+
+    $this->postJson('/login/code', ['email' => 'one-more@example.com'])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['email']);
 });
 
 test('verify requires a 6-character code', function () {

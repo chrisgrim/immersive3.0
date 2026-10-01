@@ -8,29 +8,77 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 class LoginCodeController extends Controller
 {
+    /** Wrong codes allowed per email per 15 minutes. */
+    public const VERIFY_ATTEMPTS = 20;
+
+    /**
+     * Per-IP ceilings, far above what people behind one shared connection
+     * (an office, a venue's Wi-Fi) would ever reach; they only stop a script
+     * cycling through many addresses from one machine.
+     */
+    public const IP_SENDS_PER_HOUR = 30;
+
+    public const IP_VERIFIES_PER_15_MINUTES = 100;
+
+    /**
+     * One spelling per account. Emails match case-insensitively in MySQL, so
+     * VICTIM@x.com and victim@x.com are the same user, and every counter and
+     * the cached code must be keyed the same way for both.
+     */
+    private function normalizedEmail(string $email): string
+    {
+        return Str::lower(trim($email));
+    }
+
+    /**
+     * Counts one attempt and returns the new total. Atomic, so parallel
+     * requests cannot all read the same count and slip under the limit.
+     */
+    private function countAttempt(string $key, \DateTimeInterface $expires): int
+    {
+        Cache::add($key, 0, $expires);
+
+        return (int) Cache::increment($key);
+    }
+
+    private function throttleIp(Request $request, string $action, int $max, int $decaySeconds, string $field): void
+    {
+        $key = "login_code_ip:{$action}:".$request->ip();
+
+        if (RateLimiter::tooManyAttempts($key, $max)) {
+            throw ValidationException::withMessages([
+                $field => ['Too many login attempts from this connection. Please try again in a few minutes.'],
+            ]);
+        }
+
+        RateLimiter::hit($key, $decaySeconds);
+    }
+
     public function sendCode(Request $request)
     {
         $validated = $request->validate([
             'email' => ['required', 'email'],
         ]);
 
+        $validated['email'] = $this->normalizedEmail($validated['email']);
+
+        $this->throttleIp($request, 'send', self::IP_SENDS_PER_HOUR, 3600, 'email');
+
         // Rate limiting: Max 5 code requests per email per hour
         $rateLimitKey = 'login_code_requests:'.$validated['email'];
-        $attempts = Cache::get($rateLimitKey, 0);
 
-        if ($attempts >= 5) {
+        if ($this->countAttempt($rateLimitKey, now()->addHour()) > 5) {
             throw ValidationException::withMessages([
                 'email' => ['Too many login attempts. Please try again in 1 hour.'],
             ]);
         }
-
-        // Increment attempt counter
-        Cache::put($rateLimitKey, $attempts + 1, now()->addHour());
 
         // Find or create user
         $user = User::firstOrCreate(
@@ -81,11 +129,15 @@ class LoginCodeController extends Controller
             'code' => ['required', 'string', 'size:6'],
         ]);
 
-        // Rate limiting: Max 10 verification attempts per email per 15 minutes
-        $rateLimitKey = 'login_verify_attempts:'.$validated['email'];
-        $attempts = Cache::get($rateLimitKey, 0);
+        $validated['email'] = $this->normalizedEmail($validated['email']);
 
-        if ($attempts >= 10) {
+        $this->throttleIp($request, 'verify', self::IP_VERIFIES_PER_15_MINUTES, 900, 'code');
+
+        // Rate limiting: Max VERIFY_ATTEMPTS tries per email per 15 minutes.
+        // Every try counts up front (a right code clears the counter below).
+        $rateLimitKey = 'login_verify_attempts:'.$validated['email'];
+
+        if ($this->countAttempt($rateLimitKey, now()->addMinutes(15)) > self::VERIFY_ATTEMPTS) {
             throw ValidationException::withMessages([
                 'code' => ['Too many failed attempts. Please request a new code.'],
             ]);
@@ -101,10 +153,7 @@ class LoginCodeController extends Controller
             ]);
         }
 
-        if ($cached['code'] !== $validated['code']) {
-            // Increment failed attempts
-            Cache::put($rateLimitKey, $attempts + 1, now()->addMinutes(15));
-
+        if (! hash_equals($cached['code'], $validated['code'])) {
             throw ValidationException::withMessages([
                 'code' => ['Invalid code. Please try again.'],
             ]);
