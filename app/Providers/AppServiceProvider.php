@@ -7,6 +7,7 @@ use Carbon\CarbonInterval;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Event as EventFacade;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -35,6 +36,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         \App\Support\LocalIsolation::check();
+
+        // Every {{ }} echo also breaks up Vue mustaches in user text, since
+        // Vue compiles the whole server-rendered body (see VueSafe).
+        Blade::setEchoFormat('\App\Support\VueSafe::e(%s)');
 
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
             return config('app.frontend_url')."/reset-password/$token?email={$notifiable->getEmailForPasswordReset()}";
