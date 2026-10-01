@@ -31,4 +31,14 @@ export function installBladeBridge(app) {
     // (the event page: `:event="pageData.event"` on every island instead of
     // the full model inlined as an attribute on each one).
     app.config.globalProperties.pageData = window.Laravel?.page ?? {};
+
+    // The same, but a private copy for each island that asks. The search
+    // page's results are serialized once and read by two islands (the nav's
+    // SearchStore and the results list); each used to get its own parsed
+    // copy from its own attribute, and both may change theirs, so they still
+    // must not share one object.
+    app.config.globalProperties.pageDataCopy = (key) => {
+        const value = window.Laravel?.page?.[key];
+        return value === undefined ? undefined : structuredClone(value);
+    };
 }

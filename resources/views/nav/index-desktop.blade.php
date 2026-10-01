@@ -21,7 +21,7 @@
                 </a>
             </div>
             <vue-nav-search
-                :searched-events='@json($searchedEvents ?? (object)[])'
+                @isset($searchedEvents) :searched-events="pageDataCopy('searchedEvents')" @else :searched-events="{}" @endisset
                 :max-price="{{ $maxprice ?? null }}"
                 :searched-remote-location='@json($searchedRemoteLocation ?? null)'
             ></vue-nav-search>

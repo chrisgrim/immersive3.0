@@ -18,7 +18,7 @@
                 </a>
             </div>
             <vue-nav-search 
-                :searched-events='@json($searchedEvents ?? (object)[])'
+                @isset($searchedEvents) :searched-events="pageDataCopy('searchedEvents')" @else :searched-events="{}" @endisset
                 :max-price="{{ $maxprice ?? null }}">
             </vue-nav-search>
             <vue-nav-profile class="col-span-1 justify-self-end" :user="user"></vue-nav-profile>
