@@ -56,6 +56,11 @@ export function installSentry(app) {
             // Comes from extension code running in the page, never ours
             // (EI-VUE-M).
             'Invalid call to runtime.sendMessage(). Tab not found.',
+            // Brave and Firefox on iOS inject their reader-mode script
+            // (window.__firefox__.reader.checkReadability) into every page;
+            // it throws from its own inline "global code" when its namespace
+            // is not set up yet. Browser code, not ours (EI-VUE-1A).
+            'window.__firefox__',
         ],
         // Errors thrown entirely inside Google Maps' own minified scripts are
         // not fixable from our code — e.g. the Places attribution renderer
