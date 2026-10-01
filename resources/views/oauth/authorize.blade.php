@@ -18,7 +18,10 @@
 @endsection
 
 @section('content')
-<div class="flex justify-center px-6 py-16 md:py-24">
+{{-- v-pre: the layout mounts Vue over the whole body, so Vue would compile
+     this markup as a template and run any {{ }} in the client's self-chosen
+     name as code. Nothing here is a Vue component, so Vue skips it all. --}}
+<div class="flex justify-center px-6 py-16 md:py-24" v-pre>
     <div class="w-full max-w-[64rem]">
         <h1 class="text-4.5xl font-semibold mb-4">Connect {{ $client->name }}?</h1>
 

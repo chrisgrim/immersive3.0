@@ -239,6 +239,21 @@ test('the consent screen names a hosted app\'s domain, the one thing it cannot d
         ->assertDontSee('on this computer');
 });
 
+test('the consent screen never lets Vue compile a client name as a template', function () {
+    // Anyone can register a client and pick its name; the layout mounts Vue
+    // over the whole body, so a name with {{ }} would run as code for the
+    // moderator reading the screen unless the content is marked v-pre.
+    [, $challenge] = pkcePair();
+    $client = oauthClient(name: '{{ constructor.constructor("alert(1)")() }}');
+
+    $html = $this->actingAs(consentUser('m'))->get('/oauth/authorize?'.authorizeQuery($client, $challenge))->assertOk()->getContent();
+
+    $content = Str::after($html, '<body id="app">');
+    $marked = Str::before($content, '{{ constructor');
+    expect($marked)->toMatch('/<div[^>]*\bv-pre\b[^>]*>/')
+        ->and(Str::before($marked, 'v-pre'))->not->toContain('{{');
+});
+
 test('a moderator can include moderator powers on a connection, and nobody else can', function () {
     // The consent screen offers the choice to moderators only…
     [, $challenge] = pkcePair();
