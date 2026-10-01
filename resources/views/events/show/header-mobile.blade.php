@@ -1,41 +1,23 @@
 @push('head')
-    {{-- Add DNS prefetch and preconnect --}}
-    <link rel="dns-prefetch" href="{{ parse_url(config('app.image_url'), PHP_URL_HOST) }}">
     <link rel="preconnect" href="{{ config('app.image_url') }}" crossorigin>
 
-    @if(count($event->images) === 0)
-        <link 
-            rel="preload" 
-            as="image" 
-            href="{{ config('app.image_url') }}{{ $event->mediumImagePath ?? $event->largeImagePath }}" 
-            type="image/webp" 
-            fetchpriority="high"
-            imagesizes="(max-width: 768px) 100vw, 768px"
-            imagesrcset="{{ config('app.image_url') }}{{ $event->smallImagePath ?? $event->largeImagePath }} 400w,
-                         {{ config('app.image_url') }}{{ $event->mediumImagePath ?? $event->largeImagePath }} 768w,
-                         {{ config('app.image_url') }}{{ $event->largeImagePath }} 1200w">
-    @elseif(count($event->images) === 1)
-        <link 
-            rel="preload" 
-            as="image" 
-            href="{{ config('app.image_url') }}{{ $event->images[0]->medium_image_path ?? $event->images[0]->large_image_path }}" 
-            type="image/webp" 
-            fetchpriority="high"
-            imagesizes="(max-width: 768px) 100vw, 768px"
-            imagesrcset="{{ config('app.image_url') }}{{ $event->images[0]->small_image_path ?? $event->images[0]->large_image_path }} 400w,
-                         {{ config('app.image_url') }}{{ $event->images[0]->medium_image_path ?? $event->images[0]->large_image_path }} 768w,
-                         {{ config('app.image_url') }}{{ $event->images[0]->large_image_path }} 1200w">
-    @elseif(count($event->images) > 1)
-        <link 
-            rel="preload" 
-            as="image" 
-            href="{{ config('app.image_url') }}{{ $event->images[1]->medium_image_path ?? $event->images[1]->large_image_path }}" 
-            type="image/webp" 
-            fetchpriority="high"
-            imagesizes="(max-width: 768px) 100vw, 768px"
-            imagesrcset="{{ config('app.image_url') }}{{ $event->images[1]->small_image_path ?? $event->images[1]->large_image_path }} 400w,
-                         {{ config('app.image_url') }}{{ $event->images[1]->medium_image_path ?? $event->images[1]->large_image_path }} 768w,
-                         {{ config('app.image_url') }}{{ $event->images[1]->large_image_path }} 1200w">
+    {{-- Preload exactly the hero image the markup below shows first (the
+         webp its <source> picks). No small/medium sizes exist, only large
+         and -thumb, so there is no srcset to offer. Nothing to preload when
+         the hero opens on a video (one image plus gallery videos). --}}
+    @php
+        $heroHasVideoFirst = count($event->images) === 1
+            && $event->video === 'gallery' && $event->videos && count($event->videos) > 0;
+        $heroPreloadPath = match (true) {
+            count($event->images) === 0 => $event->largeImagePath,
+            $heroHasVideoFirst => null,
+            count($event->images) === 1 => $event->images[0]->large_image_path,
+            default => $event->images[1]->large_image_path,
+        };
+    @endphp
+    @if($heroPreloadPath)
+        <link rel="preload" as="image" type="image/webp" fetchpriority="high"
+              href="{{ config('app.image_url') }}{{ $heroPreloadPath }}">
     @endif
 
     {{-- Add critical CSS inline --}}

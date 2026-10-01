@@ -8,6 +8,8 @@
         
         @yield('meta')
         @yield('styles')
+        {{-- Early hints pushed by page partials: hero image preloads, preconnects. --}}
+        @stack('head')
         
         {{-- Favicon and App Icons --}}
         <link rel="apple-touch-icon" sizes="180x180" href="/storage/website-files/favicons/apple-touch-icon.png">
