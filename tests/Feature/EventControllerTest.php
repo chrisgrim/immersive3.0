@@ -674,3 +674,21 @@ test('restoring a listing that was never deleted leaves its slug alone', functio
 
     expect($live->fresh()->slug)->toBe('foo-london');
 });
+
+test('a secret location keeps its street out of the page, and an open one keeps it in', function () {
+    $secret = makeShowableEvent();
+    $secret->location->update(['hiddenLocationToggle' => true, 'home' => '4345', 'street' => 'Tennyson Street', 'postal_code' => '80212', 'city' => 'Denver']);
+    $open = makeShowableEvent();
+    $open->location->update(['hiddenLocationToggle' => false, 'home' => '6067', 'street' => 'Wilshire Boulevard', 'postal_code' => '90036']);
+
+    $html = $this->get("/events/{$secret->slug}")->assertOk()->getContent();
+    expect($html)->not->toContain('Tennyson')
+        ->and($html)->not->toContain('80212')
+        ->and($html)->toContain('Denver');
+
+    $html = $this->get("/events/{$open->slug}")->assertOk()->getContent();
+    preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $html, $matches);
+    $address = json_decode($matches[1])->location->address;
+    expect($address->streetAddress)->toBe('6067 Wilshire Boulevard')
+        ->and($address->postalCode)->toBe('90036');
+});

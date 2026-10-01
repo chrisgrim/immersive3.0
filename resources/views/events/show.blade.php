@@ -216,9 +216,11 @@
             "name": @json($event->location->venue ? $event->location->venue : $event->name),
             "address": {
                 "@type": "PostalAddress",
+                @unless($event->location->hiddenLocationToggle)
                 "streetAddress": @json($event->location->home . ' ' . $event->location->street),
-                "addressLocality": @json($event->location->city),
                 "postalCode": @json($event->location->postal_code),
+                @endunless
+                "addressLocality": @json($event->location->city),
                 "addressRegion": @json($event->location->region),
                 "addressCountry": @json($event->location->country_long ?: $event->location->country)
             }
