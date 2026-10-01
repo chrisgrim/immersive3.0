@@ -44,7 +44,15 @@ Route::prefix('communities')->name('communities.')->group(function () {
                 })
                 ->first();
 
-            if ($post) {
+            // Only for a post the visitor could open: the same checks as
+            // PostController::show, so the redirect never confirms a draft,
+            // hidden post or unpublished community exists.
+            $canOpen = $post
+                && \Illuminate\Support\Facades\Gate::allows('preview', $post->community)
+                && \Illuminate\Support\Facades\Gate::allows('preview', $post)
+                && (! $post->is_hidden || auth()->user()?->can('curator', $post->community));
+
+            if ($canOpen) {
                 return redirect("/communities/{$community}/posts/{$slug}", 301);
             }
 

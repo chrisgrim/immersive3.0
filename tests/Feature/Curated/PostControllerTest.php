@@ -185,6 +185,17 @@ test('a published post of an unpublished community is a 404 to the public', func
     $this->actingAs($this->curator)->get($url)->assertOk();
 });
 
+test('the old post URL redirects only to a post the visitor can open', function () {
+    $live = Post::factory()->create(['community_id' => $this->community->id, 'status' => 'p']);
+    $draft = Post::factory()->create(['community_id' => $this->community->id, 'status' => 'd']);
+
+    $this->get("/communities/{$this->community->slug}/{$live->slug}")
+        ->assertRedirect("/communities/{$this->community->slug}/posts/{$live->slug}");
+    $this->get("/communities/{$this->community->slug}/{$draft->slug}")->assertNotFound();
+    $this->actingAs($this->curator)->get("/communities/{$this->community->slug}/{$draft->slug}")
+        ->assertRedirect("/communities/{$this->community->slug}/posts/{$draft->slug}");
+});
+
 // ----- edit() (GET /communities/{community}/posts/{post}/edit) -----
 
 test('edit renders the edit view for a curator', function () {

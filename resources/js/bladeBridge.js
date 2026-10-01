@@ -39,6 +39,8 @@ export function installBladeBridge(app) {
     // must not share one object.
     app.config.globalProperties.pageDataCopy = (key) => {
         const value = window.Laravel?.page?.[key];
-        return value === undefined ? undefined : structuredClone(value);
+        // A JSON round trip, not structuredClone: that is missing before
+        // iOS 15.4, and this is plain server JSON anyway.
+        return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
     };
 }

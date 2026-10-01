@@ -273,21 +273,12 @@
                             <div class="w-full aspect-square">
                                 @php
                                     $imagePath = $getElementImage($element);
-                                    // Get first element's image for preload
+                                    // No head preload: a hero dock can sit anywhere on the
+                                    // home page, often below the fold, where a high-priority
+                                    // preload would compete with the real first image.
                                     $isFirstElement = $loop->first;
                                 @endphp
                                 @if($imagePath)
-                                    @if($isFirstElement)
-                                        {{-- Preload first image in head --}}
-                                        @push('head')
-                                        <link 
-                                            rel="preload" 
-                                            as="image" 
-                                            href="{{ config('app.image_url') }}{{ $imagePath }}"
-                                            type="image/webp"
-                                            fetchpriority="high">
-                                        @endpush
-                                    @endif
                                     <picture>
                                         <source 
                                             type="image/webp" 
