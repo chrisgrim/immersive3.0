@@ -94,8 +94,8 @@
         "@type": "Event",
         "name": @json($event->name),
         "description": @json($event->tag_line ? $event->tag_line : $event->description),
-        @if(in_array($event->showtype, ['a', 'l'], true))
-        {{-- Always available (and the retired limited type): the one show row is a
+        @if($event->showtype === 'a')
+        {{-- Always available: the one show row is a
              placeholder on the closing day (often just "six months from now"), not
              a performance, so say it started when it went live and give no end. --}}
         "startDate": "{{ \Carbon\Carbon::parse($event->published_at ?? $event->created_at)->toIso8601String() }}",

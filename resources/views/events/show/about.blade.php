@@ -81,9 +81,9 @@
                 </div>
             @endif
 
-            {{-- Always-available (and the retired limited) listings keep a single
-                 placeholder show on their closing day, not a real run of dates. --}}
-            @if(($event->show_summary['total'] ?? 0) > 0 && ! in_array($event->showtype, ['a', 'l'], true))
+            {{-- Always-available listings keep a single placeholder show on their
+                 closing day, not a real run of dates. --}}
+            @if(($event->show_summary['total'] ?? 0) > 0 && $event->showtype !== 'a')
                 <div class="flex items-start gap-4">
                     <svg class="w-8 h-8 flex-shrink-0 mt-1" xmlns="http://www.w3.org/2000/svg">
                         <use xlink:href="/storage/website-files/icons.svg#ri-calendar-line" />
