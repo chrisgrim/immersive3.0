@@ -3,6 +3,7 @@
 namespace App\Support\Analytics;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 use Throwable;
 
@@ -31,20 +32,16 @@ class Analytics
     /** The 'array' buffer (tests). */
     private array $memory = [];
 
-    private bool $reported = false;
-
     public static function record(string $type, array $data = [], ?Request $request = null): void
     {
         if (! config('analytics.enabled')) {
             return;
         }
 
-        $analytics = app(self::class);
-
         try {
             $request ??= request();
 
-            $analytics->push(json_encode([
+            app(self::class)->push(json_encode([
                 't' => $type,
                 'at' => now()->getTimestamp(),
                 'ip' => (string) $request->ip(),
@@ -52,11 +49,9 @@ class Analytics
                 'd' => $data,
             ], JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
         } catch (Throwable $e) {
-            // Once per process: an outage must not file one Sentry event per hit.
-            if (! $analytics->reported) {
-                $analytics->reported = true;
-                report($e);
-            }
+            // A log line, not report(): every request is a fresh process
+            // state, so a Redis outage would file one Sentry event per hit.
+            Log::warning('Analytics note dropped: '.$e->getMessage());
         }
     }
 
@@ -78,16 +73,31 @@ class Analytics
     }
 
     /**
-     * Take up to $count notes off the front of the buffer.
+     * The first $count notes, left in the buffer until drop() (so a failed
+     * insert loses nothing). Only one flusher runs at a time. The push-side
+     * LTRIM can shift the list meanwhile only when it is already full,
+     * i.e. the flusher had stopped; then a few notes are lost either way.
      *
      * @return string[]
      */
-    public function pop(int $count): array
+    public function peek(int $count): array
     {
         if (config('analytics.buffer') === 'array') {
-            return array_splice($this->memory, 0, $count);
+            return array_slice($this->memory, 0, $count);
         }
 
-        return Redis::lpop(config('analytics.buffer_key'), $count) ?: [];
+        return Redis::lrange(config('analytics.buffer_key'), 0, $count - 1) ?: [];
+    }
+
+    /** Remove the first $count notes, once they are written. */
+    public function drop(int $count): void
+    {
+        if (config('analytics.buffer') === 'array') {
+            array_splice($this->memory, 0, $count);
+
+            return;
+        }
+
+        Redis::ltrim(config('analytics.buffer_key'), $count, -1);
     }
 }

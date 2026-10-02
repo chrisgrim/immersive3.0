@@ -7,7 +7,9 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Jaybizzle\CrawlerDetect\CrawlerDetect;
+use Throwable;
 
 /**
  * Moves the analytics buffer into analytics_events, a batch at a time. This
@@ -41,16 +43,16 @@ class AnalyticsFlush extends Command
         $written = 0;
 
         for ($i = 0; $i < (int) $this->option('batches'); $i++) {
-            $notes = $analytics->pop(self::BATCH);
+            $notes = $analytics->peek(self::BATCH);
             if ($notes === []) {
                 break;
             }
 
             $rows = array_values(array_filter(array_map(fn ($note) => $this->row($note), $notes)));
-            if ($rows !== []) {
-                DB::table('analytics_events')->insert($rows);
-                $written += count($rows);
-            }
+            $written += $this->insert($rows);
+
+            // Only now: if the insert threw, the notes wait for the next run.
+            $analytics->drop(count($notes));
         }
 
         if ($written > 0) {
@@ -58,6 +60,40 @@ class AnalyticsFlush extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * One multi-row insert; if that fails, row by row, so one bad note
+     * cannot hold up the buffer for good. If no row goes in at all, the
+     * database itself is the problem: rethrow, and the notes stay.
+     */
+    private function insert(array $rows): int
+    {
+        if ($rows === []) {
+            return 0;
+        }
+
+        try {
+            DB::table('analytics_events')->insert($rows);
+
+            return count($rows);
+        } catch (Throwable $batchError) {
+            $written = 0;
+            foreach ($rows as $row) {
+                try {
+                    DB::table('analytics_events')->insert($row);
+                    $written++;
+                } catch (Throwable $e) {
+                    Log::warning('Analytics row skipped: '.$e->getMessage());
+                }
+            }
+
+            if ($written === 0) {
+                throw $batchError;
+            }
+
+            return $written;
+        }
     }
 
     private function row(string $note): ?array

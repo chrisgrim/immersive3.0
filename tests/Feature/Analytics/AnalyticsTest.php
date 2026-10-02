@@ -132,3 +132,30 @@ test('Show more is the same search going deeper, so it is not recorded again', f
 
     expect(analyticsRows())->toHaveCount(0);
 });
+
+test('a failed insert keeps the notes for the next run', function () {
+    Analytics::record(Analytics::SEARCH, ['query' => 'Kept']);
+    Illuminate\Support\Facades\Schema::rename('analytics_events', 'analytics_events_away');
+
+    try {
+        test()->artisan('ei:analytics-flush');
+    } catch (Throwable) {
+        // The database error is expected; the notes are what matter.
+    } finally {
+        Illuminate\Support\Facades\Schema::rename('analytics_events_away', 'analytics_events');
+    }
+
+    expect(analyticsRows()->pluck('query')->all())->toBe(['Kept']);
+});
+
+test('analytics is off by default on staging', function () {
+    $before = [$_SERVER['APP_ENV'] ?? null, $_ENV['APP_ENV'] ?? null];
+    $_SERVER['APP_ENV'] = $_ENV['APP_ENV'] = 'staging';
+    try {
+        $config = require config_path('analytics.php');
+    } finally {
+        [$_SERVER['APP_ENV'], $_ENV['APP_ENV']] = $before;
+    }
+
+    expect($config['enabled'])->toBeFalse();
+});

@@ -7,8 +7,10 @@
  */
 return [
 
-    // Kill switch: false and nothing is recorded or flushed.
-    'enabled' => env('ANALYTICS_ENABLED', true),
+    // Kill switch: false and nothing is recorded or flushed. Off by default
+    // on staging (dev), which runs no scheduler: nothing would ever flush,
+    // and the buffer would keep raw IPs in Redis indefinitely.
+    'enabled' => env('ANALYTICS_ENABLED', in_array(env('APP_ENV'), ['production', 'local', 'testing'], true)),
 
     // 'redis' on the servers; 'array' (this process's memory) in tests.
     'buffer' => env('ANALYTICS_BUFFER', 'redis'),
