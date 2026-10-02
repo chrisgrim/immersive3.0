@@ -23,9 +23,9 @@ class LoginCodeController extends Controller
      * (an office, a venue's Wi-Fi) would ever reach; they only stop a script
      * cycling through many addresses from one machine.
      */
-    public const IP_SENDS_PER_HOUR = 30;
+    public const IP_SENDS_PER_HOUR = 300;
 
-    public const IP_VERIFIES_PER_15_MINUTES = 100;
+    public const IP_VERIFIES_PER_15_MINUTES = 400;
 
     /**
      * One spelling per account. Emails match case-insensitively in MySQL, so
@@ -64,8 +64,10 @@ class LoginCodeController extends Controller
         $key = "login_code_ip:{$action}:".$request->ip();
 
         if (RateLimiter::tooManyAttempts($key, $max)) {
+            $minutes = max(1, (int) ceil(RateLimiter::availableIn($key) / 60));
+
             throw ValidationException::withMessages([
-                $field => ['Too many login attempts from this connection. Please try again in a few minutes.'],
+                $field => ["Too many login attempts from this connection. Please try again in {$minutes} minute".($minutes === 1 ? '' : 's').'.'],
             ]);
         }
 
