@@ -105,10 +105,25 @@ class ListingsController extends Controller
             'categoryIds' => $this->resolveIds($request->category, Category::class),
             'tagIds' => $this->resolveIds($request->tag, Genre::class),
             'remoteLocationId' => $this->resolveRemoteLocationId($request),
-            'priceMin' => $request->has('price0') ? (float) $request->price0 : null,
-            'priceMax' => $request->has('price1') ? (float) $request->price1 : null,
+            'priceMin' => $this->price($request->price0),
+            'priceMax' => $this->price($request->price1),
             ...$this->dates($request),
         ];
+    }
+
+    /**
+     * A price bound, or null. (float) '1e999' is INF, which Elasticsearch's
+     * client cannot serialize, so it 500'd the search page.
+     */
+    private function price($value): ?float
+    {
+        if ($value === null || is_array($value)) {
+            return null;
+        }
+
+        $price = (float) $value;
+
+        return is_finite($price) ? $price : null;
     }
 
     /**

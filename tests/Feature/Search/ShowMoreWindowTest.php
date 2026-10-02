@@ -182,3 +182,11 @@ test('a fresh search says whether there is more to show', function () {
 
     expect($this->getJson('/api/index/search?'.laListQuery())->json('has_more'))->toBeFalse();
 });
+
+test('an impossible price is ignored instead of breaking the search', function () {
+    FakeSearchEngine::install([]);
+
+    $this->getJson('/api/index/search?'.laListQuery().'&price0=1e999&price1=50')->assertOk();
+
+    expect(json_encode(windowEngine()->searches[0]['body']))->not->toContain('INF');
+});
