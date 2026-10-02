@@ -5,14 +5,21 @@ namespace App\Actions\Analytics;
 use App\Models\Event;
 use App\Support\Analytics\Analytics;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
  * The first-party analytics summary behind the admin Analytics page and the
  * get-site-analytics MCP tool: one shape, so both always agree. Humans only
  * (bot = 0) except the `bots` section, which says how much was filtered.
- * Reads analytics_events directly; at ~1M rows a year every query here is
- * an index range scan on (type, occurred_at).
+ *
+ * "Searches" are the ones a person typed or picked (source = list). A map
+ * pan is also recorded as a search (source = map) but keeps the city it
+ * started from, so counting it would turn one Los Angeles search and twenty
+ * drags out to sea into 21 Los Angeles searches, most "found nothing".
+ *
+ * Cached for 10 minutes per range: a year is ~1M rows and several seconds
+ * of queries, on a server with few PHP workers.
  */
 class SiteAnalyticsReport
 {
@@ -25,6 +32,12 @@ class SiteAnalyticsReport
     public function handle(int $days = 30): array
     {
         $days = max(1, min(self::MAX_DAYS, $days));
+
+        return Cache::remember("analytics:report:{$days}", now()->addMinutes(10), fn () => $this->build($days));
+    }
+
+    private function build(int $days): array
+    {
         // Whole UTC days: today and the $days - 1 before it.
         $since = now()->subDays($days - 1)->startOfDay();
 
@@ -54,14 +67,20 @@ class SiteAnalyticsReport
             ->where('bot', 0);
     }
 
-    /** Per type: how many, and by how many different visitors. */
+    /** Searches a person made (not map pans, see the class docblock). */
+    private function typedSearches($since): Builder
+    {
+        return $this->rows($since, Analytics::SEARCH)->where('source', 'list');
+    }
+
+    /** Per type (map pans apart, as map_search): how many, and by how many different visitors. */
     private function totals($since, $until = null): array
     {
         return $this->rows($since, null, $until)
-            ->selectRaw('type, COUNT(*) AS total, COUNT(DISTINCT visitor) AS visitors')
-            ->groupBy('type')
+            ->selectRaw("IF(type = ? AND source = 'map', 'map_search', type) AS kind, COUNT(*) AS total, COUNT(DISTINCT visitor) AS visitors", [Analytics::SEARCH])
+            ->groupBy('kind')
             ->get()
-            ->mapWithKeys(fn ($row) => [$row->type => ['total' => (int) $row->total, 'visitors' => (int) $row->visitors]])
+            ->mapWithKeys(fn ($row) => [$row->kind => ['total' => (int) $row->total, 'visitors' => (int) $row->visitors]])
             ->all();
     }
 
@@ -73,6 +92,7 @@ class SiteAnalyticsReport
     {
         $counts = $this->rows($since)
             ->whereIn('type', [Analytics::EVENT_VIEW, Analytics::SEARCH, Analytics::TICKET_CLICK])
+            ->whereRaw("(type <> ? OR source = 'list')", [Analytics::SEARCH])
             ->selectRaw('DATE(occurred_at) AS day, type, COUNT(*) AS total')
             ->groupBy('day', 'type')
             ->get()
@@ -100,7 +120,7 @@ class SiteAnalyticsReport
     {
         $clicked = $this->rows($since, Analytics::SEARCH_CLICK)->select('search_id')->distinct();
 
-        return $this->rows($since, Analytics::SEARCH)
+        return $this->typedSearches($since)
             ->leftJoinSub($clicked, 'clicked', 'clicked.search_id', '=', 'analytics_events.search_id')
             ->whereNotNull('query')
             ->where('query', '!=', '')
@@ -125,7 +145,7 @@ class SiteAnalyticsReport
      */
     private function zeroResultSearches($since): array
     {
-        return $this->rows($since, Analytics::SEARCH)
+        return $this->typedSearches($since)
             ->where('results', 0)
             ->selectRaw("COALESCE(NULLIF(query, ''), '(no place)') AS place, COUNT(*) AS searches,
                 SUM(JSON_CONTAINS_PATH(COALESCE(props, '{}'), 'one', ".self::FILTER_PATHS.')) AS with_filters,
@@ -202,8 +222,11 @@ class SiteAnalyticsReport
     /** How often a search leads to a result click, and where in the list the clicks land. */
     private function searchClicks($since): array
     {
-        $searches = $this->rows($since, Analytics::SEARCH)->whereNotNull('search_id')->count();
-        $clicked = $this->rows($since, Analytics::SEARCH_CLICK)->distinct()->count('search_id');
+        // Typed searches only, on both sides of the rate (class docblock).
+        $searches = $this->typedSearches($since)->whereNotNull('search_id')->count();
+        $clicked = $this->typedSearches($since)
+            ->whereIn('search_id', $this->rows($since, Analytics::SEARCH_CLICK)->select('search_id'))
+            ->count();
 
         $positions = $this->rows($since, Analytics::SEARCH_CLICK)
             ->selectRaw("LEAST(CAST(JSON_EXTRACT(props, '$.position') AS UNSIGNED), 11) AS position, COUNT(*) AS clicks")

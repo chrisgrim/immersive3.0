@@ -11,11 +11,14 @@ use Laravel\Passport\Passport;
 
 function analyticsRow(array $row): void
 {
+    $type = $row['type'] ?? Analytics::SEARCH;
+
     DB::table('analytics_events')->insert(array_merge([
-        'type' => Analytics::SEARCH,
+        'type' => $type,
         'occurred_at' => now()->subDay(),
         'visitor' => str_repeat('a', 16),
         'bot' => 0,
+        'source' => $type === Analytics::SEARCH ? 'list' : null,
     ], $row));
 }
 
@@ -75,4 +78,19 @@ test('the get-site-analytics tool needs moderator powers on the connection', fun
     $organizer = User::factory()->create(['type' => 'u']);
     Passport::actingAs($organizer, ['mcp:use']);
     EiServer::actingAs($organizer, 'api')->tool(GetSiteAnalytics::class)->assertHasErrors();
+});
+
+test('map drags are not counted as searches of the city they started from', function () {
+    analyticsRow(['query' => 'Los Angeles, CA', 'results' => 40, 'search_id' => 'aaaaaaaaaaa1']);
+    foreach (range(1, 5) as $i) {
+        analyticsRow(['query' => 'Los Angeles, CA', 'results' => 0, 'source' => 'map', 'search_id' => "aaaaaaaaab{$i}0"]);
+    }
+
+    $report = app(SiteAnalyticsReport::class)->handle(30);
+
+    expect($report['searches'])->toBe([['place' => 'Los Angeles, CA', 'searches' => 1, 'found_nothing' => 0, 'clicked' => 0, 'click_rate' => 0.0]])
+        ->and($report['zero_result_searches'])->toBe([])
+        ->and($report['totals']['search']['total'])->toBe(1)
+        ->and($report['totals']['map_search']['total'])->toBe(5)
+        ->and($report['search_clicks']['searches'])->toBe(1);
 });

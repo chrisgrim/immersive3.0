@@ -28,7 +28,9 @@ return new class extends Migration
             $table->char('country', 2)->nullable();
             $table->json('props')->nullable();
 
-            $table->index(['type', 'occurred_at']);
+            // Covers the report's per-type counts (bot = 0, distinct visitors)
+            // without reading the rows themselves.
+            $table->index(['type', 'occurred_at', 'bot', 'visitor']);
             $table->index(['event_id', 'occurred_at']);
             $table->index('occurred_at');
             $table->index('search_id');

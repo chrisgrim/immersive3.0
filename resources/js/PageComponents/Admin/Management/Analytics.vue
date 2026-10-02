@@ -119,7 +119,7 @@
                             <h2 class="section-title">Top Searched Places</h2>
                             <p class="section-sub">Where people look for events, and how often a search led to a click</p>
                         </div>
-                        <span class="text-[1.3rem] font-semibold whitespace-nowrap">{{ total('search').toLocaleString() }} searches</span>
+                        <span class="text-[1.3rem] font-semibold whitespace-nowrap">{{ report.search_clicks.searches.toLocaleString() }} searches</span>
                     </div>
                     <table v-if="report.searches.length" class="w-full text-[1.4rem]">
                         <thead class="text-[1.2rem] text-[#717171]">
