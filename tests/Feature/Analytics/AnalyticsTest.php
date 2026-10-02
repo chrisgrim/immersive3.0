@@ -314,3 +314,36 @@ test('a result click with junk in it is not recorded', function (array $body) {
     'bad event' => [['search_id' => 'abcDEF123456', 'event_id' => 'x', 'position' => 1]],
     'position zero' => [['search_id' => 'abcDEF123456', 'event_id' => 42, 'position' => 0]],
 ]);
+
+// ----- review fixes -----
+
+test('a refresh or Back to the same search is not a second search', function () {
+    FakeSearchEngine::install(Event::factory()->count(3)->published()->create()->pluck('id')->all());
+
+    $first = $this->getJson('/api/index/search?'.analyticsLaQuery())->json('search_id');
+    $again = $this->withoutVite()->get('/index/search?'.analyticsLaQuery().'&page=2')->viewData('searchedEvents')['search_id'];
+    $other = $this->getJson('/api/index/search?'.analyticsLaQuery().'&tag=3')->json('search_id');
+
+    expect($again)->toBe($first)->and($other)->not->toBe($first)
+        ->and(analyticsRows()->where('type', 'search'))->toHaveCount(2);
+});
+
+test('the place text is cleaned and capped before it is buffered', function () {
+    FakeSearchEngine::install([]);
+
+    $this->getJson('/api/index/search?city='.urlencode("Boise\u{0007}\n".str_repeat('x', 300)).'&lat=43.6&lng=-116.2&searchType=evil&live=false')->assertOk();
+
+    $row = analyticsRows()->sole();
+    expect(mb_strlen($row->query))->toBe(100)
+        ->and($row->query)->toStartWith('Boise ')
+        ->and(json_decode($row->props, true))->not->toHaveKey('searchType');
+});
+
+test('one address changing its user agent on every hit still hits the daily cap', function () {
+    config(['analytics.ip_daily_cap' => 3]);
+    foreach (range(1, 4) as $i) {
+        Analytics::record(Analytics::SEARCH, [], Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => '198.51.100.7', 'HTTP_USER_AGENT' => BROWSER_UA." v{$i}"]));
+    }
+
+    expect(analyticsRows()->pluck('bot')->all())->toBe([0, 0, 0, Analytics::BOT_OVER_DAILY_CAP]);
+});

@@ -22,14 +22,16 @@ class EventClickController extends Controller
     {
         $event = Event::findOrFail($eventId);
 
-        Analytics::record(Analytics::TICKET_CLICK, [
+        $record = fn () => Analytics::record(Analytics::TICKET_CLICK, [
             'event_id' => $event->id,
             'source' => mb_substr((string) $request->input('click_type', 'link'), 0, 16),
         ], $request);
 
-        // The organizer's click count (track_clicks) leaves bots out. The
-        // analytics row above keeps them, flagged, like every other row.
+        // Bots are recorded (flagged, like every other row) but left out of
+        // the organizer's click count (track_clicks).
         if (Analytics::looksLikeBot($request)) {
+            $record();
+
             return response()->json(['success' => true]);
         }
 
@@ -38,13 +40,16 @@ class EventClickController extends Controller
         $userAgent = (string) $request->userAgent();
         $cacheKey = "event_click:{$eventId}:".md5($request->ip().'|'.$userAgent);
 
-        // If this exact click was recorded in the last 5 minutes, don't record it again
+        // If this exact click was recorded in the last 5 minutes, don't
+        // record it again, here or in analytics.
         if (Cache::has($cacheKey)) {
             return response()->json(['success' => true]);
         }
 
         // Cache this click to prevent duplicates in short time window
         Cache::put($cacheKey, true, now()->addMinutes(5));
+
+        $record();
 
         TrackClick::create([
             'event_id' => $event->id,

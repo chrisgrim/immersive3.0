@@ -13,6 +13,7 @@ use App\Support\Search\SearchGuard;
 use Elastic\ScoutDriverPlus\Support\Query;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 /**
@@ -539,9 +540,28 @@ class ListingsController extends Controller
             return null;
         }
 
+        // The same search again within 30 minutes (a refresh, Back from an
+        // event, a cold load of ?page=N) is the one already recorded: same
+        // id, no new row. Keyed on the visitor and the search's own
+        // parameters, never stored.
+        $params = Arr::except($request->query(), ['page', 'pages', 'sid', 'include_pins']);
+        ksort($params);
+        $seenKey = 'analytics:search-seen:'.md5($request->ip().'|'.$request->userAgent().'|'.json_encode($params));
         $searchId = Str::random(12);
+        try {
+            if (! Cache::add($seenKey, $searchId, now()->addMinutes(30))) {
+                return Cache::get($seenKey) ?: $searchId;
+            }
+        } catch (\Throwable) {
+            // Cache down: record it; a duplicate beats a lost search.
+        }
 
         $criteria = $this->criteriaFromRequest($request);
+        // Only short, known-shaped text is kept: the place name is typed by
+        // anyone, and every note sits in Redis until it is flushed.
+        $text = fn ($value, int $max) => is_string($value) && trim($value) !== ''
+            ? mb_substr(preg_replace('/[\p{C}]+/u', ' ', trim($value)), 0, $max)
+            : null;
         // ~1 km: enough to say which area, not which street.
         $round = fn ($coordinate) => $coordinate === null ? null : round($coordinate, 2);
 
@@ -550,17 +570,17 @@ class ListingsController extends Controller
             // $applyGeoFilter, which is on whenever `live` is present at all.
             'source' => $criteria['live'] ? 'map' : 'list',
             'search_id' => $searchId,
-            'query' => is_string($request->city) ? trim($request->city) : null,
+            'query' => $text($request->city, 100),
             'results' => (int) ($payload['total'] ?? 0),
             'props' => array_filter([
-                'searchType' => is_string($criteria['searchType']) ? $criteria['searchType'] : null,
+                'searchType' => in_array($criteria['searchType'], ['inPerson', 'atHome', 'allEvents'], true) ? $criteria['searchType'] : null,
                 'lat' => $round($criteria['lat']),
                 'lng' => $round($criteria['lng']),
                 'categories' => $criteria['categoryIds'],
                 'tags' => $criteria['tagIds'],
                 'remoteLocation' => $criteria['remoteLocationId'],
-                'start' => is_string($criteria['start']) ? $criteria['start'] : null,
-                'end' => is_string($criteria['end']) ? $criteria['end'] : null,
+                'start' => $text($criteria['start'], 25),
+                'end' => $text($criteria['end'], 25),
                 'priceMin' => $criteria['priceMin'],
                 'priceMax' => $criteria['priceMax'],
                 // What the visitor was shown, in order (impressions).

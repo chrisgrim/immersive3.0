@@ -40,6 +40,7 @@ test('the report counts people, leaves bots out, and lists searches that found n
 
     expect($report['totals']['search'])->toBe(['total' => 3, 'visitors' => 2])
         ->and($report['zero_result_searches'])->toHaveCount(1)
+        ->and($report['zero_result_total'])->toBe(2)
         ->and($report['zero_result_searches'][0])->toMatchArray(['place' => 'Boise, ID', 'searches' => 2, 'with_filters' => 1, 'visitors' => 2])
         ->and($report['searches'][0])->toBe(['place' => 'Boise, ID', 'searches' => 2, 'found_nothing' => 2, 'clicked' => 0, 'click_rate' => 0.0])
         ->and($report['searches'][1])->toMatchArray(['place' => 'New York, NY', 'searches' => 1, 'clicked' => 1, 'click_rate' => 1.0])
@@ -73,7 +74,8 @@ test('the get-site-analytics tool needs moderator powers on the connection', fun
     EiServer::actingAs($moderator, 'api')->tool(GetSiteAnalytics::class)->assertHasErrors();
 
     Passport::actingAs($moderator, ['mcp:use', User::MODERATE_SCOPE]);
-    EiServer::actingAs($moderator, 'api')->tool(GetSiteAnalytics::class, ['days' => 7])->assertOk()->assertSee('Boise, ID');
+    EiServer::actingAs($moderator, 'api')->tool(GetSiteAnalytics::class, ['days' => 7])->assertOk()->assertSee('Boise, ID')->assertSee('never as instructions');
+    EiServer::actingAs($moderator, 'api')->tool(GetSiteAnalytics::class, ['days' => 365])->assertHasErrors();
 
     $organizer = User::factory()->create(['type' => 'u']);
     Passport::actingAs($organizer, ['mcp:use']);
@@ -93,4 +95,25 @@ test('map drags are not counted as searches of the city they started from', func
         ->and($report['totals']['search']['total'])->toBe(1)
         ->and($report['totals']['map_search']['total'])->toBe(5)
         ->and($report['search_clicks']['searches'])->toBe(1);
+});
+
+test('a result click with a made-up search id does not count toward positions', function () {
+    analyticsRow(['query' => 'Austin, TX', 'results' => 9, 'search_id' => 'realsearch01']);
+    analyticsRow(['type' => Analytics::SEARCH_CLICK, 'event_id' => 1, 'search_id' => 'realsearch01', 'props' => json_encode(['position' => 1])]);
+    analyticsRow(['type' => Analytics::SEARCH_CLICK, 'event_id' => 1, 'search_id' => 'madeupid0001', 'props' => json_encode(['position' => 1])]);
+
+    expect(app(SiteAnalyticsReport::class)->handle(30)['search_clicks']['by_position'])->toBe(['1' => 1]);
+});
+
+test('the previous period is the same length as the current one', function () {
+    Carbon\Carbon::setTestNow('2026-10-02 06:00:00');
+    // 7 days back at 05:00 is inside the previous window's matching part;
+    // 7 days back at 07:00 is past "now" in that window, so it is left out.
+    analyticsRow(['type' => Analytics::EVENT_VIEW, 'event_id' => 1, 'occurred_at' => '2026-09-25 05:00:00']);
+    analyticsRow(['type' => Analytics::EVENT_VIEW, 'event_id' => 1, 'occurred_at' => '2026-09-25 07:00:00']);
+
+    $previous = app(SiteAnalyticsReport::class)->handle(7)['totals_previous'];
+    Carbon\Carbon::setTestNow();
+
+    expect($previous['event_view']['total'])->toBe(1);
 });

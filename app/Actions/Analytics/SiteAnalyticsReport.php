@@ -18,12 +18,17 @@ use Illuminate\Support\Facades\DB;
  * started from, so counting it would turn one Los Angeles search and twenty
  * drags out to sea into 21 Los Angeles searches, most "found nothing".
  *
- * Cached for 10 minutes per range: a year is ~1M rows and several seconds
- * of queries, on a server with few PHP workers.
+ * Cached for 10 minutes per range, and built by one request at a time
+ * (MAX_DAYS says why): the server has few PHP workers.
  */
 class SiteAnalyticsReport
 {
-    public const MAX_DAYS = 395;
+    /**
+     * Prod logs ~15k notes a day, so a year is ~5M rows and minutes of
+     * queries on a 2-CPU server. 90 days keeps a cold build to seconds;
+     * a longer view needs a daily rollup table first.
+     */
+    public const MAX_DAYS = 90;
 
     private const LIMIT = 25;
 
@@ -33,7 +38,11 @@ class SiteAnalyticsReport
     {
         $days = max(1, min(self::MAX_DAYS, $days));
 
-        return Cache::remember("analytics:report:{$days}", now()->addMinutes(10), fn () => $this->build($days));
+        $key = "analytics:report:{$days}";
+
+        // One build at a time: a second request waits for the first (up to
+        // 30s) and then reads its cached result instead of starting another.
+        return Cache::lock('analytics:report:building', 120)->block(30, fn () => Cache::remember($key, now()->addMinutes(10), fn () => $this->build($days)));
     }
 
     private function build(int $days): array
@@ -46,7 +55,10 @@ class SiteAnalyticsReport
             'since' => $since->toIso8601String(),
             'totals' => $this->totals($since),
             // The same span just before, for "vs prior period".
-            'totals_previous' => $this->totals($since->copy()->subDays($days), $since),
+            // Same length, ending at this time of day N days ago, so a
+            // part-day today is not set against a whole one.
+            'totals_previous' => $this->totals($since->copy()->subDays($days), now()->subDays($days)),
+            'zero_result_total' => $this->typedSearches($since)->where('results', 0)->count(),
             'daily' => $this->daily($since, $days),
             'searches' => $this->searches($since),
             'zero_result_searches' => $this->zeroResultSearches($since),
@@ -228,7 +240,10 @@ class SiteAnalyticsReport
             ->whereIn('search_id', $this->rows($since, Analytics::SEARCH_CLICK)->select('search_id'))
             ->count();
 
+        // Only clicks that belong to a real typed search: the beacon is a
+        // plain cross-site POST, so anyone can send one with a made-up id.
         $positions = $this->rows($since, Analytics::SEARCH_CLICK)
+            ->whereIn('search_id', $this->typedSearches($since)->whereNotNull('search_id')->select('search_id'))
             ->selectRaw("LEAST(CAST(JSON_EXTRACT(props, '$.position') AS UNSIGNED), 11) AS position, COUNT(*) AS clicks")
             ->groupBy('position')
             ->orderBy('position')

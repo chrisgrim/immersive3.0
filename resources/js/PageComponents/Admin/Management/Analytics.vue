@@ -161,7 +161,7 @@
                             <div class="min-w-0">
                                 <p class="text-[1.4rem] font-semibold truncate">{{ row.place }}</p>
                                 <p class="text-[1.2rem] text-[#717171]">
-                                    {{ row.searches }} {{ row.searches === 1 ? 'search' : 'searches' }} · {{ row.visitors }} {{ row.visitors === 1 ? 'visitor' : 'visitors' }} · last {{ formatDay(row.last_searched) }}
+                                    {{ row.searches }} {{ row.searches === 1 ? 'search' : 'searches' }} · {{ row.visitors }} {{ row.visitors === 1 ? 'visit' : 'visits' }} · last {{ formatDay(row.last_searched) }}
                                 </p>
                             </div>
                             <span v-if="row.with_filters" class="shrink-0 rounded-full bg-[#F7F7F7] text-[#717171] text-[1.2rem] px-[1.2rem] py-[0.4rem]" :title="`${row.with_filters} of these had a filter on, which may be why`">
@@ -253,7 +253,8 @@
                 </section>
 
                 <section class="card p-[2.4rem]">
-                    <h2 class="section-title mb-[1.2rem]">Visitors by Country</h2>
+                    <h2 class="section-title mb-[0.4rem]">Visits by Country</h2>
+                    <p class="section-sub mb-[1.2rem]">One person on one day counts once</p>
                     <ul class="breakdown">
                         <li v-for="(visitors, country) in report.countries" :key="country">
                             <span>{{ countryName(country) }}</span><span>{{ visitors.toLocaleString() }}</span>
@@ -281,7 +282,6 @@ const dayOptions = [
     { days: 7, label: '7 days' },
     { days: 30, label: '30 days' },
     { days: 90, label: '90 days' },
-    { days: 365, label: '1 year' },
 ]
 const days = ref(30)
 const report = ref(null)
@@ -324,21 +324,21 @@ const ctr = (key) => {
     return views ? total('ticket_click', 'total', key) / views : null
 }
 
-const unmetTotal = computed(() => (report.value?.zero_result_searches || []).reduce((sum, row) => sum + row.searches, 0))
+const unmetTotal = computed(() => report.value?.zero_result_total ?? 0)
 
 const kpis = computed(() => {
     const views = total('event_view')
     const clicks = total('ticket_click')
     const rate = ctr('totals')
     const previousRate = ctr('totals_previous')
-    const searches = total('search')
+    const searches = report.value?.search_clicks?.searches ?? 0
 
     return [
         {
             label: 'Event Page Views',
             value: views.toLocaleString(),
             change: change(views, total('event_view', 'total', 'totals_previous')),
-            note: `${total('event_view', 'visitors').toLocaleString()} different visitors`,
+            note: `${total('event_view', 'visitors').toLocaleString()} visits (one person, one day)`,
         },
         {
             label: 'Ticket Clicks',
@@ -446,19 +446,25 @@ const countryName = (code) => {
     }
 }
 
+// Only the newest request may land: a slow 90-day answer arriving after a
+// quick 7-day one must not replace it.
+let latest = 0
+
 const load = async (option = days.value) => {
+    const request = ++latest
     days.value = option
     loading.value = true
     failed.value = false
     hoverIndex.value = null
     try {
         const { data } = await axios.get('/api/admin/analytics', { params: { days: option } })
-        report.value = data
+        if (request === latest) report.value = data
     } catch (error) {
+        if (request !== latest) return
         console.error('[admin-analytics] failed to load', error)
         failed.value = true
     } finally {
-        loading.value = false
+        if (request === latest) loading.value = false
     }
 }
 

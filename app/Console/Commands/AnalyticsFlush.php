@@ -122,7 +122,7 @@ class AnalyticsFlush extends Command
             'type' => mb_substr((string) $note['t'], 0, 32),
             'occurred_at' => $at->format('Y-m-d H:i:s'),
             'visitor' => $visitor,
-            'bot' => $this->botFlags($ua, $day, $visitor) | (isset($this->hostingAsns[$this->geo->asn($ip) ?? 0]) ? Analytics::BOT_DATACENTER : 0),
+            'bot' => $this->botFlags($ua, $ip, $day, $visitor) | (isset($this->hostingAsns[$this->geo->asn($ip) ?? 0]) ? Analytics::BOT_DATACENTER : 0),
             'event_id' => isset($data['event_id']) ? (int) $data['event_id'] : null,
             'source' => isset($data['source']) ? mb_substr((string) $data['source'], 0, 16) : null,
             'search_id' => isset($data['search_id']) && preg_match(Analytics::SEARCH_ID_PATTERN, (string) $data['search_id']) ? $data['search_id'] : null,
@@ -133,7 +133,7 @@ class AnalyticsFlush extends Command
         ];
     }
 
-    private function botFlags(string $ua, string $day, string $visitor): int
+    private function botFlags(string $ua, string $ip, string $day, string $visitor): int
     {
         $flags = 0;
 
@@ -143,13 +143,23 @@ class AnalyticsFlush extends Command
             $flags |= Analytics::BOT_CRAWLER;
         }
 
-        $key = "analytics:hits:{$day}:{$visitor}";
-        Cache::add($key, 0, now()->addDays(2));
-        if (Cache::increment($key) > (int) config('analytics.daily_cap')) {
+        // Per visitor, and per IP address alone: a script that changes its
+        // user agent on every hit is a new "visitor" each time, but not a
+        // new address. The IP cap is higher, for offices and shared networks.
+        $network = substr(hash('sha256', $this->salt($day).'|'.$ip), 0, 16);
+        if ($this->overCap("analytics:hits:{$day}:{$visitor}", (int) config('analytics.daily_cap'))
+            | $this->overCap("analytics:ip-hits:{$day}:{$network}", (int) config('analytics.ip_daily_cap'))) {
             $flags |= Analytics::BOT_OVER_DAILY_CAP;
         }
 
         return $flags;
+    }
+
+    private function overCap(string $key, int $cap): bool
+    {
+        Cache::add($key, 0, now()->addDays(2));
+
+        return Cache::increment($key) > $cap;
     }
 
     private function salt(string $day): string

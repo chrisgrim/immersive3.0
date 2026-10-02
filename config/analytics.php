@@ -24,6 +24,10 @@ return [
     // Hits per visitor per day before the rest are flagged as a bot.
     'daily_cap' => 300,
 
+    // Hits per IP address per day (any user agent) before the rest are
+    // flagged. Higher than daily_cap: an office or campus shares one IP.
+    'ip_daily_cap' => 1000,
+
     // Rows older than this are deleted by ei:analytics-prune: 13 months, the
     // most CNIL allows for audience measurement without consent, and enough
     // for a year-on-year look (SiteAnalyticsReport::MAX_DAYS).

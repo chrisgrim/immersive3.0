@@ -39,7 +39,7 @@ test('trackClick 404s for missing event', function () {
     $this->postJson('/api/events/99999/track-click')->assertStatus(404);
 });
 
-test('trackClick deduplicates same ip+UA within 5 minutes', function () {
+test('trackClick deduplicates same ip+UA within 5 minutes, in analytics too', function () {
     $event = Event::factory()->create();
 
     $this->postJson("/api/events/{$event->id}/track-click")->assertOk();
@@ -47,6 +47,8 @@ test('trackClick deduplicates same ip+UA within 5 minutes', function () {
     $this->postJson("/api/events/{$event->id}/track-click")->assertOk();
 
     expect(TrackClick::where('event_id', $event->id)->count())->toBe(1);
+    $this->artisan('ei:analytics-flush');
+    expect(Illuminate\Support\Facades\DB::table('analytics_events')->where('type', 'ticket_click')->count())->toBe(1);
 });
 
 test('trackClick falls back to ticketUrl then websiteUrl when no destination_url', function () {
