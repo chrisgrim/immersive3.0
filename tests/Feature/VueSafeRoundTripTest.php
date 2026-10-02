@@ -30,3 +30,10 @@ test('a live event name containing {{ is not mistaken for a rename when the edit
 
     expect($event->fresh()->name)->toBe('{{ Night }}')->and($event->fresh()->tag_line)->toBe('Saved');
 });
+
+test('a request carrying invalid UTF-8 is passed through, not turned into a 500', function () {
+    expect(VueSafe::restore("\xFF{{"))->toBe("\xFF{{")
+        ->and(VueSafe::html("\xFF{{"))->toBe("\xFF{{");
+
+    $this->get('/up?x=%FF')->assertOk();
+});

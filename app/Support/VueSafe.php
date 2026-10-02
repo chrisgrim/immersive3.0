@@ -29,12 +29,14 @@ class VueSafe
     /** Undo html()'s change on text coming back in (RestoreVueSafeBraces). */
     public static function restore(string $text): string
     {
-        return preg_replace('/\{'.self::BREAK.'(?=\{)/u', '{', $text);
+        // preg_replace() returns null on invalid UTF-8 (scanners send it):
+        // pass such input through untouched, as TrimStrings does.
+        return preg_replace('/\{'.self::BREAK.'(?=\{)/u', '{', $text) ?? $text;
     }
 
     /** For already-safe HTML printed raw with `{!! !!}` (e.g. purified blurbs). */
     public static function html(?string $html): string
     {
-        return preg_replace('/\{(?=\{)/u', '{'.self::BREAK, (string) $html);
+        return preg_replace('/\{(?=\{)/u', '{'.self::BREAK, (string) $html) ?? (string) $html;
     }
 }
