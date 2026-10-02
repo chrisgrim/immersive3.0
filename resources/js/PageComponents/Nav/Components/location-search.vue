@@ -576,7 +576,7 @@ onMounted(() => {
     // anonymous listener can't be removed, so every mount of the desktop
     // search bar left another copy bound to window's 'popstate', each still
     // writing searchInput on a component that had already unmounted. Removed
-    // alongside the observer below.
+    // on unmount below.
     const handlePopState = () => {
         const params = new URLSearchParams(window.location.search);
         if (params.has('city')) {
@@ -587,33 +587,8 @@ onMounted(() => {
     };
     window.addEventListener('popstate', handlePopState);
 
-    // Add a MutationObserver to detect DOM changes that might affect the URL
-    const observer = new MutationObserver(() => {
-        // Check if we have dates in storage but not in URL
-        const currentUrl = window.location.href;
-        const hasDateParams = currentUrl.includes('start=') && currentUrl.includes('end=');
-        const storedStartDate = sessionStorage.getItem('ei_search_start_date');
-        const storedEndDate = sessionStorage.getItem('ei_search_end_date');
-
-        if (!hasDateParams && storedStartDate && storedEndDate) {
-            const restoredParams = new URLSearchParams(window.location.search);
-            restoredParams.set('start', storedStartDate);
-            restoredParams.set('end', storedEndDate);
-            const restoredUrl = `${window.location.pathname}?${restoredParams.toString()}`;
-            window.history.pushState({}, '', restoredUrl);
-        }
-    });
-
-    // Start observing
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true
-    });
-
     // Cleanup on unmount
     onUnmounted(() => {
-        observer.disconnect();
         window.removeEventListener('popstate', handlePopState);
     });
 });
