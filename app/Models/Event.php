@@ -643,6 +643,38 @@ class Event extends Model
         return $this->isHistorical() && ! $user?->isModerator();
     }
 
+    public const IN_REVIEW_MESSAGE = 'This event is under review and cannot be edited until an admin approves or rejects it.';
+
+    public const RENAME_NEEDS_REVIEW_MESSAGE = 'A live event is renamed through review: request the new name (on the website, the Name step offers this) and an admin will approve it.';
+
+    /**
+     * Submitted and waiting for an admin: frozen for its organizer, so what
+     * gets approved is what was submitted. Moderators can still edit. Every
+     * write path (hosting controller, MCP tools) asks this, as with
+     * isEditLockedFor.
+     */
+    public function isInReviewFor(?User $user): bool
+    {
+        return $this->status === 'r' && ! $user?->isModerator();
+    }
+
+    /**
+     * A published or embargoed event keeps its name until a name-change
+     * request is approved (NameChangeRequestService). Moderators rename
+     * directly.
+     */
+    public function renameNeedsReviewFor(?User $user, ?string $newName): bool
+    {
+        // Spacing alone is not a rename: input is trimmed on the way in, and
+        // some stored names carry double spaces or line breaks.
+        $normalize = fn (?string $name) => preg_replace('/\s+/u', ' ', trim((string) $name));
+
+        return $newName !== null
+            && $normalize($newName) !== $normalize($this->name)
+            && in_array($this->status, ['p', 'e'], true)
+            && ! $user?->isModerator();
+    }
+
     /**
      * The moment an embargoed event goes live, as a real instant.
      *

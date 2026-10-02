@@ -7,6 +7,7 @@ use App\Actions\Events\UpdateEventAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreEventRequest;
 use App\Models\Event;
+use Illuminate\Validation\ValidationException;
 use App\Models\Organizer;
 use App\Services\NameChangeRequestService;
 use Illuminate\Http\Request;
@@ -92,8 +93,15 @@ class HostEventController extends Controller
     public function update(StoreEventRequest $request, Event $event, UpdateEventAction $updateEvent)
     {
         $this->assertEditable($event);
+        // The wizard already stops both of these; this is the server's half,
+        // so a direct request cannot get round it.
+        abort_if($event->isInReviewFor(auth()->user()), 403, Event::IN_REVIEW_MESSAGE);
 
         $validatedData = $request->validated();
+
+        if ($event->renameNeedsReviewFor(auth()->user(), $validatedData['name'] ?? null)) {
+            throw ValidationException::withMessages(['name' => Event::RENAME_NEEDS_REVIEW_MESSAGE]);
+        }
 
         // Check for duplicate event names if name is being updated (skip if user acknowledged)
         if (isset($validatedData['name']) && $validatedData['name'] !== $event->name && ! $request->boolean('acknowledge_duplicate')) {

@@ -151,8 +151,8 @@ class UpdateEvent extends Tool
 
         // Site rule: once submitted, an event is locked until an admin
         // approves or rejects it (moderators can still edit).
-        if ($event->status === 'r' && ! $user->isModerator()) {
-            return Response::error('This event is under review and cannot be edited until an admin approves or rejects it.');
+        if ($event->isInReviewFor($user)) {
+            return Response::error(Event::IN_REVIEW_MESSAGE);
         }
 
         // A specific-dates or ongoing event must keep at least one show — the web
@@ -509,6 +509,10 @@ class UpdateEvent extends Tool
                 'existing_shows' => $event->shows()->count() + ShowHistory::count($event->show_history),
                 'shows_to_remove' => $showsRemoved,
             ]);
+        }
+
+        if ($event->renameNeedsReviewFor($user, $validated['name'] ?? null)) {
+            return Response::error(Event::RENAME_NEEDS_REVIEW_MESSAGE);
         }
 
         // Duplicate-name guard, same as the web flow.

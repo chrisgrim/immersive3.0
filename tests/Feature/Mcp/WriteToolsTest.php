@@ -735,33 +735,31 @@ test('update-event requires sexualDescription when sexual content is true', func
 
 test('editing a published event returns a diff and applies nothing without confirmation', function () {
     $user = writeToolUser();
-    $event = draftFor(writeToolOrganizer($user), $user, ['status' => 'p', 'name' => 'Live Show']);
+    $event = draftFor(writeToolOrganizer($user), $user, ['status' => 'p', 'tag_line' => 'Live tagline']);
 
     $response = EiServer::actingAs($user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
-        'name' => 'Renamed Live Show',
-        'acknowledge_duplicate' => true,
+        'tag_line' => 'Edited live tagline',
     ]);
 
     $response->assertOk()
         ->assertSee('confirm_live_edit')
-        ->assertSee('Live Show')
-        ->assertSee('Renamed Live Show');
-    expect($event->fresh()->name)->toBe('Live Show');
+        ->assertSee('Live tagline')
+        ->assertSee('Edited live tagline');
+    expect($event->fresh()->tag_line)->toBe('Live tagline');
 });
 
 test('editing a published event applies with confirm_live_edit', function () {
     $user = writeToolUser();
-    $event = draftFor(writeToolOrganizer($user), $user, ['status' => 'p', 'name' => 'Live Show']);
+    $event = draftFor(writeToolOrganizer($user), $user, ['status' => 'p', 'tag_line' => 'Live tagline']);
 
     EiServer::actingAs($user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
-        'name' => 'Renamed Live Show',
-        'acknowledge_duplicate' => true,
+        'tag_line' => 'Edited live tagline',
         'confirm_live_edit' => true,
     ])->assertOk();
 
-    expect($event->fresh()->name)->toBe('Renamed Live Show');
+    expect($event->fresh()->tag_line)->toBe('Edited live tagline');
     expect($event->fresh()->status)->toBe('p');
 });
 

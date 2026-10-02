@@ -234,12 +234,12 @@ test('a genre update through UpdateEventAction (MCP update-event) queues exactly
 
     EiServer::actingAs($event->user)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug,
-        'name' => 'A renamed show',
+        'tag_line' => 'A new tagline',
         'genres' => [['name' => 'Immersive theatre'], ['name' => 'Spooky Season']],
         'confirm_live_edit' => true,
     ])->assertOk();
 
-    expect($event->fresh()->name)->toBe('A renamed show');
+    expect($event->fresh()->tag_line)->toBe('A new tagline');
     Queue::assertPushed(SyncEventSearchIndex::class, 1);
 
     runQueuedSearchSyncs();
