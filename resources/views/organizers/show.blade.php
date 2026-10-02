@@ -18,30 +18,32 @@
     <meta property="og:title" content="{{$organizer->name}}" />
     <meta property="og:description" content="{{$organizer->description}}" />
     <meta property="og:url" content="{{ url('/') }}/organizers/{{$organizer->slug}}" />
-    <meta property="og:site_name" content="{{$organizer->name}}" />
+    <meta property="og:site_name" content="Everything Immersive" />
     @if ($organizer->largeImagePath) 
         <meta property="og:image" content="{{ config('app.image_url') }}{{$organizer->largeImagePath}}" />
         <meta property="og:image:secure_url" content="{{ config('app.image_url') }}{{$organizer->largeImagePath}}" />
         <meta name="twitter:image" content="{{ config('app.image_url') }}{{$organizer->largeImagePath}}" />
     @endif
     <title>{{$organizer->name}}</title>
+    @if ($organizer->description)
+        <meta name="description" content="{{ Str::limit(preg_replace('/\s+/', ' ', strip_tags($organizer->description)), 157) }}" />
+    @endif
+    {{-- Every value through @json: Blade's HTML escaping is not JSON escaping,
+         and a newline in a description (38% of organizers) made the whole
+         block invalid, so Google dropped it. --}}
     <script type="application/ld+json">
     {
-        "@@context": "http://schema.org",
+        "@@context": "https://schema.org",
         "@type": "Organization",
-        "description": "{{$organizer->description}}",
-        "name": "{{$organizer->name}}",
-        "sameAs": @json($organizer->getHandles()),
-        @if ($organizer->website)
-            "url": "{{$organizer->website}}",
-        @else
-            "url": "{{url('/')}}/organizers/{{$organizer->slug}}",
+        "name": @json($organizer->name),
+        @if ($organizer->description)
+        "description": @json($organizer->description),
         @endif
-        @if ($organizer->largeImagePath)
-            "logo": "{{ config('app.image_url') }}{{$organizer->largeImagePath}}"
-        @else
-            "logo": "{{url('/')}}/storage/website-files/schema-organizer.png"
-        @endif
+        "sameAs": @json(array_values($organizer->getHandles())),
+        "url": @json($organizer->website ?: url('/organizers/'.$organizer->slug)),
+        "logo": @json($organizer->largeImagePath
+            ? config('app.image_url').$organizer->largeImagePath
+            : url('/storage/website-files/schema-organizer.png'))
     }
     </script>
 

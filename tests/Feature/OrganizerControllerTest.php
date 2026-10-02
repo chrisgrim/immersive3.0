@@ -24,6 +24,26 @@ test('show renders the organizers.show view for a published organizer', function
         ->assertViewHas('organizer');
 });
 
+test('show emits valid Organization JSON-LD even when the description has newlines and quotes', function () {
+    $organizer = Organizer::factory()->create([
+        'status' => 'p',
+        'name' => 'The "Nerve" Tank',
+        'description' => "Named One to Watch.\n\nWe make \"strange\" theatre {{ here }}.",
+        'website' => null,
+    ]);
+
+    $html = $this->get("/organizers/{$organizer->slug}")->assertOk()->getContent();
+
+    preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $html, $matches);
+    $jsonLd = json_decode($matches[1] ?? '');
+    expect(json_last_error())->toBe(JSON_ERROR_NONE)
+        ->and($jsonLd->name)->toBe('The "Nerve" Tank')
+        ->and($jsonLd->description)->toContain("\n\nWe make \"strange\" theatre")
+        ->and($jsonLd->url)->toBe(url("/organizers/{$organizer->slug}"))
+        ->and($html)->toContain('<meta name="description" content="Named One to Watch. We make')
+        ->and($html)->toContain('<meta property="og:site_name" content="Everything Immersive" />');
+});
+
 test('show renders for a published organizer even for a guest', function () {
     $organizer = Organizer::factory()->create(['status' => 'p']);
 
