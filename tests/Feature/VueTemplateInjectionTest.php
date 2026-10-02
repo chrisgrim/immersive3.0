@@ -64,3 +64,15 @@ test('an event page still emits valid JSON-LD with the original text', function 
     expect(json_last_error())->toBe(JSON_ERROR_NONE)
         ->and(str_replace("\u{200B}", '', $jsonLd->name))->toBe('Show {{ 7*7 }}');
 });
+
+test('the gallery markup reaches the page as a JS string, so a name cannot break out of a template literal', function () {
+    $event = injectableEvent(['name' => 'Show ${alert(1)} `tick`']);
+    App\Models\Image::factory()->count(3)->create(['imageable_id' => $event->id, 'imageable_type' => Event::class]);
+
+    foreach (['Mozilla/5.0 (Macintosh)', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148'] as $agent) {
+        $html = $this->withHeader('User-Agent', $agent)->get("/events/{$event->slug}")->assertOk()->getContent();
+
+        expect($html)->not->toContain('innerHTML = `')
+            ->and($html)->toContain("innerHTML = '");
+    }
+});

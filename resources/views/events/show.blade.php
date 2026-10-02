@@ -294,12 +294,16 @@
             // assign eagerly since every function below only touches the DOM
             // when actually called, never at definition time.
 
-            // Photo Gallery Functions
+            // Photo Gallery Functions. The gallery markup is rendered on the
+            // server and handed over as a JS string literal (Js::from), never
+            // pasted into a template literal: there `${...}` or a backtick in
+            // an event name would run as code.
             window.showPhotoGallery = function() {
                 document.body.style.overflow = 'hidden';
                 const galleryContainer = document.createElement('div');
                 galleryContainer.id = 'photoGallery';
-                galleryContainer.innerHTML = `@include('events.show.mobile-photo-gallery')`;
+                @php ob_start(); @endphp@include('events.show.mobile-photo-gallery')@php $mobile_photo_gallery_html = ob_get_clean(); @endphp
+                galleryContainer.innerHTML = {!! \Illuminate\Support\Js::from($mobile_photo_gallery_html) !!};
                 document.body.appendChild(galleryContainer);
             };
 
@@ -346,13 +350,15 @@
             @if($totalMediaCount > 1)
                 window.addEventListener('showAllPhotos', function(e) {
                     const headerContent = document.getElementById('headerContent');
-                    headerContent.innerHTML = `@include('events.show.photo-gallery')`;
+                    @php ob_start(); @endphp@include('events.show.photo-gallery')@php $photo_gallery_html = ob_get_clean(); @endphp
+                    headerContent.innerHTML = {!! \Illuminate\Support\Js::from($photo_gallery_html) !!};
                     setTimeout(checkScrollPosition, 0);
                 });
 
                 window.closePhotoGallery = function() {
                     const headerContent = document.getElementById('headerContent');
-                    headerContent.innerHTML = `@include('events.show.header-multiple')`;
+                    @php ob_start(); @endphp@include('events.show.header-multiple')@php $header_multiple_html = ob_get_clean(); @endphp
+                    headerContent.innerHTML = {!! \Illuminate\Support\Js::from($header_multiple_html) !!};
                 };
 
                 window.checkScrollPosition = function() {
