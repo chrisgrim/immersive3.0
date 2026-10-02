@@ -61,7 +61,7 @@ test('trackClick falls back to ticketUrl then websiteUrl when no destination_url
         ->toBe('https://tix.example.com');
 });
 
-test('trackClick truncates long URLs/UA to fit columns', function () {
+test('trackClick truncates long URLs and never stores the IP or user agent', function () {
     $event = Event::factory()->create();
     $longUrl = 'https://example.com/'.str_repeat('a', 400);
 
@@ -71,7 +71,24 @@ test('trackClick truncates long URLs/UA to fit columns', function () {
 
     $row = TrackClick::where('event_id', $event->id)->first();
     expect(strlen($row->destination_url))->toBeLessThanOrEqual(255);
-    expect(strlen($row->user_agent))->toBeLessThanOrEqual(255);
+    expect($row->user_agent)->toBeNull()->and($row->ip_address)->toBeNull();
+});
+
+test('trackClick leaves crawlers out of the organizer count but still records them, flagged', function () {
+    $event = Event::factory()->create();
+
+    $this->withHeaders(['User-Agent' => 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)'])
+        ->postJson("/api/events/{$event->id}/track-click", ['click_type' => 'ticket_button'])
+        ->assertOk();
+
+    expect(TrackClick::where('event_id', $event->id)->count())->toBe(0);
+
+    $this->artisan('ei:analytics-flush');
+    $row = Illuminate\Support\Facades\DB::table('analytics_events')->sole();
+    expect($row->type)->toBe('ticket_click')
+        ->and($row->event_id)->toBe($event->id)
+        ->and($row->source)->toBe('ticket_button')
+        ->and($row->bot)->toBe(App\Support\Analytics\Analytics::BOT_CRAWLER);
 });
 
 // getStats — protected endpoint
@@ -121,16 +138,14 @@ test('getStats includes unique counts for admin/moderator without ?detailed', fu
         'event_id' => $event->id,
         'organizer_id' => $event->organizer_id,
         'user_id' => $mod->id,
-        'ip_address' => '10.0.0.1',
     ]);
 
     $response = $this->actingAs($mod)
         ->getJson("/api/events/{$event->id}/click-stats")
         ->assertOk()
-        ->assertJsonStructure(['total', 'unique_users', 'unique_ips', 'daily']);
+        ->assertJsonStructure(['total', 'unique_users', 'daily']);
 
     expect($response->json('unique_users'))->toBe(1);
-    expect($response->json('unique_ips'))->toBe(1);
 });
 
 test('getStats 404s for missing event', function () {

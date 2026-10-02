@@ -4,6 +4,7 @@ namespace App\Support\Analytics;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Jaybizzle\CrawlerDetect\CrawlerDetect;
 use Illuminate\Support\Facades\Redis;
 use Throwable;
 
@@ -22,6 +23,8 @@ class Analytics
     public const SEARCH = 'search';
 
     public const EVENT_VIEW = 'event_view';
+
+    public const TICKET_CLICK = 'ticket_click';
 
     // Bot flags, a bitmask on analytics_events.bot. Rows are flagged, never
     // dropped, so reports filter on bot = 0 and history can be re-scored.
@@ -105,6 +108,23 @@ class Analytics
         }
 
         return ['source' => 'referral', 'ref' => mb_substr($host, 0, 100)];
+    }
+
+    /**
+     * The same bot test the flusher applies (crawler user agent, none at
+     * all, or a cloud network), for the few places that must decide during
+     * the request, like whether a ticket click counts for the organizer.
+     */
+    public static function looksLikeBot(Request $request): bool
+    {
+        $ua = trim((string) $request->userAgent());
+        if ($ua === '' || (new CrawlerDetect)->isCrawler($ua)) {
+            return true;
+        }
+
+        $asn = app(GeoLookup::class)->asn((string) $request->ip());
+
+        return $asn !== null && in_array($asn, config('analytics.hosting_asns'), true);
     }
 
     /** A browser prefetch or prerender, not a person looking at the page. */

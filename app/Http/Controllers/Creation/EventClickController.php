@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Event;
 use App\Models\TrackClick;
+use App\Support\Analytics\Analytics;
 use Illuminate\Support\Facades\Cache;
 
 class EventClickController extends Controller
@@ -20,30 +21,38 @@ class EventClickController extends Controller
     public function trackClick(Request $request, $eventId)
     {
         $event = Event::findOrFail($eventId);
-        
-        // Simple rate limiting and duplicate prevention
-        $ipAddress = $request->ip();
-        $userAgent = $request->header('User-Agent', '');
-        $cacheKey = "event_click:{$eventId}:{$ipAddress}:" . md5($userAgent);
-        
+
+        Analytics::record(Analytics::TICKET_CLICK, [
+            'event_id' => $event->id,
+            'source' => mb_substr((string) $request->input('click_type', 'link'), 0, 16),
+        ], $request);
+
+        // The organizer's click count (track_clicks) leaves bots out. The
+        // analytics row above keeps them, flagged, like every other row.
+        if (Analytics::looksLikeBot($request)) {
+            return response()->json(['success' => true]);
+        }
+
+        // Simple rate limiting and duplicate prevention. The IP and user
+        // agent are only hashed into this short-lived cache key, never stored.
+        $userAgent = (string) $request->userAgent();
+        $cacheKey = "event_click:{$eventId}:".md5($request->ip().'|'.$userAgent);
+
         // If this exact click was recorded in the last 5 minutes, don't record it again
         if (Cache::has($cacheKey)) {
             return response()->json(['success' => true]);
         }
-        
+
         // Cache this click to prevent duplicates in short time window
         Cache::put($cacheKey, true, now()->addMinutes(5));
-        
-        // Record the click
+
         TrackClick::create([
             'event_id' => $event->id,
             'organizer_id' => $event->organizer_id,
             'user_id' => auth()->id(), // Will be null for guest users
-            'ip_address' => $request->ip(),
-            'user_agent' => substr($userAgent, 0, 255), // Limit length for storage
             'referer_url' => substr($request->header('referer', ''), 0, 255),
             'destination_url' => substr($request->input('destination_url', $event->ticketUrl ?? $event->websiteUrl ?? $event->organizer->website), 0, 255),
-            'click_type' => $request->input('click_type', 'link')
+            'click_type' => $request->input('click_type', 'link'),
         ]);
 
         return response()->json(['success' => true]);
@@ -78,10 +87,6 @@ class EventClickController extends Controller
                     ->whereNotNull('user_id')
                     ->distinct('user_id')
                     ->count('user_id'),
-                'unique_ips' => TrackClick::where('event_id', $eventId)
-                    ->whereNotNull('ip_address')
-                    ->distinct('ip_address')
-                    ->count('ip_address'),
             ]);
         }
         
