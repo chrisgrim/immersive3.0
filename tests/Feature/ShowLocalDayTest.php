@@ -462,3 +462,38 @@ test('an event on a legacy alias saves, reads and repairs as its real zone', fun
     expect($event->localDate('2030-11-01 16:00:00'))->toBe('2030-11-01');
     expect(Show::normalizeToLocalNoon($event, apply: false)['updated'])->toBe(0);
 });
+
+// ============================================================
+// The sitemap's lastmod is events.updated_at: real date changes move it,
+// notification bookkeeping does not
+// ============================================================
+
+test('adding a show day moves the event updated_at even when nothing else on the event changes', function () {
+    $this->actingAs(localDayModerator());
+    $event = localDayEvent();
+    Show::factory()->create(['event_id' => $event->id, 'date' => '2030-11-09 17:00:00']);
+    FakeSearchEngine::install([]);
+    $this->mock(\App\Services\EventNotificationDispatcher::class)->shouldIgnoreMissing();
+    Event::whereKey($event->id)->toBase()->update(['updated_at' => now()->subYear()]);
+
+    // A day added before the last one: closingDate stays where it was.
+    $this->postJson("/api/hosting/event/{$event->slug}", [
+        'showtype' => 's',
+        'timezone' => 'America/Chicago',
+        'dateArray' => ['2030-11-02 17:00:00', '2030-11-09 17:00:00'],
+    ])->assertOk();
+
+    expect(Event::withoutGlobalScopes()->find($event->id)->updated_at->gt(now()->subMinute()))->toBeTrue();
+});
+
+test('sending the follower and new-dates emails does not mark the event as changed', function () {
+    $event = localDayEvent();
+    Event::whereKey($event->id)->toBase()->update(['updated_at' => now()->subYear()->startOfSecond()]);
+    $before = Event::withoutGlobalScopes()->find($event->id)->updated_at;
+
+    app(\App\Services\EventNotificationDispatcher::class)->newEventFromFollowedOrganizer($event->fresh());
+
+    $after = Event::withoutGlobalScopes()->find($event->id);
+    expect($after->organizer_notified_at)->not->toBeNull()
+        ->and($after->updated_at->equalTo($before))->toBeTrue();
+});

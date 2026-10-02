@@ -436,6 +436,14 @@ class Show extends Model
         $removed = array_values(array_diff($oldDates, $newDates));
         $userId = auth()->id();
 
+        // A date added or removed is a real change to the listing, so it must
+        // move the event's updated_at (the sitemap's lastmod) even when no
+        // column on the event itself changed, e.g. a day added mid-run.
+        // A plain query, not touch(): no model events inside the save.
+        if ($added || $removed) {
+            Event::withoutGlobalScopes()->whereKey($event->id)->toBase()->update(['updated_at' => now()]);
+        }
+
         if (! empty($added)) {
             ShowChangeLog::create([
                 'event_id' => $event->id,

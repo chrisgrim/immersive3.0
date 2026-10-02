@@ -64,6 +64,10 @@ class EventNotificationDispatcher
                 $query->whereNull('notified_new_dates_at')
                     ->orWhere('notified_new_dates_at', '<=', now()->subHours(self::NEW_DATES_COOLDOWN_HOURS));
             })
+            // toBase(): a bookkeeping write, so leave updated_at alone. An
+            // Eloquent update would bump it, and the sitemap would tell
+            // crawlers the event changed when only an email went out.
+            ->toBase()
             ->update(['notified_new_dates_at' => now()]) > 0;
 
         $this->notifyUsers(
@@ -90,6 +94,7 @@ class EventNotificationDispatcher
 
         $claimed = Event::whereKey($event->id)
             ->whereNull('organizer_notified_at')
+            ->toBase() // bookkeeping: leave updated_at alone (see newDatesForSavedEvent)
             ->update(['organizer_notified_at' => now()]);
 
         if (! $claimed) {

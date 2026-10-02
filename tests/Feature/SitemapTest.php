@@ -1,12 +1,15 @@
 <?php
 
+use App\Models\Category;
 use App\Models\Curated\Community;
+use App\Models\Curated\Post;
 use App\Models\Event;
 use App\Models\Organizer;
 
-// SitemapController@index (GET /sitemap.xml) renders an XML sitemap including
-// events with status in ['p','e'] that have a non-empty slug, organizers that
-// have events, and communities with status 'p'.
+// SitemapController@index (GET /sitemap.xml) renders an XML sitemap of
+// published events (upcoming first, past ones kept at a lower priority),
+// published organizers with a published event, published communities, their
+// published posts and category pages. Built once an hour (cached).
 
 test('sitemap responds 200 with an xml content type', function () {
     $response = $this->get('/sitemap.xml')->assertOk();
@@ -117,4 +120,52 @@ test('sitemap lastmod reflects real content changes, not request time', function
     preg_match('#<url>\s*<loc>'.preg_quote(url('/'), '#').'</loc>\s*<lastmod>([^<]+)</lastmod>#', $body, $home);
     expect($home[1])->toBe(now()->subDays(3)->toIso8601String())
         ->and($body)->toContain(now()->subYear()->toIso8601String());
+});
+
+function sitemapPriorityOf(string $body, string $path): ?string
+{
+    preg_match('#<loc>[^<]*'.preg_quote($path, '#').'</loc>.*?<priority>([^<]+)</priority>#s', $body, $m);
+
+    return $m[1] ?? null;
+}
+
+test('sitemap keeps past events, below upcoming ones', function () {
+    Event::factory()->published()->create(['slug' => 'upcoming-sitemap', 'closingDate' => now()->addMonth()]);
+    Event::factory()->published()->create(['slug' => 'past-sitemap', 'closingDate' => now()->subYears(2)]);
+
+    $body = $this->get('/sitemap.xml')->assertOk()->getContent();
+
+    expect(sitemapPriorityOf($body, '/events/upcoming-sitemap'))->toBe('0.8')
+        ->and(sitemapPriorityOf($body, '/events/past-sitemap'))->toBe('0.3');
+});
+
+test('sitemap lists published posts of published communities, and category pages', function () {
+    $community = Community::factory()->create(['status' => 'p']);
+    $live = Post::factory()->create(['community_id' => $community->id, 'status' => 'p', 'is_hidden' => false]);
+    $draft = Post::factory()->create(['community_id' => $community->id, 'status' => 'd']);
+    $hidden = Post::factory()->create(['community_id' => $community->id, 'status' => 'p', 'is_hidden' => true]);
+    $pending = Community::factory()->create(['status' => 'r']);
+    $pendingPost = Post::factory()->create(['community_id' => $pending->id, 'status' => 'p', 'is_hidden' => false]);
+    $category = Category::factory()->create();
+    Event::factory()->published()->create(['category_id' => $category->id]);
+    $emptyCategory = Category::factory()->create();
+
+    $body = $this->get('/sitemap.xml')->assertOk()->getContent();
+
+    expect($body)->toContain("/communities/{$community->slug}/posts/{$live->slug}")
+        ->and($body)->not->toContain("/posts/{$draft->slug}<")
+        ->and($body)->not->toContain("/posts/{$hidden->slug}<")
+        ->and($body)->not->toContain("/posts/{$pendingPost->slug}<")
+        ->and($body)->toContain("/index/search?category={$category->id}&amp;searchType=allEvents")
+        ->and($body)->not->toContain("category={$emptyCategory->id}&amp;");
+});
+
+test('sitemap is built once and then served from the cache', function () {
+    $this->get('/sitemap.xml')->assertOk();
+    Event::factory()->published()->create(['slug' => 'added-after-build-sitemap']);
+
+    expect($this->get('/sitemap.xml')->getContent())->not->toContain('added-after-build-sitemap');
+
+    Cache::forget('sitemap.xml');
+    expect($this->get('/sitemap.xml')->getContent())->toContain('added-after-build-sitemap');
 });

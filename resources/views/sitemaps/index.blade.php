@@ -35,13 +35,23 @@
         <priority>0.5</priority>
     </url>
     
-    <!-- Events - Only include canonical plural URLs -->
-    @foreach ($events as $event)
+    <!-- Upcoming events (and always-available ones) -->
+    @foreach ($upcomingEvents as $event)
     <url>
         <loc>{{ route('events.show', $event) }}</loc>
         <lastmod>{{ $event->updated_at->toIso8601String() }}</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.8</priority>
+    </url>
+    @endforeach
+
+    <!-- Past events: still listed, so they stay findable, but below upcoming ones -->
+    @foreach ($pastEvents as $event)
+    <url>
+        <loc>{{ route('events.show', $event) }}</loc>
+        <lastmod>{{ $event->updated_at->toIso8601String() }}</lastmod>
+        <changefreq>yearly</changefreq>
+        <priority>0.3</priority>
     </url>
     @endforeach
     
@@ -61,6 +71,25 @@
         <loc>{{ url('/communities/' . $community->slug) }}</loc>
         <lastmod>{{ max($community->updated_at, \Carbon\Carbon::parse($community->posts_max_updated_at ?? $community->updated_at))->toIso8601String() }}</lastmod>
         <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+    @endforeach
+
+    <!-- Community posts -->
+    @foreach ($posts as $post)
+    <url>
+        <loc>{{ url('/communities/' . $post->community->slug . '/posts/' . $post->slug) }}</loc>
+        <lastmod>{{ $post->updated_at->toIso8601String() }}</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.6</priority>
+    </url>
+    @endforeach
+
+    <!-- Category pages (no lastmod: their content is whatever is on now) -->
+    @foreach ($categories as $category)
+    <url>
+        <loc>{{ url('/index/search?category=' . $category->id . '&searchType=allEvents') }}</loc>
+        <changefreq>daily</changefreq>
         <priority>0.7</priority>
     </url>
     @endforeach
