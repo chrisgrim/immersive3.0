@@ -31,18 +31,26 @@ test('the report counts people, leaves bots out, and lists searches that found n
     analyticsRow(['type' => Analytics::TICKET_CLICK, 'event_id' => $event->id]);
     analyticsRow(['type' => Analytics::SEARCH_CLICK, 'event_id' => $event->id, 'search_id' => 'aaaaaaaaaaa2', 'props' => json_encode(['position' => 2])]);
     analyticsRow(['query' => 'Old, OR', 'results' => 0, 'occurred_at' => now()->subDays(40)]);
+    analyticsRow(['type' => Analytics::EVENT_VIEW, 'event_id' => $event->id, 'occurred_at' => now()->subDays(45)]);
 
     $report = app(SiteAnalyticsReport::class)->handle(30);
 
     expect($report['totals']['search'])->toBe(['total' => 3, 'visitors' => 2])
         ->and($report['zero_result_searches'])->toHaveCount(1)
         ->and($report['zero_result_searches'][0])->toMatchArray(['place' => 'Boise, ID', 'searches' => 2, 'with_filters' => 1, 'visitors' => 2])
-        ->and($report['searches'][0])->toBe(['place' => 'Boise, ID', 'searches' => 2, 'found_nothing' => 2])
+        ->and($report['searches'][0])->toBe(['place' => 'Boise, ID', 'searches' => 2, 'found_nothing' => 2, 'clicked' => 0, 'click_rate' => 0.0])
+        ->and($report['searches'][1])->toMatchArray(['place' => 'New York, NY', 'searches' => 1, 'clicked' => 1, 'click_rate' => 1.0])
         ->and($report['events'][0])->toMatchArray(['event_id' => $event->id, 'name' => 'Sleep No More', 'views' => 2, 'ticket_clicks' => 1, 'click_through' => 0.5])
         ->and($report['view_sources'])->toBe(['by_kind' => ['search_engine' => 1, 'search' => 1], 'outside_sites' => ['google.com' => 1]])
         ->and($report['search_clicks'])->toBe(['searches' => 2, 'searches_with_a_click' => 1, 'click_rate' => 0.5, 'by_position' => ['2' => 1]])
         ->and($report['countries'])->toBe(['US' => 1])
-        ->and($report['bots'])->toMatchArray(['all_rows' => 8, 'flagged' => 1, 'datacenter' => 1]);
+        ->and($report['bots'])->toMatchArray(['all_rows' => 8, 'flagged' => 1, 'datacenter' => 1])
+        // The 30 days before: one search and one view.
+        ->and($report['totals_previous'])->toBe(['event_view' => ['total' => 1, 'visitors' => 1], 'search' => ['total' => 1, 'visitors' => 1]])
+        // Every day in range, zeros included; yesterday has the activity.
+        ->and($report['daily'])->toHaveCount(30)
+        ->and(collect($report['daily'])->firstWhere('day', now()->subDay()->toDateString()))
+        ->toBe(['day' => now()->subDay()->toDateString(), 'event_views' => 2, 'searches' => 3, 'ticket_clicks' => 1]);
 });
 
 test('the admin analytics page is for moderators only', function () {

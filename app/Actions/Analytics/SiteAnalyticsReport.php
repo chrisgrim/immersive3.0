@@ -25,12 +25,16 @@ class SiteAnalyticsReport
     public function handle(int $days = 30): array
     {
         $days = max(1, min(self::MAX_DAYS, $days));
-        $since = now()->subDays($days);
+        // Whole UTC days: today and the $days - 1 before it.
+        $since = now()->subDays($days - 1)->startOfDay();
 
         return [
             'days' => $days,
             'since' => $since->toIso8601String(),
             'totals' => $this->totals($since),
+            // The same span just before, for "vs prior period".
+            'totals_previous' => $this->totals($since->copy()->subDays($days), $since),
+            'daily' => $this->daily($since, $days),
             'searches' => $this->searches($since),
             'zero_result_searches' => $this->zeroResultSearches($since),
             'events' => $this->events($since),
@@ -41,18 +45,19 @@ class SiteAnalyticsReport
         ];
     }
 
-    private function rows($since, ?string $type = null): Builder
+    private function rows($since, ?string $type = null, $until = null): Builder
     {
         return DB::table('analytics_events')
             ->when($type, fn ($query) => $query->where('type', $type))
             ->where('occurred_at', '>=', $since)
+            ->when($until, fn ($query) => $query->where('occurred_at', '<', $until))
             ->where('bot', 0);
     }
 
     /** Per type: how many, and by how many different visitors. */
-    private function totals($since): array
+    private function totals($since, $until = null): array
     {
-        return $this->rows($since)
+        return $this->rows($since, null, $until)
             ->selectRaw('type, COUNT(*) AS total, COUNT(DISTINCT visitor) AS visitors')
             ->groupBy('type')
             ->get()
@@ -60,18 +65,57 @@ class SiteAnalyticsReport
             ->all();
     }
 
-    /** The places people search most, and how often each came back empty. */
+    /**
+     * Per UTC day, every day in the range (zeros included): event views,
+     * searches and ticket clicks.
+     */
+    private function daily($since, int $days): array
+    {
+        $counts = $this->rows($since)
+            ->whereIn('type', [Analytics::EVENT_VIEW, Analytics::SEARCH, Analytics::TICKET_CLICK])
+            ->selectRaw('DATE(occurred_at) AS day, type, COUNT(*) AS total')
+            ->groupBy('day', 'type')
+            ->get()
+            ->groupBy('day');
+
+        $series = [];
+        for ($day = $since->copy()->startOfDay(); $day->lte(now()); $day->addDay()) {
+            $rows = $counts->get($day->toDateString(), collect())->pluck('total', 'type');
+            $series[] = [
+                'day' => $day->toDateString(),
+                'event_views' => (int) ($rows[Analytics::EVENT_VIEW] ?? 0),
+                'searches' => (int) ($rows[Analytics::SEARCH] ?? 0),
+                'ticket_clicks' => (int) ($rows[Analytics::TICKET_CLICK] ?? 0),
+            ];
+        }
+
+        return $series;
+    }
+
+    /**
+     * The places people search most, how often each came back empty, and how
+     * many of those searches led to a result click.
+     */
     private function searches($since): array
     {
+        $clicked = $this->rows($since, Analytics::SEARCH_CLICK)->select('search_id')->distinct();
+
         return $this->rows($since, Analytics::SEARCH)
+            ->leftJoinSub($clicked, 'clicked', 'clicked.search_id', '=', 'analytics_events.search_id')
             ->whereNotNull('query')
             ->where('query', '!=', '')
-            ->selectRaw('query, COUNT(*) AS searches, SUM(results = 0) AS found_nothing')
+            ->selectRaw('query, COUNT(*) AS searches, SUM(results = 0) AS found_nothing, COUNT(clicked.search_id) AS clicked')
             ->groupBy('query')
             ->orderByDesc('searches')
             ->limit(self::LIMIT)
             ->get()
-            ->map(fn ($row) => ['place' => $row->query, 'searches' => (int) $row->searches, 'found_nothing' => (int) $row->found_nothing])
+            ->map(fn ($row) => [
+                'place' => $row->query,
+                'searches' => (int) $row->searches,
+                'found_nothing' => (int) $row->found_nothing,
+                'clicked' => (int) $row->clicked,
+                'click_rate' => $row->searches > 0 ? round($row->clicked / $row->searches, 3) : null,
+            ])
             ->all();
     }
 
@@ -113,14 +157,17 @@ class SiteAnalyticsReport
             ->get();
 
         $events = Event::withoutGlobalScopes()->withTrashed()
+            ->with('location:id,event_id,city,region,country')
             ->whereIn('id', $counts->pluck('event_id'))
-            ->get(['id', 'name', 'slug'])
+            ->get(['id', 'name', 'slug', 'thumbImagePath', 'deleted_at'])
             ->keyBy('id');
 
         return $counts->map(fn ($row) => [
             'event_id' => (int) $row->event_id,
             'name' => $events[$row->event_id]->name ?? null,
-            'slug' => $events[$row->event_id]->slug ?? null,
+            'slug' => isset($events[$row->event_id]) && ! $events[$row->event_id]->trashed() ? $events[$row->event_id]->slug : null,
+            'thumb' => $events[$row->event_id]->thumbImagePath ?? null,
+            'city' => $events[$row->event_id]->location->city ?? null,
             'views' => (int) $row->views,
             'ticket_clicks' => (int) $row->ticket_clicks,
             'click_through' => $row->views > 0 ? round($row->ticket_clicks / $row->views, 3) : null,

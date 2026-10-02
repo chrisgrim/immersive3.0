@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('analytics_events', function (Blueprint $table) {
             $table->id();
             $table->string('type', 32);
-            $table->timestamp('occurred_at');
+            $table->dateTime('occurred_at');
             $table->char('visitor', 16);
             $table->unsignedTinyInteger('bot')->default(0);
             $table->unsignedBigInteger('event_id')->nullable();
