@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\Organizer;
 use App\Support\Search\SearchGuard;
+use Elastic\ScoutDriverPlus\Support\Query;
 use Illuminate\Http\Request;
 
 class SearchController extends Controller
@@ -15,7 +16,7 @@ class SearchController extends Controller
     {
         $limit = $request->input('limit', 6);
 
-        $query = Event::searchQuery($searchActions->nameSearch($request))
+        $query = Event::searchQuery(Query::bool()->must($searchActions->nameSearch($request))->filter(Event::publishedSearchFilter()))
             ->load(['currentUserFavorite'])
             ->size($limit);
 
@@ -50,7 +51,7 @@ class SearchController extends Controller
 
     public function navNames(Request $request, SearchActions $searchActions)
     {
-        $query = Event::searchQuery($searchActions->eventSearch($request))
+        $query = Event::searchQuery(Query::bool()->must($searchActions->eventSearch($request))->filter(Event::publishedSearchFilter()))
             ->join(Organizer::class)
             ->load(['currentUserFavorite'])
             ->size(6);

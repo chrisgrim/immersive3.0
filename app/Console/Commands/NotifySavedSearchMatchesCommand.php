@@ -134,6 +134,7 @@ class NotifySavedSearchMatchesCommand extends Command
         $filters = $filterBuilder->buildFilters($criteria);
 
         $query = Query::bool()
+            ->filter(Event::publishedSearchFilter())
             ->filter(Event::stillRunningSearchFilter())
             ->filter(
                 Query::range()

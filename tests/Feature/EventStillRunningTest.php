@@ -84,3 +84,21 @@ test('saving an event in a timezone the cached list has not seen refreshes the l
     Carbon::setTestNow('2026-11-30 15:00:00'); // just past midnight in Tokyo
     expect(Event::stillRunning()->whereKey($tokyo->id)->exists())->toBeFalse();
 });
+
+test('every event search filters to published events, and still lets organizer documents through', function () {
+    $filter = json_encode(Event::publishedSearchFilter()->buildQuery());
+
+    expect($filter)->toContain('"status"')
+        ->and($filter)->toContain('"p"')
+        ->and($filter)->toContain('must_not');
+
+    // Each event search applies it: the listings and map pins, the nav
+    // suggestions, and the saved-search notifier.
+    foreach ([
+        app_path('Http/Controllers/Search/ListingsController.php') => 2,
+        app_path('Http/Controllers/Search/SearchController.php') => 2,
+        app_path('Console/Commands/NotifySavedSearchMatchesCommand.php') => 1,
+    ] as $file => $uses) {
+        expect(substr_count(file_get_contents($file), 'Event::publishedSearchFilter()'))->toBe($uses);
+    }
+});

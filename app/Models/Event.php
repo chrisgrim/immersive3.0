@@ -605,6 +605,21 @@ class Event extends Model
     }
 
     /**
+     * Only published events, whatever the index holds. The index should only
+     * ever contain them (shouldBeSearchable), but a stale document survived an
+     * unpublish once (event 5692, a draft listed in search for weeks), and
+     * search trusted the index outright. Organizer documents carry no status,
+     * so they pass, for the queries that join the two indices.
+     */
+    public static function publishedSearchFilter()
+    {
+        return Query::bool()
+            ->should(Query::term()->field('status')->value(self::STATUS_PUBLISHED))
+            ->should(Query::bool()->mustNot(Query::exists()->field('status')))
+            ->minimumShouldMatch(1);
+    }
+
+    /**
      * The search-side twin of scopeStillRunning, on the closing_at instant
      * in the index. A document indexed before closing_at existed falls back
      * to the old closingDate rule until it is reindexed.
