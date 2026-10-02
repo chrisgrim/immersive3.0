@@ -82,28 +82,6 @@
         }
     }
     
-    // 2. For gallery display - always show images first, then videos
-    $galleryMediaItems = [];
-    
-    // Images first for gallery
-    foreach ($event->images as $image) {
-        $galleryMediaItems[] = $image->toArray();
-    }
-    
-    // Then videos
-    if ($event->video === 'gallery' && $event->videos && count($event->videos) > 0) {
-        foreach ($event->videos as $video) {
-            $galleryMediaItems[] = [
-                'type' => 'video',
-                'platform' => $video->platform,
-                'platform_video_id' => $video->platform_video_id,
-                'url' => $video->url
-            ];
-        }
-    }
-    
-    // Share the galleryMediaItems with the JavaScript context
-    $galleryMediaItemsJson = json_encode($galleryMediaItems);
 @endphp
 
 <div class="relative">
@@ -276,14 +254,6 @@
 
 </div>
 
-<script>
-    // Pass the gallery media items to JavaScript
-    const galleryMediaItems = @json($galleryMediaItems);
-    
-    function showPhotoGallery() {
-        // Your existing gallery code, but use galleryMediaItems which has images first, then videos
-        if (typeof openPhotoGallery === 'function') {
-            openPhotoGallery(galleryMediaItems);
-        }
-    }
-</script>
+{{-- "See gallery" calls window.showPhotoGallery, defined in events/show.blade.php.
+     A stub of the same name used to be declared here; loading after that one,
+     it replaced it with a function that did nothing. --}}

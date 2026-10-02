@@ -113,3 +113,14 @@ test('every inline onclick handler on the event page is defined by that same pag
     'desktop' => [null],
     'mobile' => ['Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'],
 ]);
+
+test('the mobile event page defines showPhotoGallery once, so See gallery opens the real gallery', function () {
+    // header-mobile.blade.php used to declare a stub of the same name after
+    // show.blade.php's real one; loading later, it won, and the button did
+    // nothing.
+    $sources = file_get_contents(resource_path('views/events/show.blade.php'))
+        .file_get_contents(resource_path('views/events/show/header-mobile.blade.php'))
+        .file_get_contents(resource_path('views/events/show-mobile.blade.php'));
+
+    expect(preg_match_all('/function\s+showPhotoGallery\s*\(|showPhotoGallery\s*=\s*function/', $sources))->toBe(1);
+});
