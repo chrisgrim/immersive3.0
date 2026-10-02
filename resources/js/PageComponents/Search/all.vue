@@ -12,6 +12,7 @@
         <event-grid
             v-if="hasEvents"
             :items="events.data"
+            :search-id="events.search_id"
             :columns="6"
             :show-location="true"
         />

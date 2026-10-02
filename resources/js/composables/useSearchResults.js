@@ -38,6 +38,8 @@ export function useSearchResults({ searchedEvents, pins: initialPins } = {}) {
         request.delete('page');
         request.set('pages', depth);
         request.set('include_pins', '0');
+        // Same search going deeper: keep its analytics id.
+        if (events.value.search_id) request.set('sid', events.value.search_id);
 
         try {
             const landed = await SearchStore.fetchResults(request.toString());

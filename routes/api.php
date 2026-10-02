@@ -53,6 +53,14 @@ Route::middleware(['throttle:30,1'])->group(function () {
         ->name('event.track.click');
 });
 
+// Search result clicks (analytics), sent with navigator.sendBeacon. No
+// session, cookies or CSRF: nothing here needs to know who is asking, and a
+// beacon cannot send the XSRF header the stateful middleware would demand.
+Route::POST('/analytics/search-click', App\Http\Controllers\Analytics\SearchClickController::class)
+    ->withoutMiddleware(\Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class)
+    ->middleware('throttle:60,1')
+    ->name('analytics.search-click');
+
 // Resource-intensive: Search & recommendations - Very generous (180/min = 3/sec)
 Route::middleware(['throttle:180,1'])->group(function () {
     Route::GET('/index/search', [ListingsController::class, 'apiIndex']);

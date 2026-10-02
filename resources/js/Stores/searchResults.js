@@ -19,4 +19,6 @@ export const normalizeSearchResults = (raw = {}) => ({
     // The server could not reach Elasticsearch: show "search is temporarily
     // unavailable" rather than "no events found".
     search_unavailable: raw?.search_unavailable ?? false,
+    // This search's analytics id: result clicks send it back.
+    search_id: raw?.search_id ?? null,
 });

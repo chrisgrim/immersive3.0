@@ -125,6 +125,7 @@ class AnalyticsFlush extends Command
             'bot' => $this->botFlags($ua, $day, $visitor) | (isset($this->hostingAsns[$this->geo->asn($ip) ?? 0]) ? Analytics::BOT_DATACENTER : 0),
             'event_id' => isset($data['event_id']) ? (int) $data['event_id'] : null,
             'source' => isset($data['source']) ? mb_substr((string) $data['source'], 0, 16) : null,
+            'search_id' => isset($data['search_id']) && preg_match(Analytics::SEARCH_ID_PATTERN, (string) $data['search_id']) ? $data['search_id'] : null,
             'query' => isset($data['query']) ? mb_substr((string) $data['query'], 0, 255) : null,
             'results' => isset($data['results']) ? max(0, (int) $data['results']) : null,
             'country' => $this->geo->country($ip),

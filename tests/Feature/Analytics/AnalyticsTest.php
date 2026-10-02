@@ -104,7 +104,8 @@ function analyticsLaQuery(): string
 }
 
 test('a search records the place, the result count and the filters', function () {
-    FakeSearchEngine::install(Event::factory()->count(3)->published()->create()->pluck('id')->all());
+    $ids = Event::factory()->count(3)->published()->create()->pluck('id')->all();
+    FakeSearchEngine::install($ids);
 
     $this->getJson('/api/index/search?'.analyticsLaQuery().'&start=2026-10-10&end=2026-10-12')->assertOk();
 
@@ -113,7 +114,7 @@ test('a search records the place, the result count and the filters', function ()
         ->and($row['results'])->toBe(3)
         ->and($row['source'])->toBe('list')
         ->and(json_decode($row['props'], true))->toEqual([
-            'searchType' => 'inPerson', 'lat' => 34.05, 'lng' => -118.24, 'start' => '2026-10-10', 'end' => '2026-10-12',
+            'searchType' => 'inPerson', 'lat' => 34.05, 'lng' => -118.24, 'start' => '2026-10-10', 'end' => '2026-10-12', 'shown' => $ids,
         ]);
 });
 
@@ -266,4 +267,50 @@ test('referrers sort into the right kinds', function (string $referer, string $s
     ['https://nomorepencils.com/blog', 'referral'],
     ['https://www.everythingimmersive.com/', 'home'],
     ['https://everythingimmersive.com/communities/la/posts/top', 'community'],
+]);
+
+// ----- result clicks and impressions (step 5) -----
+
+test('a search hands back its id and records which events it showed, in order', function () {
+    $ids = Event::factory()->count(3)->published()->create()->pluck('id')->all();
+    FakeSearchEngine::install($ids);
+
+    $searchId = $this->getJson('/api/index/search?'.analyticsLaQuery())->assertOk()->json('search_id');
+
+    $row = analyticsRows()->sole();
+    expect($searchId)->toMatch(Analytics::SEARCH_ID_PATTERN)
+        ->and($row->search_id)->toBe($searchId)
+        // FakeSearchEngine returns the hits in the order installed.
+        ->and(json_decode($row->props, true)['shown'])->toBe($ids);
+});
+
+test('Show more keeps the search id it was given, so clicks still trace back', function () {
+    FakeSearchEngine::install(Event::factory()->count(25)->published()->create()->pluck('id')->all());
+
+    $response = $this->getJson('/api/index/search?'.analyticsLaQuery().'&pages=2&sid=abcDEF123456')->assertOk();
+
+    expect($response->json('search_id'))->toBe('abcDEF123456');
+});
+
+test('a result click is recorded with its search, event and position, without a session or CSRF token', function () {
+    $this->withHeaders(['Referer' => url('/index/search'), 'Origin' => url('/')])
+        ->post('/api/analytics/search-click', ['search_id' => 'abcDEF123456', 'event_id' => 42, 'position' => 3])
+        ->assertNoContent();
+
+    $row = analyticsRows()->sole();
+    expect($row->type)->toBe('search_click')
+        ->and($row->search_id)->toBe('abcDEF123456')
+        ->and($row->event_id)->toBe(42)
+        ->and(json_decode($row->props, true))->toBe(['position' => 3]);
+});
+
+test('a result click with junk in it is not recorded', function (array $body) {
+    $this->post('/api/analytics/search-click', $body)->assertNoContent();
+
+    expect(analyticsRows())->toHaveCount(0);
+})->with([
+    'no search id' => [['event_id' => 42, 'position' => 1]],
+    'bad search id' => [['search_id' => 'abc', 'event_id' => 42, 'position' => 1]],
+    'bad event' => [['search_id' => 'abcDEF123456', 'event_id' => 'x', 'position' => 1]],
+    'position zero' => [['search_id' => 'abcDEF123456', 'event_id' => 42, 'position' => 0]],
 ]);

@@ -13,6 +13,7 @@ use App\Support\Search\SearchGuard;
 use Elastic\ScoutDriverPlus\Support\Query;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 
 /**
  * "Which events match this search" is defined ONCE, in
@@ -530,12 +531,15 @@ class ListingsController extends Controller
      * One analytics note per search (Analytics::SEARCH): the place typed, the
      * filters, and how many events matched, so searches that find nothing
      * can be listed. Nothing is recorded when the search itself failed.
+     * Returns the search's id for the page to send back with result clicks.
      */
-    private function recordSearch(Request $request, array $payload): void
+    private function recordSearch(Request $request, array $payload): ?string
     {
-        if (! empty($payload['search_unavailable'])) {
-            return;
+        if (! empty($payload['search_unavailable']) || ! config('analytics.enabled')) {
+            return null;
         }
+
+        $searchId = Str::random(12);
 
         $criteria = $this->criteriaFromRequest($request);
         // ~1 km: enough to say which area, not which street.
@@ -545,6 +549,7 @@ class ListingsController extends Controller
             // live=true is the map moved by hand (bounds search); not
             // $applyGeoFilter, which is on whenever `live` is present at all.
             'source' => $criteria['live'] ? 'map' : 'list',
+            'search_id' => $searchId,
             'query' => is_string($request->city) ? trim($request->city) : null,
             'results' => (int) ($payload['total'] ?? 0),
             'props' => array_filter([
@@ -558,8 +563,12 @@ class ListingsController extends Controller
                 'end' => is_string($criteria['end']) ? $criteria['end'] : null,
                 'priceMin' => $criteria['priceMin'],
                 'priceMax' => $criteria['priceMax'],
+                // What the visitor was shown, in order (impressions).
+                'shown' => array_slice(array_map(fn ($event) => (int) data_get($event, 'id'), $payload['data'] ?? []), 0, 200),
             ], fn ($value) => $value !== null && $value !== []),
         ], $request);
+
+        return $searchId;
     }
 
     public function index(Request $request)
@@ -587,7 +596,7 @@ class ListingsController extends Controller
         // Add maxPrice to response
         $searchedEvents['maxPrice'] = ceil($maxPrice);
 
-        $this->recordSearch($request, $searchedEvents);
+        $searchedEvents['search_id'] = $this->recordSearch($request, $searchedEvents);
 
         // Prepare view data
         $viewData = [
@@ -659,9 +668,12 @@ class ListingsController extends Controller
 
         $response['maxPrice'] = ceil($maxPrice);
 
-        // A Show more click is the same search going deeper, not a new one.
+        // A Show more click is the same search going deeper, not a new one:
+        // it keeps the search's id (sid) so clicks still trace back to it.
         if (! $window) {
-            $this->recordSearch($request, $response);
+            $response['search_id'] = $this->recordSearch($request, $response);
+        } elseif (is_string($request->sid) && preg_match(Analytics::SEARCH_ID_PATTERN, $request->sid)) {
+            $response['search_id'] = $request->sid;
         }
 
         // The map's markers — every match, not this page — whenever a map

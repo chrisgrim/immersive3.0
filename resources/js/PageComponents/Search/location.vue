@@ -17,6 +17,7 @@
                     <EventList
                         v-if="hasEvents"
                         :items="events.data"
+                        :search-id="events.search_id"
                         :user="user"
                         :columns="gridColumns"
                     />

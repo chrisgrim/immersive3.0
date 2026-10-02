@@ -4,8 +4,8 @@ namespace App\Support\Analytics;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Jaybizzle\CrawlerDetect\CrawlerDetect;
 use Illuminate\Support\Facades\Redis;
+use Jaybizzle\CrawlerDetect\CrawlerDetect;
 use Throwable;
 
 /**
@@ -25,6 +25,11 @@ class Analytics
     public const EVENT_VIEW = 'event_view';
 
     public const TICKET_CLICK = 'ticket_click';
+
+    public const SEARCH_CLICK = 'search_click';
+
+    /** A search_id: 12 letters and digits, minted per search, sent back on result clicks. */
+    public const SEARCH_ID_PATTERN = '/^[A-Za-z0-9]{12}$/';
 
     // Bot flags, a bitmask on analytics_events.bot. Rows are flagged, never
     // dropped, so reports filter on bot = 0 and history can be re-scored.

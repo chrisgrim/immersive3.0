@@ -21,6 +21,8 @@ return new class extends Migration
             $table->unsignedTinyInteger('bot')->default(0);
             $table->unsignedBigInteger('event_id')->nullable();
             $table->string('source', 16)->nullable();
+            // Ties a search to the result clicks it led to (search_click).
+            $table->char('search_id', 12)->nullable();
             $table->string('query', 255)->nullable();
             $table->unsignedInteger('results')->nullable();
             $table->char('country', 2)->nullable();
@@ -29,6 +31,7 @@ return new class extends Migration
             $table->index(['type', 'occurred_at']);
             $table->index(['event_id', 'occurred_at']);
             $table->index('occurred_at');
+            $table->index('search_id');
         });
     }
 

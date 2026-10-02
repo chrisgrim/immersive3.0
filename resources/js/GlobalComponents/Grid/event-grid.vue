@@ -8,14 +8,14 @@
             'md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6': columns === 6
          }">
         <div
-            v-for="card in items"
+            v-for="(card, index) in items"
             :key="card.id"
             class="relative flex flex-col group w-full min-w-0">
             <favorite-event :user="user" :event="card" />
             <a
                 :href="getUrl(card)"
                 class="block h-full flex flex-col"
-                @click="(e) => hasClickListener && handleClick(e, card)"
+                @click="(e) => onCardClick(e, card, index)"
             >
                 <!-- Event Image Container with 3:4 aspect ratio -->
                 <div class="relative overflow-hidden rounded-2xl bg-gray-100 transition-transform duration-200 ease-in-out group-hover:scale-[1.02]">
@@ -99,6 +99,7 @@
 <script setup>
 import { defineProps, defineEmits, computed } from 'vue'
 import FavoriteEvent from '@/GlobalComponents/favorite-event.vue'
+import { trackSearchClick } from '@/composables/useAnalytics'
 
 const props = defineProps({
     items: {
@@ -121,10 +122,21 @@ const props = defineProps({
     showLocation: {
         type: Boolean,
         default: false
+    },
+    // Set on search results only: the search these cards answer, so a
+    // click can say which result (and how far down) was picked.
+    searchId: {
+        type: String,
+        default: null
     }
 })
 
 const emit = defineEmits(['click:item'])
+
+const onCardClick = (event, card, index) => {
+    if (props.searchId) trackSearchClick(props.searchId, card.id, index + 1)
+    if (props.hasClickListener) handleClick(event, card)
+}
 
 const handleClick = (event, card) => {
     event.preventDefault()
