@@ -20,5 +20,4 @@
 @endsection
 
 @section('footer')
-    <vue-footer></vue-footer>
 @endsection 

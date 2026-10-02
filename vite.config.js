@@ -24,8 +24,6 @@ export default defineConfig(({ command, mode }) => {
             laravel({
                 input: [
                     'resources/css/app.css',
-                    'resources/css/flatpickr.css',
-                    'resources/css/datepicker.css',
                     'resources/js/app.js',
                 ],
                 refresh: true,

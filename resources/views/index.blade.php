@@ -221,12 +221,6 @@
     @endif
 
     <div>
-        @if(isset($staffpicks) && count($staffpicks))
-            <section id="staffpicks" class="max-w-screen-5xl relative h-full m-auto px-10 lg-air:px-16 2xl-air:px-32">
-                <vue-staff-picks :staffpicks="{{ json_encode($staffpicks) }}"></vue-staff-picks>
-            </section>
-        @endif
-
         <section id="partners" class="max-w-screen-5xl relative h-full m-auto px-10 lg-air:px-16 2xl-air:px-32">
             <div class="my-8 md:mt-16 md:mb-24">
                 <div>

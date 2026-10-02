@@ -127,7 +127,6 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('organizers')->name('organizers.')->middleware('can:edit,organizer')->group(function () {
             Route::GET('/{organizer}/edit', [OrganizerController::class, 'edit'])->name('edit');
             Route::POST('/{organizer}', [OrganizerController::class, 'update'])->name('update');
-            Route::POST('/{organizer}/image', [OrganizerController::class, 'updateImage'])->name('image.update');
             Route::POST('/{organizer}/name-change', [OrganizerController::class, 'requestNameChange'])
                 ->middleware('throttle:5,60')
                 ->name('name.change');

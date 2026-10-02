@@ -253,7 +253,6 @@
             <link rel="preload" as="image" type="image/webp" imagesrcset="{{ config('app.image_url') . $image->large_image_path }}">
         @endforeach
     @endif
-    @vite(['resources/css/flatpickr.css'])
 
     <script>
         // Shared by both layouts: the mobile share sheet and the desktop

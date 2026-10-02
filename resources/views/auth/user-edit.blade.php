@@ -21,7 +21,7 @@
 	@if(auth()->check() && auth()->user()->can('update', $user) && auth()->user()->email_verified_at !== null)
         <vue-user-profile :owner="user" :loaduser="{{ $user }}" v-cloak />   
     @else
-       @include('Auth.user-profile-guest')
+       @include('auth.user-profile-guest')
     @endif
 	
 @endsection

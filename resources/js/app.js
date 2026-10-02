@@ -17,14 +17,6 @@ const ErrorComponent = {
     template: '<div class="error-component">Error loading component. Please refresh.</div>'
 };
 
-// Async component options
-const asyncOptions = {
-    loading: LoadingComponent,
-    error: ErrorComponent,
-    delay: 200,
-    timeout: 10000
-};
-
 // Navigation Components
 const NavComponents = {
     NavSearch: defineAsyncComponent(() => import('./PageComponents/Nav/nav-search.vue')),
@@ -44,11 +36,9 @@ const SearchComponents = {
 // Event Show Components
 const ShowComponents = {
     ShowMore: defineAsyncComponent(() => import('./GlobalComponents/show-more.vue')),
-    VideoPlayer: defineAsyncComponent(() => import('./GlobalComponents/video-player.vue')),
     ShowPurchase: defineAsyncComponent(() => import('./PageComponents/EventShow/show-purchase.vue')),
     ShowPurchaseMobile: defineAsyncComponent(() => import('./PageComponents/EventShow/show-purchase-mobile.vue')),
     ShowMap: defineAsyncComponent(() => import('./PageComponents/EventShow/show-map.vue')),
-    ShowGallery: defineAsyncComponent(() => import('./PageComponents/EventShow/show-gallery.vue')),
     ShowCalendarMobile: defineAsyncComponent(() => import('./PageComponents/EventShow/show-calendar-mobile.vue')),
     SimilarEvents: defineAsyncComponent(() => import('./PageComponents/EventShow/similar-events.vue')),
     EventActions: defineAsyncComponent(() => import('./PageComponents/EventShow/event-actions.vue'))
@@ -56,7 +46,6 @@ const ShowComponents = {
 
 // Auth Components
 const AuthComponents = {
-    ResetPassword: defineAsyncComponent(() => import('./Auth/reset-password.vue')),
     UserEdit: defineAsyncComponent(() => import('./Auth/user-edit.vue')),
     Login: defineAsyncComponent(() => import('./Auth/login.vue'))
 };
@@ -167,16 +156,13 @@ app.component('vue-search-location-mobile', SearchComponents.LocationMobile);
 app.component('vue-search-all', SearchComponents.SearchAll);
 
 app.component('vue-show-more', ShowComponents.ShowMore);
-app.component('vue-video-player', ShowComponents.VideoPlayer);
 app.component('vue-show-purchase', ShowComponents.ShowPurchase);
 app.component('vue-show-purchase-mobile', ShowComponents.ShowPurchaseMobile);
 app.component('vue-show-map', ShowComponents.ShowMap);
-app.component('vue-show-gallery', ShowComponents.ShowGallery);
 app.component('vue-show-calendar-mobile', ShowComponents.ShowCalendarMobile);
 app.component('vue-similar-events', ShowComponents.SimilarEvents);
 app.component('vue-event-actions', ShowComponents.EventActions);
 
-app.component('vue-reset-password', AuthComponents.ResetPassword);
 app.component('vue-user-profile', AuthComponents.UserEdit);
 app.component('vue-user-login', AuthComponents.Login);
 app.component('vue-suggest-event', defineAsyncComponent(() => import('./GlobalComponents/suggest-event.vue')));
