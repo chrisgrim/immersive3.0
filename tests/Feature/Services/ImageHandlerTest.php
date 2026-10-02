@@ -251,7 +251,8 @@ test('duplicateImages skips an image whose files are missing instead of saving a
         'thumb_image_path' => 'event-images/ghost-show/ghost-show-deadbeef-thumb.webp',
         'rank' => 0,
     ]);
-    $target = Event::factory()->create(['slug' => 'ghost-target', 'largeImagePath' => null, 'thumbImagePath' => null]);
+    // Event::duplicate starts the copy with the original's picture columns.
+    $target = Event::factory()->create(['slug' => 'ghost-target', 'largeImagePath' => 'event-images/ghost-show/ghost-show-deadbeef.webp', 'thumbImagePath' => 'event-images/ghost-show/ghost-show-deadbeef-thumb.webp']);
     $source->load('images');
 
     ImageHandler::duplicateImages($source, $target, 'event');
@@ -263,8 +264,8 @@ test('duplicateImages skips an image whose files are missing instead of saving a
 test('duplicateImages saves nothing and cleans up when a copy quietly fails', function () {
     $source = Event::factory()->create(['slug' => 'flaky-src']);
     ImageHandler::saveImage(UploadedFile::fake()->image('a.jpg', 800, 600), $source, 800, 600, 'event-images', 0);
-    $target = Event::factory()->create(['slug' => 'flaky-tgt', 'largeImagePath' => null, 'thumbImagePath' => null]);
     $source->load('images');
+    $target = Event::factory()->create(['slug' => 'flaky-tgt', 'largeImagePath' => $source->largeImagePath, 'thumbImagePath' => $source->thumbImagePath]);
 
     // The large WebP's copy reports false (as some S3 setups do) instead of throwing.
     $real = Storage::disk('digitalocean');

@@ -359,6 +359,8 @@ class ImageHandler
                 ["/public/$thumbJpgPath", "/public/$newDirectory/$newFileName-thumb.jpg"],
             ];
 
+            $copied = false;
+
             try {
                 // The new row points at the two WebPs, so without them there is
                 // nothing to show: skip the image rather than save a broken one.
@@ -409,9 +411,20 @@ class ImageHandler
                     $newModel->save();
                 }
 
+                $copied = true;
             } catch (\Exception $e) {
                 report($e);
                 Log::error("Failed to duplicate image {$originalImage->id}: ".$e->getMessage());
+            } finally {
+                // The copy starts with the original's picture columns
+                // (Event::duplicate replicates them), so a main picture that
+                // was skipped must not leave them pointing at the original.
+                if (! $copied && $originalImage->rank === 0
+                    && \Schema::hasColumns($newModel->getTable(), ['largeImagePath', 'thumbImagePath'])) {
+                    $newModel->largeImagePath = null;
+                    $newModel->thumbImagePath = null;
+                    $newModel->save();
+                }
             }
         }
     }
