@@ -545,7 +545,7 @@ class UpdateEvent extends Tool
 
         // Editing a LIVE (published/embargoed) event applies immediately, so
         // require an explicit confirmation after showing the user what changes.
-        if (in_array($event->status, ['p', 'e'], true) && ! $request->get('confirm_live_edit')) {
+        if (in_array($event->status, Event::LIVE_STATUSES, true) && ! $request->get('confirm_live_edit')) {
             return Response::json([
                 'action_required' => 'confirm_live_edit',
                 'message' => 'This event is LIVE — these changes take effect immediately, with no review step. Show the user exactly what will change (current vs proposed below), get their explicit confirmation, then call this tool again with the same arguments plus confirm_live_edit=true.',

@@ -34,7 +34,7 @@ class ListAllEvents extends Tool
     protected const STATUS_GROUPS = [
         'published' => ['p'],
         'embargoed' => ['e'],
-        'live' => ['p', 'e'],
+        'live' => Event::LIVE_STATUSES,
         'in_review' => ['r'],
         'needs_revision' => ['n'],
     ];

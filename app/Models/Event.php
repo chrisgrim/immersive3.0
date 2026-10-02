@@ -42,6 +42,25 @@ use Illuminate\Support\Str;
  */
 class Event extends Model
 {
+    /**
+     * Event statuses, named (see CLAUDE.md "Status Codes"). The wizard also
+     * packs its step marker into status for drafts ('1' to '9', 'A' to 'D').
+     */
+    public const STATUS_DRAFT = 'd';
+
+    public const STATUS_NEW = '0';
+
+    public const STATUS_IN_REVIEW = 'r';
+
+    public const STATUS_PUBLISHED = 'p';
+
+    public const STATUS_EMBARGOED = 'e';
+
+    public const STATUS_REJECTED = 'n';
+
+    /** Approved: published, or embargoed until its date. */
+    public const LIVE_STATUSES = [self::STATUS_PUBLISHED, self::STATUS_EMBARGOED];
+
     use Favoritable, HasFactory, SoftDeletes;
     use Searchable {
         queueMakeSearchable as protected scoutQueueMakeSearchable;
@@ -615,7 +634,7 @@ class Event extends Model
      */
     public function isHistorical(): bool
     {
-        if (! in_array($this->status, ['p', 'e'], true) || $this->closingDate === null) {
+        if (! in_array($this->status, self::LIVE_STATUSES, true) || $this->closingDate === null) {
             return false;
         }
 
@@ -671,7 +690,7 @@ class Event extends Model
 
         return $newName !== null
             && $normalize($newName) !== $normalize($this->name)
-            && in_array($this->status, ['p', 'e'], true)
+            && in_array($this->status, self::LIVE_STATUSES, true)
             && ! $user?->isModerator();
     }
 
@@ -1053,7 +1072,7 @@ class Event extends Model
         }
 
         return static::withoutGlobalScope(LatestPublishedFirstScope::class)
-            ->whereIn('status', ['p', 'e'])
+            ->whereIn('status', self::LIVE_STATUSES)
             ->when($exceptId, fn ($query) => $query->where('id', '!=', $exceptId))
             ->pluck('name')
             ->contains(fn ($other) => $key($other) === $wanted);
@@ -1122,7 +1141,7 @@ class Event extends Model
     public static function countUnpublishedEvents($organizerId)
     {
         return self::where('organizer_id', $organizerId)
-            ->whereNotIn('status', ['p', 'e']) // Not published or embargoed
+            ->whereNotIn('status', self::LIVE_STATUSES) // Not published or embargoed
             ->count();
     }
 
@@ -1142,7 +1161,7 @@ class Event extends Model
         // count anyway, so drop it rather than add it to the grouping.
         return self::withoutGlobalScope(LatestPublishedFirstScope::class)
             ->whereIn('organizer_id', $organizerIds)
-            ->whereNotIn('status', ['p', 'e'])
+            ->whereNotIn('status', self::LIVE_STATUSES)
             ->selectRaw('organizer_id, count(*) as aggregate')
             ->groupBy('organizer_id')
             ->pluck('aggregate', 'organizer_id');

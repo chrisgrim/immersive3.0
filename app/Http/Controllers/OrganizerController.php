@@ -221,7 +221,7 @@ class OrganizerController extends Controller
             $query = auth()->user()->teams()
                 ->with('images')
                 ->withCount(['events', 'events as published_events_count' => function ($query) {
-                    $query->whereIn('status', ['p', 'e']);
+                    $query->whereIn('status', Event::LIVE_STATUSES);
                 }]);
 
             if ($search = $request->get('q')) {

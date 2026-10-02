@@ -79,7 +79,7 @@ class UpdateEventAction
 
     private function apply(Event $event, array $validatedData, Request $request): Event
     {
-        $wasPublished = in_array($event->status, ['p', 'e']);
+        $wasPublished = in_array($event->status, Event::LIVE_STATUSES);
         $oldStatus = $event->status;  // Store original status
         $oldCategoryId = $event->category_id;
         // Both the mass-assign below and Show::saveShows write the new show type
@@ -360,14 +360,14 @@ class UpdateEventAction
         if (isset($validatedData['genres'])) {
             Genre::saveGenres($event, $validatedData['genres']);
 
-            if ($wasPublished || in_array($event->status, ['p', 'e'])) {
+            if ($wasPublished || in_array($event->status, Event::LIVE_STATUSES)) {
                 Cache::forget('active-genres');
             }
         }
 
         // Check if category changed
         if ($oldCategoryId !== $event->category_id) {
-            if ($wasPublished || in_array($event->status, ['p', 'e'])) {
+            if ($wasPublished || in_array($event->status, Event::LIVE_STATUSES)) {
                 Cache::forget('active-categories');
             }
         }

@@ -179,7 +179,7 @@ class HostEventController extends Controller
     {
         $this->assertEditable($event);
 
-        $wasPublished = in_array($event->status, ['p', 'e']);
+        $wasPublished = in_array($event->status, Event::LIVE_STATUSES);
 
         $event->delete();
 

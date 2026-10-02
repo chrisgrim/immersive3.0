@@ -47,10 +47,10 @@ class AdminEventController extends Controller
             ->when($request->status, function ($query, $status) {
                 switch ($status) {
                     case 'published':
-                        $query->whereIn('status', ['p', 'e']);
+                        $query->whereIn('status', Event::LIVE_STATUSES);
                         break;
                     case 'in_progress':
-                        $query->whereNotIn('status', ['p', 'e'])
+                        $query->whereNotIn('status', Event::LIVE_STATUSES)
                             ->whereNull('deleted_at');
                         break;
                     case 'deleted':
