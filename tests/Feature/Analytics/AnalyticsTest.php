@@ -215,3 +215,55 @@ test('a broken download never replaces a working database', function () {
         ->and(glob("{$dir}/*.download*"))->toBe([]);
     Illuminate\Support\Facades\File::deleteDirectory($dir);
 });
+
+// ----- event page views (step 3) -----
+
+function analyticsShowableEvent(): Event
+{
+    $organizer = App\Models\Organizer::factory()->create(['status' => 'p']);
+    $event = Event::factory()->published()->create(['organizer_id' => $organizer->id, 'closingDate' => now()->addDays(30), 'hasLocation' => true]);
+    App\Models\Events\Location::factory()->create(['event_id' => $event->id]);
+    App\Models\Events\Show::factory()->create(['event_id' => $event->id]);
+    $event->advisories()->create(['wheelchairReady' => true]);
+
+    return $event;
+}
+
+test('an event page view is recorded with where the visitor came from', function () {
+    $event = analyticsShowableEvent();
+
+    $this->withoutVite()->get("/events/{$event->slug}", ['Referer' => 'https://www.google.com/'])->assertOk();
+    $this->withoutVite()->get("/events/{$event->slug}", ['Referer' => url('/index/search?city=Boise')])->assertOk();
+    $this->withoutVite()->get("/events/{$event->slug}")->assertOk();
+
+    $rows = analyticsRows();
+    expect($rows->pluck('type')->unique()->all())->toBe(['event_view'])
+        ->and($rows->pluck('event_id')->unique()->all())->toBe([$event->id])
+        ->and($rows->pluck('source')->all())->toBe(['search_engine', 'search', 'direct'])
+        ->and(json_decode($rows[0]->props, true))->toBe(['ref' => 'google.com'])
+        ->and($rows[1]->props)->toBeNull();
+});
+
+test('a prefetch and a page that 404s are not views', function () {
+    $event = analyticsShowableEvent();
+
+    $this->withoutVite()->get("/events/{$event->slug}", ['Sec-Purpose' => 'prefetch'])->assertOk();
+    $this->withoutVite()->get('/events/no-such-event')->assertNotFound();
+
+    expect(analyticsRows())->toHaveCount(0);
+});
+
+test('referrers sort into the right kinds', function (string $referer, string $source) {
+    $request = Illuminate\Http\Request::create('https://everythingimmersive.com/events/x', 'GET', server: ['HTTP_REFERER' => $referer]);
+
+    expect(Analytics::referrer($request)['source'])->toBe($source);
+})->with([
+    ['https://chatgpt.com/', 'ai'],
+    ['https://gemini.google.com/app', 'ai'],
+    ['https://www.bing.com/search?q=x', 'search_engine'],
+    ['https://old.reddit.com/r/immersivetheatre', 'social'],
+    ['https://t.co/abc', 'social'],
+    ['https://nomorepencils.com/blog', 'referral'],
+    ['https://www.everythingimmersive.com/', 'home'],
+    ['https://everythingimmersive.com/communities/la/posts/top', 'community'],
+]);

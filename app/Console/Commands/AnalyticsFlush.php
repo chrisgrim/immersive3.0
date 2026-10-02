@@ -128,7 +128,7 @@ class AnalyticsFlush extends Command
             'query' => isset($data['query']) ? mb_substr((string) $data['query'], 0, 255) : null,
             'results' => isset($data['results']) ? max(0, (int) $data['results']) : null,
             'country' => $this->geo->country($ip),
-            'props' => isset($data['props']) ? json_encode($data['props']) : null,
+            'props' => ! empty($data['props']) ? json_encode($data['props']) : null,
         ];
     }
 

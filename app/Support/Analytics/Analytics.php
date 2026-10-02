@@ -21,6 +21,8 @@ class Analytics
 {
     public const SEARCH = 'search';
 
+    public const EVENT_VIEW = 'event_view';
+
     // Bot flags, a bitmask on analytics_events.bot. Rows are flagged, never
     // dropped, so reports filter on bot = 0 and history can be re-scored.
     public const BOT_CRAWLER = 1;
@@ -55,6 +57,62 @@ class Analytics
             // state, so a Redis outage would file one Sentry event per hit.
             Log::warning('Analytics note dropped: '.$e->getMessage());
         }
+    }
+
+    /**
+     * Where a page view came from, from the Referer header: a part of this
+     * site (search, home, community...), a kind of outside site
+     * (search_engine, ai, social, referral), or direct. Only the outside
+     * site's host is kept (props.ref), never the full address.
+     *
+     * @return array{source: string, ref: ?string}
+     */
+    public static function referrer(Request $request): array
+    {
+        $host = parse_url((string) $request->headers->get('referer'), PHP_URL_HOST);
+        if (! is_string($host) || $host === '') {
+            return ['source' => 'direct', 'ref' => null];
+        }
+
+        $host = strtolower(preg_replace('/^www\./i', '', $host));
+        $ours = strtolower(preg_replace('/^www\./i', '', (string) $request->getHost()));
+
+        if ($host === $ours) {
+            $path = (string) parse_url((string) $request->headers->get('referer'), PHP_URL_PATH);
+            $source = match (true) {
+                $path === '' || $path === '/' => 'home',
+                str_starts_with($path, '/index/search') => 'search',
+                str_starts_with($path, '/communities') => 'community',
+                str_starts_with($path, '/organizers') => 'organizer',
+                str_starts_with($path, '/events') => 'event',
+                default => 'site',
+            };
+
+            return ['source' => $source, 'ref' => null];
+        }
+
+        $kinds = [
+            'search_engine' => '/(^|\.)(google|bing|duckduckgo|yahoo|ecosia|baidu|yandex|brave|startpage|qwant)\./',
+            'ai' => '/(^|\.)(chatgpt\.com|openai\.com|perplexity\.ai|claude\.ai|gemini\.google\.com|copilot\.microsoft\.com)$/',
+            'social' => '/(^|\.)(facebook|instagram|reddit|bsky|twitter|threads|tiktok|youtube|linkedin|pinterest)\.|(^|\.)(t\.co|x\.com|lnkd\.in)$/',
+        ];
+
+        // AI first: gemini.google.com is not a search engine visit.
+        foreach (['ai', 'search_engine', 'social'] as $kind) {
+            if (preg_match($kinds[$kind], $host)) {
+                return ['source' => $kind, 'ref' => mb_substr($host, 0, 100)];
+            }
+        }
+
+        return ['source' => 'referral', 'ref' => mb_substr($host, 0, 100)];
+    }
+
+    /** A browser prefetch or prerender, not a person looking at the page. */
+    public static function isPrefetch(Request $request): bool
+    {
+        $purpose = strtolower((string) ($request->headers->get('sec-purpose') ?? $request->headers->get('purpose')));
+
+        return str_contains($purpose, 'prefetch') || str_contains($purpose, 'prerender');
     }
 
     public function push(string $note): void

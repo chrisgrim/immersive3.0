@@ -6,6 +6,7 @@ use App\Models\Event;
 use App\Models\Events\Show;
 use App\Models\Organizer;
 use App\Scopes\DateScope;
+use App\Support\Analytics\Analytics;
 use App\Support\ShowHistory;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -29,6 +30,8 @@ class EventController extends Controller
         if (! $event || $event->status !== 'p') {
             abort(404);
         }
+
+        $this->recordView($event, request());
 
         $event->load([
             'currentUserFavorite',
@@ -84,6 +87,22 @@ class EventController extends Controller
         $pageEvent = Js::from($event);
 
         return view('events.show', compact('event', 'pageEvent'));
+    }
+
+    /** One analytics note per view of a live event page (Analytics::EVENT_VIEW). */
+    private function recordView(Event $event, Request $request): void
+    {
+        if (Analytics::isPrefetch($request)) {
+            return;
+        }
+
+        $referrer = Analytics::referrer($request);
+
+        Analytics::record(Analytics::EVENT_VIEW, [
+            'event_id' => $event->id,
+            'source' => $referrer['source'],
+            'props' => array_filter(['ref' => $referrer['ref']]),
+        ], $request);
     }
 
     /**
