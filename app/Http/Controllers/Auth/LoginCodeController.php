@@ -23,7 +23,7 @@ class LoginCodeController extends Controller
      * (an office, a venue's Wi-Fi) would ever reach; they only stop a script
      * cycling through many addresses from one machine.
      */
-    public const IP_SENDS_PER_HOUR = 300;
+    public const IP_SENDS_PER_HOUR = 100;
 
     public const IP_VERIFIES_PER_15_MINUTES = 400;
 
