@@ -149,7 +149,7 @@ class EventAttributesController extends Controller
             return Event::withoutGlobalScope(LatestPublishedFirstScope::class)
                 ->where('status', 'p')
                 ->where('attendance_type_id', 2)
-                ->where('closingDate', '>=', now())
+                ->stillRunning()
                 ->join('event_remote_location', 'events.id', '=', 'event_remote_location.event_id')
                 ->distinct()
                 ->pluck('event_remote_location.remote_location_id');

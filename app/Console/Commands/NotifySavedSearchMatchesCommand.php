@@ -134,7 +134,7 @@ class NotifySavedSearchMatchesCommand extends Command
         $filters = $filterBuilder->buildFilters($criteria);
 
         $query = Query::bool()
-            ->filter(Query::range()->field('closingDate')->gte('now/d'))
+            ->filter(Event::stillRunningSearchFilter())
             ->filter(
                 Query::range()
                     ->field('published_at')

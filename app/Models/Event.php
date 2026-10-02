@@ -26,9 +26,11 @@ use App\Support\Slug;
 use App\Traits\Favoritable;
 use Carbon\Carbon;
 use Elastic\ScoutDriverPlus\Searchable;
+use Elastic\ScoutDriverPlus\Support\Query;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -336,6 +338,11 @@ class Event extends Model
             'shows' => $shows,
             'published_at' => $this->published_at ? Carbon::parse($this->published_at)->format('Y-m-d H:i:s') : null,
             'closingDate' => $this->closingDate ? Carbon::parse($this->closingDate)->format('Y-m-d H:i:s') : null,
+            // The real end of the run, in UTC: search compares this against
+            // "now" (stillRunningSearchFilter). closingDate alone is a wall
+            // time with no zone, and comparing it as UTC dropped an LA run at
+            // 5pm on its last day.
+            'closing_at' => $this->closingAt()?->format('Y-m-d H:i:s'),
             'priceranges' => $this->pricerangesSelect,
             'genres' => $this->genreSelect,
             'remote_location_ids' => $this->remotelocations->pluck('id')->toArray(),
@@ -511,7 +518,71 @@ class Event extends Model
      */
     public function getIsShowingAttribute()
     {
-        return $this->closingDate >= Carbon::now();
+        return $this->closingAt()?->gte(Carbon::now()) ?? false;
+    }
+
+    /**
+     * When the run really ends, as a UTC instant. closingDate is a wall time
+     * in the event's own timezone (the end of its last local day, see
+     * Show::calculateLastDate), so it only means a moment once read in that
+     * zone.
+     */
+    public function closingAt(): ?Carbon
+    {
+        if (! $this->closingDate) {
+            return null;
+        }
+
+        $wallTime = Carbon::parse($this->closingDate)->format('Y-m-d H:i:s');
+
+        return Carbon::parse($wallTime, Show::validTimezone($this->timezone))->utc();
+    }
+
+    /**
+     * Events whose run has not ended yet, judged in each event's own
+     * timezone: closingDate is compared with what the clock says right now
+     * where the event is. One SQL CASE over the timezones events use.
+     */
+    public function scopeStillRunning($query, ?Carbon $at = null)
+    {
+        $at = ($at ?? Carbon::now())->copy()->utc();
+
+        // The zones in use (a few dozen); a zone added since the list was
+        // cached falls back to UTC, the old rule, until it refreshes.
+        $zones = Cache::remember('events:timezones-in-use', 3600, fn () => static::withoutGlobalScopes()
+            ->whereNotNull('timezone')->distinct()->pluck('timezone')->all());
+
+        $table = $this->getTable();
+        if ($zones === []) {
+            return $query->where("{$table}.closingDate", '>=', $at->format('Y-m-d H:i:s'));
+        }
+
+        $case = "CASE `{$table}`.`timezone`";
+        $bindings = [];
+        foreach ($zones as $zone) {
+            $case .= ' WHEN ? THEN ?';
+            $bindings[] = $zone;
+            $bindings[] = $at->copy()->setTimezone(Show::validTimezone($zone))->format('Y-m-d H:i:s');
+        }
+        $case .= ' ELSE ? END';
+        $bindings[] = $at->format('Y-m-d H:i:s');
+
+        return $query->whereRaw("`{$table}`.`closingDate` >= ({$case})", $bindings);
+    }
+
+    /**
+     * The search-side twin of scopeStillRunning, on the closing_at instant
+     * in the index. A document indexed before closing_at existed falls back
+     * to the old closingDate rule until it is reindexed.
+     */
+    public static function stillRunningSearchFilter()
+    {
+        return Query::bool()
+            ->should(Query::range()->field('closing_at')->gte('now'))
+            ->should(Query::bool()
+                ->mustNot(Query::exists()->field('closing_at'))
+                ->filter(Query::range()->field('closingDate')->gte('now/d')))
+            ->minimumShouldMatch(1);
     }
 
     /**

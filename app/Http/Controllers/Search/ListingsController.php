@@ -360,7 +360,7 @@ class ListingsController extends Controller
 
     private function maxPriceQuery(array $searchFilters, array $locationFilters, $boundaryFilter, Request $request, bool $applyGeoFilter)
     {
-        $query = Query::bool()->filter(Query::range()->field('closingDate')->gte('now/d'));
+        $query = Query::bool()->filter(Event::stillRunningSearchFilter());
 
         return $this->applyNonPriceFilters($query, $searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
     }
@@ -468,7 +468,7 @@ class ListingsController extends Controller
      */
     private function buildResultsQuery(array $searchFilters, array $locationFilters, $boundaryFilter, Request $request, bool $applyGeoFilter)
     {
-        $query = Query::bool()->filter(Query::range()->field('closingDate')->gte('now/d'));
+        $query = Query::bool()->filter(Event::stillRunningSearchFilter());
 
         $this->applyNonPriceFilters($query, $searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
 
