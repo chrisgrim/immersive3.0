@@ -579,6 +579,29 @@ class Event extends Model
      */
     public function scopeStillRunning($query, ?Carbon $at = null)
     {
+        [$localNow, $bindings] = $this->localNowSql($at);
+
+        return $query->whereRaw("`{$this->getTable()}`.`closingDate` >= ({$localNow})", $bindings);
+    }
+
+    /**
+     * Running events first, then ended ones, by the same rule as stillRunning.
+     */
+    public function scopeOrderByStillRunningFirst($query, ?Carbon $at = null)
+    {
+        [$localNow, $bindings] = $this->localNowSql($at);
+
+        return $query->orderByRaw("CASE WHEN `{$this->getTable()}`.`closingDate` >= ({$localNow}) THEN 0 ELSE 1 END", $bindings);
+    }
+
+    /**
+     * SQL for "the wall-clock time right now where this row's event is", and
+     * its bindings: one CASE over the timezones events use.
+     *
+     * @return array{0: string, 1: array<int, string>}
+     */
+    private function localNowSql(?Carbon $at): array
+    {
         $at = ($at ?? Carbon::now())->copy()->utc();
 
         // The zones in use (a few dozen); a zone added since the list was
@@ -586,12 +609,11 @@ class Event extends Model
         $zones = Cache::remember(self::TIMEZONES_IN_USE_CACHE, 3600, fn () => static::withoutGlobalScopes()
             ->whereNotNull('timezone')->distinct()->pluck('timezone')->all());
 
-        $table = $this->getTable();
         if ($zones === []) {
-            return $query->where("{$table}.closingDate", '>=', $at->format('Y-m-d H:i:s'));
+            return ['?', [$at->format('Y-m-d H:i:s')]];
         }
 
-        $case = "CASE `{$table}`.`timezone`";
+        $case = "CASE `{$this->getTable()}`.`timezone`";
         $bindings = [];
         foreach ($zones as $zone) {
             $case .= ' WHEN ? THEN ?';
@@ -601,7 +623,7 @@ class Event extends Model
         $case .= ' ELSE ? END';
         $bindings[] = $at->format('Y-m-d H:i:s');
 
-        return $query->whereRaw("`{$table}`.`closingDate` >= ({$case})", $bindings);
+        return [$case, $bindings];
     }
 
     /**
@@ -1055,7 +1077,7 @@ class Event extends Model
     {
         return Event::where('status', 'p')
             ->with('priceranges')
-            ->whereDate('closingDate', '>=', date('Y-m-d'))
+            ->stillRunning()
             ->get()
             ->map(function ($event) {
                 return $event->priceranges->pluck('price');

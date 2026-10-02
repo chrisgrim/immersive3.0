@@ -208,7 +208,7 @@ class EventController extends Controller
             ->where('organizer_id', $organizer->id)
             ->where('archived', false)
             ->with(['category', 'genres', 'currentUserFavorite'])
-            ->orderByRaw('CASE WHEN closingDate >= NOW() THEN 0 ELSE 1 END')
+            ->orderByStillRunningFirst()
             ->orderBy('created_at', 'desc')
             ->paginate($request->input('pageSize', 10));
     }

@@ -102,3 +102,38 @@ test('every event search filters to published events, and still lets organizer d
         expect(substr_count(file_get_contents($file), 'Event::publishedSearchFilter()'))->toBe($uses);
     }
 });
+
+test('the price slider still counts a Los Angeles run on its last evening', function () {
+    endingEvent('America/Los_Angeles')->priceranges()->create(['price' => 80]);
+    Carbon::setTestNow('2026-12-01 04:00:00'); // 8pm in LA on Nov 30
+
+    expect(Event::getMostExpensive())->toEqual(80);
+
+    Carbon::setTestNow('2026-12-01 08:00:01');
+    expect(Event::getMostExpensive())->toBeNull();
+});
+
+test('an organizer page lists a Los Angeles run on its last evening with the running ones', function () {
+    $organizer = App\Models\Organizer::factory()->create();
+    $la = endingEvent('America/Los_Angeles');
+    $ended = endingEvent('America/Los_Angeles', '2026-11-20 23:59:59');
+    $la->update(['organizer_id' => $organizer->id, 'created_at' => '2026-01-01 00:00:00']);
+    $ended->update(['organizer_id' => $organizer->id, 'created_at' => '2026-06-01 00:00:00']);
+    Carbon::setTestNow('2026-12-01 04:00:00'); // 8pm in LA on Nov 30
+
+    $ids = collect($this->getJson("/api/organizers/{$organizer->slug}/events")->json('data'))->pluck('id');
+
+    // Newer created_at would put the ended run first if LA counted as over.
+    expect($ids->all())->toBe([$la->id, $ended->id]);
+});
+
+test('the sitemap keeps a Los Angeles run on its last evening with the upcoming events', function () {
+    $la = endingEvent('America/Los_Angeles');
+    $la->update(['slug' => 'la-last-evening']);
+    Carbon::setTestNow('2026-12-01 04:00:00'); // 8pm in LA on Nov 30
+
+    $xml = $this->get('/sitemap.xml')->getContent();
+    $entry = substr($xml, strpos($xml, 'la-last-evening'), 300);
+
+    expect($entry)->toContain('<priority>0.8</priority>');
+});

@@ -39,11 +39,12 @@ class SitemapController extends Controller
         $events = Event::where('status', 'p')
             ->whereNotNull('slug')
             ->where('slug', '!=', '')
-            ->get(['id', 'slug', 'showtype', 'closingDate', 'updated_at']);
+            ->get(['id', 'slug', 'showtype', 'closingDate', 'timezone', 'updated_at']);
 
-        $today = Carbon::now()->startOfDay();
+        // Still running where the event is, not by the server's clock.
+        $now = Carbon::now();
         [$upcomingEvents, $pastEvents] = $events->partition(
-            fn (Event $event) => $event->showtype === 'a' || ($event->closingDate && Carbon::parse($event->closingDate)->gte($today))
+            fn (Event $event) => $event->showtype === 'a' || $event->closingAt()?->gte($now)
         );
 
         $organizers = Organizer::where('status', 'p')
