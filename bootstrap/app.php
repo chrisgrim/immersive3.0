@@ -20,6 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Add our custom middleware to block edit routes during maintenance
         $middleware->prepend(\App\Http\Middleware\BlockEditDuringMaintenance::class);
+        // Undo VueSafe's brace break on every incoming string (see the class).
+        $middleware->append(\App\Http\Middleware\RestoreVueSafeBraces::class);
 
         // Records one row per session on its first authenticated request —
         // powers Account Settings' Login & Security device history. Web-only:

@@ -26,6 +26,12 @@ class VueSafe
         return self::html(e($value, $doubleEncode));
     }
 
+    /** Undo html()'s change on text coming back in (RestoreVueSafeBraces). */
+    public static function restore(string $text): string
+    {
+        return preg_replace('/\{'.self::BREAK.'(?=\{)/u', '{', $text);
+    }
+
     /** For already-safe HTML printed raw with `{!! !!}` (e.g. purified blurbs). */
     public static function html(?string $html): string
     {
