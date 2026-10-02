@@ -338,7 +338,7 @@ class ImageHandler
      */
     public static function duplicateImages($originalModel, $newModel, $type)
     {
-        if (!$originalModel->images()->exists()) {
+        if (! $originalModel->images()->exists()) {
             return;
         }
 
@@ -347,65 +347,57 @@ class ImageHandler
             $newSlug = $newModel->slug ?? Str::random(8);
             $newDirectory = "$type-images/$newSlug";
             $newFileName = "$newSlug-$modelId";
-            
-            try {
-                // Check if source files exist
-                $largeWebpExists = Storage::disk('digitalocean')->exists("/public/$originalImage->large_image_path");
-                $largeJpgPath = preg_replace('/\.webp$/', '.jpg', $originalImage->large_image_path);
-                $largeJpgExists = Storage::disk('digitalocean')->exists("/public/$largeJpgPath");
-                $thumbWebpExists = Storage::disk('digitalocean')->exists("/public/$originalImage->thumb_image_path");
-                $thumbJpgPath = preg_replace('/\.webp$/', '.jpg', $originalImage->thumb_image_path);
-                $thumbJpgExists = Storage::disk('digitalocean')->exists("/public/$thumbJpgPath");
 
-                // Log a warning if any source files are missing
-                if (!$largeWebpExists || !$largeJpgExists || !$thumbWebpExists || !$thumbJpgExists) {
-                    Log::warning("Some source files missing for original image {$originalImage->id} during duplication", [
-                        'largeWebp' => $largeWebpExists,
-                        'largeJpg' => $largeJpgExists, 
-                        'thumbWebp' => $thumbWebpExists,
-                        'thumbJpg' => $thumbJpgExists
+            $disk = Storage::disk('digitalocean');
+            $largeJpgPath = preg_replace('/\.webp$/', '.jpg', $originalImage->large_image_path);
+            $thumbJpgPath = preg_replace('/\.webp$/', '.jpg', $originalImage->thumb_image_path);
+            // [from, to]; the first is the main image (see assertCopied)
+            $pairs = [
+                ["/public/$originalImage->large_image_path", "/public/$newDirectory/$newFileName.webp"],
+                ["/public/$originalImage->thumb_image_path", "/public/$newDirectory/$newFileName-thumb.webp"],
+                ["/public/$largeJpgPath", "/public/$newDirectory/$newFileName.jpg"],
+                ["/public/$thumbJpgPath", "/public/$newDirectory/$newFileName-thumb.jpg"],
+            ];
+
+            try {
+                // The new row points at the two WebPs, so without them there is
+                // nothing to show: skip the image rather than save a broken one.
+                if (! $disk->exists($pairs[0][0]) || ! $disk->exists($pairs[1][0])) {
+                    Log::warning("Image {$originalImage->id} not duplicated: its WebP files are missing", [
+                        'large' => $pairs[0][0],
+                        'thumb' => $pairs[1][0],
                     ]);
+
+                    continue;
                 }
 
                 // Ensure destination directory exists
-                if (!Storage::disk('digitalocean')->exists("/public/$newDirectory")) {
-                    Storage::disk('digitalocean')->makeDirectory("/public/$newDirectory");
+                if (! $disk->exists("/public/$newDirectory")) {
+                    $disk->makeDirectory("/public/$newDirectory");
                 }
-                
-                // Copy files to new location
-                if ($largeWebpExists) {
-                    Storage::disk('digitalocean')->copy(
-                        "/public/$originalImage->large_image_path",
-                        "/public/$newDirectory/$newFileName.webp"
-                    );
+
+                // The JPEG fallbacks are optional; copy whichever exist.
+                foreach ($pairs as [$from, $to]) {
+                    if ($disk->exists($from)) {
+                        $disk->copy($from, $to);
+                    }
                 }
-                
-                if ($largeJpgExists) {
-                    Storage::disk('digitalocean')->copy(
-                        "/public/$largeJpgPath",
-                        "/public/$newDirectory/$newFileName.jpg"
-                    );
-                }
-                
-                if ($thumbWebpExists) {
-                    Storage::disk('digitalocean')->copy(
-                        "/public/$originalImage->thumb_image_path",
-                        "/public/$newDirectory/$newFileName-thumb.webp"
-                    );
-                }
-                
-                if ($thumbJpgExists) {
-                    Storage::disk('digitalocean')->copy(
-                        "/public/$thumbJpgPath",
-                        "/public/$newDirectory/$newFileName-thumb.jpg"
-                    );
+
+                // copy() can report failure by returning false instead of
+                // throwing, so check the files really arrived.
+                try {
+                    self::assertCopied($pairs, $originalImage->id);
+                } catch (\RuntimeException $e) {
+                    $disk->delete(array_column($pairs, 1));
+
+                    throw $e;
                 }
 
                 // Create new image record for the duplicated model
                 $newImage = $newModel->images()->create([
                     'large_image_path' => "$newDirectory/$newFileName.webp",
                     'thumb_image_path' => "$newDirectory/$newFileName-thumb.webp",
-                    'rank' => $originalImage->rank
+                    'rank' => $originalImage->rank,
                 ]);
 
                 // Update model image columns if this is the primary image (rank 0)
@@ -416,10 +408,10 @@ class ImageHandler
                     $newModel->thumbImagePath = "$newDirectory/$newFileName-thumb.webp";
                     $newModel->save();
                 }
-                
+
             } catch (\Exception $e) {
                 report($e);
-                Log::error("Failed to duplicate image {$originalImage->id}: " . $e->getMessage());
+                Log::error("Failed to duplicate image {$originalImage->id}: ".$e->getMessage());
             }
         }
     }

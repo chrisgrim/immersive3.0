@@ -243,28 +243,43 @@ test('duplicateImages copies all variants and creates new image rows on the targ
     expect($target->largeImagePath)->toBe($newImage->large_image_path);
 });
 
-test('duplicateImages tolerates a missing source file and still creates the row', function () {
+test('duplicateImages skips an image whose files are missing instead of saving a broken one', function () {
     $source = Event::factory()->create(['slug' => 'ghost-show']);
     // Image row exists in DB but the underlying files were never written to disk.
-    $sourceImage = Image::factory()->for($source, 'imageable')->create([
+    Image::factory()->for($source, 'imageable')->create([
         'large_image_path' => 'event-images/ghost-show/ghost-show-deadbeef.webp',
         'thumb_image_path' => 'event-images/ghost-show/ghost-show-deadbeef-thumb.webp',
         'rank' => 0,
     ]);
-    $target = Event::factory()->create(['slug' => 'ghost-target']);
+    $target = Event::factory()->create(['slug' => 'ghost-target', 'largeImagePath' => null, 'thumbImagePath' => null]);
     $source->load('images');
 
-    // Should not throw despite missing files.
     ImageHandler::duplicateImages($source, $target, 'event');
 
-    // A row is still created on the target even though no files were copied.
-    expect($target->images()->count())->toBe(1);
-    $newImage = $target->images()->first();
-    expect($newImage->large_image_path)->toMatch('#^event-images/ghost-target/ghost-target-[0-9a-f]+\.webp$#');
+    expect($target->images()->count())->toBe(0);
+    expect($target->refresh()->largeImagePath)->toBeNull();
+});
 
-    // No file exists because the source had none to copy.
-    $base = preg_replace('/\.webp$/', '', $newImage->large_image_path);
-    Storage::disk('digitalocean')->assertMissing("public/{$base}.webp");
+test('duplicateImages saves nothing and cleans up when a copy quietly fails', function () {
+    $source = Event::factory()->create(['slug' => 'flaky-src']);
+    ImageHandler::saveImage(UploadedFile::fake()->image('a.jpg', 800, 600), $source, 800, 600, 'event-images', 0);
+    $target = Event::factory()->create(['slug' => 'flaky-tgt', 'largeImagePath' => null, 'thumbImagePath' => null]);
+    $source->load('images');
+
+    // The large WebP's copy reports false (as some S3 setups do) instead of throwing.
+    $real = Storage::disk('digitalocean');
+    $disk = Mockery::mock($real)->makePartial();
+    $disk->shouldReceive('copy')->andReturnUsing(
+        fn ($from, $to) => str_ends_with($to, '-thumb.webp') || str_ends_with($to, '.jpg') ? $real->copy($from, $to) : false
+    );
+    Storage::set('digitalocean', $disk);
+
+    ImageHandler::duplicateImages($source, $target, 'event');
+
+    expect($target->images()->count())->toBe(0);
+    expect($target->refresh()->largeImagePath)->toBeNull();
+    // The copies that did land were removed again.
+    expect($real->allFiles('public/event-images/flaky-tgt'))->toBe([]);
 });
 
 test('duplicateImages returns early when the source has no images', function () {
