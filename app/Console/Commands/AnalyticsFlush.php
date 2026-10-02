@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Support\Analytics\Analytics;
+use App\Support\Analytics\GeoLookup;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -33,13 +34,20 @@ class AnalyticsFlush extends Command
     /** @var array<string, string> day => salt, for this run */
     private array $salts = [];
 
-    public function handle(Analytics $analytics): int
+    private GeoLookup $geo;
+
+    /** @var array<int, true> */
+    private array $hostingAsns = [];
+
+    public function handle(Analytics $analytics, GeoLookup $geo): int
     {
         if (! config('analytics.enabled')) {
             return self::SUCCESS;
         }
 
         $this->crawlers = new CrawlerDetect;
+        $this->geo = $geo;
+        $this->hostingAsns = array_fill_keys(config('analytics.hosting_asns'), true);
         $written = 0;
 
         for ($i = 0; $i < (int) $this->option('batches'); $i++) {
@@ -106,19 +114,20 @@ class AnalyticsFlush extends Command
         $at = Carbon::createFromTimestamp((int) $note['at'], 'UTC');
         $day = $at->toDateString();
         $ua = (string) ($note['ua'] ?? '');
-        $visitor = substr(hash('sha256', $this->salt($day).'|'.($note['ip'] ?? '').'|'.$ua), 0, 16);
+        $ip = (string) ($note['ip'] ?? '');
+        $visitor = substr(hash('sha256', $this->salt($day).'|'.$ip.'|'.$ua), 0, 16);
         $data = is_array($note['d'] ?? null) ? $note['d'] : [];
 
         return [
             'type' => mb_substr((string) $note['t'], 0, 32),
             'occurred_at' => $at->format('Y-m-d H:i:s'),
             'visitor' => $visitor,
-            'bot' => $this->botFlags($ua, $day, $visitor),
+            'bot' => $this->botFlags($ua, $day, $visitor) | (isset($this->hostingAsns[$this->geo->asn($ip) ?? 0]) ? Analytics::BOT_DATACENTER : 0),
             'event_id' => isset($data['event_id']) ? (int) $data['event_id'] : null,
             'source' => isset($data['source']) ? mb_substr((string) $data['source'], 0, 16) : null,
             'query' => isset($data['query']) ? mb_substr((string) $data['query'], 0, 255) : null,
             'results' => isset($data['results']) ? max(0, (int) $data['results']) : null,
-            'country' => null,
+            'country' => $this->geo->country($ip),
             'props' => isset($data['props']) ? json_encode($data['props']) : null,
         ];
     }

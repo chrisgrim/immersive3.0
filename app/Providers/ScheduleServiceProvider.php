@@ -33,6 +33,10 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->everyMinute()
                 ->withoutOverlapping(5);
 
+            $schedule->command('ei:analytics-geo-update')
+                ->dailyAt('03:50')
+                ->withoutOverlapping();
+
             $schedule->command('ei:analytics-prune')
                 ->dailyAt('03:40')
                 ->withoutOverlapping();

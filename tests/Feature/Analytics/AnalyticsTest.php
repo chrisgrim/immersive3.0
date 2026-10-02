@@ -159,3 +159,59 @@ test('analytics is off by default on staging', function () {
 
     expect($config['enabled'])->toBeFalse();
 });
+
+// ----- country and datacenter (step 2) -----
+
+function fakeGeo(array $countries, array $asns): void
+{
+    app()->instance(App\Support\Analytics\GeoLookup::class, new class($countries, $asns) extends App\Support\Analytics\GeoLookup
+    {
+        public function __construct(private array $countries, private array $asns) {}
+
+        public function country(string $ip): ?string
+        {
+            return $this->countries[$ip] ?? null;
+        }
+
+        public function asn(string $ip): ?int
+        {
+            return $this->asns[$ip] ?? null;
+        }
+    });
+}
+
+test('a hit from a cloud network is flagged as a bot, and every row gets its country', function () {
+    // 43.134.x is the Singapore bot's Tencent network; 73.162.x a Comcast home line.
+    fakeGeo(['43.134.1.1' => 'SG', '73.162.1.1' => 'US'], ['43.134.1.1' => 132203, '73.162.1.1' => 7922]);
+    foreach (['43.134.1.1', '73.162.1.1'] as $ip) {
+        Analytics::record(Analytics::SEARCH, [], Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => $ip, 'HTTP_USER_AGENT' => BROWSER_UA]));
+    }
+
+    $rows = analyticsRows();
+
+    expect($rows->pluck('bot')->all())->toBe([Analytics::BOT_DATACENTER, 0])
+        ->and($rows->pluck('country')->all())->toBe(['SG', 'US']);
+});
+
+test('without the IP databases nothing is looked up and nothing breaks', function () {
+    config(['analytics.geo_path' => storage_path('framework/testing/no-geo-here')]);
+
+    $geo = new App\Support\Analytics\GeoLookup;
+
+    expect($geo->country('73.162.1.1'))->toBeNull()->and($geo->asn('73.162.1.1'))->toBeNull();
+});
+
+test('a broken download never replaces a working database', function () {
+    $dir = storage_path('framework/testing/geo-'.uniqid());
+    config(['analytics.geo_path' => $dir]);
+    Illuminate\Support\Facades\File::ensureDirectoryExists($dir);
+    file_put_contents("{$dir}/country.mmdb", 'the old one');
+    touch("{$dir}/country.mmdb", now()->subDays(30)->getTimestamp());
+    Illuminate\Support\Facades\Http::fake(['download.db-ip.com/*' => Illuminate\Support\Facades\Http::response(gzencode('not a database'))]);
+
+    $this->artisan('ei:analytics-geo-update')->assertSuccessful();
+
+    expect(file_get_contents("{$dir}/country.mmdb"))->toBe('the old one')
+        ->and(glob("{$dir}/*.download*"))->toBe([]);
+    Illuminate\Support\Facades\File::deleteDirectory($dir);
+});

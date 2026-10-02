@@ -1,0 +1,74 @@
+<?php
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
+use MaxMind\Db\Reader;
+use Throwable;
+
+/**
+ * Keeps the DB-IP Lite country and ASN databases in analytics.geo_path
+ * fresh (they publish monthly). Runs daily but only downloads when a file
+ * is missing or more than 20 days old. A new file replaces the old one only
+ * after it has opened as a valid database. Data: IP Geolocation by DB-IP
+ * (https://db-ip.com), CC BY 4.0.
+ */
+class AnalyticsGeoUpdate extends Command
+{
+    protected $signature = 'ei:analytics-geo-update {--force : Download even if the files are recent}';
+
+    protected $description = 'Download the free DB-IP country and ASN databases used to flag bots.';
+
+    public const FILES = ['country' => 'dbip-country-lite', 'asn' => 'dbip-asn-lite'];
+
+    public function handle(): int
+    {
+        $dir = config('analytics.geo_path');
+        File::ensureDirectoryExists($dir);
+
+        foreach (self::FILES as $name => $remote) {
+            $target = "{$dir}/{$name}.mmdb";
+
+            if (! $this->option('force') && File::exists($target) && File::lastModified($target) > now()->subDays(20)->getTimestamp()) {
+                continue;
+            }
+
+            // This month's file appears a few days in; fall back to last month's.
+            foreach ([now(), now()->subMonthNoOverflow()] as $month) {
+                if ($this->download("https://download.db-ip.com/free/{$remote}-{$month->format('Y-m')}.mmdb.gz", $target)) {
+                    $this->info("Updated {$name}.mmdb ({$month->format('Y-m')}).");
+                    break;
+                }
+            }
+        }
+
+        return self::SUCCESS;
+    }
+
+    private function download(string $url, string $target): bool
+    {
+        $gz = "{$target}.download.gz";
+        $tmp = "{$target}.download";
+
+        try {
+            $response = Http::timeout(120)->sink($gz)->get($url);
+            if (! $response->successful()) {
+                return false;
+            }
+
+            File::put($tmp, gzdecode(File::get($gz)) ?: throw new \RuntimeException("Could not unzip {$url}"));
+            (new Reader($tmp))->close(); // throws if it is not a valid database
+            File::move($tmp, $target);
+
+            return true;
+        } catch (Throwable $e) {
+            report($e);
+
+            return false;
+        } finally {
+            File::delete([$gz, $tmp]);
+        }
+    }
+}

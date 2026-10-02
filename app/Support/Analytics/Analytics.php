@@ -29,6 +29,8 @@ class Analytics
 
     public const BOT_OVER_DAILY_CAP = 4;
 
+    public const BOT_DATACENTER = 8;
+
     /** The 'array' buffer (tests). */
     private array $memory = [];
 
