@@ -84,7 +84,9 @@ class SavedSearchController extends Controller
     {
         $user = $request->user();
 
-        $search = $action->handle($user->id, $request->input('name'), $request->input('criteria'));
+        // `pin`: a guest's search carried into the account they just signed
+        // into, pinned because that's what they asked for (useSavedSearches.js).
+        $search = $action->handle($user->id, $request->input('name'), $request->input('criteria'), $request->boolean('pin'));
 
         if (! $search) {
             return response()->json(['message' => 'You have saved the maximum of '.SaveSearchAction::MAX_SAVED_SEARCHES.' searches — remove one before saving another.'], 422);
@@ -159,13 +161,8 @@ class SavedSearchController extends Controller
     {
         abort_unless($savedSearch->user_id === $request->user()->id, 404);
 
-        // No body flips the pin (the dropdown's button). `pinned` sets it
-        // outright, for a caller that must not undo a pin already in place
-        // (a guest's search carried into their account after login).
-        $request->validate(['pinned' => 'sometimes|boolean']);
-
-        SaveSearchAction::withUserLock($savedSearch->user_id, function () use ($savedSearch, $request) {
-            $savedSearch->pinned = $request->has('pinned') ? $request->boolean('pinned') : ! $savedSearch->pinned;
+        SaveSearchAction::withUserLock($savedSearch->user_id, function () use ($savedSearch) {
+            $savedSearch->pinned = ! $savedSearch->pinned;
             $savedSearch->save();
         });
 
@@ -230,7 +227,8 @@ class SavedSearchController extends Controller
      */
     public function replay(Request $request, NormalizeSavedSearchCriteriaAction $normalize, BuildSearchUrlAction $buildUrl)
     {
-        $criteria = json_decode((string) $request->query('criteria'), true);
+        $raw = $request->query('criteria');
+        $criteria = is_string($raw) ? json_decode($raw, true) : null;
 
         $rules = collect((new StoreSavedSearchRequest)->rules())->except('name')->all();
 

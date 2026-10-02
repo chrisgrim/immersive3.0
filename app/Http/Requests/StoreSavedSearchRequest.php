@@ -20,6 +20,7 @@ class StoreSavedSearchRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:255',
+            'pin' => 'sometimes|boolean',
             'criteria' => 'required|array',
             'criteria.city' => 'nullable|string|max:255',
             // Bounded, not just numeric — same as UpdateSavedSearchRequest's

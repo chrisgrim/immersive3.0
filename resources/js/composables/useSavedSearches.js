@@ -59,6 +59,12 @@ function clearGuestSearch() {
     }
 }
 
+// Clear only the copy that was read, not a newer search another tab has
+// stored since (it carries over on its own next page load).
+function clearGuestSearchIfStill(search) {
+    if (readGuestSearch()?.updated_at === search.updated_at) clearGuestSearch();
+}
+
 /**
  * The guest's search as a dropdown row, shaped like the rows the account
  * endpoint returns. `url` goes through the server, so the query string is
@@ -80,12 +86,14 @@ export function guestSearchRow() {
 }
 
 /**
- * Pinning needs an account: remember when they asked, then ask them to log
- * in. The login modal lives in nav-profile.vue, which only desktop renders,
- * so a phone goes to the login page instead.
+ * Pinning needs an account: remember which search they pinned and when, then
+ * ask them to log in. It's the row they clicked that's kept, not whatever
+ * another tab has stored since the dropdown opened. The login modal lives in
+ * nav-profile.vue, which only desktop renders, so a phone goes to the login
+ * page instead.
  */
-export function pinGuestSearchAfterLogin() {
-    const search = readGuestSearch();
+export function pinGuestSearchAfterLogin(row) {
+    const search = row ? { name: row.name, criteria: row.criteria, updated_at: row.updated_at } : readGuestSearch();
     if (search) writeGuestSearch({ ...search, pinRequestedAt: new Date().toISOString() });
 
     if (window.Laravel?.isMobile) {
@@ -98,12 +106,15 @@ export function pinGuestSearchAfterLogin() {
 
 // How long a guest search, or a request to pin it, still belongs to whoever
 // logs in next on this browser. Past it, on a shared computer that could be
-// someone else entirely, so it's dropped rather than carried over.
+// someone else entirely, so it's dropped rather than carried over. A time
+// ahead of now (the clock was wrong when it was stored) isn't trusted
+// beyond a few minutes' drift.
 const CARRY_OVER_WINDOW_MS = 60 * 60 * 1000;
+const CLOCK_DRIFT_MS = 5 * 60 * 1000;
 
 const isRecent = (iso) => {
-    const at = Date.parse(iso || '');
-    return Number.isFinite(at) && Date.now() - at < CARRY_OVER_WINDOW_MS;
+    const age = Date.now() - Date.parse(iso || '');
+    return Number.isFinite(age) && age > -CLOCK_DRIFT_MS && age < CARRY_OVER_WINDOW_MS;
 };
 
 /**
@@ -123,25 +134,21 @@ export async function carryOverGuestSearch() {
     const pinWanted = isRecent(search.pinRequestedAt);
 
     if (!pinWanted && !isRecent(search.updated_at)) {
-        clearGuestSearch();
+        clearGuestSearchIfStill(search);
         return;
     }
 
     try {
-        const { data } = await axios.post('/api/hub/saved-searches', { name: search.name, criteria: search.criteria });
+        // One request: the server saves and pins under one lock, so the pin
+        // can't land on a search another tab saves in between, and it never
+        // unpins a search the account already has pinned.
+        await axios.post('/api/hub/saved-searches', { name: search.name, criteria: search.criteria, pin: pinWanted });
 
-        // Sets the pin rather than flipping it, so a row that's already
-        // pinned, or a second tab doing this at the same moment, can't
-        // unpin it.
-        if (pinWanted && data.search) {
-            await axios.patch(`/api/hub/saved-searches/${data.search.id}/pin`, { pinned: true });
-        }
-
-        clearGuestSearch();
+        clearGuestSearchIfStill(search);
     } catch (error) {
         // A 422 is the account's saved-search limit (or criteria the server
         // won't take): retrying on every page would only fail again.
-        if (error.response?.status === 422) clearGuestSearch();
+        if (error.response?.status === 422) clearGuestSearchIfStill(search);
         console.error('[saved-searches] failed to carry over guest search', error);
     }
 }

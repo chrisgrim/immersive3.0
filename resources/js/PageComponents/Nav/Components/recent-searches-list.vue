@@ -122,7 +122,7 @@ const togglePin = async (search) => {
     // is for, so it opens the login/sign-up modal and gets pinned once
     // they're in (see carryOverGuestSearch).
     if (search.guest) {
-        pinGuestSearchAfterLogin();
+        pinGuestSearchAfterLogin(search);
         return;
     }
 

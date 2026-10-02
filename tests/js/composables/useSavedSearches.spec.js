@@ -114,10 +114,11 @@ describe('guest search (one slot, in this browser)', () => {
     });
 
     it('still runs the search when the browser refuses storage', async () => {
-        const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+        window.localStorage.setItem.mockImplementationOnce(() => { throw new Error('blocked'); });
 
         await expect(saveSearch('New York', nyc)).resolves.toBeUndefined();
-        setItem.mockRestore();
+        expect(window.localStorage.setItem).toHaveBeenCalled();
+        expect(readGuestSearch()).toBeNull();
     });
 
     describe('guestSearchRow', () => {
@@ -151,6 +152,17 @@ describe('guest search (one slot, in this browser)', () => {
         expect(Date.parse(readGuestSearch().pinRequestedAt)).toBeGreaterThan(Date.now() - 5000);
         expect(opened).toHaveBeenCalledOnce();
         window.removeEventListener('open-login-modal', opened);
+    });
+
+    it('pins the row they clicked, even if another tab has searched since', async () => {
+        await saveSearch('New York', nyc);
+        const clicked = guestSearchRow();
+        await saveSearch('San Francisco', sf); // another tab
+
+        pinGuestSearchAfterLogin(clicked);
+
+        expect(readGuestSearch()).toMatchObject({ name: 'New York', criteria: nyc });
+        expect(readGuestSearch().pinRequestedAt).not.toBeNull();
     });
 
     it('pinning on a phone goes to the login page, since the modal is desktop-only', async () => {
@@ -187,20 +199,48 @@ describe('guest search (one slot, in this browser)', () => {
 
             await carryOverGuestSearch();
 
-            expect(axios.post).toHaveBeenCalledWith('/api/hub/saved-searches', { name: 'New York', criteria: nyc });
+            expect(axios.post).toHaveBeenCalledWith('/api/hub/saved-searches', { name: 'New York', criteria: nyc, pin: false });
             expect(axios.patch).not.toHaveBeenCalled();
             expect(readGuestSearch()).toBeNull();
         });
 
-        it('pins it when they asked to, by setting the pin rather than flipping it', async () => {
+        it('pins it when they asked to, in the same request as the save', async () => {
             await saveSearch('New York', nyc);
             pinGuestSearchAfterLogin();
             logIn();
-            axios.post.mockResolvedValueOnce({ data: { search: { id: 12, pinned: false } } });
+            axios.post.mockResolvedValueOnce({ data: { search: { id: 12, pinned: true } } });
 
             await carryOverGuestSearch();
 
-            expect(axios.patch).toHaveBeenCalledWith('/api/hub/saved-searches/12/pin', { pinned: true });
+            expect(axios.post).toHaveBeenCalledWith('/api/hub/saved-searches', { name: 'New York', criteria: nyc, pin: true });
+            expect(axios.patch).not.toHaveBeenCalled();
+            expect(readGuestSearch()).toBeNull();
+        });
+
+        it('leaves a newer search another tab stored while this one was carrying over', async () => {
+            await saveSearch('New York', nyc);
+            logIn();
+            axios.post.mockImplementationOnce(async () => {
+                window.Laravel = {};
+                await new Promise((r) => setTimeout(r, 2));
+                await saveSearch('San Francisco', sf); // the other, still-guest tab
+                window.Laravel = { user: { id: 7 } };
+                return { data: { search: { id: 12, pinned: false } } };
+            });
+
+            await carryOverGuestSearch();
+
+            expect(readGuestSearch()).toMatchObject({ name: 'San Francisco' });
+        });
+
+        it('does not trust a time ahead of now: a search stored with the clock a day fast is dropped', async () => {
+            const ahead = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+            window.localStorage.setItem('ei_guest_search', JSON.stringify({ name: 'New York', criteria: nyc, updated_at: ahead, pinRequestedAt: ahead }));
+            logIn();
+
+            await carryOverGuestSearch();
+
+            expect(axios.post).not.toHaveBeenCalled();
             expect(readGuestSearch()).toBeNull();
         });
 
@@ -235,7 +275,7 @@ describe('guest search (one slot, in this browser)', () => {
 
             await carryOverGuestSearch();
 
-            expect(axios.patch).toHaveBeenCalledWith('/api/hub/saved-searches/12/pin', { pinned: true });
+            expect(axios.post).toHaveBeenCalledWith('/api/hub/saved-searches', { name: 'New York', criteria: nyc, pin: true });
         });
 
         it('keeps the browser copy to try again when the request fails', async () => {

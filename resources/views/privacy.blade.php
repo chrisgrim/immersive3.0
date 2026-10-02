@@ -132,7 +132,7 @@
                     We use cookies and similar tracking technologies to track activity on our website and hold certain information. Cookies are files with a small amount of data that may include an anonymous unique identifier. You can instruct your browser to refuse all cookies or to indicate when a cookie is being sent.
                 </p>
                 <p class="mt-4">
-                    If you search without signing in, we keep your most recent search in your browser's local storage so it appears in the search box next time. It stays on your device and is only sent to us if you sign in, when it is saved to your account.
+                    If you search without signing in, we keep your most recent search in your browser's local storage so it appears in the search box next time. If you choose it there, it is sent to us to show the results, like any search. If you sign in within an hour of making it, or of choosing to pin it, it is saved to your account; otherwise it is deleted from your browser when you sign in.
                 </p>
             </section>
             

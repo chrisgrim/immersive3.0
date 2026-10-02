@@ -1033,25 +1033,44 @@ test('replay needs no account and saves nothing', function () {
     expect(SavedSearch::count())->toBe(0);
 });
 
-test('pin with pinned=true sets the pin and never flips it off', function () {
+test('store with pin saves and pins in one go, and never unpins one already pinned', function () {
     $user = User::factory()->create();
-    $search = SavedSearch::factory()->create(['user_id' => $user->id, 'pinned' => false]);
+    $criteria = ['city' => 'New York', 'searchType' => 'inPerson'];
 
-    foreach ([1, 2] as $_) {
-        $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/pin", ['pinned' => true])
-            ->assertOk()->assertJsonPath('search.pinned', true);
-    }
+    $first = $this->actingAs($user)->postJson('/api/hub/saved-searches', ['name' => 'New York', 'criteria' => $criteria, 'pin' => true])
+        ->assertCreated()->assertJsonPath('search.pinned', true)->json('search.id');
 
-    // No body still flips it, as the dropdown's button expects.
-    $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/pin")
+    // The same search carried over again (a second tab) stays pinned.
+    $this->actingAs($user)->postJson('/api/hub/saved-searches', ['name' => 'New York', 'criteria' => $criteria, 'pin' => true])
+        ->assertJsonPath('search.id', $first)->assertJsonPath('search.pinned', true);
+
+    // Without pin it's the ordinary auto-save.
+    $this->actingAs($user)->postJson('/api/hub/saved-searches', ['name' => 'Denver', 'criteria' => ['city' => 'Denver']])
         ->assertJsonPath('search.pinned', false);
 });
 
-test('replay refuses more than 50 categories or tags', function () {
-    $ids = range(1, 51);
+test('pin with no body still flips, as the dropdown button expects', function () {
+    $user = User::factory()->create();
+    $search = SavedSearch::factory()->create(['user_id' => $user->id, 'pinned' => false]);
 
-    foreach (['categories', 'tags'] as $key) {
-        $this->get('/index/search/replay?criteria='.urlencode(json_encode([$key => $ids])))
-            ->assertRedirect(route('search'));
-    }
+    $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/pin")->assertJsonPath('search.pinned', true);
+    $this->actingAs($user)->patchJson("/api/hub/saved-searches/{$search->id}/pin")->assertJsonPath('search.pinned', false);
+});
+
+test('replay refuses more than 50 categories, even ones that all exist', function () {
+    $ids = Category::factory()->count(51)->create()->pluck('id')->all();
+
+    $this->get('/index/search/replay?criteria='.urlencode(json_encode(['categories' => $ids])))
+        ->assertRedirect(route('search'));
+
+    // 50 of them are fine, so it's the cap doing the refusing.
+    $location = $this->get('/index/search/replay?criteria='.urlencode(json_encode(['categories' => array_slice($ids, 0, 50)])))
+        ->assertRedirect()
+        ->headers->get('Location');
+    expect($location)->toContain('category=');
+});
+
+test('replay sends criteria given as a query array, not JSON, to a plain search page', function () {
+    $this->get('/index/search/replay?criteria[city]=Denver')
+        ->assertRedirect(route('search'));
 });

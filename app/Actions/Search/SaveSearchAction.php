@@ -45,9 +45,20 @@ class SaveSearchAction
      * no scratch row left to reuse, and this criteria doesn't match any
      * existing row.
      */
-    public function handle(int $userId, string $name, array $criteria): ?SavedSearch
+    public function handle(int $userId, string $name, array $criteria, bool $pin = false): ?SavedSearch
     {
-        return static::withUserLock($userId, fn () => $this->save($userId, $name, $criteria));
+        return static::withUserLock($userId, function () use ($userId, $name, $criteria, $pin) {
+            $search = $this->save($userId, $name, $criteria);
+
+            // Pinned under the same lock as the save, so no other write can
+            // land in between and leave the pin on a different search.
+            if ($search && $pin && ! $search->pinned) {
+                $search->pinned = true;
+                $search->save();
+            }
+
+            return $search;
+        });
     }
 
     /**
