@@ -1,5 +1,17 @@
 @extends('layouts.master-container')
 
+@section('meta')
+    <title>Page Not Found - {{ config('app.name') }}</title>
+    <meta name="robots" content="noindex">
+@endsection
+
+@section('nav')
+@if (Browser::isMobile())
+    @include('nav.index-mobile')
+@else
+    @include('nav.index-desktop')
+@endif
+@endsection
 
 @section('content')
     <div class="h-[calc(100vh-8rem)] min-h-[60vh] flex items-center justify-center px-6 py-12">
@@ -25,4 +37,5 @@
 @endsection
 
 @section('footer')
+    @include('footer.footer-padded')
 @endsection
