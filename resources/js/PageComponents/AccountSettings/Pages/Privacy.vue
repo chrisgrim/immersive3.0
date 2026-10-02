@@ -69,7 +69,7 @@
                     <component :is="RiInformationLine" class="w-6 h-6 mb-3" />
                     <h3 class="text-2.5xl font-semibold mb-2">Cookie preferences</h3>
                     <p class="text-1xl text-neutral-500">
-                        We use essential session cookies and Google Analytics. A self-serve cookie manager isn't available yet — email
+                        We use essential session cookies and Google Analytics. Our own visit counts use no cookies (see the Privacy Policy). A self-serve cookie manager isn't available yet — email
                         <a href="mailto:support@everythingimmersive.com" class="underline hover:no-underline">support@everythingimmersive.com</a>
                         to opt out of analytics.
                     </p>

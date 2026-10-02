@@ -18,7 +18,7 @@
     <h1 class="text-4xl font-bold mb-6">Privacy Policy</h1>
     
     <div class="text-sm text-neutral-500 mb-10">
-        Last Updated: {{ date('F d, Y') }}
+        Last Updated: October 2, 2026
     </div>
     
     <div class="prose prose-lg max-w-none">
@@ -41,10 +41,7 @@
                         <li>Name</li>
                         <li>Email address</li>
                         <li>Phone number</li>
-                        <li>Billing address</li>
-                        <li>Payment information</li>
                         <li>Account preferences</li>
-                        <li>Event attendance history</li>
                     </ul>
                     
                     <h3 class="text-xl font-medium mt-6">Non-Personal Information</h3>
@@ -71,7 +68,6 @@
                 </p>
                 <ul class="list-disc pl-5 space-y-2 mt-4">
                     <li>Provide, operate, and maintain our services</li>
-                    <li>Process and complete transactions</li>
                     <li>Send transactional messages, including confirmations, technical notices, updates, and support messages</li>
                     <li>Respond to your comments, questions, and requests</li>
                     <li>Personalize your experience and deliver content relevant to your interests</li>
@@ -89,7 +85,7 @@
                     We may share your information in the following situations:
                 </p>
                 <ul class="list-disc pl-5 space-y-2 mt-4">
-                    <li><strong>With Event Organizers:</strong> When you purchase tickets or register for events, we share necessary information with the event organizers.</li>
+                    <li><strong>With Event Organizers:</strong> We do not sell tickets, and organizers never learn who you are from our visit counts. They may see totals, such as how many people viewed their listing or clicked its ticket link.</li>
                     <li><strong>With Service Providers:</strong> We may share your information with third-party vendors, service providers, contractors, or agents who perform services for us.</li>
                     <li><strong>Business Transfers:</strong> If we're involved in a merger, acquisition, or sale of assets, your information may be transferred as part of that transaction.</li>
                     <li><strong>Legal Requirements:</strong> We may disclose your information if required to do so by law or in response to valid requests by public authorities.</li>
@@ -129,7 +125,23 @@
             <section>
                 <h2 class="text-2xl font-semibold mb-4">6. Cookies and Tracking Technologies</h2>
                 <p>
-                    We use cookies and similar tracking technologies to track activity on our website and hold certain information. Cookies are files with a small amount of data that may include an anonymous unique identifier. You can instruct your browser to refuse all cookies or to indicate when a cookie is being sent.
+                    We use an essential session cookie to keep you signed in and to protect forms. You can instruct your browser to refuse cookies, but parts of the site that need you to be signed in will not work.
+                </p>
+                <p class="mt-4">
+                    <strong>Our own visit counts.</strong> To learn which events people look for, which searches find nothing, and how often a listing's ticket link is clicked, we record searches (the place and filters, and how many events matched), event page views, clicks on search results and ticket links, the kind of website that sent you (for example a search engine), and your country. We do this without cookies and without storing your IP address: your IP address and browser name are combined into a code that changes every day and cannot be traced back to you, and are then discarded. These records are kept for 13 months. Organizers only ever see totals. IP geolocation by <a href="https://db-ip.com" class="text-blue-600 hover:underline">DB-IP</a>.
+                </p>
+                @if (config('services.umami.website_id'))
+                <p class="mt-4">
+                    We also use Umami, a privacy-friendly analytics service that counts page visits without cookies.
+                </p>
+                @endif
+                @if (config('services.analytics.id'))
+                <p class="mt-4">
+                    We also use Google Analytics, with IP anonymization, which sets cookies to measure how the site is used.
+                </p>
+                @endif
+                <p class="mt-4">
+                    To object to any of this, email us at the address below.
                 </p>
                 <p class="mt-4">
                     If you search without signing in, we keep your most recent search in your browser's local storage so it appears in the search box next time. If you choose it there, it is sent to us to show the results, like any search. If you sign in within an hour of making it, or of choosing to pin it, it is saved to your account; otherwise it is deleted from your browser when you sign in.
@@ -169,8 +181,6 @@
                 <div class="bg-neutral-50 p-6 rounded-xl mt-4 inline-block">
                     <div class="not-prose">
                         <p class="font-medium">Everything Immersive</p>
-                        <p>1234 Experience Street</p>
-                        <p>San Francisco, CA 94103</p>
                         <p class="mt-2">Email: <a href="mailto:privacy@everythingimmersive.com" class="text-blue-600 hover:underline">privacy@everythingimmersive.com</a></p>
                     </div>
                 </div>

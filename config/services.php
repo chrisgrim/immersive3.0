@@ -45,8 +45,19 @@ return [
         'client_secret' => env('GITHUB_CLIENT_SECRET'),
         'redirect' => env('GITHUB_REDIRECT_URI'),
     ],
+    // Google Analytics: loaded only while this is set. Remove ANALYTICS_ID
+    // to switch it off (and the privacy page stops mentioning it).
     'analytics' => [
         'id' => env('ANALYTICS_ID'),
+    ],
+
+    // Umami (cookieless page counts): loaded only while a website id is set.
+    'umami' => [
+        'website_id' => env('UMAMI_WEBSITE_ID'),
+        'script_url' => env('UMAMI_SCRIPT_URL', 'https://cloud.umami.is/script.js'),
+        // Only count visits on these hosts (comma-separated), so a dev or
+        // local copy never adds to the live numbers.
+        'domains' => env('UMAMI_DOMAINS', 'everythingimmersive.com'),
     ],
 
     'geonames' => [

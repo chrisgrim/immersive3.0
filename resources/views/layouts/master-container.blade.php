@@ -35,17 +35,24 @@
             />
         </noscript>
         
-        {{-- Analytics with IP Anonymization and Consent Compliance --}}
-        <script async rel="preconnect" src="https://www.googletagmanager.com/gtag/js?id={{Config::get('services.analytics.id')}}"></script>
+        {{-- Google Analytics, only while ANALYTICS_ID is set. --}}
+        @if (config('services.analytics.id'))
+        <script async rel="preconnect" src="https://www.googletagmanager.com/gtag/js?id={{ config('services.analytics.id') }}"></script>
         <script>
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
-          gtag('config', '{{Config::get('services.analytics.id')}}', {
+          gtag('config', '{{ config('services.analytics.id') }}', {
               'anonymize_ip': true
           });
         </script>
-        
+        @endif
+
+        {{-- Umami (cookieless), only while UMAMI_WEBSITE_ID is set. --}}
+        @if (config('services.umami.website_id'))
+        <script defer src="{{ config('services.umami.script_url') }}" data-website-id="{{ config('services.umami.website_id') }}" data-domains="{{ config('services.umami.domains') }}"></script>
+        @endif
+
         <script>
             window.Laravel = {
                 user: {!! Auth::check() ? json_encode(Auth::user()->forClientSide()) : 'null' !!},
@@ -66,10 +73,6 @@
         @vite(['resources/js/app.js'])
 	</head>
 	<body id="app">
-        <!-- Google Tag Manager (noscript) -->
-        <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5LHWVRN"
-        height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-        <!-- End Google Tag Manager (noscript) -->
         <header id="header">
             @yield('nav')
         </header>
