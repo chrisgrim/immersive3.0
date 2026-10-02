@@ -18,6 +18,7 @@ class IndexController extends Controller
                 'posts' => function ($query) {
                     // Don't filter by is_hidden - hidden posts should still appear in docks
                     $query->where('status', 'p')
+                        ->whereHas('community', fn ($community) => $community->where('status', 'p'))
                         ->with([
                             'community:id,name,slug',
                             'featuredEventImage',
@@ -42,13 +43,16 @@ class IndexController extends Controller
                         ->limit(4);
                 },
                 'cards' => function ($query) {
-                    $query->with([
-                        'post:id,name,slug,community_id',
-                        'post.community:id,name,slug',
-                        'event:id,name,slug,thumbImagePath,largeImagePath',
-                        'event.currentUserFavorite',
-                        'images',
-                    ])
+                    // Only cards whose post (and its community) is still public.
+                    $query->whereHas('post', fn ($post) => $post->where('status', 'p')
+                        ->whereHas('community', fn ($community) => $community->where('status', 'p')))
+                        ->with([
+                            'post:id,name,slug,community_id',
+                            'post.community:id,name,slug',
+                            'event:id,name,slug,thumbImagePath,largeImagePath',
+                            'event.currentUserFavorite',
+                            'images',
+                        ])
                         ->orderBy('order')
                         ->limit(4);
                 },
@@ -57,26 +61,27 @@ class IndexController extends Controller
                 },
                 'shelves.dockPosts' => function ($query) {
                     // Use dockPosts relationship which includes hidden posts
-                    $query->with([
-                        'community:id,name,slug',
-                        'featuredEventImage',
-                        'images',
-                        'limitedCards',
-                        'limitedCards.event.currentUserFavorite',
-                        // Hero maps these posts' cards through the same path
-                        // as the posts branch; eager-load to match (EI-LARAVEL-F).
-                        'cards' => function ($cardQuery) {
-                            $cardQuery->with([
-                                'post:id,name,slug,community_id',
-                                'post.community:id,name,slug',
-                                'event:id,name,slug,thumbImagePath,largeImagePath',
-                                'event.currentUserFavorite',
-                                'images',
-                            ]);
-                        },
-                    ]);
+                    $query->whereHas('community', fn ($community) => $community->where('status', 'p'))
+                        ->with([
+                            'community:id,name,slug',
+                            'featuredEventImage',
+                            'images',
+                            'limitedCards',
+                            'limitedCards.event.currentUserFavorite',
+                            // Hero maps these posts' cards through the same path
+                            // as the posts branch; eager-load to match (EI-LARAVEL-F).
+                            'cards' => function ($cardQuery) {
+                                $cardQuery->with([
+                                    'post:id,name,slug,community_id',
+                                    'post.community:id,name,slug',
+                                    'event:id,name,slug,thumbImagePath,largeImagePath',
+                                    'event.currentUserFavorite',
+                                    'images',
+                                ]);
+                            },
+                        ]);
                 },
-                'communities',
+                'communities' => fn ($query) => $query->where('status', 'p'),
             ])
             ->orderBy('order', 'ASC')
             ->get();

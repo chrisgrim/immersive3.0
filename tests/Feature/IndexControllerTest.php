@@ -114,3 +114,26 @@ test('homepage only loads non-hidden shelves on a dock', function () {
     // The shelves closure filters is_hidden === false.
     expect($loadedDock->shelves->pluck('id')->all())->toBe([$visible->id]);
 });
+
+test('homepage leaves out docked content whose post or community is no longer public', function () {
+    $dock = Dock::factory()->create(['location' => 'home', 'order' => 0]);
+    $live = Post::factory()->published()->create();
+    $draft = Post::factory()->create(['status' => 'd']);
+    $pendingCommunityPost = Post::factory()->published()->create();
+    $pendingCommunityPost->community->update(['status' => 'r']);
+
+    $cards = collect([$live, $draft, $pendingCommunityPost])->map(fn ($post) => Card::factory()->create([
+        'post_id' => $post->id,
+        'event_id' => Event::factory()->published()->create()->id,
+        'type' => 'e',
+    ]));
+    $dock->cards()->attach($cards->pluck('id'));
+    $dock->posts()->attach([$live->id, $pendingCommunityPost->id]);
+    $dock->communities()->attach($pendingCommunityPost->community_id);
+
+    $loaded = $this->get('/')->assertOk()->viewData('docks')->firstWhere('id', $dock->id);
+
+    expect($loaded->cards->pluck('id')->all())->toBe([$cards[0]->id])
+        ->and($loaded->posts->pluck('id')->all())->toBe([$live->id])
+        ->and($loaded->communities)->toBeEmpty();
+});
