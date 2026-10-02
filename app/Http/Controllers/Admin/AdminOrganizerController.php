@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Admin\ModerateSubmission;
 use App\Http\Controllers\Controller;
 use App\Mail\Comments;
 use App\Models\Event;
@@ -254,44 +255,18 @@ class AdminOrganizerController extends Controller
     {
         $organizer->update(['status' => 'p']);
 
-        // Send notifications if not self-approving
-        if (auth()->id() !== $organizer->user_id) {
-            $message = Message::MESSAGES['ORGANIZER_APPROVED'];
-
-            // Send in-app notification
-            Message::notification($organizer, $message, $organizer->slug);
-
-            // Send email notification
-            Mail::to($organizer->user)->send(new Comments($organizer, $message, 'approved'));
-        }
+        $message = Message::MESSAGES['ORGANIZER_APPROVED'];
+        app(ModerateSubmission::class)->notifyOwner($organizer, $organizer->user, $message, $message, 'approved');
 
         return response()->json(['message' => 'Organizer approved successfully']);
     }
 
     public function reject(Request $request, Organizer $organizer)
     {
-        $validated = $request->validate([
-            'reason' => 'required|string|max:1000',
-        ]);
+        $validated = $request->validate(ModerateSubmission::REASON_RULES);
 
-        $organizer->update([
-            'status' => 'n',
-            'rejection_reason' => $validated['reason'],
-        ]);
-
-        // Create rejection message with reason
-        $message = "We've reviewed your organizer and have some feedback that needs to be addressed.\n\nReason: {$validated['reason']}";
-        $inAppMessage = "We've reviewed your organizer and have some feedback that needs to be addressed.\n\nReason: {$validated['reason']}";
-
-        if (auth()->id() !== $organizer->user_id) {
-            $message = Message::MESSAGES['ORGANIZER_REJECTED']."\n\nReason: {$validated['reason']}";
-
-            // Send in-app notification
-            Message::notification($organizer, $inAppMessage, $organizer->slug);
-
-            // Send email notification
-            Mail::to($organizer->user)->send(new Comments($organizer, $message, 'rejected'));
-        }
+        app(ModerateSubmission::class)
+            ->reject($organizer, $organizer->user, $validated['reason'], 'organizer', Message::MESSAGES['ORGANIZER_REJECTED']);
 
         return response()->json([
             'message' => 'Organizer rejected successfully',

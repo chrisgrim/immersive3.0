@@ -56,7 +56,7 @@ resources/
 - **User**: Roles via `type` char — `g`=guest, `u`=user, `c`=curator, `m`=moderator, `a`=admin
 
 ### Status Codes
-- **Event status**: `d`=draft, `0`=new, `r`=**under review** (awaiting moderation — this is the approval queue, see `AdminEventController::getPending()`), `p`=published, `e`=embargoed, `n`=**rejected** (set by `reject()` along with `rejection_reason`). ⚠️ `r` is NOT "rejected" and `n` is NOT "other" — this file said so until 2026-08-26 and it's an easy way to read the approval queue backwards.
+- **Event status**: `d`=draft, `0`=new, `r`=**under review** (awaiting moderation — this is the approval queue, see `AdminEventController::getPending()`), `p`=published, `e`=embargoed, `n`=**rejected** (set by `reject()` via `App\Actions\Admin\ModerateSubmission`; the reason is sent to the owner as a message, there is no `rejection_reason` column). ⚠️ `r` is NOT "rejected" and `n` is NOT "other" — this file said so until 2026-08-26 and it's an easy way to read the approval queue backwards.
 - **Event showtype**: `s`=specific dates, `o`=ongoing, `a`=always, `l`=limited
 - **Content status** (organizer/community/post): `p`=published, `d`=draft, `r`=under review, `n`=rejected — same convention as events above (`AdminOrganizerController`/`AdminCommunityController` both set `n` on reject).
 

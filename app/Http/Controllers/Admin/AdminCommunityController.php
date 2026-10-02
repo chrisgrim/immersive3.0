@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Admin\ModerateSubmission;
 use App\Http\Controllers\Controller;
-use App\Mail\Comments;
 use App\Models\Curated\Community;
 use App\Models\Messaging\Message;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 
 class AdminCommunityController extends Controller
 {
@@ -37,44 +36,18 @@ class AdminCommunityController extends Controller
     {
         $community->update(['status' => 'p']);
 
-        // Send notifications if not self-approving
-        if (auth()->id() !== $community->user_id) {
-            $message = Message::MESSAGES['COMMUNITY_APPROVED'];
-
-            // Send in-app notification
-            Message::notification($community, $message, $community->slug);
-
-            // Send email notification
-            Mail::to($community->owner)->send(new Comments($community, $message, 'approved'));
-        }
+        $message = Message::MESSAGES['COMMUNITY_APPROVED'];
+        app(ModerateSubmission::class)->notifyOwner($community, $community->owner, $message, $message, 'approved');
 
         return response()->json(['message' => 'Community approved successfully']);
     }
 
     public function reject(Request $request, Community $community)
     {
-        $validated = $request->validate([
-            'reason' => 'required|string|max:1000',
-        ]);
+        $validated = $request->validate(ModerateSubmission::REASON_RULES);
 
-        $community->update([
-            'status' => 'n',
-            'rejection_reason' => $validated['reason'],
-        ]);
-
-        // Create rejection message with reason
-        $message = "We've reviewed your community and have some feedback that needs to be addressed.\n\nReason: {$validated['reason']}";
-        $inAppMessage = "We've reviewed your community and have some feedback that needs to be addressed.\n\nReason: {$validated['reason']}";
-
-        if (auth()->id() !== $community->user_id) {
-            $message = Message::MESSAGES['COMMUNITY_REJECTED']."\n\nReason: {$validated['reason']}";
-
-            // Send in-app notification
-            Message::notification($community, $inAppMessage, $community->slug);
-
-            // Send email notification
-            Mail::to($community->owner)->send(new Comments($community, $message, 'rejected'));
-        }
+        app(ModerateSubmission::class)
+            ->reject($community, $community->owner, $validated['reason'], 'community', Message::MESSAGES['COMMUNITY_REJECTED']);
 
         return response()->json([
             'message' => 'Community rejected successfully',

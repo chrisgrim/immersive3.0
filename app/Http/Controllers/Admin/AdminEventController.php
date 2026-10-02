@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Admin\ModerateSubmission;
 use App\Http\Controllers\Controller;
-use App\Mail\Comments;
 use App\Models\Event;
 use App\Models\Messaging\Message;
 use App\Scopes\LatestPublishedFirstScope;
@@ -13,7 +13,6 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Mail;
 
 class AdminEventController extends Controller
 {
@@ -340,15 +339,10 @@ class AdminEventController extends Controller
                 app(EventNotificationDispatcher::class)->newEventFromFollowedOrganizer($event);
             }
 
-            // Send notifications if not self-approving
-            if (auth()->id() !== $event->user->id) {
-                $message = $event->status === 'e'
-                    ? Message::MESSAGES['APPROVED_EMBARGOED']
-                    : Message::MESSAGES['APPROVED'];
-
-                Message::notification($event, $message, $event->slug);
-                Mail::to($event->user)->send(new Comments($event, $message, 'approved'));
-            }
+            $message = $event->status === 'e'
+                ? Message::MESSAGES['APPROVED_EMBARGOED']
+                : Message::MESSAGES['APPROVED'];
+            app(ModerateSubmission::class)->notifyOwner($event, $event->user, $message, $message, 'approved');
 
             return response()->json([
                 'message' => 'Event approved successfully',
@@ -366,29 +360,10 @@ class AdminEventController extends Controller
 
     public function reject(Event $event, Request $request)
     {
-        $validated = $request->validate([
-            'reason' => 'required|string|max:1000',
-        ]);
+        $validated = $request->validate(ModerateSubmission::REASON_RULES);
 
-        // Update event status
-        $event->update([
-            'status' => 'n',
-            'rejection_reason' => $validated['reason'],
-        ]);
-
-        // Create rejection message with reason
-        $message = "We've reviewed your event and have some feedback that needs to be addressed.\n\nFeedback: {$validated['reason']}";
-        $inAppMessage = "We've reviewed your event and have some feedback that needs to be addressed.\n\nFeedback: {$validated['reason']}";
-
-        if (auth()->id() !== $event->user->id) {
-            $message = Message::MESSAGES['REJECTED']."\n\nReason: {$validated['reason']}";
-
-            // Send in-app notification
-            Message::notification($event, $inAppMessage, $event->slug);
-
-            // Send email notification
-            Mail::to($event->user)->send(new Comments($event, $message, 'rejected'));
-        }
+        app(ModerateSubmission::class)
+            ->reject($event, $event->user, $validated['reason'], 'event', Message::MESSAGES['REJECTED']);
 
         return response()->json([
             'message' => 'Event rejected successfully',
