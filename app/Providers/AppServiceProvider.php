@@ -28,6 +28,9 @@ class AppServiceProvider extends ServiceProvider
         // (consent gating, throttles, no CSRF on the token endpoint). Must be
         // called here, before Passport's provider boots and would register them.
         Passport::ignoreRoutes();
+
+        // One per process, so the 'array' analytics buffer (tests) holds.
+        $this->app->singleton(\App\Support\Analytics\Analytics::class);
     }
 
     /**

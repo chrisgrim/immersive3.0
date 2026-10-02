@@ -27,6 +27,16 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->withoutOverlapping()
                 ->appendOutputTo(storage_path('logs/publish-events.log'));
 
+            // First-party analytics: the buffer to MySQL every minute (a
+            // handful of rows, see AnalyticsFlush), old raw rows nightly.
+            $schedule->command('ei:analytics-flush')
+                ->everyMinute()
+                ->withoutOverlapping(5);
+
+            $schedule->command('ei:analytics-prune')
+                ->dailyAt('03:40')
+                ->withoutOverlapping();
+
             $schedule->command('ei:archive-clicks')
                 ->dailyAt('03:30')
                 ->withoutOverlapping()

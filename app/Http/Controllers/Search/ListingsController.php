@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Event;
 use App\Models\Events\RemoteLocation;
 use App\Models\Genre;
+use App\Support\Analytics\Analytics;
 use App\Support\Search\SearchGuard;
 use Elastic\ScoutDriverPlus\Support\Query;
 use Illuminate\Http\Request;
@@ -525,6 +526,42 @@ class ListingsController extends Controller
         return Event::mapPins($ids);
     }
 
+    /**
+     * One analytics note per search (Analytics::SEARCH): the place typed, the
+     * filters, and how many events matched, so searches that find nothing
+     * can be listed. Nothing is recorded when the search itself failed.
+     */
+    private function recordSearch(Request $request, array $payload): void
+    {
+        if (! empty($payload['search_unavailable'])) {
+            return;
+        }
+
+        $criteria = $this->criteriaFromRequest($request);
+        // ~1 km: enough to say which area, not which street.
+        $round = fn ($coordinate) => $coordinate === null ? null : round($coordinate, 2);
+
+        Analytics::record(Analytics::SEARCH, [
+            // live=true is the map moved by hand (bounds search); not
+            // $applyGeoFilter, which is on whenever `live` is present at all.
+            'source' => $criteria['live'] ? 'map' : 'list',
+            'query' => is_string($request->city) ? trim($request->city) : null,
+            'results' => (int) ($payload['total'] ?? 0),
+            'props' => array_filter([
+                'searchType' => is_string($criteria['searchType']) ? $criteria['searchType'] : null,
+                'lat' => $round($criteria['lat']),
+                'lng' => $round($criteria['lng']),
+                'categories' => $criteria['categoryIds'],
+                'tags' => $criteria['tagIds'],
+                'remoteLocation' => $criteria['remoteLocationId'],
+                'start' => is_string($criteria['start']) ? $criteria['start'] : null,
+                'end' => is_string($criteria['end']) ? $criteria['end'] : null,
+                'priceMin' => $criteria['priceMin'],
+                'priceMax' => $criteria['priceMax'],
+            ], fn ($value) => $value !== null && $value !== []),
+        ], $request);
+    }
+
     public function index(Request $request)
     {
         $locationFilters = $this->buildLocationFilter($request);
@@ -549,6 +586,8 @@ class ListingsController extends Controller
 
         // Add maxPrice to response
         $searchedEvents['maxPrice'] = ceil($maxPrice);
+
+        $this->recordSearch($request, $searchedEvents);
 
         // Prepare view data
         $viewData = [
@@ -619,6 +658,11 @@ class ListingsController extends Controller
         $maxPrice = $this->maxPriceFor($searchFilters, $locationFilters, $boundaryFilter, $request, $applyGeoFilter);
 
         $response['maxPrice'] = ceil($maxPrice);
+
+        // A Show more click is the same search going deeper, not a new one.
+        if (! $window) {
+            $this->recordSearch($request, $response);
+        }
 
         // The map's markers — every match, not this page — whenever a map
         // is on the page (the same condition as the geo filter). "Show more"
