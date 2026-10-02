@@ -51,20 +51,20 @@ test('show renders for a published organizer even for a guest', function () {
         ->assertOk();
 });
 
-test('show redirects an unauthenticated guest to home for a non-published organizer', function () {
+test('show is a 404 for an unauthenticated guest on a non-published organizer', function () {
     $organizer = Organizer::factory()->create(['status' => 'r']);
 
     $this->get("/organizers/{$organizer->slug}")
-        ->assertRedirect('/');
+        ->assertNotFound();
 });
 
-test('show redirects a logged-in non-member to home for a non-published organizer', function () {
+test('show is a 404 for a logged-in non-member on a non-published organizer', function () {
     $organizer = Organizer::factory()->create(['status' => 'r']);
     $stranger = User::factory()->create(['type' => 'u']);
 
     $this->actingAs($stranger)
         ->get("/organizers/{$organizer->slug}")
-        ->assertRedirect('/');
+        ->assertNotFound();
 });
 
 test('show lets the owner view their own non-published organizer', function () {

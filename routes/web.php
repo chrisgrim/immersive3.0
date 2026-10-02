@@ -189,13 +189,9 @@ Route::middleware(['auth', 'admin'])->group(function () {
 | Fallback Route
 |--------------------------------------------------------------------------
 */
-Route::fallback(function () {
-    if (app()->environment('production')) {
-        return redirect('/');
-    }
-
-    abort(404);
-});
+// A real 404 everywhere. Production used to send unknown URLs home, which
+// Google reports as soft 404s.
+Route::fallback(fn () => abort(404));
 
 /*
 |--------------------------------------------------------------------------

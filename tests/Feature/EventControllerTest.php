@@ -218,44 +218,43 @@ test('show renders even when the event has no price range', function () {
         ->assertViewIs('events.show');
 });
 
-test('show redirects to home for a draft event', function () {
+test('show is a 404 for a draft event', function () {
     $event = Event::factory()->draft()->create();
 
     $this->get("/events/{$event->slug}")
-        ->assertRedirect('/');
+        ->assertNotFound();
 });
 
-test('show redirects to home for an in-review event', function () {
+test('show is a 404 for an in-review event', function () {
     $event = Event::factory()->inReview()->create();
 
     $this->get("/events/{$event->slug}")
-        ->assertRedirect('/');
+        ->assertNotFound();
 });
 
-test('show redirects to home for an embargoed event', function () {
+test('show is a 404 for an embargoed event', function () {
     $event = Event::factory()->create(['status' => 'e']);
 
     $this->get("/events/{$event->slug}")
-        ->assertRedirect('/');
+        ->assertNotFound();
 });
 
-test('show redirects to home for a new (0) status event', function () {
+test('show is a 404 for a new (0) status event', function () {
     $event = Event::factory()->create(['status' => '0']);
 
     $this->get("/events/{$event->slug}")
-        ->assertRedirect('/');
+        ->assertNotFound();
 });
 
-test('show sends a slug no event goes by to the home page', function () {
-    // Only show pages do this; any other missing page still 404s here.
+test('show is a 404 for a slug no event goes by, like any other missing page', function () {
     $this->get('/events/this-slug-does-not-exist')
-        ->assertRedirect('/');
+        ->assertNotFound();
 
     $this->get('/organizers/this-slug-does-not-exist')
         ->assertNotFound();
 });
 
-test('a deleted event gives up its slug, and its old URL goes home without showing it', function () {
+test('a deleted event gives up its slug, and its old URL is a 404 that shows nothing of it', function () {
     $event = makeShowableEvent(['name' => 'Little Women Ballet', 'slug' => 'little-women-ballet']);
     $event->delete();
 
@@ -263,9 +262,9 @@ test('a deleted event gives up its slug, and its old URL goes home without showi
     expect($event->slug)->toBe(Event::releasedSlug($event->id));
 
     $this->get('/events/little-women-ballet')
-        ->assertRedirect('/');
+        ->assertNotFound();
     $this->get('/events/'.Event::releasedSlug($event->id))
-        ->assertRedirect('/');
+        ->assertNotFound();
 });
 
 test('the slug a deleted event gave up is free for the next listing', function () {

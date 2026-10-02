@@ -14,25 +14,20 @@ use Illuminate\Support\Js;
 class EventController extends Controller
 {
     /**
-     * $event is the slug. A show page nobody can see — no event goes by the
-     * slug, or the event isn't published — sends the visitor home rather than
-     * to a dead end: old notification links (SavedEventNewDatesNotification /
-     * FollowedOrganizerNewEventNotification store the slug at notify time)
-     * still land somewhere useful. A deleted event gives its slug up when it
-     * is deleted (Event::releaseSlug), so it is never found here, and nothing
-     * of a removed listing — name or image — is shown to anyone.
+     * $event is the slug. A show page nobody can see (no event goes by the
+     * slug, or the event isn't published) is a real 404 with the site's
+     * navigation, not a redirect home: Google counted those redirects as
+     * soft 404s. A deleted event gives its slug up when it is deleted
+     * (Event::releaseSlug), so it is never found here, and nothing of a
+     * removed listing (name or image) is shown to anyone. Draft, in-review
+     * and embargoed events 404 the same way, so the slug confirms nothing.
      */
     public function show(string $event)
     {
         $event = Event::where('slug', $event)->first();
 
-        if (! $event) {
-            return redirect('/');
-        }
-
-        // If event is embargoed or not published, redirect to home page instead of 404
-        if ($event->status !== 'p') {
-            return redirect('/');
+        if (! $event || $event->status !== 'p') {
+            abort(404);
         }
 
         $event->load([

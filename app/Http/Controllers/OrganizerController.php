@@ -35,7 +35,7 @@ class OrganizerController extends Controller
             (! auth()->check() ||
             (! auth()->user()->isAdmin() && ! auth()->user()->belongsToOrganization($organizer)))
         ) {
-            return redirect('/');
+            abort(404);
         }
 
         // Surface a "your ownership claim is pending" banner to the requesting user.
