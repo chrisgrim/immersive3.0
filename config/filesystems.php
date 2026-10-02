@@ -64,6 +64,14 @@ return [
             'bucket' => env('DO_BUCKET'),
             'endpoint' => env('DO_ENDPOINT'),
             'visibility' => 'public',
+            // Every image is written under a fresh uniqid() name and never
+            // overwritten (ImageHandler: new uploads, slug moves and event
+            // duplication all mint a new name), so a browser may keep each
+            // file for good: a changed picture is a different URL. S3 copies
+            // keep the header (MetadataDirective COPY).
+            'options' => [
+                'CacheControl' => 'public, max-age=31536000, immutable',
+            ],
         ],
 
     ],
