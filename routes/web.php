@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::GET('/', [IndexController::class, 'index'])->name('home');
-// Throttled since 2026-09-04: this page can render up to five pages of
+// Throttled since 2026-09-04: this page can render up to ten pages of
 // results in one request (ListingsController::MAX_INITIAL_PAGES) and the
 // API route already has a per-IP limit; a crawler must not get an
 // unmetered way to the same work.

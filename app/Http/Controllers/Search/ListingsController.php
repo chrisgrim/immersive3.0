@@ -49,12 +49,12 @@ class ListingsController extends Controller
      * or Back from an event keeps the reader's place. Every click asks for
      * the whole window too and replaces the list — an append on a
      * newest-first, offset-paginated list repeats a card and hides an event
-     * published between clicks. This caps the window (100 events, embedded
-     * twice in the page HTML by the nav partial); the client stops offering
-     * more at the same depth (`has_more`), so the URL never claims a depth
-     * a cold load can't restore.
+     * published between clicks. This caps the window at 200 events (100
+     * until 2026-10-02, when New York alone had 155); the client stops
+     * offering more at the same depth (`has_more`), so the URL never claims
+     * a depth a cold load can't restore.
      */
-    public const MAX_INITIAL_PAGES = 5;
+    public const MAX_INITIAL_PAGES = 10;
 
     /**
      * Raw request -> the normalised criteria EventSearchFilterBuilder takes.
