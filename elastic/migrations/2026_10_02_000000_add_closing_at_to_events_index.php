@@ -18,7 +18,10 @@ final class AddClosingAtToEventsIndex implements MigrationInterface
     public function up(): void
     {
         Index::putMapping('events', function (Mapping $mapping) {
-            $mapping->date('closing_at', ['format' => 'yyyy-MM-dd HH:mm:ss']);
+            // No custom format: the same mapping dynamic detection gives an
+            // ISO 8601 value (Event::toSearchableArray), so this succeeds
+            // whether or not a document already brought the field in.
+            $mapping->date('closing_at');
         });
     }
 

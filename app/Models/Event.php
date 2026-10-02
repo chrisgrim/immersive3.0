@@ -341,8 +341,11 @@ class Event extends Model
             // The real end of the run, in UTC: search compares this against
             // "now" (stillRunningSearchFilter). closingDate alone is a wall
             // time with no zone, and comparing it as UTC dropped an LA run at
-            // 5pm on its last day.
-            'closing_at' => $this->closingAt()?->format('Y-m-d H:i:s'),
+            // 5pm on its last day. ISO 8601 with a Z on purpose: a document
+            // indexed before `elastic:migrate` adds the field gets it
+            // dynamically mapped, and only this shape is detected as a date
+            // ("Y-m-d H:i:s" became text, and the migration then failed).
+            'closing_at' => $this->closingAt()?->format('Y-m-d\TH:i:s\Z'),
             'priceranges' => $this->pricerangesSelect,
             'genres' => $this->genreSelect,
             'remote_location_ids' => $this->remotelocations->pluck('id')->toArray(),

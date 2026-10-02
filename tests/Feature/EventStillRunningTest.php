@@ -47,7 +47,7 @@ test('a Tokyo run ends at midnight Tokyo time, not hours later', function () {
 });
 
 test('the search index carries closing_at and search filters on it', function () {
-    expect(endingEvent('America/Los_Angeles')->toSearchableArray()['closing_at'])->toBe('2026-12-01 07:59:59');
+    expect(endingEvent('America/Los_Angeles')->toSearchableArray()['closing_at'])->toBe('2026-12-01T07:59:59Z');
 
     $filter = json_encode(Event::stillRunningSearchFilter()->buildQuery());
     expect($filter)->toContain('"closing_at"')->and($filter)->toContain('"closingDate"');
