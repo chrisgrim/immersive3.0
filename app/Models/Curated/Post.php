@@ -5,8 +5,6 @@ namespace App\Models\Curated;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\User;
 use App\Models\Event;
-use App\Models\Featured\Feature;
-use App\Models\Featured\Section;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Image;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -60,14 +58,6 @@ class Post extends Model
     public function docks()
     {
         return $this->morphToMany('\App\Models\Admin\Dock', 'association');
-    }
-
-    /**
-     * Get all of the posts featureds.
-     */
-    public function featured()
-    {
-        return $this->morphOne(Feature::class, 'featureable');
     }
 
     /**

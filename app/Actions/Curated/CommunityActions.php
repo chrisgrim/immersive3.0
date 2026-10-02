@@ -3,7 +3,6 @@
 namespace App\Actions\Curated;
 
 use Illuminate\Http\Request;
-use App\Models\ImageFile;
 use App\Models\Curated\Card;
 use App\Models\Curated\Post;
 use App\Models\Curated\Community;

@@ -2,9 +2,7 @@
 
 namespace App\Models\Curated;
 
-use App\Models\Featured\Feature;
 use App\Models\Image;
-use App\Models\ImageFile;
 use App\Models\NameChangeRequest;
 use App\Models\User;
 use App\Support\Slug;
@@ -24,8 +22,9 @@ class Community extends Model
     {
         parent::boot();
         self::deleting(function ($community) {
+            // Posts are soft-deleted, so their images stay. This used to call
+            // ImageFile::deletePreviousImages, a class that no longer exists.
             $community->posts()->each(function ($post) {
-                ImageFile::deletePreviousImages($post);
                 $post->delete();
             });
         });
@@ -113,14 +112,6 @@ class Community extends Model
     public function curators()
     {
         return $this->belongsToMany(User::class);
-    }
-
-    /**
-     * Get all of the communities featureds.
-     */
-    public function featured()
-    {
-        return $this->morphOne(Feature::class, 'featureable');
     }
 
     public function images()

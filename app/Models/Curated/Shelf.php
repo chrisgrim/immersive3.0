@@ -4,7 +4,6 @@ namespace App\Models\Curated;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Featured\Feature;
 
 class Shelf extends Model
 {
@@ -62,13 +61,5 @@ class Shelf extends Model
     public function dockPosts()
     {
         return $this->hasMany(Post::class)->orderBy('order', 'ASC')->where('status', 'p')->limit(4);
-    }
-
-    /**
-     * Get all of the communities featureds.
-     */
-    public function featured()
-    {
-        return $this->morphOne(Feature::class, 'featureable');
     }
 }

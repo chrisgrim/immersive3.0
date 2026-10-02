@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Scopes\RankScope;
-use App\Support\Slug;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -111,27 +110,6 @@ class Category extends Model
         return function ($attendanceTypeId) {
             return $this->supportsAttendanceType($attendanceTypeId);
         };
-    }
-
-    /**
-     * Updates the different elements of the model depending on the request
-     *
-     * @return nothing
-     */
-    public function updateElements($request, $category)
-    {
-        $request->name !== $category->name && ! $request->image ? MakeImage::renameImage($category, Slug::base($request->name, 'category'), 'category', $request) : '';
-        if ($request->image) {
-            MakeImage::saveImage($request, $category, 600, 600, 'category');
-        } else {
-            $category->update([
-                'credit' => $request->credit,
-                'rank' => $request->rank,
-                'description' => $request->description,
-                'name' => $request->name,
-                'slug' => Slug::base($request->name, 'category'),
-            ]);
-        }
     }
 
     /**

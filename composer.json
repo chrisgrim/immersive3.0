@@ -12,7 +12,6 @@
         "babenkoivan/elastic-scout-driver-plus": "^4.7",
         "hisorange/browser-detect": "^5.0",
         "intervention/image-laravel": "^1.2",
-        "laravel/cashier": "^15.3",
         "laravel/framework": "^12.0",
         "laravel/mcp": "^0.8.2",
         "laravel/passport": "^13",
@@ -29,7 +28,6 @@
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.14",
         "fakerphp/faker": "^1.23",
-        "laravel/breeze": "^2.0",
         "laravel/pint": "^1.13",
         "laravel/sail": "^1.26",
         "mockery/mockery": "^1.6",
