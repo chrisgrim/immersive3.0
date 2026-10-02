@@ -88,7 +88,7 @@ class Event extends Model
 
         // A deleted event is gone from EI, so it gives up its slug: the name
         // it went by is free for the next listing, and its old URL finds
-        // nothing (EventController::show sends that visitor home).
+        // nothing (EventController::show answers 404).
         static::deleted(function (Event $event) {
             if (! $event->isForceDeleting()) {
                 $event->releaseSlug();
@@ -109,7 +109,19 @@ class Event extends Model
                 ? static::finalSlug($event)
                 : static::placeholderSlug();
         });
+
+        // scopeStillRunning caches the timezones in use; a zone it has not
+        // seen would be read as UTC until the cache expired.
+        static::saved(function (Event $event) {
+            $zones = Cache::get(self::TIMEZONES_IN_USE_CACHE);
+
+            if ($event->timezone && is_array($zones) && ! in_array($event->timezone, $zones, true)) {
+                Cache::forget(self::TIMEZONES_IN_USE_CACHE);
+            }
+        });
     }
+
+    public const TIMEZONES_IN_USE_CACHE = 'events:timezones-in-use';
 
     /**
      * The slug a deleted event holds: unique by its id, and no name can ever
@@ -571,7 +583,7 @@ class Event extends Model
 
         // The zones in use (a few dozen); a zone added since the list was
         // cached falls back to UTC, the old rule, until it refreshes.
-        $zones = Cache::remember('events:timezones-in-use', 3600, fn () => static::withoutGlobalScopes()
+        $zones = Cache::remember(self::TIMEZONES_IN_USE_CACHE, 3600, fn () => static::withoutGlobalScopes()
             ->whereNotNull('timezone')->distinct()->pluck('timezone')->all());
 
         $table = $this->getTable();
@@ -638,8 +650,7 @@ class Event extends Model
             return false;
         }
 
-        return Carbon::parse((string) $this->closingDate)
-            ->lt(Carbon::now()->subDays(self::EDIT_WINDOW_DAYS));
+        return $this->closingAt()->lt(Carbon::now()->subDays(self::EDIT_WINDOW_DAYS));
     }
 
     /**

@@ -1035,8 +1035,10 @@ class Show extends Model
         // and the permissive reading would hand the whole announcement path
         // back to any organizer whose event happens to have one. Refuse
         // unless we can positively see a future closing date.
-        $closing = $event->closingDate;
-        $hasEnded = $closing === null || Carbon::parse((string) $closing)->isPast();
+        // closingDate is a wall time in the event's timezone: closingAt()
+        // reads it there, so an LA run is not "ended" at 5pm on its last day.
+        $closingAt = $event->closingAt();
+        $hasEnded = $closingAt === null || $closingAt->isPast();
 
         if (! $hasEnded || auth()->user()?->isModerator()) {
             $event->update(['status' => 'e']);

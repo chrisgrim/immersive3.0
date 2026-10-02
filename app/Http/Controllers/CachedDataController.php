@@ -11,15 +11,16 @@ class CachedDataController extends Controller
 {
     public function getActiveCategories()
     {
-        return Cache::rememberForever('active-categories', function () {
+        // An hour, not forever: which runs are still on changes with the clock,
+        // not only when an event is saved (the saves still clear it at once).
+        return Cache::remember('active-categories', 3600, function () {
             return Category::with(['images' => function ($query) {
                 $query->where('rank', 1);
             }])
                 ->whereHas('events', function ($query) {
                     $query->where('status', 'p')
                         ->where(function ($q) {
-                            $q->where('closingDate', '>=', now()->startOfDay())
-                                ->orWhereNull('closingDate');
+                            $q->stillRunning()->orWhereNull('closingDate');
                         });
                 })
                 ->orderBy('rank', 'desc')
@@ -29,13 +30,14 @@ class CachedDataController extends Controller
 
     public function getActiveGenres()
     {
-        return Cache::rememberForever('active-genres', function () {
+        // An hour, not forever: which runs are still on changes with the clock,
+        // not only when an event is saved (the saves still clear it at once).
+        return Cache::remember('active-genres', 3600, function () {
             return Genre::where('admin', true)
                 ->whereHas('events', function ($query) {
                     $query->where('status', 'p')
                         ->where(function ($q) {
-                            $q->where('closingDate', '>=', now()->startOfDay())
-                                ->orWhereNull('closingDate');
+                            $q->stillRunning()->orWhereNull('closingDate');
                         });
                 })
                 ->orderBy('name')

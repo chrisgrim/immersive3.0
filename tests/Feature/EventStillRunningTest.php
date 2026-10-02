@@ -52,3 +52,35 @@ test('the search index carries closing_at and search filters on it', function ()
     $filter = json_encode(Event::stillRunningSearchFilter()->buildQuery());
     expect($filter)->toContain('"closing_at"')->and($filter)->toContain('"closingDate"');
 });
+
+test('an embargo can still be set on a Los Angeles run on its last evening', function () {
+    $this->actingAs(App\Models\User::factory()->create(['type' => 'u']));
+    $la = endingEvent('America/Los_Angeles');
+    Carbon::setTestNow('2026-12-01 04:00:00'); // 8pm in LA on Nov 30
+
+    $refused = App\Models\Events\Show::applyEmbargo(new Illuminate\Http\Request(['embargo_date' => '2026-12-05 12:00:00']), $la);
+
+    expect($refused)->toBeFalse()->and($la->fresh()->status)->toBe('e');
+});
+
+test('the 90-day edit lock counts from the end of the last local day', function () {
+    $la = endingEvent('America/Los_Angeles', '2026-08-01 23:59:59'); // ends 2026-08-02 06:59:59 UTC
+
+    Carbon::setTestNow(Carbon::parse('2026-08-02 06:59:59')->addDays(90)->subMinute());
+    expect($la->fresh()->isHistorical())->toBeFalse();
+
+    Carbon::setTestNow(Carbon::parse('2026-08-02 06:59:59')->addDays(90)->addMinute());
+    expect($la->fresh()->isHistorical())->toBeTrue();
+});
+
+test('saving an event in a timezone the cached list has not seen refreshes the list', function () {
+    endingEvent('America/Los_Angeles');
+    Event::stillRunning()->count(); // warms the list with LA only
+    expect(Cache::get(Event::TIMEZONES_IN_USE_CACHE))->toBe(['America/Los_Angeles']);
+
+    $tokyo = endingEvent('Asia/Tokyo');
+    expect(Cache::has(Event::TIMEZONES_IN_USE_CACHE))->toBeFalse();
+
+    Carbon::setTestNow('2026-11-30 15:00:00'); // just past midnight in Tokyo
+    expect(Event::stillRunning()->whereKey($tokyo->id)->exists())->toBeFalse();
+});
