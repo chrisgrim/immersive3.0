@@ -24,8 +24,10 @@ return [
     // Hits per visitor per day before the rest are flagged as a bot.
     'daily_cap' => 300,
 
-    // Raw rows older than this are deleted by ei:analytics-prune.
-    'raw_days' => 180,
+    // Rows older than this are deleted by ei:analytics-prune: 13 months, the
+    // most CNIL allows for audience measurement without consent, and enough
+    // for a year-on-year look (SiteAnalyticsReport::MAX_DAYS).
+    'raw_days' => 395,
 
     // DB-IP Lite country + ASN databases (free, CC BY 4.0, monthly), kept
     // fresh by ei:analytics-geo-update. Without them rows just have no

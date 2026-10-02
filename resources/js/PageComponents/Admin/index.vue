@@ -80,6 +80,7 @@
                                 <li><a @click="handleNavigation('manage-organizers')" :class="['nav-link', currentView === 'manage-organizers' ? 'bg-blue-50 text-blue-600' : '']">Organizers</a></li>
                                 <li><a @click="handleNavigation('manage-reviews')" :class="['nav-link', currentView === 'manage-reviews' ? 'bg-blue-50 text-blue-600' : '']">Reviews</a></li>
                                 <li><a @click="handleNavigation('manage-docks')" :class="['nav-link', currentView === 'manage-docks' ? 'bg-blue-50 text-blue-600' : '']">Docks</a></li>
+                                <li><a @click="handleNavigation('manage-analytics')" :class="['nav-link', currentView === 'manage-analytics' ? 'bg-blue-50 text-blue-600' : '']">Analytics</a></li>
                                 <li>
                                     <a @click="handleNavigation('manage-suggestions')"
                                        :class="['nav-link', currentView === 'manage-suggestions' ? 'bg-blue-50 text-blue-600' : '']"
@@ -192,6 +193,7 @@ import SettingsTags from './Settings/Tags.vue'
 import SettingsAdvisories from './Settings/Advisories.vue'
 import ApproveRequests from './Approval/Requests.vue'
 import ManageSuggestions from './Management/Suggestions.vue'
+import ManageAnalytics from './Management/Analytics.vue'
 import ScrapingScraper from './Scraping/Scraper.vue'
 import axios from 'axios'
 
@@ -415,6 +417,7 @@ const currentComponent = computed(() => {
         'manage-reviews': ManageReviews,
         'manage-docks': ManageDocks,
         'manage-suggestions': ManageSuggestions,
+        'manage-analytics': ManageAnalytics,
         'settings-categories': SettingsCategories,
         'settings-tags': SettingsTags,
         'settings-advisories': SettingsAdvisories,

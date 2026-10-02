@@ -7,6 +7,7 @@ use App\Mcp\Tools\CreateEventDraft;
 use App\Mcp\Tools\CreateOrganizer;
 use App\Mcp\Tools\GeocodeAddress;
 use App\Mcp\Tools\GetEvent;
+use App\Mcp\Tools\GetSiteAnalytics;
 use App\Mcp\Tools\ListAllEvents;
 use App\Mcp\Tools\ListEventAttributes;
 use App\Mcp\Tools\ListMyEvents;
@@ -87,6 +88,9 @@ class EiServer extends Server
     `remove_older_show_days`. `ongoing_config` regenerates the run from its
     recipe. Fields you do not send are left alone.
 
+    Moderators can read the site's own visitor analytics (searches, searches
+    that found nothing, event views, ticket clicks) with `get-site-analytics`.
+
     Safety rules:
     - Events only go live after a human admin approves them; you cannot publish.
     - Editing a PUBLISHED event applies immediately: the first update-event call
@@ -109,5 +113,6 @@ class EiServer extends Server
         AttachEventImage::class,
         RemoveEventImage::class,
         SubmitEventForReview::class,
+        GetSiteAnalytics::class,
     ];
 }

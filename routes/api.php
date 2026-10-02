@@ -385,6 +385,9 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
             });
         });
 
+        // First-party analytics summary (SiteAnalyticsReport)
+        Route::GET('/analytics', [\App\Http\Controllers\Admin\AdminAnalyticsController::class, 'index']);
+
         // Management Routes
         Route::prefix('manage')->group(function () {
             // Users

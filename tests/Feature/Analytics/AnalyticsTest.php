@@ -87,7 +87,7 @@ test('a broken buffer never breaks the page', function () {
 
 test('pruning deletes only rows older than the retention window', function () {
     DB::table('analytics_events')->insert([
-        ['type' => 'search', 'occurred_at' => now()->subDays(181), 'visitor' => str_repeat('a', 16)],
+        ['type' => 'search', 'occurred_at' => now()->subDays(396), 'visitor' => str_repeat('a', 16)],
         ['type' => 'search', 'occurred_at' => now()->subDays(10), 'visitor' => str_repeat('b', 16)],
     ]);
 
