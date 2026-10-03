@@ -62,10 +62,18 @@
                 // moderator/admin only; flipping the env var opens it to
                 // everyone without a code change (see config/services.php).
                 mcpPublic: {!! config('services.mcp.public') ? 'true' : 'false' !!},
-                // This page view's analytics id, for the time-on-page beacon
-                // (RecordPageView); null when it is not being measured, or on
-                // an error page (no page view is recorded for it).
-                analyticsView: {!! ! isset($exception) && request()->attributes->get(\App\Http\Middleware\RecordPageView::VIEW_ID) && \App\Support\Analytics\Analytics::captures('duration') ? json_encode(request()->attributes->get(\App\Http\Middleware\RecordPageView::VIEW_ID)) : 'null' !!}
+                // This page view's analytics id (RecordPageView), for the
+                // time-on-page beacon (analyticsDuration) and the load ping
+                // (analyticsPing); null when neither is measured, or on an
+                // error page (no page view is recorded for it).
+                @php
+                    $analyticsViewId = isset($exception) ? null : request()->attributes->get(\App\Http\Middleware\RecordPageView::VIEW_ID);
+                    $analyticsDuration = $analyticsViewId && \App\Support\Analytics\Analytics::captures('duration');
+                    $analyticsPing = $analyticsViewId && \App\Support\Analytics\Analytics::captures('js_ping');
+                @endphp
+                analyticsView: {!! $analyticsDuration || $analyticsPing ? json_encode($analyticsViewId) : 'null' !!},
+                analyticsDuration: {!! $analyticsDuration ? 'true' : 'false' !!},
+                analyticsPing: {!! $analyticsPing ? 'true' : 'false' !!}
             };
         </script>
         {{-- Page payloads (window.Laravel.page = …): after the object above so

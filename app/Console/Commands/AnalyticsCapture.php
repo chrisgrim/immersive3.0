@@ -17,7 +17,7 @@ class AnalyticsCapture extends Command
 {
     protected $signature = 'ei:analytics-capture {name? : One of the config analytics.capture keys} {state? : on, off or default}';
 
-    protected $description = 'Show or switch the analytics captures (page views, device, utm, city, duration, live, nav_search).';
+    protected $description = 'Show or switch the analytics captures (page views, device, utm, city, duration, live, nav_search, js_ping).';
 
     public function handle(): int
     {

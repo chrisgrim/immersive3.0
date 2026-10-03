@@ -1,7 +1,7 @@
 /**
  * First-party analytics from the browser. Only for what the server cannot
- * see itself: a click on a search result, and how long a page was looked
- * at, both sent as the visitor leaves.
+ * see itself: a click on a search result, how long a page was looked at
+ * (both sent as the visitor leaves), and that a browser really ran the page.
  * navigator.sendBeacon survives the navigation; a form-encoded body keeps it
  * a "simple" request. Fire and forget: nothing here can break a click.
  */
@@ -88,4 +88,43 @@ export function watchPage(viewId) {
         if (event.persisted && document.visibilityState === 'visible' && shownAt === null) shownAt = Date.now();
     });
     window.addEventListener('scroll', onScroll, { passive: true });
+}
+
+const PAGE_PING_URL = '/api/analytics/page-ping';
+
+/**
+ * The load ping for this page view (window.Laravel.analyticsView, while
+ * analyticsPing is on): once, after the page has finished loading and has
+ * been visible at least once, so a prerendered or background tab that is
+ * never shown sends nothing (if it is shown later, it pings then). Tells
+ * the server a browser ran the page, and whether that browser reports
+ * being driven by a script (navigator.webdriver).
+ */
+export function pingPage(viewId) {
+    if (!viewId || typeof document === 'undefined') return;
+
+    let sent = false;
+    const loaded = () => document.readyState === 'complete';
+    const shown = () => document.visibilityState === 'visible' && !document.prerendering;
+
+    const ping = () => {
+        if (sent || !loaded() || !shown()) return;
+        sent = true;
+        document.removeEventListener('visibilitychange', ping);
+        document.removeEventListener('prerenderingchange', ping);
+        window.removeEventListener('load', ping);
+        try {
+            const body = new URLSearchParams({ view_id: viewId, wd: navigator.webdriver === true ? '1' : '0' });
+            if (!navigator.sendBeacon?.(PAGE_PING_URL, body)) {
+                fetch(PAGE_PING_URL, { method: 'POST', body, keepalive: true, credentials: 'omit' }).catch(() => {});
+            }
+        } catch (e) {
+            // Analytics never gets in the way of the page.
+        }
+    };
+    document.addEventListener('visibilitychange', ping);
+    document.addEventListener('prerenderingchange', ping);
+    // readyState is already 'complete' when the load event fires.
+    window.addEventListener('load', ping);
+    ping();
 }

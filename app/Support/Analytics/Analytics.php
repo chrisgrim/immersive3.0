@@ -34,6 +34,13 @@ class Analytics
     /** What was typed into the nav search (names of events and organizers). */
     public const NAV_SEARCH = 'nav_search';
 
+    /**
+     * The browser confirms a page view: sent once the page has loaded and
+     * been visible, with whether it reports being automated. Never a row of
+     * its own: the flusher marks the page view (js = 1) instead.
+     */
+    public const PAGE_PING = 'page_ping';
+
     public const TICKET_CLICK = 'ticket_click';
 
     public const SEARCH_CLICK = 'search_click';
@@ -58,6 +65,13 @@ class Analytics
      * user agent usually leave these out; they pass the other checks.
      */
     public const BOT_HEADERS = 16;
+
+    /**
+     * The page view's browser said it is driven by a script
+     * (navigator.webdriver, from the load ping): headless Chrome, Selenium,
+     * Playwright and the like.
+     */
+    public const BOT_AUTOMATION = 32;
 
     /** The 'array' buffer (tests). */
     private array $memory = [];
@@ -264,6 +278,7 @@ class Analytics
             'utm' => [$daily->whereIn('dim', ['utm_source', 'utm_medium', 'utm_campaign']), $raw->where(fn ($q) => $q->whereNotNull('utm_source')->orWhereNotNull('utm_medium')->orWhereNotNull('utm_campaign'))],
             'duration' => [$daily->where('dim', 'all')->where('seconds_count', '>', 0), $raw->where('type', self::PAGE_LEAVE)],
             'nav_search' => [$daily->where('dim', 'all')->where('type', self::NAV_SEARCH), $raw->where('type', self::NAV_SEARCH)],
+            'js_ping' => [$daily->where('dim', 'all')->whereNotNull('js_visitors'), $raw->where('type', self::PAGE_VIEW)->whereNotNull('js')],
             default => [null, null],
         };
 
@@ -272,6 +287,28 @@ class Analytics
         Cache::put($key, $found, $found ? now()->addHour() : now()->addMinutes(5));
 
         return $found;
+    }
+
+    /**
+     * Per visitor flags, as the select list of a GROUP BY visitor over that
+     * visitor's people rows (bot = 0) of a day (the visitor code changes
+     * daily, so a visitor is a visitor-day). The daily totals and the admin
+     * report count them the same way:
+     *
+     * - engaged (as GA4 counts it): a page on screen 10+ seconds, a ticket
+     *   click, a search result click, nav typing or a typed search, or two
+     *   or more page views.
+     * - js (browser confirmed): a page view the browser pinged, or anything
+     *   only a browser running the page's JavaScript can send (time on page,
+     *   a result click, nav typing).
+     */
+    public static function visitorFlagsSql(): string
+    {
+        $in = fn (string ...$types) => "type IN ('".implode("', '", $types)."')";
+
+        return "MAX((type = '".self::PAGE_VIEW."' AND js = 1) OR ".$in(self::PAGE_LEAVE, self::SEARCH_CLICK, self::NAV_SEARCH).') AS js,
+            MAX((type = \''.self::PAGE_LEAVE."' AND seconds >= 10) OR ".$in(self::TICKET_CLICK, self::SEARCH_CLICK, self::NAV_SEARCH)."
+                OR (type = '".self::SEARCH."' AND source = 'list')) OR SUM(".$in(self::PAGE_VIEW, self::EVENT_VIEW).') >= 2 AS engaged';
     }
 
     public function forgetOverrides(): void

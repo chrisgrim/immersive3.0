@@ -137,9 +137,13 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     import('./sentry').then(({ installSentry }) => installSentry(app));
 }
 
-// Time on page, only when the server is measuring this page view.
+// Time on page and the load ping, only when the server is measuring this
+// page view.
 if (window.Laravel?.analyticsView) {
-    import('./composables/useAnalytics').then(({ watchPage }) => watchPage(window.Laravel.analyticsView));
+    import('./composables/useAnalytics').then(({ watchPage, pingPage }) => {
+        if (window.Laravel.analyticsPing) pingPage(window.Laravel.analyticsView);
+        if (window.Laravel.analyticsDuration) watchPage(window.Laravel.analyticsView);
+    });
 }
 
 // Setup axios

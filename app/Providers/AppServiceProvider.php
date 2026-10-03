@@ -113,7 +113,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('event-suggestion-challenge', fn (Request $request) => Limit::perMinute(30)
             ->by('event-suggestion-challenge:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
-        // Analytics beacons (search click, time on page): their own counter,
+        // Analytics beacons (search click, time on page, load ping): their own counter,
         // so map panning or nav typing on the shared unnamed throttle cannot
         // use up a visitor's allowance and silently drop the beacon.
         RateLimiter::for('analytics-beacon', fn (Request $request) => Limit::perMinute(60)

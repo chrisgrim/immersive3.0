@@ -26,6 +26,7 @@ return [
         'duration' => env('ANALYTICS_DURATION', false),       // time on page beacon
         'live' => env('ANALYTICS_LIVE', false),               // "on the site now" set in Redis
         'nav_search' => env('ANALYTICS_NAV_SEARCH', false),   // what is typed in the nav search
+        'js_ping' => env('ANALYTICS_JS_PING', false),         // the browser confirms a page view loaded (page_views needed)
     ],
 
     // 'redis' on the servers; 'array' (this process's memory) in tests.

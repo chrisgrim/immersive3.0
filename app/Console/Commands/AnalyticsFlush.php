@@ -22,6 +22,7 @@ use Throwable;
  *   days, then gone), so a visitor can be counted within a day but never
  *   recognised later, and the IP itself is never stored.
  * - bot: flags, not a filter (see Analytics::BOT_*). Reports read bot = 0.
+ * - load pings: not rows; each marks its page view as browser confirmed.
  */
 class AnalyticsFlush extends Command
 {
@@ -68,6 +69,10 @@ class AnalyticsFlush extends Command
         $this->hostingAsns = array_fill_keys(config('analytics.hosting_asns'), true);
         $written = 0;
 
+        // Load pings not matched to their page view yet, carried from batch
+        // to batch (the view may come in a later one).
+        $pings = [];
+
         for ($i = 0; $i < (int) $this->option('batches'); $i++) {
             $notes = $analytics->pop(self::BATCH);
             if ($notes === []) {
@@ -76,11 +81,17 @@ class AnalyticsFlush extends Command
 
             // Daily cap hits are saved only for rows that were written, so a
             // batch that goes back and is retried is not counted twice.
-            $rows = $sources = $hits = [];
+            $rows = $sources = $hits = $batchPings = [];
             $done = 0;
             $inserting = false;
             try {
                 foreach ($notes as $note) {
+                    // A load ping is not a row: it marks its page view below.
+                    if (($ping = $this->ping($note)) !== null) {
+                        $batchPings[] = $ping;
+
+                        continue;
+                    }
                     $this->counted = [];
                     if (($row = $this->row($note)) !== null) {
                         $rows[] = $row;
@@ -90,16 +101,23 @@ class AnalyticsFlush extends Command
                 }
                 $inserting = true;
                 $written += $this->insert($rows, $done);
+                // After the inserts, so a ping in the same batch as its view
+                // (or ahead of it) still finds it.
+                $pings = $this->markPings([...$pings, ...$batchPings]);
             } catch (Throwable $e) {
                 // The cache or the database is down: what was not written
-                // goes back for the next run.
-                $analytics->putBack($inserting ? array_slice($sources, $done) : $notes);
+                // goes back for the next run, pings included (marking is
+                // idempotent, so one marked before the failure does no harm).
+                $back = $inserting ? [...array_slice($sources, $done), ...array_column($batchPings, 'note')] : $notes;
+                $analytics->putBack([...array_column($pings, 'note'), ...$back]);
                 $this->saveHits(array_slice($hits, 0, $done));
 
                 throw $e;
             }
             $this->saveHits($hits);
         }
+
+        $this->retryPings($analytics, $pings);
 
         if ($this->live !== [] || Analytics::captures('live')) {
             $analytics->markLive($this->live);
@@ -155,6 +173,85 @@ class AnalyticsFlush extends Command
         Log::warning("Analytics: {$skipped} rows skipped as invalid.");
 
         return $written;
+    }
+
+    /** Tries a load ping gets (one per run) before it is given up on. */
+    private const PING_TRIES = 3;
+
+    /**
+     * A load ping note as [note, view_id, webdriver, tries], or null for any
+     * other note. A ping without a valid view id gets view_id null, and
+     * markPings drops it.
+     */
+    private function ping(string $note): ?array
+    {
+        $decoded = json_decode($note, true);
+        if (! is_array($decoded) || ($decoded['t'] ?? null) !== Analytics::PAGE_PING) {
+            return null;
+        }
+
+        $viewId = $decoded['d']['view_id'] ?? null;
+
+        return [
+            'note' => $note,
+            'view_id' => is_string($viewId) && preg_match(Analytics::SEARCH_ID_PATTERN, $viewId) ? $viewId : null,
+            'webdriver' => ! empty($decoded['d']['webdriver']),
+            'tries' => (int) ($decoded['r'] ?? 0),
+        ];
+    }
+
+    /**
+     * Marks the page views these pings confirm (js = 1), and flags the ones
+     * whose browser said it is automated (BOT_AUTOMATION). One lookup and
+     * one or two UPDATEs per 500 view ids, through the view_id index.
+     *
+     * @return list<array> the pings whose page view is not written yet
+     */
+    private function markPings(array $pings): array
+    {
+        $pings = array_values(array_filter($pings, fn ($ping) => $ping['view_id'] !== null));
+        if ($pings === []) {
+            return [];
+        }
+
+        $found = [];
+        foreach (array_chunk(array_values(array_unique(array_column($pings, 'view_id'))), 500) as $ids) {
+            $found += array_fill_keys(DB::table('analytics_events')
+                ->where('type', Analytics::PAGE_VIEW)->whereIn('view_id', $ids)
+                ->pluck('view_id')->all(), true);
+        }
+
+        $automated = array_unique(array_column(array_filter($pings, fn ($ping) => $ping['webdriver'] && isset($found[$ping['view_id']])), 'view_id'));
+        foreach (array_chunk(array_keys($found), 500) as $ids) {
+            DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->whereIn('view_id', $ids)->update(['js' => 1]);
+        }
+        foreach (array_chunk(array_values($automated), 500) as $ids) {
+            DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->whereIn('view_id', $ids)
+                ->update(['bot' => DB::raw('bot | '.Analytics::BOT_AUTOMATION)]);
+        }
+
+        return array_values(array_filter($pings, fn ($ping) => ! isset($found[$ping['view_id']])));
+    }
+
+    /**
+     * Pings whose page view was not found this run go back to the buffer
+     * for the next one (the view may still be buffered, or put back after a
+     * failed insert), up to PING_TRIES runs in all.
+     */
+    private function retryPings(Analytics $analytics, array $pings): void
+    {
+        $again = [];
+        foreach ($pings as $ping) {
+            if ($ping['tries'] + 1 < self::PING_TRIES) {
+                $note = json_decode($ping['note'], true);
+                $note['r'] = $ping['tries'] + 1;
+                $again[] = json_encode($note, JSON_INVALID_UTF8_SUBSTITUTE);
+            }
+        }
+
+        if ($again !== []) {
+            $analytics->putBack($again);
+        }
     }
 
     private function isBadData(QueryException $e): bool
@@ -215,6 +312,8 @@ class AnalyticsFlush extends Command
             'os' => $device['os'] ?? null,
             'city' => $place['city'] ?? null,
             'region' => $place['region'] ?? null,
+            // 0: the page asked its browser for a load ping (see markPings).
+            'js' => $type === Analytics::PAGE_VIEW && isset($data['js']) ? 0 : null,
         ];
     }
 
