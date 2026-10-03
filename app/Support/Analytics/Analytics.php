@@ -192,6 +192,21 @@ class Analytics
     }
 
     /** Forget the per-request override memo (tests, and the command). */
+    /**
+     * Was this capture switched off by ei:analytics-capture within the time
+     * its records are kept? The privacy page keeps naming it until then.
+     */
+    public static function recentlyCaptured(string $name): bool
+    {
+        if (self::captures($name)) {
+            return false;
+        }
+
+        $offAt = app(self::class)->overrides['off_at'][$name] ?? null;
+
+        return is_int($offAt) && $offAt > now()->subDays(max(30, (int) config('analytics.raw_days', 395)))->getTimestamp();
+    }
+
     public function forgetOverrides(): void
     {
         $this->overrides = null;
