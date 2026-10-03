@@ -3,6 +3,7 @@
 namespace App\Actions\Analytics;
 
 use App\Models\Event;
+use App\Models\Events\RemoteLocation;
 use App\Support\Analytics\Analytics;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Cache;
@@ -32,7 +33,17 @@ class SiteAnalyticsReport
 
     private const LIMIT = 25;
 
-    private const FILTER_PATHS = "'$.categories', '$.tags', '$.start', '$.priceMin', '$.priceMax', '$.remoteLocation'";
+    private const FILTER_PATHS = "'$.categories', '$.tags', '$.start', '$.priceMin', '$.priceMax'";
+
+    /**
+     * Where a search looked: the place typed, or for an At Home search (no
+     * place) its online type, as '@athome:<remote location id>' (empty: any
+     * type), turned into "At Home: Zoom" by placeLabels().
+     */
+    private const PLACE = "CASE WHEN NULLIF(analytics_events.query, '') IS NOT NULL THEN analytics_events.query
+        WHEN JSON_UNQUOTE(JSON_EXTRACT(analytics_events.props, '$.searchType')) = 'atHome'
+            THEN CONCAT('@athome:', COALESCE(JSON_EXTRACT(analytics_events.props, '$.remoteLocation'), ''))
+        END";
 
     public function handle(int $days = 30): array
     {
@@ -63,6 +74,7 @@ class SiteAnalyticsReport
             'zero_result_total' => $this->typedSearches($since)->where('results', 0)->count(),
             'daily' => $this->daily($since, $days),
             'searches' => $this->searches($since),
+            'at_home_searches' => $this->atHomeSearches($since),
             'zero_result_searches' => $this->zeroResultSearches($since),
             'events' => $this->events($since),
             'view_sources' => $this->viewSources($since),
@@ -154,7 +166,7 @@ class SiteAnalyticsReport
      * The places people search most, how often each came back empty, and how
      * many of those searches led to a result click.
      */
-    private function searches($since): array
+    private function searches($since, ?string $contains = null): array
     {
         $clicked = $this->believableClicks($since)->select('analytics_events.search_id')->distinct();
 
@@ -162,6 +174,7 @@ class SiteAnalyticsReport
             ->leftJoinSub($clicked, 'clicked', 'clicked.search_id', '=', 'analytics_events.search_id')
             ->whereNotNull('query')
             ->where('query', '!=', '')
+            ->when($contains !== null, fn ($query) => $query->where('query', 'like', '%'.self::escapeLike($contains).'%'))
             ->selectRaw('query, COUNT(*) AS searches, SUM(results = 0) AS found_nothing, COUNT(clicked.search_id) AS clicked')
             ->groupBy('query')
             ->orderByDesc('searches')
@@ -177,6 +190,62 @@ class SiteAnalyticsReport
             ->all();
     }
 
+    /** At Home searches by online type ("At Home: Zoom"; no type picked: "any type"). */
+    private function atHomeSearches($since): array
+    {
+        $clicked = $this->believableClicks($since)->select('analytics_events.search_id')->distinct();
+
+        return $this->typedSearches($since)
+            ->leftJoinSub($clicked, 'clicked', 'clicked.search_id', '=', 'analytics_events.search_id')
+            ->where(fn ($query) => $query->whereNull('query')->orWhere('query', ''))
+            ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(analytics_events.props, '$.searchType')) = 'atHome'")
+            ->selectRaw('('.self::PLACE.') AS place, COUNT(*) AS searches, SUM(results = 0) AS found_nothing, COUNT(clicked.search_id) AS clicked')
+            ->groupBy('place')
+            ->orderByDesc('searches')
+            ->limit(self::LIMIT)
+            ->get()
+            ->pipe(fn ($rows) => $this->labelPlaces($rows))
+            ->map(fn ($row) => [
+                'place' => $row->place,
+                'searches' => (int) $row->searches,
+                'found_nothing' => (int) $row->found_nothing,
+                'clicked' => (int) $row->clicked,
+                'click_rate' => $row->searches > 0 ? round($row->clicked / $row->searches, 3) : null,
+            ])
+            ->all();
+    }
+
+    /**
+     * Admin search boxes: any event whose name contains $text (not only the
+     * top 25), or any typed place, over the same range as the report. Not
+     * cached; both read an indexed slice (event ids, or typed searches).
+     */
+    public function findEvents(string $text, int $days = 30): array
+    {
+        $ids = Event::withoutGlobalScopes()->withTrashed()
+            ->where('name', 'like', '%'.self::escapeLike($text).'%')
+            ->limit(200)
+            ->pluck('id')
+            ->all();
+
+        return $ids === [] ? [] : $this->events($this->since($days), $ids);
+    }
+
+    public function findPlaces(string $text, int $days = 30): array
+    {
+        return $this->searches($this->since($days), $text);
+    }
+
+    private function since(int $days)
+    {
+        return now()->subDays(max(1, min(self::MAX_DAYS, $days)) - 1)->startOfDay();
+    }
+
+    private static function escapeLike(string $text): string
+    {
+        return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $text);
+    }
+
     /**
      * Searches that found nothing, by place: the gaps worth filling. Split
      * into "with filters" (the filters may be why) and plain.
@@ -185,13 +254,14 @@ class SiteAnalyticsReport
     {
         return $this->typedSearches($since)
             ->where('results', 0)
-            ->selectRaw("COALESCE(NULLIF(query, ''), '(no place)') AS place, COUNT(*) AS searches,
+            ->selectRaw('COALESCE('.self::PLACE.", '(no place)') AS place, COUNT(*) AS searches,
                 SUM(JSON_CONTAINS_PATH(COALESCE(props, '{}'), 'one', ".self::FILTER_PATHS.')) AS with_filters,
                 COUNT(DISTINCT visitor) AS visitors, MAX(occurred_at) AS last_searched')
             ->groupBy('place')
             ->orderByDesc('searches')
             ->limit(self::LIMIT)
             ->get()
+            ->pipe(fn ($rows) => $this->labelPlaces($rows))
             ->map(fn ($row) => [
                 'place' => $row->place,
                 'searches' => (int) $row->searches,
@@ -202,12 +272,29 @@ class SiteAnalyticsReport
             ->all();
     }
 
+    /** '@athome:<id>' places (see PLACE) become "At Home: <type name>". */
+    private function labelPlaces($rows)
+    {
+        $ids = $rows->pluck('place')
+            ->filter(fn ($place) => str_starts_with((string) $place, '@athome:'))
+            ->map(fn ($place) => (int) substr($place, 8))
+            ->filter();
+        $names = $ids->isEmpty() ? collect() : RemoteLocation::whereIn('id', $ids)->pluck('name', 'id');
+
+        return $rows->each(function ($row) use ($names) {
+            if (str_starts_with((string) $row->place, '@athome:')) {
+                $id = (int) substr($row->place, 8);
+                $row->place = $id ? 'At Home: '.ucfirst($names[$id] ?? "type {$id}") : 'At Home (any type)';
+            }
+        });
+    }
+
     /** The most viewed events, with their ticket clicks and click-through. */
-    private function events($since): array
+    private function events($since, ?array $onlyIds = null): array
     {
         $counts = $this->rows($since)
             ->whereIn('type', [Analytics::EVENT_VIEW, Analytics::TICKET_CLICK])
-            ->whereNotNull('event_id')
+            ->when($onlyIds !== null, fn ($query) => $query->whereIn('event_id', $onlyIds), fn ($query) => $query->whereNotNull('event_id'))
             ->selectRaw('event_id, SUM(type = ?) AS views, SUM(type = ?) AS ticket_clicks', [Analytics::EVENT_VIEW, Analytics::TICKET_CLICK])
             ->groupBy('event_id')
             ->orderByDesc('views')

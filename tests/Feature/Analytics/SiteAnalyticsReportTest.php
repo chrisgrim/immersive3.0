@@ -156,3 +156,33 @@ test('the same result click sent again counts once, and a click on a search from
 
     expect($clicks)->toMatchArray(['searches' => 1, 'searches_with_a_click' => 1, 'by_position' => ['1' => 1]]);
 });
+
+test('At Home searches are listed by their online type, not as one "(no place)" line', function () {
+    $zoom = App\Models\Events\RemoteLocation::create(['name' => 'zoom', 'slug' => 'zoom', 'user_id' => User::factory()->create()->id]);
+    analyticsRow(['query' => null, 'results' => 0, 'props' => json_encode(['searchType' => 'atHome', 'remoteLocation' => $zoom->id])]);
+    analyticsRow(['query' => null, 'results' => 0, 'props' => json_encode(['searchType' => 'atHome', 'remoteLocation' => $zoom->id])]);
+    analyticsRow(['query' => null, 'results' => 4, 'props' => json_encode(['searchType' => 'atHome'])]);
+
+    $report = app(SiteAnalyticsReport::class)->handle(30);
+
+    expect(collect($report['zero_result_searches'])->pluck('searches', 'place')->all())->toBe(['At Home: Zoom' => 2])
+        ->and($report['searches'])->toBe([])
+        ->and(collect($report['at_home_searches'])->pluck('searches', 'place')->all())->toBe(['At Home: Zoom' => 2, 'At Home (any type)' => 1]);
+});
+
+test('the search boxes find any event by name and any typed place, for moderators only', function () {
+    $evil = Event::factory()->published()->create(['name' => 'Evil Dead: The Experience']);
+    Event::factory()->published()->create(['name' => 'Sleep No More']);
+    analyticsRow(['type' => Analytics::EVENT_VIEW, 'event_id' => $evil->id]);
+    analyticsRow(['query' => 'Boise, ID', 'results' => 0]);
+    analyticsRow(['query' => '100% Real, TX', 'results' => 3]);
+
+    $this->actingAs(User::factory()->create(['type' => 'u']))->getJson('/api/admin/analytics/find?kind=events&q=evil')->assertForbidden();
+
+    $this->actingAs(User::factory()->create(['type' => 'm']));
+    $this->getJson('/api/admin/analytics/find?kind=events&q=evil')->assertOk()->assertJsonCount(1)->assertJsonPath('0.name', 'Evil Dead: The Experience')->assertJsonPath('0.views', 1);
+    $this->getJson('/api/admin/analytics/find?kind=places&q=boise')->assertOk()->assertJsonPath('0.place', 'Boise, ID')->assertJsonPath('0.found_nothing', 1);
+    // % is a literal character, not a wildcard.
+    $this->getJson('/api/admin/analytics/find?kind=places&q=0%25')->assertOk()->assertJsonCount(1)->assertJsonPath('0.place', '100% Real, TX');
+    $this->getJson('/api/admin/analytics/find?kind=events&q=x')->assertUnprocessable();
+});

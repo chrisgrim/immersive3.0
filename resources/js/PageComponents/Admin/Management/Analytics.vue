@@ -121,7 +121,16 @@
                         </div>
                         <span class="text-[1.3rem] font-semibold whitespace-nowrap">{{ report.search_clicks.searches.toLocaleString() }} searches</span>
                     </div>
-                    <table v-if="report.searches.length" class="w-full text-[1.4rem]">
+                    <input
+                        type="search"
+                        :value="placeFinder.query"
+                        @input="(e) => placeFinder.search(e.target.value)"
+                        placeholder="Find a place"
+                        class="w-full mb-[1.2rem] rounded-[1.2rem] border border-[#EBEBEB] px-[1.4rem] py-[1rem] text-[1.4rem] focus:outline-none focus:border-[#222222]"
+                    >
+                    <p v-if="placeFinder.active && placeFinder.loading" class="empty">Searching…</p>
+                    <p v-else-if="placeFinder.active && !placeFinder.results.length" class="empty">No searches for "{{ placeFinder.query }}" in this period.</p>
+                    <table v-else-if="placeRows.length" class="w-full text-[1.4rem]">
                         <thead class="text-[1.2rem] text-[#717171]">
                             <tr class="border-b border-[#EBEBEB]">
                                 <th class="text-left font-normal py-[0.8rem]">Place</th>
@@ -131,7 +140,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="row in visibleSearches" :key="row.place" class="border-b border-[#EBEBEB] last:border-0">
+                            <tr v-for="row in placeRows" :key="row.place" class="border-b border-[#EBEBEB] last:border-0">
                                 <td class="py-[1.2rem] pr-[0.8rem]">{{ row.place }}</td>
                                 <td class="text-right">{{ row.searches.toLocaleString() }}</td>
                                 <td class="text-right font-semibold">{{ row.clicked.toLocaleString() }}</td>
@@ -140,7 +149,7 @@
                         </tbody>
                     </table>
                     <p v-else class="empty">No searches yet.</p>
-                    <div v-if="report.searches.length > 6" class="flex justify-between items-center mt-auto pt-[1.6rem] border-t border-[#EBEBEB] text-[1.2rem]">
+                    <div v-if="!placeFinder.active && report.searches.length > 6" class="flex justify-between items-center mt-auto pt-[1.6rem] border-t border-[#EBEBEB] text-[1.2rem]">
                         <span class="text-[#717171]">Showing {{ visibleSearches.length }} of {{ report.searches.length }} places</span>
                         <button type="button" class="font-semibold" @click="showAllSearches = !showAllSearches">
                             {{ showAllSearches ? 'Show fewer' : 'View all places →' }}
@@ -156,7 +165,24 @@
                         </div>
                         <span class="text-[1.3rem] font-semibold whitespace-nowrap">{{ unmetTotal.toLocaleString() }} missed</span>
                     </div>
-                    <ul v-if="report.zero_result_searches.length" class="list-none p-0 m-0 space-y-[0.8rem]">
+                    <input
+                        type="search"
+                        :value="unmetFinder.query"
+                        @input="(e) => unmetFinder.search(e.target.value)"
+                        placeholder="Find a place"
+                        class="w-full mb-[1.2rem] rounded-[1.2rem] border border-[#EBEBEB] px-[1.4rem] py-[1rem] text-[1.4rem] focus:outline-none focus:border-[#222222]"
+                    >
+                    <template v-if="unmetFinder.active">
+                        <p v-if="unmetFinder.loading" class="empty">Searching…</p>
+                        <p v-else-if="!unmetMatches.length" class="empty">No searches for "{{ unmetFinder.query }}" found nothing in this period.</p>
+                        <ul v-else class="list-none p-0 m-0 space-y-[0.8rem]">
+                            <li v-for="row in unmetMatches" :key="row.place" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem]">
+                                <p class="text-[1.4rem] font-semibold truncate">{{ row.place }}</p>
+                                <p class="text-[1.2rem] text-[#717171]">{{ row.found_nothing }} of {{ row.searches }} {{ row.searches === 1 ? 'search' : 'searches' }} found nothing</p>
+                            </li>
+                        </ul>
+                    </template>
+                    <ul v-else-if="report.zero_result_searches.length" class="list-none p-0 m-0 space-y-[0.8rem]">
                         <li v-for="row in visibleUnmet" :key="row.place" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem] flex justify-between items-center gap-[1.2rem]">
                             <div class="min-w-0">
                                 <p class="text-[1.4rem] font-semibold truncate">{{ row.place }}</p>
@@ -170,7 +196,7 @@
                         </li>
                     </ul>
                     <p v-else class="empty">Every search found something.</p>
-                    <button v-if="report.zero_result_searches.length > 6" type="button" class="self-start mt-[1.2rem] text-[1.2rem] font-semibold" @click="showAllUnmet = !showAllUnmet">
+                    <button v-if="!unmetFinder.active && report.zero_result_searches.length > 6" type="button" class="self-start mt-[1.2rem] text-[1.2rem] font-semibold" @click="showAllUnmet = !showAllUnmet">
                         {{ showAllUnmet ? 'Show fewer' : `View all ${report.zero_result_searches.length} places →` }}
                     </button>
                     <p class="mt-auto pt-[1.6rem] border-t border-[#EBEBEB] text-[1.2rem] text-[#717171]">
@@ -178,6 +204,35 @@
                     </p>
                 </section>
             </div>
+
+            <!-- At Home -->
+            <section class="card p-[2.4rem]">
+                <div class="mb-[1.6rem]">
+                    <h2 class="section-title">Top At Home Searches</h2>
+                    <p class="section-sub">Online events people looked for, by type</p>
+                </div>
+                <table v-if="report.at_home_searches.length" class="w-full text-[1.4rem]">
+                    <thead class="text-[1.2rem] text-[#717171]">
+                        <tr class="border-b border-[#EBEBEB]">
+                            <th class="text-left font-normal py-[0.8rem]">Type</th>
+                            <th class="text-right font-normal">Searches</th>
+                            <th class="text-right font-normal">Found nothing</th>
+                            <th class="text-right font-normal">Clicked</th>
+                            <th class="text-right font-normal">Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="row in report.at_home_searches" :key="row.place" class="border-b border-[#EBEBEB] last:border-0">
+                            <td class="py-[1.2rem] pr-[0.8rem]">{{ row.place.replace(/^At Home:\s*/, '') }}</td>
+                            <td class="text-right">{{ row.searches.toLocaleString() }}</td>
+                            <td class="text-right">{{ row.found_nothing.toLocaleString() }}</td>
+                            <td class="text-right font-semibold">{{ row.clicked.toLocaleString() }}</td>
+                            <td class="text-right">{{ percent(row.click_rate) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p v-else class="empty">No At Home searches yet.</p>
+            </section>
 
             <!-- Conversion by event -->
             <section class="card p-[2.4rem]">
@@ -188,8 +243,17 @@
                     </div>
                     <span class="text-[1.2rem] text-[#717171] whitespace-nowrap">Sorted by views</span>
                 </div>
-                <ul v-if="report.events.length" class="list-none p-0 m-0">
-                    <li v-for="row in visibleEvents" :key="row.event_id" class="grid grid-cols-[4.8rem_1fr] md:grid-cols-[4.8rem_1fr_9rem_9rem_16rem] gap-x-[1.6rem] gap-y-[0.8rem] items-center py-[1.6rem] border-t border-[#EBEBEB] first:border-0">
+                <input
+                    type="search"
+                    :value="eventFinder.query"
+                    @input="(e) => eventFinder.search(e.target.value)"
+                    placeholder="Find an event by name"
+                    class="w-full mb-[1.2rem] rounded-[1.2rem] border border-[#EBEBEB] px-[1.4rem] py-[1rem] text-[1.4rem] focus:outline-none focus:border-[#222222]"
+                >
+                <p v-if="eventFinder.active && eventFinder.loading" class="empty">Searching…</p>
+                <p v-else-if="eventFinder.active && !eventFinder.results.length" class="empty">No views of an event matching "{{ eventFinder.query }}" in this period.</p>
+                <ul v-else-if="eventRows.length" class="list-none p-0 m-0">
+                    <li v-for="row in eventRows" :key="row.event_id" class="grid grid-cols-[4.8rem_1fr] md:grid-cols-[4.8rem_1fr_9rem_9rem_16rem] gap-x-[1.6rem] gap-y-[0.8rem] items-center py-[1.6rem] border-t border-[#EBEBEB] first:border-0">
                         <div class="w-[4.8rem] h-[4.8rem] rounded-[0.8rem] bg-[#F7F7F7] overflow-hidden">
                             <img v-if="row.thumb" :src="`${imageUrl}${row.thumb}`" alt="" loading="lazy" class="w-full h-full object-cover" @error="(e) => (e.target.style.display = 'none')">
                         </div>
@@ -217,10 +281,10 @@
                         </div>
                     </li>
                 </ul>
-                <button v-if="report.events.length > 10" type="button" class="mt-[1.2rem] text-[1.2rem] font-semibold" @click="showAllEvents = !showAllEvents">
+                <button v-if="!eventFinder.active && report.events.length > 10" type="button" class="mt-[1.2rem] text-[1.2rem] font-semibold" @click="showAllEvents = !showAllEvents">
                     {{ showAllEvents ? 'Show fewer' : `View all ${report.events.length} events →` }}
                 </button>
-                <p v-else-if="!report.events.length" class="empty">No event views yet.</p>
+                <p v-else-if="!eventFinder.active && !report.events.length" class="empty">No event views yet.</p>
             </section>
 
             <!-- Smaller breakdowns -->
@@ -243,17 +307,25 @@
                 </section>
 
                 <section class="card p-[2.4rem]">
-                    <h2 class="section-title mb-[0.4rem]">Search Result Clicks</h2>
-                    <p class="section-sub mb-[1.2rem]">
-                        {{ percent(report.search_clicks.click_rate) }} of searches led to a click
-                        ({{ report.search_clicks.searches_with_a_click.toLocaleString() }} of {{ report.search_clicks.searches.toLocaleString() }}).
-                        Clicks after moving the map are not included.
+                    <h2 class="section-title mb-[0.4rem]">Do Searches Work?</h2>
+                    <p class="text-[1.4rem] mb-[0.4rem]">
+                        <span class="font-semibold">{{ report.search_clicks.searches_with_a_click.toLocaleString() }} of {{ report.search_clicks.searches.toLocaleString() }}</span>
+                        searches ({{ percent(report.search_clicks.click_rate) }}) ended with someone opening an event.
                     </p>
-                    <ul class="breakdown">
-                        <li v-for="(clicks, position) in report.search_clicks.by_position" :key="position">
-                            <span>Result #{{ position }}</span><span>{{ clicks.toLocaleString() }}</span>
+                    <p class="section-sub mb-[1.6rem]">Which result they opened:</p>
+                    <ul class="list-none p-0 m-0 space-y-[0.8rem]">
+                        <li v-for="row in positionRows" :key="row.position">
+                            <div class="flex justify-between text-[1.3rem]">
+                                <span>{{ row.label }}</span>
+                                <span><span class="font-semibold">{{ row.clicks.toLocaleString() }}</span> <span class="text-[#717171]">({{ row.share }})</span></span>
+                            </div>
+                            <div class="h-[0.6rem] rounded-full bg-[#EBEBEB] mt-[0.4rem]">
+                                <div class="h-full rounded-full bg-[#FF385C]" :style="{ width: `${row.width}%` }"></div>
+                            </div>
                         </li>
                     </ul>
+                    <p v-if="!positionRows.length" class="empty">No result clicks yet.</p>
+                    <p class="text-[1.2rem] text-[#717171] mt-[1.6rem]">Moving the map counts as browsing, not a new search, so it is left out.</p>
                 </section>
 
                 <section class="card p-[2.4rem]">
@@ -278,7 +350,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import axios from 'axios'
 import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue'
 
@@ -366,6 +438,71 @@ const kpis = computed(() => {
             note: searches ? `${percent(unmetTotal.value / searches)} of ${searches.toLocaleString()} searches` : 'No searches yet',
         },
     ]
+})
+
+// A search box: 2+ characters asks the server (all events / all places in
+// the period, not only the top 25), a quarter second after typing stops.
+// Only the newest answer lands, like load() below.
+const makeFinder = (kind) => {
+    let timer = null
+    let latestFind = 0
+    const finder = reactive({
+        query: '',
+        results: [],
+        loading: false,
+        active: computed(() => finder.query.trim().length >= 2),
+        search(text) {
+            finder.query = text
+            clearTimeout(timer)
+            if (!finder.active) {
+                finder.results = []
+                return
+            }
+            finder.loading = true
+            timer = setTimeout(() => finder.run(), 250)
+        },
+        async run() {
+            const request = ++latestFind
+            try {
+                const { data } = await axios.get('/api/admin/analytics/find', { params: { kind, q: finder.query.trim(), days: days.value } })
+                if (request === latestFind) finder.results = data
+            } catch (error) {
+                if (request === latestFind) finder.results = []
+                console.error('[admin-analytics] search failed', error)
+            } finally {
+                if (request === latestFind) finder.loading = false
+            }
+        },
+    })
+    return finder
+}
+
+const placeFinder = makeFinder('places')
+const unmetFinder = makeFinder('places')
+const eventFinder = makeFinder('events')
+
+const placeRows = computed(() => (placeFinder.active ? placeFinder.results : visibleSearches.value))
+const unmetMatches = computed(() => unmetFinder.results.filter((row) => row.found_nothing > 0))
+const eventRows = computed(() => (eventFinder.active ? eventFinder.results : visibleEvents.value))
+
+const ordinal = (n) => {
+    const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th')
+    return `${n}${suffix}`
+}
+
+// "Which result they opened": each position's share of all result clicks,
+// bars scaled to the most-clicked position.
+const positionRows = computed(() => {
+    const entries = Object.entries(report.value?.search_clicks?.by_position || {})
+    const total = entries.reduce((sum, [, clicks]) => sum + clicks, 0)
+    const most = Math.max(1, ...entries.map(([, clicks]) => clicks))
+    return entries.map(([position, clicks]) => ({
+        position,
+        label: position === '11+' ? '11th result or lower' : `${ordinal(Number(position))} result`,
+        clicks,
+        share: total ? percent(clicks / total) : '0%',
+        width: Math.round((clicks / most) * 100),
+    }))
 })
 
 const visibleSearches = computed(() => (showAllSearches.value ? report.value.searches : report.value.searches.slice(0, 6)))
@@ -463,7 +600,11 @@ const load = async (option = days.value) => {
     hoverIndex.value = null
     try {
         const { data } = await axios.get('/api/admin/analytics', { params: { days: option } })
-        if (request === latest) report.value = data
+        if (request === latest) {
+            report.value = data
+            // Open search boxes follow the new range.
+            ;[placeFinder, unmetFinder, eventFinder].forEach((finder) => finder.active && finder.run())
+        }
     } catch (error) {
         if (request !== latest) return
         console.error('[admin-analytics] failed to load', error)
