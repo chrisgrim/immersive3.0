@@ -6,6 +6,7 @@ use App\Actions\Analytics\SearchConsoleReport;
 use App\Actions\Analytics\SiteAnalyticsReport;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 
 class AdminAnalyticsController extends Controller
@@ -51,7 +52,11 @@ class AdminAnalyticsController extends Controller
         if (str_starts_with($name, 'google_')) {
             abort_unless($google->configured(), 404);
 
-            return response()->json(['name' => $name, 'days' => $days, 'period' => $google->period($days), 'rows' => $google->section($name, $days)]);
+            try {
+                return response()->json(['name' => $name, 'days' => $days, 'period' => $google->period($days), 'rows' => $google->section($name, $days)]);
+            } catch (QueryException $e) {
+                return $this->googleTooSlow($e);
+            }
         }
 
         try {
@@ -63,7 +68,7 @@ class AdminAnalyticsController extends Controller
 
     /**
      * The "From Google" block (Search Console, imported nightly): hidden
-     * while Search Console is not configured.
+     * while there is no property set and nothing imported.
      */
     public function google(Request $request, SearchConsoleReport $report)
     {
@@ -73,6 +78,18 @@ class AdminAnalyticsController extends Controller
             return response()->json(['configured' => false]);
         }
 
-        return response()->json($report->dashboard((int) ($validated['days'] ?? 30)));
+        try {
+            return response()->json($report->dashboard((int) ($validated['days'] ?? 30)));
+        } catch (QueryException $e) {
+            return $this->googleTooSlow($e);
+        }
+    }
+
+    /** A Google read over its 5 s cap (or a database hiccup): say so, not a 500. */
+    private function googleTooSlow(QueryException $e)
+    {
+        report($e);
+
+        return response()->json(['message' => 'The Google numbers took too long to read. Try again in a minute.'], 503);
     }
 }

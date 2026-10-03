@@ -73,6 +73,9 @@ function scFakeGoogle(?Closure $extra = null): void
             ],
             'page' => [
                 ['keys' => ['https://everythingimmersive.com/events/the-show'], 'clicks' => 7, 'impressions' => 90, 'position' => 3.0],
+                // Query strings, fragments and a trailing slash: the same page.
+                ['keys' => ['https://everythingimmersive.com/events/the-show?ref=ig#top'], 'clicks' => 1, 'impressions' => 5, 'position' => 1.0],
+                ['keys' => ['https://www.everythingimmersive.com/events/the-show/'], 'clicks' => 2, 'impressions' => 5, 'position' => 2.0],
                 ['keys' => ['https://www.everythingimmersive.com/'], 'clicks' => 2, 'impressions' => 50, 'position' => 6.0],
                 ['keys' => ['https://dev.everythingimmersive.com/x'], 'clicks' => 0, 'impressions' => 1, 'position' => 9.0],
             ],
@@ -142,6 +145,8 @@ test('a day imports every dimension: paths for our own pages, countries as two l
         ->and($rows['query'][0]->impressions)->toBe(120)
         ->and($rows['query'][0]->position_sum)->toEqual(300.0)
         ->and($rows['page']->pluck('key')->sort()->values()->all())->toBe(['/', '/events/the-show', 'https://dev.everythingimmersive.com/x'])
+        ->and($rows['page']->firstWhere('key', '/events/the-show'))->toMatchArray(['clicks' => 10, 'impressions' => 100])
+        ->and($rows['page']->firstWhere('key', '/events/the-show')->position_sum)->toEqual(285.0)
         ->and($rows['country']->pluck('key')->sort()->values()->all())->toBe(['US', 'ZZZ'])
         ->and($rows['device'][0]->key)->toBe('mobile')
         ->and($rows['query_page'][0]->key)->toBe('sleep no more > /events/the-show');
@@ -208,13 +213,14 @@ test('the report sums days with the position weighted by impressions, and names 
     scRow(['day' => $latest->copy()->subDay()->toDateString(), 'clicks' => 30, 'impressions' => 300, 'position_sum' => 3000]);
     // The period before (a 2-day period): compared against.
     scRow(['day' => $latest->copy()->subDays(2)->toDateString(), 'clicks' => 20, 'impressions' => 100, 'position_sum' => 500]);
+    scRow(['day' => $latest->copy()->subDays(3)->toDateString()]);
     scRow(['day' => $latest->toDateString(), 'dim' => 'page', 'key' => '/events/the-show', 'clicks' => 8, 'impressions' => 40, 'position_sum' => 80]);
     scRow(['day' => $latest->toDateString(), 'dim' => 'page', 'key' => '/about', 'clicks' => 1, 'impressions' => 10, 'position_sum' => 50]);
 
     $report = app(SearchConsoleReport::class);
     $totals = $report->totals(2);
 
-    expect($report->period(2))->toBe(['from' => $latest->copy()->subDay()->toDateString(), 'to' => $latest->toDateString(), 'days' => 2])
+    expect($report->period(2))->toBe(['from' => $latest->copy()->subDay()->toDateString(), 'to' => $latest->toDateString(), 'days' => 2, 'data_since' => $latest->copy()->subDays(3)->toDateString()])
         ->and($totals['totals'])->toBe(['clicks' => 40, 'impressions' => 400, 'ctr' => 0.1, 'position' => 8.0])
         ->and($totals['previous'])->toBe(['clicks' => 20, 'impressions' => 100, 'ctr' => 0.2, 'position' => 5.0])
         ->and($totals['series'])->toHaveCount(2);
@@ -237,17 +243,17 @@ test('query and page pairs answer for one search or one page', function () {
         ->and($report->queryPages(28, 10))->toHaveCount(2);
 });
 
-test('the admin block is for moderators, and hidden while Search Console is not configured', function () {
-    scRow(['clicks' => 3, 'impressions' => 30]);
-    scRow(['dim' => 'query', 'key' => 'immersive theatre', 'clicks' => 3, 'impressions' => 30, 'position_sum' => 60]);
-
+test('the admin block is for moderators, and hidden while there is no property and nothing imported', function () {
     $this->actingAs(User::factory()->create(['type' => 'u']))->getJson('/api/admin/analytics/google')->assertForbidden();
 
     $this->actingAs(User::factory()->create(['type' => 'm']));
     $this->getJson('/api/admin/analytics/google')->assertOk()->assertExactJson(['configured' => false]);
     $this->getJson('/api/admin/analytics/section/google_queries')->assertNotFound();
 
-    scConfigure();
+    // Imported rows show without the key file or the property (only the importer needs those).
+    scRow(['clicks' => 3, 'impressions' => 30]);
+    scRow(['day' => now()->subDays(20)->toDateString()]);
+    scRow(['dim' => 'query', 'key' => 'immersive theatre', 'clicks' => 3, 'impressions' => 30, 'position_sum' => 60]);
     $this->getJson('/api/admin/analytics/google?days=7')->assertOk()
         ->assertJsonPath('has_data', true)
         ->assertJsonPath('totals.clicks', 3)
@@ -300,4 +306,75 @@ test('the search-console tool wraps what people typed into Google, and answers w
 
     scModerator()->tool(SearchConsoleTool::class, ['report' => 'totals', 'days' => 7])->assertOk()->assertSee('"clicks":4', false);
     scModerator()->tool(SearchConsoleTool::class, ['report' => 'nonsense'])->assertHasErrors();
+});
+
+test('a period never starts before the first imported day, and then has nothing to compare with', function () {
+    config(['services.search_console.site_url' => 'sc-domain:everythingimmersive.com']);
+    scRow(['day' => now()->subDays(3)->toDateString(), 'clicks' => 5, 'impressions' => 50]);
+    scRow(['day' => now()->subDays(5)->toDateString(), 'clicks' => 1, 'impressions' => 10]);
+
+    $report = app(SearchConsoleReport::class);
+
+    expect($report->period(28))->toBe(['from' => now()->subDays(5)->toDateString(), 'to' => now()->subDays(3)->toDateString(), 'days' => 3, 'data_since' => now()->subDays(5)->toDateString()])
+        ->and($report->totals(28)['previous'])->toBeNull()
+        ->and($report->totals(28)['totals']['clicks'])->toBe(6);
+
+    $this->actingAs(User::factory()->create(['type' => 'm']))->getJson('/api/admin/analytics/google?days=30')
+        ->assertOk()->assertJsonPath('previous', null)->assertJsonPath('period.data_since', now()->subDays(5)->toDateString())->assertJsonCount(3, 'daily');
+
+    scModerator()->tool(SearchConsoleTool::class, ['report' => 'totals'])->assertOk()->assertSee('"data_since":"'.now()->subDays(5)->toDateString().'"', false);
+});
+
+test('a busy token endpoint is retried, and Google still failing after every try stops the run', function () {
+    scConfigure();
+    $tokenCalls = 0;
+    Http::fake(function (Request $request) use (&$tokenCalls) {
+        if ($request->url() === ServiceAccountToken::TOKEN_URL) {
+            return ++$tokenCalls === 1 ? Http::response(['error' => 'backend_error'], 503) : Http::response(['access_token' => 'fake-token', 'expires_in' => 3600]);
+        }
+
+        return Http::response(['error' => ['message' => 'Backend Error']], 500);
+    });
+
+    $this->artisan('ei:search-console-import')->expectsOutputToContain('Stopped')->assertFailed();
+
+    // One call gets 5 tries in all: the token's 503, then 4 API 500s after
+    // the token comes through; no other day is tried.
+    expect($tokenCalls)->toBe(2);
+    Http::assertSentCount(1 + SearchConsole::ATTEMPTS);
+});
+
+test('a refused key stops the run at once', function () {
+    scConfigure();
+    Http::fake([ServiceAccountToken::TOKEN_URL => Http::response(['error' => 'invalid_grant', 'error_description' => 'Invalid JWT Signature.'], 400)]);
+
+    $this->artisan('ei:search-console-import')->expectsOutputToContain('invalid_grant')->assertFailed();
+
+    Http::assertSentCount(1);
+});
+
+test('the pages filter takes a full address, and a known page with no query string is not wrapped', function () {
+    scConfigure();
+    $event = Event::factory()->published()->create(['name' => 'The Show', 'slug' => 'the-show']);
+    scRow(['clicks' => 4, 'impressions' => 40]);
+    scRow(['dim' => 'page', 'key' => '/events/the-show', 'clicks' => 4, 'impressions' => 40, 'position_sum' => 40]);
+    scRow(['dim' => 'page', 'key' => '/about', 'clicks' => 1, 'impressions' => 40, 'position_sum' => 40]);
+
+    expect(app(SearchConsoleReport::class)->pages(28, 10, 'https://www.everythingimmersive.com/events/the-show/?utm=x'))->toHaveCount(1);
+
+    scModerator()->tool(SearchConsoleTool::class, ['report' => 'pages'])
+        ->assertOk()
+        ->assertSee('"page":"/events/the-show","event":{"id":'.$event->id.',"name":"The Show"}', false)
+        ->assertSee('"page":{"visitor_text":"/about"}', false);
+});
+
+test('a slow Google read answers 503, not a 500', function () {
+    config(['services.search_console.site_url' => 'sc-domain:everythingimmersive.com']);
+    $this->mock(SearchConsoleReport::class, function ($mock) {
+        $mock->shouldReceive('configured')->andReturnTrue();
+        $mock->shouldReceive('dashboard')->andThrow(new Illuminate\Database\QueryException('mysql', 'SELECT 1', [], new Exception('Query execution was interrupted, maximum statement execution time exceeded')));
+    });
+
+    $this->actingAs(User::factory()->create(['type' => 'm']))->getJson('/api/admin/analytics/google')
+        ->assertStatus(503)->assertJsonPath('message', 'The Google numbers took too long to read. Try again in a minute.');
 });

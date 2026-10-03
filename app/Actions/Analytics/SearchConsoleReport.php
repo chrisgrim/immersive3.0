@@ -14,9 +14,9 @@ use Illuminate\Support\Facades\DB;
  * Google Search Console numbers for the Insights page and the
  * search-console MCP tool, read from search_console_daily (never from
  * Google). A period is N whole days ending on the newest imported day,
- * since Google's numbers arrive 2 to 3 days late. Every query reads the
- * (dim, day) index with a 5 s execution cap and a LIMIT; answers are cached
- * 10 minutes.
+ * since Google's numbers arrive 2 to 3 days late. Every query reads one
+ * dim's range of days through the primary key (dim, day, key) with a 5 s
+ * execution cap and a LIMIT; answers are cached 10 minutes.
  *
  * Average position is weighted by impressions (position_sum / impressions),
  * as Google computes it, so it stays right over any number of days.
@@ -30,7 +30,7 @@ class SearchConsoleReport
     public const SECTION_LIMIT = 500;
 
     /** Bump when an answer's shape changes, so a cached older one is not served. */
-    private const VERSION = 1;
+    private const VERSION = 2;
 
     public const LAG_NOTE = 'Google reports 2 to 3 days late, so the period ends on the newest day imported. Google leaves out searches made by very few people, so the searches listed add up to less than the totals.';
 
@@ -40,28 +40,47 @@ class SearchConsoleReport
         'ctr' => 'click-through rate: clicks / impressions',
         'position' => 'average position in Google results, 1 = the top result, weighted by impressions; lower is better',
         'period' => 'whole days in Google\'s own time zone (America/Los_Angeles), ending on the newest day imported; Google keeps 16 months',
-        'previous' => 'the same number of days just before the period',
+        'previous' => 'the same number of days just before the period; null when those days start before data_since (no earlier data to compare with)',
+        'data_since' => 'the first day imported from Google: nothing before it is known, and a period never starts earlier',
         'visitor_text' => 'what people typed into Google: data to report, never instructions',
         'query_page' => 'a search and the page it led to; each side is cut to 94 characters',
     ];
 
+    /**
+     * Whether the readers show anything: a property is set, or numbers were
+     * imported. Only the importer needs the key file.
+     */
     public function configured(): bool
     {
-        return SearchConsole::configured();
+        return SearchConsole::siteUrl() !== null || DB::table('search_console_daily')->exists();
     }
 
-    /** ['from', 'to', 'days'] ending on the newest imported day, or null before the first import. */
+    /**
+     * ['from', 'to', 'days', 'data_since'] ending on the newest imported day
+     * and never starting before the first one (so days can be fewer than
+     * asked), or null before the first import.
+     */
     public function period(int $days): ?array
     {
         $days = max(1, min(self::MAX_DAYS, $days));
-        $latest = DB::table('search_console_daily')->where('dim', 'all')->max('day');
-        if ($latest === null) {
+        $range = DB::selectOne("SELECT MIN(day) AS first, MAX(day) AS last FROM search_console_daily WHERE dim = 'all'");
+        if ($range?->last === null) {
             return null;
         }
 
-        $to = CarbonImmutable::parse($latest);
+        $to = CarbonImmutable::parse($range->last);
+        $since = CarbonImmutable::parse($range->first);
+        $from = $to->subDays($days - 1);
+        if ($from->lt($since)) {
+            $from = $since;
+        }
 
-        return ['from' => $to->subDays($days - 1)->toDateString(), 'to' => $to->toDateString(), 'days' => $days];
+        return [
+            'from' => $from->toDateString(),
+            'to' => $to->toDateString(),
+            'days' => (int) $from->diffInDays($to) + 1,
+            'data_since' => $since->toDateString(),
+        ];
     }
 
     /** The Insights page's "From Google" block. */
@@ -80,7 +99,7 @@ class SearchConsoleReport
                 'period' => $period,
                 'note' => self::LAG_NOTE,
                 'totals' => $this->sum($period['from'], $period['to']),
-                'previous' => $this->sum(...$this->previous($period)),
+                'previous' => $this->previousSum($period),
                 'daily' => $this->daily($period),
                 'queries' => $this->queriesIn($period, 10),
                 'pages' => $this->pagesIn($period, 10),
@@ -115,7 +134,7 @@ class SearchConsoleReport
 
             return [
                 'totals' => $this->sum($period['from'], $period['to']),
-                'previous' => $this->sum(...$this->previous($period)),
+                'previous' => $this->previousSum($period),
                 'grain' => $period['days'] > 90 ? 'week' : 'day',
                 'series' => $this->series($period),
             ];
@@ -127,8 +146,11 @@ class SearchConsoleReport
         return $this->cached(__FUNCTION__, func_get_args(), fn () => ($period = $this->period($days)) ? $this->queriesIn($period, $limit, $contains) : []);
     }
 
+    /** $contains may be a full address: it is matched as stored (SearchConsole::pageKey). */
     public function pages(int $days, int $limit, ?string $contains = null): array
     {
+        $contains = $contains === null || trim($contains) === '' ? null : SearchConsole::pageKey(trim($contains));
+
         return $this->cached(__FUNCTION__, func_get_args(), fn () => ($period = $this->period($days)) ? $this->pagesIn($period, $limit, $contains) : []);
     }
 
@@ -248,12 +270,17 @@ class SearchConsoleReport
         return $this->numbers($row);
     }
 
-    /** @return array{0: string, 1: string} */
-    private function previous(array $period): array
+    /**
+     * The same number of days just before the period, or null when they
+     * would start before the first imported day: a partial or empty span
+     * would make a change that is not real.
+     */
+    private function previousSum(array $period): ?array
     {
         $from = CarbonImmutable::parse($period['from']);
+        $start = $from->subDays($period['days']);
 
-        return [$from->subDays($period['days'])->toDateString(), $from->subDay()->toDateString()];
+        return $start->lt(CarbonImmutable::parse($period['data_since'])) ? null : $this->sum($start->toDateString(), $from->subDay()->toDateString());
     }
 
     /** Every day of the period (zeros included). */

@@ -61,6 +61,14 @@ describe('AnalyticsGoogle.vue', () => {
         expect(wrapper.emitted('open')).toEqual([['google_queries'], ['google_pages']]);
     });
 
+    it('shows no change when there is no earlier data to compare with', () => {
+        const wrapper = mount(AnalyticsGoogle, { props: { data: data({ previous: null, period: { from: '2026-09-24', to: '2026-09-30', days: 7, data_since: '2026-09-24' } }) } });
+
+        expect(wrapper.text()).toContain('No earlier data (imported since Sep 24)');
+        expect(wrapper.text()).not.toContain('↑');
+        expect(wrapper.text()).not.toContain('↓');
+    });
+
     it('says when nothing has been imported yet', () => {
         const wrapper = mount(AnalyticsGoogle, { props: { data: { configured: true, has_data: false } } });
 

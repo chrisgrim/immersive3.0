@@ -62,6 +62,7 @@ class SearchConsole extends Tool
 
         return Response::json([
             'period' => $period ?? 'none yet: nothing has been imported from Google so far',
+            'data_since' => $period['data_since'] ?? null,
             'timezone' => 'America/Los_Angeles (Google\'s own days)',
             'data_lag' => SearchConsoleReport::LAG_NOTE,
             'definitions' => SearchConsoleReport::DEFINITIONS,
@@ -95,8 +96,11 @@ class SearchConsole extends Tool
             default => [],
         };
 
-        // An event or organizer page is ours; any other address is wrapped.
-        return ['page' => $what ? $row['page'] : $this->visitorText($row['page'], 191)] + $what + array_intersect_key($row, array_flip(['clicks', 'impressions', 'ctr', 'position']));
+        // A mapped event or organizer path is ours; any other address
+        // (and anything with a query string) is wrapped.
+        $ours = $what !== [] && str_starts_with($row['page'], '/') && ! str_contains($row['page'], '?');
+
+        return ['page' => $ours ? $row['page'] : $this->visitorText($row['page'], 191)] + $what + array_intersect_key($row, array_flip(['clicks', 'impressions', 'ctr', 'position']));
     }
 
     public function schema(JsonSchema $schema): array

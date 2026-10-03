@@ -171,34 +171,38 @@ const change = (now, before, { points = false, lowerIsBetter = false } = {}) => 
     return { up, good: lowerIsBetter ? !up : up, text }
 }
 
+// previous is null when the days before start before the first import:
+// no change is shown rather than one against missing days.
 const kpis = computed(() => {
     const now = props.data.totals
     const before = props.data.previous
     const days = props.data.days
+    const since = formatDay(props.data.period?.data_since)
+    const compare = (key, options) => (before ? change(now[key], before[key], options) : null)
 
     return [
         {
             label: 'Clicks from Google',
             value: now.clicks.toLocaleString(),
-            change: change(now.clicks, before.clicks),
-            note: `vs ${before.clicks.toLocaleString()} the ${days} days before`,
+            change: compare('clicks'),
+            note: before ? `vs ${before.clicks.toLocaleString()} the ${days} days before` : `No earlier data (imported since ${since})`,
         },
         {
             label: 'Impressions',
             value: now.impressions.toLocaleString(),
-            change: change(now.impressions, before.impressions),
+            change: compare('impressions'),
             note: 'Times the site showed up in results',
         },
         {
             label: 'Click-Through Rate',
             value: percent(now.ctr),
-            change: change(now.ctr, before.ctr, { points: true }),
+            change: compare('ctr', { points: true }),
             note: 'Clicks per impression',
         },
         {
             label: 'Average Position',
             value: position(now.position),
-            change: change(now.position, before.position, { points: true, lowerIsBetter: true }),
+            change: compare('position', { points: true, lowerIsBetter: true }),
             note: '1 is the top result; lower is better',
         },
     ]
