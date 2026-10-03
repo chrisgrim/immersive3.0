@@ -161,3 +161,71 @@ test('the migration can run again', function () {
 
     expect(Illuminate\Support\Facades\Schema::hasColumns('analytics_daily', ['js_visitors', 'engaged_visitors']))->toBeTrue();
 });
+
+// ----- daily totals -----
+
+test('the rollup counts browser-confirmed and engaged visitor-days, for people only', function () {
+    $day = now('UTC')->subDays(2)->toDateString();
+    $row = fn (string $visitor, array $values) => DB::table('analytics_events')->insert(array_merge([
+        'type' => 'page_view', 'occurred_at' => "{$day} 12:00:00", 'visitor' => str_repeat($visitor, 16), 'bot' => 0,
+        'page' => 'home', 'path' => '/', 'js' => 0, 'country' => 'US',
+    ], $values));
+
+    // a: one page, pinged. b: one page, never pinged (a script).
+    $row('a', ['js' => 1]);
+    $row('b', []);
+    // c: two pages, no ping: engaged, not confirmed.
+    $row('c', []);
+    $row('c', ['path' => '/events/x', 'occurred_at' => "{$day} 12:01:00"]);
+    // d: one page, 12 seconds on it (time on page needs JavaScript).
+    $row('d', ['view_id' => 'viewDDDD0001']);
+    $row('d', ['type' => 'page_leave', 'view_id' => 'viewDDDD0001', 'seconds' => 12, 'page' => null, 'path' => null, 'js' => null]);
+    // e: one page and a ticket click: engaged, not confirmed.
+    $row('e', []);
+    $row('e', ['type' => 'ticket_click', 'event_id' => 7, 'page' => null, 'path' => null, 'js' => null]);
+    // A bot, pinged and busy: not in the people's counts.
+    $row('z', ['js' => 1, 'bot' => Analytics::BOT_AUTOMATION]);
+    $row('z', ['bot' => Analytics::BOT_AUTOMATION, 'path' => '/events/x']);
+
+    $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
+
+    $total = fn (string $dim, string $key, int $bot = 0) => DB::table('analytics_daily')
+        ->where(['day' => $day, 'type' => 'view', 'dim' => $dim, 'key' => $key, 'bot' => $bot])->first();
+
+    expect($total('all', ''))->visitors->toBe(5)->js_visitors->toBe(2)->engaged_visitors->toBe(3)
+        ->and($total('country', 'US'))->js_visitors->toBe(2)->engaged_visitors->toBe(3)
+        ->and($total('path', '/events/x'))->visitors->toBe(1)->js_visitors->toBe(0)->engaged_visitors->toBe(1)
+        ->and($total('all', '', 1))->js_visitors->toBeNull()->engaged_visitors->toBeNull()
+        ->and(DB::table('analytics_daily')->where(['day' => $day, 'type' => 'ticket_click', 'dim' => 'all'])->first())
+        ->engaged_visitors->toBe(1);
+});
+
+test('a day without the load ping has no browser-confirmed count, but still an engaged one', function () {
+    $day = now('UTC')->subDays(2)->toDateString();
+    foreach (['a', 'a', 'b'] as $i => $visitor) {
+        DB::table('analytics_events')->insert([
+            'type' => 'page_view', 'occurred_at' => "{$day} 12:0{$i}:00", 'visitor' => str_repeat($visitor, 16), 'bot' => 0, 'page' => 'home', 'path' => '/',
+        ]);
+    }
+
+    $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
+
+    expect(DB::table('analytics_daily')->where(['day' => $day, 'type' => 'view', 'dim' => 'all', 'bot' => 0])->first())
+        ->visitors->toBe(2)->js_visitors->toBeNull()->engaged_visitors->toBe(1);
+});
+
+test('path edges carry their browser-confirmed and engaged visitors', function () {
+    $day = now('UTC')->subDays(2)->toDateString();
+    foreach (range(1, 5) as $i) {
+        $visitor = str_repeat((string) $i, 16);
+        DB::table('analytics_events')->insert([
+            ['type' => 'page_view', 'occurred_at' => "{$day} 10:00:0{$i}", 'visitor' => $visitor, 'bot' => 0, 'page' => 'home', 'path' => '/', 'js' => $i <= 3 ? 1 : 0],
+            ['type' => 'page_view', 'occurred_at' => "{$day} 10:05:0{$i}", 'visitor' => $visitor, 'bot' => 0, 'page' => 'events.show', 'path' => '/events/x', 'js' => 0],
+        ]);
+    }
+
+    $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
+
+    expect(DB::table('analytics_daily')->where(['day' => $day, 'dim' => 'edge', 'key' => '/ > /events/x'])->first())
+        ->visitors->toBe(5)->js_visitors->toBe(3)->engaged_visitors->toBe(5);
+});
