@@ -550,3 +550,22 @@ test('a step from a very long address keeps both ends, and is found from either 
     expect($query->paths($long, 'next', 7)[0]['to'] ?? null)->toBe('/index/search')
         ->and(count($query->paths('/index/search', 'previous', 7)))->toBe(1);
 });
+
+test('two pages hours apart are not a step from one to the other', function () {
+    $day = daysAgo(2);
+    foreach (range(1, 5) as $i) {
+        $visitor = str_repeat((string) $i, 16);
+        DB::table('analytics_events')->insert([
+            ['type' => 'page_view', 'occurred_at' => "{$day} 09:00:0{$i}", 'visitor' => $visitor, 'bot' => 0, 'page' => 'events.show', 'path' => '/events/x'],
+            ['type' => 'page_view', 'occurred_at' => "{$day} 18:00:0{$i}", 'visitor' => $visitor, 'bot' => 0, 'page' => 'home', 'path' => '/'],
+        ]);
+    }
+
+    $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
+
+    expect(DB::table('analytics_daily')->where('dim', 'edge')->count())->toBe(0);
+});
+
+test('the private communities list is not a page view', function () {
+    expect(App\Http\Middleware\RecordPageView::PAGES)->not->toContain('communities.index');
+});

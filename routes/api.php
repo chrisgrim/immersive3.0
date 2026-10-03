@@ -61,7 +61,8 @@ Route::POST('/analytics/search-click', App\Http\Controllers\Analytics\SearchClic
     ->middleware('throttle:analytics-beacon')
     ->name('analytics.search-click');
 
-// Time on page (analytics), one sendBeacon per page view, same rules.
+// Time on page (analytics): each hide sends the running total (at most 10
+// per page view, the rollup keeps the largest), same rules.
 Route::POST('/analytics/page-leave', App\Http\Controllers\Analytics\PageLeaveController::class)
     ->withoutMiddleware(\Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class)
     ->middleware('throttle:analytics-beacon')

@@ -3,6 +3,8 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class AnalyticsPrune extends Command
@@ -12,6 +14,20 @@ class AnalyticsPrune extends Command
     protected $description = 'Delete analytics_events rows older than analytics.raw_days (bots: bot_raw_days), in small chunks.';
 
     public function handle(): int
+    {
+        // Not while a rollup runs: deleting raw rows between its statements
+        // would leave one day's dimensions counting different rows. Shares
+        // the rollup's lock; waits up to 25 minutes, else tries next night.
+        try {
+            return Cache::lock('analytics:rollup', 3600)->block(1500, fn () => $this->pruneAll());
+        } catch (LockTimeoutException) {
+            $this->warn('A rollup is still running; skipped.');
+
+            return self::SUCCESS;
+        }
+    }
+
+    private function pruneAll(): int
     {
         // People's rows: 13 months. Bot rows: 30 days, since analytics_daily
         // keeps their counts (rolled up nightly, well inside 30 days).

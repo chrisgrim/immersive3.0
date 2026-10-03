@@ -50,6 +50,9 @@ class AnalyticsRollup extends Command
      */
     public const EDGE_SIDE = 94;
 
+    /** Two page views are one step only if this close together. */
+    public const STEP_MINUTES = 30;
+
     private const EDGE_KEY = 'CONCAT(LEFT(prev_path, '.self::EDGE_SIDE."), ' > ', LEFT(path, ".self::EDGE_SIDE.'))';
 
     public function handle(): int
@@ -293,11 +296,14 @@ class AnalyticsRollup extends Command
             INSERT INTO analytics_daily (day, type, dim, `key`, bot, hits, visitors, seconds_sum, seconds_count)
             SELECT ?, '".self::VIEW."', 'edge', {$this->keyed(self::EDGE_KEY)}, 0, COUNT(*), COUNT(DISTINCT visitor), 0, 0
             FROM (
-                SELECT visitor, path, LAG(path) OVER (PARTITION BY visitor ORDER BY occurred_at, id) AS prev_path
+                SELECT visitor, path, LAG(path) OVER w AS prev_path, LAG(occurred_at) OVER w AS prev_at, occurred_at
                 FROM analytics_events
                 WHERE type = '".Analytics::PAGE_VIEW."' AND bot = 0 AND occurred_at >= ? AND occurred_at < ? AND path IS NOT NULL
+                WINDOW w AS (PARTITION BY visitor ORDER BY occurred_at, id)
             ) steps
-            WHERE prev_path IS NOT NULL
+            -- A step is two pages within half an hour: a person back hours
+            -- later did not go from one to the other.
+            WHERE prev_path IS NOT NULL AND occurred_at <= prev_at + INTERVAL ".self::STEP_MINUTES.' MINUTE'."
             GROUP BY {$this->keyed(self::EDGE_KEY)}
             HAVING COUNT(DISTINCT visitor) >= ?".self::MERGE, [$day->toDateString(), ...$range, self::MIN_EDGE_VISITORS]);
     }

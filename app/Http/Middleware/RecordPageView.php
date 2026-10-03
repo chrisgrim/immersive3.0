@@ -23,7 +23,7 @@ use Symfony\Component\HttpFoundation\Response;
 class RecordPageView
 {
     public const PAGES = [
-        'home', 'search', 'events.show', 'organizers.show', 'communities.index',
+        'home', 'search', 'events.show', 'organizers.show',
         'communities.show', 'communities.posts.show', 'help', 'privacy', 'terms',
     ];
 

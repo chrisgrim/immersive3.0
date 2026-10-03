@@ -139,7 +139,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
 
 const isLoaded = ref(true);
@@ -266,14 +266,6 @@ const getInitialData = async () => {
         isLoaded.value = true;
     }
 };
-
-watch(isVisible, (newValue) => {
-    if (newValue === 'event') {
-        fetchEvents();
-    } else if (newValue === 'organizer') {
-        fetchOrganizers();
-    }
-});
 
 onMounted(() => {
     getInitialData();
