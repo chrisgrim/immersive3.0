@@ -152,7 +152,9 @@ class AnalyticsFlush extends Command
         $visitor = substr(hash('sha256', $this->salt($day).'|'.$ip.'|'.$ua), 0, 16);
         $data = is_array($note['d'] ?? null) ? $note['d'] : [];
 
-        $bot = $this->botFlags($ua, $ip, $day, $visitor) | (isset($this->hostingAsns[$this->geo->asn($ip) ?? 0]) ? Analytics::BOT_DATACENTER : 0);
+        $bot = $this->botFlags($ua, $ip, $day, $visitor)
+            | (isset($this->hostingAsns[$this->geo->asn($ip) ?? 0]) ? Analytics::BOT_DATACENTER : 0)
+            | ($this->missingBrowserHeaders($ua, $note['h'] ?? null) ? Analytics::BOT_HEADERS : 0);
         $type = mb_substr((string) $note['t'], 0, 32);
         $text = fn ($key, $max) => isset($data[$key]) && is_scalar($data[$key]) && (string) $data[$key] !== '' ? mb_substr((string) $data[$key], 0, $max) : null;
         $utm = is_array($data['utm'] ?? null) ? $data['utm'] : [];
@@ -190,6 +192,28 @@ class AnalyticsFlush extends Command
             'city' => $place['city'] ?? null,
             'region' => $place['region'] ?? null,
         ];
+    }
+
+    /**
+     * A real browser always sends Accept-Language, and a recent Chrome, Edge
+     * or Firefox (Chrome 80+, Firefox 90+) also Sec-Fetch-Site. Safari is
+     * not held to the second (it only added it in 16.4). Notes from before
+     * headers were recorded ($headers null) are never flagged.
+     */
+    private function missingBrowserHeaders(string $ua, $headers): bool
+    {
+        if (! is_array($headers)) {
+            return false;
+        }
+
+        if (empty($headers['al'])) {
+            return true;
+        }
+
+        $recent = (preg_match('~(?:Chrome|Chromium)/(\d+)~', $ua, $chrome) && (int) $chrome[1] >= 80)
+            || (preg_match('~Firefox/(\d+)~', $ua, $firefox) && (int) $firefox[1] >= 90);
+
+        return $recent && empty($headers['sf']);
     }
 
     private function botFlags(string $ua, string $ip, string $day, string $visitor): int

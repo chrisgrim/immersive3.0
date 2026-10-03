@@ -38,7 +38,7 @@ class SiteAnalyticsReport
         ELSE COALESCE(rl.name, CONCAT('Type ', ".self::REMOTE.')) END';
 
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 8;
+    private const VERSION = 9;
 
     private const LIMIT = 25;
 
@@ -483,8 +483,8 @@ class SiteAnalyticsReport
             ->where('occurred_at', '>=', $since)
             ->selectRaw('COUNT(*) AS total, SUM(bot > 0) AS flagged,
                 SUM((bot & ?) > 0) AS crawler, SUM((bot & ?) > 0) AS no_user_agent,
-                SUM((bot & ?) > 0) AS over_daily_cap, SUM((bot & ?) > 0) AS datacenter', [
-                Analytics::BOT_CRAWLER, Analytics::BOT_NO_USER_AGENT, Analytics::BOT_OVER_DAILY_CAP, Analytics::BOT_DATACENTER,
+                SUM((bot & ?) > 0) AS over_daily_cap, SUM((bot & ?) > 0) AS datacenter, SUM((bot & ?) > 0) AS odd_headers', [
+                Analytics::BOT_CRAWLER, Analytics::BOT_NO_USER_AGENT, Analytics::BOT_OVER_DAILY_CAP, Analytics::BOT_DATACENTER, Analytics::BOT_HEADERS,
             ])
             ->first();
 
@@ -496,6 +496,7 @@ class SiteAnalyticsReport
             'no_user_agent' => (int) $row->no_user_agent,
             'over_daily_cap' => (int) $row->over_daily_cap,
             'datacenter' => (int) $row->datacenter,
+            'odd_headers' => (int) $row->odd_headers,
         ];
     }
 }

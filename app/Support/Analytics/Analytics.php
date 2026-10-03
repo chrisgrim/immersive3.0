@@ -50,6 +50,14 @@ class Analytics
 
     public const BOT_DATACENTER = 8;
 
+    /**
+     * Missing what every real browser sends: an Accept-Language header, or
+     * (from a browser that claims to be a recent Chrome, Edge or Firefox)
+     * the Sec-Fetch-Site header. Scraper scripts that copy a browser's
+     * user agent usually leave these out; they pass the other checks.
+     */
+    public const BOT_HEADERS = 16;
+
     /** The 'array' buffer (tests). */
     private array $memory = [];
 
@@ -71,6 +79,11 @@ class Analytics
                 'at' => now()->getTimestamp(),
                 'ip' => (string) $request->ip(),
                 'ua' => mb_substr((string) $request->userAgent(), 0, 512),
+                // Whether the browser-only headers came (see BOT_HEADERS).
+                'h' => [
+                    'al' => trim((string) $request->headers->get('accept-language')) !== '',
+                    'sf' => $request->headers->has('sec-fetch-site'),
+                ],
                 'd' => $data,
             ], JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
         } catch (Throwable $e) {

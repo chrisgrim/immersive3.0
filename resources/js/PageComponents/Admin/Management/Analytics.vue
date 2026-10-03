@@ -331,7 +331,8 @@
             <p class="text-[1.2rem] text-[#717171]">
                 Bots left out: {{ report.bots.flagged.toLocaleString() }} of {{ report.bots.all_rows.toLocaleString() }} hits ({{ percent(report.bots.share) }}):
                 {{ report.bots.datacenter.toLocaleString() }} from cloud networks, {{ report.bots.crawler.toLocaleString() }} declared crawlers,
-                {{ report.bots.over_daily_cap.toLocaleString() }} over the daily limit, {{ report.bots.no_user_agent.toLocaleString() }} with no browser name.
+                {{ report.bots.over_daily_cap.toLocaleString() }} over the daily limit, {{ report.bots.no_user_agent.toLocaleString() }} with no browser name,
+                {{ (report.bots.odd_headers ?? 0).toLocaleString() }} missing what real browsers send.
                 IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noopener" class="underline">DB-IP</a>.
             </p>
         </div>

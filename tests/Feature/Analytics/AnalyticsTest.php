@@ -21,7 +21,7 @@ const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/
 
 test('a recorded note reaches analytics_events without the IP or user agent', function () {
     Analytics::record(Analytics::SEARCH, ['query' => 'Boise, ID', 'results' => 0, 'source' => 'list', 'props' => ['tags' => [3]]],
-        Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => '203.0.113.9', 'HTTP_USER_AGENT' => BROWSER_UA]));
+        Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => '203.0.113.9', 'HTTP_USER_AGENT' => BROWSER_UA, 'HTTP_SEC_FETCH_SITE' => 'none']));
 
     $rows = analyticsRows();
 
@@ -37,7 +37,7 @@ test('a recorded note reaches analytics_events without the IP or user agent', fu
 });
 
 test('the same visitor hashes the same within a day and differently the next day', function () {
-    $request = fn () => Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => '203.0.113.9', 'HTTP_USER_AGENT' => BROWSER_UA]);
+    $request = fn () => Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => '203.0.113.9', 'HTTP_USER_AGENT' => BROWSER_UA, 'HTTP_SEC_FETCH_SITE' => 'none']);
 
     Carbon::setTestNow('2026-10-02 10:00:00');
     Analytics::record(Analytics::SEARCH, [], $request());
@@ -52,7 +52,7 @@ test('the same visitor hashes the same within a day and differently the next day
 
 test('crawlers, empty user agents and over-the-cap visitors are flagged, not dropped', function () {
     config(['analytics.daily_cap' => 2]);
-    $as = fn (string $ua, string $ip = '198.51.100.1') => Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => $ip, 'HTTP_USER_AGENT' => $ua]);
+    $as = fn (string $ua, string $ip = '198.51.100.1') => Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => $ip, 'HTTP_USER_AGENT' => $ua, 'HTTP_SEC_FETCH_SITE' => 'none']);
 
     Analytics::record(Analytics::SEARCH, [], $as('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'));
     Analytics::record(Analytics::SEARCH, [], $as(''));
@@ -185,7 +185,7 @@ test('a hit from a cloud network is flagged as a bot, and every row gets its cou
     // 43.134.x is the Singapore bot's Tencent network; 73.162.x a Comcast home line.
     fakeGeo(['43.134.1.1' => 'SG', '73.162.1.1' => 'US'], ['43.134.1.1' => 132203, '73.162.1.1' => 7922]);
     foreach (['43.134.1.1', '73.162.1.1'] as $ip) {
-        Analytics::record(Analytics::SEARCH, [], Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => $ip, 'HTTP_USER_AGENT' => BROWSER_UA]));
+        Analytics::record(Analytics::SEARCH, [], Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => $ip, 'HTTP_USER_AGENT' => BROWSER_UA, 'HTTP_SEC_FETCH_SITE' => 'none']));
     }
 
     $rows = analyticsRows();
@@ -342,7 +342,7 @@ test('the place text is cleaned and capped before it is buffered', function () {
 test('one address changing its user agent on every hit still hits the daily cap', function () {
     config(['analytics.ip_daily_cap' => 3]);
     foreach (range(1, 4) as $i) {
-        Analytics::record(Analytics::SEARCH, [], Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => '198.51.100.7', 'HTTP_USER_AGENT' => BROWSER_UA." v{$i}"]));
+        Analytics::record(Analytics::SEARCH, [], Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => '198.51.100.7', 'HTTP_USER_AGENT' => BROWSER_UA, 'HTTP_SEC_FETCH_SITE' => 'none'." v{$i}"]));
     }
 
     expect(analyticsRows()->pluck('bot')->all())->toBe([0, 0, 0, Analytics::BOT_OVER_DAILY_CAP]);
@@ -406,4 +406,17 @@ test('a note the database rejects as invalid is skipped and the rest are written
 
     expect(analyticsRows()->pluck('query')->all())->toBe(['Good'])
         ->and(app(Analytics::class)->pop(10))->toBe([]);
+});
+
+test('a visit missing what real browsers send is flagged as a bot', function () {
+    $visit = fn (array $server) => Analytics::record(Analytics::SEARCH, [], Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => '198.51.100.'.mt_rand(10, 250), ...$server]));
+    $firefox = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0';
+    $oldSafari = 'Mozilla/5.0 (iPad; CPU OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1';
+
+    $visit(['HTTP_USER_AGENT' => BROWSER_UA, 'HTTP_SEC_FETCH_SITE' => 'none']);          // a real Chrome
+    $visit(['HTTP_USER_AGENT' => BROWSER_UA]);                                           // Chrome, no Sec-Fetch-Site
+    $visit(['HTTP_USER_AGENT' => $firefox, 'HTTP_ACCEPT_LANGUAGE' => '']);               // no Accept-Language
+    $visit(['HTTP_USER_AGENT' => $oldSafari]);                                           // old Safari: no Sec-Fetch, fine
+
+    expect(analyticsRows()->pluck('bot')->all())->toBe([0, Analytics::BOT_HEADERS, Analytics::BOT_HEADERS, 0]);
 });
