@@ -97,8 +97,11 @@
         @if($event->showtype === 'a')
         {{-- Always available: the one show row is a
              placeholder on the closing day (often just "six months from now"), not
-             a performance, so say it started when it went live and give no end. --}}
+             a performance, so say it started when it went live. The end is the
+             closing day: when the listing leaves the site (Google asks for an
+             endDate; it moves whenever the schedule is edited). --}}
         "startDate": "{{ \Carbon\Carbon::parse($event->published_at ?? $event->created_at)->toIso8601String() }}",
+        "endDate": "{{ \Carbon\Carbon::parse($event->closingDate)->toIso8601String() }}",
         @else
         {{-- The next upcoming show (shows are newest-first, so ->last()), so a
              years-long run does not advertise a start date years in the past;

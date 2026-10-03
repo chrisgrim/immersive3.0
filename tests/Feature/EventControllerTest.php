@@ -549,9 +549,10 @@ test('an always-available listing does not show its closing-day placeholder as s
 
     $this->get("/events/{$event->slug}")->assertOk()
         ->assertDontSee('Start date')->assertDontSee('End date')
-        // Search engines get the day it went live, and no made-up end.
+        // Search engines get the day it went live, and the day the listing
+        // closes as its end (Google asks for an endDate).
         ->assertSee('"startDate": "'.\Carbon\Carbon::parse($event->fresh()->published_at)->toIso8601String().'"', false)
-        ->assertDontSee('"endDate"', false);
+        ->assertSee('"endDate": "'.\Carbon\Carbon::parse($event->fresh()->closingDate)->toIso8601String().'"', false);
 });
 
 test('the embedded show list is capped but the summary count is not', function () {
