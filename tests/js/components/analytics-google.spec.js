@@ -110,4 +110,22 @@ describe('analyticsChart.js', () => {
         expect(chart.coords).toHaveLength(2);
         expect(chart.line.startsWith('M')).toBe(true);
     });
+
+    it('a day kept from a longer range does not break a shorter one', async () => {
+        const errors = [];
+        const wrapper = mount(AnalyticsGoogle, {
+            props: { data: data() },
+            global: { config: { errorHandler: (error) => errors.push(error) } },
+        });
+        const svg = wrapper.find('svg[role="img"]');
+        svg.element.getBoundingClientRect = () => ({ left: 0, width: 1000 });
+        // jsdom has no PointerEvent: a MouseEvent of that type carries clientX.
+        svg.element.dispatchEvent(new MouseEvent('pointerdown', { clientX: 999, bubbles: true }));
+        await wrapper.vm.$nextTick();
+        expect(wrapper.text()).toContain('Clicks:');
+        const shorter = data();
+        shorter.daily = shorter.daily.slice(0, 1);
+        await wrapper.setProps({ data: shorter });
+        expect(errors).toEqual([]);
+    });
 });

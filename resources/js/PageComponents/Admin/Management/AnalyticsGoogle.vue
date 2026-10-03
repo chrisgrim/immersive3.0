@@ -76,7 +76,7 @@
                             <template v-for="line in chart.lines" :key="`dots-${line.key}`">
                                 <circle v-for="(dot, i) in line.dots" :key="i" :cx="dot.x" :cy="dot.y" r="3" :fill="colorOf(line.key)" />
                             </template>
-                            <g v-if="hoverIndex !== null">
+                            <g v-if="hoverIndex !== null && chart.coords[hoverIndex]">
                                 <line :x1="chart.coords[hoverIndex].x" :x2="chart.coords[hoverIndex].x" :y1="chart.top" :y2="chart.height - chart.bottom" stroke="#222222" stroke-opacity="0.2" />
                                 <template v-for="line in chart.lines" :key="line.key">
                                     <circle v-if="line.coords[hoverIndex]" :cx="line.coords[hoverIndex].x" :cy="line.coords[hoverIndex].y" r="5" :fill="colorOf(line.key)" stroke="#FFFFFF" stroke-width="2" />
