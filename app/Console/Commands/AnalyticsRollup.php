@@ -16,8 +16,10 @@ use Illuminate\Support\Facades\DB;
  * totals are kept for good, and are what long-range questions read.
  *
  * Idempotent: a day is deleted and rebuilt in one transaction, so a re-run
- * (or a late flush) just replaces it. Each statement reads one day through
- * the occurred_at index; a day is a few thousand rows.
+ * (or a late flush) just replaces it. Only for days whose raw rows are all
+ * still there (newer than bot_raw_days, less a margin); older days are
+ * skipped. Each statement reads one day through the occurred_at index; a
+ * day is a few thousand rows.
  */
 class AnalyticsRollup extends Command
 {
@@ -45,7 +47,18 @@ class AnalyticsRollup extends Command
 
         // One bad day must not stop the others (or, a month on, lose bot
         // counts whose raw rows are pruned): report it and carry on.
+        // A day is rebuilt from its raw rows, and bot rows are pruned after
+        // bot_raw_days: rebuilding an older day would wipe totals that can no
+        // longer be recounted, so those days are left as they are.
+        $oldest = CarbonImmutable::now('UTC')->startOfDay()->subDays(max(7, (int) config('analytics.bot_raw_days', 30)) - 2);
+
         foreach ($this->days() as $day) {
+            if ($day->lt($oldest)) {
+                $this->warn("Skipped {$day->toDateString()}: its raw rows may already be pruned, so its totals are kept as they are.");
+
+                continue;
+            }
+
             try {
                 $this->rollupDay($day);
                 $this->line("Rolled up {$day->toDateString()}.");

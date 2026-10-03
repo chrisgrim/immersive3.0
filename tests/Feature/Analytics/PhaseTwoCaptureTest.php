@@ -16,6 +16,12 @@ afterEach(function () {
     @unlink(config('analytics.capture_file'));
 });
 
+/** A UTC day $n days ago, Y-m-d: rollups refuse days older than the bot rows are kept. */
+function daysAgo(int $n): string
+{
+    return now('UTC')->subDays($n)->toDateString();
+}
+
 function captureOn(string ...$names): void
 {
     foreach ($names as $name) {
@@ -180,7 +186,7 @@ test('nav search text is recorded from the public nav only, cleaned', function (
 // ----- daily totals and pruning -----
 
 test('the daily rollup adds a day up by dimension, with time on page and paths, and re-runs cleanly', function () {
-    $day = '2026-10-01';
+    $day = daysAgo(2);
     $row = fn (array $values) => DB::table('analytics_events')->insert(array_merge([
         'type' => 'page_view', 'occurred_at' => "{$day} 12:00:00", 'visitor' => str_repeat('a', 16), 'bot' => 0,
     ], $values));
@@ -211,11 +217,11 @@ test('the daily rollup adds a day up by dimension, with time on page and paths, 
 
 test('a path taken by fewer than five people is not kept', function () {
     DB::table('analytics_events')->insert([
-        ['type' => 'page_view', 'occurred_at' => '2026-10-01 10:00:00', 'visitor' => str_repeat('a', 16), 'bot' => 0, 'path' => '/'],
-        ['type' => 'page_view', 'occurred_at' => '2026-10-01 10:01:00', 'visitor' => str_repeat('a', 16), 'bot' => 0, 'path' => '/help'],
+        ['type' => 'page_view', 'occurred_at' => daysAgo(2).' 10:00:00', 'visitor' => str_repeat('a', 16), 'bot' => 0, 'path' => '/'],
+        ['type' => 'page_view', 'occurred_at' => daysAgo(2).' 10:01:00', 'visitor' => str_repeat('a', 16), 'bot' => 0, 'path' => '/help'],
     ]);
 
-    $this->artisan('ei:analytics-rollup', ['--day' => '2026-10-01'])->assertSuccessful();
+    $this->artisan('ei:analytics-rollup', ['--day' => daysAgo(2)])->assertSuccessful();
 
     expect(DB::table('analytics_daily')->where('dim', 'edge')->count())->toBe(0);
 });
@@ -261,10 +267,10 @@ test('the privacy page names each thing recorded, only while it is switched on',
 
 test('referrers that differ only by accent or case roll up as one key instead of breaking the day', function () {
     foreach (['café.com', 'cafe.com', 'CAFE.com'] as $i => $ref) {
-        DB::table('analytics_events')->insert(['type' => 'event_view', 'occurred_at' => '2026-10-01 10:00:00', 'visitor' => str_repeat((string) $i, 16), 'bot' => 0, 'event_id' => 1, 'props' => json_encode(['ref' => $ref])]);
+        DB::table('analytics_events')->insert(['type' => 'event_view', 'occurred_at' => daysAgo(2).' 10:00:00', 'visitor' => str_repeat((string) $i, 16), 'bot' => 0, 'event_id' => 1, 'props' => json_encode(['ref' => $ref])]);
     }
 
-    $this->artisan('ei:analytics-rollup', ['--day' => '2026-10-01'])->assertSuccessful();
+    $this->artisan('ei:analytics-rollup', ['--day' => daysAgo(2)])->assertSuccessful();
 
     expect((int) DB::table('analytics_daily')->where(['dim' => 'ref'])->sum('hits'))->toBe(3)
         ->and(DB::table('analytics_daily')->where(['dim' => 'ref'])->count())->toBe(1);
@@ -272,11 +278,11 @@ test('referrers that differ only by accent or case roll up as one key instead of
 
 test('nav search counts the finished text, not every pause while typing', function () {
     foreach (['sl' => '10:00:00', 'slee' => '10:00:01', 'sleep no' => '10:00:02', 'zoo' => '10:05:00'] as $query => $time) {
-        DB::table('analytics_events')->insert(['type' => 'nav_search', 'occurred_at' => "2026-10-01 {$time}", 'visitor' => str_repeat('a', 16), 'bot' => 0, 'query' => $query, 'source' => 'names']);
+        DB::table('analytics_events')->insert(['type' => 'nav_search', 'occurred_at' => daysAgo(2)." {$time}", 'visitor' => str_repeat('a', 16), 'bot' => 0, 'query' => $query, 'source' => 'names']);
     }
-    DB::table('analytics_events')->insert(['type' => 'nav_search', 'occurred_at' => '2026-10-01 10:00:00', 'visitor' => str_repeat('b', 16), 'bot' => 0, 'query' => '50%_off', 'source' => 'names']);
+    DB::table('analytics_events')->insert(['type' => 'nav_search', 'occurred_at' => daysAgo(2).' 10:00:00', 'visitor' => str_repeat('b', 16), 'bot' => 0, 'query' => '50%_off', 'source' => 'names']);
 
-    $this->artisan('ei:analytics-rollup', ['--day' => '2026-10-01'])->assertSuccessful();
+    $this->artisan('ei:analytics-rollup', ['--day' => daysAgo(2)])->assertSuccessful();
 
     expect(DB::table('analytics_daily')->where(['type' => 'nav_search', 'dim' => 'query'])->orderBy('key')->pluck('hits', 'key')->all())
         ->toBe(['50%_off' => 1, 'sleep no' => 1, 'zoo' => 1])
@@ -284,11 +290,11 @@ test('nav search counts the finished text, not every pause while typing', functi
 });
 
 test('one day failing does not stop the other days from rolling up', function () {
-    DB::table('analytics_events')->insert(['type' => 'page_view', 'occurred_at' => '2026-10-02 10:00:00', 'visitor' => str_repeat('a', 16), 'bot' => 0, 'path' => '/']);
+    DB::table('analytics_events')->insert(['type' => 'page_view', 'occurred_at' => daysAgo(1).' 10:00:00', 'visitor' => str_repeat('a', 16), 'bot' => 0, 'path' => '/']);
 
     $command = Mockery::mock(App\Console\Commands\AnalyticsRollup::class.'[rollupDay]', []);
     $command->shouldReceive('rollupDay')->andReturnUsing(function ($day) {
-        if ($day->toDateString() === '2026-10-01') {
+        if ($day->toDateString() === daysAgo(2)) {
             throw new RuntimeException('boom');
         }
         (new App\Console\Commands\AnalyticsRollup)->rollupDay($day);
@@ -296,9 +302,9 @@ test('one day failing does not stop the other days from rolling up', function ()
     $command->setLaravel(app());
     app(Illuminate\Contracts\Console\Kernel::class)->registerCommand($command);
 
-    $this->artisan('ei:analytics-rollup', ['--from' => '2026-10-01', '--to' => '2026-10-02'])->assertFailed();
+    $this->artisan('ei:analytics-rollup', ['--from' => daysAgo(2), '--to' => daysAgo(1)])->assertFailed();
 
-    expect(DB::table('analytics_daily')->where('day', '2026-10-02')->exists())->toBeTrue();
+    expect(DB::table('analytics_daily')->where('day', daysAgo(1))->exists())->toBeTrue();
 });
 
 test('the prune never deletes recent bot rows, even with an old config cache', function () {
@@ -331,15 +337,15 @@ test('analytics-for finds an event whose slug is all digits', function () {
 // ----- review fixes (phase 2, round 2) -----
 
 test('a person whose event view and page view fall on the same day is one visitor, and map pans are not searches', function () {
-    $row = fn (array $values) => DB::table('analytics_events')->insert(array_merge(['occurred_at' => '2026-10-01 10:00:00', 'visitor' => str_repeat('a', 16), 'bot' => 0], $values));
+    $row = fn (array $values) => DB::table('analytics_events')->insert(array_merge(['occurred_at' => daysAgo(2).' 10:00:00', 'visitor' => str_repeat('a', 16), 'bot' => 0], $values));
     $row(['type' => 'event_view', 'event_id' => 7]);
     $row(['type' => 'page_view', 'page' => 'events.show', 'event_id' => 7, 'path' => '/events/x']);
     $row(['type' => 'search', 'source' => 'list', 'query' => 'Austin']);
     $row(['type' => 'search', 'source' => 'map', 'query' => 'Austin']);
 
-    $this->artisan('ei:analytics-rollup', ['--day' => '2026-10-01'])->assertSuccessful();
+    $this->artisan('ei:analytics-rollup', ['--day' => daysAgo(2)])->assertSuccessful();
 
-    $all = fn (string $type) => DB::table('analytics_daily')->where(['day' => '2026-10-01', 'type' => $type, 'dim' => 'all', 'bot' => 0])->first();
+    $all = fn (string $type) => DB::table('analytics_daily')->where(['day' => daysAgo(2), 'type' => $type, 'dim' => 'all', 'bot' => 0])->first();
     expect($all('view'))->hits->toBe(2)->visitors->toBe(1)
         ->and($all('search')->hits)->toBe(1)
         ->and($all('map_search')->hits)->toBe(1);
@@ -373,4 +379,13 @@ test('the live tool will not answer zero while page views are off', function () 
     Laravel\Passport\Passport::actingAs($moderator, ['mcp:use', User::MODERATE_SCOPE]);
 
     App\Mcp\Servers\EiServer::actingAs($moderator, 'api')->tool(App\Mcp\Tools\AnalyticsLive::class)->assertHasErrors()->assertSee('page_views');
+});
+
+test('rebuilding a day older than the bot rows are kept is refused, so its totals survive', function () {
+    $old = now()->subDays(40)->toDateString();
+    DB::table('analytics_daily')->insert(['day' => $old, 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 1, 'hits' => 50, 'visitors' => 40, 'seconds_sum' => 0, 'seconds_count' => 0]);
+
+    $this->artisan('ei:analytics-rollup', ['--day' => $old])->assertSuccessful();
+
+    expect(DB::table('analytics_daily')->where('day', $old)->value('hits'))->toBe(50);
 });
