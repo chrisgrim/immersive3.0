@@ -317,19 +317,23 @@ test('the report counts browser-confirmed and engaged people beside the visits o
     $view('y', ['js' => 1, 'bot' => Analytics::BOT_AUTOMATION]);       // automated (its day flagged)
     $view('y', ['js' => 1, 'bot' => Analytics::BOT_AUTOMATION]);
     $view('p', ['js' => null, 'occurred_at' => now()->subDays(3)]);    // a day before measuring
+    // Today, measured and rolled up, but partial: left out on every surface.
+    $view('t', ['js' => 1, 'occurred_at' => now()]);
+    $view('t', ['js' => 1, 'occurred_at' => now()]);
     // Yesterday is measured once its rollup has run; three days ago is not.
     $this->artisan('ei:analytics-rollup', ['--from' => now('UTC')->subDays(3)->toDateString(), '--to' => now('UTC')->toDateString()])->assertSuccessful();
 
     $report = app(SiteAnalyticsReport::class)->handle(7);
 
-    expect($report['totals']['people'])->toMatchArray(['visitors' => 5, 'visitors_on_measured_days' => 4, 'confirmed_visitors' => 2, 'engaged_visitors' => 1, 'measured_since' => now()->subDay()->toDateString()])
+    expect(DB::table('analytics_daily')->where(['day' => now('UTC')->toDateString(), 'dim' => 'all', 'type' => 'view', 'bot' => 0])->value('js_visitors'))->toBe(1)
+        ->and($report['totals']['people'])->toMatchArray(['visitors' => 6, 'visitors_on_measured_days' => 4, 'confirmed_visitors' => 2, 'engaged_visitors' => 1, 'measured_since' => now()->subDay()->toDateString()])
         ->and($report['countries'])->toBe([
-            'US' => ['visitors' => 4, 'visitors_on_measured_days' => 3, 'confirmed' => 1],
+            'US' => ['visitors' => 5, 'visitors_on_measured_days' => 3, 'confirmed' => 1],
             'GB' => ['visitors' => 1, 'visitors_on_measured_days' => 1, 'confirmed' => 1],
         ])
         ->and($report['bots'])->toMatchArray(['flagged' => 2, 'automation' => 2])
         // The section page counts the same way.
-        ->and(app(SiteAnalyticsReport::class)->section('countries', 7)['US'])->toBe(['visitors' => 4, 'visitors_on_measured_days' => 3, 'confirmed' => 1]);
+        ->and(app(SiteAnalyticsReport::class)->section('countries', 7)['US'])->toBe(['visitors' => 5, 'visitors_on_measured_days' => 3, 'confirmed' => 1]);
 
     // And the MCP tools give the very same numbers.
     $query = app(App\Actions\Analytics\AnalyticsQuery::class);
@@ -339,6 +343,8 @@ test('the report counts browser-confirmed and engaged people beside the visits o
         ->and($confirmed['whole_period_visits_on_measured_days'])->toBe($report['totals']['people']['visitors_on_measured_days'])
         ->and($engaged['whole_period_total'])->toBe($report['totals']['people']['engaged_visitors'])
         ->and($confirmed['measured_since'])->toBe($report['totals']['people']['measured_since'])
+        ->and(collect($query->trend('confirmed_visits', null, 7)['series'])->sum(fn ($point) => $point[1]))->toBe($report['totals']['people']['confirmed_visitors'])
+        ->and(collect($query->trend('engaged_visits', null, 7)['series'])->sum(fn ($point) => $point[2]))->toBe($report['totals']['people']['visitors_on_measured_days'])
         ->and(collect($confirmed['rows'])->mapWithKeys(fn ($row) => [$row['country'] => [$row['visits_on_measured_days'], $row['confirmed_visits']]])->all())
         ->toEqual(collect($report['countries'])->map(fn ($row) => [$row['visitors_on_measured_days'], $row['confirmed']])->all());
 });

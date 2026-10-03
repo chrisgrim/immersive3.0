@@ -82,10 +82,10 @@ class AnalyticsQuery
 
     public const DEFINITIONS = [
         'visits' => 'visitor-days with a page view: a person counts once per day they opened a page (no cookies; the visitor code changes daily), so a person on 3 days is 3 visits. Before page views were captured only event pages count, so this can be lower than the admin page\'s country list, which counts anyone who did anything',
-        'confirmed_visits' => 'visits whose browser is known to have run the page: one of its page views sent the load ping (our script ran and the page was shown), from a browser that did not report being automated. Left out, as GA4, Plausible and similar tools count: scripts that only fetch pages, automated browsers, and anyone whose browser did not run our script (JavaScript off, very quick exits). Measured only from measured_since on (null before), so compare it with visits_on_measured_days, never with visits',
-        'engaged_visits' => 'among browser-confirmed visits, those that also did something, as GA4 counts engaged visitors: a page on screen 10+ seconds, a ticket click, a search result click, a typed search or nav search, or two or more page views. Measured only from measured_since on; its share is of confirmed_visits (or of visits_on_measured_days)',
-        'visits_on_measured_days' => 'visits (visitor-days with a page or event view) on the days browser confirmation was measured: the fair base for confirmed_visits and engaged_visits (series points for those metrics end with it). The admin report\'s people line and countries use the same base',
-        'measured_since' => 'the first whole day in the period with browser confirmation measured (a day it was switched on or off is left out, being only part measured); null means it was not on in the period',
+        'confirmed_visits' => 'visits whose browser is known to have run the page: one of its page views sent the load ping (our script ran and the page was shown), from a browser that did not report being automated. Left out, as GA4, Plausible and similar tools count: scripts that only fetch pages, automated browsers, and anyone whose browser did not run our script (JavaScript off, very quick exits). Measured only from measured_since on (null before), in whole days before today (today is partial until it is over; the admin report counts the same days), so compare it with visits_on_measured_days, never with visits',
+        'engaged_visits' => 'among browser-confirmed visits, those that also did something, as GA4 counts engaged visitors: a page on screen 10+ seconds, a ticket click, a search result click, a typed search or nav search, or two or more page views. Measured only from measured_since on, in whole days before today; its share is of confirmed_visits (or of visits_on_measured_days)',
+        'visits_on_measured_days' => 'visits (visitor-days with a page or event view) on the whole days before today that browser confirmation was measured: the fair base for confirmed_visits and engaged_visits (series points for those metrics end with it). The admin report\'s people line and countries use the same base',
+        'measured_since' => 'the first whole day before today in the period with browser confirmation measured (a day it was switched on or off is left out, being only part measured); null means it was not on in the period',
         'visitors' => 'visitor-days that did the counted thing (searched, clicked a ticket link, typed in the nav): one person counts once per day',
         'page_views' => 'pages loaded by people (bots excluded); event pages before page-view tracking count as event views',
         'avg_seconds' => 'average time a page was on screen, from the pages where it was more than 5 seconds',
@@ -115,6 +115,7 @@ class AnalyticsQuery
             $measured = $confirmation ? ', '.self::MEASURED_SQL : '';
             $extra = $confirmation ? ['measured_since' => $this->measuredSince($days)] : [];
             $point = fn ($row, array $point) => $confirmation ? [...$point, $this->count($row->measured)] : $point;
+            [$wholeSql, $whole] = $this->wholeDays($confirmation);
 
             // Weekly past 90 days: weeks start on Monday, but never before the
             // period does, so the series covers exactly what every other
@@ -128,13 +129,13 @@ class AnalyticsQuery
                 $rows = $this->select("
                     SELECT /*+ MAX_EXECUTION_TIME(5000) */ {$bucket} AS period, SUM({$column}) AS value{$measured}
                     FROM analytics_daily
-                    WHERE dim = 'all' AND bot = 0 AND type IN ({$typeSql}) AND day >= ?
-                    GROUP BY period ORDER BY period", [...$typeBindings, $from]);
+                    WHERE dim = 'all' AND bot = 0 AND type IN ({$typeSql}) AND day >= ?{$wholeSql}
+                    GROUP BY period ORDER BY period", [...$typeBindings, $from, ...$whole]);
 
                 return ['grain' => $days > 90 ? 'week' : 'day', ...$extra, 'series' => array_map(fn ($row) => $point($row, [$row->period, $this->count($row->value)]), $rows)];
             }
 
-            $top = array_column($this->topKeys($types, $column, $dimension, $days, 8), 'key');
+            $top = array_column($this->topKeys($types, $column, $dimension, $days, 8, false, $confirmation), 'key');
             if ($top === []) {
                 return ['grain' => $days > 90 ? 'week' : 'day', ...$extra, 'series' => []];
             }
@@ -142,8 +143,8 @@ class AnalyticsQuery
             $rows = $this->select("
                 SELECT /*+ MAX_EXECUTION_TIME(5000) */ {$bucket} AS period, `key`, SUM({$column}) AS value{$measured}
                 FROM analytics_daily
-                WHERE dim = ? AND bot = 0 AND type IN ({$typeSql}) AND day >= ? AND `key` IN ({$keySql})
-                GROUP BY period, `key` ORDER BY period", [$dimension, ...$typeBindings, $from, ...$keyBindings]);
+                WHERE dim = ? AND bot = 0 AND type IN ({$typeSql}) AND day >= ?{$wholeSql} AND `key` IN ({$keySql})
+                GROUP BY period, `key` ORDER BY period", [$dimension, ...$typeBindings, $from, ...$whole, ...$keyBindings]);
 
             return [
                 'grain' => $days > 90 ? 'week' : 'day',
@@ -169,9 +170,10 @@ class AnalyticsQuery
             }
             [$typeSql, $typeBindings] = $this->in($types);
             $measured = $confirmation ? ', '.self::MEASURED_SQL : '';
+            [$wholeSql, $whole] = $this->wholeDays($confirmation);
             $total = $this->select("
                 SELECT /*+ MAX_EXECUTION_TIME(5000) */ SUM({$column}) AS value{$measured} FROM analytics_daily
-                WHERE dim = 'all' AND bot = 0 AND type IN ({$typeSql}) AND day >= ?", [...$typeBindings, $this->since($days)]);
+                WHERE dim = 'all' AND bot = 0 AND type IN ({$typeSql}) AND day >= ?{$wholeSql}", [...$typeBindings, $this->since($days), ...$whole]);
 
             return ($confirmation ? ['measured_since' => $this->measuredSince($days)] : []) + [
                 'rows' => array_map(fn ($row) => [
@@ -181,7 +183,7 @@ class AnalyticsQuery
                     // those rows are page views (see DEFINITIONS).
                     in_array($metric, ['page_views', 'visits', ...self::CONFIRMATION_METRICS], true) ? 'visits' : 'visitors' => $row['visitors'],
                     'avg_seconds' => $row['avg_seconds'],
-                ] + ($confirmation ? ['visits_on_measured_days' => $row['measured']] : []), $this->topKeys($types, $column, $dimension, $days, max(1, min(50, $limit)), $confirmation)),
+                ] + ($confirmation ? ['visits_on_measured_days' => $row['measured']] : []), $this->topKeys($types, $column, $dimension, $days, max(1, min(50, $limit)), $confirmation, $confirmation)),
                 // Null only for the confirmation metrics (unknown, not zero).
                 'whole_period_total' => $confirmation ? $this->count($total[0]->value ?? null) : (int) ($total[0]->value ?? 0),
             ] + ($confirmation ? ['whole_period_visits_on_measured_days' => $this->count($total[0]->measured ?? null)] : []);
@@ -247,15 +249,26 @@ class AnalyticsQuery
     }
 
     /**
-     * The first day in the period with browser confirmation measured (the
-     * daily totals' js_visitors set), or null: confirmed and engaged visits
-     * say nothing about the days before it.
+     * Confirmed and engaged visits cover whole days before today only, as
+     * the admin report does: today's totals are partial until it is over.
+     *
+     * @return array{0: string, 1: array} SQL to append, and its binding
+     */
+    private function wholeDays(bool $confirmation): array
+    {
+        return $confirmation ? [' AND day < ?', [now()->toDateString()]] : ['', []];
+    }
+
+    /**
+     * The first whole day before today in the period with browser
+     * confirmation measured (the daily totals' js_visitors set), or null:
+     * confirmed and engaged visits say nothing about the days before it.
      */
     private function measuredSince(int $days): ?string
     {
         $row = $this->select("
             SELECT /*+ MAX_EXECUTION_TIME(5000) */ MIN(day) AS since FROM analytics_daily
-            WHERE dim = 'all' AND bot = 0 AND type = ? AND day >= ? AND js_visitors IS NOT NULL", [AnalyticsRollup::VIEW, $this->since($days)]);
+            WHERE dim = 'all' AND bot = 0 AND type = ? AND day >= ? AND day < ? AND js_visitors IS NOT NULL", [AnalyticsRollup::VIEW, $this->since($days), now()->toDateString()]);
 
         return $row[0]->since ?? null;
     }
@@ -270,9 +283,10 @@ class AnalyticsQuery
     }
 
     /** @return array<int, array{key: string, value: ?int, visitors: int, avg_seconds: ?int}> */
-    private function topKeys(array $types, string $column, string $dimension, int $days, int $limit, bool $measured = false): array
+    private function topKeys(array $types, string $column, string $dimension, int $days, int $limit, bool $measured = false, bool $wholeDays = false): array
     {
         [$typeSql, $typeBindings] = $this->in($types);
+        [$wholeSql, $whole] = $this->wholeDays($wholeDays);
 
         return array_map(fn ($row) => [
             'key' => $row->key,
@@ -284,8 +298,8 @@ class AnalyticsQuery
             SELECT /*+ MAX_EXECUTION_TIME(5000) */ `key`, SUM({$column}) AS value, SUM(visitors) AS visitors,
                 SUM(seconds_sum) AS seconds_sum, SUM(seconds_count) AS seconds_count".($measured ? ', '.self::MEASURED_SQL : '')."
             FROM analytics_daily
-            WHERE dim = ? AND bot = 0 AND type IN ({$typeSql}) AND day >= ?
-            GROUP BY `key` ORDER BY value DESC LIMIT {$limit}", [$dimension, ...$typeBindings, $this->since($days)]));
+            WHERE dim = ? AND bot = 0 AND type IN ({$typeSql}) AND day >= ?{$wholeSql}
+            GROUP BY `key` ORDER BY value DESC LIMIT {$limit}", [$dimension, ...$typeBindings, $this->since($days), ...$whole]));
     }
 
     /** Ids become names; visitor-controlled text is wrapped and cleaned. */
