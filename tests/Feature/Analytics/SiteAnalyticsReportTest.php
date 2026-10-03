@@ -218,3 +218,13 @@ test('the event search ranks every match by views, however many names match', fu
 
     expect(app(SiteAnalyticsReport::class)->findEvents('the')[0]['event_id'])->toBe($busy->id);
 });
+
+test('a search with no place that is not At Home still shows, so the rows add up to the total', function () {
+    analyticsRow(['query' => null, 'results' => 0, 'props' => json_encode(['searchType' => 'allEvents', 'tags' => [3]])]);
+    analyticsRow(['query' => 'Boise, ID', 'results' => 0]);
+
+    $report = app(SiteAnalyticsReport::class)->handle(30);
+
+    expect(collect($report['zero_result_searches'])->sum('searches'))->toBe($report['zero_result_total'])
+        ->and(collect($report['zero_result_searches'])->pluck('place')->all())->toContain('(no place)');
+});

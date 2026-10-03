@@ -34,7 +34,7 @@ class SiteAnalyticsReport
     private const REMOTE = "CAST(JSON_EXTRACT(analytics_events.props, '$.remoteLocation') AS UNSIGNED)";
 
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 3;
+    private const VERSION = 4;
 
     private const LIMIT = 25;
 
@@ -310,7 +310,20 @@ class SiteAnalyticsReport
                 $row->at_home = true;
             });
 
-        return $places->concat($atHome)
+        // No place and not At Home (all events, with only filters set): one
+        // line, so the rows add up to zero_result_total. Not searchable.
+        $noPlace = $like !== null ? collect() : $this->typedSearches($since)
+            ->where('results', 0)
+            ->where(fn ($none) => $none->whereNull('analytics_events.query')->orWhere('analytics_events.query', ''))
+            ->whereRaw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(analytics_events.props, '$.searchType')), '') <> 'atHome'")
+            ->selectRaw("'(no place)' AS place, {$columns}")
+            ->havingRaw('COUNT(*) > 0')
+            ->get()
+            ->each(function ($row) {
+                $row->at_home = false;
+            });
+
+        return $places->concat($atHome)->concat($noPlace)
             ->sortByDesc('searches')
             ->take(self::LIMIT)
             ->map(fn ($row) => [
