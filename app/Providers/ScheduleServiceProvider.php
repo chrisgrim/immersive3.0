@@ -51,6 +51,13 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->dailyAt('03:40')
                 ->withoutOverlapping();
 
+            // Google Search Console totals (the last 5 settled days), only
+            // while it is configured (see SearchConsoleImport).
+            $schedule->command('ei:search-console-import')
+                ->dailyAt('04:10')
+                ->withoutOverlapping()
+                ->when(fn () => \App\Support\Google\SearchConsole::configured());
+
             $schedule->command('ei:archive-clicks')
                 ->dailyAt('03:30')
                 ->withoutOverlapping()

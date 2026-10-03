@@ -60,6 +60,16 @@ return [
         'domains' => env('UMAMI_DOMAINS', 'everythingimmersive.com'),
     ],
 
+    // Google Search Console (what people searched on Google before landing
+    // here): imported nightly by ei:search-console-import into
+    // search_console_daily. Off until both are set: the path to a service
+    // account's JSON key (outside git; storage/ is never deployed over) and
+    // the property, e.g. sc-domain:everythingimmersive.com.
+    'search_console' => [
+        'credentials' => env('SEARCH_CONSOLE_CREDENTIALS'),
+        'site_url' => env('SEARCH_CONSOLE_SITE_URL'),
+    ],
+
     'geonames' => [
         'username' => env('GEONAMES_USERNAME'),
     ],
