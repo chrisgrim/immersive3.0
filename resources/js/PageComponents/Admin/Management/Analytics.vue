@@ -268,6 +268,9 @@
                 <p v-if="eventSort === 'click_through' && eventRows.length" class="text-[1.2rem] text-[#717171] mt-[0.8rem]">Events with at least 10 views.</p>
             </section>
 
+            <!-- Google Search Console -->
+            <AnalyticsGoogle v-if="google?.configured" :data="google" @open="openSection" />
+
             <!-- Smaller breakdowns -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-[2.4rem]">
                 <section class="card p-[2.4rem]">
@@ -344,6 +347,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue'
 import AnalyticsSection from './AnalyticsSection.vue'
+import AnalyticsGoogle from './AnalyticsGoogle.vue'
+import { lineChart, nearestIndex, formatDay } from './analyticsChart.js'
 
 const dayOptions = [
     { days: 7, label: '7 days' },
@@ -364,7 +369,7 @@ const eventSorts = [
 ]
 
 // A section opened on its own page (?section=places), with Back to return.
-const SECTIONS = ['places', 'unmet', 'at_home', 'events', 'sources', 'countries']
+const SECTIONS = ['places', 'unmet', 'at_home', 'events', 'sources', 'countries', 'google_queries', 'google_pages']
 const sectionFromUrl = () => {
     const name = new URLSearchParams(window.location.search).get('section')
     return SECTIONS.includes(name) ? name : null
@@ -515,69 +520,13 @@ const barWidth = (rate) => {
     return best ? Math.round(((rate || 0) / best) * 100) : 0
 }
 
-// ---- Chart: one series (event views), plain SVG ----
-const chart = computed(() => {
-    const width = 1000
-    const height = 260
-    const left = 44
-    const right = 12
-    const top = 16
-    const bottom = 28
-    const points = report.value?.daily || []
-    const max = Math.max(1, ...points.map((point) => point.event_views))
-    const step = niceStep(max / 3)
-    const yMax = Math.max(step, Math.ceil(max / step) * step)
-    const plotWidth = width - left - right
-    const plotHeight = height - top - bottom
-    const x = (i) => left + (points.length > 1 ? (i / (points.length - 1)) * plotWidth : plotWidth / 2)
-    const y = (value) => top + plotHeight - (value / yMax) * plotHeight
-
-    const coords = points.map((point, i) => ({ x: x(i), y: y(point.event_views), point }))
-    const line = coords.map((c, i) => `${i ? 'L' : 'M'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ')
-    const area = coords.length
-        ? `${line} L${coords[coords.length - 1].x.toFixed(1)},${y(0)} L${coords[0].x.toFixed(1)},${y(0)} Z`
-        : ''
-
-    const yTicks = []
-    for (let value = 0; value <= yMax; value += step) {
-        yTicks.push({ value, y: y(value), label: value >= 1000 ? `${Math.round(value / 100) / 10}k` : String(value) })
-    }
-
-    const xCount = Math.min(5, points.length)
-    const xTicks = xCount > 1
-        ? Array.from({ length: xCount }, (_, k) => {
-            const i = Math.round((k / (xCount - 1)) * (points.length - 1))
-            return { day: points[i].day, x: x(i), label: formatDay(points[i].day), anchor: k === 0 ? 'start' : k === xCount - 1 ? 'end' : 'middle' }
-        })
-        : []
-
-    return { width, height, left, right, top, bottom, coords, line, area, yTicks, xTicks }
-})
-
-const niceStep = (raw) => {
-    const power = 10 ** Math.floor(Math.log10(Math.max(raw, 1)))
-    const scaled = raw / power
-    return (scaled <= 1 ? 1 : scaled <= 2 ? 2 : scaled <= 5 ? 5 : 10) * power
-}
+// ---- Chart: one series (event views), plain SVG (analyticsChart.js) ----
+const chart = computed(() => lineChart(report.value?.daily || [], (point) => point.event_views))
 
 const hovered = computed(() => (hoverIndex.value === null ? null : chart.value.coords[hoverIndex.value] || null))
 
 const onChartMove = (event) => {
-    const coords = chart.value.coords
-    if (!coords.length) return
-    const box = event.currentTarget.getBoundingClientRect()
-    const svgX = ((event.clientX - box.left) / box.width) * chart.value.width
-    let nearest = 0
-    coords.forEach((c, i) => {
-        if (Math.abs(c.x - svgX) < Math.abs(coords[nearest].x - svgX)) nearest = i
-    })
-    hoverIndex.value = nearest
-}
-
-const formatDay = (date) => {
-    if (!date) return ''
-    const iso = date.length === 10 ? `${date}T00:00:00Z` : `${date.replace(' ', 'T')}Z`
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+    hoverIndex.value = nearestIndex(chart.value, event)
 }
 
 const regionNames = typeof Intl !== 'undefined' && Intl.DisplayNames ? new Intl.DisplayNames(['en'], { type: 'region' }) : null
@@ -593,8 +542,26 @@ const countryName = (code) => {
 // quick 7-day one must not replace it.
 let latest = 0
 
+// The "From Google" block (Search Console) loads on its own: it is hidden
+// while not configured, and a failure there never hides the rest.
+const google = ref(null)
+let latestGoogle = 0
+
+const loadGoogle = async (option) => {
+    const request = ++latestGoogle
+    try {
+        const { data } = await axios.get('/api/admin/analytics/google', { params: { days: option } })
+        if (request === latestGoogle) google.value = data
+    } catch (error) {
+        if (request !== latestGoogle) return
+        console.error('[admin-analytics] Google block failed to load', error)
+        google.value = null
+    }
+}
+
 const load = async (option = days.value) => {
     const request = ++latest
+    loadGoogle(option)
     days.value = option
     loading.value = true
     failed.value = false
