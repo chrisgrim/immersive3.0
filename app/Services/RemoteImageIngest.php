@@ -25,6 +25,9 @@ class RemoteImageIngest
         'image/jpeg' => 'jpg',
         'image/png' => 'png',
         'image/webp' => 'webp',
+        // Image CDNs (TodayTix's Contentful, Cloudinary, Cloudflare) often
+        // serve AVIF; it is decoded and saved as webp/jpeg like the rest.
+        'image/avif' => 'avif',
     ];
 
     /**
@@ -109,7 +112,7 @@ class RemoteImageIngest
         $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes) ?: 'unknown';
 
         if (! array_key_exists($mime, self::ALLOWED_MIMES)) {
-            throw new ImageIngestException("The URL did not return a supported image (got {$mime}; allowed: jpeg, png, webp).");
+            throw new ImageIngestException("The URL did not return a supported image (got {$mime}; allowed: jpeg, png, webp, avif).");
         }
 
         $path = tempnam(sys_get_temp_dir(), 'mcp-img-');

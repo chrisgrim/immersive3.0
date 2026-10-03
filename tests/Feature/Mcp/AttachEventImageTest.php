@@ -105,6 +105,23 @@ test('only an Eventbrite original is unwrapped from an Eventbrite resizing addre
         ->and(RemoteImageIngest::original('https://images.example.com/pixel.png'))->toBe('https://images.example.com/pixel.png');
 });
 
+test('remote image ingest accepts an AVIF, which image CDNs often serve', function () {
+    if (! function_exists('imageavif') || ! (gd_info()['AVIF Support'] ?? false)) {
+        $this->markTestSkipped('GD without AVIF support');
+    }
+    skipUrlValidation();
+    $gd = imagecreatetruecolor(8, 8);
+    ob_start();
+    imageavif($gd);
+    $avif = ob_get_clean();
+    Http::fake(['images.example.com/*' => Http::response($avif, 200)]);
+
+    $file = app(RemoteImageIngest::class)->fetch('https://images.example.com/hero?fm=avif', 5 * 1024 * 1024);
+
+    expect($file->getMimeType())->toBe('image/avif');
+    @unlink($file->getRealPath());
+});
+
 test('remote image ingest sends a browser User-Agent so hotlink-protected CDNs do not 403', function () {
     skipUrlValidation();
     Http::fake(['images.example.com/*' => Http::response(tinyPng(), 200)]);

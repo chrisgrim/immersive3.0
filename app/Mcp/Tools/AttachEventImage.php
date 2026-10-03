@@ -17,7 +17,7 @@ use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Attach an image to an event you can manage — for moderators and admins that is any event on the platform — by downloading it from a public URL (jpeg/png/webp, max 5 MB, max 5 images per event). Rank 0 is the primary portrait image (cropped 900x1200); ranks 1-4 are gallery landscape images (cropped 1200x800). An existing image at the same rank is replaced. Returns a preview of the cropped result so the user can check the framing.')]
+#[Description('Attach an image to an event you can manage — for moderators and admins that is any event on the platform — by downloading it from a public URL (jpeg/png/webp/avif, max 5 MB, max 5 images per event; Eventbrite resized addresses are fetched as their original. Some sites, such as Wix and Posh, refuse downloads from servers: then ask the user to upload the image themselves). Rank 0 is the primary portrait image (cropped 900x1200); ranks 1-4 are gallery landscape images (cropped 1200x800). An existing image at the same rank is replaced. Returns a preview of the cropped result so the user can check the framing.')]
 class AttachEventImage extends Tool
 {
     use FormatsEvents;
@@ -139,7 +139,7 @@ class AttachEventImage extends Tool
     {
         return [
             'event_slug' => $schema->string()->description('The event slug.')->required(),
-            'image_url' => $schema->string()->description('Public https URL of the image (jpeg/png/webp, max 5 MB).')->required(),
+            'image_url' => $schema->string()->description('Public https URL of the image (jpeg/png/webp/avif, max 5 MB).')->required(),
             'rank' => $schema->integer()->description('0 = primary portrait image (900x1200 crop, required before submission); 1-4 = gallery landscape images (1200x800 crop).')->required(),
         ];
     }
