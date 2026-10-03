@@ -38,7 +38,7 @@ class SiteAnalyticsReport
         ELSE COALESCE(rl.name, CONCAT('Type ', ".self::REMOTE.')) END';
 
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 10;
+    private const VERSION = 11;
 
     private const LIMIT = 25;
 
@@ -137,15 +137,54 @@ class SiteAnalyticsReport
         return "(analytics_events.type = '".Analytics::EVENT_VIEW."' OR (analytics_events.type = '".Analytics::PAGE_VIEW."' AND analytics_events.page = 'events.show'))";
     }
 
-    /** Per type (map pans apart, as map_search): how many, and by how many different visitors. */
+    /**
+     * Per type (map pans apart, as map_search): how many, by how many
+     * different visitors, and how many of those were browser confirmed and
+     * engaged (see withFlags). 'people' is everyone who did anything.
+     */
     private function totals($since, $until = null): array
     {
-        return $this->rows($since, null, $until)
-            ->selectRaw("CASE WHEN type = ? AND source = 'map' THEN 'map_search' WHEN type = ? AND page = 'events.show' THEN ? ELSE type END AS kind, COUNT(*) AS total, COUNT(DISTINCT visitor) AS visitors", [Analytics::SEARCH, Analytics::PAGE_VIEW, Analytics::EVENT_VIEW])
-            ->groupBy('kind')
+        $pinged = $this->pinged($since, $until);
+
+        return $this->withFlags($this->rows($since, null, $until), $since, $until)
+            ->selectRaw("CASE WHEN analytics_events.type = ? AND analytics_events.source = 'map' THEN 'map_search'
+                    WHEN analytics_events.type = ? AND analytics_events.page = 'events.show' THEN ? ELSE analytics_events.type END AS kind,
+                COUNT(*) AS total, COUNT(DISTINCT analytics_events.visitor) AS visitors,
+                COUNT(DISTINCT IF(f.js, analytics_events.visitor, NULL)) AS confirmed,
+                COUNT(DISTINCT IF(f.engaged, analytics_events.visitor, NULL)) AS engaged", [Analytics::SEARCH, Analytics::PAGE_VIEW, Analytics::EVENT_VIEW])
+            // The rollup line (kind NULL) counts each visitor once overall.
+            ->groupByRaw('kind WITH ROLLUP')
             ->get()
-            ->mapWithKeys(fn ($row) => [$row->kind => ['total' => (int) $row->total, 'visitors' => (int) $row->visitors]])
+            ->mapWithKeys(fn ($row) => [$row->kind ?? 'people' => [
+                'total' => (int) $row->total,
+                'visitors' => (int) $row->visitors,
+                'confirmed_visitors' => $pinged ? (int) $row->confirmed : null,
+                'engaged_visitors' => (int) $row->engaged,
+            ]])
             ->all();
+    }
+
+    /**
+     * Joins each row to its visitor's flags over the same rows (f.js: browser
+     * confirmed, f.engaged; Analytics::visitorFlagsSql), the definitions the
+     * daily totals use. A visitor code lasts one day, so per visitor is per
+     * visitor-day.
+     */
+    private function withFlags(Builder $query, $since, $until = null): Builder
+    {
+        $flags = $this->rows($since, null, $until)->selectRaw('visitor, '.Analytics::visitorFlagsSql())->groupBy('visitor');
+
+        return $query->leftJoinSub($flags, 'f', 'f.visitor', '=', 'analytics_events.visitor');
+    }
+
+    /**
+     * Whether browser confirmation was measured at all in the range (a page
+     * view asked for the load ping): if not, confirmed counts are null, not
+     * a misleading zero.
+     */
+    private function pinged($since, $until = null): bool
+    {
+        return $this->rows($since, Analytics::PAGE_VIEW, $until)->whereNotNull('js')->exists();
     }
 
     /**
@@ -482,32 +521,38 @@ class SiteAnalyticsReport
         ];
     }
 
-    /** Visitors by country. */
+    /** Visitors by country: all, and browser confirmed (null when not measured). */
     private function countries($since, int $limit = 15): array
     {
-        return $this->rows($since)
-            ->whereNotNull('country')
-            ->selectRaw('country, COUNT(DISTINCT visitor) AS visitors')
-            ->groupBy('country')
+        $pinged = $this->pinged($since);
+
+        return $this->withFlags($this->rows($since), $since)
+            ->whereNotNull('analytics_events.country')
+            ->selectRaw('analytics_events.country AS country, COUNT(DISTINCT analytics_events.visitor) AS visitors,
+                COUNT(DISTINCT IF(f.js, analytics_events.visitor, NULL)) AS confirmed')
+            ->groupBy('analytics_events.country')
             ->orderByDesc('visitors')
             ->limit($limit)
-            ->pluck('visitors', 'country')
-            ->map(fn ($visitors) => (int) $visitors)
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->country => ['visitors' => (int) $row->visitors, 'confirmed' => $pinged ? (int) $row->confirmed : null]])
             ->all();
     }
 
     /** What the bot flags caught (everything above leaves these out). */
     private function bots($since): array
     {
-        // Not time-on-page notes or nav typing: people send those and bots
-        // do not, so counting them would make the bot share look smaller.
+        // Not time-on-page notes, nav typing or load pings (never rows, but
+        // just in case): people send those and bots do not, so counting them
+        // would make the bot share look smaller.
         $row = DB::table('analytics_events')
             ->where('occurred_at', '>=', $since)
-            ->whereNotIn('type', [Analytics::PAGE_LEAVE, Analytics::NAV_SEARCH])
+            ->whereNotIn('type', [Analytics::PAGE_LEAVE, Analytics::NAV_SEARCH, Analytics::PAGE_PING])
             ->selectRaw('COUNT(*) AS total, SUM(bot > 0) AS flagged,
                 SUM((bot & ?) > 0) AS crawler, SUM((bot & ?) > 0) AS no_user_agent,
-                SUM((bot & ?) > 0) AS over_daily_cap, SUM((bot & ?) > 0) AS datacenter, SUM((bot & ?) > 0) AS odd_headers', [
+                SUM((bot & ?) > 0) AS over_daily_cap, SUM((bot & ?) > 0) AS datacenter, SUM((bot & ?) > 0) AS odd_headers,
+                SUM((bot & ?) > 0) AS automation', [
                 Analytics::BOT_CRAWLER, Analytics::BOT_NO_USER_AGENT, Analytics::BOT_OVER_DAILY_CAP, Analytics::BOT_DATACENTER, Analytics::BOT_HEADERS,
+                Analytics::BOT_AUTOMATION,
             ])
             ->first();
 
@@ -520,6 +565,7 @@ class SiteAnalyticsReport
             'over_daily_cap' => (int) $row->over_daily_cap,
             'datacenter' => (int) $row->datacenter,
             'odd_headers' => (int) $row->odd_headers,
+            'automation' => (int) $row->automation,
         ];
     }
 }

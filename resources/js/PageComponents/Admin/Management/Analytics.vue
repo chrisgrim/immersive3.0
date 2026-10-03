@@ -57,6 +57,28 @@
                 </div>
             </div>
 
+            <!-- People: everyone the server saw, beside those a browser confirmed
+                 and those who engaged (compared side by side for a while). -->
+            <section class="card p-[2.4rem]">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-[1.6rem]">
+                    <div v-for="figure in peopleFigures" :key="figure.label">
+                        <p class="text-[1.3rem] text-[#717171]">{{ figure.label }}</p>
+                        <div class="flex items-baseline gap-[0.8rem] mt-[0.4rem]">
+                            <span :class="figure.value === null ? 'text-[1.4rem] text-[#717171]' : 'text-[2.8rem] leading-[3.4rem] font-bold tracking-[-0.02em]'">
+                                {{ figure.value === null ? 'Starts once browser confirmation is switched on' : figure.value.toLocaleString() }}
+                            </span>
+                            <span v-if="figure.change" :class="['text-[1.2rem] font-semibold', figure.change.up ? 'text-[#008A05]' : 'text-[#E00B41]']">
+                                {{ figure.change.up ? '↑' : '↓' }} {{ figure.change.text }}
+                            </span>
+                        </div>
+                        <p v-if="figure.note" class="text-[1.3rem] text-[#717171] mt-[0.4rem]">{{ figure.note }}</p>
+                    </div>
+                </div>
+                <p class="text-[1.2rem] text-[#717171] mt-[1.6rem]">
+                    Visits count everyone the server saw (one person, one day). Browser confirmed leaves out scripts that fetch pages without running them, as Google Analytics does; engaged means 10+ seconds on a page, a click, a typed search or two pages.
+                </p>
+            </section>
+
             <!-- Views over time -->
             <section class="card p-[2.4rem]">
                 <div class="mb-[1.6rem]">
@@ -327,10 +349,18 @@
                     </button>
                     <p class="section-sub mb-[1.2rem]">One person on one day counts once</p>
                     <ul class="breakdown">
-                        <li v-for="(visitors, country) in report.countries" :key="country">
-                            <span>{{ countryName(country) }}</span><span>{{ visitors.toLocaleString() }}</span>
+                        <li class="text-[1.2rem] text-[#717171]">
+                            <span>Country</span><span class="flex gap-[1.6rem]"><span class="w-[6rem] text-right">All</span><span class="w-[7rem] text-right">Confirmed</span></span>
+                        </li>
+                        <li v-for="(row, country) in report.countries" :key="country">
+                            <span class="truncate">{{ countryName(country) }}</span>
+                            <span class="flex gap-[1.6rem] shrink-0">
+                                <span class="w-[6rem] text-right">{{ row.visitors.toLocaleString() }}</span>
+                                <span class="w-[7rem] text-right">{{ row.confirmed === null ? 'n/a' : row.confirmed.toLocaleString() }}</span>
+                            </span>
                         </li>
                     </ul>
+                    <p v-if="!confirmationMeasured" class="text-[1.2rem] text-[#717171] mt-[1.2rem]">Confirmed starts once browser confirmation is switched on.</p>
                 </section>
             </div>
 
@@ -338,7 +368,8 @@
                 Bots left out: {{ report.bots.flagged.toLocaleString() }} of {{ report.bots.all_rows.toLocaleString() }} hits ({{ percent(report.bots.share) }}):
                 {{ report.bots.datacenter.toLocaleString() }} from cloud networks, {{ report.bots.crawler.toLocaleString() }} declared crawlers,
                 {{ report.bots.over_daily_cap.toLocaleString() }} over the daily limit, {{ report.bots.no_user_agent.toLocaleString() }} with no browser name,
-                {{ (report.bots.odd_headers ?? 0).toLocaleString() }} missing what real browsers send.
+                {{ (report.bots.odd_headers ?? 0).toLocaleString() }} missing what real browsers send,
+                {{ (report.bots.automation ?? 0).toLocaleString() }} from browsers that said they are automated.
                 IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noopener" class="underline">DB-IP</a>.
             </p>
         </div>
@@ -479,6 +510,39 @@ const kpis = computed(() => {
             value: unmetTotal.value.toLocaleString(),
             change: null,
             note: searches ? `${percent(unmetTotal.value / searches)} of ${searches.toLocaleString()} searches` : 'No searches yet',
+        },
+    ]
+})
+
+// Browser confirmation (the load ping) measured at all in this range: null
+// confirmed counts mean "not switched on yet", never zero.
+const confirmationMeasured = computed(() => report.value?.totals?.people?.confirmed_visitors != null)
+
+const peopleFigures = computed(() => {
+    const people = (key = 'totals') => report.value?.[key]?.people ?? {}
+    const visits = people().visitors ?? 0
+    const engaged = people().engaged_visitors ?? 0
+    const confirmed = people().confirmed_visitors ?? null
+    const share = (count) => (visits ? `${percent(count / visits)} of visits` : null)
+
+    return [
+        {
+            label: 'Visits (everyone)',
+            value: visits,
+            change: change(visits, people('totals_previous').visitors ?? 0),
+            note: `vs ${(people('totals_previous').visitors ?? 0).toLocaleString()} the ${days.value} days before`,
+        },
+        {
+            label: 'People (browser confirmed)',
+            value: confirmed,
+            change: confirmed !== null ? change(confirmed, people('totals_previous').confirmed_visitors ?? 0) : null,
+            note: confirmed !== null ? share(confirmed) : null,
+        },
+        {
+            label: 'Engaged',
+            value: engaged,
+            change: change(engaged, people('totals_previous').engaged_visitors ?? 0),
+            note: share(engaged),
         },
     ]
 })

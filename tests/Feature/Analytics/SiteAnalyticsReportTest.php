@@ -38,7 +38,7 @@ test('the report counts people, leaves bots out, and lists searches that found n
 
     $report = app(SiteAnalyticsReport::class)->handle(30);
 
-    expect($report['totals']['search'])->toBe(['total' => 3, 'visitors' => 2])
+    expect($report['totals']['search'])->toBe(['total' => 3, 'visitors' => 2, 'confirmed_visitors' => null, 'engaged_visitors' => 2])
         ->and($report['zero_result_searches'])->toHaveCount(1)
         ->and($report['zero_result_total'])->toBe(2)
         ->and($report['zero_result_searches'][0])->toMatchArray(['place' => 'Boise, ID', 'searches' => 2, 'with_filters' => 1, 'visitors' => 2])
@@ -47,10 +47,11 @@ test('the report counts people, leaves bots out, and lists searches that found n
         ->and($report['events'][0])->toMatchArray(['event_id' => $event->id, 'name' => 'Sleep No More', 'views' => 2, 'ticket_clicks' => 1, 'click_through' => 0.5])
         ->and($report['view_sources'])->toBe(['by_kind' => ['search_engine' => 1, 'search' => 1], 'outside_sites' => ['google.com' => 1]])
         ->and($report['search_clicks'])->toBe(['searches' => 2, 'searches_with_a_click' => 1, 'click_rate' => 0.5, 'by_position' => ['2' => 1]])
-        ->and($report['countries'])->toBe(['US' => 1])
+        ->and($report['countries'])->toBe(['US' => ['visitors' => 1, 'confirmed' => null]])
         ->and($report['bots'])->toMatchArray(['all_rows' => 8, 'flagged' => 1, 'datacenter' => 1])
         // The 30 days before: one search and one view.
-        ->and($report['totals_previous'])->toBe(['event_view' => ['total' => 1, 'visitors' => 1], 'search' => ['total' => 1, 'visitors' => 1]])
+        ->and(collect($report['totals_previous'])->map(fn ($kind) => [$kind['total'], $kind['visitors']])->all())
+        ->toBe(['event_view' => [1, 1], 'search' => [1, 1], 'people' => [2, 1]])
         // Every day in range, zeros included; yesterday has the activity.
         ->and($report['daily'])->toHaveCount(30)
         ->and(collect($report['daily'])->firstWhere('day', now()->subDay()->toDateString()))
@@ -264,7 +265,7 @@ test('each section page gets its full list, for moderators only', function () {
     $this->getJson('/api/admin/analytics/section/places?days=7')->assertOk()->assertJsonPath('rows.0.place', 'Boise, ID')->assertJsonPath('days', 7);
     $this->getJson('/api/admin/analytics/section/unmet')->assertOk()->assertJsonPath('rows.0.kind', 'place');
     $this->getJson('/api/admin/analytics/section/events')->assertOk()->assertJsonPath('rows.0.views', 1);
-    $this->getJson('/api/admin/analytics/section/countries')->assertOk()->assertJsonPath('rows.US', 1);
+    $this->getJson('/api/admin/analytics/section/countries')->assertOk()->assertJsonPath('rows.US.visitors', 1);
     $this->getJson('/api/admin/analytics/section/sources')->assertOk()->assertJsonStructure(['rows' => ['by_kind', 'outside_sites']]);
     $this->getJson('/api/admin/analytics/section/at_home')->assertOk();
     $this->getJson('/api/admin/analytics/section/nonsense')->assertNotFound();
@@ -302,4 +303,23 @@ test('the bot share leaves out time-on-page notes and nav typing, which only peo
     analyticsRow(['type' => Analytics::NAV_SEARCH, 'query' => 'boston']);
 
     expect(app(SiteAnalyticsReport::class)->handle(7)['bots'])->toMatchArray(['all_rows' => 2, 'flagged' => 1, 'share' => 0.5]);
+});
+
+test('the report counts browser-confirmed and engaged people beside all of them, and by country', function () {
+    $view = fn (string $visitor, array $row = []) => analyticsRow(array_merge(['type' => Analytics::PAGE_VIEW, 'page' => 'home', 'path' => '/', 'visitor' => str_repeat($visitor, 16), 'country' => 'US', 'js' => 0], $row));
+
+    $view('a', ['js' => 1]);                        // pinged
+    $view('b');                                     // never pinged
+    $view('c', ['country' => 'GB']);                // two pages: engaged
+    $view('c', ['country' => 'GB']);
+    analyticsRow(['type' => Analytics::PAGE_LEAVE, 'visitor' => str_repeat('d', 16), 'seconds' => 30, 'view_id' => 'viewDDDD0001']);
+    $view('d', ['view_id' => 'viewDDDD0001']);      // time on page: both
+    $view('z', ['js' => 1, 'bot' => Analytics::BOT_AUTOMATION]);
+
+    $report = app(SiteAnalyticsReport::class)->handle(7);
+
+    expect($report['totals']['people'])->toMatchArray(['visitors' => 4, 'confirmed_visitors' => 2, 'engaged_visitors' => 2])
+        ->and($report['totals']['page_view'])->toMatchArray(['visitors' => 4, 'confirmed_visitors' => 2, 'engaged_visitors' => 2])
+        ->and($report['countries'])->toBe(['US' => ['visitors' => 3, 'confirmed' => 2], 'GB' => ['visitors' => 1, 'confirmed' => 0]])
+        ->and($report['bots'])->toMatchArray(['flagged' => 1, 'automation' => 1]);
 });

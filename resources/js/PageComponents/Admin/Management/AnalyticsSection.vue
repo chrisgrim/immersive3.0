@@ -181,6 +181,9 @@ const GOOGLE_LAG = 'Google reports 2 to 3 days late, so the period ends on the n
 const GOOGLE_QUERIES_NOTE = `${GOOGLE_LAG} Google leaves out searches made by very few people, so these add up to less than the site totals.`
 const GOOGLE_PAGES_NOTE = `${GOOGLE_LAG} Pages can add up to more than the site totals: Google counts an impression for every page of the site shown in a list of results, while the totals count the site once per search. A page's position is that page's own. "Not a live event or organizer page": an event or organizer address whose page does not open to the public right now: removed, renamed, or not published (draft, in review, rejected, embargoed).`
 
+// A count that may not have been measured yet (null): n/a, never 0.
+const measured = (value) => (value === null || value === undefined ? 'n/a' : value.toLocaleString())
+
 // What each section lists, how it can be sorted and filtered.
 const SECTIONS = {
     places: {
@@ -330,12 +333,14 @@ const SECTIONS = {
         title: 'Visits by Country',
         sub: 'One person on one day counts once',
         placeholder: 'Filter countries',
-        sorts: [{ key: 'visitors', label: 'Most visits' }, { key: 'name', label: 'Name (A-Z)' }],
+        sorts: [{ key: 'visitors', label: 'Most visits' }, { key: 'confirmed', label: 'Most confirmed' }, { key: 'name', label: 'Name (A-Z)' }],
         columns: [
             { key: 'name', label: 'Country', sort: 'name' },
             { key: 'visitors', label: 'Visits', align: 'right', sort: 'visitors', format: number },
+            { key: 'confirmed', label: 'Confirmed', align: 'right', sort: 'confirmed', format: measured },
         ],
         text: (row) => row.name,
+        footnote: 'Confirmed: visits whose browser ran the page, leaving out scripts that only fetch it. n/a until browser confirmation is switched on.',
     },
 }
 
@@ -363,7 +368,7 @@ const normalize = (name, data) => {
         ]
     }
     if (name === 'countries') {
-        return Object.entries(data || {}).map(([code, visitors]) => ({ name: countryName(code), visitors }))
+        return Object.entries(data || {}).map(([code, row]) => ({ name: countryName(code), visitors: row.visitors, confirmed: row.confirmed }))
     }
     return data
 }
