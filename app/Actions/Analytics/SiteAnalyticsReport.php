@@ -42,6 +42,8 @@ class SiteAnalyticsReport
 
         // One build at a time: a second request waits for the first (up to
         // 30s) and then reads its cached result instead of starting another.
+        // Throws LockTimeoutException if that is not enough; callers answer
+        // "still building, try again" (AdminAnalyticsController, the MCP tool).
         return Cache::lock('analytics:report:building', 120)->block(30, fn () => Cache::remember($key, now()->addMinutes(10), fn () => $this->build($days)));
     }
 

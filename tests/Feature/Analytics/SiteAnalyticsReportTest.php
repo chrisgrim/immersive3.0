@@ -117,3 +117,15 @@ test('the previous period is the same length as the current one', function () {
 
     expect($previous['event_view']['total'])->toBe(1);
 });
+
+test('while another request is still building the report, the page and the tool say so instead of failing', function () {
+    $this->mock(SiteAnalyticsReport::class)
+        ->shouldReceive('handle')
+        ->andThrow(new Illuminate\Contracts\Cache\LockTimeoutException);
+    $moderator = User::factory()->create(['type' => 'm']);
+
+    $this->actingAs($moderator)->getJson('/api/admin/analytics')->assertStatus(503)->assertJsonPath('message', 'The report is still being built. Try again in a minute.');
+
+    Passport::actingAs($moderator, ['mcp:use', User::MODERATE_SCOPE]);
+    EiServer::actingAs($moderator, 'api')->tool(GetSiteAnalytics::class)->assertHasErrors()->assertSee('still being built');
+});

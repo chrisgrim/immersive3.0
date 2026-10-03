@@ -32,7 +32,7 @@ class Analytics
     public const SEARCH_ID_PATTERN = '/^[A-Za-z0-9]{12}$/';
 
     // Bot flags, a bitmask on analytics_events.bot. Rows are flagged, never
-    // dropped, so reports filter on bot = 0 and history can be re-scored.
+    // dropped, so reports filter on bot = 0 and can say how much was left out.
     public const BOT_CRAWLER = 1;
 
     public const BOT_NO_USER_AGENT = 2;

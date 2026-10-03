@@ -170,6 +170,9 @@
                         </li>
                     </ul>
                     <p v-else class="empty">Every search found something.</p>
+                    <button v-if="report.zero_result_searches.length > 6" type="button" class="self-start mt-[1.2rem] text-[1.2rem] font-semibold" @click="showAllUnmet = !showAllUnmet">
+                        {{ showAllUnmet ? 'Show fewer' : `View all ${report.zero_result_searches.length} places →` }}
+                    </button>
                     <p class="mt-auto pt-[1.6rem] border-t border-[#EBEBEB] text-[1.2rem] text-[#717171]">
                         "Filtered" searches had a category, genre, date or price set, which may be why nothing matched.
                     </p>
@@ -243,7 +246,8 @@
                     <h2 class="section-title mb-[0.4rem]">Search Result Clicks</h2>
                     <p class="section-sub mb-[1.2rem]">
                         {{ percent(report.search_clicks.click_rate) }} of searches led to a click
-                        ({{ report.search_clicks.searches_with_a_click.toLocaleString() }} of {{ report.search_clicks.searches.toLocaleString() }})
+                        ({{ report.search_clicks.searches_with_a_click.toLocaleString() }} of {{ report.search_clicks.searches.toLocaleString() }}).
+                        Clicks after moving the map are not included.
                     </p>
                     <ul class="breakdown">
                         <li v-for="(clicks, position) in report.search_clicks.by_position" :key="position">
@@ -290,6 +294,7 @@ const failed = ref(false)
 const hoverIndex = ref(null)
 const showAllSearches = ref(false)
 const showAllEvents = ref(false)
+const showAllUnmet = ref(false)
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL
 
@@ -365,7 +370,7 @@ const kpis = computed(() => {
 
 const visibleSearches = computed(() => (showAllSearches.value ? report.value.searches : report.value.searches.slice(0, 6)))
 const visibleEvents = computed(() => (showAllEvents.value ? report.value.events : report.value.events.slice(0, 10)))
-const visibleUnmet = computed(() => report.value.zero_result_searches.slice(0, 6))
+const visibleUnmet = computed(() => (showAllUnmet.value ? report.value.zero_result_searches : report.value.zero_result_searches.slice(0, 6)))
 
 const barWidth = (rate) => {
     const best = Math.max(...report.value.events.map((row) => row.click_through || 0))
