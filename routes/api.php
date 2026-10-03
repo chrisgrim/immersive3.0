@@ -396,6 +396,7 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
         Route::GET('/analytics', [\App\Http\Controllers\Admin\AdminAnalyticsController::class, 'index']);
         Route::GET('/analytics/find', [\App\Http\Controllers\Admin\AdminAnalyticsController::class, 'find']);
         Route::GET('/analytics/section/{name}', [\App\Http\Controllers\Admin\AdminAnalyticsController::class, 'section']);
+        Route::GET('/analytics/google', [\App\Http\Controllers\Admin\AdminAnalyticsController::class, 'google']);
 
         // Management Routes
         Route::prefix('manage')->group(function () {

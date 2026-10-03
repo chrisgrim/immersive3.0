@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Analytics\SearchConsoleReport;
 use App\Actions\Analytics\SiteAnalyticsReport;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -41,16 +42,37 @@ class AdminAnalyticsController extends Controller
     }
 
     /** One section in full, for the section view (sorting and filtering happen in the page). */
-    public function section(Request $request, SiteAnalyticsReport $report, string $name)
+    public function section(Request $request, SiteAnalyticsReport $report, SearchConsoleReport $google, string $name)
     {
-        abort_unless(in_array($name, ['places', 'unmet', 'at_home', 'events', 'sources', 'countries'], true), 404);
+        abort_unless(in_array($name, ['places', 'unmet', 'at_home', 'events', 'sources', 'countries', 'google_queries', 'google_pages'], true), 404);
         $validated = $request->validate(['days' => 'nullable|integer|min:1|max:'.SiteAnalyticsReport::MAX_DAYS]);
         $days = (int) ($validated['days'] ?? 30);
+
+        if (str_starts_with($name, 'google_')) {
+            abort_unless($google->configured(), 404);
+
+            return response()->json(['name' => $name, 'days' => $days, 'period' => $google->period($days), 'rows' => $google->section($name, $days)]);
+        }
 
         try {
             return response()->json(['name' => $name, 'days' => $days, 'rows' => $report->section($name, $days)]);
         } catch (LockTimeoutException) {
             return response()->json(['message' => 'The report is still being built. Try again in a minute.'], 503);
         }
+    }
+
+    /**
+     * The "From Google" block (Search Console, imported nightly): hidden
+     * while Search Console is not configured.
+     */
+    public function google(Request $request, SearchConsoleReport $report)
+    {
+        $validated = $request->validate(['days' => 'nullable|integer|min:1|max:'.SiteAnalyticsReport::MAX_DAYS]);
+
+        if (! $report->configured()) {
+            return response()->json(['configured' => false]);
+        }
+
+        return response()->json($report->dashboard((int) ($validated['days'] ?? 30)));
     }
 }
