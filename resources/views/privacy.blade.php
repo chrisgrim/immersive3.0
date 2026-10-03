@@ -141,7 +141,7 @@
                 </p>
                 @endif
                 <p class="mt-4">
-                    To object to any of this, email us at the address below.
+                    If your browser sends Global Privacy Control or Do Not Track, we do not record any of your visits in our own counts. For anything else, email us at the address below.
                 </p>
                 <p class="mt-4">
                     If you search without signing in, we keep your most recent search in your browser's local storage so it appears in the search box next time. If you choose it there, it is sent to us to show the results, like any search. If you sign in within an hour of making it, or of choosing to pin it, it is saved to your account; otherwise it is deleted from your browser when you sign in.

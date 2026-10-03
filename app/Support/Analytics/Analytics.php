@@ -53,6 +53,10 @@ class Analytics
         try {
             $request ??= request();
 
+            if (self::optedOut($request)) {
+                return;
+            }
+
             app(self::class)->push(json_encode([
                 't' => $type,
                 'at' => now()->getTimestamp(),
@@ -130,6 +134,15 @@ class Analytics
         $asn = app(GeoLookup::class)->asn((string) $request->ip());
 
         return $asn !== null && in_array($asn, config('analytics.hosting_asns'), true);
+    }
+
+    /**
+     * The visitor's browser asks not to be tracked: Global Privacy Control
+     * (Sec-GPC: 1) or Do Not Track (DNT: 1). Nothing of theirs is recorded.
+     */
+    public static function optedOut(Request $request): bool
+    {
+        return $request->headers->get('sec-gpc') === '1' || $request->headers->get('dnt') === '1';
     }
 
     /** A browser prefetch or prerender, not a person looking at the page. */

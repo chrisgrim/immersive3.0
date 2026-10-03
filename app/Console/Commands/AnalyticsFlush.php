@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Support\Analytics\Analytics;
 use App\Support\Analytics\GeoLookup;
 use Illuminate\Console\Command;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -80,9 +81,11 @@ class AnalyticsFlush extends Command
     }
 
     /**
-     * One multi-row insert; if that fails, row by row, so one bad note
-     * cannot hold up the buffer for good. If no row goes in at all, the
-     * database itself is the problem: rethrow, and the notes stay.
+     * One multi-row insert. Only if the database rejected the data itself
+     * (SQLSTATE class 22 or 23: a value it will never accept) does it go row
+     * by row, so one bad note cannot hold up the buffer for good. Anything
+     * else (connection lost, timeout, deadlock) is rethrown at once and the
+     * whole batch goes back for the next run.
      */
     private function insert(array $rows): int
     {
@@ -94,23 +97,34 @@ class AnalyticsFlush extends Command
             DB::table('analytics_events')->insert($rows);
 
             return count($rows);
-        } catch (Throwable $batchError) {
-            $written = 0;
-            foreach ($rows as $row) {
-                try {
-                    DB::table('analytics_events')->insert($row);
-                    $written++;
-                } catch (Throwable $e) {
-                    Log::warning('Analytics row skipped: '.$e->getMessage());
-                }
+        } catch (QueryException $e) {
+            if (! $this->isBadData($e)) {
+                throw $e;
             }
-
-            if ($written === 0) {
-                throw $batchError;
-            }
-
-            return $written;
         }
+
+        $written = 0;
+        $skipped = 0;
+        foreach ($rows as $row) {
+            try {
+                DB::table('analytics_events')->insert($row);
+                $written++;
+            } catch (QueryException $e) {
+                if (! $this->isBadData($e)) {
+                    throw $e;
+                }
+                $skipped++;
+            }
+        }
+
+        Log::warning("Analytics: {$skipped} rows skipped as invalid.");
+
+        return $written;
+    }
+
+    private function isBadData(QueryException $e): bool
+    {
+        return in_array(substr((string) $e->getCode(), 0, 2), ['22', '23'], true);
     }
 
     private function row(string $note): ?array

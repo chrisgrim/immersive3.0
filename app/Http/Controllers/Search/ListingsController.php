@@ -542,11 +542,14 @@ class ListingsController extends Controller
 
         // The same search again within 30 minutes (a refresh, Back from an
         // event, a cold load of ?page=N) is the one already recorded: same
-        // id, no new row. Keyed on the visitor and the search's own
-        // parameters, never stored.
+        // id, no new row. Keyed on the visitor, the search's own parameters
+        // and the first page it showed, never stored: if the results changed
+        // (a new event at the top), it is a new search with its own list,
+        // so clicks are checked against what was really on screen.
         $params = Arr::except($request->query(), ['page', 'pages', 'sid', 'include_pins']);
         ksort($params);
-        $seenKey = 'analytics:search-seen:'.md5($request->ip().'|'.$request->userAgent().'|'.json_encode($params));
+        $firstPage = array_map(fn ($event) => (int) data_get($event, 'id'), array_slice($payload['data'] ?? [], 0, self::PER_PAGE));
+        $seenKey = 'analytics:search-seen:'.md5($request->ip().'|'.$request->userAgent().'|'.json_encode($params).'|'.implode(',', $firstPage));
         $searchId = Str::random(12);
         try {
             if (! Cache::add($seenKey, $searchId, now()->addMinutes(30))) {

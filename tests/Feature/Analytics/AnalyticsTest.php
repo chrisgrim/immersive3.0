@@ -377,3 +377,33 @@ test('if building the rows fails, the notes go back too', function () {
 
     expect(app(Analytics::class)->pop(10))->toHaveCount(1);
 });
+
+test('a browser sending Global Privacy Control or Do Not Track is not recorded', function () {
+    FakeSearchEngine::install([]);
+
+    $this->getJson('/api/index/search?'.analyticsLaQuery(), ['Sec-GPC' => '1'])->assertOk();
+    $this->getJson('/api/index/search?'.analyticsLaQuery().'&tag=3', ['DNT' => '1'])->assertOk();
+
+    expect(analyticsRows())->toHaveCount(0);
+});
+
+test('the same search showing different events (a new listing on top) is a new search', function () {
+    $first = Event::factory()->count(2)->published()->create()->pluck('id')->all();
+    FakeSearchEngine::install($first);
+    $before = $this->getJson('/api/index/search?'.analyticsLaQuery())->json('search_id');
+
+    $newest = Event::factory()->published()->create()->id;
+    FakeSearchEngine::install([$newest, ...$first]);
+    $after = $this->getJson('/api/index/search?'.analyticsLaQuery())->json('search_id');
+
+    expect($after)->not->toBe($before)
+        ->and(json_decode(analyticsRows()->last()->props, true)['shown'])->toBe([$newest, ...$first]);
+});
+
+test('a note the database rejects as invalid is skipped and the rest are written', function () {
+    Analytics::record(Analytics::SEARCH, ['query' => 'Good']);
+    Analytics::record(Analytics::SEARCH, ['query' => 'Bad', 'results' => 99999999999]); // too big for the column
+
+    expect(analyticsRows()->pluck('query')->all())->toBe(['Good'])
+        ->and(app(Analytics::class)->pop(10))->toBe([]);
+});
