@@ -394,6 +394,7 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
         // First-party analytics summary (SiteAnalyticsReport)
         Route::GET('/analytics', [\App\Http\Controllers\Admin\AdminAnalyticsController::class, 'index']);
         Route::GET('/analytics/find', [\App\Http\Controllers\Admin\AdminAnalyticsController::class, 'find']);
+        Route::GET('/analytics/section/{name}', [\App\Http\Controllers\Admin\AdminAnalyticsController::class, 'section']);
 
         // Management Routes
         Route::prefix('manage')->group(function () {

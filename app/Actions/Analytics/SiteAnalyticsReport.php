@@ -177,7 +177,7 @@ class SiteAnalyticsReport
      * The places people search most, how often each came back empty, and how
      * many of those searches led to a result click.
      */
-    private function searches($since, ?string $contains = null): array
+    private function searches($since, ?string $contains = null, int $limit = self::LIMIT): array
     {
         $clicked = $this->believableClicks($since)->select('analytics_events.search_id')->distinct();
 
@@ -189,7 +189,7 @@ class SiteAnalyticsReport
             ->selectRaw('query, COUNT(*) AS searches, SUM(results = 0) AS found_nothing, COUNT(clicked.search_id) AS clicked')
             ->groupBy('query')
             ->orderByDesc('searches')
-            ->limit(self::LIMIT)
+            ->limit($limit)
             ->get()
             ->map(fn ($row) => [
                 'place' => $row->query,
@@ -202,7 +202,7 @@ class SiteAnalyticsReport
     }
 
     /** At Home searches by online type (none picked: "any type"). */
-    private function atHomeSearches($since): array
+    private function atHomeSearches($since, int $limit = self::LIMIT): array
     {
         $clicked = $this->believableClicks($since)->select('analytics_events.search_id')->distinct();
 
@@ -211,7 +211,7 @@ class SiteAnalyticsReport
             ->selectRaw(self::TYPE_NAME.' AS place, COUNT(*) AS searches, SUM(results = 0) AS found_nothing, COUNT(clicked.search_id) AS clicked')
             ->groupBy('place')
             ->orderByDesc('searches')
-            ->limit(self::LIMIT)
+            ->limit($limit)
             ->get()
             ->map(fn ($row) => [
                 'place' => ucfirst($row->place),
@@ -270,6 +270,30 @@ class SiteAnalyticsReport
         return $this->zeroResultSearches($this->since($days), $text);
     }
 
+    /** How many rows a section page can list. */
+    public const SECTION_LIMIT = 500;
+
+    /**
+     * One section of the report in full (up to SECTION_LIMIT rows), for the
+     * admin page's section view, which sorts and filters them itself.
+     * Cached like the report.
+     */
+    public function section(string $name, int $days = 30): array
+    {
+        $days = max(1, min(self::MAX_DAYS, $days));
+        $since = $this->since($days);
+        $limit = self::SECTION_LIMIT;
+
+        return Cache::remember('analytics:section:'.self::VERSION.":{$name}:{$days}", now()->addMinutes(10), fn () => match ($name) {
+            'places' => $this->searches($since, null, $limit),
+            'unmet' => $this->zeroResultSearches($since, null, $limit),
+            'at_home' => $this->atHomeSearches($since, $limit),
+            'events' => $this->events($since, null, $limit),
+            'sources' => $this->viewSources($since, $limit),
+            'countries' => $this->countries($since, 250),
+        });
+    }
+
     private function since(int $days)
     {
         return now()->subDays(max(1, min(self::MAX_DAYS, $days)) - 1)->startOfDay();
@@ -284,7 +308,7 @@ class SiteAnalyticsReport
      * Searches that found nothing, by place: the gaps worth filling. Split
      * into "with filters" (the filters may be why) and plain.
      */
-    private function zeroResultSearches($since, ?string $contains = null): array
+    private function zeroResultSearches($since, ?string $contains = null, int $limit = self::LIMIT): array
     {
         $like = $contains === null ? null : '%'.self::escapeLike($contains).'%';
         $columns = "COUNT(*) AS searches,
@@ -301,7 +325,7 @@ class SiteAnalyticsReport
             ->selectRaw("analytics_events.query AS place, {$columns}")
             ->groupBy('analytics_events.query')
             ->orderByDesc('searches')
-            ->limit(self::LIMIT)
+            ->limit($limit)
             ->get()
             // each() stops at a callback returning false, so no arrow fn here.
             ->each(function ($row) {
@@ -318,7 +342,7 @@ class SiteAnalyticsReport
             ->selectRaw(self::TYPE_NAME." AS place, {$columns}")
             ->groupBy('place')
             ->orderByDesc('searches')
-            ->limit(self::LIMIT)
+            ->limit($limit)
             ->get()
             ->each(function ($row) {
                 $row->kind = 'at_home';
@@ -341,7 +365,7 @@ class SiteAnalyticsReport
 
         return $places->concat($atHome)->concat($noPlace)
             ->sortByDesc('searches')
-            ->take(self::LIMIT)
+            ->take($limit)
             ->map(fn ($row) => [
                 // 'place' (typed), 'at_home' (place = the online type) or
                 // 'no_place' (one line, place empty): what the line is,
@@ -358,7 +382,7 @@ class SiteAnalyticsReport
     }
 
     /** The most viewed events, with their ticket clicks and click-through. */
-    private function events($since, ?array $onlyIds = null): array
+    private function events($since, ?array $onlyIds = null, int $limit = self::LIMIT): array
     {
         $counts = $this->rows($since)
             ->whereRaw("({$this->eventViewSql()} OR analytics_events.type = ?)", [Analytics::TICKET_CLICK])
@@ -366,7 +390,7 @@ class SiteAnalyticsReport
             ->selectRaw("event_id, SUM({$this->eventViewSql()}) AS views, SUM(type = ?) AS ticket_clicks", [Analytics::TICKET_CLICK])
             ->groupBy('event_id')
             ->orderByDesc('views')
-            ->limit(self::LIMIT)
+            ->limit($limit)
             ->get();
 
         $events = Event::withoutGlobalScopes()->withTrashed()
@@ -389,7 +413,7 @@ class SiteAnalyticsReport
     }
 
     /** Where event page views came from (Analytics::referrer), and the top outside sites. */
-    private function viewSources($since): array
+    private function viewSources($since, int $limit = self::LIMIT): array
     {
         $sources = $this->rows($since)->whereRaw($this->eventViewSql())
             ->selectRaw('source, COUNT(*) AS views')
@@ -405,7 +429,7 @@ class SiteAnalyticsReport
             ->groupBy('site')
             ->havingRaw('site IS NOT NULL')
             ->orderByDesc('views')
-            ->limit(self::LIMIT)
+            ->limit($limit)
             ->pluck('views', 'site')
             ->map(fn ($views) => (int) $views)
             ->all();
@@ -439,14 +463,14 @@ class SiteAnalyticsReport
     }
 
     /** Visitors by country. */
-    private function countries($since): array
+    private function countries($since, int $limit = 15): array
     {
         return $this->rows($since)
             ->whereNotNull('country')
             ->selectRaw('country, COUNT(DISTINCT visitor) AS visitors')
             ->groupBy('country')
             ->orderByDesc('visitors')
-            ->limit(15)
+            ->limit($limit)
             ->pluck('visitors', 'country')
             ->map(fn ($visitors) => (int) $visitors)
             ->all();

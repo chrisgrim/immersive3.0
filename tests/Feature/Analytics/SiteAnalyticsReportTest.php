@@ -252,3 +252,20 @@ test('two online types with the same name are one line with their counts added u
         ->and($report['zero_result_searches'][0])->toMatchArray(['kind' => 'at_home', 'place' => 'Sms/Text Message', 'searches' => 3, 'visitors' => 2])
         ->and(collect($report['at_home_searches'])->pluck('searches', 'place')->all())->toBe(['Sms/Text Message' => 3]);
 });
+
+test('each section page gets its full list, for moderators only', function () {
+    analyticsRow(['query' => 'Boise, ID', 'results' => 0]);
+    analyticsRow(['type' => Analytics::EVENT_VIEW, 'event_id' => Event::factory()->published()->create()->id, 'country' => 'US']);
+
+    $this->actingAs(User::factory()->create(['type' => 'u']))->getJson('/api/admin/analytics/section/places')->assertForbidden();
+
+    $this->actingAs(User::factory()->create(['type' => 'm']));
+    $this->getJson('/api/admin/analytics/section/places?days=7')->assertOk()->assertJsonPath('rows.0.place', 'Boise, ID')->assertJsonPath('days', 7);
+    $this->getJson('/api/admin/analytics/section/unmet')->assertOk()->assertJsonPath('rows.0.kind', 'place');
+    $this->getJson('/api/admin/analytics/section/events')->assertOk()->assertJsonPath('rows.0.views', 1);
+    $this->getJson('/api/admin/analytics/section/countries')->assertOk()->assertJsonPath('rows.US', 1);
+    $this->getJson('/api/admin/analytics/section/sources')->assertOk()->assertJsonStructure(['rows' => ['by_kind', 'outside_sites']]);
+    $this->getJson('/api/admin/analytics/section/at_home')->assertOk();
+    $this->getJson('/api/admin/analytics/section/nonsense')->assertNotFound();
+    $this->getJson('/api/admin/analytics/section/places?days=500')->assertUnprocessable();
+});

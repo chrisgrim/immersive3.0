@@ -39,4 +39,14 @@ class AdminAnalyticsController extends Controller
             'unmet' => $report->findUnmet($validated['q'], $days),
         });
     }
+
+    /** One section in full, for the section view (sorting and filtering happen in the page). */
+    public function section(Request $request, SiteAnalyticsReport $report, string $name)
+    {
+        abort_unless(in_array($name, ['places', 'unmet', 'at_home', 'events', 'sources', 'countries'], true), 404);
+        $validated = $request->validate(['days' => 'nullable|integer|min:1|max:'.SiteAnalyticsReport::MAX_DAYS]);
+        $days = (int) ($validated['days'] ?? 30);
+
+        return response()->json(['name' => $name, 'days' => $days, 'rows' => $report->section($name, $days)]);
+    }
 }

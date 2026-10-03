@@ -1,5 +1,14 @@
 <template>
-    <div class="analytics text-[#222222] space-y-[2.4rem]">
+    <AnalyticsSection
+        v-if="section"
+        :key="`${section}:${days}`"
+        :name="section"
+        :days="days"
+        :day-options="dayOptions"
+        @back="closeSection"
+        @days="load"
+    />
+    <div v-else class="analytics text-[#222222] space-y-[2.4rem]">
         <!-- Header -->
         <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-[1.6rem] pb-[2.4rem] border-b border-[#EBEBEB]">
             <div>
@@ -45,11 +54,9 @@
 
             <!-- Views over time -->
             <section class="card p-[2.4rem]">
-                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-[0.8rem] mb-[1.6rem]">
-                    <div>
-                        <h2 class="section-title">Event Views Over Time</h2>
-                        <p class="section-sub">People opening an event page, per day</p>
-                    </div>
+                <div class="mb-[1.6rem]">
+                    <h2 class="section-title">Event Views Over Time</h2>
+                    <p class="section-sub">People opening an event page, per day</p>
                 </div>
 
                 <div class="relative" @mouseleave="hoverIndex = null">
@@ -66,17 +73,13 @@
                                 <stop offset="100%" stop-color="#FF385C" stop-opacity="0" />
                             </linearGradient>
                         </defs>
-                        <!-- Grid + y labels -->
                         <g v-for="tick in chart.yTicks" :key="tick.value">
                             <line :x1="chart.left" :x2="chart.width - chart.right" :y1="tick.y" :y2="tick.y" stroke="#EBEBEB" stroke-dasharray="4 4" />
                             <text :x="chart.left - 10" :y="tick.y + 4" text-anchor="end" class="axis-label">{{ tick.label }}</text>
                         </g>
-                        <!-- X labels -->
                         <text v-for="tick in chart.xTicks" :key="tick.day" :x="tick.x" :y="chart.height - 6" :text-anchor="tick.anchor" class="axis-label">{{ tick.label }}</text>
-                        <!-- Area + line -->
                         <path :d="chart.area" fill="url(#views-fill)" />
                         <path :d="chart.line" fill="none" stroke="#FF385C" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
-                        <!-- Hover crosshair -->
                         <g v-if="hovered">
                             <line :x1="hovered.x" :x2="hovered.x" :y1="chart.top" :y2="chart.height - chart.bottom" stroke="#222222" stroke-opacity="0.2" />
                             <circle :cx="hovered.x" :cy="hovered.y" r="5" fill="#FF385C" stroke="#FFFFFF" stroke-width="2" />
@@ -114,25 +117,15 @@
             <!-- Searches + unmet demand -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-[2.4rem]">
                 <section class="card p-[2.4rem] flex flex-col">
-                    <div class="flex justify-between items-start gap-[1.6rem] mb-[1.6rem]">
-                        <div>
-                            <h2 class="section-title">Top Searched Places</h2>
-                            <p class="section-sub">Where people look for events, and how often a search led to a click</p>
-                        </div>
-                        <span class="text-[1.3rem] font-semibold whitespace-nowrap">{{ report.search_clicks.searches.toLocaleString() }} searches</span>
+                    <div class="mb-[1.6rem]">
+                        <button type="button" class="section-link" @click="openSection('places')">
+                            <span class="section-title">Top Searched Places</span>
+                            <span class="section-count">{{ report.search_clicks.searches.toLocaleString() }} searches</span>
+                            <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                        </button>
+                        <p class="section-sub">Where people look for events, and how often a search led to a click</p>
                     </div>
-                    <input
-                        type="search"
-                        maxlength="100"
-                        :value="placeFinder.query"
-                        @input="(e) => placeFinder.search(e.target.value)"
-                        placeholder="Find a place"
-                        class="w-full mb-[1.2rem] rounded-[1.2rem] border border-[#EBEBEB] px-[1.4rem] py-[1rem] text-[1.4rem] focus:outline-none focus:border-[#222222]"
-                    >
-                    <p v-if="placeFinder.active && placeFinder.loading" class="empty">Searching…</p>
-                    <p v-else-if="placeFinder.active && placeFinder.failed" class="empty">The search failed. Please try again.</p>
-                    <p v-else-if="placeFinder.active && !placeFinder.results.length" class="empty">No searches for "{{ placeFinder.query }}" in this period.</p>
-                    <table v-else-if="placeRows.length" class="w-full text-[1.4rem]">
+                    <table v-if="placeRows.length" class="w-full text-[1.4rem]">
                         <thead class="text-[1.2rem] text-[#717171]">
                             <tr class="border-b border-[#EBEBEB]">
                                 <th class="text-left font-normal py-[0.8rem]">Place</th>
@@ -151,47 +144,19 @@
                         </tbody>
                     </table>
                     <p v-else class="empty">No searches yet.</p>
-                    <div v-if="!placeFinder.active && report.searches.length > 6" class="flex justify-between items-center mt-auto pt-[1.6rem] border-t border-[#EBEBEB] text-[1.2rem]">
-                        <span class="text-[#717171]">Showing {{ visibleSearches.length }} of {{ report.searches.length }} places</span>
-                        <button type="button" class="font-semibold" @click="showAllSearches = !showAllSearches">
-                            {{ showAllSearches ? 'Show fewer' : 'View all places →' }}
-                        </button>
-                    </div>
                 </section>
 
                 <section class="card p-[2.4rem] flex flex-col">
-                    <div class="flex justify-between items-start gap-[1.6rem] mb-[1.6rem]">
-                        <div>
-                            <h2 class="section-title">Unmet Local Demand</h2>
-                            <p class="section-sub">Searches that found no events</p>
-                        </div>
-                        <span class="text-[1.3rem] font-semibold whitespace-nowrap">{{ unmetTotal.toLocaleString() }} missed</span>
+                    <div class="mb-[1.6rem]">
+                        <button type="button" class="section-link" @click="openSection('unmet')">
+                            <span class="section-title">Unmet Local Demand</span>
+                            <span class="section-count">{{ unmetTotal.toLocaleString() }} missed</span>
+                            <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                        </button>
+                        <p class="section-sub">Searches that found no events</p>
                     </div>
-                    <input
-                        type="search"
-                        maxlength="100"
-                        :value="unmetFinder.query"
-                        @input="(e) => unmetFinder.search(e.target.value)"
-                        placeholder="Find a place"
-                        class="w-full mb-[1.2rem] rounded-[1.2rem] border border-[#EBEBEB] px-[1.4rem] py-[1rem] text-[1.4rem] focus:outline-none focus:border-[#222222]"
-                    >
-                    <template v-if="unmetFinder.active">
-                        <p v-if="unmetFinder.loading" class="empty">Searching…</p>
-                        <p v-else-if="unmetFinder.failed" class="empty">The search failed. Please try again.</p>
-                        <p v-else-if="!unmetMatches.length" class="empty">No searches for "{{ unmetFinder.query }}" found nothing in this period.</p>
-                        <ul v-else class="list-none p-0 m-0 space-y-[0.8rem]">
-                            <li v-for="row in unmetMatches" :key="`${row.kind}:${row.place}`" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem]">
-                                <p class="text-[1.4rem] font-semibold truncate">
-                                    <span v-if="row.kind === 'at_home'" class="inline-block rounded-full bg-[#F7F7F7] text-[#717171] text-[1.1rem] font-semibold px-[0.8rem] py-[0.1rem] mr-[0.6rem] align-middle">At Home</span><span v-if="row.kind === 'no_place'" class="text-[#717171] italic">No place typed</span><template v-else>{{ row.place }}</template>
-                                </p>
-                                <p class="text-[1.2rem] text-[#717171]">
-                                    {{ row.searches }} {{ row.searches === 1 ? 'search' : 'searches' }} · {{ row.visitors }} {{ row.visitors === 1 ? 'visit' : 'visits' }} · last {{ formatDay(row.last_searched) }}
-                                </p>
-                            </li>
-                        </ul>
-                    </template>
-                    <ul v-else-if="report.zero_result_searches.length" class="list-none p-0 m-0 space-y-[0.8rem]">
-                        <li v-for="row in visibleUnmet" :key="`${row.kind}:${row.place}`" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem] flex justify-between items-center gap-[1.2rem]">
+                    <ul v-if="unmetRows.length" class="list-none p-0 m-0 space-y-[0.8rem]">
+                        <li v-for="row in unmetRows" :key="`${row.kind}:${row.place}`" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem] flex justify-between items-center gap-[1.2rem]">
                             <div class="min-w-0">
                                 <p class="text-[1.4rem] font-semibold truncate">
                                     <span v-if="row.kind === 'at_home'" class="inline-block rounded-full bg-[#F7F7F7] text-[#717171] text-[1.1rem] font-semibold px-[0.8rem] py-[0.1rem] mr-[0.6rem] align-middle">At Home</span><span v-if="row.kind === 'no_place'" class="text-[#717171] italic">No place typed</span><template v-else>{{ row.place }}</template>
@@ -206,9 +171,6 @@
                         </li>
                     </ul>
                     <p v-else class="empty">Every search found something.</p>
-                    <button v-if="!unmetFinder.active && report.zero_result_searches.length > 6" type="button" class="self-start mt-[1.2rem] text-[1.2rem] font-semibold" @click="showAllUnmet = !showAllUnmet">
-                        {{ showAllUnmet ? 'Show fewer' : `View all ${report.zero_result_searches.length} places →` }}
-                    </button>
                     <p class="mt-auto pt-[1.6rem] border-t border-[#EBEBEB] text-[1.2rem] text-[#717171]">
                         "Filtered" searches had a category, genre, date or price set, which may be why nothing matched.
                     </p>
@@ -218,53 +180,61 @@
             <!-- At Home -->
             <section class="card p-[2.4rem]">
                 <div class="mb-[1.6rem]">
-                    <h2 class="section-title">Top At Home Searches</h2>
+                    <button type="button" class="section-link" @click="openSection('at_home')">
+                        <span class="section-title">Top At Home Searches</span>
+                        <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                    </button>
                     <p class="section-sub">Online events people looked for, by type</p>
                 </div>
-                <table v-if="report.at_home_searches?.length" class="w-full text-[1.4rem]">
-                    <thead class="text-[1.2rem] text-[#717171]">
-                        <tr class="border-b border-[#EBEBEB]">
-                            <th class="text-left font-normal py-[0.8rem]">Type</th>
-                            <th class="text-right font-normal">Searches</th>
-                            <th class="text-right font-normal">Found nothing</th>
-                            <th class="text-right font-normal">Clicked</th>
-                            <th class="text-right font-normal">Rate</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="row in report.at_home_searches" :key="row.place" class="border-b border-[#EBEBEB] last:border-0">
-                            <td class="py-[1.2rem] pr-[0.8rem]">{{ row.place }}</td>
-                            <td class="text-right">{{ row.searches.toLocaleString() }}</td>
-                            <td class="text-right">{{ row.found_nothing.toLocaleString() }}</td>
-                            <td class="text-right font-semibold">{{ row.clicked.toLocaleString() }}</td>
-                            <td class="text-right">{{ percent(row.click_rate) }}</td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div v-if="report.at_home_searches?.length" class="overflow-x-auto">
+                    <table class="w-full text-[1.4rem]">
+                        <thead class="text-[1.2rem] text-[#717171]">
+                            <tr class="border-b border-[#EBEBEB]">
+                                <th class="text-left font-normal py-[0.8rem]">Type</th>
+                                <th class="text-right font-normal">Searches</th>
+                                <th class="text-right font-normal">Found nothing</th>
+                                <th class="text-right font-normal">Clicked</th>
+                                <th class="text-right font-normal">Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="row in report.at_home_searches.slice(0, 8)" :key="row.place" class="border-b border-[#EBEBEB] last:border-0">
+                                <td class="py-[1.2rem] pr-[0.8rem]">{{ row.place }}</td>
+                                <td class="text-right">{{ row.searches.toLocaleString() }}</td>
+                                <td class="text-right">{{ row.found_nothing.toLocaleString() }}</td>
+                                <td class="text-right font-semibold">{{ row.clicked.toLocaleString() }}</td>
+                                <td class="text-right">{{ percent(row.click_rate) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
                 <p v-else class="empty">No At Home searches yet.</p>
             </section>
 
             <!-- Conversion by event -->
             <section class="card p-[2.4rem]">
-                <div class="flex justify-between items-start gap-[1.6rem] mb-[0.8rem]">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-start gap-[1.2rem] mb-[0.8rem]">
                     <div>
-                        <h2 class="section-title">Conversion by Event</h2>
+                        <button type="button" class="section-link" @click="openSection('events')">
+                            <span class="section-title">Conversion by Event</span>
+                            <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                        </button>
                         <p class="section-sub">The most viewed events and how often a view became a ticket click</p>
                     </div>
-                    <span class="text-[1.2rem] text-[#717171] whitespace-nowrap">Sorted by views</span>
+                    <div class="inline-flex self-start bg-[#F7F7F7] rounded-full p-[0.4rem]" role="group" aria-label="Sort events by">
+                        <button
+                            v-for="option in eventSorts"
+                            :key="option.key"
+                            type="button"
+                            @click="eventSort = option.key"
+                            :aria-pressed="eventSort === option.key"
+                            :class="['px-[1.2rem] py-[0.6rem] rounded-full text-[1.2rem] font-semibold whitespace-nowrap', eventSort === option.key ? 'bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)]' : 'text-[#717171]']"
+                        >
+                            {{ option.label }}
+                        </button>
+                    </div>
                 </div>
-                <input
-                    type="search"
-                        maxlength="100"
-                    :value="eventFinder.query"
-                    @input="(e) => eventFinder.search(e.target.value)"
-                    placeholder="Find an event by name"
-                    class="w-full mb-[1.2rem] rounded-[1.2rem] border border-[#EBEBEB] px-[1.4rem] py-[1rem] text-[1.4rem] focus:outline-none focus:border-[#222222]"
-                >
-                <p v-if="eventFinder.active && eventFinder.loading" class="empty">Searching…</p>
-                <p v-else-if="eventFinder.active && eventFinder.failed" class="empty">The search failed. Please try again.</p>
-                <p v-else-if="eventFinder.active && !eventFinder.results.length" class="empty">No views of an event matching "{{ eventFinder.query }}" in this period.</p>
-                <ul v-else-if="eventRows.length" class="list-none p-0 m-0">
+                <ul v-if="eventRows.length" class="list-none p-0 m-0">
                     <li v-for="row in eventRows" :key="row.event_id" class="grid grid-cols-[4.8rem_1fr] md:grid-cols-[4.8rem_1fr_9rem_9rem_16rem] gap-x-[1.6rem] gap-y-[0.8rem] items-center py-[1.6rem] border-t border-[#EBEBEB] first:border-0">
                         <div class="w-[4.8rem] h-[4.8rem] rounded-[0.8rem] bg-[#F7F7F7] overflow-hidden">
                             <img v-if="row.thumb" :src="`${imageUrl}${row.thumb}`" alt="" loading="lazy" class="w-full h-full object-cover" @error="(e) => (e.target.style.display = 'none')">
@@ -293,16 +263,20 @@
                         </div>
                     </li>
                 </ul>
-                <button v-if="!eventFinder.active && report.events.length > 10" type="button" class="mt-[1.2rem] text-[1.2rem] font-semibold" @click="showAllEvents = !showAllEvents">
-                    {{ showAllEvents ? 'Show fewer' : `View all ${report.events.length} events →` }}
-                </button>
-                <p v-else-if="!eventFinder.active && !report.events.length" class="empty">No event views yet.</p>
+                <p v-else-if="eventSort === 'click_through' && report.events.length" class="empty">No event has 10 or more views in this period yet.</p>
+                <p v-else class="empty">No event views yet.</p>
+                <p v-if="eventSort === 'click_through' && eventRows.length" class="text-[1.2rem] text-[#717171] mt-[0.8rem]">Events with at least 10 views.</p>
             </section>
 
             <!-- Smaller breakdowns -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-[2.4rem]">
                 <section class="card p-[2.4rem]">
-                    <h2 class="section-title mb-[1.2rem]">Where Views Came From</h2>
+                    <div class="mb-[1.2rem]">
+                        <button type="button" class="section-link" @click="openSection('sources')">
+                            <span class="section-title">Where Views Came From</span>
+                            <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                        </button>
+                    </div>
                     <ul class="breakdown">
                         <li v-for="(views, kind) in report.view_sources.by_kind" :key="kind">
                             <span>{{ sourceNames[kind] || kind }}</span><span>{{ views.toLocaleString() }}</span>
@@ -311,7 +285,7 @@
                     <template v-if="Object.keys(report.view_sources.outside_sites).length">
                         <h3 class="text-[1.3rem] font-semibold mt-[2rem] mb-[0.8rem]">Top outside sites</h3>
                         <ul class="breakdown">
-                            <li v-for="(views, site) in report.view_sources.outside_sites" :key="site">
+                            <li v-for="(views, site) in topSites" :key="site">
                                 <span class="truncate">{{ site }}</span><span>{{ views.toLocaleString() }}</span>
                             </li>
                         </ul>
@@ -341,7 +315,10 @@
                 </section>
 
                 <section class="card p-[2.4rem]">
-                    <h2 class="section-title mb-[0.4rem]">Visits by Country</h2>
+                    <button type="button" class="section-link" @click="openSection('countries')">
+                        <span class="section-title">Visits by Country</span>
+                        <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                    </button>
                     <p class="section-sub mb-[1.2rem]">One person on one day counts once</p>
                     <ul class="breakdown">
                         <li v-for="(visitors, country) in report.countries" :key="country">
@@ -362,9 +339,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue'
+import AnalyticsSection from './AnalyticsSection.vue'
 
 const dayOptions = [
     { days: 7, label: '7 days' },
@@ -376,9 +354,46 @@ const report = ref(null)
 const loading = ref(true)
 const failed = ref(false)
 const hoverIndex = ref(null)
-const showAllSearches = ref(false)
-const showAllEvents = ref(false)
-const showAllUnmet = ref(false)
+
+const eventSort = ref('views')
+const eventSorts = [
+    { key: 'views', label: 'Views' },
+    { key: 'ticket_clicks', label: 'Ticket clicks' },
+    { key: 'click_through', label: 'Click-through' },
+]
+
+// A section opened on its own page (?section=places), with Back to return.
+const SECTIONS = ['places', 'unmet', 'at_home', 'events', 'sources', 'countries']
+const sectionFromUrl = () => {
+    const name = new URLSearchParams(window.location.search).get('section')
+    return SECTIONS.includes(name) ? name : null
+}
+const section = ref(sectionFromUrl())
+
+const openSection = (name) => {
+    const url = new URL(window.location)
+    url.searchParams.set('section', name)
+    window.history.pushState({ analyticsSection: name }, '', url)
+    section.value = name
+    window.scrollTo(0, 0)
+}
+
+const closeSection = () => {
+    // Opened from the dashboard: step back in history, so the browser's own
+    // Back and this arrow agree. Opened straight from a link: drop the param.
+    if (window.history.state?.analyticsSection) {
+        window.history.back()
+        return
+    }
+    const url = new URL(window.location)
+    url.searchParams.delete('section')
+    window.history.replaceState({}, '', url)
+    section.value = null
+}
+
+const onPopState = () => {
+    section.value = sectionFromUrl()
+}
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL
 
@@ -452,55 +467,19 @@ const kpis = computed(() => {
     ]
 })
 
-// A search box: 2+ characters asks the server (all events / all places in
-// the period, not only the top 25), a quarter second after typing stops.
-// Only the newest answer lands, like load() below.
-const makeFinder = (kind) => {
-    let timer = null
-    let latestFind = 0
-    const finder = reactive({
-        query: '',
-        results: [],
-        loading: false,
-        failed: false,
-        active: computed(() => finder.query.trim().length >= 2),
-        search(text) {
-            finder.query = text
-            clearTimeout(timer)
-            if (!finder.active) {
-                finder.results = []
-                return
-            }
-            finder.loading = true
-            timer = setTimeout(() => finder.run(), 250)
-        },
-        async run() {
-            const request = ++latestFind
-            finder.failed = false
-            try {
-                const { data } = await axios.get('/api/admin/analytics/find', { params: { kind, q: finder.query.trim(), days: days.value } })
-                if (request === latestFind) finder.results = data
-            } catch (error) {
-                if (request === latestFind) {
-                    finder.results = []
-                    finder.failed = true
-                }
-                console.error('[admin-analytics] search failed', error)
-            } finally {
-                if (request === latestFind) finder.loading = false
-            }
-        },
-    })
-    return finder
-}
+// The dashboard shows the top of each list; its section page shows it all.
+const placeRows = computed(() => report.value.searches.slice(0, 6))
+const unmetRows = computed(() => report.value.zero_result_searches.slice(0, 6))
+const topSites = computed(() => Object.fromEntries(Object.entries(report.value.view_sources.outside_sites).slice(0, 8)))
 
-const placeFinder = makeFinder('places')
-const unmetFinder = makeFinder('unmet')
-const eventFinder = makeFinder('events')
-
-const placeRows = computed(() => (placeFinder.active ? placeFinder.results : visibleSearches.value))
-const unmetMatches = computed(() => unmetFinder.results)
-const eventRows = computed(() => (eventFinder.active ? eventFinder.results : visibleEvents.value))
+// The dashboard's top events, in the chosen order. Click-through needs a
+// few views to mean anything, so that order skips events under 10.
+const eventRows = computed(() => {
+    const list = eventSort.value === 'click_through'
+        ? report.value.events.filter((row) => row.views >= 10)
+        : [...report.value.events]
+    return list.sort((a, b) => (b[eventSort.value] ?? -1) - (a[eventSort.value] ?? -1)).slice(0, 10)
+})
 
 const ordinal = (n) => {
     const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th')
@@ -522,12 +501,8 @@ const positionRows = computed(() => {
     }))
 })
 
-const visibleSearches = computed(() => (showAllSearches.value ? report.value.searches : report.value.searches.slice(0, 6)))
-const visibleEvents = computed(() => (showAllEvents.value ? report.value.events : report.value.events.slice(0, 10)))
-const visibleUnmet = computed(() => (showAllUnmet.value ? report.value.zero_result_searches : report.value.zero_result_searches.slice(0, 6)))
-
 const barWidth = (rate) => {
-    const best = Math.max(...report.value.events.map((row) => row.click_through || 0))
+    const best = Math.max(0, ...report.value.events.map((row) => row.click_through || 0))
     return best ? Math.round(((rate || 0) / best) * 100) : 0
 }
 
@@ -617,11 +592,7 @@ const load = async (option = days.value) => {
     hoverIndex.value = null
     try {
         const { data } = await axios.get('/api/admin/analytics', { params: { days: option } })
-        if (request === latest) {
-            report.value = data
-            // Open search boxes follow the new range.
-            ;[placeFinder, unmetFinder, eventFinder].forEach((finder) => finder.active && finder.run())
-        }
+        if (request === latest) report.value = data
     } catch (error) {
         if (request !== latest) return
         console.error('[admin-analytics] failed to load', error)
@@ -631,7 +602,12 @@ const load = async (option = days.value) => {
     }
 }
 
-onMounted(() => load())
+onMounted(() => {
+    load()
+    window.addEventListener('popstate', onPopState)
+})
+
+onUnmounted(() => window.removeEventListener('popstate', onPopState))
 </script>
 
 <style scoped>
@@ -642,6 +618,18 @@ onMounted(() => load())
 
 .section-title {
     @apply text-[1.8rem] leading-[2.4rem] font-semibold tracking-[-0.01em];
+}
+
+.section-link {
+    @apply flex flex-wrap items-center gap-x-[0.8rem] gap-y-[0.2rem] text-left -mx-[0.6rem] px-[0.6rem] py-[0.2rem] rounded-[0.8rem] hover:bg-[#F7F7F7];
+}
+
+.section-count {
+    @apply text-[1.3rem] font-semibold text-[#717171] whitespace-nowrap;
+}
+
+.section-chevron {
+    @apply w-[1.6rem] h-[1.6rem] shrink-0 text-[#717171];
 }
 
 .section-sub {
