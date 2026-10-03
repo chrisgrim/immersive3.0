@@ -202,6 +202,19 @@ class SiteAnalyticsReport
 
         try {
             DB::statement('DROP TEMPORARY TABLE IF EXISTS analytics_report_flags');
+            // At MySQL's default REPEATABLE READ, CREATE ... SELECT
+            // share-locks every row it reads (next-key locks, the supremum
+            // too) until it ends: the flusher's inserts and its ping and
+            // automation UPDATEs would wait out the whole build. READ
+            // COMMITTED reads without locking. Applies to the next
+            // transaction only, and only when none is open (tests wrap one).
+            // Needs row-based binary logging: MySQL refuses an INSERT ...
+            // SELECT at READ COMMITTED under statement logging, so then it
+            // keeps the default (as AnalyticsRollup::rollupDay does).
+            if (DB::transactionLevel() === 0 && DB::getDriverName() === 'mysql'
+                && in_array(DB::scalar('SELECT IF(@@log_bin, @@binlog_format, \'OFF\')'), ['ROW', 'OFF'], true)) {
+                DB::statement('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+            }
             DB::statement('CREATE TEMPORARY TABLE analytics_report_flags (KEY (visitor)) '.$flagsSql, $flagBindings);
 
             return $count();
@@ -222,23 +235,28 @@ class SiteAnalyticsReport
         return $query->leftJoin('analytics_report_flags as f', 'f.visitor', '=', 'analytics_events.visitor');
     }
 
-    /** The row is on a measured day: SQL, then measuredBindings(). */
+    /** The row is on a measured day (bindings: the measured days). */
     private function onMeasuredDay(): string
     {
         return 'DATE(analytics_events.occurred_at) IN ('.implode(',', array_fill(0, count($this->measuredDays), '?')).')';
     }
 
+    /** flagCounts()' bindings: the measured days, once for each of its three counts. */
     private function measuredBindings(): array
     {
-        return $this->measuredDays;
+        return [...$this->measuredDays, ...$this->measuredDays, ...$this->measuredDays];
     }
 
     /** Visitors on measured days (people only), and of them browser confirmed and engaged. */
     private function flagCounts(): string
     {
-        return "COUNT(DISTINCT IF({$this->serverRow()} AND {$this->onMeasuredDay()} AND NOT COALESCE(f.automated, 0), analytics_events.visitor, NULL)) AS measured,
-            COUNT(DISTINCT IF(f.js, analytics_events.visitor, NULL)) AS confirmed,
-            COUNT(DISTINCT IF(f.engaged, analytics_events.visitor, NULL)) AS engaged";
+        // All three on measured days and server rows only: today counts
+        // once its hourly rollup marks it measured, never before.
+        $on = "{$this->serverRow()} AND {$this->onMeasuredDay()}";
+
+        return "COUNT(DISTINCT IF({$on} AND NOT COALESCE(f.automated, 0), analytics_events.visitor, NULL)) AS measured,
+            COUNT(DISTINCT IF({$on} AND f.js, analytics_events.visitor, NULL)) AS confirmed,
+            COUNT(DISTINCT IF({$on} AND f.engaged, analytics_events.visitor, NULL)) AS engaged";
     }
 
     /** The flag counts of a row, null when nothing in the range was measured. */

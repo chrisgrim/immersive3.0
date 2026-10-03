@@ -156,10 +156,10 @@ test('pings never count toward the daily cap', function () {
 });
 
 test('the privacy page names the load ping while it is on', function () {
-    expect($this->withoutVite()->get('/privacy')->getContent())->not->toContain('finished loading');
+    expect($this->withoutVite()->get('/privacy')->getContent())->not->toContain('ran our page script');
 
     switchOn('js_ping');
-    expect($this->withoutVite()->get('/privacy')->getContent())->toContain('finished loading');
+    expect($this->withoutVite()->get('/privacy')->getContent())->toContain('ran our page script');
 });
 
 test('the migration can run again', function () {
@@ -303,4 +303,18 @@ test('a time-on-page note just after midnight counts for its view\'s visitor, no
     expect(DB::table('analytics_daily')->where(['day' => $day, 'type' => 'view', 'dim' => 'all', 'bot' => 0])->first())
         ->visitors->toBe(1)->js_visitors->toBe(1)->engaged_visitors->toBe(1)
         ->and($report['totals']['people'])->toMatchArray(['visitors' => 1, 'visitors_on_measured_days' => 1, 'confirmed_visitors' => 1, 'engaged_visitors' => 1]);
+});
+
+test('confirmed and engaged counts leave out days not yet marked measured, like today before its rollup', function () {
+    $yesterday = now('UTC')->subDay();
+    DB::table('analytics_daily')->insert(['day' => $yesterday->toDateString(), 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0, 'js_visitors' => 0, 'engaged_visitors' => 0]);
+    foreach ([[$yesterday, 'a'], [now('UTC'), 't']] as [$at, $visitor]) {
+        DB::table('analytics_events')->insert([
+            ['type' => 'page_view', 'occurred_at' => $at->copy()->startOfDay()->addHour(), 'visitor' => str_repeat($visitor, 16), 'bot' => 0, 'page' => 'home', 'path' => '/', 'js' => 1],
+            ['type' => 'page_view', 'occurred_at' => $at->copy()->startOfDay()->addHours(2), 'visitor' => str_repeat($visitor, 16), 'bot' => 0, 'page' => 'home', 'path' => '/x', 'js' => 0],
+        ]);
+    }
+
+    expect(app(App\Actions\Analytics\SiteAnalyticsReport::class)->handle(7)['totals']['people'])
+        ->toMatchArray(['visitors' => 2, 'visitors_on_measured_days' => 1, 'confirmed_visitors' => 1, 'engaged_visitors' => 1]);
 });

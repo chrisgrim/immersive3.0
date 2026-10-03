@@ -182,7 +182,8 @@ class AnalyticsQuery
                     in_array($metric, ['page_views', 'visits', ...self::CONFIRMATION_METRICS], true) ? 'visits' : 'visitors' => $row['visitors'],
                     'avg_seconds' => $row['avg_seconds'],
                 ] + ($confirmation ? ['visits_on_measured_days' => $row['measured']] : []), $this->topKeys($types, $column, $dimension, $days, max(1, min(50, $limit)), $confirmation)),
-                'whole_period_total' => $this->count($total[0]->value ?? null),
+                // Null only for the confirmation metrics (unknown, not zero).
+                'whole_period_total' => $confirmation ? $this->count($total[0]->value ?? null) : (int) ($total[0]->value ?? 0),
             ] + ($confirmation ? ['whole_period_visits_on_measured_days' => $this->count($total[0]->measured ?? null)] : []);
         });
     }
