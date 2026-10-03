@@ -629,11 +629,13 @@ class SiteAnalyticsReport
             ->selectRaw('analytics_events.country AS country, COUNT(DISTINCT IF('.$this->serverRow().', analytics_events.visitor, NULL)) AS visitors')
             ->groupBy('analytics_events.country')
             ->havingRaw('visitors > 0')
-            ->orderByDesc('visitors')
             ->limit($limit);
+        // Once measuring has begun the card shows visits on measured days:
+        // the top countries are the top by that.
         if ($this->measuredDays !== []) {
-            $this->joinFlags($query)->selectRaw($this->flagCounts(), $this->measuredBindings());
+            $this->joinFlags($query)->selectRaw($this->flagCounts(), $this->measuredBindings())->orderByDesc('view_measured');
         }
+        $query->orderByDesc('visitors');
 
         return $query->get()
             ->mapWithKeys(fn ($row) => [$row->country => [

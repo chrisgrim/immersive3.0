@@ -355,3 +355,32 @@ test('the report\'s measured base is view visitor-days, and a beacon alone is no
     expect($report['totals']['people'])->toMatchArray(['visitors' => 2, 'visitors_on_measured_days' => 1, 'confirmed_visitors' => 1])
         ->and($report['countries'])->toBe(['US' => ['visitors' => 2, 'visitors_on_measured_days' => 1, 'confirmed' => 1]]);
 });
+
+test('the day the ping is switched off mid-day is not measured either', function () {
+    $day = now('UTC')->subDays(2)->toDateString();
+    DB::table('analytics_events')->insert([
+        // Morning: pinged. Afternoon, after the switch-off: not asked.
+        ['type' => 'page_view', 'occurred_at' => "{$day} 08:00:00", 'visitor' => str_repeat('a', 16), 'bot' => 0, 'page' => 'home', 'path' => '/', 'js' => 1],
+        ['type' => 'page_view', 'occurred_at' => "{$day} 15:00:00", 'visitor' => str_repeat('b', 16), 'bot' => 0, 'page' => 'home', 'path' => '/', 'js' => null],
+    ]);
+
+    $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
+
+    expect(DB::table('analytics_daily')->where(['day' => $day, 'type' => 'view', 'dim' => 'all', 'bot' => 0])->first())
+        ->visitors->toBe(2)->js_visitors->toBeNull()->engaged_visitors->toBeNull();
+});
+
+test('once measuring has begun, the top countries are the top by visits on measured days', function () {
+    $day = now('UTC')->subDay()->toDateString();
+    $old = now('UTC')->subDays(3)->toDateString();
+    DB::table('analytics_daily')->insert(['day' => $day, 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0, 'js_visitors' => 0, 'engaged_visitors' => 0]);
+    $view = fn (string $visitor, string $country, string $at, $js) => DB::table('analytics_events')->insert(['type' => 'page_view', 'occurred_at' => $at, 'visitor' => str_repeat($visitor, 16), 'bot' => 0, 'country' => $country, 'js' => $js]);
+    // GB: three visits before measuring. US: two on the measured day.
+    foreach (['a', 'b', 'c'] as $visitor) {
+        $view($visitor, 'GB', "{$old} 10:00:00", null);
+    }
+    $view('d', 'US', "{$day} 10:00:00", 1);
+    $view('e', 'US', "{$day} 11:00:00", 0);
+
+    expect(array_keys(app(App\Actions\Analytics\SiteAnalyticsReport::class)->handle(7)['countries']))->toBe(['US', 'GB']);
+});

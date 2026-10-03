@@ -177,12 +177,14 @@ class AnalyticsRollup extends Command
             // ping was on (its page views were asked for one); before that,
             // NULL, not 0. Neither column exists before the migration.
             $this->columns = Analytics::hasConfirmationColumns();
-            // A whole day only: the day the ping was switched on counts from
-            // the next, so a part-measured day never sets confirmed against
-            // a whole day's visits. Its first people page view tells.
-            $this->pinged = $this->columns && DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->where('bot', 0)
-                ->where('occurred_at', '>=', $range[0])->where('occurred_at', '<', $range[1])
-                ->orderBy('occurred_at')->orderBy('id')->limit(1)->get(['js'])->first()?->js !== null;
+            // A whole day only: a day the ping was switched on or off counts
+            // as not measured, so a part-measured day never sets confirmed
+            // against a whole day's visits. It has people page views and
+            // none of them went unasked (two probes on the type and
+            // occurred_at index).
+            $views = fn () => DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->where('bot', 0)
+                ->where('occurred_at', '>=', $range[0])->where('occurred_at', '<', $range[1]);
+            $this->pinged = $this->columns && $views()->exists() && ! $views()->whereNull('js')->exists();
 
             foreach ($this->dimensions() as [$types, $dim, $key, $where]) {
                 $this->insert($day, $range, $types, $dim, $key, $where);
