@@ -44,7 +44,7 @@
 
                 <div class="p-[1.6rem] md:p-[2.4rem] border-t border-[#EBEBEB]">
                     <p v-if="!shown.length" class="empty text-center">Choose a number above to chart it.</p>
-                    <div v-else class="relative" @mouseleave="hoverIndex = null">
+                    <div v-else class="relative" @pointerleave="hoverIndex = null">
                         <svg
                             :viewBox="`0 0 ${chart.width} ${chart.height}`"
                             class="w-full h-auto block"

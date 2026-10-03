@@ -9,6 +9,13 @@ export const niceStep = (raw) => {
     return (scaled <= 1 ? 1 : scaled <= 2 ? 2 : scaled <= 5 ? 5 : 10) * power
 }
 
+// Axis labels for counts: 1.5k, 1.2M.
+export const shortNumber = (v) => {
+    if (v >= 1e6) return `${Math.round(v / 1e5) / 10}M`
+    if (v >= 1000) return `${Math.round(v / 100) / 10}k`
+    return String(Math.round(v * 100) / 100)
+}
+
 export const formatDay = (date) => {
     if (!date) return ''
     const iso = date.length === 10 ? `${date}T00:00:00Z` : `${date.replace(' ', 'T')}Z`
@@ -40,7 +47,7 @@ export const lineChart = (points, value) => {
 
     const yTicks = []
     for (let v = 0; v <= yMax; v += step) {
-        yTicks.push({ value: v, y: y(v), label: v >= 1000 ? `${Math.round(v / 100) / 10}k` : String(v) })
+        yTicks.push({ value: v, y: y(v), label: shortNumber(v) })
     }
 
     const xCount = Math.min(5, points.length)
@@ -111,12 +118,12 @@ export const multiLineChart = (points, series) => {
         })
         // A value with no neighbour draws no line, so it gets a dot.
         const dots = coords.filter((c, i) => c && !coords[i - 1] && !coords[i + 1])
-        const ticks = []
-        const count = Math.round((high - low) / step)
-        for (let k = 0; k <= count; k++) {
-            const v = low + k * step
-            ticks.push({ value: v, y: y(v), label: s.format ? s.format(v) : (v >= 1000 ? `${Math.round(v / 100) / 10}k` : String(Math.round(v * 100) / 100)) })
-        }
+        // Ticks on round multiples of the step inside the range, plus the
+        // range's own start when that is not one (position's 1).
+        const tickValues = []
+        if (Math.abs(low / step - Math.round(low / step)) > 1e-9) tickValues.push(low)
+        for (let k = Math.ceil(low / step - 1e-9); k * step <= high + 1e-9; k++) tickValues.push(k * step)
+        const ticks = tickValues.map((v) => ({ value: v, y: y(v), label: s.format ? s.format(v) : shortNumber(v) }))
 
         return { key: s.key, path: path.trim(), coords, dots, ticks }
     })
