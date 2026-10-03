@@ -195,7 +195,9 @@ class AnalyticsRollup extends Command
         $typeSql = $types === null ? '' : ' AND e.type IN ('.implode(',', array_fill(0, count($types), '?')).')';
         $whereSql = $where ? " AND ({$where})" : '';
 
-        // Time on page: each page view's longest page_leave report that day.
+        // Time on page: each page view's longest page_leave report. The
+        // leave may land up to a day later (a view just before midnight UTC,
+        // a tab left open); a view_id is one view, so this cannot double count.
         DB::statement("
             INSERT INTO analytics_daily (day, type, dim, `key`, bot, hits, visitors, seconds_sum, seconds_count)
             SELECT ?, {$this->typeOf()}, ?, {$key}, e.bot > 0, COUNT(*), COUNT(DISTINCT e.visitor),
@@ -204,7 +206,7 @@ class AnalyticsRollup extends Command
             LEFT JOIN events ev ON ev.id = e.event_id
             LEFT JOIN (
                 SELECT view_id, MAX(seconds) AS seconds FROM analytics_events
-                WHERE type = ? AND occurred_at >= ? AND occurred_at < ? AND view_id IS NOT NULL
+                WHERE type = ? AND occurred_at >= ? AND occurred_at < ? + INTERVAL 1 DAY AND view_id IS NOT NULL
                 GROUP BY view_id
             ) l ON e.type = ? AND l.view_id = e.view_id
             WHERE e.occurred_at >= ? AND e.occurred_at < ? AND e.type <> ?{$typeSql}{$whereSql}

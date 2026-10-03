@@ -44,6 +44,11 @@ return [
     // flagged. Higher than daily_cap: an office or campus shares one IP.
     'ip_daily_cap' => 1000,
 
+    // Nav search typing has its own, higher caps (one row per finished
+    // word typed): a heavy real user stays under, a loop does not.
+    'nav_daily_cap' => 2000,
+    'nav_ip_daily_cap' => 5000,
+
     // Rows older than this are deleted by ei:analytics-prune: 13 months, the
     // most CNIL allows for audience measurement without consent.
     'raw_days' => 395,

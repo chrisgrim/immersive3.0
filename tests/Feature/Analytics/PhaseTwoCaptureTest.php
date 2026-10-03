@@ -447,3 +447,27 @@ test('open-ended text totals hold people only, empty places are left out, and ol
         ->and(DB::table('analytics_daily')->where('dim', 'query')->count())->toBe(0)
         ->and(DB::table('analytics_daily')->where(['dim' => 'organizer', 'key' => (string) $event->organizer_id])->value('hits'))->toBe(1);
 });
+
+test('time on page counts when the leave lands just after midnight UTC', function () {
+    $day = daysAgo(3);
+    $next = daysAgo(2);
+    DB::table('analytics_events')->insert([
+        ['type' => 'page_view', 'occurred_at' => "{$day} 23:59:30", 'visitor' => str_repeat('a', 16), 'bot' => 0, 'page' => 'home', 'view_id' => 'lateview0001', 'seconds' => null],
+        ['type' => 'page_leave', 'occurred_at' => "{$next} 00:00:20", 'visitor' => str_repeat('a', 16), 'bot' => 0, 'page' => null, 'view_id' => 'lateview0001', 'seconds' => 50],
+    ]);
+
+    $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
+
+    expect(DB::table('analytics_daily')->where(['day' => $day, 'type' => 'view', 'dim' => 'page', 'key' => 'home'])->first())
+        ->seconds_sum->toBe(50)->seconds_count->toBe(1);
+});
+
+test('a loop of nav typing is caught by its own cap', function () {
+    config(['analytics.nav_daily_cap' => 3]);
+    $as = fn () => Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => '198.51.100.9', 'HTTP_USER_AGENT' => PHONE_UA]);
+    foreach (range(1, 4) as $i) {
+        Analytics::record(Analytics::NAV_SEARCH, ['query' => "word {$i}"], $as());
+    }
+
+    expect(flushedRows()->pluck('bot')->all())->toBe([0, 0, 0, Analytics::BOT_OVER_DAILY_CAP]);
+});

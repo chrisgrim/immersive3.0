@@ -289,7 +289,8 @@ class SiteAnalyticsReport
         $since = $this->since($days);
         $limit = self::SECTION_LIMIT;
 
-        return Cache::remember('analytics:section:'.self::VERSION.":{$name}:{$days}", now()->addMinutes(10), fn () => match ($name) {
+        $key = 'analytics:section:'.self::VERSION.":{$name}:{$days}";
+        $build = fn () => Cache::remember($key, now()->addMinutes(10), fn () => match ($name) {
             'places' => $this->searches($since, null, $limit),
             'unmet' => $this->zeroResultSearches($since, null, $limit),
             'at_home' => $this->atHomeSearches($since, $limit),
@@ -297,6 +298,10 @@ class SiteAnalyticsReport
             'sources' => $this->viewSources($since, $limit),
             'countries' => $this->countries($since, 250),
         });
+
+        // A cold build waits behind any other report build (same lock as
+        // handle()), so quick taps between ranges cannot stack up scans.
+        return Cache::get($key) ?? Cache::lock('analytics:report:building', 120)->block(30, $build);
     }
 
     private function since(int $days)

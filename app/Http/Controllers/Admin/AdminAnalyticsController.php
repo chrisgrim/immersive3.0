@@ -47,6 +47,10 @@ class AdminAnalyticsController extends Controller
         $validated = $request->validate(['days' => 'nullable|integer|min:1|max:'.SiteAnalyticsReport::MAX_DAYS]);
         $days = (int) ($validated['days'] ?? 30);
 
-        return response()->json(['name' => $name, 'days' => $days, 'rows' => $report->section($name, $days)]);
+        try {
+            return response()->json(['name' => $name, 'days' => $days, 'rows' => $report->section($name, $days)]);
+        } catch (LockTimeoutException) {
+            return response()->json(['message' => 'The report is still being built. Try again in a minute.'], 503);
+        }
     }
 }

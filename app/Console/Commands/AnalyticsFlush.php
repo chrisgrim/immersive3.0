@@ -261,11 +261,17 @@ class AnalyticsFlush extends Command
         // user agent on every hit is a new "visitor" each time, but not a
         // new address. The IP cap is higher, for offices and shared networks.
         // Rows of other types only read the counts (a capped visitor's
-        // keystrokes are flagged too), without adding to them.
+        // keystrokes are flagged too), without adding to them. Nav typing
+        // also counts toward its own, higher caps, so a loop of it is caught.
         $network = substr(hash('sha256', $this->salt($day).'|'.$ip), 0, 16);
         $counts = in_array($type, self::CAPPED_TYPES, true);
         if ($this->overCap("analytics:hits:{$day}:{$visitor}", (int) config('analytics.daily_cap'), $counts)
             | $this->overCap("analytics:ip-hits:{$day}:{$network}", (int) config('analytics.ip_daily_cap'), $counts)) {
+            $flags |= Analytics::BOT_OVER_DAILY_CAP;
+        }
+        if ($type === Analytics::NAV_SEARCH
+            && ($this->overCap("analytics:nav-hits:{$day}:{$visitor}", (int) config('analytics.nav_daily_cap'))
+                | $this->overCap("analytics:nav-ip-hits:{$day}:{$network}", (int) config('analytics.nav_ip_daily_cap')))) {
             $flags |= Analytics::BOT_OVER_DAILY_CAP;
         }
 
