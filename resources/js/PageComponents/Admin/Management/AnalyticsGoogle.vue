@@ -9,8 +9,8 @@
 
             <!-- Performance: like Google Search Console, each card turns its
                  line on the chart on or off. -->
-            <section class="card overflow-hidden">
-                <div class="grid grid-cols-2 lg:grid-cols-4">
+            <section class="card">
+                <div class="grid grid-cols-2 lg:grid-cols-4 overflow-hidden rounded-t-[2.4rem]">
                     <button
                         v-for="metric in metrics"
                         :key="metric.key"
@@ -50,7 +50,8 @@
                             class="w-full h-auto block"
                             role="img"
                             :aria-label="`${shownLabels} from Google, ${formatDay(data.period.from)} to ${formatDay(data.period.to)}`"
-                            @mousemove="(event) => (hoverIndex = nearestIndex(chart, event))"
+                            @pointermove="(event) => (hoverIndex = nearestIndex(chart, event))"
+                            @pointerdown="(event) => (hoverIndex = nearestIndex(chart, event))"
                         >
                             <template v-if="chart.lines.length === 1">
                                 <g v-for="tick in chart.lines[0].ticks" :key="tick.value">
@@ -72,6 +73,9 @@
                                 stroke-linejoin="round"
                                 stroke-linecap="round"
                             />
+                            <template v-for="line in chart.lines" :key="`dots-${line.key}`">
+                                <circle v-for="(dot, i) in line.dots" :key="i" :cx="dot.x" :cy="dot.y" r="3" :fill="colorOf(line.key)" />
+                            </template>
                             <g v-if="hoverIndex !== null">
                                 <line :x1="chart.coords[hoverIndex].x" :x2="chart.coords[hoverIndex].x" :y1="chart.top" :y2="chart.height - chart.bottom" stroke="#222222" stroke-opacity="0.2" />
                                 <template v-for="line in chart.lines" :key="line.key">
@@ -211,14 +215,15 @@ const kpiNote = computed(() => {
         : `No earlier data (imported since ${formatDay(props.data.period?.data_since)})`
 })
 
-// Google Search Console's own colours for its four numbers.
+// Search Console's four colours, darkened so white text on a selected
+// card stays readable (4.5:1 or better).
 const metrics = computed(() => {
     const now = props.data.totals || {}
     return [
-        { key: 'clicks', label: 'Clicks', color: '#4285F4', value: (now.clicks ?? 0).toLocaleString(), change: compare('clicks'), format: (v) => (v ?? 0).toLocaleString() },
+        { key: 'clicks', label: 'Clicks', color: '#1A73E8', value: (now.clicks ?? 0).toLocaleString(), change: compare('clicks'), format: (v) => (v ?? 0).toLocaleString() },
         { key: 'impressions', label: 'Impressions', color: '#5E35B1', value: (now.impressions ?? 0).toLocaleString(), change: compare('impressions'), format: (v) => (v ?? 0).toLocaleString() },
-        { key: 'ctr', label: 'Click rate', color: '#00897B', value: percent(now.ctr), change: compare('ctr', { points: true }), format: percent },
-        { key: 'position', label: 'Average position', color: '#E8710A', value: position(now.position), change: compare('position', { points: true, lowerIsBetter: true }), format: position },
+        { key: 'ctr', label: 'Click rate', color: '#00796B', value: percent(now.ctr), change: compare('ctr', { points: true }), format: percent },
+        { key: 'position', label: 'Average position', color: '#B45309', value: position(now.position), change: compare('position', { points: true, lowerIsBetter: true }), format: position },
     ]
 })
 
@@ -245,12 +250,11 @@ const chart = computed(() => multiLineChart(
 
 const hoverPoint = computed(() => (hoverIndex.value === null ? null : chart.value.coords[hoverIndex.value]?.point || null))
 
-// The tooltip sits beside the hovered day, flipped left past the middle.
+// The tooltip sits in the top corner away from the hovered day, so it
+// never covers it and never runs off a narrow chart.
 const tooltipStyle = computed(() => {
     const x = (chart.value.coords[hoverIndex.value]?.x || 0) / chart.value.width
-    return x > 0.5
-        ? { right: `${(1 - x) * 100}%`, marginRight: '1.2rem' }
-        : { left: `${x * 100}%`, marginLeft: '1.2rem' }
+    return x > 0.5 ? { left: '0' } : { right: '0' }
 })
 </script>
 

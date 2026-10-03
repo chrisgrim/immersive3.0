@@ -2,8 +2,10 @@
 // line and area paths, the points to hover, and the axis ticks.
 
 export const niceStep = (raw) => {
-    const power = 10 ** Math.floor(Math.log10(Math.max(raw, 1)))
-    const scaled = raw / power
+    // Works below 1 too (click rates are fractions); never zero.
+    const value = raw > 0 ? raw : 1
+    const power = 10 ** Math.floor(Math.log10(value))
+    const scaled = value / power
     return (scaled <= 1 ? 1 : scaled <= 2 ? 2 : scaled <= 5 ? 5 : 10) * power
 }
 
@@ -22,7 +24,8 @@ export const lineChart = (points, value) => {
     const top = 16
     const bottom = 28
     const max = Math.max(1, ...points.map(value))
-    const step = niceStep(max / 3)
+    // Whole numbers only: these are counts.
+    const step = Math.max(1, niceStep(max / 3))
     const yMax = Math.max(step, Math.ceil(max / step) * step)
     const plotWidth = width - left - right
     const plotHeight = height - top - bottom
@@ -83,12 +86,16 @@ export const multiLineChart = (points, series) => {
 
     const lines = series.map((s) => {
         const values = points.map(s.value).filter((v) => v !== null && v !== undefined)
-        const max = Math.max(...values, s.invert ? 1 : 0)
-        const step = niceStep((s.invert ? max - 1 : max) / 3 || 1)
+        const max = values.length ? Math.max(...values) : 1
+        const min = values.length ? Math.min(...values) : 0
+        // Counts and rates start at 0. Position (best is 1) uses a nice range
+        // around its own values, best at the top, so its changes show.
+        let step = niceStep((s.invert ? max - min : max) / 3)
         let low = 0
         let high = Math.max(step, Math.ceil(max / step) * step)
         if (s.invert) {
-            low = 1
+            if (max === min) step = 1
+            low = Math.max(1, Math.floor(min / step) * step)
             high = Math.max(low + step, Math.ceil(max / step) * step)
         }
         const y = (v) => (s.invert
@@ -99,21 +106,19 @@ export const multiLineChart = (points, series) => {
             return v === null || v === undefined ? null : { x: x(i), y: y(v) }
         })
         let path = ''
-        let pen = false
-        coords.forEach((c) => {
-            if (!c) {
-                pen = false
-                return
-            }
-            path += `${pen ? 'L' : 'M'}${c.x.toFixed(1)},${c.y.toFixed(1)} `
-            pen = true
+        coords.forEach((c, i) => {
+            if (c) path += `${coords[i - 1] ? 'L' : 'M'}${c.x.toFixed(1)},${c.y.toFixed(1)} `
         })
+        // A value with no neighbour draws no line, so it gets a dot.
+        const dots = coords.filter((c, i) => c && !coords[i - 1] && !coords[i + 1])
         const ticks = []
-        for (let v = low; v <= high + 1e-9; v += step) {
+        const count = Math.round((high - low) / step)
+        for (let k = 0; k <= count; k++) {
+            const v = low + k * step
             ticks.push({ value: v, y: y(v), label: s.format ? s.format(v) : (v >= 1000 ? `${Math.round(v / 100) / 10}k` : String(Math.round(v * 100) / 100)) })
         }
 
-        return { key: s.key, path: path.trim(), coords, ticks }
+        return { key: s.key, path: path.trim(), coords, dots, ticks }
     })
 
     const xCount = Math.min(5, points.length)
