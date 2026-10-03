@@ -251,3 +251,74 @@ test('the privacy page names each thing recorded, only while it is switched on',
         expect($on)->toContain($text);
     }
 });
+
+// ----- review fixes (phase 2, round 1) -----
+
+test('referrers that differ only by accent or case roll up as one key instead of breaking the day', function () {
+    foreach (['café.com', 'cafe.com', 'CAFE.com'] as $i => $ref) {
+        DB::table('analytics_events')->insert(['type' => 'event_view', 'occurred_at' => '2026-10-01 10:00:00', 'visitor' => str_repeat((string) $i, 16), 'bot' => 0, 'event_id' => 1, 'props' => json_encode(['ref' => $ref])]);
+    }
+
+    $this->artisan('ei:analytics-rollup', ['--day' => '2026-10-01'])->assertSuccessful();
+
+    expect((int) DB::table('analytics_daily')->where(['dim' => 'ref'])->sum('hits'))->toBe(3)
+        ->and(DB::table('analytics_daily')->where(['dim' => 'ref'])->count())->toBe(1);
+});
+
+test('nav search counts the finished text, not every pause while typing', function () {
+    foreach (['sl' => '10:00:00', 'slee' => '10:00:01', 'sleep no' => '10:00:02', 'zoo' => '10:05:00'] as $query => $time) {
+        DB::table('analytics_events')->insert(['type' => 'nav_search', 'occurred_at' => "2026-10-01 {$time}", 'visitor' => str_repeat('a', 16), 'bot' => 0, 'query' => $query, 'source' => 'names']);
+    }
+    DB::table('analytics_events')->insert(['type' => 'nav_search', 'occurred_at' => '2026-10-01 10:00:00', 'visitor' => str_repeat('b', 16), 'bot' => 0, 'query' => '50%_off', 'source' => 'names']);
+
+    $this->artisan('ei:analytics-rollup', ['--day' => '2026-10-01'])->assertSuccessful();
+
+    expect(DB::table('analytics_daily')->where(['type' => 'nav_search', 'dim' => 'query'])->orderBy('key')->pluck('hits', 'key')->all())
+        ->toBe(['50%_off' => 1, 'sleep no' => 1, 'zoo' => 1])
+        ->and(DB::table('analytics_daily')->where(['type' => 'nav_search', 'dim' => 'all'])->value('hits'))->toBe(3);
+});
+
+test('one day failing does not stop the other days from rolling up', function () {
+    DB::table('analytics_events')->insert(['type' => 'page_view', 'occurred_at' => '2026-10-02 10:00:00', 'visitor' => str_repeat('a', 16), 'bot' => 0, 'path' => '/']);
+
+    $command = Mockery::mock(App\Console\Commands\AnalyticsRollup::class.'[rollupDay]', []);
+    $command->shouldReceive('rollupDay')->andReturnUsing(function ($day) {
+        if ($day->toDateString() === '2026-10-01') {
+            throw new RuntimeException('boom');
+        }
+        (new App\Console\Commands\AnalyticsRollup)->rollupDay($day);
+    });
+    $command->setLaravel(app());
+    app(Illuminate\Contracts\Console\Kernel::class)->registerCommand($command);
+
+    $this->artisan('ei:analytics-rollup', ['--from' => '2026-10-01', '--to' => '2026-10-02'])->assertFailed();
+
+    expect(DB::table('analytics_daily')->where('day', '2026-10-02')->exists())->toBeTrue();
+});
+
+test('the prune never deletes recent bot rows, even with an old config cache', function () {
+    config(['analytics.bot_raw_days' => null, 'analytics.raw_days' => null]);
+    DB::table('analytics_events')->insert(['type' => 'page_view', 'occurred_at' => now()->subHour(), 'visitor' => str_repeat('a', 16), 'bot' => 1]);
+
+    $this->artisan('ei:analytics-prune')->assertSuccessful();
+
+    expect(DB::table('analytics_events')->count())->toBe(1);
+});
+
+test('the migration can run again after stopping halfway', function () {
+    $migration = require database_path('migrations/2026_10_03_120000_add_page_view_fields_to_analytics_events.php');
+
+    $migration->up();
+
+    expect(Illuminate\Support\Facades\Schema::hasColumn('analytics_events', 'utm_campaign'))->toBeTrue();
+});
+
+test('analytics-for finds an event whose slug is all digits', function () {
+    $event = Event::factory()->published()->create(['slug' => '1003788030']);
+    DB::table('analytics_daily')->insert(['day' => now()->subDay()->toDateString(), 'type' => 'page_view', 'dim' => 'event', 'key' => (string) $event->id, 'bot' => 0, 'hits' => 4, 'visitors' => 3, 'seconds_sum' => 0, 'seconds_count' => 0]);
+    $moderator = User::factory()->create(['type' => 'm']);
+    Laravel\Passport\Passport::actingAs($moderator, ['mcp:use', User::MODERATE_SCOPE]);
+
+    App\Mcp\Servers\EiServer::actingAs($moderator, 'api')->tool(App\Mcp\Tools\AnalyticsFor::class, ['event' => '1003788030'])
+        ->assertOk()->assertSee('"page_views":4', false);
+});

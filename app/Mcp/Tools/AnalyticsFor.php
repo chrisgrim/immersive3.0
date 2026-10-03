@@ -34,7 +34,9 @@ class AnalyticsFor extends Tool
         $kind = isset($validated['event']) ? 'event' : 'organizer';
         $value = $validated[$kind];
         $model = $kind === 'event' ? Event::withoutGlobalScopes()->withTrashed() : Organizer::withoutGlobalScopes();
-        $id = ctype_digit($value) ? (int) $value : $model->where('slug', $value)->value('id');
+        // Slug first: hundreds of events have all-digit slugs.
+        $id = (clone $model)->where('slug', $value)->value('id')
+            ?? (ctype_digit($value) ? $model->whereKey((int) $value)->value('id') : null);
 
         if (! $id) {
             return Response::error("No {$kind} matches \"{$value}\".");

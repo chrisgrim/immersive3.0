@@ -36,15 +36,26 @@ return new class extends Migration
     {
         DB::statement('SET SESSION lock_wait_timeout = 10');
 
-        $add = collect(self::COLUMNS)->map(fn ($type, $name) => "ADD COLUMN `{$name}` {$type} NULL")->implode(', ');
-        DB::statement("ALTER TABLE analytics_events {$add}, ALGORITHM=INSTANT");
+        // Each step checks first: MySQL DDL is not transactional, so a run
+        // that stopped halfway (e.g. at the lock timeout) can simply run again.
+        $missing = collect(self::COLUMNS)->reject(fn ($type, $name) => Schema::hasColumn('analytics_events', $name));
+        if ($missing->isNotEmpty()) {
+            $add = $missing->map(fn ($type, $name) => "ADD COLUMN `{$name}` {$type} NULL")->implode(', ');
+            DB::statement("ALTER TABLE analytics_events {$add}, ALGORITHM=INSTANT");
+        }
 
         // Joins a time-on-page note to its page view. Built online: reads
         // and inserts carry on while it builds.
-        DB::statement('ALTER TABLE analytics_events ADD INDEX analytics_events_view_id_index (view_id), ALGORITHM=INPLACE, LOCK=NONE');
+        if (! Schema::hasIndex('analytics_events', 'analytics_events_view_id_index')) {
+            DB::statement('ALTER TABLE analytics_events ADD INDEX analytics_events_view_id_index (view_id), ALGORITHM=INPLACE, LOCK=NONE');
+        }
 
         // Totals per day, kept for good (raw rows are pruned): what reports
         // and the MCP tools read for any range. Built by ei:analytics-rollup.
+        if (Schema::hasTable('analytics_daily')) {
+            return;
+        }
+
         Schema::create('analytics_daily', function (Blueprint $table) {
             $table->date('day');
             $table->string('type', 32);

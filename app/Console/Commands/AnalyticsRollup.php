@@ -30,12 +30,22 @@ class AnalyticsRollup extends Command
 
     public function handle(): int
     {
+        $failed = false;
+
+        // One bad day must not stop the others (or, a month on, lose bot
+        // counts whose raw rows are pruned): report it and carry on.
         foreach ($this->days() as $day) {
-            $this->rollupDay($day);
-            $this->line("Rolled up {$day->toDateString()}.");
+            try {
+                $this->rollupDay($day);
+                $this->line("Rolled up {$day->toDateString()}.");
+            } catch (\Throwable $e) {
+                report($e);
+                $this->error("Could not roll up {$day->toDateString()}: {$e->getMessage()}");
+                $failed = true;
+            }
         }
 
-        return self::SUCCESS;
+        return $failed ? self::FAILURE : self::SUCCESS;
     }
 
     /** @return CarbonImmutable[] */
@@ -102,15 +112,47 @@ class AnalyticsRollup extends Command
         ];
     }
 
+    /**
+     * A key as text in the key column's own collation, cut to its width.
+     * JSON values come back binary, so 'café.com' and 'cafe.com' would group
+     * apart and then collide in the case- and accent-insensitive primary key.
+     */
+    private function keyed(string $expression): string
+    {
+        $collation = preg_replace('/[^a-z0-9_]/', '', (string) config('database.connections.mysql.collation', 'utf8mb4_0900_ai_ci'));
+
+        return "LEFT(CONVERT(({$expression}) USING utf8mb4) COLLATE {$collation}, 191)";
+    }
+
+    /** Totals of rows that land on the same key add up instead of failing. */
+    private const MERGE = ' ON DUPLICATE KEY UPDATE hits = hits + VALUES(hits), visitors = visitors + VALUES(visitors),
+        seconds_sum = seconds_sum + VALUES(seconds_sum), seconds_count = seconds_count + VALUES(seconds_count)';
+
+    /**
+     * The nav search sends every pause in typing: "sl", "slee", "sleep no".
+     * Count only the last of such a run: a query is dropped when the same
+     * visitor typed a longer one starting with it within the next minute.
+     */
+    private function navTypingDone(): string
+    {
+        return "(e.type <> '".Analytics::NAV_SEARCH."' OR NOT EXISTS (
+            SELECT 1 FROM analytics_events n
+            WHERE n.type = '".Analytics::NAV_SEARCH."' AND n.visitor = e.visitor AND n.id <> e.id
+              AND n.occurred_at >= e.occurred_at AND n.occurred_at <= e.occurred_at + INTERVAL 60 SECOND
+              AND CHAR_LENGTH(n.query) > CHAR_LENGTH(e.query)
+              AND n.query LIKE CONCAT(REPLACE(REPLACE(REPLACE(e.query, '\\\\', '\\\\\\\\'), '%', '\\\\%'), '_', '\\\\_'), '%')))";
+    }
+
     private function insert(CarbonImmutable $day, array $range, ?array $types, string $dim, string $key, ?string $where): void
     {
+        $key = $this->keyed($key);
         $typeSql = $types === null ? '' : ' AND e.type IN ('.implode(',', array_fill(0, count($types), '?')).')';
         $whereSql = $where ? " AND ({$where})" : '';
 
         // Time on page: each page view's longest page_leave report that day.
         DB::statement("
             INSERT INTO analytics_daily (day, type, dim, `key`, bot, hits, visitors, seconds_sum, seconds_count)
-            SELECT ?, e.type, ?, LEFT({$key}, 191), e.bot > 0, COUNT(*), COUNT(DISTINCT e.visitor),
+            SELECT ?, e.type, ?, {$key}, e.bot > 0, COUNT(*), COUNT(DISTINCT e.visitor),
                 COALESCE(SUM(l.seconds), 0), COUNT(l.seconds)
             FROM analytics_events e
             LEFT JOIN (
@@ -119,8 +161,9 @@ class AnalyticsRollup extends Command
                 GROUP BY view_id
             ) l ON e.type = ? AND l.view_id = e.view_id
             WHERE e.occurred_at >= ? AND e.occurred_at < ? AND e.type <> ?{$typeSql}{$whereSql}
+              AND {$this->navTypingDone()}
               AND ({$key}) IS NOT NULL
-            GROUP BY e.type, LEFT({$key}, 191), e.bot > 0", [
+            GROUP BY e.type, {$key}, e.bot > 0".self::MERGE, [
             $day->toDateString(), $dim,
             Analytics::PAGE_LEAVE, ...$range,
             Analytics::PAGE_VIEW,
@@ -137,14 +180,14 @@ class AnalyticsRollup extends Command
     {
         DB::statement("
             INSERT INTO analytics_daily (day, type, dim, `key`, bot, hits, visitors, seconds_sum, seconds_count)
-            SELECT ?, '".Analytics::PAGE_VIEW."', 'edge', LEFT(CONCAT(prev_path, ' > ', path), 191), 0, COUNT(*), COUNT(DISTINCT visitor), 0, 0
+            SELECT ?, '".Analytics::PAGE_VIEW."', 'edge', {$this->keyed("CONCAT(prev_path, ' > ', path)")}, 0, COUNT(*), COUNT(DISTINCT visitor), 0, 0
             FROM (
                 SELECT visitor, path, LAG(path) OVER (PARTITION BY visitor ORDER BY occurred_at, id) AS prev_path
                 FROM analytics_events
                 WHERE type = '".Analytics::PAGE_VIEW."' AND bot = 0 AND occurred_at >= ? AND occurred_at < ? AND path IS NOT NULL
             ) steps
             WHERE prev_path IS NOT NULL
-            GROUP BY LEFT(CONCAT(prev_path, ' > ', path), 191)
-            HAVING COUNT(DISTINCT visitor) >= ?", [$day->toDateString(), ...$range, self::MIN_EDGE_VISITORS]);
+            GROUP BY {$this->keyed("CONCAT(prev_path, ' > ', path)")}
+            HAVING COUNT(DISTINCT visitor) >= ?".self::MERGE, [$day->toDateString(), ...$range, self::MIN_EDGE_VISITORS]);
     }
 }

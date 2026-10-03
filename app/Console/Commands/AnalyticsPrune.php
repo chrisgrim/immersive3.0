@@ -15,8 +15,10 @@ class AnalyticsPrune extends Command
     {
         // People's rows: 13 months. Bot rows: 30 days, since analytics_daily
         // keeps their counts (rolled up nightly, well inside 30 days).
-        $deleted = $this->prune(now()->subDays((int) config('analytics.raw_days')))
-            + $this->prune(now()->subDays((int) config('analytics.bot_raw_days')), bots: true);
+        // Defaults and a floor: a config cache from older code (no
+        // bot_raw_days) must never turn into "delete everything".
+        $deleted = $this->prune(now()->subDays(max(30, (int) config('analytics.raw_days', 395))))
+            + $this->prune(now()->subDays(max(7, (int) config('analytics.bot_raw_days', 30))), bots: true);
 
         $this->info("Deleted {$deleted} old analytics rows.");
 
