@@ -75,16 +75,37 @@ class SiteAnalyticsReport
     private function rows($since, ?string $type = null, $until = null): Builder
     {
         return DB::table('analytics_events')
-            ->when($type, fn ($query) => $query->where('type', $type))
-            ->where('occurred_at', '>=', $since)
-            ->when($until, fn ($query) => $query->where('occurred_at', '<', $until))
-            ->where('bot', 0);
+            ->when($type, fn ($query) => $query->where('analytics_events.type', $type))
+            ->where('analytics_events.occurred_at', '>=', $since)
+            ->when($until, fn ($query) => $query->where('analytics_events.occurred_at', '<', $until))
+            ->where('analytics_events.bot', 0);
     }
 
     /** Searches a person made (not map pans, see the class docblock). */
     private function typedSearches($since): Builder
     {
         return $this->rows($since, Analytics::SEARCH)->where('source', 'list');
+    }
+
+    /**
+     * Result clicks that are believable: their search was a real typed one,
+     * and the event was the one shown at that position. The beacon is a
+     * plain POST anyone can send, so a click naming an event or position its
+     * search never showed is left out. Past the first page the search row
+     * does not list what Show more added, so those positions are taken as
+     * given.
+     */
+    private function believableClicks($since): Builder
+    {
+        return $this->rows($since, Analytics::SEARCH_CLICK)
+            ->join('analytics_events as s', function ($join) {
+                $join->on('s.search_id', '=', 'analytics_events.search_id')
+                    ->where('s.type', Analytics::SEARCH)
+                    ->where('s.source', 'list')
+                    ->where('s.bot', 0);
+            })
+            ->whereRaw("(CAST(JSON_EXTRACT(analytics_events.props, '$.position') AS UNSIGNED) > COALESCE(JSON_LENGTH(s.props, '$.shown'), 0)
+                OR CAST(JSON_EXTRACT(s.props, CONCAT('$.shown[', CAST(JSON_EXTRACT(analytics_events.props, '$.position') AS UNSIGNED) - 1, ']')) AS UNSIGNED) = analytics_events.event_id)");
     }
 
     /** Per type (map pans apart, as map_search): how many, and by how many different visitors. */
@@ -132,7 +153,7 @@ class SiteAnalyticsReport
      */
     private function searches($since): array
     {
-        $clicked = $this->rows($since, Analytics::SEARCH_CLICK)->select('search_id')->distinct();
+        $clicked = $this->believableClicks($since)->select('analytics_events.search_id')->distinct();
 
         return $this->typedSearches($since)
             ->leftJoinSub($clicked, 'clicked', 'clicked.search_id', '=', 'analytics_events.search_id')
@@ -238,15 +259,10 @@ class SiteAnalyticsReport
     {
         // Typed searches only, on both sides of the rate (class docblock).
         $searches = $this->typedSearches($since)->whereNotNull('search_id')->count();
-        $clicked = $this->typedSearches($since)
-            ->whereIn('search_id', $this->rows($since, Analytics::SEARCH_CLICK)->select('search_id'))
-            ->count();
+        $clicked = $this->believableClicks($since)->distinct()->count('analytics_events.search_id');
 
-        // Only clicks that belong to a real typed search: the beacon is a
-        // plain cross-site POST, so anyone can send one with a made-up id.
-        $positions = $this->rows($since, Analytics::SEARCH_CLICK)
-            ->whereIn('search_id', $this->typedSearches($since)->whereNotNull('search_id')->select('search_id'))
-            ->selectRaw("LEAST(CAST(JSON_EXTRACT(props, '$.position') AS UNSIGNED), 11) AS position, COUNT(*) AS clicks")
+        $positions = $this->believableClicks($since)
+            ->selectRaw("LEAST(CAST(JSON_EXTRACT(analytics_events.props, '$.position') AS UNSIGNED), 11) AS position, COUNT(*) AS clicks")
             ->groupBy('position')
             ->orderBy('position')
             ->pluck('clicks', 'position')

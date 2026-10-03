@@ -5,7 +5,7 @@
             <div>
                 <p class="text-[1.1rem] font-bold tracking-[0.04em] uppercase text-[#717171]">Site analytics</p>
                 <h1 class="text-[3.2rem] leading-[4rem] font-semibold tracking-[-0.02em]">Insights</h1>
-                <p class="text-[1.4rem] text-[#717171] mt-[0.4rem]">The site's own counts, bots left out. No cookies, and nothing here identifies a person.</p>
+                <p class="text-[1.4rem] text-[#717171] mt-[0.4rem]">The site's own counts, bots left out, no cookies. Place names are what visitors typed.</p>
             </div>
             <div class="inline-flex self-start md:self-auto bg-[#F7F7F7] rounded-full p-[0.4rem]" role="group" aria-label="Date range">
                 <button

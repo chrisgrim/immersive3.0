@@ -151,38 +151,56 @@ class Analytics
         $key = config('analytics.buffer_key');
         $max = (int) config('analytics.buffer_max');
 
+        // The list expires a day after the last push: if the flusher stops
+        // running, the raw IPs in it do not outlive the day.
         Redis::pipeline(function ($pipe) use ($key, $note, $max) {
             $pipe->rpush($key, $note);
             $pipe->ltrim($key, -$max, -1);
+            $pipe->expire($key, 86400);
         });
     }
 
     /**
-     * The first $count notes, left in the buffer until drop() (so a failed
-     * insert loses nothing). Only one flusher runs at a time. The push-side
-     * LTRIM can shift the list meanwhile only when it is already full,
-     * i.e. the flusher had stopped; then a few notes are lost either way.
+     * Take up to $count notes off the front of the buffer, in one atomic
+     * step (LPOP with a count), so pushes landing meanwhile cannot shift
+     * what is removed. If writing them fails, putBack() returns them.
      *
      * @return string[]
      */
-    public function peek(int $count): array
+    public function pop(int $count): array
     {
         if (config('analytics.buffer') === 'array') {
-            return array_slice($this->memory, 0, $count);
+            return array_splice($this->memory, 0, $count);
         }
 
-        return Redis::lrange(config('analytics.buffer_key'), 0, $count - 1) ?: [];
+        return Redis::lpop(config('analytics.buffer_key'), $count) ?: [];
     }
 
-    /** Remove the first $count notes, once they are written. */
-    public function drop(int $count): void
+    /** Return popped notes to the front of the buffer, in their order. */
+    public function putBack(array $notes): void
     {
+        if ($notes === []) {
+            return;
+        }
+
         if (config('analytics.buffer') === 'array') {
-            array_splice($this->memory, 0, $count);
+            array_unshift($this->memory, ...$notes);
 
             return;
         }
 
-        Redis::ltrim(config('analytics.buffer_key'), $count, -1);
+        Redis::lpush(config('analytics.buffer_key'), ...array_reverse($notes));
+    }
+
+    /** Throw the whole buffer away (analytics switched off: no raw IPs kept). */
+    public function clear(): void
+    {
+        if (config('analytics.buffer') === 'array') {
+            $this->memory = [];
+
+            return;
+        }
+
+        Redis::del(config('analytics.buffer_key'));
     }
 }

@@ -129,3 +129,17 @@ test('while another request is still building the report, the page and the tool 
     Passport::actingAs($moderator, ['mcp:use', User::MODERATE_SCOPE]);
     EiServer::actingAs($moderator, 'api')->tool(GetSiteAnalytics::class)->assertHasErrors()->assertSee('still being built');
 });
+
+test('a result click naming an event the search never showed at that spot is left out', function () {
+    analyticsRow(['query' => 'Austin, TX', 'results' => 2, 'search_id' => 'realsearch02', 'props' => json_encode(['shown' => [11, 22]])]);
+    $click = fn (int $event, int $position) => analyticsRow(['type' => Analytics::SEARCH_CLICK, 'event_id' => $event, 'search_id' => 'realsearch02', 'props' => json_encode(['position' => $position])]);
+    $click(22, 2);   // real: event 22 was second
+    $click(999, 1);  // made up: event 999 was never shown
+    $click(11, 2);   // made up: event 11 was first, not second
+    $click(33, 25);  // past the first page: taken as given
+
+    $clicks = app(SiteAnalyticsReport::class)->handle(30)['search_clicks'];
+
+    expect($clicks['by_position'])->toBe(['2' => 1, '11+' => 1])
+        ->and($clicks['searches_with_a_click'])->toBe(1);
+});

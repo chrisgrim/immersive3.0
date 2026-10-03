@@ -570,7 +570,10 @@ class ListingsController extends Controller
             // $applyGeoFilter, which is on whenever `live` is present at all.
             'source' => $criteria['live'] ? 'map' : 'list',
             'search_id' => $searchId,
-            'query' => $text($request->city, 100),
+            // Anything shaped like an email address or a phone number is
+            // blanked: the box takes free text, and a place name has neither.
+            'query' => ($place = $text($request->city, 100)) === null ? null
+                : preg_replace(['/\S+@\S+/u', '/\+?\d[\d\s().-]{5,}\d/u'], '[removed]', $place),
             'results' => (int) ($payload['total'] ?? 0),
             'props' => array_filter([
                 'searchType' => in_array($criteria['searchType'], ['inPerson', 'atHome', 'allEvents'], true) ? $criteria['searchType'] : null,

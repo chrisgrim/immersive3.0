@@ -347,3 +347,20 @@ test('one address changing its user agent on every hit still hits the daily cap'
 
     expect(analyticsRows()->pluck('bot')->all())->toBe([0, 0, 0, Analytics::BOT_OVER_DAILY_CAP]);
 });
+
+test('turning analytics off throws away what is still buffered', function () {
+    Analytics::record(Analytics::SEARCH, ['query' => 'Gone']);
+    config(['analytics.enabled' => false]);
+    $this->artisan('ei:analytics-flush')->assertSuccessful();
+    config(['analytics.enabled' => true]);
+
+    expect(app(Analytics::class)->pop(10))->toBe([]);
+});
+
+test('an email address or phone number typed as a place is removed', function () {
+    FakeSearchEngine::install([]);
+
+    $this->getJson('/api/index/search?city='.urlencode('jane.doe@example.com call +1 (555) 123-4567').'&searchType=inPerson&live=false')->assertOk();
+
+    expect(analyticsRows()->sole()->query)->toBe('[removed] call [removed]');
+});

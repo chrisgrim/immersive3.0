@@ -35,9 +35,6 @@ class AdminEventController extends Controller
                 'user:id,name,email,type',
             ])
             ->withCount('clicks as total_clicks')
-            ->withCount(['clicks as unique_visitors' => function ($q) {
-                $q->select(\DB::raw('COUNT(DISTINCT ip_address)'));
-            }])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
@@ -116,9 +113,6 @@ class AdminEventController extends Controller
             'staffpick',
         ])->loadCount([
             'clicks as total_clicks',
-            'clicks as unique_visitors' => function ($q) {
-                $q->select(\DB::raw('COUNT(DISTINCT ip_address)'));
-            },
         ]);
 
         // Find any events with the same name (case-insensitive)

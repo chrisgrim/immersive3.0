@@ -42,6 +42,10 @@ class AnalyticsFlush extends Command
     public function handle(Analytics $analytics, GeoLookup $geo): int
     {
         if (! config('analytics.enabled')) {
+            // Switched off: whatever is still buffered holds raw IPs and will
+            // never be written, so it goes.
+            $analytics->clear();
+
             return self::SUCCESS;
         }
 
@@ -51,16 +55,21 @@ class AnalyticsFlush extends Command
         $written = 0;
 
         for ($i = 0; $i < (int) $this->option('batches'); $i++) {
-            $notes = $analytics->peek(self::BATCH);
+            $notes = $analytics->pop(self::BATCH);
             if ($notes === []) {
                 break;
             }
 
             $rows = array_values(array_filter(array_map(fn ($note) => $this->row($note), $notes)));
-            $written += $this->insert($rows);
 
-            // Only now: if the insert threw, the notes wait for the next run.
-            $analytics->drop(count($notes));
+            try {
+                $written += $this->insert($rows);
+            } catch (Throwable $e) {
+                // The database is down: the notes go back for the next run.
+                $analytics->putBack($notes);
+
+                throw $e;
+            }
         }
 
         if ($written > 0) {

@@ -12,7 +12,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[IsReadOnly]
-#[Description('Moderators only. The site\'s own first-party analytics for the last N days (default 30, max 90), bots left out: totals per kind of activity (visitors are counted per day, so a person on three days counts three times), the places people search for and which found nothing, the most viewed events with their ticket clicks and click-through, where event page views came from, how often searches lead to a result click and at which position, visitors by country, and how much bot traffic was filtered. Counts only; nothing identifies a person.')]
+#[Description('Moderators only. The site\'s own first-party analytics for the last N days (default 30, max 90), bots left out: totals per kind of activity (visitors are counted per day, so a person on three days counts three times), the places people search for and which found nothing, the most viewed events with their ticket clicks and click-through, where event page views came from, how often searches lead to a result click and at which position, visitors by country, and how much bot traffic was filtered. Counts, plus the place names visitors typed into search (email addresses and phone numbers removed).')]
 class GetSiteAnalytics extends Tool
 {
     public function handle(Request $request): Response
