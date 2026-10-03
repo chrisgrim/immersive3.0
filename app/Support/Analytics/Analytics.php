@@ -248,8 +248,9 @@ class Analytics
     private static function recordedSince(string $name, string $since): bool
     {
         $key = "analytics:recently:{$name}";
-        if (Cache::get($key) === true) {
-            return true;
+        $cached = Cache::get($key);
+        if ($cached !== null) {
+            return (bool) $cached;
         }
 
         // The daily totals, plus the last two days of raw rows (not totalled
