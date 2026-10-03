@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use App\Support\Analytics\Analytics;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -42,6 +44,21 @@ class AnalyticsRollup extends Command
     public const MIN_EDGE_VISITORS = 5;
 
     public function handle(): int
+    {
+        // One rollup at a time (the nightly and hourly runs have separate
+        // scheduler mutexes): two rebuilding the same day at once could each
+        // delete, then both insert and merge, doubling it. A run that finds
+        // another going waits for it, up to 25 minutes.
+        try {
+            return Cache::lock('analytics:rollup', 3600)->block(1500, fn () => $this->rollup());
+        } catch (LockTimeoutException) {
+            $this->warn('Another rollup is still running; skipped.');
+
+            return self::SUCCESS;
+        }
+    }
+
+    private function rollup(): int
     {
         $failed = false;
 
