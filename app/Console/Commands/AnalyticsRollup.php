@@ -74,11 +74,29 @@ class AnalyticsRollup extends Command
         return $failed ? self::FAILURE : self::SUCCESS;
     }
 
-    /** Raw rows from before $before, but no daily totals from then yet. */
-    private function untotalledOlderDays(CarbonImmutable $before): bool
+    /**
+     * Days before $before with raw rows but no daily totals: the days after
+     * deploy that came before the first run, and any the scheduler missed.
+     * Two primary-key/index probes per day, from the first raw row on.
+     *
+     * @return CarbonImmutable[]
+     */
+    private function untotalledDays(CarbonImmutable $before): array
     {
-        return ! DB::table('analytics_daily')->where('day', '<', $before->toDateString())->exists()
-            && DB::table('analytics_events')->where('occurred_at', '<', $before->format('Y-m-d H:i:s'))->exists();
+        $first = DB::table('analytics_events')->min('occurred_at');
+        if ($first === null) {
+            return [];
+        }
+
+        $days = [];
+        for ($day = CarbonImmutable::parse($first, 'UTC')->startOfDay(); $day->lt($before); $day = $day->addDay()) {
+            if (! DB::table('analytics_daily')->where('day', $day->toDateString())->exists()
+                && DB::table('analytics_events')->whereBetween('occurred_at', [$day->format('Y-m-d H:i:s'), $day->addDay()->subSecond()->format('Y-m-d H:i:s')])->exists()) {
+                $days[] = $day;
+            }
+        }
+
+        return $days;
     }
 
     /** @return CarbonImmutable[] */
@@ -89,16 +107,11 @@ class AnalyticsRollup extends Command
         }
 
         $to = CarbonImmutable::parse($this->option('to') ?? 'today', 'UTC')->startOfDay();
-        $from = match (true) {
-            (bool) $this->option('from') => CarbonImmutable::parse($this->option('from'), 'UTC')->startOfDay(),
-            // Until days before the usual three are totalled (the first runs
-            // after deploy), build every day there are raw rows for. The
-            // hourly run only does today, so it cannot stop this.
-            $this->untotalledOlderDays($to->subDays(2)) => CarbonImmutable::parse(DB::table('analytics_events')->min('occurred_at'), 'UTC')->startOfDay(),
-            default => $to->subDays(2),
-        };
+        $from = $this->option('from') ? CarbonImmutable::parse($this->option('from'), 'UTC')->startOfDay() : $to->subDays(2);
 
-        $days = [];
+        // The nightly run (no options) also fills every older day that has
+        // raw rows but was never totalled. The hourly run only does today.
+        $days = $this->option('from') || $this->option('to') ? [] : $this->untotalledDays($from);
         for ($day = $from; $day->lte($to); $day = $day->addDay()) {
             $days[] = $day;
         }
