@@ -49,7 +49,7 @@ describe('AnalyticsGoogle.vue', () => {
         expect(wrapper.text()).toContain('<b>sleep no more</b>');
         const links = wrapper.findAll('a').map((a) => a.attributes('href'));
         expect(links).toEqual(['/events/the-show', '/events/old-name']);
-        expect(wrapper.text()).toContain('Not a current event page');
+        expect(wrapper.text()).toContain('Not a live event or organizer page');
         expect(wrapper.text()).toContain('The Show');
     });
 
@@ -67,6 +67,13 @@ describe('AnalyticsGoogle.vue', () => {
         const wrapper = mount(AnalyticsGoogle, { props: { data: data({ previous: null, period: { from: '2026-09-24', to: '2026-09-30', days: 7, data_since: '2026-09-24' } }) } });
 
         expect(wrapper.text()).toContain('No earlier data (imported since Sep 24)');
+        expect(wrapper.text()).not.toContain('↑');
+        expect(wrapper.text()).not.toContain('↓');
+    });
+
+    it('shows no badge for a change that rounds to zero', () => {
+        const wrapper = mount(AnalyticsGoogle, { props: { data: data({ previous: { clicks: 120, impressions: 4001, ctr: 0.03, position: 8.42 } }) } });
+
         expect(wrapper.text()).not.toContain('↑');
         expect(wrapper.text()).not.toContain('↓');
     });

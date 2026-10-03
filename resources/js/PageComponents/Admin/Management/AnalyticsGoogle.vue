@@ -155,7 +155,7 @@ const linkable = (page) => /^(\/|https?:\/\/)/.test(page || '')
 
 const pageNote = (row) => {
     if (row.kind === 'event') return row.page
-    if (row.kind === 'gone') return 'Not a current event page'
+    if (row.kind === 'gone') return 'Not a live event or organizer page'
     if (row.kind === 'organizer') return `Organizer · ${row.page}`
     return `Position ${position(row.position)}`
 }
@@ -165,10 +165,13 @@ const pageNote = (row) => {
 const change = (now, before, { points = false, lowerIsBetter = false } = {}) => {
     if (now === null || before === null || before === undefined || (!points && !before)) return null
     const diff = points ? now - before : (now - before) / before
-    const up = diff >= 0
-    const text = points
-        ? (lowerIsBetter ? `${Math.abs(Math.round(diff * 10) / 10)}` : `${Math.abs(Math.round(diff * 1000) / 10)} pts`)
-        : `${Math.abs(Math.round(diff * 100))}%`
+    // Rounded as shown: a change that rounds to 0 gets no badge.
+    const shown = points
+        ? (lowerIsBetter ? Math.round(diff * 10) / 10 : Math.round(diff * 1000) / 10)
+        : Math.round(diff * 100)
+    if (shown === 0) return null
+    const up = shown > 0
+    const text = points && !lowerIsBetter ? `${Math.abs(shown)} pts` : `${Math.abs(shown)}${points ? '' : '%'}`
     return { up, good: lowerIsBetter ? !up : up, text }
 }
 

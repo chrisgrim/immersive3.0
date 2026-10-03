@@ -179,7 +179,7 @@ const position = (value) => (value === null || value === undefined ? 'n/a' : val
 
 const GOOGLE_LAG = 'Google reports 2 to 3 days late, so the period ends on the newest day imported. Position 1 is the top result. The list holds the leaders by clicks and by impressions, up to 500 of each.'
 const GOOGLE_QUERIES_NOTE = `${GOOGLE_LAG} Google leaves out searches made by very few people, so these add up to less than the site totals.`
-const GOOGLE_PAGES_NOTE = `${GOOGLE_LAG} Pages can add up to more than the site totals: Google counts an impression for every page of the site shown in a list of results, while the totals count the site once per search. A page's position is that page's own. "Not a current event page": an event or organizer address that no longer matches one (removed, or renamed).`
+const GOOGLE_PAGES_NOTE = `${GOOGLE_LAG} Pages can add up to more than the site totals: Google counts an impression for every page of the site shown in a list of results, while the totals count the site once per search. A page's position is that page's own. "Not a live event or organizer page": an event or organizer address whose page does not open to the public right now: removed, renamed, or not published (draft, in review, rejected, embargoed).`
 
 // What each section lists, how it can be sorted and filtered.
 const SECTIONS = {
@@ -307,7 +307,7 @@ const SECTIONS = {
         title: 'Pages Google Sends People To',
         sub: 'Events and other pages, by clicks from Google search results',
         placeholder: 'Filter pages or events',
-        kinds: [{ key: 'all', label: 'All' }, { key: 'event', label: 'Events' }, { key: 'organizer', label: 'Organizers' }, { key: 'gone', label: 'Not current' }, { key: 'page', label: 'Other pages' }],
+        kinds: [{ key: 'all', label: 'All' }, { key: 'event', label: 'Events' }, { key: 'organizer', label: 'Organizers' }, { key: 'gone', label: 'Not live' }, { key: 'page', label: 'Other pages' }],
         sorts: [
             { key: 'clicks', label: 'Most clicks' },
             { key: 'impressions', label: 'Most impressions' },
@@ -426,7 +426,7 @@ const SectionCell = (cellProps) => {
             : h('span', { class: 'font-semibold block truncate' }, label)
         const note = row.kind === 'event' ? row.page
             : row.kind === 'organizer' ? `Organizer · ${row.page}`
-                : row.kind === 'gone' ? 'Not a current event page' : ''
+                : row.kind === 'gone' ? 'Not a live event or organizer page' : ''
         return h('div', { class: 'flex items-center gap-[1.2rem] min-w-0 text-left' }, [
             row.kind !== 'event' && row.kind !== 'organizer' ? null : h('div', { class: 'shrink-0 w-[4rem] h-[4rem] rounded-[0.8rem] bg-[#F7F7F7] overflow-hidden' },
                 row.thumb ? [h('img', { src: `${cellProps.imageUrl}${row.thumb}`, alt: '', loading: 'lazy', class: 'w-full h-full object-cover', onError: (e) => (e.target.style.display = 'none') })] : []),
