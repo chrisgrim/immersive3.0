@@ -153,6 +153,7 @@
                         <div class="p-8">
                             <component 
                                 :is="currentComponent"
+                                :key="`${currentView}:${remount}`"
                                 :event="selectedEvent"
                                 :organizer="selectedOrganizer"
                                 :community="selectedCommunity"
@@ -199,6 +200,7 @@ import axios from 'axios'
 
 const isMobile = ref(false)
 const currentView = ref(null)
+const remount = ref(0)
 const selectedEvent = ref(null)
 const selectedOrganizer = ref(null)
 const selectedCommunity = ref(null)
@@ -224,6 +226,7 @@ const handleNavigation = (view) => {
         url.searchParams.delete('eventSlug')
         url.searchParams.delete('organizerSlug')
         url.searchParams.delete('communitySlug')
+        url.searchParams.delete('section')
         // A linked-in Users search (?search=, see Users.vue) belongs to that
         // tab only: drop it when leaving, keep it when re-clicking the same
         // tab so the URL still matches what the tab is showing.
@@ -237,8 +240,12 @@ const handleNavigation = (view) => {
         url.searchParams.delete('eventSlug')
         url.searchParams.delete('organizerSlug')
         url.searchParams.delete('communitySlug')
+        url.searchParams.delete('section')
         window.history.pushState({}, '', url)
     }
+    // Re-clicking the open tab starts it afresh (e.g. Analytics back from a
+    // section page to its dashboard).
+    if (view === currentView.value) remount.value++
     currentView.value = view
 }
 

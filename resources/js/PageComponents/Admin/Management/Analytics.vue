@@ -1,12 +1,12 @@
 <template>
     <AnalyticsSection
         v-if="section"
-        :key="`${section}:${days}`"
+        :key="section"
         :name="section"
         :days="days"
         :day-options="dayOptions"
         @back="closeSection"
-        @days="load"
+        @days="(option) => (days = option)"
     />
     <div v-else class="analytics text-[#222222] space-y-[2.4rem]">
         <!-- Header -->
@@ -390,10 +390,18 @@ const closeSection = () => {
     url.searchParams.delete('section')
     window.history.replaceState({}, '', url)
     section.value = null
+    showDashboard()
 }
 
 const onPopState = () => {
     section.value = sectionFromUrl()
+    showDashboard()
+}
+
+// The dashboard's report is loaded only while the dashboard is shown, and
+// again if the range was changed on a section page meanwhile.
+const showDashboard = () => {
+    if (!section.value && report.value?.days !== days.value) load()
 }
 
 const imageUrl = import.meta.env.VITE_IMAGE_URL
@@ -604,7 +612,7 @@ const load = async (option = days.value) => {
 }
 
 onMounted(() => {
-    load()
+    showDashboard()
     window.addEventListener('popstate', onPopState)
 })
 

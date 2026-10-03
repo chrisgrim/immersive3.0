@@ -21,7 +21,7 @@
                 v-for="option in dayOptions"
                 :key="option.days"
                 type="button"
-                @click="$emit('days', option.days)"
+                @click="pick(option.days)"
                 :aria-pressed="days === option.days"
                 :class="['px-[1.4rem] py-[0.8rem] rounded-full text-[1.3rem] font-semibold transition-colors',
                     days === option.days ? 'bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)] text-[#222222]' : 'text-[#717171] hover:text-[#222222]']"
@@ -82,7 +82,7 @@
                 <template v-if="!config.leaders && rows.length >= limit"> (the top {{ limit }} only)</template>
             </p>
 
-            <section class="card overflow-hidden">
+            <section class="card overflow-x-auto">
                 <!-- Desktop table -->
                 <table v-if="visible.length" class="hidden md:table w-full text-[1.4rem]">
                     <thead class="text-[1.2rem] text-[#717171] bg-[#FCFCFC]">
@@ -151,7 +151,7 @@ const props = defineProps({
     dayOptions: { type: Array, required: true },
 })
 
-defineEmits(['back', 'days'])
+const emit = defineEmits(['back', 'days'])
 
 const PAGE = 50
 const imageUrl = import.meta.env.VITE_IMAGE_URL
@@ -350,7 +350,7 @@ const SectionCell = (cellProps) => {
         return h('div', { class: 'flex items-center gap-[1.2rem] min-w-0 text-left' }, [
             h('div', { class: 'shrink-0 w-[4rem] h-[4rem] rounded-[0.8rem] bg-[#F7F7F7] overflow-hidden' },
                 row.thumb ? [h('img', { src: `${cellProps.imageUrl}${row.thumb}`, alt: '', loading: 'lazy', class: 'w-full h-full object-cover', onError: (e) => (e.target.style.display = 'none') })] : []),
-            h('div', { class: 'min-w-0' }, [name, h('span', { class: 'block text-[1.2rem] text-[#717171] font-normal' }, row.city || (row.online ? 'Online' : ''))]),
+            h('div', { class: 'min-w-0 max-w-[40rem]' }, [name, h('span', { class: 'block text-[1.2rem] text-[#717171] font-normal' }, row.city || (row.online ? 'Online' : ''))]),
         ])
     }
     if (column.type === 'unmet_place') {
@@ -365,18 +365,37 @@ const SectionCell = (cellProps) => {
 }
 SectionCell.props = ['row', 'column', 'imageUrl', 'formatDay']
 
-onMounted(async () => {
+// Only the newest request may land (a slow 90-day answer after a quick
+// 7-day one must not replace it).
+let latest = 0
+
+const fetchRows = async (days) => {
+    const request = ++latest
+    loading.value = true
+    failed.value = false
     try {
-        const { data } = await axios.get(`/api/admin/analytics/section/${props.name}`, { params: { days: props.days } })
+        const { data } = await axios.get(`/api/admin/analytics/section/${props.name}`, { params: { days } })
+        if (request !== latest) return
         rows.value = normalize(props.name, data.rows)
         limit.value = props.name === 'countries' ? 250 : 500
+        shown.value = PAGE
     } catch (error) {
+        if (request !== latest) return
         console.error('[admin-analytics] section failed', error)
         failed.value = true
     } finally {
-        loading.value = false
+        if (request === latest) loading.value = false
     }
-})
+}
+
+// A new range reloads this list only, keeping the filters; the parent just
+// remembers the range for when the dashboard is shown again.
+const pick = (days) => {
+    emit('days', days)
+    fetchRows(days)
+}
+
+onMounted(() => fetchRows(props.days))
 </script>
 
 <style scoped>
