@@ -131,7 +131,8 @@ test('while another request is still building the report, the page and the tool 
 });
 
 test('a result click naming an event the search never showed at that spot is left out', function () {
-    analyticsRow(['query' => 'Austin, TX', 'results' => 2, 'search_id' => 'realsearch02', 'props' => json_encode(['shown' => [11, 22]])]);
+    // 30 results, the first page (2 here) recorded as shown.
+    analyticsRow(['query' => 'Austin, TX', 'results' => 30, 'search_id' => 'realsearch02', 'props' => json_encode(['shown' => [11, 22]])]);
     $click = fn (int $event, int $position) => analyticsRow(['type' => Analytics::SEARCH_CLICK, 'event_id' => $event, 'search_id' => 'realsearch02', 'props' => json_encode(['position' => $position])]);
     $click(22, 2);   // real: event 22 was second
     $click(999, 1);  // made up: event 999 was never shown
@@ -268,4 +269,28 @@ test('each section page gets its full list, for moderators only', function () {
     $this->getJson('/api/admin/analytics/section/at_home')->assertOk();
     $this->getJson('/api/admin/analytics/section/nonsense')->assertNotFound();
     $this->getJson('/api/admin/analytics/section/places?days=500')->assertUnprocessable();
+});
+
+test('the event list holds the leaders by ticket clicks and click-through, not only by views', function () {
+    $many = Event::factory()->count(26)->published()->create();
+    foreach ($many as $i => $event) {
+        foreach (range(1, 30 + $i) as $n) {
+            analyticsRow(['type' => Analytics::EVENT_VIEW, 'event_id' => $event->id, 'visitor' => str_pad((string) $n, 16, 'v')]);
+        }
+    }
+    $clicky = Event::factory()->published()->create();
+    foreach (range(1, 12) as $n) {
+        analyticsRow(['type' => Analytics::EVENT_VIEW, 'event_id' => $clicky->id, 'visitor' => str_pad((string) $n, 16, 'c')]);
+        analyticsRow(['type' => Analytics::TICKET_CLICK, 'event_id' => $clicky->id, 'visitor' => str_pad((string) $n, 16, 'c')]);
+    }
+
+    expect(collect(app(SiteAnalyticsReport::class)->handle(30)['events'])->pluck('event_id'))->toContain($clicky->id);
+});
+
+test('a result click further down than the search had results is not believed', function () {
+    analyticsRow(['query' => 'Tiny, TX', 'results' => 1, 'search_id' => 'tinysearch01', 'props' => json_encode(['shown' => [11]])]);
+    analyticsRow(['type' => Analytics::SEARCH_CLICK, 'event_id' => 11, 'search_id' => 'tinysearch01', 'props' => json_encode(['position' => 1])]);
+    analyticsRow(['type' => Analytics::SEARCH_CLICK, 'event_id' => 99, 'search_id' => 'tinysearch01', 'props' => json_encode(['position' => 7])]);
+
+    expect(app(SiteAnalyticsReport::class)->handle(30)['search_clicks']['by_position'])->toBe(['1' => 1]);
 });

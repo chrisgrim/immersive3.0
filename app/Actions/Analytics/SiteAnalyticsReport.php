@@ -38,7 +38,7 @@ class SiteAnalyticsReport
         ELSE COALESCE(rl.name, CONCAT('Type ', ".self::REMOTE.')) END';
 
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 9;
+    private const VERSION = 10;
 
     private const LIMIT = 25;
 
@@ -120,6 +120,8 @@ class SiteAnalyticsReport
                     ->where('s.source', 'list')
                     ->where('s.bot', 0);
             })
+            // A position no further down than the search's own result count.
+            ->whereRaw('CAST(JSON_EXTRACT(analytics_events.props, \'$.position\') AS UNSIGNED) <= COALESCE(s.results, 0)')
             ->whereRaw("(CAST(JSON_EXTRACT(analytics_events.props, '$.position') AS UNSIGNED) > COALESCE(JSON_LENGTH(s.props, '$.shown'), 0)
                 OR CAST(JSON_EXTRACT(s.props, CONCAT('$.shown[', CAST(JSON_EXTRACT(analytics_events.props, '$.position') AS UNSIGNED) - 1, ']')) AS UNSIGNED) = analytics_events.event_id)");
     }
@@ -384,14 +386,22 @@ class SiteAnalyticsReport
     /** The most viewed events, with their ticket clicks and click-through. */
     private function events($since, ?array $onlyIds = null, int $limit = self::LIMIT): array
     {
-        $counts = $this->rows($since)
+        // The top by views, by ticket clicks and by click-through (10+
+        // views), merged: the page sorts by any of the three, and each must
+        // see its own leaders, not a re-sort of the most viewed.
+        $base = fn () => $this->rows($since)
             ->whereRaw("({$this->eventViewSql()} OR analytics_events.type = ?)", [Analytics::TICKET_CLICK])
             ->when($onlyIds !== null, fn ($query) => $query->whereIn('event_id', $onlyIds), fn ($query) => $query->whereNotNull('event_id'))
             ->selectRaw("event_id, SUM({$this->eventViewSql()}) AS views, SUM(type = ?) AS ticket_clicks", [Analytics::TICKET_CLICK])
             ->groupBy('event_id')
-            ->orderByDesc('views')
-            ->limit($limit)
-            ->get();
+            ->limit($limit);
+
+        $counts = $base()->orderByDesc('views')->get()
+            ->concat($base()->orderByDesc('ticket_clicks')->having('ticket_clicks', '>', 0)->get())
+            ->concat($base()->having('views', '>=', 10)->orderByRaw('ticket_clicks / views DESC')->get())
+            ->unique('event_id')
+            ->sortByDesc('views')
+            ->values();
 
         $events = Event::withoutGlobalScopes()->withTrashed()
             ->with('location:id,event_id,city,region,country')
