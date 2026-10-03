@@ -75,20 +75,33 @@ class SearchConsole
     }
 
     /**
-     * A page address as stored: for the site's own host or its www., the
-     * path alone (no query string or fragment, no trailing slash except
-     * "/"), so /events/x?ref=y adds up with /events/x; the whole address for
-     * any other host (a subdomain on a domain property). Cut to 191
+     * A page address as stored: for the site's own pages, the path alone
+     * (no query string or fragment, no trailing slash except "/"), so
+     * /events/x?ref=y adds up with /events/x; the whole address for any
+     * other host (a subdomain on a domain property). Our own pages are
+     * recognised as a full address on our host or its www., the same
+     * without a scheme (everythingimmersive.com/events/x), or a bare path
+     * (/events/x), so a filter typed any of those ways matches. Cut to 191
      * characters.
      */
     public static function pageKey(string $url): string
     {
-        $parts = parse_url($url) ?: [];
-        $host = strtolower($parts['host'] ?? '');
         $own = self::host();
+        $ours = str_starts_with($url, '/') && ! str_starts_with($url, '//');
 
-        if ($own !== null && ($host === $own || $host === "www.{$own}")) {
-            $url = rtrim($parts['path'] ?? '', '/');
+        if (! $ours && $own !== null) {
+            // No scheme: parse as if it had one, so the host is read.
+            $parts = parse_url(preg_match('#^[a-z][a-z0-9+.-]*://#i', $url) ? $url : 'https://'.$url) ?: [];
+            $host = strtolower($parts['host'] ?? '');
+            if ($host === $own || $host === "www.{$own}") {
+                $ours = true;
+                $url = $parts['path'] ?? '/';
+            }
+        }
+
+        if ($ours) {
+            $url = preg_split('/[?#]/', $url, 2)[0];
+            $url = rtrim($url, '/');
             $url = $url === '' ? '/' : $url;
         }
 
