@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\Schema;
  * device, query_page) and value (key), the clicks, impressions and the
  * impressions-weighted position sum (average position = position_sum /
  * impressions, which stays right when days are added up).
+ *
+ * Primary key (dim, day, key): every reader is one dim over a day range,
+ * read in key order straight from the clustered index. The (day) index is
+ * for the importer's delete of one whole day.
  */
 return new class extends Migration
 {
@@ -27,8 +31,10 @@ return new class extends Migration
             $table->unsignedInteger('impressions')->default(0);
             $table->double('position_sum')->default(0);
 
-            $table->primary(['day', 'dim', 'key']);
-            $table->index(['dim', 'day']);
+            // Readers ask for one dimension over a range of days: the
+            // primary key serves them; the importer deletes a day by day.
+            $table->primary(['dim', 'day', 'key']);
+            $table->index('day');
         });
     }
 
