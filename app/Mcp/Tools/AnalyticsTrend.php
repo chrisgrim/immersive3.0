@@ -12,7 +12,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[IsReadOnly]
-#[Description('Moderators only. The site\'s own traffic over time from its daily totals (bots excluded): page views, visits, searches, ticket clicks or nav searches per day (per week beyond 90 days), optionally split by the top values of one dimension such as device, source, country or utm_campaign. Up to 400 days.')]
+#[Description('Moderators only. The site\'s own traffic over time from its daily totals (bots excluded): page views, visits, searches, ticket clicks or nav searches per day (per week beyond 90 days), optionally split by the top values of one dimension. Page views and visits split by any dimension; searches, ticket clicks and nav searches only by country, device, browser, os or city (ticket clicks also by event); an unsupported pair is refused. Up to 400 days.')]
 class AnalyticsTrend extends Tool
 {
     use AnswersAnalytics;
@@ -29,6 +29,10 @@ class AnalyticsTrend extends Tool
             'days' => 'nullable|integer|min:1|max:'.AnalyticsQuery::MAX_DAYS,
         ]);
         $days = (int) ($validated['days'] ?? 30);
+
+        if ($refusal = AnalyticsQuery::unsupported($validated['metric'], $validated['dimension'] ?? null)) {
+            return Response::error($refusal);
+        }
 
         return $this->guarded(fn () => app(AnalyticsQuery::class)->trend($validated['metric'], $validated['dimension'] ?? null, $days), $days);
     }

@@ -100,3 +100,10 @@ test('one event\'s numbers leave out raw result clicks, which only the admin rep
 
     asModerator()->tool(AnalyticsFor::class, ['event' => 'clicked-show'])->assertOk()->assertDontSee('search_result_clicks');
 });
+
+test('a metric and dimension pair the daily totals never hold is refused, not answered empty', function () {
+    asModerator()->tool(AnalyticsTop::class, ['dimension' => 'utm_campaign', 'metric' => 'ticket_clicks'])->assertHasErrors()->assertSee('not totalled by utm_campaign');
+    asModerator()->tool(AnalyticsTrend::class, ['metric' => 'searches', 'dimension' => 'organizer'])->assertHasErrors();
+    asModerator()->tool(AnalyticsTop::class, ['dimension' => 'event', 'metric' => 'ticket_clicks'])->assertOk();
+    asModerator()->tool(AnalyticsTop::class, ['dimension' => 'query'])->assertOk();
+});

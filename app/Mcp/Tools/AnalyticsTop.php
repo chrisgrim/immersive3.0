@@ -12,7 +12,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[IsReadOnly]
-#[Description('Moderators only. The top values of one dimension over a period, from the site\'s daily totals (bots excluded): top pages, paths, events, organizers (their own page plus the pages of their events), traffic sources, referring sites, devices, browsers, operating systems, countries, cities or campaign tags, ranked by page views, visits, ticket clicks, searches or nav searches, with average time on page where measured. Use dimension=query with metric searches (places typed in search) or nav_searches (names typed in the nav). Up to 400 days, 50 rows.')]
+#[Description('Moderators only. The top values of one dimension over a period, from the site\'s daily totals (bots excluded): top pages, paths, events, organizers (their own page plus the pages of their events), traffic sources, referring sites, devices, browsers, operating systems, countries, cities or campaign tags, ranked by page views or visits (any dimension), ticket clicks (event, country, device, browser, os, city), or searches and nav searches (query, country, device, browser, os, city), with average time on page where measured; an unsupported pair is refused. Use dimension=query with metric searches (places typed in search) or nav_searches (names typed in the nav). Up to 400 days, 50 rows.')]
 class AnalyticsTop extends Tool
 {
     use AnswersAnalytics;
@@ -31,6 +31,10 @@ class AnalyticsTop extends Tool
         ]);
         $days = (int) ($validated['days'] ?? 30);
         $metric = $validated['metric'] ?? ($validated['dimension'] === 'query' ? 'searches' : 'page_views');
+
+        if ($refusal = AnalyticsQuery::unsupported($metric, $validated['dimension'])) {
+            return Response::error($refusal);
+        }
 
         return $this->guarded(fn () => app(AnalyticsQuery::class)->top($metric, $validated['dimension'], $days, (int) ($validated['limit'] ?? 20)), $days);
     }

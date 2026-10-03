@@ -38,6 +38,39 @@ class AnalyticsQuery
         'nav_searches' => [[Analytics::NAV_SEARCH], 'hits'],
     ];
 
+    /**
+     * Which metrics each dimension is totalled for (AnalyticsRollup): a
+     * pair outside this was never added up, so the tools refuse it rather
+     * than answer an empty list that reads as "none".
+     */
+    public const SUPPORTS = [
+        'page' => ['page_views', 'visits'],
+        'path' => ['page_views', 'visits'],
+        'organizer' => ['page_views', 'visits'],
+        'source' => ['page_views', 'visits'],
+        'ref' => ['page_views', 'visits'],
+        'utm_source' => ['page_views', 'visits'],
+        'utm_medium' => ['page_views', 'visits'],
+        'utm_campaign' => ['page_views', 'visits'],
+        'event' => ['page_views', 'visits', 'ticket_clicks'],
+        'country' => ['page_views', 'visits', 'searches', 'ticket_clicks', 'nav_searches'],
+        'device' => ['page_views', 'visits', 'searches', 'ticket_clicks', 'nav_searches'],
+        'browser' => ['page_views', 'visits', 'searches', 'ticket_clicks', 'nav_searches'],
+        'os' => ['page_views', 'visits', 'searches', 'ticket_clicks', 'nav_searches'],
+        'city' => ['page_views', 'visits', 'searches', 'ticket_clicks', 'nav_searches'],
+        'query' => ['searches', 'nav_searches'],
+    ];
+
+    /** Null when the pair is totalled, else what to say instead. */
+    public static function unsupported(string $metric, ?string $dimension): ?string
+    {
+        if ($dimension === null || in_array($metric, self::SUPPORTS[$dimension] ?? [], true)) {
+            return null;
+        }
+
+        return "{$metric} is not totalled by {$dimension}. By {$dimension} you can ask for: ".implode(', ', self::SUPPORTS[$dimension] ?? []).'.';
+    }
+
     public const DEFINITIONS = [
         'visits' => 'visitor-days: a person counts once per day they came (no cookies; the visitor code changes daily), so a person on 3 days is 3 visits',
         'page_views' => 'pages loaded by people (bots excluded); event pages before page-view tracking count as event views',
