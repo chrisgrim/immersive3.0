@@ -243,10 +243,12 @@ test('two online types with the same name are one line with their counts added u
     $smsAgain = App\Models\Events\RemoteLocation::create(['name' => 'Sms/Text Message', 'slug' => 'sms-b', 'user_id' => $owner]);
     analyticsRow(['query' => null, 'results' => 0, 'props' => json_encode(['searchType' => 'atHome', 'remoteLocation' => $sms->id])]);
     analyticsRow(['query' => null, 'results' => 0, 'props' => json_encode(['searchType' => 'atHome', 'remoteLocation' => $smsAgain->id]), 'visitor' => str_repeat('b', 16)]);
+    // The same person on both twins counts once.
+    analyticsRow(['query' => null, 'results' => 0, 'props' => json_encode(['searchType' => 'atHome', 'remoteLocation' => $smsAgain->id])]);
 
     $report = app(SiteAnalyticsReport::class)->handle(30);
 
     expect($report['zero_result_searches'])->toHaveCount(1)
-        ->and($report['zero_result_searches'][0])->toMatchArray(['kind' => 'at_home', 'place' => 'Sms/Text Message', 'searches' => 2, 'visitors' => 2])
-        ->and(collect($report['at_home_searches'])->pluck('searches', 'place')->all())->toBe(['Sms/Text Message' => 2]);
+        ->and($report['zero_result_searches'][0])->toMatchArray(['kind' => 'at_home', 'place' => 'Sms/Text Message', 'searches' => 3, 'visitors' => 2])
+        ->and(collect($report['at_home_searches'])->pluck('searches', 'place')->all())->toBe(['Sms/Text Message' => 3]);
 });

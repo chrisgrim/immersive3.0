@@ -33,8 +33,12 @@ class SiteAnalyticsReport
 
     private const REMOTE = "CAST(JSON_EXTRACT(analytics_events.props, '$.remoteLocation') AS UNSIGNED)";
 
+    /** An At Home search's line: its online type's name (see withTypeName). */
+    private const TYPE_NAME = 'CASE WHEN COALESCE('.self::REMOTE.", 0) = 0 THEN 'Any type'
+        ELSE COALESCE(rl.name, CONCAT('Type ', ".self::REMOTE.')) END';
+
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 6;
+    private const VERSION = 7;
 
     private const LIMIT = 25;
 
@@ -192,16 +196,15 @@ class SiteAnalyticsReport
     {
         $clicked = $this->believableClicks($since)->select('analytics_events.search_id')->distinct();
 
-        return $this->atHome($this->typedSearches($since))
+        return $this->withTypeName($this->atHome($this->typedSearches($since)))
             ->leftJoinSub($clicked, 'clicked', 'clicked.search_id', '=', 'analytics_events.search_id')
-            ->selectRaw(self::REMOTE.' AS remote_id, COUNT(*) AS searches, SUM(results = 0) AS found_nothing, COUNT(clicked.search_id) AS clicked')
-            ->groupBy('remote_id')
+            ->selectRaw(self::TYPE_NAME.' AS place, COUNT(*) AS searches, SUM(results = 0) AS found_nothing, COUNT(clicked.search_id) AS clicked')
+            ->groupBy('place')
             ->orderByDesc('searches')
             ->limit(self::LIMIT)
             ->get()
-            ->pipe(fn ($rows) => $this->nameTypes($rows, ['searches', 'found_nothing', 'clicked']))
             ->map(fn ($row) => [
-                'place' => $row->place,
+                'place' => ucfirst($row->place),
                 'searches' => (int) $row->searches,
                 'found_nothing' => (int) $row->found_nothing,
                 'clicked' => (int) $row->clicked,
@@ -219,31 +222,14 @@ class SiteAnalyticsReport
     }
 
     /**
-     * remote_id → the online type's name as `place` ("Any type" when none was
-     * picked). Types that share a name (remote_locations has duplicates,
-     * e.g. two "Sms/Text Message") become one line: $sum columns added up,
-     * last_searched the latest.
+     * Joins each At Home search to its online type, so lists group on the
+     * type's NAME (TYPE_NAME) while counting: remote_locations holds exact
+     * duplicate names (two "Sms/Text Message"), and grouping by id would
+     * split one type into two lines and count a visitor of both twice.
      */
-    private function nameTypes($rows, array $sum)
+    private function withTypeName(Builder $query): Builder
     {
-        $names = RemoteLocation::whereIn('id', $rows->pluck('remote_id')->filter())->pluck('name', 'id');
-
-        return $rows
-            ->groupBy(fn ($row) => $row->remote_id ? ucfirst($names[$row->remote_id] ?? "Type {$row->remote_id}") : 'Any type')
-            ->map(function ($group, $place) use ($sum) {
-                $row = clone $group->first();
-                $row->place = $place;
-                foreach ($sum as $column) {
-                    $row->{$column} = $group->sum($column);
-                }
-                if (isset($row->last_searched)) {
-                    $row->last_searched = $group->max('last_searched');
-                }
-
-                return $row;
-            })
-            ->sortByDesc('searches')
-            ->values();
+        return $query->leftJoin('remote_locations as rl', fn ($join) => $join->on('rl.id', '=', DB::raw(self::REMOTE)));
     }
 
     /**
@@ -318,14 +304,15 @@ class SiteAnalyticsReport
         $atHome = $types === [] ? collect() : $this->atHome($this->typedSearches($since))
             ->where('results', 0)
             ->when($types !== null, fn ($query) => $query->whereIn(DB::raw(self::REMOTE), $types))
-            ->selectRaw(self::REMOTE." AS remote_id, {$columns}")
-            ->groupBy('remote_id')
+            ->pipe(fn ($query) => $this->withTypeName($query))
+            ->selectRaw(self::TYPE_NAME." AS place, {$columns}")
+            ->groupBy('place')
             ->orderByDesc('searches')
             ->limit(self::LIMIT)
             ->get()
-            ->pipe(fn ($rows) => $this->nameTypes($rows, ['searches', 'with_filters', 'visitors']))
             ->each(function ($row) {
                 $row->kind = 'at_home';
+                $row->place = ucfirst($row->place);
             });
 
         // No place and not At Home (all events, with only filters set): one
