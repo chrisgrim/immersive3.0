@@ -48,6 +48,8 @@ class RemoteImageIngest
 
     public function fetch(string $url, int $maxBytes): UploadedFile
     {
+        $url = self::original($url);
+
         try {
             ($this->urlValidator)($url);
         } catch (UnsafeUrlException $e) {
@@ -127,5 +129,27 @@ class RemoteImageIngest
         $name = Str::of(parse_url($url, PHP_URL_PATH) ?? '')->basename()->whenEmpty(fn () => Str::of('image'));
 
         return new UploadedFile($path, $name.'.'.self::ALLOWED_MIMES[$mime], $mime, null, true);
+    }
+
+    /**
+     * Eventbrite's resizing address (img.evbuc.com/<encoded original>?crop=...)
+     * refuses downloads from servers (403), while the original it wraps on
+     * cdn.evbuc.com downloads fine: use the original. Only an Eventbrite
+     * original is unwrapped; the result still goes through the URL checks.
+     */
+    public static function original(string $url): string
+    {
+        $parts = parse_url($url);
+        if (strtolower($parts['host'] ?? '') !== 'img.evbuc.com') {
+            return $url;
+        }
+
+        $inner = rawurldecode(ltrim($parts['path'] ?? '', '/'));
+        $host = strtolower(parse_url($inner, PHP_URL_HOST) ?? '');
+
+        return in_array(parse_url($inner, PHP_URL_SCHEME), ['http', 'https'], true)
+            && ($host === 'evbuc.com' || str_ends_with($host, '.evbuc.com'))
+            ? $inner
+            : $url;
     }
 }

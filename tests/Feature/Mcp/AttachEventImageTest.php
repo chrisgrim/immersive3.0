@@ -89,6 +89,22 @@ test('remote image ingest accepts a real png and returns an UploadedFile', funct
     @unlink($file->getRealPath());
 });
 
+test('an Eventbrite resized image address downloads the original it wraps', function () {
+    skipUrlValidation();
+    Http::fake(['cdn.evbuc.com/*' => Http::response(tinyPng(), 200), 'img.evbuc.com/*' => Http::response('Forbidden', 403)]);
+
+    $file = app(RemoteImageIngest::class)->fetch('https://img.evbuc.com/https%3A%2F%2Fcdn.evbuc.com%2Fimages%2F1%2F2%2F1%2Foriginal.20260204?crop=focalpoint&fit=crop&w=940&s=abc', 5 * 1024 * 1024);
+
+    expect($file->getMimeType())->toBe('image/png');
+    Http::assertSent(fn ($request) => $request->url() === 'https://cdn.evbuc.com/images/1/2/1/original.20260204');
+    @unlink($file->getRealPath());
+});
+
+test('only an Eventbrite original is unwrapped from an Eventbrite resizing address', function () {
+    expect(RemoteImageIngest::original('https://img.evbuc.com/https%3A%2F%2Fevil.example.com%2Fx.png'))->toBe('https://img.evbuc.com/https%3A%2F%2Fevil.example.com%2Fx.png')
+        ->and(RemoteImageIngest::original('https://images.example.com/pixel.png'))->toBe('https://images.example.com/pixel.png');
+});
+
 test('remote image ingest sends a browser User-Agent so hotlink-protected CDNs do not 403', function () {
     skipUrlValidation();
     Http::fake(['images.example.com/*' => Http::response(tinyPng(), 200)]);
