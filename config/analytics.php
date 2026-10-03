@@ -15,6 +15,8 @@ return [
     // Phase 2 captures, each off until switched on: in .env, or without a
     // deploy with `php artisan ei:analytics-capture <name> on|off` (a cache
     // override, read once per request). Turn on one at a time and watch.
+    'capture_file' => storage_path('app/analytics-capture.json'),
+
     'capture' => [
         'page_views' => env('ANALYTICS_PAGE_VIEWS', false),   // every public page (RecordPageView)
         'device' => env('ANALYTICS_DEVICE', false),           // device/browser/OS families, at flush

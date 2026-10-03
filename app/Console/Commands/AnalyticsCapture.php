@@ -4,11 +4,12 @@ namespace App\Console\Commands;
 
 use App\Support\Analytics\Analytics;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 
 /**
- * Switch a phase 2 capture on or off without a deploy (a cache override
- * that wins over config/analytics.php 'capture'), or show them all.
+ * Switch a phase 2 capture on or off without a deploy (an override in
+ * storage/app/analytics-capture.json that wins over config/analytics.php
+ * 'capture'), or show them all.
  * `default` removes the override so config decides again.
  */
 class AnalyticsCapture extends Command
@@ -20,7 +21,8 @@ class AnalyticsCapture extends Command
     public function handle(): int
     {
         $names = array_keys(config('analytics.capture'));
-        $overrides = (array) Cache::get(Analytics::CAPTURE_OVERRIDES, []);
+        $file = @file_get_contents(Analytics::overridesPath());
+        $overrides = is_string($file) && is_array($decoded = json_decode($file, true)) ? $decoded : [];
         $name = $this->argument('name');
 
         if ($name !== null) {
@@ -35,7 +37,8 @@ class AnalyticsCapture extends Command
             } else {
                 $overrides[$name] = $this->argument('state') === 'on';
             }
-            Cache::forever(Analytics::CAPTURE_OVERRIDES, $overrides);
+            File::put(Analytics::overridesPath(), json_encode($overrides));
+            @chmod(Analytics::overridesPath(), 0644);
             app(Analytics::class)->forgetOverrides();
         }
 

@@ -22,8 +22,9 @@ class AnalyticsLive extends Tool
             return $denied;
         }
 
-        if (! Analytics::captures('live')) {
-            return Response::error('Live counting is switched off (ei:analytics-capture live on).');
+        // The live set is fed by page views, so it needs both switched on.
+        if (! Analytics::captures('live') || ! Analytics::captures('page_views')) {
+            return Response::error('Live counting needs both live and page_views switched on (ei:analytics-capture <name> on).');
         }
 
         return Response::json([

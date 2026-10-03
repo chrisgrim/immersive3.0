@@ -158,16 +158,23 @@ class Analytics
         return $asn !== null && in_array($asn, config('analytics.hosting_asns'), true);
     }
 
-    /** Cache key holding switch overrides set by ei:analytics-capture. */
-    public const CAPTURE_OVERRIDES = 'analytics:capture';
+    /**
+     * Where ei:analytics-capture keeps its switches: a small file, not the
+     * cache (Redis evicts any key when full, which would quietly switch a
+     * capture back to its .env default).
+     */
+    public static function overridesPath(): string
+    {
+        return config('analytics.capture_file') ?: storage_path('app/analytics-capture.json');
+    }
 
     /** @var array<string, bool>|null overrides, read once per request */
     private ?array $overrides = null;
 
     /**
-     * Is this phase 2 capture switched on? The cache override (set by
-     * ei:analytics-capture, no deploy needed) wins over config; any cache
-     * failure falls back to config.
+     * Is this phase 2 capture switched on? An override set by
+     * ei:analytics-capture (no deploy needed) wins over config; a missing or
+     * unreadable override file falls back to config.
      */
     public static function captures(string $name): bool
     {
@@ -177,11 +184,8 @@ class Analytics
 
         $analytics = app(self::class);
         if ($analytics->overrides === null) {
-            try {
-                $analytics->overrides = (array) Cache::get(self::CAPTURE_OVERRIDES, []);
-            } catch (Throwable) {
-                $analytics->overrides = [];
-            }
+            $file = @file_get_contents(self::overridesPath());
+            $analytics->overrides = is_string($file) && is_array($decoded = json_decode($file, true)) ? $decoded : [];
         }
 
         return (bool) ($analytics->overrides[$name] ?? config("analytics.capture.{$name}", false));

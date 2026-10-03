@@ -25,6 +25,17 @@ class AnalyticsRollup extends Command
 
     protected $description = 'Build analytics_daily for a day or a range (default: today, yesterday and the day before).';
 
+    /**
+     * The type a raw row is totalled under. Every view of a page, whether
+     * an event_view (before page views were recorded) or a page_view, is one
+     * 'view', so a person on the day page views were switched on is one
+     * visitor, not two. A map pan is a 'map_search', apart from searches a
+     * person typed (the admin report draws the same line).
+     */
+    public const VIEW = 'view';
+
+    public const MAP_SEARCH = 'map_search';
+
     /** Paths through the site: an edge is kept only if this many visitors took it. */
     public const MIN_EDGE_VISITORS = 5;
 
@@ -143,6 +154,13 @@ class AnalyticsRollup extends Command
               AND n.query LIKE CONCAT(REPLACE(REPLACE(REPLACE(e.query, '\\\\', '\\\\\\\\'), '%', '\\\\%'), '_', '\\\\_'), '%')))";
     }
 
+    private function typeOf(): string
+    {
+        return "CASE WHEN e.type IN ('".Analytics::PAGE_VIEW."', '".Analytics::EVENT_VIEW."') THEN '".self::VIEW."'
+            WHEN e.type = '".Analytics::SEARCH."' AND e.source = 'map' THEN '".self::MAP_SEARCH."'
+            ELSE e.type END";
+    }
+
     private function insert(CarbonImmutable $day, array $range, ?array $types, string $dim, string $key, ?string $where): void
     {
         $key = $this->keyed($key);
@@ -152,7 +170,7 @@ class AnalyticsRollup extends Command
         // Time on page: each page view's longest page_leave report that day.
         DB::statement("
             INSERT INTO analytics_daily (day, type, dim, `key`, bot, hits, visitors, seconds_sum, seconds_count)
-            SELECT ?, e.type, ?, {$key}, e.bot > 0, COUNT(*), COUNT(DISTINCT e.visitor),
+            SELECT ?, {$this->typeOf()}, ?, {$key}, e.bot > 0, COUNT(*), COUNT(DISTINCT e.visitor),
                 COALESCE(SUM(l.seconds), 0), COUNT(l.seconds)
             FROM analytics_events e
             LEFT JOIN (
@@ -163,7 +181,7 @@ class AnalyticsRollup extends Command
             WHERE e.occurred_at >= ? AND e.occurred_at < ? AND e.type <> ?{$typeSql}{$whereSql}
               AND {$this->navTypingDone()}
               AND ({$key}) IS NOT NULL
-            GROUP BY e.type, {$key}, e.bot > 0".self::MERGE, [
+            GROUP BY {$this->typeOf()}, {$key}, e.bot > 0".self::MERGE, [
             $day->toDateString(), $dim,
             Analytics::PAGE_LEAVE, ...$range,
             Analytics::PAGE_VIEW,
@@ -180,7 +198,7 @@ class AnalyticsRollup extends Command
     {
         DB::statement("
             INSERT INTO analytics_daily (day, type, dim, `key`, bot, hits, visitors, seconds_sum, seconds_count)
-            SELECT ?, '".Analytics::PAGE_VIEW."', 'edge', {$this->keyed("CONCAT(prev_path, ' > ', path)")}, 0, COUNT(*), COUNT(DISTINCT visitor), 0, 0
+            SELECT ?, '".self::VIEW."', 'edge', {$this->keyed("CONCAT(prev_path, ' > ', path)")}, 0, COUNT(*), COUNT(DISTINCT visitor), 0, 0
             FROM (
                 SELECT visitor, path, LAG(path) OVER (PARTITION BY visitor ORDER BY occurred_at, id) AS prev_path
                 FROM analytics_events

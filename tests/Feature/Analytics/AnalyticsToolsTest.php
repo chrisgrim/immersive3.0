@@ -15,7 +15,7 @@ use Laravel\Passport\Passport;
 function daily(array $row): void
 {
     DB::table('analytics_daily')->insert(array_merge([
-        'day' => now()->subDay()->toDateString(), 'type' => 'page_view', 'dim' => 'all', 'key' => '', 'bot' => 0,
+        'day' => now()->subDay()->toDateString(), 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0,
         'hits' => 1, 'visitors' => 1, 'seconds_sum' => 0, 'seconds_count' => 0,
     ], $row));
 }
@@ -45,7 +45,7 @@ test('the analytics tools need moderator powers on the connection', function (st
 test('a trend reads the daily totals, people only', function () {
     daily(['hits' => 40, 'visitors' => 30]);
     daily(['hits' => 99, 'visitors' => 99, 'bot' => 1]);
-    daily(['day' => now()->subDays(2)->toDateString(), 'type' => 'event_view', 'hits' => 5, 'visitors' => 4]);
+    daily(['day' => now()->subDays(2)->toDateString(), 'hits' => 5, 'visitors' => 4]);
 
     asModerator()->tool(AnalyticsTrend::class, ['metric' => 'page_views', 'days' => 7])
         ->assertOk()
@@ -87,7 +87,7 @@ test('one event\'s numbers, by slug', function () {
 test('the live tool says when live counting is off, and counts when on', function () {
     asModerator()->tool(AnalyticsLive::class)->assertHasErrors();
 
-    config(['analytics.capture.live' => true]);
+    config(['analytics.capture.live' => true, 'analytics.capture.page_views' => true]);
     app(Analytics::class)->forgetOverrides();
     app(Analytics::class)->markLive(['aaaaaaaaaaaaaaaa' => now()->getTimestamp()]);
 

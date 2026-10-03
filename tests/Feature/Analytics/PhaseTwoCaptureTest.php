@@ -9,7 +9,12 @@ use Illuminate\Support\Facades\DB;
 
 const PHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
 
-afterEach(fn () => Carbon::setTestNow());
+beforeEach(fn () => config(['analytics.capture_file' => storage_path('framework/testing/analytics-capture-'.uniqid().'.json')]));
+
+afterEach(function () {
+    Carbon::setTestNow();
+    @unlink(config('analytics.capture_file'));
+});
 
 function captureOn(string ...$names): void
 {
@@ -192,7 +197,7 @@ test('the daily rollup adds a day up by dimension, with time on page and paths, 
     $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
 
     $total = fn (string $dim, string $key, int $bot = 0) => DB::table('analytics_daily')
-        ->where(['day' => $day, 'type' => 'page_view', 'dim' => $dim, 'key' => $key, 'bot' => $bot])->first();
+        ->where(['day' => $day, 'type' => 'view', 'dim' => $dim, 'key' => $key, 'bot' => $bot])->first();
 
     expect($total('all', ''))->hits->toBe(10)->visitors->toBe(5)
         ->and($total('all', '', 1))->hits->toBe(1)
@@ -315,10 +320,57 @@ test('the migration can run again after stopping halfway', function () {
 
 test('analytics-for finds an event whose slug is all digits', function () {
     $event = Event::factory()->published()->create(['slug' => '1003788030']);
-    DB::table('analytics_daily')->insert(['day' => now()->subDay()->toDateString(), 'type' => 'page_view', 'dim' => 'event', 'key' => (string) $event->id, 'bot' => 0, 'hits' => 4, 'visitors' => 3, 'seconds_sum' => 0, 'seconds_count' => 0]);
+    DB::table('analytics_daily')->insert(['day' => now()->subDay()->toDateString(), 'type' => 'view', 'dim' => 'event', 'key' => (string) $event->id, 'bot' => 0, 'hits' => 4, 'visitors' => 3, 'seconds_sum' => 0, 'seconds_count' => 0]);
     $moderator = User::factory()->create(['type' => 'm']);
     Laravel\Passport\Passport::actingAs($moderator, ['mcp:use', User::MODERATE_SCOPE]);
 
     App\Mcp\Servers\EiServer::actingAs($moderator, 'api')->tool(App\Mcp\Tools\AnalyticsFor::class, ['event' => '1003788030'])
         ->assertOk()->assertSee('"page_views":4', false);
+});
+
+// ----- review fixes (phase 2, round 2) -----
+
+test('a person whose event view and page view fall on the same day is one visitor, and map pans are not searches', function () {
+    $row = fn (array $values) => DB::table('analytics_events')->insert(array_merge(['occurred_at' => '2026-10-01 10:00:00', 'visitor' => str_repeat('a', 16), 'bot' => 0], $values));
+    $row(['type' => 'event_view', 'event_id' => 7]);
+    $row(['type' => 'page_view', 'page' => 'events.show', 'event_id' => 7, 'path' => '/events/x']);
+    $row(['type' => 'search', 'source' => 'list', 'query' => 'Austin']);
+    $row(['type' => 'search', 'source' => 'map', 'query' => 'Austin']);
+
+    $this->artisan('ei:analytics-rollup', ['--day' => '2026-10-01'])->assertSuccessful();
+
+    $all = fn (string $type) => DB::table('analytics_daily')->where(['day' => '2026-10-01', 'type' => $type, 'dim' => 'all', 'bot' => 0])->first();
+    expect($all('view'))->hits->toBe(2)->visitors->toBe(1)
+        ->and($all('search')->hits)->toBe(1)
+        ->and($all('map_search')->hits)->toBe(1);
+});
+
+test('typed text in the daily totals that fewer than three people shared goes after 13 months', function () {
+    $old = now()->subDays(400)->toDateString();
+    foreach ([['query', 'my home address', 1], ['query', 'Austin', 5], ['page', 'home', 1]] as [$dim, $key, $visitors]) {
+        DB::table('analytics_daily')->insert(['day' => $old, 'type' => 'search', 'dim' => $dim, 'key' => $key, 'bot' => 0, 'hits' => $visitors, 'visitors' => $visitors, 'seconds_sum' => 0, 'seconds_count' => 0]);
+    }
+
+    $this->artisan('ei:analytics-prune')->assertSuccessful();
+
+    expect(DB::table('analytics_daily')->orderBy('key')->pluck('key')->all())->toBe(['Austin', 'home']);
+});
+
+test('the capture switches live in a file, not the evictable cache', function () {
+    $this->artisan('ei:analytics-capture page_views on')->assertSuccessful();
+
+    Cache::flush();
+    app(Analytics::class)->forgetOverrides();
+
+    expect(Analytics::captures('page_views'))->toBeTrue()
+        ->and(json_decode(file_get_contents(config('analytics.capture_file')), true))->toBe(['page_views' => true]);
+});
+
+test('the live tool will not answer zero while page views are off', function () {
+    config(['analytics.capture.live' => true]);
+    app(Analytics::class)->forgetOverrides();
+    $moderator = User::factory()->create(['type' => 'm']);
+    Laravel\Passport\Passport::actingAs($moderator, ['mcp:use', User::MODERATE_SCOPE]);
+
+    App\Mcp\Servers\EiServer::actingAs($moderator, 'api')->tool(App\Mcp\Tools\AnalyticsLive::class)->assertHasErrors()->assertSee('page_views');
 });

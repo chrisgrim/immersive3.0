@@ -20,6 +20,16 @@ class AnalyticsPrune extends Command
         $deleted = $this->prune(now()->subDays(max(30, (int) config('analytics.raw_days', 395))))
             + $this->prune(now()->subDays(max(7, (int) config('analytics.bot_raw_days', 30))), bots: true);
 
+        // Daily totals are kept for good, except text people typed or sent
+        // (places, nav searches, referring sites, cities, campaign tags) that
+        // fewer than three people shared: those go with the raw rows, so no
+        // one person's typed text outlives 13 months.
+        $deleted += DB::table('analytics_daily')
+            ->where('day', '<', now()->subDays(max(30, (int) config('analytics.raw_days', 395)))->toDateString())
+            ->whereIn('dim', ['query', 'ref', 'city', 'utm_source', 'utm_medium', 'utm_campaign'])
+            ->where('visitors', '<', 3)
+            ->delete();
+
         $this->info("Deleted {$deleted} old analytics rows.");
 
         return self::SUCCESS;

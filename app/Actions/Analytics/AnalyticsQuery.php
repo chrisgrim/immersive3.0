@@ -2,6 +2,7 @@
 
 namespace App\Actions\Analytics;
 
+use App\Console\Commands\AnalyticsRollup;
 use App\Models\Event;
 use App\Models\Organizer;
 use App\Support\Analytics\Analytics;
@@ -30,8 +31,8 @@ class AnalyticsQuery
 
     /** What a metric counts in analytics_daily: [types, column]. */
     public const METRICS = [
-        'page_views' => [[Analytics::PAGE_VIEW, Analytics::EVENT_VIEW], 'hits'],
-        'visits' => [[Analytics::PAGE_VIEW, Analytics::EVENT_VIEW], 'visitors'],
+        'page_views' => [[AnalyticsRollup::VIEW], 'hits'],
+        'visits' => [[AnalyticsRollup::VIEW], 'visitors'],
         'searches' => [[Analytics::SEARCH], 'hits'],
         'ticket_clicks' => [[Analytics::TICKET_CLICK], 'hits'],
         'nav_searches' => [[Analytics::NAV_SEARCH], 'hits'],
@@ -134,9 +135,9 @@ class AnalyticsQuery
                 WHERE dim = ? AND `key` = ? AND bot = 0 AND day >= ?
                 GROUP BY type', [$dim, (string) $id, $this->since($days)]);
             $by = collect($rows)->keyBy('type');
-            $views = (int) (($by[Analytics::PAGE_VIEW]->hits ?? 0) + ($by[Analytics::EVENT_VIEW]->hits ?? 0));
+            $views = (int) ($by[AnalyticsRollup::VIEW]->hits ?? 0);
             $clicks = (int) ($by[Analytics::TICKET_CLICK]->hits ?? 0);
-            $seconds = (int) ($by[Analytics::PAGE_VIEW]->seconds_count ?? 0);
+            $seconds = (int) ($by[AnalyticsRollup::VIEW]->seconds_count ?? 0);
 
             $model = $kind === 'event'
                 ? Event::withoutGlobalScopes()->withTrashed()->find($id, ['id', 'name', 'slug'])
@@ -145,8 +146,8 @@ class AnalyticsQuery
             return [
                 $kind => $model ? ['id' => $model->id, 'name' => $model->name, 'slug' => $model->slug] : ['id' => $id],
                 'page_views' => $views,
-                'visits' => (int) (($by[Analytics::PAGE_VIEW]->visitors ?? 0) + ($by[Analytics::EVENT_VIEW]->visitors ?? 0)),
-                'avg_seconds' => $seconds ? (int) round($by[Analytics::PAGE_VIEW]->seconds_sum / $seconds) : null,
+                'visits' => (int) ($by[AnalyticsRollup::VIEW]->visitors ?? 0),
+                'avg_seconds' => $seconds ? (int) round($by[AnalyticsRollup::VIEW]->seconds_sum / $seconds) : null,
                 'ticket_clicks' => $kind === 'event' ? $clicks : null,
                 'click_through' => $kind === 'event' && $views ? round($clicks / $views, 3) : null,
                 'search_result_clicks' => $kind === 'event' ? (int) ($by[Analytics::SEARCH_CLICK]->hits ?? 0) : null,
