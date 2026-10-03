@@ -674,14 +674,25 @@ const completeCrop = () => {
             outputCtx.fillStyle = backgroundColor.value;
             outputCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
 
-            // Draw the cropped portion directly from source image
-            outputCtx.drawImage(
-                sourceImg,
-                coordinates.left, coordinates.top,     // Source x, y
-                cropWidth, cropHeight,                  // Source width, height
-                0, 0,                                   // Dest x, y
-                outputCanvas.width, outputCanvas.height // Dest width, height
-            );
+            // Draw only the part of the photo inside the crop, at its true
+            // place and scale. Zoomed out, the crop reaches past the photo's
+            // edges (bars of the background colour); some browsers (Safari)
+            // stretch a source rectangle that runs off the image instead of
+            // clipping it, which distorted the photo.
+            const sx = Math.max(0, coordinates.left);
+            const sy = Math.max(0, coordinates.top);
+            const sw = Math.min(sourceImg.naturalWidth, coordinates.left + cropWidth) - sx;
+            const sh = Math.min(sourceImg.naturalHeight, coordinates.top + cropHeight) - sy;
+            const fx = outputCanvas.width / cropWidth;
+            const fy = outputCanvas.height / cropHeight;
+            if (sw > 0 && sh > 0) {
+                outputCtx.drawImage(
+                    sourceImg,
+                    sx, sy, sw, sh,                                    // Source: the photo inside the crop
+                    (sx - coordinates.left) * fx, (sy - coordinates.top) * fy, // Dest: where it sits in the crop
+                    sw * fx, sh * fy
+                );
+            }
 
             // Start with a quality of 0.95 and decrease if needed
             const createImageBlob = (quality = 0.95) => {
