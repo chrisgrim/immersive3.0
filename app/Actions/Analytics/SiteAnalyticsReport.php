@@ -272,7 +272,10 @@ class SiteAnalyticsReport
         return $this->zeroResultSearches($this->since($days), $text);
     }
 
-    /** How many rows a section page can list. */
+    /**
+     * How many rows a section page can list (events: this many of each of
+     * its three leader lists, merged, see events()).
+     */
     public const SECTION_LIMIT = 500;
 
     /**

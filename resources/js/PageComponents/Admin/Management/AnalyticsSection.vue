@@ -79,7 +79,7 @@
         <template v-else>
             <p class="text-[1.3rem] text-[#717171]">
                 {{ filtered.length.toLocaleString() }} {{ filtered.length === 1 ? 'row' : 'rows' }}<template v-if="filtered.length !== rows.length"> of {{ rows.length.toLocaleString() }}</template>
-                <template v-if="rows.length >= limit"> (the top {{ limit }} only)</template>
+                <template v-if="!config.leaders && rows.length >= limit"> (the top {{ limit }} only)</template>
             </p>
 
             <section class="card overflow-hidden">
@@ -257,6 +257,9 @@ const SECTIONS = {
             { key: 'click_through', label: 'Click-through', align: 'right', sort: 'click_through', format: percent },
         ],
         text: (row) => `${row.name || ''} ${row.city || ''}`,
+        // Not one top-N list: the leaders three ways, merged.
+        leaders: true,
+        footnote: 'This list holds the leading events by views, by ticket clicks and by click-through (10 or more views), up to 500 of each.',
     },
     sources: {
         title: 'Where Views Came From',
