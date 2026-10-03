@@ -8,7 +8,7 @@
  * Examples: the Google app on iOS (its translate script recursing until
  * "Maximum call stack size exceeded", frames on the page URL itself,
  * EI-VUE-1C), Brave/Firefox reader mode (EI-VUE-1A), Meta's in-app browser
- * (EI-VUE-S). Errors with no frames at all are kept: they say nothing either
+ * (EI-VUE-S), an app's WebViewJavascriptBridge (EI-VUE-1D). Errors with no frames at all are kept: they say nothing either
  * way.
  */
 const OUR_CODE = /\/build\/assets\//;

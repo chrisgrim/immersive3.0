@@ -28,3 +28,8 @@ test('an error without a stack trace is kept', () => {
     expect(isFromInjectedScript({ message: 'boom' })).toBe(false);
     expect(isFromInjectedScript(frames())).toBe(false);
 });
+
+test('an in-app browser bridge script (frames <anonymous>) is dropped', () => {
+    // EI-VUE-1D: "WebViewJavascriptBridge is not defined" from an app's injected bridge.
+    expect(isFromInjectedScript(frames('<anonymous>', '<anonymous>'))).toBe(true);
+});
