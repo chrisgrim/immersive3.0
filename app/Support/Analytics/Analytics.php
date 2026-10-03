@@ -4,6 +4,7 @@ namespace App\Support\Analytics;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 use Jaybizzle\CrawlerDetect\CrawlerDetect;
@@ -193,8 +194,10 @@ class Analytics
 
     /** Forget the per-request override memo (tests, and the command). */
     /**
-     * Was this capture switched off by ei:analytics-capture within the time
-     * its records are kept? The privacy page keeps naming it until then.
+     * Is this capture off now, but did it record something in the last 13
+     * months (however it was switched off: the command, .env or config)?
+     * The privacy page keeps naming it until those records are gone. Read
+     * from the daily totals through their (dim, day) index; cached an hour.
      */
     public static function recentlyCaptured(string $name): bool
     {
@@ -202,9 +205,34 @@ class Analytics
             return false;
         }
 
-        $offAt = app(self::class)->overrides['off_at'][$name] ?? null;
+        $since = now()->subDays(max(30, (int) config('analytics.raw_days', 395)))->toDateString();
 
-        return is_int($offAt) && $offAt > now()->subDays(max(30, (int) config('analytics.raw_days', 395)))->getTimestamp();
+        try {
+            return self::recordedSince($name, $since);
+        } catch (Throwable $e) {
+            // The privacy page must not fail over this.
+            report($e);
+
+            return false;
+        }
+    }
+
+    private static function recordedSince(string $name, string $since): bool
+    {
+        return Cache::remember("analytics:recently:{$name}", now()->addHour(), function () use ($name, $since) {
+            $daily = DB::table('analytics_daily')->where('bot', 0)->where('day', '>=', $since);
+            $daily = match ($name) {
+                'page_views' => $daily->where('dim', 'path'),
+                'device' => $daily->where('dim', 'device'),
+                'city' => $daily->where('dim', 'city'),
+                'utm' => $daily->whereIn('dim', ['utm_source', 'utm_medium', 'utm_campaign']),
+                'duration' => $daily->where('dim', 'all')->where('seconds_count', '>', 0),
+                'nav_search' => $daily->where('dim', 'all')->where('type', self::NAV_SEARCH),
+                default => null,
+            };
+
+            return (bool) $daily?->exists();
+        });
     }
 
     public function forgetOverrides(): void

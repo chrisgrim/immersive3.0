@@ -570,13 +570,13 @@ test('the private communities list is not a page view', function () {
     expect(App\Http\Middleware\RecordPageView::PAGES)->not->toContain('communities.index');
 });
 
-test('a capture switched off stays on the privacy page while its records are kept', function () {
-    $this->artisan('ei:analytics-capture', ['name' => 'city', 'state' => 'on'])->assertSuccessful();
-    $this->artisan('ei:analytics-capture', ['name' => 'city', 'state' => 'off'])->assertSuccessful();
+test('a capture switched off stays on the privacy page while its records are kept, however it was switched off', function () {
+    config(['analytics.capture.city' => false]);
+    DB::table('analytics_daily')->insert(['day' => now()->subDays(10)->toDateString(), 'type' => 'view', 'dim' => 'city', 'key' => 'Boston', 'bot' => 0, 'hits' => 4, 'visitors' => 3, 'seconds_sum' => 0, 'seconds_count' => 0]);
 
     expect($this->withoutVite()->get('/privacy')->getContent())->toContain('Within the last 13 months we also recorded, in the same way, your city and region');
 
+    Illuminate\Support\Facades\Cache::flush();
     Carbon::setTestNow(now()->addDays(400));
-    app(Analytics::class)->forgetOverrides();
     expect($this->withoutVite()->get('/privacy')->getContent())->not->toContain('your city and region');
 });

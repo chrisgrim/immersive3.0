@@ -32,19 +32,10 @@ class AnalyticsCapture extends Command
                 return self::FAILURE;
             }
 
-            $wasOn = Analytics::captures($name);
             if ($this->argument('state') === 'default') {
                 unset($overrides[$name]);
             } else {
                 $overrides[$name] = $this->argument('state') === 'on';
-            }
-            // When it goes off, remember when: its records are kept for 13
-            // months, and the privacy page names it until they are gone.
-            $nowOn = (bool) ($overrides[$name] ?? config("analytics.capture.{$name}", false));
-            if ($wasOn && ! $nowOn) {
-                $overrides['off_at'][$name] = now()->getTimestamp();
-            } elseif ($nowOn) {
-                unset($overrides['off_at'][$name]);
             }
             File::put(Analytics::overridesPath(), json_encode($overrides));
             @chmod(Analytics::overridesPath(), 0644);
