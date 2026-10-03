@@ -60,12 +60,12 @@ class AnalyticsFlush extends Command
                 break;
             }
 
-            $rows = array_values(array_filter(array_map(fn ($note) => $this->row($note), $notes)));
-
             try {
+                $rows = array_values(array_filter(array_map(fn ($note) => $this->row($note), $notes)));
                 $written += $this->insert($rows);
             } catch (Throwable $e) {
-                // The database is down: the notes go back for the next run.
+                // The cache or the database is down: the notes go back for
+                // the next run.
                 $analytics->putBack($notes);
 
                 throw $e;

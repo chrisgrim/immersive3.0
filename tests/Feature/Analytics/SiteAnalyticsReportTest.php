@@ -143,3 +143,16 @@ test('a result click naming an event the search never showed at that spot is lef
     expect($clicks['by_position'])->toBe(['2' => 1, '11+' => 1])
         ->and($clicks['searches_with_a_click'])->toBe(1);
 });
+
+test('the same result click sent again counts once, and a click on a search from before the period does not count', function () {
+    analyticsRow(['query' => 'Austin, TX', 'results' => 1, 'search_id' => 'realsearch03', 'props' => json_encode(['shown' => [11]])]);
+    foreach (range(1, 5) as $i) {
+        analyticsRow(['type' => Analytics::SEARCH_CLICK, 'event_id' => 11, 'search_id' => 'realsearch03', 'props' => json_encode(['position' => 1])]);
+    }
+    analyticsRow(['query' => 'Austin, TX', 'results' => 1, 'search_id' => 'oldsearch004', 'occurred_at' => now()->subDays(10), 'props' => json_encode(['shown' => [11]])]);
+    analyticsRow(['type' => Analytics::SEARCH_CLICK, 'event_id' => 11, 'search_id' => 'oldsearch004', 'props' => json_encode(['position' => 1])]);
+
+    $clicks = app(SiteAnalyticsReport::class)->handle(7)['search_clicks'];
+
+    expect($clicks)->toMatchArray(['searches' => 1, 'searches_with_a_click' => 1, 'by_position' => ['1' => 1]]);
+});

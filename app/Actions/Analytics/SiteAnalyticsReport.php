@@ -98,8 +98,11 @@ class SiteAnalyticsReport
     private function believableClicks($since): Builder
     {
         return $this->rows($since, Analytics::SEARCH_CLICK)
-            ->join('analytics_events as s', function ($join) {
+            ->join('analytics_events as s', function ($join) use ($since) {
+                // The search itself inside the period, so "N of M searches"
+                // never counts a click whose search is not among the M.
                 $join->on('s.search_id', '=', 'analytics_events.search_id')
+                    ->where('s.occurred_at', '>=', $since)
                     ->where('s.type', Analytics::SEARCH)
                     ->where('s.source', 'list')
                     ->where('s.bot', 0);
@@ -262,7 +265,9 @@ class SiteAnalyticsReport
         $clicked = $this->believableClicks($since)->distinct()->count('analytics_events.search_id');
 
         $positions = $this->believableClicks($since)
-            ->selectRaw("LEAST(CAST(JSON_EXTRACT(analytics_events.props, '$.position') AS UNSIGNED), 11) AS position, COUNT(*) AS clicks")
+            // Each result counted once per search: the same click sent again
+            // (a double click, or a script replaying it) is one click.
+            ->selectRaw("LEAST(CAST(JSON_EXTRACT(analytics_events.props, '$.position') AS UNSIGNED), 11) AS position, COUNT(DISTINCT analytics_events.search_id, analytics_events.event_id) AS clicks")
             ->groupBy('position')
             ->orderBy('position')
             ->pluck('clicks', 'position')

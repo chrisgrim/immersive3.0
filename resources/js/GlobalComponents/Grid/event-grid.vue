@@ -74,7 +74,7 @@
 
                     <button 
                         v-if="card.category && !showLocation"
-                        @click.prevent="handleCategoryClick(card.category.id)"
+                        @click.stop.prevent="handleCategoryClick(card.category.id)"
                         class="mt-6 uppercase text-md font-light text-left break-words hyphens-auto w-full block overflow-hidden text-ellipsis"
                     >
                         {{ card.category.name }}

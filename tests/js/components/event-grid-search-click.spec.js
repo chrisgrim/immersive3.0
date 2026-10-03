@@ -43,3 +43,14 @@ test('a grid that is not search results sends nothing', async () => {
 
     expect(navigator.sendBeacon).not.toHaveBeenCalled();
 });
+
+test('clicking the category tag on a card is not a click on the event', async () => {
+    const wrapper = mount(EventGrid, {
+        props: { items: [{ ...cards[0], category: { id: 5, name: 'Theatre' } }], searchId: 'abcDEF123456' },
+        global: { stubs: { FavoriteEvent: true, 'favorite-event': true } },
+    });
+
+    await wrapper.find('a button').trigger('click');
+
+    expect(navigator.sendBeacon).not.toHaveBeenCalled();
+});

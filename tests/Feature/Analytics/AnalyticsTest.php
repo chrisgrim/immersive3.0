@@ -364,3 +364,16 @@ test('an email address or phone number typed as a place is removed', function ()
 
     expect(analyticsRows()->sole()->query)->toBe('[removed] call [removed]');
 });
+
+test('if building the rows fails, the notes go back too', function () {
+    Analytics::record(Analytics::SEARCH, ['query' => 'Kept']);
+    Illuminate\Support\Facades\Cache::shouldReceive('add')->andThrow(new RuntimeException('cache down'));
+
+    try {
+        test()->artisan('ei:analytics-flush');
+    } catch (Throwable) {
+        // expected
+    }
+
+    expect(app(Analytics::class)->pop(10))->toHaveCount(1);
+});

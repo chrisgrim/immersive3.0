@@ -189,7 +189,12 @@ class Analytics
             return;
         }
 
-        Redis::lpush(config('analytics.buffer_key'), ...array_reverse($notes));
+        // LPOP may have emptied (and so deleted) the list, taking its expiry
+        // with it: set it again so returned notes still expire.
+        Redis::pipeline(function ($pipe) use ($notes) {
+            $pipe->lpush(config('analytics.buffer_key'), ...array_reverse($notes));
+            $pipe->expire(config('analytics.buffer_key'), 86400);
+        });
     }
 
     /** Throw the whole buffer away (analytics switched off: no raw IPs kept). */
