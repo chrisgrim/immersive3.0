@@ -381,3 +381,23 @@ test('once measuring has begun, the top countries are the top by visits on measu
 
     expect(array_keys(app(App\Actions\Analytics\SiteAnalyticsReport::class)->handle(7)['countries']))->toBe(['US', 'GB']);
 });
+
+test('measured counts compare whole days with the same number of whole days before', function () {
+    // 7 days: the current period's whole days are the 6 before today; the
+    // period before is the 6 whole days before those.
+    foreach ([0 => 100, 1 => 10, 6 => 20, 7 => 30, 12 => 40, 13 => 500] as $ago => $visitors) {
+        DB::table('analytics_daily')->insert(['day' => now('UTC')->subDays($ago)->toDateString(), 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0,
+            'visitors' => $visitors, 'js_visitors' => $visitors / 2, 'engaged_visitors' => $visitors / 10]);
+    }
+    // A person today, so the people line exists in both periods' raw rows.
+    DB::table('analytics_events')->insert([
+        ['type' => 'page_view', 'occurred_at' => now('UTC'), 'visitor' => str_repeat('a', 16), 'bot' => 0, 'js' => 1],
+        ['type' => 'page_view', 'occurred_at' => now('UTC')->subDays(8), 'visitor' => str_repeat('b', 16), 'bot' => 0, 'js' => 1],
+    ]);
+
+    $report = app(App\Actions\Analytics\SiteAnalyticsReport::class)->handle(7);
+
+    // Today (partial) and the day 13 back (outside both) are left out.
+    expect($report['totals']['people'])->toMatchArray(['visitors_on_measured_days' => 30, 'confirmed_visitors' => 15, 'engaged_visitors' => 3, 'measured_since' => now('UTC')->subDays(6)->toDateString()])
+        ->and($report['totals_previous']['people'])->toMatchArray(['visitors_on_measured_days' => 70, 'confirmed_visitors' => 35, 'engaged_visitors' => 7, 'measured_since' => now('UTC')->subDays(12)->toDateString()]);
+});

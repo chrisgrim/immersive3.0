@@ -76,7 +76,7 @@
                 </div>
                 <p class="text-[1.2rem] text-[#717171] mt-[1.6rem]">
                     Visits count everyone the server saw (one person, one day). Browser confirmed means the visitor's browser ran our script and showed the page, as Google Analytics counts: it leaves out scripts that only fetch pages, browsers that say they are automated, and anyone whose browser did not run our script (JavaScript off, very quick exits). Engaged, among browser-confirmed visits: 10+ seconds on a page, a click, a typed search or two pages.
-                    <template v-if="measuredSince">Measured since {{ formatDay(measuredSince) }}, so compared with the visits of those days only (changes in percentage points).</template>
+                    <template v-if="measuredSince">Measured since {{ formatDay(measuredSince) }}, in whole days only (today joins once it is over), so compared with the visits of those days only, and the change with the same number of whole days before (in percentage points).</template>
                 </p>
             </section>
 
@@ -542,8 +542,8 @@ const peopleFigures = computed(() => {
     }
     const since = () => formatDay(measuredSince.value)
     const notes = {
-        confirmed_visitors: (rate) => `${percent(rate)} of ${people().visitors_on_measured_days.toLocaleString()} visits since ${since()}`,
-        engaged_visitors: (rate) => `${percent(rate)} of ${people().confirmed_visitors.toLocaleString()} confirmed visits since ${since()}`,
+        confirmed_visitors: (rate) => `${percent(rate)} of ${people().visitors_on_measured_days.toLocaleString()} visits, whole days since ${since()}`,
+        engaged_visitors: (rate) => `${percent(rate)} of ${people().confirmed_visitors.toLocaleString()} confirmed visits, whole days since ${since()}`,
     }
     const note = (field) => {
         const rate = share('totals', field)

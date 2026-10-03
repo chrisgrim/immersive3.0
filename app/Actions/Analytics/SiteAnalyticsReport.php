@@ -39,7 +39,7 @@ class SiteAnalyticsReport
         ELSE COALESCE(rl.name, CONCAT('Type ', ".self::REMOTE.')) END';
 
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 13;
+    private const VERSION = 14;
 
     private const LIMIT = 25;
 
@@ -70,13 +70,13 @@ class SiteAnalyticsReport
         return [
             'days' => $days,
             'since' => $since->toIso8601String(),
-            'totals' => $this->totals($since),
-            'countries' => $this->countries($since),
+            'totals' => $this->totals($since, null, $this->measuredWindow($days)),
+            'countries' => $this->countries($since, $days),
             // The same span just before, for "vs prior period".
             // Same length, ending at this time of day N days ago, so a
             // part-day today is not set against a whole one (measured
             // counts are whole days from the daily totals).
-            'totals_previous' => $this->totals($since->copy()->subDays($days), now()->subDays($days)),
+            'totals_previous' => $this->totals($since->copy()->subDays($days), now()->subDays($days), $this->measuredWindow($days, true)),
             'zero_result_total' => $this->typedSearches($since)->where('results', 0)->count(),
             'daily' => $this->daily($since, $days),
             'searches' => $this->searches($since),
@@ -145,7 +145,7 @@ class SiteAnalyticsReport
      * saw do anything, with beside it the browser-confirmed and engaged
      * visits (see measured()).
      */
-    private function totals($since, $until = null): array
+    private function totals($since, $until, array $window): array
     {
         $totals = $this->rows($since, null, $until)
             ->selectRaw("CASE WHEN analytics_events.type = ? AND analytics_events.source = 'map' THEN 'map_search'
@@ -164,7 +164,7 @@ class SiteAnalyticsReport
             ->all();
 
         if (isset($totals['people'])) {
-            $totals['people'] += $this->measured('all', $since, $until)[''] ?? $this->unmeasured();
+            $totals['people'] += $this->measured('all', $window)[''] ?? $this->unmeasured();
         }
 
         return $totals;
@@ -175,13 +175,13 @@ class SiteAnalyticsReport
      * (visitor-days with a page or event view, on measured days), from the
      * daily totals (type view; visitor-days add across days), keyed by the
      * dimension's key: the same numbers analytics-trend and analytics-top
-     * give. Only whole days the ping was measured (js_visitors set), so
-     * today counts once its hourly rollup has run. Empty when nothing was
-     * measured in the range.
+     * give. Only whole days the ping was measured (js_visitors set), from
+     * $first to $last (Y-m-d, see measuredWindow()). Empty when nothing was
+     * measured in them.
      *
      * @return array<string, array{visitors_on_measured_days: int, confirmed_visitors: int, engaged_visitors: int, measured_since: string}>
      */
-    private function measured(string $dim, $since, $until = null): array
+    private function measured(string $dim, array $window): array
     {
         if (! Analytics::hasConfirmationColumns()) {
             return [];
@@ -189,7 +189,7 @@ class SiteAnalyticsReport
 
         return DB::table('analytics_daily')
             ->where('dim', $dim)->where('type', AnalyticsRollup::VIEW)->where('bot', 0)->whereNotNull('js_visitors')
-            ->whereBetween('day', [$since->toDateString(), ($until ?? now())->toDateString()])
+            ->whereBetween('day', $window)
             ->selectRaw('`key`, SUM(visitors) AS visitors, SUM(js_visitors) AS confirmed, SUM(engaged_visitors) AS engaged, MIN(day) AS since')
             ->groupBy('key')
             ->get()
@@ -200,6 +200,24 @@ class SiteAnalyticsReport
                 'measured_since' => substr((string) $row->since, 0, 10),
             ]])
             ->all();
+    }
+
+    /**
+     * The whole days measured counts cover, [first, last]: the period's
+     * days before today (today is partial, and complete only once it is
+     * over), or for the period before, as many whole days ending the day
+     * before the period starts. So "vs prior period" sets whole days
+     * against the same number of whole days. Empty (first after last) for
+     * a one-day period.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function measuredWindow(int $days, bool $previous = false): array
+    {
+        $whole = $days - 1;
+        $last = now('UTC')->startOfDay()->subDay()->subDays($previous ? $whole : 0);
+
+        return [$last->copy()->subDays($whole - 1)->toDateString(), $last->toDateString()];
     }
 
     /** measured()'s answer when nothing in the range was measured. */
@@ -358,7 +376,7 @@ class SiteAnalyticsReport
             'at_home' => $this->atHomeSearches($since, $limit),
             'events' => $this->events($since, null, $limit),
             'sources' => $this->viewSources($since, $limit),
-            'countries' => $this->countries($since, 250),
+            'countries' => $this->countries($since, $days, 250),
         });
 
         // A cold build waits behind any other report build (same lock as
@@ -550,9 +568,9 @@ class SiteAnalyticsReport
      * shows visits on measured days, so the top countries are the top by
      * that.
      */
-    private function countries($since, int $limit = 15): array
+    private function countries($since, int $days, int $limit = 15): array
     {
-        $measured = $this->measured('country', $since);
+        $measured = $this->measured('country', $this->measuredWindow($days));
         $countries = $this->rows($since)
             ->whereNotNull('analytics_events.country')
             ->selectRaw("analytics_events.country AS country, COUNT(DISTINCT IF(analytics_events.type IN ('".implode("', '", Analytics::SERVER_TYPES)."'), analytics_events.visitor, NULL)) AS visitors")

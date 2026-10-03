@@ -41,9 +41,9 @@ it('shows browser-confirmed and engaged visits next to all visits, as shares of 
 
     expect(w.text()).toContain('Visits (browser confirmed)');
     // 15 of the 30 visits since measuring began, not of all 40.
-    expect(w.text()).toContain('50% of 30 visits since Sep 28');
+    expect(w.text()).toContain('50% of 30 visits, whole days since Sep 28');
     // Engaged: 10 of the 15 confirmed.
-    expect(w.text()).toContain('66.7% of 15 confirmed visits since Sep 28');
+    expect(w.text()).toContain('66.7% of 15 confirmed visits, whole days since Sep 28');
     expect(w.text()).toContain('Measured since Sep 28');
     expect(w.text()).toContain('Both columns count days since Sep 28 only.');
     // The country's measured-day visits, not all of them.
