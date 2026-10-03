@@ -94,8 +94,9 @@ const PAGE_PING_URL = '/api/analytics/page-ping';
 
 /**
  * The load ping for this page view (window.Laravel.analyticsView, while
- * analyticsPing is on): once, after the page has finished loading and has
- * been visible at least once, so a prerendered or background tab that is
+ * analyticsPing is on): once, when the page's document is ready (parsed,
+ * not waiting for images or slow third-party scripts, so a visitor who
+ * leaves early still counts) and it has been visible at least once, so a prerendered or background tab that is
  * never shown sends nothing (if it is shown later, it pings then). Tells
  * the server a browser ran the page, and whether that browser reports
  * being driven by a script (navigator.webdriver).
@@ -104,15 +105,15 @@ export function pingPage(viewId) {
     if (!viewId || typeof document === 'undefined') return;
 
     let sent = false;
-    const loaded = () => document.readyState === 'complete';
+    const ready = () => document.readyState !== 'loading';
     const shown = () => document.visibilityState === 'visible' && !document.prerendering;
 
     const ping = () => {
-        if (sent || !loaded() || !shown()) return;
+        if (sent || !ready() || !shown()) return;
         sent = true;
         document.removeEventListener('visibilitychange', ping);
         document.removeEventListener('prerenderingchange', ping);
-        window.removeEventListener('load', ping);
+        document.removeEventListener('DOMContentLoaded', ping);
         try {
             const body = new URLSearchParams({ view_id: viewId, wd: navigator.webdriver === true ? '1' : '0' });
             if (!navigator.sendBeacon?.(PAGE_PING_URL, body)) {
@@ -124,7 +125,7 @@ export function pingPage(viewId) {
     };
     document.addEventListener('visibilitychange', ping);
     document.addEventListener('prerenderingchange', ping);
-    // readyState is already 'complete' when the load event fires.
-    window.addEventListener('load', ping);
+    // readyState is already 'interactive' when DOMContentLoaded fires.
+    document.addEventListener('DOMContentLoaded', ping);
     ping();
 }
