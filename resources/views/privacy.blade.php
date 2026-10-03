@@ -138,7 +138,7 @@
                         'utm' => 'campaign tags in the link that brought you here (such as utm_source)',
                         'duration' => 'how long a page was on your screen (if more than 5 seconds) and how far down you scrolled',
                         'nav_search' => 'what you type into the search bar at the top of the site',
-                        'js_ping' => 'that your browser told us a page finished loading, and whether it reports being automated (controlled by a program rather than a person)',
+                        'js_ping' => 'that your browser ran our page script (a sign a real browser, not a simple program, opened the page), and whether it reports being automated (controlled by a program rather than a person)',
                     ];
                     // On now, or switched off but its records not yet deleted.
                     $alsoRecorded = array_values(array_filter($captureText, fn ($text, $name) => \App\Support\Analytics\Analytics::captures($name), ARRAY_FILTER_USE_BOTH));
