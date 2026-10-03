@@ -68,11 +68,11 @@ Route::POST('/analytics/page-leave', App\Http\Controllers\Analytics\PageLeaveCon
     ->middleware('throttle:analytics-beacon')
     ->name('analytics.page-leave');
 
-// Browser confirmation (analytics): once per page view, after it loaded and
-// was shown, same rules.
+// Browser confirmation (analytics): once per page view, once it is shown,
+// same rules, its own counter.
 Route::POST('/analytics/page-ping', App\Http\Controllers\Analytics\PagePingController::class)
     ->withoutMiddleware(\Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class)
-    ->middleware('throttle:analytics-beacon')
+    ->middleware('throttle:analytics-ping')
     ->name('analytics.page-ping');
 
 // Resource-intensive: Search & recommendations - Very generous (180/min = 3/sec)

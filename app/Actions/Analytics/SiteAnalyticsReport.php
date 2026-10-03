@@ -152,8 +152,11 @@ class SiteAnalyticsReport
             ->selectRaw("CASE WHEN analytics_events.type = ? AND analytics_events.source = 'map' THEN 'map_search'
                     WHEN analytics_events.type = ? AND analytics_events.page = 'events.show' THEN ? ELSE analytics_events.type END AS kind,
                 COUNT(*) AS total, COUNT(DISTINCT analytics_events.visitor) AS visitors", [Analytics::SEARCH, Analytics::PAGE_VIEW, Analytics::EVENT_VIEW]);
+        // People: visitors of rows the server saw (a late beacon is not a
+        // visitor-day of its own), less automated browsers.
+        $query->selectRaw('COUNT(DISTINCT IF('.$this->serverRow().($flagged ? ' AND NOT COALESCE(f.automated, 0)' : '').', analytics_events.visitor, NULL)) AS people');
         if ($flagged) {
-            $this->joinFlags($query)->selectRaw($this->flagCounts().', COUNT(DISTINCT IF(COALESCE(f.automated, 0), NULL, analytics_events.visitor)) AS people', $this->measuredBindings());
+            $this->joinFlags($query)->selectRaw($this->flagCounts(), $this->measuredBindings());
         }
 
         return $query
@@ -162,7 +165,7 @@ class SiteAnalyticsReport
             ->get()
             ->mapWithKeys(fn ($row) => [$row->kind ?? 'people' => [
                 'total' => (int) $row->total,
-                'visitors' => (int) ($row->kind === null && $flagged ? $row->people : $row->visitors),
+                'visitors' => (int) ($row->kind === null ? $row->people : $row->visitors),
             ] + $this->flagFields($row) + ($row->kind === null ? ['measured_since' => $this->measuredDays[0] ?? null] : [])])
             ->all();
     }
@@ -171,7 +174,7 @@ class SiteAnalyticsReport
     private array $measuredDays = [];
 
     /**
-     * Runs $count with the range's visitor flags (Analytics::visitorFlagsSql,
+     * Runs $count with the range's visitor flags (Analytics::visitorFlagsQuery,
      * the daily totals' definitions) built once into a temporary table that
      * every query of it joins as f, so totals and countries share one pass.
      * Only over the days browser confirmation was measured, read from the
@@ -192,23 +195,26 @@ class SiteAnalyticsReport
         }
 
         // A visitor code lasts one day, so per visitor is per visitor-day.
-        // All of a visitor's rows, bots included: one flagged as automated
-        // marks the whole visitor-day.
-        $flags = DB::table('analytics_events')
-            ->where('occurred_at', '>=', max($since->copy(), Carbon::parse($this->measuredDays[0], 'UTC')))
-            ->when($until, fn ($query) => $query->where('occurred_at', '<', $until))
-            ->selectRaw('visitor, '.Analytics::visitorFlagsSql())
-            ->groupBy('visitor');
+        [$flagsSql, $flagBindings] = Analytics::visitorFlagsQuery(
+            max($since->copy(), Carbon::parse($this->measuredDays[0], 'UTC'))->format('Y-m-d H:i:s'),
+            $until?->format('Y-m-d H:i:s'),
+        );
 
         try {
             DB::statement('DROP TEMPORARY TABLE IF EXISTS analytics_report_flags');
-            DB::statement('CREATE TEMPORARY TABLE analytics_report_flags (PRIMARY KEY (visitor)) '.$flags->toSql(), $flags->getBindings());
+            DB::statement('CREATE TEMPORARY TABLE analytics_report_flags (KEY (visitor)) '.$flagsSql, $flagBindings);
 
             return $count();
         } finally {
             DB::statement('DROP TEMPORARY TABLE IF EXISTS analytics_report_flags');
             $this->measuredDays = [];
         }
+    }
+
+    /** A row the server saw itself (Analytics::SERVER_TYPES), not a beacon. */
+    private function serverRow(): string
+    {
+        return "analytics_events.type IN ('".implode("', '", Analytics::SERVER_TYPES)."')";
     }
 
     private function joinFlags(Builder $query): Builder
@@ -230,7 +236,7 @@ class SiteAnalyticsReport
     /** Visitors on measured days (people only), and of them browser confirmed and engaged. */
     private function flagCounts(): string
     {
-        return "COUNT(DISTINCT IF({$this->onMeasuredDay()} AND NOT COALESCE(f.automated, 0), analytics_events.visitor, NULL)) AS measured,
+        return "COUNT(DISTINCT IF({$this->serverRow()} AND {$this->onMeasuredDay()} AND NOT COALESCE(f.automated, 0), analytics_events.visitor, NULL)) AS measured,
             COUNT(DISTINCT IF(f.js, analytics_events.visitor, NULL)) AS confirmed,
             COUNT(DISTINCT IF(f.engaged, analytics_events.visitor, NULL)) AS engaged";
     }

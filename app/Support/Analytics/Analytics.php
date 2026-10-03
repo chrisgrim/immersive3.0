@@ -293,29 +293,52 @@ class Analytics
     }
 
     /**
-     * Per visitor flags, as the select list of a GROUP BY visitor over all
-     * of that visitor's rows of a day, bots included (the visitor code
-     * changes daily, so a visitor is a visitor-day). The daily totals and
-     * the admin report count them the same way:
+     * Rows the server saw itself, in the request that made them: what makes
+     * someone a visitor. Beacons (time on page, result clicks) arrive later
+     * as plain POSTs, maybe after midnight UTC under the next day's visitor
+     * code, so they only ever count for the visitor of their view or search.
+     */
+    public const SERVER_TYPES = [self::PAGE_VIEW, self::EVENT_VIEW, self::SEARCH, self::TICKET_CLICK, self::NAV_SEARCH];
+
+    /**
+     * Per visitor flags over a range of days (the visitor code changes
+     * daily, so a visitor is a visitor-day), as a query of (visitor,
+     * automated, js, engaged). The daily totals and the admin report count
+     * them the same way:
      *
      * - automated: any of the day's rows carries BOT_AUTOMATION (its browser
      *   said it is driven by a script); never confirmed, never engaged.
      * - js (browser confirmed): one of the visitor's people page views was
-     *   pinged by a browser that had loaded and shown it. Only the ping
-     *   counts: any other beacon is a plain POST a script can send.
+     *   pinged by a browser that had shown it. Only the ping counts: any
+     *   other beacon is a plain POST a script can send.
      * - engaged (as GA4 counts it, and only when confirmed): a page on
      *   screen 10+ seconds, a ticket click, a search result click, nav
      *   typing or a typed search, or two or more page views.
+     *
+     * Every row counts, bots included (an automated flag marks the whole
+     * day). A time-on-page note counts for its page view's visitor and a
+     * result click for its search's (view_id and search_id indexes), up to
+     * a day after $to, like the rollup's time on page: a leave at 00:02 UTC
+     * belongs to the 23:58 view, not to a visitor of its own.
+     *
+     * @return array{0: string, 1: array} SQL and bindings ($to null: open-ended)
      */
-    public static function visitorFlagsSql(): string
+    public static function visitorFlagsQuery(string $from, ?string $to = null): array
     {
-        $in = fn (string ...$types) => "type IN ('".implode("', '", $types)."')";
-        $automated = 'MAX((bot & '.self::BOT_AUTOMATION.') > 0)';
-        $confirmed = "(MAX(bot = 0 AND type = '".self::PAGE_VIEW."' AND js = 1) AND NOT {$automated})";
-        $active = "(MAX(bot = 0 AND ((type = '".self::PAGE_LEAVE."' AND seconds >= 10) OR ".$in(self::TICKET_CLICK, self::SEARCH_CLICK, self::NAV_SEARCH)."
-                OR (type = '".self::SEARCH."' AND source = 'list'))) OR SUM(bot = 0 AND ".$in(self::PAGE_VIEW, self::EVENT_VIEW).') >= 2)';
+        $in = fn (string ...$types) => "e.type IN ('".implode("', '", $types)."')";
+        $automated = 'MAX((e.bot & '.self::BOT_AUTOMATION.') > 0)';
+        $confirmed = "(MAX(e.bot = 0 AND e.type = '".self::PAGE_VIEW."' AND e.js = 1) AND NOT {$automated})";
+        $active = "(MAX(e.bot = 0 AND ((e.type = '".self::PAGE_LEAVE."' AND e.seconds >= 10) OR ".$in(self::TICKET_CLICK, self::SEARCH_CLICK, self::NAV_SEARCH)."
+                OR (e.type = '".self::SEARCH."' AND e.source = 'list'))) OR SUM(e.bot = 0 AND ".$in(self::PAGE_VIEW, self::EVENT_VIEW).') >= 2)';
+        $owner = 'COALESCE(v.visitor, s.visitor, e.visitor)';
+        $range = $to === null ? '' : ' AND (e.occurred_at < ? OR ('.$in(self::PAGE_LEAVE, self::SEARCH_CLICK).' AND e.occurred_at < ? + INTERVAL 1 DAY))';
 
-        return "{$automated} AS automated, {$confirmed} AS js, ({$confirmed} AND {$active}) AS engaged";
+        return ["SELECT {$owner} AS visitor, {$automated} AS automated, {$confirmed} AS js, ({$confirmed} AND {$active}) AS engaged
+            FROM analytics_events e
+            LEFT JOIN analytics_events v ON e.type = '".self::PAGE_LEAVE."' AND v.view_id = e.view_id AND v.type = '".self::PAGE_VIEW."'
+            LEFT JOIN analytics_events s ON e.type = '".self::SEARCH_CLICK."' AND s.search_id = e.search_id AND s.type = '".self::SEARCH."'
+            WHERE e.occurred_at >= ?{$range}
+            GROUP BY {$owner}", $to === null ? [$from] : [$from, $to, $to]];
     }
 
     /** @var bool|null whether the browser confirmation columns exist, asked once per process */

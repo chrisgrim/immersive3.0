@@ -207,8 +207,8 @@ class AnalyticsFlush extends Command
     /**
      * Marks the page views these pings confirm (js = 1). A browser that said
      * it is automated flags its visitor's whole day so far
-     * (BOT_AUTOMATION): searches and clicks from a script are not a
-     * person's either. One lookup and one UPDATE per 500 view ids (view_id
+     * (BOT_AUTOMATION), and the rest of it as it comes (a cache key read by
+     * botFlags): searches and clicks from a script are not a person's either. One lookup and one UPDATE per 500 view ids (view_id
      * index), one per 500 automated visitors and day (visitor index).
      *
      * @return list<array> the pings whose page view is not written yet
@@ -240,6 +240,9 @@ class AnalyticsFlush extends Command
             if ($ping['webdriver'] && isset($found[$ping['view_id']])) {
                 [$visitor, $day] = $found[$ping['view_id']];
                 $automated[$day][$visitor] = true;
+                // Rows of this visitor-day still to come are flagged as they
+                // are written (botFlags).
+                Cache::put("analytics:automated:{$day}:{$visitor}", true, now()->addDays(2));
             }
         }
         foreach ($automated as $day => $visitors) {
@@ -368,6 +371,10 @@ class AnalyticsFlush extends Command
         if ($this->overCap("analytics:hits:{$day}:{$visitor}", (int) config('analytics.daily_cap'), $counts)
             | $this->overCap("analytics:ip-hits:{$day}:{$network}", (int) config('analytics.ip_daily_cap'), $counts)) {
             $flags |= Analytics::BOT_OVER_DAILY_CAP;
+        }
+        // A browser that said it is automated, earlier this day (markPings).
+        if (Cache::get("analytics:automated:{$day}:{$visitor}")) {
+            $flags |= Analytics::BOT_AUTOMATION;
         }
         if ($type === Analytics::NAV_SEARCH
             && ($this->overCap("analytics:nav-hits:{$day}:{$visitor}", (int) config('analytics.nav_daily_cap'))

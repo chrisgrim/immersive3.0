@@ -266,3 +266,41 @@ test('flush, rollup and readers leave the new columns alone while they do not ex
         ->and($report['totals']['people']['confirmed_visitors'])->toBeNull()
         ->and($trend)->toMatchArray(['measured_since' => null, 'series' => []]);
 });
+
+test('rows of an automated visitor-day that come after its ping are flagged as they are written', function () {
+    noteFrom(Analytics::PAGE_VIEW, ['view_id' => 'viewAAAA0001', 'page' => 'home', 'path' => '/', 'js' => 0]);
+    noteFrom(Analytics::PAGE_PING, ['view_id' => 'viewAAAA0001', 'webdriver' => 1]);
+    flushNow();
+
+    noteFrom(Analytics::SEARCH, ['query' => 'Boise, ID', 'source' => 'list', 'results' => 0]);
+
+    expect(flushNow()->firstWhere('type', 'search')->bot)->toBe(Analytics::BOT_AUTOMATION);
+});
+
+test('the load ping has its own, roomier rate limit', function () {
+    switchOn('js_ping');
+
+    foreach (range(1, 70) as $i) {
+        $this->post('/api/analytics/page-ping', ['view_id' => 'abcDEF123456'])->assertNoContent();
+    }
+});
+
+test('a time-on-page note just after midnight counts for its view\'s visitor, not as a visitor of its own', function () {
+    $day = now('UTC')->subDays(2)->toDateString();
+    $next = now('UTC')->subDay()->toDateString();
+    DB::table('analytics_events')->insert([
+        ['type' => 'page_view', 'occurred_at' => "{$day} 23:58:00", 'visitor' => str_repeat('a', 16), 'bot' => 0, 'page' => 'home', 'path' => '/', 'js' => 1, 'view_id' => 'viewAAAA0001', 'seconds' => null],
+        // The leave comes under the next day's visitor code.
+        ['type' => 'page_leave', 'occurred_at' => "{$next} 00:02:00", 'visitor' => str_repeat('n', 16), 'bot' => 0, 'page' => null, 'path' => null, 'js' => null, 'view_id' => 'viewAAAA0001', 'seconds' => 240],
+    ]);
+    foreach ([$day, $next] as $measured) {
+        DB::table('analytics_daily')->insert(['day' => $measured, 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0, 'js_visitors' => 0, 'engaged_visitors' => 0]);
+    }
+
+    $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
+    $report = app(App\Actions\Analytics\SiteAnalyticsReport::class)->handle(7);
+
+    expect(DB::table('analytics_daily')->where(['day' => $day, 'type' => 'view', 'dim' => 'all', 'bot' => 0])->first())
+        ->visitors->toBe(1)->js_visitors->toBe(1)->engaged_visitors->toBe(1)
+        ->and($report['totals']['people'])->toMatchArray(['visitors' => 1, 'visitors_on_measured_days' => 1, 'confirmed_visitors' => 1, 'engaged_visitors' => 1]);
+});

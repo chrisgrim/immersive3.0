@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  * utm_source...), how many hits and how many visitors (visitor-days: the
  * salt changes daily, so they add across days), people and bots apart,
  * and for people how many of those visitor-days were browser confirmed
- * and engaged (Analytics::visitorFlagsSql).
+ * and engaged (Analytics::visitorFlagsQuery).
  * Raw rows are pruned (bots after 30 days, people after 13 months); these
  * totals are kept for good, and are what long-range questions read.
  *
@@ -259,18 +259,19 @@ class AnalyticsRollup extends Command
 
     /**
      * Each visitor of the day with their flags (js, engaged; see
-     * Analytics::visitorFlagsSql), one GROUP BY over that day's rows, joined
-     * as f on the visitor. Bindings: the day's range. On a day without the
-     * ping nothing is joined (an empty table, the same bindings).
+     * Analytics::visitorFlagsQuery), one GROUP BY over that day's rows,
+     * joined as f on $column. Nothing on a day without the ping.
+     *
+     * @return array{0: string, 1: array} SQL and bindings
      */
-    private function visitorFlags(): string
+    private function visitorFlags(string $column, array $range): array
     {
-        return 'LEFT JOIN (
-                SELECT visitor, '.($this->pinged ? Analytics::visitorFlagsSql() : '0 AS js, 0 AS engaged').'
-                FROM analytics_events
-                WHERE occurred_at >= ? AND occurred_at < ?'.($this->pinged ? '' : ' AND FALSE').'
-                GROUP BY visitor
-            ) f ON f.visitor = ';
+        if (! $this->pinged) {
+            return ['', []];
+        }
+        [$sql, $bindings] = Analytics::visitorFlagsQuery(...$range);
+
+        return ["LEFT JOIN ({$sql}) f ON f.visitor = {$column}", $bindings];
     }
 
     /**
@@ -317,6 +318,7 @@ class AnalyticsRollup extends Command
     private function insert(CarbonImmutable $day, array $range, ?array $types, string $dim, string $key, ?string $where): void
     {
         $key = $this->keyed($key);
+        [$flagsSql, $flagBindings] = $this->visitorFlags('e.visitor', $range);
         $typeSql = $types === null ? '' : ' AND e.type IN ('.implode(',', array_fill(0, count($types), '?')).')';
         $whereSql = $where ? " AND ({$where})" : '';
 
@@ -334,7 +336,7 @@ class AnalyticsRollup extends Command
                 WHERE type = ? AND occurred_at >= ? AND occurred_at < ? + INTERVAL 1 DAY AND view_id IS NOT NULL
                 GROUP BY view_id
             ) l ON e.type = ? AND l.view_id = e.view_id
-            {$this->visitorFlags()} e.visitor
+            {$flagsSql}
             WHERE e.occurred_at >= ? AND e.occurred_at < ? AND e.type <> ?{$typeSql}{$whereSql}
               AND {$this->navTypingDone()}
               AND ({$key}) IS NOT NULL
@@ -342,7 +344,7 @@ class AnalyticsRollup extends Command
             $day->toDateString(), $dim,
             Analytics::PAGE_LEAVE, ...$range,
             Analytics::PAGE_VIEW,
-            ...$range,
+            ...$flagBindings,
             ...$range, Analytics::PAGE_LEAVE, ...($types ?? []),
         ]);
     }
@@ -354,6 +356,8 @@ class AnalyticsRollup extends Command
      */
     private function insertEdges(CarbonImmutable $day, array $range): void
     {
+        [$flagsSql, $flagBindings] = $this->visitorFlags('steps.visitor', $range);
+
         DB::statement("
             INSERT INTO analytics_daily ({$this->dailyColumns()})
             SELECT ?, '".self::VIEW."', 'edge', {$this->keyed(self::EDGE_KEY)}, 0, COUNT(*), COUNT(DISTINCT steps.visitor), 0, 0
@@ -364,11 +368,11 @@ class AnalyticsRollup extends Command
                 WHERE type = '".Analytics::PAGE_VIEW."' AND bot = 0 AND occurred_at >= ? AND occurred_at < ? AND path IS NOT NULL
                 WINDOW w AS (PARTITION BY visitor ORDER BY occurred_at, id)
             ) steps
-            {$this->visitorFlags()} steps.visitor
+            {$flagsSql}
             -- A step is two pages within half an hour: a person back hours
             -- later did not go from one to the other.
             WHERE prev_path IS NOT NULL AND occurred_at <= prev_at + INTERVAL ".self::STEP_MINUTES.' MINUTE'."
             GROUP BY {$this->keyed(self::EDGE_KEY)}
-            HAVING COUNT(DISTINCT steps.visitor) >= ?".$this->merge(), [$day->toDateString(), ...$range, ...$range, self::MIN_EDGE_VISITORS]);
+            HAVING COUNT(DISTINCT steps.visitor) >= ?".$this->merge(), [$day->toDateString(), ...$range, ...$flagBindings, self::MIN_EDGE_VISITORS]);
     }
 }
