@@ -34,7 +34,7 @@ class SiteAnalyticsReport
     private const REMOTE = "CAST(JSON_EXTRACT(analytics_events.props, '$.remoteLocation') AS UNSIGNED)";
 
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 4;
+    private const VERSION = 5;
 
     private const LIMIT = 25;
 
@@ -291,7 +291,7 @@ class SiteAnalyticsReport
             ->get()
             // each() stops at a callback returning false, so no arrow fn here.
             ->each(function ($row) {
-                $row->at_home = false;
+                $row->kind = 'place';
             });
 
         // At Home searches, grouped by online type: a separate list, so no
@@ -307,28 +307,32 @@ class SiteAnalyticsReport
             ->get()
             ->pipe(fn ($rows) => $this->nameTypes($rows))
             ->each(function ($row) {
-                $row->at_home = true;
+                $row->kind = 'at_home';
             });
 
         // No place and not At Home (all events, with only filters set): one
-        // line, so the rows add up to zero_result_total. Not searchable.
+        // 'no_place' line, so the rows add up to zero_result_total. Not
+        // searchable.
         $noPlace = $like !== null ? collect() : $this->typedSearches($since)
             ->where('results', 0)
             ->where(fn ($none) => $none->whereNull('analytics_events.query')->orWhere('analytics_events.query', ''))
             ->whereRaw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(analytics_events.props, '$.searchType')), '') <> 'atHome'")
-            ->selectRaw("'(no place)' AS place, {$columns}")
+            ->selectRaw("'' AS place, {$columns}")
             ->havingRaw('COUNT(*) > 0')
             ->get()
             ->each(function ($row) {
-                $row->at_home = false;
+                $row->kind = 'no_place';
             });
 
         return $places->concat($atHome)->concat($noPlace)
             ->sortByDesc('searches')
             ->take(self::LIMIT)
             ->map(fn ($row) => [
+                // 'place' (typed), 'at_home' (place = the online type) or
+                // 'no_place' (one line, place empty): what the line is,
+                // never read from its text, which visitors control.
+                'kind' => $row->kind,
                 'place' => $row->place,
-                'at_home' => $row->at_home,
                 'searches' => (int) $row->searches,
                 'with_filters' => (int) $row->with_filters,
                 'visitors' => (int) $row->visitors,

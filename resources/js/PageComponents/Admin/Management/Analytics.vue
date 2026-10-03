@@ -180,9 +180,9 @@
                         <p v-else-if="unmetFinder.failed" class="empty">The search failed. Please try again.</p>
                         <p v-else-if="!unmetMatches.length" class="empty">No searches for "{{ unmetFinder.query }}" found nothing in this period.</p>
                         <ul v-else class="list-none p-0 m-0 space-y-[0.8rem]">
-                            <li v-for="row in unmetMatches" :key="`${row.at_home}:${row.place}`" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem]">
+                            <li v-for="row in unmetMatches" :key="`${row.kind}:${row.place}`" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem]">
                                 <p class="text-[1.4rem] font-semibold truncate">
-                                    <span v-if="row.at_home" class="inline-block rounded-full bg-[#F7F7F7] text-[#717171] text-[1.1rem] font-semibold px-[0.8rem] py-[0.1rem] mr-[0.6rem] align-middle">At Home</span>{{ row.place }}
+                                    <span v-if="row.kind === 'at_home'" class="inline-block rounded-full bg-[#F7F7F7] text-[#717171] text-[1.1rem] font-semibold px-[0.8rem] py-[0.1rem] mr-[0.6rem] align-middle">At Home</span><span v-if="row.kind === 'no_place'" class="text-[#717171] italic">No place typed</span><template v-else>{{ row.place }}</template>
                                 </p>
                                 <p class="text-[1.2rem] text-[#717171]">
                                     {{ row.searches }} {{ row.searches === 1 ? 'search' : 'searches' }} · {{ row.visitors }} {{ row.visitors === 1 ? 'visit' : 'visits' }} · last {{ formatDay(row.last_searched) }}
@@ -191,10 +191,10 @@
                         </ul>
                     </template>
                     <ul v-else-if="report.zero_result_searches.length" class="list-none p-0 m-0 space-y-[0.8rem]">
-                        <li v-for="row in visibleUnmet" :key="`${row.at_home}:${row.place}`" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem] flex justify-between items-center gap-[1.2rem]">
+                        <li v-for="row in visibleUnmet" :key="`${row.kind}:${row.place}`" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem] flex justify-between items-center gap-[1.2rem]">
                             <div class="min-w-0">
                                 <p class="text-[1.4rem] font-semibold truncate">
-                                    <span v-if="row.at_home" class="inline-block rounded-full bg-[#F7F7F7] text-[#717171] text-[1.1rem] font-semibold px-[0.8rem] py-[0.1rem] mr-[0.6rem] align-middle">At Home</span>{{ row.place }}
+                                    <span v-if="row.kind === 'at_home'" class="inline-block rounded-full bg-[#F7F7F7] text-[#717171] text-[1.1rem] font-semibold px-[0.8rem] py-[0.1rem] mr-[0.6rem] align-middle">At Home</span><span v-if="row.kind === 'no_place'" class="text-[#717171] italic">No place typed</span><template v-else>{{ row.place }}</template>
                                 </p>
                                 <p class="text-[1.2rem] text-[#717171]">
                                     {{ row.searches }} {{ row.searches === 1 ? 'search' : 'searches' }} · {{ row.visitors }} {{ row.visitors === 1 ? 'visit' : 'visits' }} · last {{ formatDay(row.last_searched) }}

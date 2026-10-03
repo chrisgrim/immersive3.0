@@ -166,7 +166,7 @@ test('At Home searches are listed by their online type, not as one "(no place)" 
     $report = app(SiteAnalyticsReport::class)->handle(30);
 
     expect($report['zero_result_searches'])->toHaveCount(1)
-        ->and($report['zero_result_searches'][0])->toMatchArray(['place' => 'Zoom', 'at_home' => true, 'searches' => 2])
+        ->and($report['zero_result_searches'][0])->toMatchArray(['place' => 'Zoom', 'kind' => 'at_home', 'searches' => 2])
         ->and($report['searches'])->toBe([])
         ->and(collect($report['at_home_searches'])->pluck('searches', 'place')->all())->toBe(['Zoom' => 2, 'Any type' => 1]);
 });
@@ -195,9 +195,9 @@ test('a typed place cannot pose as an At Home line, and the unmet search box fin
 
     $report = app(SiteAnalyticsReport::class);
 
-    expect(collect($report->handle(30)['zero_result_searches'])->map(fn ($row) => [$row['place'], $row['at_home']])->all())
-        ->toEqualCanonicalizing([['Zoom', true], ['Zoom', false]])
-        ->and(collect($report->findUnmet('zoom'))->pluck('at_home')->all())->toEqualCanonicalizing([true, false]);
+    expect(collect($report->handle(30)['zero_result_searches'])->map(fn ($row) => [$row['place'], $row['kind']])->all())
+        ->toEqualCanonicalizing([['Zoom', 'at_home'], ['Zoom', 'place']])
+        ->and(collect($report->findUnmet('zoom'))->pluck('kind')->all())->toEqualCanonicalizing(['at_home', 'place']);
 });
 
 test('the same place typed in different case or accents is one place', function () {
@@ -226,5 +226,13 @@ test('a search with no place that is not At Home still shows, so the rows add up
     $report = app(SiteAnalyticsReport::class)->handle(30);
 
     expect(collect($report['zero_result_searches'])->sum('searches'))->toBe($report['zero_result_total'])
-        ->and(collect($report['zero_result_searches'])->pluck('place')->all())->toContain('(no place)');
+        ->and(collect($report['zero_result_searches'])->pluck('kind')->all())->toContain('no_place');
+});
+
+test('a place typed as "(no place)" stays a typed place, apart from the real no-place line', function () {
+    analyticsRow(['query' => '(no place)', 'results' => 0]);
+    analyticsRow(['query' => null, 'results' => 0, 'props' => json_encode(['searchType' => 'allEvents'])]);
+
+    expect(collect(app(SiteAnalyticsReport::class)->handle(30)['zero_result_searches'])->map(fn ($row) => [$row['kind'], $row['place']])->all())
+        ->toEqualCanonicalizing([['place', '(no place)'], ['no_place', '']]);
 });
