@@ -236,3 +236,17 @@ test('a place typed as "(no place)" stays a typed place, apart from the real no-
     expect(collect(app(SiteAnalyticsReport::class)->handle(30)['zero_result_searches'])->map(fn ($row) => [$row['kind'], $row['place']])->all())
         ->toEqualCanonicalizing([['place', '(no place)'], ['no_place', '']]);
 });
+
+test('two online types with the same name are one line with their counts added up', function () {
+    $owner = User::factory()->create()->id;
+    $sms = App\Models\Events\RemoteLocation::create(['name' => 'Sms/Text Message', 'slug' => 'sms-a', 'user_id' => $owner]);
+    $smsAgain = App\Models\Events\RemoteLocation::create(['name' => 'Sms/Text Message', 'slug' => 'sms-b', 'user_id' => $owner]);
+    analyticsRow(['query' => null, 'results' => 0, 'props' => json_encode(['searchType' => 'atHome', 'remoteLocation' => $sms->id])]);
+    analyticsRow(['query' => null, 'results' => 0, 'props' => json_encode(['searchType' => 'atHome', 'remoteLocation' => $smsAgain->id]), 'visitor' => str_repeat('b', 16)]);
+
+    $report = app(SiteAnalyticsReport::class)->handle(30);
+
+    expect($report['zero_result_searches'])->toHaveCount(1)
+        ->and($report['zero_result_searches'][0])->toMatchArray(['kind' => 'at_home', 'place' => 'Sms/Text Message', 'searches' => 2, 'visitors' => 2])
+        ->and(collect($report['at_home_searches'])->pluck('searches', 'place')->all())->toBe(['Sms/Text Message' => 2]);
+});

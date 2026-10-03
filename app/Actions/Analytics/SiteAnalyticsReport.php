@@ -34,7 +34,7 @@ class SiteAnalyticsReport
     private const REMOTE = "CAST(JSON_EXTRACT(analytics_events.props, '$.remoteLocation') AS UNSIGNED)";
 
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 5;
+    private const VERSION = 6;
 
     private const LIMIT = 25;
 
@@ -199,7 +199,7 @@ class SiteAnalyticsReport
             ->orderByDesc('searches')
             ->limit(self::LIMIT)
             ->get()
-            ->pipe(fn ($rows) => $this->nameTypes($rows))
+            ->pipe(fn ($rows) => $this->nameTypes($rows, ['searches', 'found_nothing', 'clicked']))
             ->map(fn ($row) => [
                 'place' => $row->place,
                 'searches' => (int) $row->searches,
@@ -218,14 +218,32 @@ class SiteAnalyticsReport
             ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(analytics_events.props, '$.searchType')) = 'atHome'");
     }
 
-    /** remote_id → the online type's name as `place` ("Any type" when none was picked). */
-    private function nameTypes($rows)
+    /**
+     * remote_id → the online type's name as `place` ("Any type" when none was
+     * picked). Types that share a name (remote_locations has duplicates,
+     * e.g. two "Sms/Text Message") become one line: $sum columns added up,
+     * last_searched the latest.
+     */
+    private function nameTypes($rows, array $sum)
     {
         $names = RemoteLocation::whereIn('id', $rows->pluck('remote_id')->filter())->pluck('name', 'id');
 
-        return $rows->each(function ($row) use ($names) {
-            $row->place = $row->remote_id ? ucfirst($names[$row->remote_id] ?? "Type {$row->remote_id}") : 'Any type';
-        });
+        return $rows
+            ->groupBy(fn ($row) => $row->remote_id ? ucfirst($names[$row->remote_id] ?? "Type {$row->remote_id}") : 'Any type')
+            ->map(function ($group, $place) use ($sum) {
+                $row = clone $group->first();
+                $row->place = $place;
+                foreach ($sum as $column) {
+                    $row->{$column} = $group->sum($column);
+                }
+                if (isset($row->last_searched)) {
+                    $row->last_searched = $group->max('last_searched');
+                }
+
+                return $row;
+            })
+            ->sortByDesc('searches')
+            ->values();
     }
 
     /**
@@ -305,7 +323,7 @@ class SiteAnalyticsReport
             ->orderByDesc('searches')
             ->limit(self::LIMIT)
             ->get()
-            ->pipe(fn ($rows) => $this->nameTypes($rows))
+            ->pipe(fn ($rows) => $this->nameTypes($rows, ['searches', 'with_filters', 'visitors']))
             ->each(function ($row) {
                 $row->kind = 'at_home';
             });
