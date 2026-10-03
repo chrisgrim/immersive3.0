@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\Analytics\SearchConsoleReport;
 use App\Support\Google\SearchConsole;
 use App\Support\Google\SearchConsoleException;
 use Carbon\CarbonImmutable;
@@ -19,7 +20,9 @@ use Throwable;
  * ago; --from backfills (Google keeps 16 months).
  *
  * Idempotent: a day's rows are deleted and inserted again in one
- * transaction. A day that fails is reported and skipped (its old rows stay);
+ * transaction. Each month a run stored a day in is then rebuilt in
+ * search_console_monthly (what long ranges read); --rebuild-months refills
+ * every month from the daily rows without calling Google. A day that fails is reported and skipped (its old rows stay);
  * a failure every day would share (no access, a refused key, Google still
  * unavailable after every retry) is reported once and stops the run.
  * Does nothing while Search Console is not configured.
@@ -29,7 +32,8 @@ class SearchConsoleImport extends Command
     protected $signature = 'ei:search-console-import
         {--from= : First day (Y-m-d), as far back as 16 months}
         {--to= : Last day (default 2 days ago)}
-        {--days= : How many days ending --to (default 5)}';
+        {--days= : How many days ending --to (default 5)}
+        {--rebuild-months : Only rebuild the monthly totals from the daily rows (no call to Google)}';
 
     protected $description = 'Import Google Search Console totals (searches, pages, clicks, impressions, position) per day.';
 
@@ -58,6 +62,10 @@ class SearchConsoleImport extends Command
 
     public function handle(SearchConsole $console): int
     {
+        if ($this->option('rebuild-months')) {
+            return $this->rebuildAllMonths();
+        }
+
         if (! SearchConsole::configured()) {
             $this->warn('Search Console is not configured (SEARCH_CONSOLE_CREDENTIALS must point to a readable key file and SEARCH_CONSOLE_SITE_URL be set). Nothing imported.');
 
@@ -87,6 +95,30 @@ class SearchConsoleImport extends Command
     /** @param CarbonImmutable[] $days */
     private function import(SearchConsole $console, array $days): int
     {
+        $touched = [];
+
+        try {
+            return $this->importDays($console, $days, $touched);
+        } finally {
+            // Every month a stored day belongs to, once, even when the run
+            // stopped early, so the monthly totals never miss a stored day.
+            foreach (array_keys($touched) as $month) {
+                try {
+                    $this->rebuildMonth(CarbonImmutable::parse($month));
+                } catch (Throwable $e) {
+                    report($e);
+                    $this->error("Month {$month}: {$e->getMessage()}");
+                }
+            }
+        }
+    }
+
+    /**
+     * @param  CarbonImmutable[]  $days
+     * @param  array<string, true>  $touched  months (Y-m-01) with a stored day
+     */
+    private function importDays(SearchConsole $console, array $days, array &$touched): int
+    {
         $failed = false;
 
         foreach ($days as $day) {
@@ -98,6 +130,7 @@ class SearchConsoleImport extends Command
                     continue;
                 }
                 $this->store($day, $rows);
+                $touched[$day->startOfMonth()->toDateString()] = true;
                 $this->info("{$day->toDateString()}: ".count($rows).' rows.');
             } catch (SearchConsoleException $e) {
                 report($e);
@@ -258,5 +291,44 @@ class SearchConsoleImport extends Command
                     .' ON DUPLICATE KEY UPDATE clicks = clicks + VALUES(clicks), impressions = impressions + VALUES(impressions), position_sum = position_sum + VALUES(position_sum)', $bindings);
             }
         });
+    }
+
+    /**
+     * Replaces one month of search_console_monthly with the sums of its
+     * daily rows, every dim at once, in one transaction. Grouped in the key
+     * column's own collation, so lines that are one key in the daily table
+     * are one here too, under the same spelling the readers show
+     * (SearchConsoleReport::SPELLING).
+     */
+    public function rebuildMonth(CarbonImmutable $month): void
+    {
+        $first = $month->startOfMonth()->toDateString();
+        $last = $month->endOfMonth()->toDateString();
+
+        DB::transaction(function () use ($first, $last) {
+            DB::table('search_console_monthly')->where('month', $first)->delete();
+            DB::insert('INSERT INTO search_console_monthly (month, dim, `key`, clicks, impressions, position_sum)
+                SELECT ?, dim, '.SearchConsoleReport::SPELLING.', SUM(clicks), SUM(impressions), SUM(position_sum)
+                FROM search_console_daily WHERE day BETWEEN ? AND ?
+                GROUP BY dim, `key`', [$first, $first, $last]);
+        });
+    }
+
+    /** --rebuild-months: every month the daily table holds (and drops months it no longer does). */
+    private function rebuildAllMonths(): int
+    {
+        $months = DB::table('search_console_daily')
+            ->selectRaw("DISTINCT DATE_FORMAT(day, '%Y-%m-01') AS month")
+            ->orderBy('month')
+            ->pluck('month');
+
+        DB::table('search_console_monthly')->whereNotIn('month', $months->all())->delete();
+
+        foreach ($months as $month) {
+            $this->rebuildMonth(CarbonImmutable::parse($month));
+            $this->info("{$month}: rebuilt.");
+        }
+
+        return self::SUCCESS;
     }
 }
