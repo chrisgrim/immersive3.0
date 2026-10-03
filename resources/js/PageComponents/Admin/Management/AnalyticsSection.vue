@@ -333,7 +333,12 @@ const SECTIONS = {
         title: 'Visits by Country',
         sub: 'One person on one day counts once',
         placeholder: 'Filter countries',
-        sorts: [{ key: 'visitors', label: 'Most visits' }, { key: 'confirmed', label: 'Most confirmed' }, { key: 'name', label: 'Name (A-Z)' }],
+        sorts: [
+            { key: 'visitors', label: 'Most visits' },
+            { key: 'measured_visitors', label: 'Most visits (measured days)' },
+            { key: 'confirmed', label: 'Most confirmed' },
+            { key: 'name', label: 'Name (A-Z)' },
+        ],
         columns: [
             { key: 'name', label: 'Country', sort: 'name' },
             { key: 'visitors', label: 'Visits', align: 'right', sort: 'visitors', format: number },
