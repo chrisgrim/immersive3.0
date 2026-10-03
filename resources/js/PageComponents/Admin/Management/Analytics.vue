@@ -10,13 +10,18 @@
     />
     <div v-else class="analytics text-[#222222] space-y-[2.4rem]">
         <!-- Header -->
-        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-[1.6rem] pb-[2.4rem] border-b border-[#EBEBEB]">
-            <div>
-                <p class="text-[1.1rem] font-bold tracking-[0.04em] uppercase text-[#717171]">Site analytics</p>
-                <h1 class="text-[3.2rem] leading-[4rem] font-semibold tracking-[-0.02em]">Insights</h1>
-                <p class="text-[1.4rem] text-[#717171] mt-[0.4rem]">The site's own counts, bots left out, no cookies. Place names are what visitors typed.</p>
-            </div>
-            <div class="inline-flex self-start md:self-auto bg-[#F7F7F7] rounded-full p-[0.4rem]" role="group" aria-label="Date range">
+        <div>
+            <p class="text-[1.1rem] font-bold tracking-[0.04em] uppercase text-[#717171]">Analytics</p>
+            <h1 class="text-[3.2rem] leading-[4rem] font-semibold tracking-[-0.02em]">Local</h1>
+            <p class="text-[1.4rem] text-[#717171] mt-[0.4rem]">The site's own counts, bots left out, no cookies. Place names are what visitors typed.</p>
+        </div>
+
+        <!-- Date range: pinned to the top while scrolling, so the range can
+             be changed from anywhere on this long page. The negative margins
+             match the admin content area's padding (p-8). -->
+        <div class="sticky top-0 z-20 -mx-8 px-8 py-[1.2rem] bg-white/95 backdrop-blur border-b border-[#EBEBEB] flex items-center justify-between gap-[1.2rem]">
+            <p class="text-[1.3rem] font-semibold text-[#717171] truncate">Last {{ days }} days</p>
+            <div class="inline-flex shrink-0 bg-[#F7F7F7] rounded-full p-[0.4rem]" role="group" aria-label="Date range">
                 <button
                     v-for="option in dayOptions"
                     :key="option.days"
@@ -268,8 +273,6 @@
                 <p v-if="eventSort === 'click_through' && eventRows.length" class="text-[1.2rem] text-[#717171] mt-[0.8rem]">Events with at least 10 views.</p>
             </section>
 
-            <!-- Google Search Console -->
-            <AnalyticsGoogle v-if="google?.configured" :data="google" @open="openSection" />
 
             <!-- Smaller breakdowns -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-[2.4rem]">
@@ -347,7 +350,6 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue'
 import AnalyticsSection from './AnalyticsSection.vue'
-import AnalyticsGoogle from './AnalyticsGoogle.vue'
 import { lineChart, nearestIndex, formatDay } from './analyticsChart.js'
 
 const dayOptions = [
@@ -369,7 +371,7 @@ const eventSorts = [
 ]
 
 // A section opened on its own page (?section=places), with Back to return.
-const SECTIONS = ['places', 'unmet', 'at_home', 'events', 'sources', 'countries', 'google_queries', 'google_pages']
+const SECTIONS = ['places', 'unmet', 'at_home', 'events', 'sources', 'countries']
 const sectionFromUrl = () => {
     const name = new URLSearchParams(window.location.search).get('section')
     return SECTIONS.includes(name) ? name : null
@@ -542,26 +544,8 @@ const countryName = (code) => {
 // quick 7-day one must not replace it.
 let latest = 0
 
-// The "From Google" block (Search Console) loads on its own: it is hidden
-// while not configured, and a failure there never hides the rest.
-const google = ref(null)
-let latestGoogle = 0
-
-const loadGoogle = async (option) => {
-    const request = ++latestGoogle
-    try {
-        const { data } = await axios.get('/api/admin/analytics/google', { params: { days: option } })
-        if (request === latestGoogle) google.value = data
-    } catch (error) {
-        if (request !== latestGoogle) return
-        console.error('[admin-analytics] Google block failed to load', error)
-        google.value = null
-    }
-}
-
 const load = async (option = days.value) => {
     const request = ++latest
-    loadGoogle(option)
     days.value = option
     loading.value = true
     failed.value = false

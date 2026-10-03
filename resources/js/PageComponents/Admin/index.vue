@@ -80,7 +80,6 @@
                                 <li><a @click="handleNavigation('manage-organizers')" :class="['nav-link', currentView === 'manage-organizers' ? 'bg-blue-50 text-blue-600' : '']">Organizers</a></li>
                                 <li><a @click="handleNavigation('manage-reviews')" :class="['nav-link', currentView === 'manage-reviews' ? 'bg-blue-50 text-blue-600' : '']">Reviews</a></li>
                                 <li><a @click="handleNavigation('manage-docks')" :class="['nav-link', currentView === 'manage-docks' ? 'bg-blue-50 text-blue-600' : '']">Docks</a></li>
-                                <li><a @click="handleNavigation('manage-analytics')" :class="['nav-link', currentView === 'manage-analytics' ? 'bg-blue-50 text-blue-600' : '']">Analytics</a></li>
                                 <li>
                                     <a @click="handleNavigation('manage-suggestions')"
                                        :class="['nav-link', currentView === 'manage-suggestions' ? 'bg-blue-50 text-blue-600' : '']"
@@ -94,6 +93,15 @@
                                         </div>
                                     </a>
                                 </li>
+                            </ul>
+                        </div>
+
+                        <!-- Analytics Section -->
+                        <div class="nav-section">
+                            <h2 class="text-4xl font-medium mb-2">Analytics</h2>
+                            <ul class="space-y-2">
+                                <li><a @click="handleNavigation('analytics-local')" :class="['nav-link', ['analytics-local', 'manage-analytics'].includes(currentView) ? 'bg-blue-50 text-blue-600' : '']">Local</a></li>
+                                <li><a @click="handleNavigation('analytics-search')" :class="['nav-link', currentView === 'analytics-search' ? 'bg-blue-50 text-blue-600' : '']">Search</a></li>
                             </ul>
                         </div>
 
@@ -195,6 +203,7 @@ import SettingsAdvisories from './Settings/Advisories.vue'
 import ApproveRequests from './Approval/Requests.vue'
 import ManageSuggestions from './Management/Suggestions.vue'
 import ManageAnalytics from './Management/Analytics.vue'
+import AnalyticsSearch from './Management/AnalyticsSearch.vue'
 import ScrapingScraper from './Scraping/Scraper.vue'
 import axios from 'axios'
 
@@ -424,7 +433,10 @@ const currentComponent = computed(() => {
         'manage-reviews': ManageReviews,
         'manage-docks': ManageDocks,
         'manage-suggestions': ManageSuggestions,
+        // 'manage-analytics' is the old address of Local; links to it still work.
         'manage-analytics': ManageAnalytics,
+        'analytics-local': ManageAnalytics,
+        'analytics-search': AnalyticsSearch,
         'settings-categories': SettingsCategories,
         'settings-tags': SettingsTags,
         'settings-advisories': SettingsAdvisories,

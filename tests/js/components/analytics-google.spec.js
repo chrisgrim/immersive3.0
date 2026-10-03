@@ -32,14 +32,29 @@ describe('AnalyticsGoogle.vue', () => {
         const wrapper = mount(AnalyticsGoogle, { props: { data: data() } });
         const text = wrapper.text();
 
-        expect(text).toContain('From Google');
-        expect(text).toContain('Clicks from Google');
+        expect(text).toContain('Clicks');
         expect(text).toContain('↑ 20%');
         expect(text).toContain('8.4');
-        // Position 9.4 to 8.4: down by 1, which is good (green).
-        const position = wrapper.findAll('.card').find((card) => card.text().includes('Average Position'));
+        // Position 9.4 to 8.4: down by 1, which is good (green; position is
+        // not charted by default, so its card shows the colour).
+        const position = wrapper.findAll('button').find((card) => card.text().includes('Average position'));
         expect(position.text()).toContain('↓ 1');
         expect(position.find('.text-\\[\\#008A05\\]').exists()).toBe(true);
+    });
+
+    it('charts clicks and impressions at first, and a card turns its line on or off', async () => {
+        const wrapper = mount(AnalyticsGoogle, { props: { data: data() } });
+        expect(wrapper.findAll('svg path[stroke]')).toHaveLength(2);
+
+        const position = wrapper.findAll('button').find((card) => card.text().includes('Average position'));
+        await position.trigger('click');
+        expect(position.attributes('aria-pressed')).toBe('true');
+        expect(wrapper.findAll('svg path[stroke]')).toHaveLength(3);
+
+        for (const label of ['Clicks', 'Impressions', 'Average position']) {
+            await wrapper.findAll('button').find((card) => card.text().startsWith(label)).trigger('click');
+        }
+        expect(wrapper.text()).toContain('Choose a number above to chart it.');
     });
 
     it('lists searches as text and links only real addresses', () => {

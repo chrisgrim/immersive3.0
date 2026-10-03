@@ -1,70 +1,95 @@
 <template>
     <div class="space-y-[2.4rem]">
-        <div class="pt-[0.8rem]">
-            <h2 class="text-[2.2rem] leading-[2.8rem] font-semibold tracking-[-0.01em]">From Google</h2>
-            <p class="section-sub mt-[0.2rem]">
-                What people searched on Google before landing here (Google Search Console).
-                <template v-if="data.has_data">{{ formatDay(data.period.from) }} to {{ formatDay(data.period.to) }}.</template>
-            </p>
-        </div>
-
         <p v-if="!data.has_data" class="card p-[2.4rem] empty">No data yet. Google's numbers are imported every night.</p>
 
         <template v-else>
-            <!-- KPI cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[1.6rem]">
-                <div v-for="kpi in kpis" :key="kpi.label" class="card p-[2rem]">
-                    <p class="text-[1.3rem] text-[#717171]">{{ kpi.label }}</p>
-                    <div class="flex items-baseline gap-[0.8rem] mt-[0.4rem]">
-                        <span class="text-[2.8rem] leading-[3.4rem] font-bold tracking-[-0.02em]">{{ kpi.value }}</span>
-                        <span v-if="kpi.change" :class="['text-[1.2rem] font-semibold', kpi.change.good ? 'text-[#008A05]' : 'text-[#E00B41]']">
-                            {{ kpi.change.up ? '↑' : '↓' }} {{ kpi.change.text }}
-                        </span>
-                    </div>
-                    <p class="text-[1.3rem] text-[#717171] mt-[0.4rem]">{{ kpi.note }}</p>
-                </div>
-            </div>
+            <p class="section-sub -mt-[1.2rem]">
+                {{ formatDay(data.period.from) }} to {{ formatDay(data.period.to) }}<template v-if="kpiNote">. {{ kpiNote }}</template>
+            </p>
 
-            <!-- Clicks over time -->
-            <section class="card p-[2.4rem]">
-                <div class="mb-[1.6rem]">
-                    <h3 class="section-title">Clicks from Google</h3>
-                    <p class="section-sub">People clicking through from a Google search, per day</p>
+            <!-- Performance: like Google Search Console, each card turns its
+                 line on the chart on or off. -->
+            <section class="card overflow-hidden">
+                <div class="grid grid-cols-2 lg:grid-cols-4">
+                    <button
+                        v-for="metric in metrics"
+                        :key="metric.key"
+                        type="button"
+                        @click="toggle(metric.key)"
+                        :aria-pressed="shown.includes(metric.key)"
+                        :class="['text-left p-[1.6rem] md:p-[2rem] transition-colors border-b lg:border-b-0 border-[#EBEBEB]',
+                            shown.includes(metric.key) ? 'text-white' : 'bg-white text-[#222222] hover:bg-[#F7F7F7]']"
+                        :style="shown.includes(metric.key) ? { backgroundColor: metric.color } : {}"
+                    >
+                        <span class="flex items-center gap-[0.6rem] text-[1.3rem] font-semibold">
+                            <span
+                                class="inline-flex items-center justify-center w-[1.6rem] h-[1.6rem] rounded-[0.4rem] border-2 shrink-0"
+                                :style="{ borderColor: shown.includes(metric.key) ? '#FFFFFF' : metric.color }"
+                                aria-hidden="true"
+                            >
+                                <svg v-if="shown.includes(metric.key)" class="w-[1.2rem] h-[1.2rem]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7" /></svg>
+                            </span>
+                            {{ metric.label }}
+                        </span>
+                        <span class="block text-[2.8rem] leading-[3.4rem] font-bold tracking-[-0.02em] mt-[0.8rem]">{{ metric.value }}</span>
+                        <span
+                            v-if="metric.change"
+                            :class="['block text-[1.2rem] font-semibold mt-[0.2rem]', shown.includes(metric.key) ? 'text-white/90' : (metric.change.good ? 'text-[#008A05]' : 'text-[#E00B41]')]"
+                        >
+                            {{ metric.change.up ? '↑' : '↓' }} {{ metric.change.text }}
+                        </span>
+                        <span v-else class="block text-[1.2rem] mt-[0.2rem] opacity-0" aria-hidden="true">.</span>
+                    </button>
                 </div>
-                <div class="relative" @mouseleave="hoverIndex = null">
-                    <svg
-                        :viewBox="`0 0 ${chart.width} ${chart.height}`"
-                        class="w-full h-auto block"
-                        role="img"
-                        :aria-label="`Clicks from Google per day, ${formatDay(data.period.from)} to ${formatDay(data.period.to)}`"
-                        @mousemove="(event) => (hoverIndex = nearestIndex(chart, event))"
-                    >
-                        <defs>
-                            <linearGradient id="google-clicks-fill" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stop-color="#FF385C" stop-opacity="0.18" />
-                                <stop offset="100%" stop-color="#FF385C" stop-opacity="0" />
-                            </linearGradient>
-                        </defs>
-                        <g v-for="tick in chart.yTicks" :key="tick.value">
-                            <line :x1="chart.left" :x2="chart.width - chart.right" :y1="tick.y" :y2="tick.y" stroke="#EBEBEB" stroke-dasharray="4 4" />
-                            <text :x="chart.left - 10" :y="tick.y + 4" text-anchor="end" class="axis-label">{{ tick.label }}</text>
-                        </g>
-                        <text v-for="tick in chart.xTicks" :key="tick.day" :x="tick.x" :y="chart.height - 6" :text-anchor="tick.anchor" class="axis-label">{{ tick.label }}</text>
-                        <path :d="chart.area" fill="url(#google-clicks-fill)" />
-                        <path :d="chart.line" fill="none" stroke="#FF385C" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
-                        <g v-if="hovered">
-                            <line :x1="hovered.x" :x2="hovered.x" :y1="chart.top" :y2="chart.height - chart.bottom" stroke="#222222" stroke-opacity="0.2" />
-                            <circle :cx="hovered.x" :cy="hovered.y" r="5" fill="#FF385C" stroke="#FFFFFF" stroke-width="2" />
-                        </g>
-                    </svg>
-                    <div
-                        v-if="hovered"
-                        class="absolute pointer-events-none bg-[#222222] text-white rounded-[0.8rem] px-[1.2rem] py-[0.8rem] text-[1.2rem] leading-[1.6rem] whitespace-nowrap -translate-x-1/2 -translate-y-full"
-                        :style="{ left: `${(hovered.x / chart.width) * 100}%`, top: `${(hovered.y / chart.height) * 100}%`, marginTop: '-1.2rem' }"
-                    >
-                        <div class="font-semibold">{{ formatDay(hovered.point.day) }}</div>
-                        <div>{{ hovered.point.clicks.toLocaleString() }} clicks</div>
-                        <div class="text-white/70">{{ hovered.point.impressions.toLocaleString() }} impressions</div>
+
+                <div class="p-[1.6rem] md:p-[2.4rem] border-t border-[#EBEBEB]">
+                    <p v-if="!shown.length" class="empty text-center">Choose a number above to chart it.</p>
+                    <div v-else class="relative" @mouseleave="hoverIndex = null">
+                        <svg
+                            :viewBox="`0 0 ${chart.width} ${chart.height}`"
+                            class="w-full h-auto block"
+                            role="img"
+                            :aria-label="`${shownLabels} from Google, ${formatDay(data.period.from)} to ${formatDay(data.period.to)}`"
+                            @mousemove="(event) => (hoverIndex = nearestIndex(chart, event))"
+                        >
+                            <template v-if="chart.lines.length === 1">
+                                <g v-for="tick in chart.lines[0].ticks" :key="tick.value">
+                                    <line :x1="chart.left" :x2="chart.width - chart.right" :y1="tick.y" :y2="tick.y" stroke="#EBEBEB" stroke-dasharray="4 4" />
+                                    <text :x="chart.left - 10" :y="tick.y + 4" text-anchor="end" class="axis-label">{{ tick.label }}</text>
+                                </g>
+                            </template>
+                            <template v-else>
+                                <line v-for="k in 4" :key="k" :x1="chart.left" :x2="chart.width - chart.right" :y1="chart.top + ((k - 1) / 3) * (chart.height - chart.top - chart.bottom)" :y2="chart.top + ((k - 1) / 3) * (chart.height - chart.top - chart.bottom)" stroke="#EBEBEB" stroke-dasharray="4 4" />
+                            </template>
+                            <text v-for="tick in chart.xTicks" :key="tick.day" :x="tick.x" :y="chart.height - 6" :text-anchor="tick.anchor" class="axis-label">{{ tick.label }}</text>
+                            <path
+                                v-for="line in chart.lines"
+                                :key="line.key"
+                                :d="line.path"
+                                fill="none"
+                                :stroke="colorOf(line.key)"
+                                stroke-width="2"
+                                stroke-linejoin="round"
+                                stroke-linecap="round"
+                            />
+                            <g v-if="hoverIndex !== null">
+                                <line :x1="chart.coords[hoverIndex].x" :x2="chart.coords[hoverIndex].x" :y1="chart.top" :y2="chart.height - chart.bottom" stroke="#222222" stroke-opacity="0.2" />
+                                <template v-for="line in chart.lines" :key="line.key">
+                                    <circle v-if="line.coords[hoverIndex]" :cx="line.coords[hoverIndex].x" :cy="line.coords[hoverIndex].y" r="5" :fill="colorOf(line.key)" stroke="#FFFFFF" stroke-width="2" />
+                                </template>
+                            </g>
+                        </svg>
+                        <div
+                            v-if="hoverPoint"
+                            class="absolute top-0 pointer-events-none bg-[#222222] text-white rounded-[0.8rem] px-[1.2rem] py-[0.8rem] text-[1.2rem] leading-[1.8rem] whitespace-nowrap"
+                            :style="tooltipStyle"
+                        >
+                            <div class="font-semibold">{{ formatDay(hoverPoint.day) }}</div>
+                            <div v-for="metric in shownMetrics" :key="metric.key" class="flex items-center gap-[0.6rem]">
+                                <span class="w-[0.8rem] h-[0.8rem] rounded-full" :style="{ backgroundColor: metric.color }" aria-hidden="true"></span>
+                                {{ metric.label }}: {{ metric.format(hoverPoint[metric.key]) }}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -136,7 +161,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { lineChart, nearestIndex, formatDay } from './analyticsChart.js'
+import { multiLineChart, nearestIndex, formatDay } from './analyticsChart.js'
 
 const props = defineProps({
     data: { type: Object, required: true },
@@ -177,43 +202,56 @@ const change = (now, before, { points = false, lowerIsBetter = false } = {}) => 
 
 // previous is null when the days before start before the first import:
 // no change is shown rather than one against missing days.
-const kpis = computed(() => {
-    const now = props.data.totals
-    const before = props.data.previous
-    const days = props.data.days
-    const since = formatDay(props.data.period?.data_since)
-    const compare = (key, options) => (before ? change(now[key], before[key], options) : null)
+const compare = (key, options) => (props.data.previous ? change(props.data.totals[key], props.data.previous[key], options) : null)
 
+const kpiNote = computed(() => {
+    if (!props.data.totals) return ''
+    return props.data.previous
+        ? `Changes are against the ${props.data.days} days before`
+        : `No earlier data (imported since ${formatDay(props.data.period?.data_since)})`
+})
+
+// Google Search Console's own colours for its four numbers.
+const metrics = computed(() => {
+    const now = props.data.totals || {}
     return [
-        {
-            label: 'Clicks from Google',
-            value: now.clicks.toLocaleString(),
-            change: compare('clicks'),
-            note: before ? `vs ${before.clicks.toLocaleString()} the ${days} days before` : `No earlier data (imported since ${since})`,
-        },
-        {
-            label: 'Impressions',
-            value: now.impressions.toLocaleString(),
-            change: compare('impressions'),
-            note: 'Times the site showed up in results',
-        },
-        {
-            label: 'Click-Through Rate',
-            value: percent(now.ctr),
-            change: compare('ctr', { points: true }),
-            note: 'Clicks per impression',
-        },
-        {
-            label: 'Average Position',
-            value: position(now.position),
-            change: compare('position', { points: true, lowerIsBetter: true }),
-            note: '1 is the top result; lower is better',
-        },
+        { key: 'clicks', label: 'Clicks', color: '#4285F4', value: (now.clicks ?? 0).toLocaleString(), change: compare('clicks'), format: (v) => (v ?? 0).toLocaleString() },
+        { key: 'impressions', label: 'Impressions', color: '#5E35B1', value: (now.impressions ?? 0).toLocaleString(), change: compare('impressions'), format: (v) => (v ?? 0).toLocaleString() },
+        { key: 'ctr', label: 'Click rate', color: '#00897B', value: percent(now.ctr), change: compare('ctr', { points: true }), format: percent },
+        { key: 'position', label: 'Average position', color: '#E8710A', value: position(now.position), change: compare('position', { points: true, lowerIsBetter: true }), format: position },
     ]
 })
 
-const chart = computed(() => lineChart(props.data.daily || [], (point) => point.clicks))
-const hovered = computed(() => (hoverIndex.value === null ? null : chart.value.coords[hoverIndex.value] || null))
+// Clicks and impressions start on, as in Search Console.
+const shown = ref(['clicks', 'impressions'])
+const toggle = (key) => {
+    shown.value = shown.value.includes(key) ? shown.value.filter((k) => k !== key) : [...shown.value, key]
+    hoverIndex.value = null
+}
+const shownMetrics = computed(() => metrics.value.filter((metric) => shown.value.includes(metric.key)))
+const shownLabels = computed(() => shownMetrics.value.map((metric) => metric.label).join(', '))
+const colorOf = (key) => metrics.value.find((metric) => metric.key === key)?.color
+
+const chart = computed(() => multiLineChart(
+    props.data.daily || [],
+    shownMetrics.value.map((metric) => ({
+        key: metric.key,
+        // A day with no impressions has no click rate or position.
+        value: (point) => (['ctr', 'position'].includes(metric.key) && !point.impressions ? null : point[metric.key]),
+        invert: metric.key === 'position',
+        format: metric.key === 'ctr' ? (v) => `${Math.round(v * 1000) / 10}%` : undefined,
+    })),
+))
+
+const hoverPoint = computed(() => (hoverIndex.value === null ? null : chart.value.coords[hoverIndex.value]?.point || null))
+
+// The tooltip sits beside the hovered day, flipped left past the middle.
+const tooltipStyle = computed(() => {
+    const x = (chart.value.coords[hoverIndex.value]?.x || 0) / chart.value.width
+    return x > 0.5
+        ? { right: `${(1 - x) * 100}%`, marginRight: '1.2rem' }
+        : { left: `${x * 100}%`, marginLeft: '1.2rem' }
+})
 </script>
 
 <style scoped>

@@ -63,3 +63,69 @@ export const nearestIndex = (chart, event) => {
     })
     return nearest
 }
+
+// Several series on one chart, the way Google Search Console draws its
+// performance chart: each series is scaled to its own range (so clicks and
+// impressions both fill the height), and a series marked `invert` (average
+// position, where 1 is best) has its best value at the top. The y axis is
+// labelled only while a single series is shown; the tooltip carries every
+// value. series: [{ key, value: (point) => number|null, invert? }]
+export const multiLineChart = (points, series) => {
+    const width = 1000
+    const height = 260
+    const left = series.length === 1 ? 44 : 12
+    const right = 12
+    const top = 16
+    const bottom = 28
+    const plotWidth = width - left - right
+    const plotHeight = height - top - bottom
+    const x = (i) => left + (points.length > 1 ? (i / (points.length - 1)) * plotWidth : plotWidth / 2)
+
+    const lines = series.map((s) => {
+        const values = points.map(s.value).filter((v) => v !== null && v !== undefined)
+        const max = Math.max(...values, s.invert ? 1 : 0)
+        const step = niceStep((s.invert ? max - 1 : max) / 3 || 1)
+        let low = 0
+        let high = Math.max(step, Math.ceil(max / step) * step)
+        if (s.invert) {
+            low = 1
+            high = Math.max(low + step, Math.ceil(max / step) * step)
+        }
+        const y = (v) => (s.invert
+            ? top + ((v - low) / (high - low)) * plotHeight
+            : top + plotHeight - ((v - low) / (high - low)) * plotHeight)
+        const coords = points.map((point, i) => {
+            const v = s.value(point)
+            return v === null || v === undefined ? null : { x: x(i), y: y(v) }
+        })
+        let path = ''
+        let pen = false
+        coords.forEach((c) => {
+            if (!c) {
+                pen = false
+                return
+            }
+            path += `${pen ? 'L' : 'M'}${c.x.toFixed(1)},${c.y.toFixed(1)} `
+            pen = true
+        })
+        const ticks = []
+        for (let v = low; v <= high + 1e-9; v += step) {
+            ticks.push({ value: v, y: y(v), label: s.format ? s.format(v) : (v >= 1000 ? `${Math.round(v / 100) / 10}k` : String(Math.round(v * 100) / 100)) })
+        }
+
+        return { key: s.key, path: path.trim(), coords, ticks }
+    })
+
+    const xCount = Math.min(5, points.length)
+    const xTicks = xCount > 1
+        ? Array.from({ length: xCount }, (_, k) => {
+            const i = Math.round((k / (xCount - 1)) * (points.length - 1))
+            return { day: points[i].day, x: x(i), label: formatDay(points[i].day), anchor: k === 0 ? 'start' : k === xCount - 1 ? 'end' : 'middle' }
+        })
+        : []
+
+    // For hover: the x of every point, so nearestIndex works unchanged.
+    const coords = points.map((point, i) => ({ x: x(i), point }))
+
+    return { width, height, left, right, top, bottom, lines, xTicks, coords }
+}

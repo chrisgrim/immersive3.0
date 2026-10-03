@@ -46,7 +46,8 @@ class AdminAnalyticsController extends Controller
     public function section(Request $request, SiteAnalyticsReport $report, SearchConsoleReport $google, string $name)
     {
         abort_unless(in_array($name, ['places', 'unmet', 'at_home', 'events', 'sources', 'countries', 'google_queries', 'google_pages'], true), 404);
-        $validated = $request->validate(['days' => 'nullable|integer|min:1|max:'.SiteAnalyticsReport::MAX_DAYS]);
+        $max = str_starts_with($name, 'google_') ? SearchConsoleReport::MAX_DAYS : SiteAnalyticsReport::MAX_DAYS;
+        $validated = $request->validate(['days' => 'nullable|integer|min:1|max:'.$max]);
         $days = (int) ($validated['days'] ?? 30);
 
         if (str_starts_with($name, 'google_')) {
@@ -75,7 +76,9 @@ class AdminAnalyticsController extends Controller
      */
     public function google(Request $request, SearchConsoleReport $report)
     {
-        $validated = $request->validate(['days' => 'nullable|integer|min:1|max:'.SiteAnalyticsReport::MAX_DAYS]);
+        // Google keeps 16 months, so the Search page reaches further back
+        // than the site's own report.
+        $validated = $request->validate(['days' => 'nullable|integer|min:1|max:'.SearchConsoleReport::MAX_DAYS]);
 
         if (! $report->configured()) {
             return response()->json(['configured' => false]);
