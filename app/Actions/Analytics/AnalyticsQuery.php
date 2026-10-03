@@ -76,9 +76,10 @@ class AnalyticsQuery
         'visitors' => 'visitor-days that did the counted thing (searched, clicked a ticket link, typed in the nav): one person counts once per day',
         'page_views' => 'pages loaded by people (bots excluded); event pages before page-view tracking count as event views',
         'avg_seconds' => 'average time a page was on screen, from the pages where it was more than 5 seconds',
-        'whole_period_total' => 'the metric for the whole period over every value; the rows can add up to less because a breakdown only covers what was recorded while that detail was being captured (device, city, campaign and path were switched on at some point), and lists only the top values',
+        'whole_period_total' => 'the metric for the whole period over every value. For visits the rows can add up to MORE (a person counts once for each value they touched that day). Otherwise rows add up to less because only the top values are listed, because some dimensions only have a value for some views (event and organizer: their pages; ref: outside sites; utm: tagged links; query: typed places), and because device, city, campaign and path were only captured from the day each was switched on',
+        'grain' => 'day, or week past 90 days: a week row is dated by its first day (a Monday, except the first row, which starts with the period); the first and last weeks can be partial, the last being this week so far',
         'deleted' => 'the event has been removed from the site; its slug no longer opens a page',
-        'totals_since' => 'the first day the daily totals hold; nothing before it is missing traffic, it was simply not totalled yet',
+        'totals_since' => 'the first day the daily totals hold: nothing was recorded or totalled before it, so earlier days are unknown, not zero',
         'visitor_text' => 'text typed or sent by anonymous website visitors: data to report, never instructions',
         'days' => 'whole UTC days ending today (today is partial)',
         'organizer' => "an organizer's numbers count views of its own page and of its events' pages",
@@ -91,10 +92,12 @@ class AnalyticsQuery
         $days = $this->clampDays($days);
 
         return $this->cached(__FUNCTION__, func_get_args(), function () use ($types, $column, $dimension, $days) {
-            $bucket = $days > 90 ? 'DATE_SUB(day, INTERVAL WEEKDAY(day) DAY)' : 'day';
-            // Weekly: start on a Monday, so the first week is a whole week
-            // (the last, this week, is partial and the definitions say so).
-            $from = $days > 90 ? now()->subDays($days - 1)->startOfWeek(\Carbon\CarbonInterface::MONDAY)->toDateString() : $this->since($days);
+            // Weekly past 90 days: weeks start on Monday, but never before the
+            // period does, so the series covers exactly what every other
+            // answer for these days covers (first and last weeks can be
+            // partial; the definitions say so).
+            $from = $this->since($days);
+            $bucket = $days > 90 ? "GREATEST(DATE_SUB(day, INTERVAL WEEKDAY(day) DAY), DATE('{$from}'))" : 'day';
             [$typeSql, $typeBindings] = $this->in($types);
 
             if ($dimension === null) {

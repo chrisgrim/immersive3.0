@@ -408,14 +408,17 @@ test('nav keystrokes and time-on-page notes do not push a person over the daily 
     expect(flushedRows()->where('bot', '>', 0))->toHaveCount(0);
 });
 
-test('a weekly trend starts on a Monday, so its first week is whole', function () {
+test('a weekly trend covers exactly the period, its first week starting with it', function () {
     $moderator = User::factory()->create(['type' => 'm']);
     Laravel\Passport\Passport::actingAs($moderator, ['mcp:use', User::MODERATE_SCOPE]);
-    $monday = now()->subDays(119)->startOfWeek(\Carbon\CarbonInterface::MONDAY);
-    DB::table('analytics_daily')->insert(['day' => $monday->toDateString(), 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0, 'hits' => 9, 'visitors' => 9, 'seconds_sum' => 0, 'seconds_count' => 0]);
+    $since = now('UTC')->subDays(119)->startOfDay();
+    $before = $since->copy()->startOfWeek(\Carbon\CarbonInterface::MONDAY)->subDay();
+    foreach ([[$before, 5], [$since, 9]] as [$day, $hits]) {
+        DB::table('analytics_daily')->insert(['day' => $day->toDateString(), 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0, 'hits' => $hits, 'visitors' => $hits, 'seconds_sum' => 0, 'seconds_count' => 0]);
+    }
 
     App\Mcp\Servers\EiServer::actingAs($moderator, 'api')->tool(App\Mcp\Tools\AnalyticsTrend::class, ['metric' => 'page_views', 'days' => 120])
-        ->assertOk()->assertSee('["'.$monday->toDateString().'",9]', false);
+        ->assertOk()->assertSee('"series":[["'.$since->toDateString().'",9]]', false);
 });
 
 // ----- review fixes (phase 2, round 5, Fable) -----
@@ -489,4 +492,12 @@ test('the first nightly rollup after deploy builds every day still in the raw ro
     DB::table('analytics_events')->insert(['type' => 'page_view', 'occurred_at' => daysAgo(10).' 12:00:00', 'visitor' => str_repeat('b', 16), 'bot' => 0, 'page' => 'home']);
     $this->artisan('ei:analytics-rollup')->assertSuccessful();
     expect(DB::table('analytics_daily')->where(['day' => daysAgo(10)])->exists())->toBeFalse();
+});
+
+test('days older than the bot rows are kept are still totalled when they have no totals yet', function () {
+    DB::table('analytics_events')->insert(['type' => 'page_view', 'occurred_at' => daysAgo(45).' 12:00:00', 'visitor' => str_repeat('a', 16), 'bot' => 0, 'page' => 'home']);
+
+    $this->artisan('ei:analytics-rollup')->assertSuccessful();
+
+    expect(DB::table('analytics_daily')->where(['day' => daysAgo(45), 'dim' => 'all'])->value('hits'))->toBe(1);
 });

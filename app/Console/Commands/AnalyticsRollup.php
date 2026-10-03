@@ -49,11 +49,13 @@ class AnalyticsRollup extends Command
         // counts whose raw rows are pruned): report it and carry on.
         // A day is rebuilt from its raw rows, and bot rows are pruned after
         // bot_raw_days: rebuilding an older day would wipe totals that can no
-        // longer be recounted, so those days are left as they are.
+        // longer be recounted, so those days are left as they are. A day with
+        // no totals at all has nothing to lose, so it is built from whatever
+        // raw rows remain (people's are kept 13 months).
         $oldest = CarbonImmutable::now('UTC')->startOfDay()->subDays(max(7, (int) config('analytics.bot_raw_days', 30)) - 2);
 
         foreach ($this->days($oldest) as $day) {
-            if ($day->lt($oldest)) {
+            if ($day->lt($oldest) && DB::table('analytics_daily')->where('day', $day->toDateString())->exists()) {
                 $this->warn("Skipped {$day->toDateString()}: its raw rows may already be pruned, so its totals are kept as they are.");
 
                 continue;
@@ -90,9 +92,9 @@ class AnalyticsRollup extends Command
         $from = match (true) {
             (bool) $this->option('from') => CarbonImmutable::parse($this->option('from'), 'UTC')->startOfDay(),
             // Until days before the usual three are totalled (the first runs
-            // after deploy), build every day whose raw rows are all still
-            // there. The hourly run only does today, so it cannot stop this.
-            $this->untotalledOlderDays($to->subDays(2)) => $oldest,
+            // after deploy), build every day there are raw rows for. The
+            // hourly run only does today, so it cannot stop this.
+            $this->untotalledOlderDays($to->subDays(2)) => CarbonImmutable::parse(DB::table('analytics_events')->min('occurred_at'), 'UTC')->startOfDay(),
             default => $to->subDays(2),
         };
 
