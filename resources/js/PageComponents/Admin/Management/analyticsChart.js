@@ -79,7 +79,7 @@ export const nearestIndex = (chart, event) => {
 // impressions both fill the height), and a series marked `invert` (average
 // position, where 1 is best) has its best value at the top. The y axis is
 // labelled only while a single series is shown; the tooltip carries every
-// value. series: [{ key, value: (point) => number|null, invert? }]
+// value. series: [{ key, value: (point) => number|null, invert?, whole? }]
 export const multiLineChart = (points, series) => {
     const width = 1000
     const height = 260
@@ -98,6 +98,8 @@ export const multiLineChart = (points, series) => {
         // Counts and rates start at 0. Position (best is 1) uses a nice range
         // around its own values, best at the top, so its changes show.
         let step = niceStep((s.invert ? max - min : max) / 3)
+        // Counts step in whole numbers (no "0.5 clicks").
+        if (s.whole) step = Math.max(1, step)
         let low = 0
         let high = Math.max(step, Math.ceil(max / step) * step)
         if (s.invert) {
@@ -123,7 +125,7 @@ export const multiLineChart = (points, series) => {
         const tickValues = []
         if (Math.abs(low / step - Math.round(low / step)) > 1e-9) tickValues.push(low)
         for (let k = Math.ceil(low / step - 1e-9); k * step <= high + 1e-9; k++) tickValues.push(k * step)
-        const ticks = tickValues.map((v) => ({ value: v, y: y(v), label: s.format ? s.format(v) : shortNumber(v) }))
+        const ticks = values.length ? tickValues.map((v) => ({ value: v, y: y(v), label: s.format ? s.format(v) : shortNumber(v) })) : []
 
         return { key: s.key, path: path.trim(), coords, dots, ticks }
     })

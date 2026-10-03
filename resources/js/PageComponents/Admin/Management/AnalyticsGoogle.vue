@@ -44,7 +44,7 @@
 
                 <div class="p-[1.6rem] md:p-[2.4rem] border-t border-[#EBEBEB]">
                     <p v-if="!shown.length" class="empty text-center">Choose a number above to chart it.</p>
-                    <div v-else class="relative" @pointerleave="hoverIndex = null">
+                    <div v-else class="relative" @pointerleave="(event) => event.pointerType === 'mouse' && (hoverIndex = null)">
                         <svg
                             :viewBox="`0 0 ${chart.width} ${chart.height}`"
                             class="w-full h-auto block"
@@ -244,6 +244,7 @@ const chart = computed(() => multiLineChart(
         // A day with no impressions has no click rate or position.
         value: (point) => (['ctr', 'position'].includes(metric.key) && !point.impressions ? null : point[metric.key]),
         invert: metric.key === 'position',
+        whole: ['clicks', 'impressions'].includes(metric.key),
         format: metric.key === 'ctr' ? (v) => `${Math.round(v * 1000) / 10}%` : undefined,
     })),
 ))
