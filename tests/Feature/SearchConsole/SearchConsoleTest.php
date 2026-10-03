@@ -418,3 +418,60 @@ test('order=impressions lists what is shown most, even with no clicks', function
         ->assertOk()->assertSee('near me');
     scModerator()->tool(SearchConsoleTool::class, ['report' => 'queries', 'order' => 'ctr'])->assertHasErrors();
 });
+
+test('a rejected or embargoed event\'s page is gone too: its page does not open for the public', function () {
+    scConfigure();
+    Event::factory()->published()->create(['slug' => 'rejected-show', 'status' => 'n']);
+    Event::factory()->published()->create(['slug' => 'embargoed-show', 'status' => 'e']);
+    $live = Event::factory()->published()->create(['slug' => 'live-show', 'name' => 'Live Show']);
+    scRow(['clicks' => 5, 'impressions' => 50]);
+    foreach (['/events/rejected-show', '/events/embargoed-show', '/events/live-show'] as $path) {
+        scRow(['dim' => 'page', 'key' => $path, 'clicks' => 1, 'impressions' => 10, 'position_sum' => 20]);
+    }
+
+    $pages = collect(app(SearchConsoleReport::class)->pages(28, 10))->keyBy('page');
+
+    expect($pages['/events/rejected-show'])->toMatchArray(['kind' => 'gone', 'name' => null])
+        ->and($pages['/events/embargoed-show'])->toMatchArray(['kind' => 'gone', 'name' => null])
+        ->and($pages['/events/live-show'])->toMatchArray(['kind' => 'event', 'id' => $live->id, 'name' => 'Live Show']);
+
+    scModerator()->tool(SearchConsoleTool::class, ['report' => 'pages'])
+        ->assertOk()
+        ->assertSee('"page":{"visitor_text":"/events/rejected-show"},"gone":true', false)
+        ->assertSee('"page":{"visitor_text":"/events/embargoed-show"},"gone":true', false)
+        ->assertSee('"page":"/events/live-show","event":', false);
+});
+
+test('a page typed as a bare path, with a query string or trailing slash, or without a scheme finds the stored page', function (string $typed) {
+    scConfigure();
+    scRow(['clicks' => 5, 'impressions' => 50]);
+    scRow(['dim' => 'page', 'key' => '/events/foo', 'clicks' => 3, 'impressions' => 30, 'position_sum' => 30]);
+    scRow(['dim' => 'page', 'key' => '/events/other', 'clicks' => 1, 'impressions' => 30, 'position_sum' => 30]);
+    scRow(['dim' => 'query_page', 'key' => 'foo show > /events/foo', 'clicks' => 3, 'impressions' => 30, 'position_sum' => 30]);
+    scRow(['dim' => 'query_page', 'key' => 'other show > /events/other', 'clicks' => 1, 'impressions' => 30, 'position_sum' => 30]);
+
+    $report = app(SearchConsoleReport::class);
+
+    expect(array_column($report->pages(28, 10, $typed), 'page'))->toBe(['/events/foo'])
+        ->and(array_column($report->queryPages(28, 10, null, $typed), 'query'))->toBe(['foo show']);
+})->with(['/events/foo/', '/events/foo?ref=x', 'everythingimmersive.com/events/foo', 'www.everythingimmersive.com/events/foo/', 'https://everythingimmersive.com/events/foo#top']);
+
+test('a period always labels the rows built for it, even after an import moves the newest day', function () {
+    scConfigure();
+    scRow(['day' => now()->subDays(4)->toDateString(), 'clicks' => 5, 'impressions' => 50]);
+    scRow(['day' => now()->subDays(4)->toDateString(), 'dim' => 'query', 'key' => 'old day search', 'clicks' => 5, 'impressions' => 50, 'position_sum' => 50]);
+    $moderator = User::factory()->create(['type' => 'm']);
+
+    $this->actingAs($moderator)->getJson('/api/admin/analytics/section/google_queries?days=7')
+        ->assertOk()->assertJsonPath('period.to', now()->subDays(4)->toDateString())->assertJsonPath('rows.0.query', 'old day search');
+
+    // A new day lands within the 10 minutes the first answer is cached.
+    scRow(['day' => now()->subDays(3)->toDateString(), 'clicks' => 9, 'impressions' => 90]);
+    scRow(['day' => now()->subDays(3)->toDateString(), 'dim' => 'query', 'key' => 'new day search', 'clicks' => 9, 'impressions' => 90, 'position_sum' => 90]);
+
+    $this->getJson('/api/admin/analytics/section/google_queries?days=7')
+        ->assertOk()->assertJsonPath('period.to', now()->subDays(3)->toDateString())->assertJsonPath('rows.0.query', 'new day search');
+
+    scModerator()->tool(SearchConsoleTool::class, ['report' => 'totals', 'days' => 1])
+        ->assertOk()->assertSee('"to":"'.now()->subDays(3)->toDateString().'"', false)->assertSee('"clicks":9', false);
+});

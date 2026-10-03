@@ -53,7 +53,10 @@ class AdminAnalyticsController extends Controller
             abort_unless($google->configured(), 404);
 
             try {
-                return response()->json(['name' => $name, 'days' => $days, 'period' => $google->period($days), 'rows' => $google->section($name, $days)]);
+                $rows = $google->section($name, $days);
+
+                // The period those rows were built for, not a fresh read.
+                return response()->json(['name' => $name, 'days' => $days, 'period' => $google->lastPeriod(), 'rows' => $rows]);
             } catch (QueryException $e) {
                 return $this->googleTooSlow($e);
             }

@@ -60,7 +60,8 @@ class SearchConsole extends Tool
             return Response::error('That question took too long to answer. Ask about fewer days or fewer rows.');
         }
 
-        $period = $report->period($days);
+        // The period the answer was built for (same read as the rows).
+        $period = $report->lastPeriod();
 
         return Response::json([
             'period' => $period ?? 'none yet: nothing has been imported from Google so far',

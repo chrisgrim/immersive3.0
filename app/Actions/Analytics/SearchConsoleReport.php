@@ -30,7 +30,9 @@ class SearchConsoleReport
     public const SECTION_LIMIT = 500;
 
     /** Bump when an answer's shape changes, so a cached older one is not served. */
-    private const VERSION = 3;
+    private const VERSION = 4;
+
+    private ?array $lastPeriod = null;
 
     public const LAG_NOTE = 'Google reports 2 to 3 days late, so the period ends on the newest day imported. Google leaves out searches made by very few people, so the searches listed add up to less than the totals.';
 
@@ -91,66 +93,45 @@ class SearchConsoleReport
     /** The Insights page's "From Google" block. */
     public function dashboard(int $days): array
     {
-        return $this->cached(__FUNCTION__, [$days], function () use ($days) {
-            $period = $this->period($days);
-            if ($period === null) {
-                return ['configured' => true, 'has_data' => false, 'note' => self::LAG_NOTE];
-            }
-
-            return [
-                'configured' => true,
-                'has_data' => true,
-                'days' => $period['days'],
-                'period' => $period,
-                'note' => self::LAG_NOTE,
-                'pages_note' => self::PAGES_NOTE,
-                'totals' => $this->sum($period['from'], $period['to']),
-                'previous' => $this->previousSum($period),
-                'daily' => $this->daily($period),
-                'queries' => $this->queriesIn($period, 10),
-                'pages' => $this->pagesIn($period, 10),
-            ];
-        });
+        return $this->cached(__FUNCTION__, [], $days, fn (array $period) => [
+            'configured' => true,
+            'has_data' => true,
+            'days' => $period['days'],
+            'period' => $period,
+            'note' => self::LAG_NOTE,
+            'pages_note' => self::PAGES_NOTE,
+            'totals' => $this->sum($period['from'], $period['to']),
+            'previous' => $this->previousSum($period),
+            'daily' => $this->daily($period),
+            'queries' => $this->queriesIn($period, 10),
+            'pages' => $this->pagesIn($period, 10),
+        ], ['configured' => true, 'has_data' => false, 'note' => self::LAG_NOTE]);
     }
 
     /** One list in full for a section page: google_queries or google_pages. */
     public function section(string $name, int $days): array
     {
-        return $this->cached(__FUNCTION__, [$name, $days], function () use ($name, $days) {
-            $period = $this->period($days);
-            if ($period === null) {
-                return [];
-            }
-
-            return match ($name) {
-                'google_queries' => $this->queriesIn($period, self::SECTION_LIMIT, null, true),
-                'google_pages' => $this->pagesIn($period, self::SECTION_LIMIT, null, true),
-            };
+        return $this->cached(__FUNCTION__, [$name], $days, fn (array $period) => match ($name) {
+            'google_queries' => $this->queriesIn($period, self::SECTION_LIMIT, null, true),
+            'google_pages' => $this->pagesIn($period, self::SECTION_LIMIT, null, true),
         });
     }
 
     /** Totals, the period before, and the series (weekly past 90 days). */
     public function totals(int $days): array
     {
-        return $this->cached(__FUNCTION__, [$days], function () use ($days) {
-            $period = $this->period($days);
-            if ($period === null) {
-                return [];
-            }
-
-            return [
-                'totals' => $this->sum($period['from'], $period['to']),
-                'previous' => $this->previousSum($period),
-                'grain' => $period['days'] > 90 ? 'week' : 'day',
-                'series' => $this->series($period),
-            ];
-        });
+        return $this->cached(__FUNCTION__, [], $days, fn (array $period) => [
+            'totals' => $this->sum($period['from'], $period['to']),
+            'previous' => $this->previousSum($period),
+            'grain' => $period['days'] > 90 ? 'week' : 'day',
+            'series' => $this->series($period),
+        ]);
     }
 
     /** $order: clicks (default) or impressions. */
     public function queries(int $days, int $limit, ?string $contains = null, string $order = 'clicks'): array
     {
-        return $this->cached(__FUNCTION__, func_get_args(), fn () => ($period = $this->period($days)) ? $this->queriesIn($period, $limit, $contains, false, $order) : []);
+        return $this->cached(__FUNCTION__, [$limit, $contains, $order], $days, fn (array $period) => $this->queriesIn($period, $limit, $contains, false, $order));
     }
 
     /** $contains may be a full address: it is matched as stored (SearchConsole::pageKey). */
@@ -158,21 +139,17 @@ class SearchConsoleReport
     {
         $contains = $contains === null || trim($contains) === '' ? null : SearchConsole::pageKey(trim($contains));
 
-        return $this->cached(__FUNCTION__, [$days, $limit, $contains, $order], fn () => ($period = $this->period($days)) ? $this->pagesIn($period, $limit, $contains, false, $order) : []);
+        return $this->cached(__FUNCTION__, [$limit, $contains, $order], $days, fn (array $period) => $this->pagesIn($period, $limit, $contains, false, $order));
     }
 
     public function countries(int $days, int $limit): array
     {
-        return $this->cached(__FUNCTION__, func_get_args(), fn () => ($period = $this->period($days))
-            ? array_map(fn ($row) => ['country' => $row->key] + $this->numbers($row), $this->top('country', $period, $limit))
-            : []);
+        return $this->cached(__FUNCTION__, [$limit], $days, fn (array $period) => array_map(fn ($row) => ['country' => $row->key] + $this->numbers($row), $this->top('country', $period, $limit)));
     }
 
     public function devices(int $days): array
     {
-        return $this->cached(__FUNCTION__, func_get_args(), fn () => ($period = $this->period($days))
-            ? array_map(fn ($row) => ['device' => $row->key] + $this->numbers($row), $this->top('device', $period, 10))
-            : []);
+        return $this->cached(__FUNCTION__, [], $days, fn (array $period) => array_map(fn ($row) => ['device' => $row->key] + $this->numbers($row), $this->top('device', $period, 10)));
     }
 
     /**
@@ -181,28 +158,21 @@ class SearchConsoleReport
      */
     public function queryPages(int $days, int $limit, ?string $query = null, ?string $page = null, string $order = 'clicks'): array
     {
-        return $this->cached(__FUNCTION__, func_get_args(), function () use ($days, $limit, $query, $page, $order) {
-            $period = $this->period($days);
-            if ($period === null) {
-                return [];
-            }
+        $like = null;
+        if ($query !== null && trim($query) !== '') {
+            $like = $this->escapeLike(mb_substr(trim($query), 0, SearchConsoleImport::PAIR_SIDE)).' > %';
+        } elseif ($page !== null && trim($page) !== '') {
+            $like = '% > '.$this->escapeLike(mb_substr(SearchConsole::pageKey(trim($page)), 0, SearchConsoleImport::PAIR_SIDE));
+        }
 
-            $like = null;
-            if ($query !== null && $query !== '') {
-                $like = $this->escapeLike(mb_substr(trim($query), 0, SearchConsoleImport::PAIR_SIDE)).' > %';
-            } elseif ($page !== null && $page !== '') {
-                $like = '% > '.$this->escapeLike(mb_substr(SearchConsole::pageKey(trim($page)), 0, SearchConsoleImport::PAIR_SIDE));
-            }
+        return $this->cached(__FUNCTION__, [$limit, $like, $order], $days, fn (array $period) => array_map(function ($row) {
+            $split = strrpos($row->key, ' > ');
 
-            return array_map(function ($row) {
-                $split = strrpos($row->key, ' > ');
-
-                return [
-                    'query' => $split === false ? $row->key : substr($row->key, 0, $split),
-                    'page' => $split === false ? '' : substr($row->key, $split + 3),
-                ] + $this->numbers($row);
-            }, $this->top('query_page', $period, $limit, $like, $order));
-        });
+            return [
+                'query' => $split === false ? $row->key : substr($row->key, 0, $split),
+                'page' => $split === false ? '' : substr($row->key, $split + 3),
+            ] + $this->numbers($row);
+        }, $this->top('query_page', $period, $limit, $like, $order)));
     }
 
     private function queriesIn(array $period, int $limit, ?string $contains = null, bool $leaders = false, string $order = 'clicks'): array
@@ -335,10 +305,13 @@ class SearchConsoleReport
 
     /**
      * Page rows with what each page is: a current event (name, photo) or
-     * organizer, by the slug in its path; 'gone' for an event or organizer
-     * address that matches none (a deleted event's slug is released, see
-     * Event::releaseSlug, and a renamed one's address changes), so Google's
-     * old address is never passed off as some other page; 'page' otherwise.
+     * organizer, by the slug in its path, meaning one whose page opens for
+     * the public (status 'p', as EventController::show and
+     * OrganizerController::show require); 'gone' for an event or organizer
+     * address that matches none of those (a deleted event's slug is
+     * released, see Event::releaseSlug, a renamed one's address changes, and
+     * an unpublished, rejected or embargoed one's page does not open), so
+     * Google's address is never passed off as a live page; 'page' otherwise.
      */
     private function withPageNames(array $rows): array
     {
@@ -352,13 +325,14 @@ class SearchConsoleReport
             }
         }
 
-        // Any status (a draft's page can be indexed), but never a deleted one.
         $events = $slugs['events'] === [] ? collect() : Event::withoutGlobalScopes()
             ->whereNull('deleted_at')
+            ->where('status', 'p')
             ->whereIn('slug', array_unique($slugs['events']))
             ->get(['id', 'name', 'slug', 'thumbImagePath'])
             ->keyBy(fn ($event) => mb_strtolower($event->slug));
         $organizers = $slugs['organizers'] === [] ? collect() : Organizer::withoutGlobalScopes()
+            ->where('status', 'p')
             ->whereIn('slug', array_unique($slugs['organizers']))
             ->get(['id', 'name', 'slug', 'thumbImagePath'])
             ->keyBy(fn ($organizer) => mb_strtolower($organizer->slug));
@@ -385,9 +359,29 @@ class SearchConsoleReport
         }, array_keys($rows), $rows);
     }
 
-    private function cached(string $method, array $args, \Closure $build): array
+    /**
+     * The period the last reader call answered for (null: nothing imported
+     * yet). Callers label rows with this, never with a fresh period(), so a
+     * period and its rows always come from the same read.
+     */
+    public function lastPeriod(): ?array
     {
-        return Cache::remember('search-console:'.self::VERSION.':'.md5($method.'|'.json_encode($args)), now()->addMinutes(10), $build);
+        return $this->lastPeriod;
+    }
+
+    /**
+     * Works out the period once, and caches the answer under it: after an
+     * import moves the newest day, the key changes, so a cached answer is
+     * never paired with a newer period. $none answers before any import.
+     */
+    private function cached(string $method, array $args, int $days, \Closure $build, array $none = []): array
+    {
+        $period = $this->lastPeriod = $this->period($days);
+        if ($period === null) {
+            return $none;
+        }
+
+        return Cache::remember('search-console:'.self::VERSION.':'.md5($method.'|'.json_encode($args).'|'.json_encode($period)), now()->addMinutes(10), fn () => $build($period));
     }
 
     private function escapeLike(string $text): string
