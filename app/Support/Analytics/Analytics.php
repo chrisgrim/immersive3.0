@@ -247,20 +247,30 @@ class Analytics
 
     private static function recordedSince(string $name, string $since): bool
     {
-        return Cache::remember("analytics:recently:{$name}", now()->addHour(), function () use ($name, $since) {
-            $daily = DB::table('analytics_daily')->where('bot', 0)->where('day', '>=', $since);
-            $daily = match ($name) {
-                'page_views' => $daily->where('dim', 'path'),
-                'device' => $daily->where('dim', 'device'),
-                'city' => $daily->where('dim', 'city'),
-                'utm' => $daily->whereIn('dim', ['utm_source', 'utm_medium', 'utm_campaign']),
-                'duration' => $daily->where('dim', 'all')->where('seconds_count', '>', 0),
-                'nav_search' => $daily->where('dim', 'all')->where('type', self::NAV_SEARCH),
-                default => null,
-            };
+        $key = "analytics:recently:{$name}";
+        if (Cache::get($key) === true) {
+            return true;
+        }
 
-            return (bool) $daily?->exists();
-        });
+        // The daily totals, plus the last two days of raw rows (not totalled
+        // yet if the capture was only on briefly, or a rollup is failing).
+        $daily = DB::table('analytics_daily')->where('bot', 0)->where('day', '>=', $since);
+        $raw = DB::table('analytics_events')->where('bot', 0)->where('occurred_at', '>=', now()->subDays(2));
+        [$daily, $raw] = match ($name) {
+            'page_views' => [$daily->where('dim', 'path'), $raw->where('type', self::PAGE_VIEW)],
+            'device' => [$daily->where('dim', 'device'), $raw->whereNotNull('device')],
+            'city' => [$daily->where('dim', 'city'), $raw->whereNotNull('city')],
+            'utm' => [$daily->whereIn('dim', ['utm_source', 'utm_medium', 'utm_campaign']), $raw->where(fn ($q) => $q->whereNotNull('utm_source')->orWhereNotNull('utm_medium')->orWhereNotNull('utm_campaign'))],
+            'duration' => [$daily->where('dim', 'all')->where('seconds_count', '>', 0), $raw->where('type', self::PAGE_LEAVE)],
+            'nav_search' => [$daily->where('dim', 'all')->where('type', self::NAV_SEARCH), $raw->where('type', self::NAV_SEARCH)],
+            default => [null, null],
+        };
+
+        $found = $daily !== null && ($daily->exists() || $raw->exists());
+        // Found stays true for an hour; not found is asked again in 5 minutes.
+        Cache::put($key, $found, $found ? now()->addHour() : now()->addMinutes(5));
+
+        return $found;
     }
 
     public function forgetOverrides(): void
@@ -351,6 +361,14 @@ class Analytics
     /** Return popped notes to the front of the buffer, in their order. */
     public function putBack(array $notes): void
     {
+        // A note older than a day is dropped, not kept: the buffer holds
+        // raw IPs, which must not outlive the day however often a flush
+        // fails and puts its notes back.
+        $notes = array_values(array_filter($notes, function ($note) {
+            $at = json_decode($note, true)['at'] ?? null;
+
+            return is_int($at) && $at > now()->getTimestamp() - 86400;
+        }));
         if ($notes === []) {
             return;
         }
@@ -362,10 +380,10 @@ class Analytics
         }
 
         // LPOP may have emptied (and so deleted) the list, taking its expiry
-        // with it: set it again so returned notes still expire.
+        // with it: set one if it has none (NX keeps an existing one).
         Redis::pipeline(function ($pipe) use ($notes) {
             $pipe->lpush(config('analytics.buffer_key'), ...array_reverse($notes));
-            $pipe->expire(config('analytics.buffer_key'), 86400);
+            $pipe->expire(config('analytics.buffer_key'), 86400, 'NX');
         });
     }
 

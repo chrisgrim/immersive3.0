@@ -101,13 +101,17 @@
              closing day: when the listing leaves the site (Google asks for an
              endDate; it moves whenever the schedule is edited). --}}
         "startDate": "{{ \Carbon\Carbon::parse($event->published_at ?? $event->created_at)->toIso8601String() }}",
-        "endDate": "{{ \Carbon\Carbon::parse($event->closingDate)->toIso8601String() }}",
+        @if($event->closingAt())
+        "endDate": "{{ $event->closingAt()->toIso8601String() }}",
+        @endif
         @else
         {{-- The next upcoming show (shows are newest-first, so ->last()), so a
              years-long run does not advertise a start date years in the past;
              the run's first date when nothing is upcoming. --}}
         "startDate": "{{ \Carbon\Carbon::parse(($event->show_summary['upcoming_total'] ?? 0) > 0 ? $event->shows->last()->date : ($event->show_summary['first_date'] ?? $event->created_at))->toIso8601String() }}",
-        "endDate": "{{ \Carbon\Carbon::parse($event->closingDate)->toIso8601String() }}",
+        @if($event->closingAt())
+        "endDate": "{{ $event->closingAt()->toIso8601String() }}",
+        @endif
         @endif
         "eventStatus": "https://schema.org/EventScheduled",
         "eventAttendanceMode": "{{ $event->hasLocation ? 'https://schema.org/OfflineEventAttendanceMode' : 'https://schema.org/OnlineEventAttendanceMode' }}",

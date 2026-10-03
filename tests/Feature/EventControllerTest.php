@@ -552,7 +552,7 @@ test('an always-available listing does not show its closing-day placeholder as s
         // Search engines get the day it went live, and the day the listing
         // closes as its end (Google asks for an endDate).
         ->assertSee('"startDate": "'.\Carbon\Carbon::parse($event->fresh()->published_at)->toIso8601String().'"', false)
-        ->assertSee('"endDate": "'.\Carbon\Carbon::parse($event->fresh()->closingDate)->toIso8601String().'"', false);
+        ->assertSee('"endDate": "'.$event->fresh()->closingAt()->toIso8601String().'"', false);
 });
 
 test('the embedded show list is capped but the summary count is not', function () {
@@ -691,4 +691,13 @@ test('a secret location keeps its street out of the page, and an open one keeps 
     $address = json_decode($matches[1])->location->address;
     expect($address->streetAddress)->toBe('6067 Wilshire Boulevard')
         ->and($address->postalCode)->toBe('90036');
+});
+
+test('the JSON-LD endDate is the closing time in the event\'s own timezone', function () {
+    $event = makeShowableEvent();
+    $event->update(['showtype' => 'a', 'timezone' => 'America/Los_Angeles', 'closingDate' => '2027-03-01 23:59:59']);
+
+    // 23:59:59 in Los Angeles is 07:59:59 the next day in UTC.
+    $this->get("/events/{$event->slug}")->assertOk()
+        ->assertSee('"endDate": "2027-03-02T07:59:59+00:00"', false);
 });

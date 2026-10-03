@@ -580,3 +580,10 @@ test('a capture switched off stays on the privacy page while its records are kep
     Carbon::setTestNow(now()->addDays(400));
     expect($this->withoutVite()->get('/privacy')->getContent())->not->toContain('your city and region');
 });
+
+test('a capture switched off before any rollup still shows on the privacy page', function () {
+    config(['analytics.capture.city' => false]);
+    DB::table('analytics_events')->insert(['type' => 'page_view', 'occurred_at' => now()->subHour(), 'visitor' => str_repeat('a', 16), 'bot' => 0, 'city' => 'Boston']);
+
+    expect($this->withoutVite()->get('/privacy')->getContent())->toContain('your city and region');
+});

@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Support\Analytics\Analytics;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 
 /**
@@ -40,6 +41,8 @@ class AnalyticsCapture extends Command
             File::put(Analytics::overridesPath(), json_encode($overrides));
             @chmod(Analytics::overridesPath(), 0644);
             app(Analytics::class)->forgetOverrides();
+            // The privacy page re-checks what this capture left behind.
+            Cache::forget("analytics:recently:{$name}");
         }
 
         $this->table(['capture', 'on?', 'set by'], array_map(fn ($capture) => [

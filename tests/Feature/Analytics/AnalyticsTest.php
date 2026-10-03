@@ -446,3 +446,12 @@ test('a ticket click missing the headers every browser sends is not counted for 
         ->and(Analytics::looksLikeBot($as(['HTTP_ACCEPT_LANGUAGE' => '', 'HTTP_SEC_FETCH_SITE' => 'same-origin'])))->toBeTrue()
         ->and(Analytics::looksLikeBot($as(['HTTP_ACCEPT_LANGUAGE' => 'en-US'])))->toBeTrue();
 });
+
+test('a note older than a day is not put back, so raw IPs never outlive the day', function () {
+    $fresh = json_encode(['t' => 'search', 'at' => now()->getTimestamp() - 60]);
+    $stale = json_encode(['t' => 'search', 'at' => now()->getTimestamp() - 90000]);
+
+    app(Analytics::class)->putBack([$stale, $fresh]);
+
+    expect(app(Analytics::class)->pop(10))->toBe([$fresh]);
+});
