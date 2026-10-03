@@ -367,7 +367,7 @@ test('an email address or phone number typed as a place is removed', function ()
 
 test('if building the rows fails, the notes go back too', function () {
     Analytics::record(Analytics::SEARCH, ['query' => 'Kept']);
-    Illuminate\Support\Facades\Cache::shouldReceive('add')->andThrow(new RuntimeException('cache down'));
+    Illuminate\Support\Facades\Cache::shouldReceive('get')->andThrow(new RuntimeException('cache down'));
 
     try {
         test()->artisan('ei:analytics-flush');
@@ -419,4 +419,22 @@ test('a visit missing what real browsers send is flagged as a bot', function () 
     $visit(['HTTP_USER_AGENT' => $oldSafari]);                                           // old Safari: no Sec-Fetch, fine
 
     expect(analyticsRows()->pluck('bot')->all())->toBe([0, Analytics::BOT_HEADERS, Analytics::BOT_HEADERS, 0]);
+});
+
+test('a batch that fails and is retried does not count toward the daily cap twice', function () {
+    config(['analytics.daily_cap' => 2]);
+    foreach (range(1, 2) as $i) {
+        Analytics::record(Analytics::SEARCH, [], Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => '198.51.100.9', 'HTTP_USER_AGENT' => BROWSER_UA, 'HTTP_SEC_FETCH_SITE' => 'none']));
+    }
+    Illuminate\Support\Facades\Schema::rename('analytics_events', 'analytics_events_away');
+
+    try {
+        test()->artisan('ei:analytics-flush');
+    } catch (Throwable) {
+        // expected
+    } finally {
+        Illuminate\Support\Facades\Schema::rename('analytics_events_away', 'analytics_events');
+    }
+
+    expect(analyticsRows()->pluck('bot')->all())->toBe([0, 0]);
 });

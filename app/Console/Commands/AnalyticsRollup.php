@@ -94,6 +94,15 @@ class AnalyticsRollup extends Command
     {
         $range = [$day->format('Y-m-d H:i:s'), $day->addDay()->format('Y-m-d H:i:s')];
 
+        // At MySQL's default REPEATABLE READ, INSERT ... SELECT share-locks
+        // every row it reads until the transaction ends: the flusher's inserts
+        // and any save of an event viewed that day would wait on the rollup.
+        // READ COMMITTED reads without locking. Applies to the next
+        // transaction only, and only when none is open (tests wrap one).
+        if (DB::transactionLevel() === 0 && DB::getDriverName() === 'mysql') {
+            DB::statement('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+        }
+
         DB::transaction(function () use ($day, $range) {
             DB::table('analytics_daily')->where('day', $day->toDateString())->delete();
 

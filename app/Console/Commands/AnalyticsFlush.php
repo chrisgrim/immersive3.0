@@ -47,6 +47,12 @@ class AnalyticsFlush extends Command
     /** @var array<int, true> */
     private array $hostingAsns = [];
 
+    /** @var array<string, int> daily cap key => hits counted this batch, not yet saved */
+    private array $tally = [];
+
+    /** @var list<string> cap keys the current note counted toward */
+    private array $counted = [];
+
     public function handle(Analytics $analytics, GeoLookup $geo): int
     {
         if (! config('analytics.enabled')) {
@@ -68,16 +74,31 @@ class AnalyticsFlush extends Command
                 break;
             }
 
+            // Daily cap hits are saved only for rows that were written, so a
+            // batch that goes back and is retried is not counted twice.
+            $rows = $sources = $hits = [];
+            $done = 0;
+            $inserting = false;
             try {
-                $rows = array_values(array_filter(array_map(fn ($note) => $this->row($note), $notes)));
-                $written += $this->insert($rows);
+                foreach ($notes as $note) {
+                    $this->counted = [];
+                    if (($row = $this->row($note)) !== null) {
+                        $rows[] = $row;
+                        $sources[] = $note;
+                        $hits[] = $this->counted;
+                    }
+                }
+                $inserting = true;
+                $written += $this->insert($rows, $done);
             } catch (Throwable $e) {
-                // The cache or the database is down: the notes go back for
-                // the next run.
-                $analytics->putBack($notes);
+                // The cache or the database is down: what was not written
+                // goes back for the next run.
+                $analytics->putBack($inserting ? array_slice($sources, $done) : $notes);
+                $this->saveHits(array_slice($hits, 0, $done));
 
                 throw $e;
             }
+            $this->saveHits($hits);
         }
 
         if ($this->live !== [] || Analytics::captures('live')) {
@@ -98,7 +119,7 @@ class AnalyticsFlush extends Command
      * else (connection lost, timeout, deadlock) is rethrown at once and the
      * whole batch goes back for the next run.
      */
-    private function insert(array $rows): int
+    private function insert(array $rows, int &$done): int
     {
         if ($rows === []) {
             return 0;
@@ -106,8 +127,9 @@ class AnalyticsFlush extends Command
 
         try {
             DB::table('analytics_events')->insert($rows);
+            $done = count($rows);
 
-            return count($rows);
+            return $done;
         } catch (QueryException $e) {
             if (! $this->isBadData($e)) {
                 throw $e;
@@ -116,7 +138,7 @@ class AnalyticsFlush extends Command
 
         $written = 0;
         $skipped = 0;
-        foreach ($rows as $row) {
+        foreach ($rows as $i => $row) {
             try {
                 DB::table('analytics_events')->insert($row);
                 $written++;
@@ -126,6 +148,8 @@ class AnalyticsFlush extends Command
                 }
                 $skipped++;
             }
+            // Rows before $done are settled (written or dropped for good).
+            $done = $i + 1;
         }
 
         Log::warning("Analytics: {$skipped} rows skipped as invalid.");
@@ -250,13 +274,30 @@ class AnalyticsFlush extends Command
 
     private function overCap(string $key, int $cap, bool $counts = true): bool
     {
+        $seen = (int) Cache::get($key, 0) + ($this->tally[$key] ?? 0);
         if (! $counts) {
-            return (int) Cache::get($key, 0) > $cap;
+            return $seen > $cap;
         }
 
-        Cache::add($key, 0, now()->addDays(2));
+        $this->tally[$key] = ($this->tally[$key] ?? 0) + 1;
+        $this->counted[] = $key;
 
-        return Cache::increment($key) > $cap;
+        return $seen + 1 > $cap;
+    }
+
+    /**
+     * Adds the cap hits of written rows to the daily counters and forgets
+     * the rest of this batch's tally.
+     *
+     * @param  list<list<string>>  $hits  cap keys per written row
+     */
+    private function saveHits(array $hits): void
+    {
+        $this->tally = [];
+        foreach (array_count_values(array_merge(...$hits)) as $key => $count) {
+            Cache::add($key, 0, now()->addDays(2));
+            Cache::increment($key, $count);
+        }
     }
 
     /**
