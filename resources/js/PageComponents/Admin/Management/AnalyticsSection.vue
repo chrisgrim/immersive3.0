@@ -337,10 +337,11 @@ const SECTIONS = {
         columns: [
             { key: 'name', label: 'Country', sort: 'name' },
             { key: 'visitors', label: 'Visits', align: 'right', sort: 'visitors', format: number },
+            { key: 'measured_visitors', label: 'Visits (measured days)', align: 'right', sort: 'measured_visitors', format: measured },
             { key: 'confirmed', label: 'Confirmed', align: 'right', sort: 'confirmed', format: measured },
         ],
         text: (row) => row.name,
-        footnote: 'Confirmed: visits whose browser ran the page, leaving out scripts that only fetch it. n/a until browser confirmation is switched on.',
+        footnote: 'Confirmed: visits whose browser itself reported the page ready and shown, leaving out scripts that only fetch it. Counted only on the days it was measured, so compare it with "Visits (measured days)". n/a until browser confirmation is switched on.',
     },
 }
 
@@ -368,7 +369,7 @@ const normalize = (name, data) => {
         ]
     }
     if (name === 'countries') {
-        return Object.entries(data || {}).map(([code, row]) => ({ name: countryName(code), visitors: row.visitors, confirmed: row.confirmed }))
+        return Object.entries(data || {}).map(([code, row]) => ({ name: countryName(code), visitors: row.visitors, measured_visitors: row.visitors_on_measured_days, confirmed: row.confirmed }))
     }
     return data
 }

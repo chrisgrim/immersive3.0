@@ -75,7 +75,8 @@
                     </div>
                 </div>
                 <p class="text-[1.2rem] text-[#717171] mt-[1.6rem]">
-                    Visits count everyone the server saw (one person, one day). Browser confirmed leaves out scripts that fetch pages without running them, as Google Analytics does; engaged means 10+ seconds on a page, a click, a typed search or two pages.
+                    Visits count everyone the server saw (one person, one day). Browser confirmed means the browser itself reported the page ready and shown, which leaves out scripts that only fetch pages and browsers that say they are automated, as Google Analytics counts; engaged means browser confirmed and 10+ seconds on a page, a click, a typed search or two pages.
+                    <template v-if="measuredSince">Both are measured since {{ formatDay(measuredSince) }}, so they are compared with the visits of those days only (the change is in percentage points of them).</template>
                 </p>
             </section>
 
@@ -361,6 +362,7 @@
                         </li>
                     </ul>
                     <p v-if="!confirmationMeasured" class="text-[1.2rem] text-[#717171] mt-[1.2rem]">Confirmed starts once browser confirmation is switched on.</p>
+                    <p v-else class="text-[1.2rem] text-[#717171] mt-[1.2rem]">Confirmed counts days since {{ formatDay(measuredSince) }} only.</p>
                 </section>
             </div>
 
@@ -515,15 +517,30 @@ const kpis = computed(() => {
 })
 
 // Browser confirmation (the load ping) measured at all in this range: null
-// confirmed counts mean "not switched on yet", never zero.
+// confirmed counts mean "not switched on yet", never zero. Measured counts
+// are only ever set against the visits of the days they were measured on.
 const confirmationMeasured = computed(() => report.value?.totals?.people?.confirmed_visitors != null)
+const measuredSince = computed(() => report.value?.totals?.people?.measured_since ?? null)
 
 const peopleFigures = computed(() => {
     const people = (key = 'totals') => report.value?.[key]?.people ?? {}
     const visits = people().visitors ?? 0
-    const engaged = people().engaged_visitors ?? 0
-    const confirmed = people().confirmed_visitors ?? null
-    const share = (count) => (visits ? `${percent(count / visits)} of visits` : null)
+    // Share of the measured days' visits, now and in the period before.
+    const share = (key, field) => {
+        const base = people(key).visitors_on_measured_days
+        const count = people(key)[field]
+        return base && count != null ? count / base : null
+    }
+    const shareChange = (field) => {
+        const now = share('totals', field)
+        const before = share('totals_previous', field)
+        if (now === null || before === null) return null
+        return { up: now >= before, text: `${Math.abs(Math.round((now - before) * 1000) / 10)} pts` }
+    }
+    const measuredNote = (field) => {
+        const rate = share('totals', field)
+        return rate === null ? null : `${percent(rate)} of ${people().visitors_on_measured_days.toLocaleString()} visits since ${formatDay(measuredSince.value)}`
+    }
 
     return [
         {
@@ -534,15 +551,15 @@ const peopleFigures = computed(() => {
         },
         {
             label: 'People (browser confirmed)',
-            value: confirmed,
-            change: confirmed !== null ? change(confirmed, people('totals_previous').confirmed_visitors ?? 0) : null,
-            note: confirmed !== null ? share(confirmed) : null,
+            value: people().confirmed_visitors ?? null,
+            change: shareChange('confirmed_visitors'),
+            note: measuredNote('confirmed_visitors'),
         },
         {
             label: 'Engaged',
-            value: engaged,
-            change: change(engaged, people('totals_previous').engaged_visitors ?? 0),
-            note: share(engaged),
+            value: people().engaged_visitors ?? null,
+            change: shareChange('engaged_visitors'),
+            note: measuredNote('engaged_visitors'),
         },
     ]
 })
