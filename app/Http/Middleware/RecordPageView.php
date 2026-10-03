@@ -44,8 +44,9 @@ class RecordPageView
     /**
      * The page's path as one canonical string: decoded (%65 is "e") and
      * without control characters, so a script cannot turn one page into many
-     * by spelling its address differently. Event and organizer pages use
-     * their real slug.
+     * by spelling its address differently. Event pages use their real slug
+     * (EventController); other pages differing only in case total as one
+     * key anyway (the daily totals compare keys case-insensitively).
      */
     public static function path(Request $request): string
     {

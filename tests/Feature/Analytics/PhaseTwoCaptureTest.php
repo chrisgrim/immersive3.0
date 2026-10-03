@@ -503,3 +503,11 @@ test('days older than the bot rows are kept are still totalled when they have no
 
     expect(DB::table('analytics_daily')->where(['day' => daysAgo(45), 'dim' => 'all'])->value('hits'))->toBe(1);
 });
+
+test('the hourly rollup of today also totals the days before deploy', function () {
+    DB::table('analytics_events')->insert(['type' => 'page_view', 'occurred_at' => daysAgo(6).' 12:00:00', 'visitor' => str_repeat('a', 16), 'bot' => 0, 'page' => 'home']);
+
+    $this->artisan('ei:analytics-rollup', ['--day' => daysAgo(0)])->assertSuccessful();
+
+    expect(DB::table('analytics_daily')->where(['day' => daysAgo(6), 'dim' => 'all'])->exists())->toBeTrue();
+});

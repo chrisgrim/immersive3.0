@@ -342,7 +342,7 @@ test('the place text is cleaned and capped before it is buffered', function () {
 test('one address changing its user agent on every hit still hits the daily cap', function () {
     config(['analytics.ip_daily_cap' => 3]);
     foreach (range(1, 4) as $i) {
-        Analytics::record(Analytics::SEARCH, [], Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => '198.51.100.7', 'HTTP_USER_AGENT' => BROWSER_UA, 'HTTP_SEC_FETCH_SITE' => 'none'." v{$i}"]));
+        Analytics::record(Analytics::SEARCH, [], Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => '198.51.100.7', 'HTTP_USER_AGENT' => BROWSER_UA." v{$i}", 'HTTP_SEC_FETCH_SITE' => 'none']));
     }
 
     expect(analyticsRows()->pluck('bot')->all())->toBe([0, 0, 0, Analytics::BOT_OVER_DAILY_CAP]);

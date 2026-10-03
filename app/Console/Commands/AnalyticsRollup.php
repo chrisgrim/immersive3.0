@@ -103,14 +103,18 @@ class AnalyticsRollup extends Command
     private function days(CarbonImmutable $oldest): array
     {
         if ($this->option('day')) {
-            return [CarbonImmutable::parse($this->option('day'), 'UTC')->startOfDay()];
+            $day = CarbonImmutable::parse($this->option('day'), 'UTC')->startOfDay();
+
+            // The hourly run (today) also fills untotalled days, so the days
+            // before deploy are totalled within the hour, not next night.
+            return $day->isToday() ? [...$this->untotalledDays($day), $day] : [$day];
         }
 
         $to = CarbonImmutable::parse($this->option('to') ?? 'today', 'UTC')->startOfDay();
         $from = $this->option('from') ? CarbonImmutable::parse($this->option('from'), 'UTC')->startOfDay() : $to->subDays(2);
 
         // The nightly run (no options) also fills every older day that has
-        // raw rows but was never totalled. The hourly run only does today.
+        // raw rows but was never totalled.
         $days = $this->option('from') || $this->option('to') ? [] : $this->untotalledDays($from);
         for ($day = $from; $day->lte($to); $day = $day->addDay()) {
             $days[] = $day;
