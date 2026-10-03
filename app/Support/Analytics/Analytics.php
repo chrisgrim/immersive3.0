@@ -330,15 +330,20 @@ class Analytics
         $confirmed = "(MAX(e.bot = 0 AND e.type = '".self::PAGE_VIEW."' AND e.js = 1) AND NOT {$automated})";
         $active = "(MAX(e.bot = 0 AND ((e.type = '".self::PAGE_LEAVE."' AND e.seconds >= 10) OR ".$in(self::TICKET_CLICK, self::SEARCH_CLICK, self::NAV_SEARCH)."
                 OR (e.type = '".self::SEARCH."' AND e.source = 'list'))) OR SUM(e.bot = 0 AND ".$in(self::PAGE_VIEW, self::EVENT_VIEW).') >= 2)';
-        $owner = 'COALESCE(v.visitor, s.visitor, e.visitor)';
+        // Looked up only for the beacon rows (the CASE), each through its
+        // own index: a join here let MySQL scan every search per row.
+        $owner = "COALESCE(CASE e.type
+                WHEN '".self::PAGE_LEAVE."' THEN (SELECT v.visitor FROM analytics_events v FORCE INDEX (analytics_events_view_id_index)
+                    WHERE v.view_id = e.view_id AND v.type = '".self::PAGE_VIEW."' LIMIT 1)
+                WHEN '".self::SEARCH_CLICK."' THEN (SELECT s.visitor FROM analytics_events s FORCE INDEX (analytics_events_search_id_index)
+                    WHERE s.search_id = e.search_id AND s.type = '".self::SEARCH."' LIMIT 1)
+            END, e.visitor)";
         $range = $to === null ? '' : ' AND (e.occurred_at < ? OR ('.$in(self::PAGE_LEAVE, self::SEARCH_CLICK).' AND e.occurred_at < ? + INTERVAL 1 DAY))';
 
         return ["SELECT {$owner} AS visitor, {$automated} AS automated, {$confirmed} AS js, ({$confirmed} AND {$active}) AS engaged
             FROM analytics_events e
-            LEFT JOIN analytics_events v ON e.type = '".self::PAGE_LEAVE."' AND v.view_id = e.view_id AND v.type = '".self::PAGE_VIEW."'
-            LEFT JOIN analytics_events s ON e.type = '".self::SEARCH_CLICK."' AND s.search_id = e.search_id AND s.type = '".self::SEARCH."'
             WHERE e.occurred_at >= ?{$range}
-            GROUP BY {$owner}", $to === null ? [$from] : [$from, $to, $to]];
+            GROUP BY 1", $to === null ? [$from] : [$from, $to, $to]];
     }
 
     /** @var bool|null whether the browser confirmation columns exist, asked once per process */

@@ -165,34 +165,56 @@ class AnalyticsRollup extends Command
         // transaction only, and only when none is open (tests wrap one).
         // Needs row-based binary logging: MySQL refuses INSERT ... SELECT at
         // READ COMMITTED under statement logging, so then it keeps the default.
-        if (DB::transactionLevel() === 0 && DB::getDriverName() === 'mysql'
-            && in_array(DB::scalar('SELECT IF(@@log_bin, @@binlog_format, \'OFF\')'), ['ROW', 'OFF'], true)) {
-            DB::statement('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
-        }
+        $readCommitted = DB::transactionLevel() === 0 && DB::getDriverName() === 'mysql'
+            && in_array(DB::scalar('SELECT IF(@@log_bin, @@binlog_format, \'OFF\')'), ['ROW', 'OFF'], true);
+        $nextReadsCommitted = fn () => $readCommitted && DB::statement('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
 
-        DB::transaction(function () use ($day, $range) {
-            DB::table('analytics_daily')->where('day', $day->toDateString())->delete();
+        // Browser-confirmed and engaged visitors only on a day the load
+        // ping was on (its page views were asked for one); before that,
+        // NULL, not 0. Neither column exists before the migration.
+        $this->columns = Analytics::hasConfirmationColumns();
+        // A whole day only: a day the ping was switched on or off counts
+        // as not measured, so a part-measured day never sets confirmed
+        // against a whole day's visits. It has people page views and
+        // none of them went unasked (two probes on the type and
+        // occurred_at index).
+        $views = fn () => DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->where('bot', 0)
+            ->where('occurred_at', '>=', $range[0])->where('occurred_at', '<', $range[1]);
+        $this->pinged = $this->columns && $views()->exists() && ! $views()->whereNull('js')->exists();
 
-            // Browser-confirmed and engaged visitors only on a day the load
-            // ping was on (its page views were asked for one); before that,
-            // NULL, not 0. Neither column exists before the migration.
-            $this->columns = Analytics::hasConfirmationColumns();
-            // A whole day only: a day the ping was switched on or off counts
-            // as not measured, so a part-measured day never sets confirmed
-            // against a whole day's visits. It has people page views and
-            // none of them went unasked (two probes on the type and
-            // occurred_at index).
-            $views = fn () => DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->where('bot', 0)
-                ->where('occurred_at', '>=', $range[0])->where('occurred_at', '<', $range[1]);
-            $this->pinged = $this->columns && $views()->exists() && ! $views()->whereNull('js')->exists();
-
-            foreach ($this->dimensions() as [$types, $dim, $key, $where]) {
-                $this->insert($day, $range, $types, $dim, $key, $where);
+        try {
+            if ($this->pinged) {
+                // The day's visitor flags, built once and indexed on visitor
+                // for every statement below to join (as a derived table each
+                // statement rebuilt it, and joined it without an index).
+                // Before the transaction, so no binlog format or GTID rule
+                // about temporary tables inside one applies; read committed
+                // like the rest.
+                [$sql, $bindings] = Analytics::visitorFlagsQuery(...$range);
+                DB::statement('DROP TEMPORARY TABLE IF EXISTS '.self::FLAGS);
+                $nextReadsCommitted();
+                DB::statement('CREATE TEMPORARY TABLE '.self::FLAGS.' (KEY (visitor)) '.$sql, $bindings);
             }
 
-            $this->insertEdges($day, $range);
-        });
+            $nextReadsCommitted();
+            DB::transaction(function () use ($day, $range) {
+                DB::table('analytics_daily')->where('day', $day->toDateString())->delete();
+
+                foreach ($this->dimensions() as [$types, $dim, $key, $where]) {
+                    $this->insert($day, $range, $types, $dim, $key, $where);
+                }
+
+                $this->insertEdges($day, $range);
+            });
+        } finally {
+            if ($this->pinged) {
+                DB::statement('DROP TEMPORARY TABLE IF EXISTS '.self::FLAGS);
+            }
+        }
     }
+
+    /** The day's visitor flags (rollupDay), a temporary table on this connection. */
+    private const FLAGS = 'analytics_rollup_flags';
 
     /**
      * [types, dim, key SQL, extra WHERE] for each total kept. Keys are text
@@ -264,20 +286,14 @@ class AnalyticsRollup extends Command
     }
 
     /**
-     * Each visitor of the day with their flags (js, engaged; see
-     * Analytics::visitorFlagsQuery), one GROUP BY over that day's rows,
-     * joined as f on $column. Nothing on a day without the ping.
-     *
-     * @return array{0: string, 1: array} SQL and bindings
+     * Joins each visitor of the day to their flags (js, engaged; see
+     * Analytics::visitorFlagsQuery) as f on $column, from the temporary
+     * table rollupDay built once for the day. Nothing on a day without the
+     * ping.
      */
-    private function visitorFlags(string $column, array $range): array
+    private function visitorFlags(string $column): string
     {
-        if (! $this->pinged) {
-            return ['', []];
-        }
-        [$sql, $bindings] = Analytics::visitorFlagsQuery(...$range);
-
-        return ["LEFT JOIN ({$sql}) f ON f.visitor = {$column}", $bindings];
+        return $this->pinged ? 'LEFT JOIN '.self::FLAGS." f ON f.visitor = {$column}" : '';
     }
 
     /**
@@ -324,7 +340,7 @@ class AnalyticsRollup extends Command
     private function insert(CarbonImmutable $day, array $range, ?array $types, string $dim, string $key, ?string $where): void
     {
         $key = $this->keyed($key);
-        [$flagsSql, $flagBindings] = $this->visitorFlags('e.visitor', $range);
+        $flagsSql = $this->visitorFlags('e.visitor');
         $typeSql = $types === null ? '' : ' AND e.type IN ('.implode(',', array_fill(0, count($types), '?')).')';
         $whereSql = $where ? " AND ({$where})" : '';
 
@@ -350,7 +366,6 @@ class AnalyticsRollup extends Command
             $day->toDateString(), $dim,
             Analytics::PAGE_LEAVE, ...$range,
             Analytics::PAGE_VIEW,
-            ...$flagBindings,
             ...$range, Analytics::PAGE_LEAVE, ...($types ?? []),
         ]);
     }
@@ -362,7 +377,7 @@ class AnalyticsRollup extends Command
      */
     private function insertEdges(CarbonImmutable $day, array $range): void
     {
-        [$flagsSql, $flagBindings] = $this->visitorFlags('steps.visitor', $range);
+        $flagsSql = $this->visitorFlags('steps.visitor');
 
         DB::statement("
             INSERT INTO analytics_daily ({$this->dailyColumns()})
@@ -379,6 +394,6 @@ class AnalyticsRollup extends Command
             -- later did not go from one to the other.
             WHERE prev_path IS NOT NULL AND occurred_at <= prev_at + INTERVAL ".self::STEP_MINUTES.' MINUTE'."
             GROUP BY {$this->keyed(self::EDGE_KEY)}
-            HAVING COUNT(DISTINCT steps.visitor) >= ?".$this->merge(), [$day->toDateString(), ...$range, ...$flagBindings, self::MIN_EDGE_VISITORS]);
+            HAVING COUNT(DISTINCT steps.visitor) >= ?".$this->merge(), [$day->toDateString(), ...$range, self::MIN_EDGE_VISITORS]);
     }
 }
