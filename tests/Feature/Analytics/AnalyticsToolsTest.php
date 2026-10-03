@@ -125,3 +125,20 @@ test('a breakdown says the whole period total and when the daily totals start', 
         ->assertSee('"whole_period_total":50', false)
         ->assertSee('"totals_since":"'.now()->subDay()->toDateString().'"', false);
 });
+
+test('browser-confirmed and engaged visits read their own daily columns, unknown before measured', function () {
+    daily(['day' => now()->subDays(2)->toDateString(), 'visitors' => 9, 'engaged_visitors' => 4]);
+    daily(['visitors' => 30, 'js_visitors' => 12, 'engaged_visitors' => 10]);
+    daily(['dim' => 'country', 'key' => 'US', 'visitors' => 20, 'js_visitors' => 8, 'engaged_visitors' => 6]);
+
+    asModerator()->tool(AnalyticsTrend::class, ['metric' => 'confirmed_visits', 'days' => 7])->assertOk()
+        ->assertSee('"series":[["'.now()->subDays(2)->toDateString().'",null],["'.now()->subDay()->toDateString().'",12]]', false)
+        ->assertSee('browser');
+    asModerator()->tool(AnalyticsTrend::class, ['metric' => 'engaged_visits', 'days' => 7])->assertOk()
+        ->assertSee('"series":[["'.now()->subDays(2)->toDateString().'",4],["'.now()->subDay()->toDateString().'",10]]', false);
+    asModerator()->tool(AnalyticsTop::class, ['dimension' => 'country', 'metric' => 'confirmed_visits'])->assertOk()
+        ->assertSee('"confirmed_visits":8', false)
+        ->assertSee('"visits":20', false)
+        ->assertSee('"whole_period_total":12', false);
+    asModerator()->tool(AnalyticsTop::class, ['dimension' => 'query', 'metric' => 'engaged_visits'])->assertHasErrors();
+});

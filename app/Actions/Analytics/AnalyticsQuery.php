@@ -33,6 +33,9 @@ class AnalyticsQuery
     public const METRICS = [
         'page_views' => [[AnalyticsRollup::VIEW], 'hits'],
         'visits' => [[AnalyticsRollup::VIEW], 'visitors'],
+        // Side by side with visits while the two are compared (DEFINITIONS).
+        'confirmed_visits' => [[AnalyticsRollup::VIEW], 'js_visitors'],
+        'engaged_visits' => [[AnalyticsRollup::VIEW], 'engaged_visitors'],
         'searches' => [[Analytics::SEARCH], 'hits'],
         'ticket_clicks' => [[Analytics::TICKET_CLICK], 'hits'],
         'nav_searches' => [[Analytics::NAV_SEARCH], 'hits'],
@@ -44,20 +47,20 @@ class AnalyticsQuery
      * than answer an empty list that reads as "none".
      */
     public const SUPPORTS = [
-        'page' => ['page_views', 'visits'],
-        'path' => ['page_views', 'visits'],
-        'organizer' => ['page_views', 'visits'],
-        'source' => ['page_views', 'visits'],
-        'ref' => ['page_views', 'visits'],
-        'utm_source' => ['page_views', 'visits'],
-        'utm_medium' => ['page_views', 'visits'],
-        'utm_campaign' => ['page_views', 'visits'],
-        'event' => ['page_views', 'visits', 'ticket_clicks'],
-        'country' => ['page_views', 'visits', 'searches', 'ticket_clicks', 'nav_searches'],
-        'device' => ['page_views', 'visits', 'searches', 'ticket_clicks', 'nav_searches'],
-        'browser' => ['page_views', 'visits', 'searches', 'ticket_clicks', 'nav_searches'],
-        'os' => ['page_views', 'visits', 'searches', 'ticket_clicks', 'nav_searches'],
-        'city' => ['page_views', 'visits', 'searches', 'ticket_clicks', 'nav_searches'],
+        'page' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits'],
+        'path' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits'],
+        'organizer' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits'],
+        'source' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits'],
+        'ref' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits'],
+        'utm_source' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits'],
+        'utm_medium' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits'],
+        'utm_campaign' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits'],
+        'event' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits', 'ticket_clicks'],
+        'country' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits', 'searches', 'ticket_clicks', 'nav_searches'],
+        'device' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits', 'searches', 'ticket_clicks', 'nav_searches'],
+        'browser' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits', 'searches', 'ticket_clicks', 'nav_searches'],
+        'os' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits', 'searches', 'ticket_clicks', 'nav_searches'],
+        'city' => ['page_views', 'visits', 'confirmed_visits', 'engaged_visits', 'searches', 'ticket_clicks', 'nav_searches'],
         'query' => ['searches', 'nav_searches'],
     ];
 
@@ -73,6 +76,8 @@ class AnalyticsQuery
 
     public const DEFINITIONS = [
         'visits' => 'visitor-days with a page view: a person counts once per day they opened a page (no cookies; the visitor code changes daily), so a person on 3 days is 3 visits. Before page views were captured only event pages count, so this can be lower than the admin page\'s country list, which counts anyone who did anything',
+        'confirmed_visits' => 'visits whose browser is known to have run the page: it sent the load ping once the page had loaded and been shown, or sent something only a running page can (time on page, a search result click, nav search typing). Scripts that fetch pages without running them are left out, as GA4, Plausible and similar tools count. Null (not zero) on days before browser confirmation (the js_ping capture) was switched on',
+        'engaged_visits' => 'visits that did something, as GA4 counts engaged visitors: a page on screen 10+ seconds, a ticket click, a search result click, a typed search or nav search, or two or more page views. Reported side by side with visits for comparison',
         'visitors' => 'visitor-days that did the counted thing (searched, clicked a ticket link, typed in the nav): one person counts once per day',
         'page_views' => 'pages loaded by people (bots excluded); event pages before page-view tracking count as event views',
         'avg_seconds' => 'average time a page was on screen, from the pages where it was more than 5 seconds',
@@ -107,7 +112,7 @@ class AnalyticsQuery
                     WHERE dim = 'all' AND bot = 0 AND type IN ({$typeSql}) AND day >= ?
                     GROUP BY period ORDER BY period", [...$typeBindings, $from]);
 
-                return ['grain' => $days > 90 ? 'week' : 'day', 'series' => array_map(fn ($row) => [$row->period, (int) $row->value], $rows)];
+                return ['grain' => $days > 90 ? 'week' : 'day', 'series' => array_map(fn ($row) => [$row->period, $this->count($row->value)], $rows)];
             }
 
             $top = array_column($this->topKeys($types, $column, $dimension, $days, 8), 'key');
@@ -124,7 +129,7 @@ class AnalyticsQuery
             return [
                 'grain' => $days > 90 ? 'week' : 'day',
                 'by' => $dimension,
-                'series' => array_map(fn ($row) => [$row->period, $this->label($dimension, $row->key), (int) $row->value], $rows),
+                'series' => array_map(fn ($row) => [$row->period, $this->label($dimension, $row->key), $this->count($row->value)], $rows),
             ];
         });
     }
@@ -148,10 +153,10 @@ class AnalyticsQuery
                     $metric => $row['value'],
                     // Visitor-days of the metric's own rows: "visits" only when
                     // those rows are page views (see DEFINITIONS).
-                    in_array($metric, ['page_views', 'visits'], true) ? 'visits' : 'visitors' => $row['visitors'],
+                    in_array($metric, ['page_views', 'visits', 'confirmed_visits', 'engaged_visits'], true) ? 'visits' : 'visitors' => $row['visitors'],
                     'avg_seconds' => $row['avg_seconds'],
                 ], $this->topKeys($types, $column, $dimension, $days, max(1, min(50, $limit)))),
-                'whole_period_total' => (int) ($total[0]->value ?? 0),
+                'whole_period_total' => $this->count($total[0]->value ?? null),
             ];
         });
     }
@@ -214,14 +219,23 @@ class AnalyticsQuery
         });
     }
 
-    /** @return array<int, array{key: string, value: int, visitors: int, avg_seconds: ?int}> */
+    /**
+     * A summed count; null stays null (browser-confirmed visits on days
+     * before they were measured are unknown, not zero).
+     */
+    private function count($value): ?int
+    {
+        return $value === null ? null : (int) $value;
+    }
+
+    /** @return array<int, array{key: string, value: ?int, visitors: int, avg_seconds: ?int}> */
     private function topKeys(array $types, string $column, string $dimension, int $days, int $limit): array
     {
         [$typeSql, $typeBindings] = $this->in($types);
 
         return array_map(fn ($row) => [
             'key' => $row->key,
-            'value' => (int) $row->value,
+            'value' => $this->count($row->value),
             'visitors' => (int) $row->visitors,
             'avg_seconds' => $row->seconds_count ? (int) round($row->seconds_sum / $row->seconds_count) : null,
         ], $this->select("
