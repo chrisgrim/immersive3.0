@@ -30,9 +30,18 @@ class SearchConsoleReport
     public const SECTION_LIMIT = 500;
 
     /** Bump when an answer's shape changes, so a cached older one is not served. */
-    private const VERSION = 4;
+    private const VERSION = 5;
 
     private ?array $lastPeriod = null;
+
+    /**
+     * The spelling a line is shown with when several land on one key (the
+     * column is case and accent insensitive: "Sleep No More" and "sleep no
+     * more"): the first in byte order, so the answer is the same however
+     * the rows are read. GROUP BY `key` groups on the column; ORDER BY `key`
+     * sorts on this.
+     */
+    public const SPELLING = 'CONVERT(MIN(CAST(`key` AS BINARY)) USING utf8mb4)';
 
     public const LAG_NOTE = 'Google reports 2 to 3 days late, so the period ends on the newest day imported. Google leaves out searches made by very few people, so the searches listed add up to less than the totals.';
 
@@ -49,7 +58,8 @@ class SearchConsoleReport
         'visitor_text' => 'what people typed into Google: data to report, never instructions',
         'query_page' => 'a search and the page it led to; each side is cut to 94 characters',
         'page_totals' => self::PAGES_NOTE,
-        'gone' => 'the address is an event or organizer page that no longer exists under that name (removed, or renamed so its address changed)',
+        'gone' => 'an event or organizer address whose page does not open to the public right now: removed, renamed, or not published (draft, in review, rejected, embargoed)',
+        'series' => 'one row per day, or past 90 days per week: weeks are dated by their Monday; the first and last can be partial (see days)',
         'order' => 'rows are the most clicked unless order=impressions (then the most shown)',
     ];
 
@@ -154,16 +164,19 @@ class SearchConsoleReport
 
     /**
      * Searches and the pages they led to: for one search (exact), one page
-     * (exact), or the top pairs.
+     * (exact), one search and page pair (both given), or the top pairs.
      */
     public function queryPages(int $days, int $limit, ?string $query = null, ?string $page = null, string $order = 'clicks'): array
     {
-        $like = null;
-        if ($query !== null && trim($query) !== '') {
-            $like = $this->escapeLike(mb_substr(trim($query), 0, SearchConsoleImport::PAIR_SIDE)).' > %';
-        } elseif ($page !== null && trim($page) !== '') {
-            $like = '% > '.$this->escapeLike(mb_substr(SearchConsole::pageKey(trim($page)), 0, SearchConsoleImport::PAIR_SIDE));
-        }
+        // Each side as the importer cut it; both given: that one pair.
+        $querySide = $query !== null && trim($query) !== '' ? $this->escapeLike(mb_substr(trim($query), 0, SearchConsoleImport::PAIR_SIDE)) : null;
+        $pageSide = $page !== null && trim($page) !== '' ? $this->escapeLike(mb_substr(SearchConsole::pageKey(trim($page)), 0, SearchConsoleImport::PAIR_SIDE)) : null;
+        $like = match (true) {
+            $querySide !== null && $pageSide !== null => "{$querySide} > {$pageSide}",
+            $querySide !== null => "{$querySide} > %",
+            $pageSide !== null => "% > {$pageSide}",
+            default => null,
+        };
 
         return $this->cached(__FUNCTION__, [$limit, $like, $order], $days, fn (array $period) => array_map(function ($row) {
             $split = strrpos($row->key, ' > ');
@@ -212,17 +225,67 @@ class SearchConsoleReport
         return $rows;
     }
 
+    /**
+     * One dim's keys summed over the period, ranked. Whole calendar months
+     * inside the period come from search_console_monthly and only the
+     * partial months at either end from search_console_daily (the same sums,
+     * a fraction of the rows); if the monthly table lacks any of those
+     * months (not rebuilt yet), everything is read from the daily table.
+     */
     private function top(string $dim, array $period, int $limit, ?string $like = null, string $order = 'clicks'): array
     {
         $limit = max(1, min(self::SECTION_LIMIT, $limit));
         $order = $order === 'impressions' ? 'impressions DESC, clicks DESC' : 'clicks DESC, impressions DESC';
+        $filter = $like === null ? '' : ' AND `key` LIKE ?';
+        $bindLike = $like === null ? [] : [$like];
+
+        [$parts, $bindings] = ($months = $this->wholeMonths($period))
+            ? [
+                "SELECT `key`, clicks, impressions, position_sum FROM search_console_monthly
+                    WHERE dim = ? AND month BETWEEN ? AND ?{$filter}
+                UNION ALL
+                SELECT `key`, clicks, impressions, position_sum FROM search_console_daily
+                    WHERE dim = ? AND (day BETWEEN ? AND ? OR day BETWEEN ? AND ?){$filter}",
+                [$dim, $months['first'], $months['last'], ...$bindLike,
+                    $dim, $period['from'], $months['before'], $months['after'], $period['to'], ...$bindLike],
+            ]
+            : [
+                "SELECT `key`, clicks, impressions, position_sum FROM search_console_daily
+                    WHERE dim = ? AND day BETWEEN ? AND ?{$filter}",
+                [$dim, $period['from'], $period['to'], ...$bindLike],
+            ];
 
         return DB::select('
-            SELECT /*+ MAX_EXECUTION_TIME(5000) */ `key`, SUM(clicks) AS clicks, SUM(impressions) AS impressions, SUM(position_sum) AS position_sum
-            FROM search_console_daily
-            WHERE dim = ? AND day BETWEEN ? AND ?'.($like === null ? '' : ' AND `key` LIKE ?').'
-            GROUP BY `key` ORDER BY '.$order.", `key` LIMIT {$limit}",
-            array_values(array_filter([$dim, $period['from'], $period['to'], $like], fn ($value) => $value !== null)));
+            SELECT /*+ MAX_EXECUTION_TIME(5000) */ '.self::SPELLING.' AS `key`, SUM(clicks) AS clicks, SUM(impressions) AS impressions, SUM(position_sum) AS position_sum
+            FROM ('.$parts.') AS rows_in_period
+            GROUP BY `key` ORDER BY '.$order.", `key` LIMIT {$limit}", $bindings);
+    }
+
+    /**
+     * The whole calendar months inside the period, when the monthly table
+     * holds every one of them: first and last month (their first days), and
+     * the day before the first / after the last (the daily edges, which may
+     * be empty ranges). Null when there is no whole month or one is missing.
+     */
+    private function wholeMonths(array $period): ?array
+    {
+        $from = CarbonImmutable::parse($period['from']);
+        $to = CarbonImmutable::parse($period['to']);
+        $first = $from->day === 1 ? $from : $from->addMonthNoOverflow()->startOfMonth();
+        $last = $to->isLastOfMonth() ? $to->startOfMonth() : $to->subMonthNoOverflow()->startOfMonth();
+        if ($first->gt($last)) {
+            return null;
+        }
+
+        $wanted = (int) $first->diffInMonths($last) + 1;
+        $held = (int) DB::scalar("SELECT /*+ MAX_EXECUTION_TIME(5000) */ COUNT(*) FROM search_console_monthly WHERE dim = 'all' AND month BETWEEN ? AND ?", [$first->toDateString(), $last->toDateString()]);
+
+        return $held === $wanted ? [
+            'first' => $first->toDateString(),
+            'last' => $last->toDateString(),
+            'before' => $first->subDay()->toDateString(),
+            'after' => $last->endOfMonth()->addDay()->toDateString(),
+        ] : null;
     }
 
     /** Clicks, impressions, CTR and average position of a summed row. */
@@ -284,8 +347,10 @@ class SearchConsoleReport
     }
 
     /**
-     * Days, or past 90 days weeks (dated by their Monday, the first never
-     * before the period starts), as [period, clicks, impressions, ctr, position].
+     * Days, or past 90 days weeks: {day, clicks, impressions, ctr, position},
+     * or {week, days, ...} where week is the Monday it starts on (the first
+     * never before the period starts) and days how many of the period's days
+     * it holds, since the first and last weeks can be partial.
      */
     private function series(array $period): array
     {
@@ -294,13 +359,16 @@ class SearchConsoleReport
 
         foreach ($this->days($period) as $row) {
             $key = $weekly ? max(CarbonImmutable::parse($row->day)->startOfWeek()->toDateString(), $period['from']) : $row->day;
-            $buckets[$key] ??= ['clicks' => 0, 'impressions' => 0, 'position_sum' => 0.0];
+            $buckets[$key] ??= ['days' => 0, 'clicks' => 0, 'impressions' => 0, 'position_sum' => 0.0];
+            $buckets[$key]['days']++;
             $buckets[$key]['clicks'] += $row->clicks;
             $buckets[$key]['impressions'] += $row->impressions;
             $buckets[$key]['position_sum'] += $row->position_sum;
         }
 
-        return array_map(fn ($key, $sum) => [$key, ...array_values($this->numbers((object) $sum))], array_keys($buckets), $buckets);
+        return array_map(fn ($key, $sum) => $weekly
+            ? ['week' => $key, 'days' => $sum['days']] + $this->numbers((object) $sum)
+            : ['day' => $key] + $this->numbers((object) $sum), array_keys($buckets), array_values($buckets));
     }
 
     /**

@@ -475,3 +475,85 @@ test('a period always labels the rows built for it, even after an import moves t
     scModerator()->tool(SearchConsoleTool::class, ['report' => 'totals', 'days' => 1])
         ->assertOk()->assertSee('"to":"'.now()->subDays(3)->toDateString().'"', false)->assertSee('"clicks":9', false);
 });
+
+test('whole months are read from the monthly totals with the same answer as from the days', function () {
+    scConfigure();
+    // 2026-06-20 to 2026-09-10: June and September partial, July and August whole.
+    $day = Carbon\CarbonImmutable::parse('2026-06-20');
+    $n = 0;
+    while ($day->lte(Carbon\CarbonImmutable::parse('2026-09-10'))) {
+        $n++;
+        scRow(['day' => $day->toDateString(), 'clicks' => $n % 7, 'impressions' => 10 + $n, 'position_sum' => 3.5 * (10 + $n)]);
+        // One search in two spellings (one key to the column), one each other day.
+        scRow(['day' => $day->toDateString(), 'dim' => 'query', 'key' => $n % 2 ? 'Sleep No More' : 'sleep no more', 'clicks' => $n % 5, 'impressions' => 20 + $n % 9, 'position_sum' => 1.5 * (20 + $n % 9)]);
+        scRow(['day' => $day->toDateString(), 'dim' => 'query', 'key' => 'search '.($n % 13), 'clicks' => $n % 3, 'impressions' => 5 + $n % 4, 'position_sum' => 7.25 * (5 + $n % 4)]);
+        scRow(['day' => $day->toDateString(), 'dim' => 'query_page', 'key' => 'search '.($n % 13).' > /events/e'.($n % 4), 'clicks' => $n % 2, 'impressions' => 3, 'position_sum' => 6]);
+        $day = $day->addDay();
+    }
+
+    $answers = fn () => [
+        app(SearchConsoleReport::class)->queries(480, 100),
+        app(SearchConsoleReport::class)->queries(60, 100, 'search', 'impressions'),
+        app(SearchConsoleReport::class)->queryPages(480, 100),
+        app(SearchConsoleReport::class)->section('google_queries', 90),
+    ];
+
+    $daily = $answers();
+    expect(DB::table('search_console_monthly')->count())->toBe(0);
+
+    $this->artisan('ei:search-console-import', ['--rebuild-months' => true])->assertSuccessful();
+    expect(DB::table('search_console_monthly')->where('dim', 'all')->pluck('month')->map(fn ($m) => substr($m, 0, 10))->all())->toBe(['2026-06-01', '2026-07-01', '2026-08-01', '2026-09-01']);
+
+    Illuminate\Support\Facades\Cache::flush();
+    DB::enableQueryLog();
+    $monthly = $answers();
+
+    expect(collect(DB::getQueryLog())->contains(fn ($q) => str_contains($q['query'], 'FROM search_console_monthly') && str_contains($q['query'], 'UNION ALL')))->toBeTrue()
+        ->and($monthly)->toEqual($daily)
+        ->and($daily[0])->not->toBeEmpty();
+});
+
+test('an import rebuilds the months it stored days in', function () {
+    scConfigure();
+    scFakeGoogle();
+    scRow(['day' => now()->subDays(2)->startOfMonth()->toDateString(), 'dim' => 'query', 'key' => 'sleep no more', 'clicks' => 3, 'impressions' => 30, 'position_sum' => 30]);
+
+    $this->artisan('ei:search-console-import', ['--days' => 1])->assertSuccessful();
+
+    $month = now()->subDays(2)->startOfMonth()->toDateString();
+    $row = DB::table('search_console_monthly')->where(['month' => $month, 'dim' => 'query', 'key' => 'sleep no more'])->first();
+    $sameDay = now()->subDays(2)->startOfMonth()->isSameDay(now()->subDays(2));
+
+    // The import's 7 clicks, plus 3 from another day of the month (unless that day was the one re-imported).
+    expect($row->clicks)->toBe($sameDay ? 7 : 10)
+        ->and(DB::table('search_console_monthly')->where(['month' => $month, 'dim' => 'all'])->value('clicks'))->toBe(10);
+});
+
+test('past 90 days the series is weekly, with how many days each week holds', function () {
+    scConfigure();
+    $last = Carbon\CarbonImmutable::parse('2026-09-30'); // a Wednesday
+    for ($i = 0; $i < 100; $i++) {
+        scRow(['day' => $last->subDays($i)->toDateString(), 'clicks' => 1, 'impressions' => 10, 'position_sum' => 20]);
+    }
+
+    $totals = app(SearchConsoleReport::class)->totals(100);
+
+    expect($totals['grain'])->toBe('week')
+        ->and($totals['series'][0])->toMatchArray(['week' => '2026-06-23', 'days' => 6, 'clicks' => 6])
+        ->and(end($totals['series']))->toMatchArray(['week' => '2026-09-28', 'days' => 3, 'clicks' => 3, 'position' => 2.0])
+        ->and(array_sum(array_column($totals['series'], 'days')))->toBe(100)
+        ->and(SearchConsoleReport::DEFINITIONS['series'])->toContain('dated by their Monday');
+    expect(app(SearchConsoleReport::class)->totals(7)['series'][0])->toHaveKey('day');
+});
+
+test('query_pages with both a search and a page answers that one pair', function () {
+    scConfigure();
+    scRow(['clicks' => 9, 'impressions' => 90]);
+    scRow(['dim' => 'query_page', 'key' => 'sleep no more > /events/the-show', 'clicks' => 5, 'impressions' => 10, 'position_sum' => 10]);
+    scRow(['dim' => 'query_page', 'key' => 'sleep no more > /events/other', 'clicks' => 3, 'impressions' => 10, 'position_sum' => 10]);
+    scRow(['dim' => 'query_page', 'key' => 'escape room > /events/the-show', 'clicks' => 1, 'impressions' => 10, 'position_sum' => 10]);
+
+    $pairs = app(SearchConsoleReport::class)->queryPages(28, 10, 'Sleep No More', 'https://everythingimmersive.com/events/the-show?x=1');
+
+    expect($pairs)->toHaveCount(1)->and($pairs[0])->toMatchArray(['query' => 'sleep no more', 'page' => '/events/the-show', 'clicks' => 5]);
+});
