@@ -164,6 +164,10 @@ test('the page hands its view id to the browser only while time on page is measu
 
     captureOn('duration');
     expect($this->withoutVite()->get('/privacy')->getContent())->toMatch('/analyticsView: "[A-Za-z0-9]{12}"/');
+
+    // A page that turns out to be a 404 records no view, so it sends no beacon.
+    $gone = $this->withoutVite()->get('/events/no-such-event');
+    expect($gone->status())->toBe(404)->and($gone->getContent())->not->toMatch('/analyticsView: "/');
 });
 
 // ----- nav search -----

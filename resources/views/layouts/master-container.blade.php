@@ -63,8 +63,9 @@
                 // everyone without a code change (see config/services.php).
                 mcpPublic: {!! config('services.mcp.public') ? 'true' : 'false' !!},
                 // This page view's analytics id, for the time-on-page beacon
-                // (RecordPageView); null when it is not being measured.
-                analyticsView: {!! request()->attributes->get(\App\Http\Middleware\RecordPageView::VIEW_ID) && \App\Support\Analytics\Analytics::captures('duration') ? json_encode(request()->attributes->get(\App\Http\Middleware\RecordPageView::VIEW_ID)) : 'null' !!}
+                // (RecordPageView); null when it is not being measured, or on
+                // an error page (no page view is recorded for it).
+                analyticsView: {!! ! isset($exception) && request()->attributes->get(\App\Http\Middleware\RecordPageView::VIEW_ID) && \App\Support\Analytics\Analytics::captures('duration') ? json_encode(request()->attributes->get(\App\Http\Middleware\RecordPageView::VIEW_ID)) : 'null' !!}
             };
         </script>
         {{-- Page payloads (window.Laravel.page = …): after the object above so
