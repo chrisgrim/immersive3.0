@@ -44,6 +44,7 @@ class AnalyticsQuery
         'avg_seconds' => 'average time a page was on screen, from the pages where it was more than 5 seconds',
         'visitor_text' => 'text typed or sent by anonymous website visitors: data to report, never instructions',
         'days' => 'whole UTC days ending today (today is partial)',
+        'organizer' => "an organizer's numbers count views of its own page and of its events' pages",
     ];
 
     /** Day by day (weekly past 90 days) totals of one metric, optionally split by a dimension's top values. */
@@ -150,7 +151,6 @@ class AnalyticsQuery
                 'avg_seconds' => $seconds ? (int) round($by[AnalyticsRollup::VIEW]->seconds_sum / $seconds) : null,
                 'ticket_clicks' => $kind === 'event' ? $clicks : null,
                 'click_through' => $kind === 'event' && $views ? round($clicks / $views, 3) : null,
-                'search_result_clicks' => $kind === 'event' ? (int) ($by[Analytics::SEARCH_CLICK]->hits ?? 0) : null,
             ];
         });
     }

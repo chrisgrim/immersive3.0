@@ -14,7 +14,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[IsReadOnly]
-#[Description('Moderators only. One event\'s or one organizer\'s own numbers over a period, from the daily totals (bots excluded): page views, visits, average time on page, and for an event its ticket clicks, click-through and clicks from search results. Give the event or organizer by slug or id. Up to 400 days.')]
+#[Description('Moderators only. One event\'s or one organizer\'s own numbers over a period, from the daily totals (bots excluded): page views, visits and average time on page (for an organizer: its own page plus the pages of its events), and for an event its ticket clicks and click-through. Give the event or organizer by slug or id. Up to 400 days.')]
 class AnalyticsFor extends Tool
 {
     use AnswersAnalytics;

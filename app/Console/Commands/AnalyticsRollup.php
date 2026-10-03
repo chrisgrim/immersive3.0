@@ -118,7 +118,9 @@ class AnalyticsRollup extends Command
             [null, 'all', "''", null],
             [$views, 'page', 'COALESCE(e.page, IF(e.type = \''.Analytics::EVENT_VIEW."', 'events.show', NULL))", null],
             [[Analytics::PAGE_VIEW], 'path', 'e.path', null],
-            [[...$views, Analytics::TICKET_CLICK, Analytics::SEARCH_CLICK], 'event', 'e.event_id', null],
+            // Not search clicks: those are only believable checked against
+            // what their search showed (SiteAnalyticsReport, raw rows).
+            [[...$views, Analytics::TICKET_CLICK], 'event', 'e.event_id', null],
             [[Analytics::PAGE_VIEW], 'organizer', 'e.organizer_id', null],
             [$views, 'source', 'e.source', null],
             [$views, 'ref', "JSON_UNQUOTE(JSON_EXTRACT(e.props, '$.ref'))", null],

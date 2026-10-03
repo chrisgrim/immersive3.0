@@ -93,3 +93,10 @@ test('the live tool says when live counting is off, and counts when on', functio
 
     asModerator()->tool(AnalyticsLive::class)->assertOk()->assertSee('"on_site_now":1', false);
 });
+
+test('one event\'s numbers leave out raw result clicks, which only the admin report can check', function () {
+    $event = Event::factory()->published()->create(['slug' => 'clicked-show']);
+    daily(['dim' => 'event', 'key' => (string) $event->id, 'hits' => 3]);
+
+    asModerator()->tool(AnalyticsFor::class, ['event' => 'clicked-show'])->assertOk()->assertDontSee('search_result_clicks');
+});
