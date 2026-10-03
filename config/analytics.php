@@ -12,14 +12,27 @@ return [
     // and the buffer would keep raw IPs in Redis indefinitely.
     'enabled' => env('ANALYTICS_ENABLED', in_array(env('APP_ENV'), ['production', 'local', 'testing'], true)),
 
+    // Phase 2 captures, each off until switched on: in .env, or without a
+    // deploy with `php artisan ei:analytics-capture <name> on|off` (a cache
+    // override, read once per request). Turn on one at a time and watch.
+    'capture' => [
+        'page_views' => env('ANALYTICS_PAGE_VIEWS', false),   // every public page (RecordPageView)
+        'device' => env('ANALYTICS_DEVICE', false),           // device/browser/OS families, at flush
+        'utm' => env('ANALYTICS_UTM', false),                 // campaign tags on page views
+        'city' => env('ANALYTICS_CITY', false),               // city + region, at flush (DB-IP City Lite)
+        'duration' => env('ANALYTICS_DURATION', false),       // time on page beacon
+        'live' => env('ANALYTICS_LIVE', false),               // "on the site now" set in Redis
+        'nav_search' => env('ANALYTICS_NAV_SEARCH', false),   // what is typed in the nav search
+    ],
+
     // 'redis' on the servers; 'array' (this process's memory) in tests.
     'buffer' => env('ANALYTICS_BUFFER', 'redis'),
 
     'buffer_key' => 'analytics:events',
 
-    // The buffer keeps at most this many notes (~4 MB); older ones are
+    // The buffer keeps at most this many notes (~40 MB worst case); older ones are
     // dropped if the flusher stops running.
-    'buffer_max' => 20000,
+    'buffer_max' => 50000,
 
     // Hits per visitor per day before the rest are flagged as a bot.
     'daily_cap' => 300,
@@ -31,6 +44,10 @@ return [
     // Rows older than this are deleted by ei:analytics-prune: 13 months, the
     // most CNIL allows for audience measurement without consent.
     'raw_days' => 395,
+
+    // Rows flagged as bots are deleted after this many days; their counts
+    // stay in analytics_daily (ei:analytics-rollup).
+    'bot_raw_days' => 30,
 
     // DB-IP Lite country + ASN databases (free, CC BY 4.0, monthly), kept
     // fresh by ei:analytics-geo-update. Without them rows just have no

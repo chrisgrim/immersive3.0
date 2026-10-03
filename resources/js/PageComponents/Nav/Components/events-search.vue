@@ -114,7 +114,7 @@ let timeout = null;
 const generateSearchList = async () => {
     try {
         const response = await axios.get('/api/search/nav/names', { 
-            params: { keywords: searchInput.value } 
+            params: { keywords: searchInput.value, nav: 1 } 
         });
         // Drop hits whose model didn't hydrate. These come back from the
         // search index when the underlying row is gone (deleted event or

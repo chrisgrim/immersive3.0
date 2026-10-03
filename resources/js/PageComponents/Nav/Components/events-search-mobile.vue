@@ -183,7 +183,7 @@ const fetchEvents = async () => {
     isLoading.value = true;
     try {
         const response = await axios.get('/api/search/nav/events', { 
-            params: { keywords: eventInput.value } 
+            params: { keywords: eventInput.value, nav: 1 } 
         });
         
         if (response.data && Array.isArray(response.data)) {
@@ -216,7 +216,7 @@ const fetchEvents = async () => {
 const fetchOrganizers = async () => {
     try {
         const response = await axios.get('/api/search/nav/organizers', { 
-            params: { keywords: organizerInput.value } 
+            params: { keywords: organizerInput.value, nav: 1 } 
         });
         
         if (response.data && Array.isArray(response.data)) {

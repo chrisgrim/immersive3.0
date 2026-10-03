@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\Analytics\Analytics;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
@@ -21,7 +22,7 @@ class AnalyticsGeoUpdate extends Command
 
     protected $description = 'Download the free DB-IP country and ASN databases used to flag bots.';
 
-    public const FILES = ['country' => 'dbip-country-lite', 'asn' => 'dbip-asn-lite'];
+    public const FILES = ['country' => 'dbip-country-lite', 'asn' => 'dbip-asn-lite', 'city' => 'dbip-city-lite'];
 
     public function handle(): int
     {
@@ -29,6 +30,11 @@ class AnalyticsGeoUpdate extends Command
         File::ensureDirectoryExists($dir);
 
         foreach (self::FILES as $name => $remote) {
+            // City Lite is ~120 MB: only fetched while city capture is on.
+            if ($name === 'city' && ! Analytics::captures('city')) {
+                continue;
+            }
+
             $target = "{$dir}/{$name}.mmdb";
 
             if (! $this->option('force') && File::exists($target) && File::lastModified($target) > now()->subDays(20)->getTimestamp()) {
@@ -53,7 +59,7 @@ class AnalyticsGeoUpdate extends Command
         $tmp = "{$target}.download";
 
         try {
-            $response = Http::timeout(120)->sink($gz)->get($url);
+            $response = Http::timeout(600)->sink($gz)->get($url);
             if (! $response->successful()) {
                 return false;
             }

@@ -128,8 +128,27 @@
                     Our own cookies only make the site work: they keep you signed in (and remembered on this browser after you sign in with an email code), protect forms, recognize your device for sign-in security, carry the Sign in with Apple step, and remember a layout preference. None are used for advertising. You can instruct your browser to refuse cookies, but parts of the site that need you to be signed in will not work.
                 </p>
                 <p class="mt-4">
-                    <strong>Our own visit counts.</strong> To learn which events people look for, which searches find nothing, and how often a listing's ticket link is clicked, we record searches (the place you typed, with anything that looks like an email address or phone number removed, its area to about a kilometer, the filters, and which events were shown), event page views, clicks on search results and ticket links, the website that sent you (its name only, such as google.com, not the page), and your country. We do this without cookies and without storing your IP address: your IP address and browser name are combined into a code that changes every day and cannot be traced back to you, and are then discarded. These records are kept for 13 months. Separately, each listing keeps a record of its ticket link clicks for 90 days, with the page you clicked from; if you are signed in when you click, that click is linked to your account. Click records made before October 2026 also hold an IP address and browser name, and are deleted on the same 90-day schedule. Organizers only ever see totals. IP geolocation by <a href="https://db-ip.com" class="text-blue-600 hover:underline">DB-IP</a>.
+                    <strong>Our own visit counts.</strong> To learn which events people look for, which searches find nothing, and how often a listing's ticket link is clicked, we record searches (the place you typed, with anything that looks like an email address or phone number removed, its area to about a kilometer, the filters, and which events were shown), event page views, clicks on search results and ticket links, the website that sent you (its name only, such as google.com, not the page), and your country. We do this without cookies and without storing your IP address: your IP address and browser name are combined into a code that changes every day and cannot be traced back to you, and are then discarded. These records are kept for 13 months (visits we judge to be automated, such as search engine crawlers, for 30 days); daily totals with no individual visits in them are kept longer. Separately, each listing keeps a record of its ticket link clicks for 90 days, with the page you clicked from; if you are signed in when you click, that click is linked to your account. Click records made before October 2026 also hold an IP address and browser name, and are deleted on the same 90-day schedule. Organizers only ever see totals. IP geolocation by <a href="https://db-ip.com" class="text-blue-600 hover:underline">DB-IP</a>.
                 </p>
+                @php
+                    $alsoRecorded = array_values(array_filter([
+                        \App\Support\Analytics\Analytics::captures('page_views') ? 'which pages of the site you view, in order' : null,
+                        \App\Support\Analytics\Analytics::captures('device') ? 'your kind of device (phone, tablet or computer) and the names of your browser and operating system, without versions' : null,
+                        \App\Support\Analytics\Analytics::captures('city') ? 'your city and region, from your IP address, never an exact location' : null,
+                        \App\Support\Analytics\Analytics::captures('utm') ? 'campaign tags in the link that brought you here (such as utm_source)' : null,
+                        \App\Support\Analytics\Analytics::captures('duration') ? 'how long a page was on your screen (if more than 5 seconds) and how far down you scrolled' : null,
+                        \App\Support\Analytics\Analytics::captures('nav_search') ? 'what you type into the search bar at the top of the site' : null,
+                    ]));
+                @endphp
+                @if ($alsoRecorded)
+                <p class="mt-4" data-analytics-also>
+                    In the same way, with the same daily code and the same limits, we also record {{ implode('; ', $alsoRecorded) }}.
+                    @if (\App\Support\Analytics\Analytics::captures('live'))
+                        We count how many people are on the site at any moment from the last five minutes of these visits.
+                    @endif
+                    Paths through the site are only kept in our daily totals when at least five people took the same one.
+                </p>
+                @endif
                 @if (config('services.umami.website_id'))
                 <p class="mt-4">
                     We also use Umami, a privacy-friendly analytics service that counts page visits without cookies.

@@ -137,6 +137,11 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     import('./sentry').then(({ installSentry }) => installSentry(app));
 }
 
+// Time on page, only when the server is measuring this page view.
+if (window.Laravel?.analyticsView) {
+    import('./composables/useAnalytics').then(({ watchPage }) => watchPage(window.Laravel.analyticsView));
+}
+
 // Setup axios
 window.axios = axios;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';

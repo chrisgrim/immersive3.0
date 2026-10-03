@@ -61,7 +61,10 @@
                 // false the API Keys tab (and /settings/api-tokens) is
                 // moderator/admin only; flipping the env var opens it to
                 // everyone without a code change (see config/services.php).
-                mcpPublic: {!! config('services.mcp.public') ? 'true' : 'false' !!}
+                mcpPublic: {!! config('services.mcp.public') ? 'true' : 'false' !!},
+                // This page view's analytics id, for the time-on-page beacon
+                // (RecordPageView); null when it is not being measured.
+                analyticsView: {!! request()->attributes->get(\App\Http\Middleware\RecordPageView::VIEW_ID) && \App\Support\Analytics\Analytics::captures('duration') ? json_encode(request()->attributes->get(\App\Http\Middleware\RecordPageView::VIEW_ID)) : 'null' !!}
             };
         </script>
         {{-- Page payloads (window.Laravel.page = …): after the object above so

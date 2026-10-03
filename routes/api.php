@@ -61,6 +61,12 @@ Route::POST('/analytics/search-click', App\Http\Controllers\Analytics\SearchClic
     ->middleware('throttle:60,1')
     ->name('analytics.search-click');
 
+// Time on page (analytics), one sendBeacon per page view, same rules.
+Route::POST('/analytics/page-leave', App\Http\Controllers\Analytics\PageLeaveController::class)
+    ->withoutMiddleware(\Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class)
+    ->middleware('throttle:60,1')
+    ->name('analytics.page-leave');
+
 // Resource-intensive: Search & recommendations - Very generous (180/min = 3/sec)
 Route::middleware(['throttle:180,1'])->group(function () {
     Route::GET('/index/search', [ListingsController::class, 'apiIndex']);

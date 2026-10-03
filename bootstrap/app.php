@@ -29,6 +29,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // recording it again there would be redundant, not additive.
         $middleware->web(append: [
             \App\Http\Middleware\RecordLoginHistory::class,
+            // First-party page views (off until analytics.capture.page_views).
+            \App\Http\Middleware\RecordPageView::class,
         ]);
 
         $middleware->alias([

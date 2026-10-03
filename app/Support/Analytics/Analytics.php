@@ -3,6 +3,7 @@
 namespace App\Support\Analytics;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 use Jaybizzle\CrawlerDetect\CrawlerDetect;
@@ -23,6 +24,14 @@ class Analytics
     public const SEARCH = 'search';
 
     public const EVENT_VIEW = 'event_view';
+
+    public const PAGE_VIEW = 'page_view';
+
+    /** Time on page, sent by the browser when the page is hidden (view_id, seconds). */
+    public const PAGE_LEAVE = 'page_leave';
+
+    /** What was typed into the nav search (names of events and organizers). */
+    public const NAV_SEARCH = 'nav_search';
 
     public const TICKET_CLICK = 'ticket_click';
 
@@ -136,6 +145,41 @@ class Analytics
         return $asn !== null && in_array($asn, config('analytics.hosting_asns'), true);
     }
 
+    /** Cache key holding switch overrides set by ei:analytics-capture. */
+    public const CAPTURE_OVERRIDES = 'analytics:capture';
+
+    /** @var array<string, bool>|null overrides, read once per request */
+    private ?array $overrides = null;
+
+    /**
+     * Is this phase 2 capture switched on? The cache override (set by
+     * ei:analytics-capture, no deploy needed) wins over config; any cache
+     * failure falls back to config.
+     */
+    public static function captures(string $name): bool
+    {
+        if (! config('analytics.enabled')) {
+            return false;
+        }
+
+        $analytics = app(self::class);
+        if ($analytics->overrides === null) {
+            try {
+                $analytics->overrides = (array) Cache::get(self::CAPTURE_OVERRIDES, []);
+            } catch (Throwable) {
+                $analytics->overrides = [];
+            }
+        }
+
+        return (bool) ($analytics->overrides[$name] ?? config("analytics.capture.{$name}", false));
+    }
+
+    /** Forget the per-request override memo (tests, and the command). */
+    public function forgetOverrides(): void
+    {
+        $this->overrides = null;
+    }
+
     /**
      * The visitor's browser asks not to be tracked: Global Privacy Control
      * (Sec-GPC: 1) or Do Not Track (DNT: 1). Nothing of theirs is recorded.
@@ -143,6 +187,31 @@ class Analytics
     public static function optedOut(Request $request): bool
     {
         return $request->headers->get('sec-gpc') === '1' || $request->headers->get('dnt') === '1';
+    }
+
+    /**
+     * Campaign tags on a landing: utm_source / utm_medium / utm_campaign, or
+     * ?ref= (what NoProscenium and others send) as the source. Lowercased,
+     * only letters, digits and . _ - and spaces, 64 characters each.
+     *
+     * @return array{source?: string, medium?: string, campaign?: string}
+     */
+    public static function campaign(Request $request): array
+    {
+        $clean = function ($value): ?string {
+            if (! is_string($value)) {
+                return null;
+            }
+            $value = trim(preg_replace('/[^a-z0-9._ -]+/', '', mb_strtolower($value)));
+
+            return $value === '' ? null : mb_substr($value, 0, 64);
+        };
+
+        return array_filter([
+            'source' => $clean($request->query('utm_source')) ?? $clean($request->query('ref')),
+            'medium' => $clean($request->query('utm_medium')),
+            'campaign' => $clean($request->query('utm_campaign')),
+        ]);
     }
 
     /** A browser prefetch or prerender, not a person looking at the page. */
@@ -209,6 +278,48 @@ class Analytics
             $pipe->expire(config('analytics.buffer_key'), 86400);
         });
     }
+
+    public const LIVE_KEY = 'analytics:live';
+
+    /**
+     * "On the site now": people (not bots) with a page view in the last
+     * $minutes, from a Redis sorted set the flusher keeps (visitor => time
+     * of last page view). Entries older than 10 minutes are trimmed.
+     *
+     * @param  array<string, int>  $visitors
+     */
+    public function markLive(array $visitors): void
+    {
+        $cutoff = now()->subMinutes(10)->getTimestamp();
+
+        if (config('analytics.buffer') === 'array') {
+            $this->liveSet = array_filter($visitors + $this->liveSet, fn ($at) => $at >= $cutoff);
+
+            return;
+        }
+
+        Redis::pipeline(function ($pipe) use ($visitors, $cutoff) {
+            foreach ($visitors as $visitor => $at) {
+                $pipe->zadd(self::LIVE_KEY, $at, $visitor);
+            }
+            $pipe->zremrangebyscore(self::LIVE_KEY, '-inf', $cutoff);
+            $pipe->expire(self::LIVE_KEY, 900);
+        });
+    }
+
+    public function liveCount(int $minutes = 5): int
+    {
+        $since = now()->subMinutes($minutes)->getTimestamp();
+
+        if (config('analytics.buffer') === 'array') {
+            return count(array_filter($this->liveSet, fn ($at) => $at >= $since));
+        }
+
+        return (int) Redis::zcount(self::LIVE_KEY, $since, '+inf');
+    }
+
+    /** @var array<string, int> the 'array' live set (tests) */
+    private array $liveSet = [];
 
     /** Throw the whole buffer away (analytics switched off: no raw IPs kept). */
     public function clear(): void

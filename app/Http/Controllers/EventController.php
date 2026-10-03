@@ -92,7 +92,12 @@ class EventController extends Controller
     /** One analytics note per view of a live event page (Analytics::EVENT_VIEW). */
     private function recordView(Event $event, Request $request): void
     {
-        if (Analytics::isPrefetch($request)) {
+        // For RecordPageView, which records this page as a page view.
+        $request->attributes->set('analytics.event_id', $event->id);
+        $request->attributes->set('analytics.organizer_id', $event->organizer_id);
+
+        // With page views on, that page view is the event view.
+        if (Analytics::isPrefetch($request) || Analytics::captures('page_views')) {
             return;
         }
 

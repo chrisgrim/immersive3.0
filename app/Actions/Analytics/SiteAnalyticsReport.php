@@ -38,7 +38,7 @@ class SiteAnalyticsReport
         ELSE COALESCE(rl.name, CONCAT('Type ', ".self::REMOTE.')) END';
 
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 7;
+    private const VERSION = 8;
 
     private const LIMIT = 25;
 
@@ -124,11 +124,20 @@ class SiteAnalyticsReport
                 OR CAST(JSON_EXTRACT(s.props, CONCAT('$.shown[', CAST(JSON_EXTRACT(analytics_events.props, '$.position') AS UNSIGNED) - 1, ']')) AS UNSIGNED) = analytics_events.event_id)");
     }
 
+    /**
+     * A view of an event page: an event_view row (before page views were
+     * recorded), or a page_view of events.show (since; RecordPageView).
+     */
+    private function eventViewSql(): string
+    {
+        return "(analytics_events.type = '".Analytics::EVENT_VIEW."' OR (analytics_events.type = '".Analytics::PAGE_VIEW."' AND analytics_events.page = 'events.show'))";
+    }
+
     /** Per type (map pans apart, as map_search): how many, and by how many different visitors. */
     private function totals($since, $until = null): array
     {
         return $this->rows($since, null, $until)
-            ->selectRaw("IF(type = ? AND source = 'map', 'map_search', type) AS kind, COUNT(*) AS total, COUNT(DISTINCT visitor) AS visitors", [Analytics::SEARCH])
+            ->selectRaw("CASE WHEN type = ? AND source = 'map' THEN 'map_search' WHEN type = ? AND page = 'events.show' THEN ? ELSE type END AS kind, COUNT(*) AS total, COUNT(DISTINCT visitor) AS visitors", [Analytics::SEARCH, Analytics::PAGE_VIEW, Analytics::EVENT_VIEW])
             ->groupBy('kind')
             ->get()
             ->mapWithKeys(fn ($row) => [$row->kind => ['total' => (int) $row->total, 'visitors' => (int) $row->visitors]])
@@ -142,16 +151,17 @@ class SiteAnalyticsReport
     private function daily($since, int $days): array
     {
         $counts = $this->rows($since)
-            ->whereIn('type', [Analytics::EVENT_VIEW, Analytics::SEARCH, Analytics::TICKET_CLICK])
+            ->whereIn('type', [Analytics::EVENT_VIEW, Analytics::PAGE_VIEW, Analytics::SEARCH, Analytics::TICKET_CLICK])
             ->whereRaw("(type <> ? OR source = 'list')", [Analytics::SEARCH])
-            ->selectRaw('DATE(occurred_at) AS day, type, COUNT(*) AS total')
-            ->groupBy('day', 'type')
+            ->whereRaw("(type <> ? OR page = 'events.show')", [Analytics::PAGE_VIEW])
+            ->selectRaw('DATE(occurred_at) AS day, IF(type = ?, ?, type) AS kind, COUNT(*) AS total', [Analytics::PAGE_VIEW, Analytics::EVENT_VIEW])
+            ->groupBy('day', 'kind')
             ->get()
             ->groupBy('day');
 
         $series = [];
         for ($day = $since->copy()->startOfDay(); $day->lte(now()); $day->addDay()) {
-            $rows = $counts->get($day->toDateString(), collect())->pluck('total', 'type');
+            $rows = $counts->get($day->toDateString(), collect())->pluck('total', 'kind');
             $series[] = [
                 'day' => $day->toDateString(),
                 'event_views' => (int) ($rows[Analytics::EVENT_VIEW] ?? 0),
@@ -351,9 +361,9 @@ class SiteAnalyticsReport
     private function events($since, ?array $onlyIds = null): array
     {
         $counts = $this->rows($since)
-            ->whereIn('type', [Analytics::EVENT_VIEW, Analytics::TICKET_CLICK])
+            ->whereRaw("({$this->eventViewSql()} OR analytics_events.type = ?)", [Analytics::TICKET_CLICK])
             ->when($onlyIds !== null, fn ($query) => $query->whereIn('event_id', $onlyIds), fn ($query) => $query->whereNotNull('event_id'))
-            ->selectRaw('event_id, SUM(type = ?) AS views, SUM(type = ?) AS ticket_clicks', [Analytics::EVENT_VIEW, Analytics::TICKET_CLICK])
+            ->selectRaw("event_id, SUM({$this->eventViewSql()}) AS views, SUM(type = ?) AS ticket_clicks", [Analytics::TICKET_CLICK])
             ->groupBy('event_id')
             ->orderByDesc('views')
             ->limit(self::LIMIT)
@@ -381,7 +391,7 @@ class SiteAnalyticsReport
     /** Where event page views came from (Analytics::referrer), and the top outside sites. */
     private function viewSources($since): array
     {
-        $sources = $this->rows($since, Analytics::EVENT_VIEW)
+        $sources = $this->rows($since)->whereRaw($this->eventViewSql())
             ->selectRaw('source, COUNT(*) AS views')
             ->groupBy('source')
             ->orderByDesc('views')
@@ -389,7 +399,7 @@ class SiteAnalyticsReport
             ->map(fn ($views) => (int) $views)
             ->all();
 
-        $sites = $this->rows($since, Analytics::EVENT_VIEW)
+        $sites = $this->rows($since)->whereRaw($this->eventViewSql())
             ->whereNotNull('props')
             ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(props, '$.ref')) AS site, COUNT(*) AS views")
             ->groupBy('site')

@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Support\Analytics\Analytics;
 use App\Support\Analytics\GeoLookup;
+use hisorange\BrowserDetect\Facade as Browser;
 use Illuminate\Console\Command;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
@@ -36,6 +37,12 @@ class AnalyticsFlush extends Command
     private array $salts = [];
 
     private GeoLookup $geo;
+
+    /** @var array<string, array> user agent hash => device() result, for this run */
+    private array $devices = [];
+
+    /** @var array<string, int> visitor => last page view timestamp, for the live set */
+    private array $live = [];
 
     /** @var array<int, true> */
     private array $hostingAsns = [];
@@ -71,6 +78,10 @@ class AnalyticsFlush extends Command
 
                 throw $e;
             }
+        }
+
+        if ($this->live !== [] || Analytics::captures('live')) {
+            $analytics->markLive($this->live);
         }
 
         if ($written > 0) {
@@ -141,11 +152,22 @@ class AnalyticsFlush extends Command
         $visitor = substr(hash('sha256', $this->salt($day).'|'.$ip.'|'.$ua), 0, 16);
         $data = is_array($note['d'] ?? null) ? $note['d'] : [];
 
+        $bot = $this->botFlags($ua, $ip, $day, $visitor) | (isset($this->hostingAsns[$this->geo->asn($ip) ?? 0]) ? Analytics::BOT_DATACENTER : 0);
+        $type = mb_substr((string) $note['t'], 0, 32);
+        $text = fn ($key, $max) => isset($data[$key]) && is_scalar($data[$key]) && (string) $data[$key] !== '' ? mb_substr((string) $data[$key], 0, $max) : null;
+        $utm = is_array($data['utm'] ?? null) ? $data['utm'] : [];
+        $device = $bot === 0 && Analytics::captures('device') ? $this->device($ua) : [];
+        $place = $bot === 0 && Analytics::captures('city') ? $this->geo->place($ip) : [];
+
+        if ($bot === 0 && $type === Analytics::PAGE_VIEW && Analytics::captures('live')) {
+            $this->live[$visitor] = max($this->live[$visitor] ?? 0, $at->getTimestamp());
+        }
+
         return [
-            'type' => mb_substr((string) $note['t'], 0, 32),
+            'type' => $type,
             'occurred_at' => $at->format('Y-m-d H:i:s'),
             'visitor' => $visitor,
-            'bot' => $this->botFlags($ua, $ip, $day, $visitor) | (isset($this->hostingAsns[$this->geo->asn($ip) ?? 0]) ? Analytics::BOT_DATACENTER : 0),
+            'bot' => $bot,
             'event_id' => isset($data['event_id']) ? (int) $data['event_id'] : null,
             'source' => isset($data['source']) ? mb_substr((string) $data['source'], 0, 16) : null,
             'search_id' => isset($data['search_id']) && preg_match(Analytics::SEARCH_ID_PATTERN, (string) $data['search_id']) ? $data['search_id'] : null,
@@ -153,6 +175,20 @@ class AnalyticsFlush extends Command
             'results' => isset($data['results']) ? max(0, (int) $data['results']) : null,
             'country' => $this->geo->country($ip),
             'props' => ! empty($data['props']) ? json_encode($data['props']) : null,
+            'page' => $text('page', 32),
+            'path' => $text('path', 191),
+            'view_id' => isset($data['view_id']) && preg_match(Analytics::SEARCH_ID_PATTERN, (string) $data['view_id']) ? $data['view_id'] : null,
+            'organizer_id' => isset($data['organizer_id']) && is_numeric($data['organizer_id']) ? (int) $data['organizer_id'] : null,
+            'seconds' => isset($data['seconds']) && is_numeric($data['seconds']) ? min(1800, max(0, (int) $data['seconds'])) : null,
+            'depth' => isset($data['depth']) && is_numeric($data['depth']) ? min(100, max(0, (int) $data['depth'])) : null,
+            'utm_source' => isset($utm['source']) && is_string($utm['source']) ? mb_substr($utm['source'], 0, 64) : null,
+            'utm_medium' => isset($utm['medium']) && is_string($utm['medium']) ? mb_substr($utm['medium'], 0, 64) : null,
+            'utm_campaign' => isset($utm['campaign']) && is_string($utm['campaign']) ? mb_substr($utm['campaign'], 0, 64) : null,
+            'device' => $device['device'] ?? null,
+            'browser' => $device['browser'] ?? null,
+            'os' => $device['os'] ?? null,
+            'city' => $place['city'] ?? null,
+            'region' => $place['region'] ?? null,
         ];
     }
 
@@ -183,6 +219,30 @@ class AnalyticsFlush extends Command
         Cache::add($key, 0, now()->addDays(2));
 
         return Cache::increment($key) > $cap;
+    }
+
+    /**
+     * Device type and browser/OS family (never versions), from the user
+     * agent. hisorange caches each parse; this run memoizes per agent too.
+     *
+     * @return array{device: string, browser: ?string, os: ?string}
+     */
+    private function device(string $ua): array
+    {
+        return $this->devices[md5($ua)] ??= (function () use ($ua) {
+            try {
+                $result = Browser::parse($ua);
+                $family = fn (?string $name) => $name !== null && $name !== '' && $name !== 'Unknown' ? mb_substr($name, 0, 32) : null;
+
+                return [
+                    'device' => $result->isMobile() ? 'mobile' : ($result->isTablet() ? 'tablet' : ($result->isDesktop() ? 'desktop' : 'other')),
+                    'browser' => $family($result->browserFamily()),
+                    'os' => $family($result->platformFamily()),
+                ];
+            } catch (Throwable) {
+                return ['device' => 'other', 'browser' => null, 'os' => null];
+            }
+        })();
     }
 
     private function salt(string $day): string

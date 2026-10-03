@@ -29,6 +29,23 @@ class GeoLookup
         return is_numeric($asn) ? (int) $asn : null;
     }
 
+    /**
+     * City and region (state, province) from DB-IP City Lite, when that file
+     * is there; never coordinates.
+     *
+     * @return array{city: ?string, region: ?string}
+     */
+    public function place(string $ip): array
+    {
+        $record = $this->lookup('city', $ip);
+        $name = fn ($names) => is_string($names['en'] ?? null) ? mb_substr($names['en'], 0, 64) : null;
+
+        return [
+            'city' => $name($record['city']['names'] ?? []),
+            'region' => $name($record['subdivisions'][0]['names'] ?? []),
+        ];
+    }
+
     private function lookup(string $database, string $ip): ?array
     {
         if ($ip === '') {

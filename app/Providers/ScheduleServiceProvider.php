@@ -37,6 +37,16 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->dailyAt('03:50')
                 ->withoutOverlapping();
 
+            // Daily totals: the last three days nightly (late flushes), and
+            // today every hour so recent ranges never need raw rows.
+            $schedule->command('ei:analytics-rollup')
+                ->dailyAt('03:20')
+                ->withoutOverlapping();
+
+            $schedule->command('ei:analytics-rollup', ['--day' => 'today'])
+                ->hourlyAt(45)
+                ->withoutOverlapping();
+
             $schedule->command('ei:analytics-prune')
                 ->dailyAt('03:40')
                 ->withoutOverlapping();

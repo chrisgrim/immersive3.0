@@ -6,6 +6,7 @@ use App\Actions\Search\SearchActions;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\Organizer;
+use App\Support\Analytics\Analytics;
 use App\Support\Search\SearchGuard;
 use Elastic\ScoutDriverPlus\Support\Query;
 use Illuminate\Http\Request;
@@ -28,7 +29,7 @@ class SearchController extends Controller
             $query->trackScores(true);
         }
 
-        return SearchGuard::run(fn () => $query->execute()->hits(), fn () => collect());
+        return $this->recordNav($request, 'events', SearchGuard::run(fn () => $query->execute()->hits(), fn () => collect()));
     }
 
     public function navOrganizers(Request $request, SearchActions $searchActions)
@@ -46,7 +47,7 @@ class SearchController extends Controller
             $query->trackScores(true);
         }
 
-        return SearchGuard::run(fn () => $query->execute()->hits(), fn () => collect());
+        return $this->recordNav($request, 'organizers', SearchGuard::run(fn () => $query->execute()->hits(), fn () => collect()));
     }
 
     public function navNames(Request $request, SearchActions $searchActions)
@@ -65,6 +66,29 @@ class SearchController extends Controller
             $query->sort('published_at', 'desc');
         }
 
-        return SearchGuard::run(fn () => $query->execute()->hits(), fn () => collect());
+        return $this->recordNav($request, 'names', SearchGuard::run(fn () => $query->execute()->hits(), fn () => collect()));
+    }
+
+    /**
+     * What a visitor typed into the nav search (Analytics::NAV_SEARCH), when
+     * the nav_search capture is on: the text, which box, and how many names
+     * came back. Only calls from the public nav (`nav=1`); the same endpoints
+     * also serve the admin and the post editor. Every debounced keystroke
+     * arrives, so reports keep the longest text per visitor and minute.
+     */
+    private function recordNav(Request $request, string $kind, $hits)
+    {
+        $text = is_string($request->keywords) ? trim(preg_replace('/[\p{C}]+/u', ' ', $request->keywords)) : '';
+
+        if ($request->boolean('nav') && mb_strlen($text) >= 2 && Analytics::captures('nav_search')) {
+            Analytics::record(Analytics::NAV_SEARCH, [
+                'source' => $kind,
+                // Same treatment as a typed place: no emails or phone numbers.
+                'query' => preg_replace(['/\S+@\S+/u', '/\+?\d[\d\s().-]{5,}\d/u'], '[removed]', mb_substr($text, 0, 100)),
+                'results' => is_countable($hits) ? count($hits) : 0,
+            ], $request);
+        }
+
+        return $hits;
     }
 }
