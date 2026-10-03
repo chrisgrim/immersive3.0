@@ -64,7 +64,7 @@ class AnalyticsGeoUpdate extends Command
                 return false;
             }
 
-            File::put($tmp, gzdecode(File::get($gz)) ?: throw new \RuntimeException("Could not unzip {$url}"));
+            $this->gunzip($gz, $tmp);
             (new Reader($tmp))->close(); // throws if it is not a valid database
             File::move($tmp, $target);
 
@@ -75,6 +75,28 @@ class AnalyticsGeoUpdate extends Command
             return false;
         } finally {
             File::delete([$gz, $tmp]);
+        }
+    }
+
+    /**
+     * Unzips a piece at a time: the city database is ~130 MB unzipped, more
+     * than a CLI memory limit may allow in one string.
+     */
+    private function gunzip(string $from, string $to): void
+    {
+        $in = gzopen($from, 'rb') ?: throw new \RuntimeException("Could not open {$from}");
+        $out = fopen($to, 'wb') ?: throw new \RuntimeException("Could not write {$to}");
+        try {
+            while (! gzeof($in)) {
+                $chunk = gzread($in, 1024 * 1024);
+                if ($chunk === false) {
+                    throw new \RuntimeException("Could not unzip {$from}");
+                }
+                fwrite($out, $chunk);
+            }
+        } finally {
+            gzclose($in);
+            fclose($out);
         }
     }
 }
