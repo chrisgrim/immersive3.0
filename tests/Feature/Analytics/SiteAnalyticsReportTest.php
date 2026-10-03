@@ -38,7 +38,7 @@ test('the report counts people, leaves bots out, and lists searches that found n
 
     $report = app(SiteAnalyticsReport::class)->handle(30);
 
-    expect($report['totals']['search'])->toBe(['total' => 3, 'visitors' => 2, 'visitors_on_measured_days' => null, 'confirmed_visitors' => null, 'engaged_visitors' => null])
+    expect($report['totals']['search'])->toBe(['total' => 3, 'visitors' => 2])
         ->and($report['zero_result_searches'])->toHaveCount(1)
         ->and($report['zero_result_total'])->toBe(2)
         ->and($report['zero_result_searches'][0])->toMatchArray(['place' => 'Boise, ID', 'searches' => 2, 'with_filters' => 1, 'visitors' => 2])
@@ -307,8 +307,6 @@ test('the bot share leaves out time-on-page notes and nav typing, which only peo
 
 test('the report counts browser-confirmed and engaged people beside the visits of measured days, and by country', function () {
     $view = fn (string $visitor, array $row = []) => analyticsRow(array_merge(['type' => Analytics::PAGE_VIEW, 'page' => 'home', 'path' => '/', 'visitor' => str_repeat($visitor, 16), 'country' => 'US', 'js' => 0], $row));
-    // Yesterday was measured (its daily totals say so); three days ago was not.
-    DB::table('analytics_daily')->insert(['day' => now()->subDay()->toDateString(), 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0, 'js_visitors' => 0, 'engaged_visitors' => 0]);
 
     $view('a', ['js' => 1]);                                            // confirmed
     $view('b');                                                         // never pinged
@@ -316,19 +314,31 @@ test('the report counts browser-confirmed and engaged people beside the visits o
     $view('c', ['country' => 'GB']);
     analyticsRow(['type' => Analytics::PAGE_LEAVE, 'visitor' => str_repeat('d', 16), 'seconds' => 30, 'view_id' => 'viewDDDD0001']);
     $view('d', ['view_id' => 'viewDDDD0001']);                          // a leave beacon alone confirms nothing
-    $view('y', ['js' => 1, 'bot' => Analytics::BOT_AUTOMATION]);       // automated, and a later row
-    $view('y', ['js' => 1]);
+    $view('y', ['js' => 1, 'bot' => Analytics::BOT_AUTOMATION]);       // automated (its day flagged)
+    $view('y', ['js' => 1, 'bot' => Analytics::BOT_AUTOMATION]);
     $view('p', ['js' => null, 'occurred_at' => now()->subDays(3)]);    // a day before measuring
+    // Yesterday is measured once its rollup has run; three days ago is not.
+    $this->artisan('ei:analytics-rollup', ['--from' => now('UTC')->subDays(3)->toDateString(), '--to' => now('UTC')->toDateString()])->assertSuccessful();
 
     $report = app(SiteAnalyticsReport::class)->handle(7);
 
     expect($report['totals']['people'])->toMatchArray(['visitors' => 5, 'visitors_on_measured_days' => 4, 'confirmed_visitors' => 2, 'engaged_visitors' => 1, 'measured_since' => now()->subDay()->toDateString()])
-        ->and($report['totals']['page_view'])->toMatchArray(['visitors' => 6, 'visitors_on_measured_days' => 4, 'confirmed_visitors' => 2, 'engaged_visitors' => 1])
         ->and($report['countries'])->toBe([
-            'US' => ['visitors' => 5, 'visitors_on_measured_days' => 3, 'confirmed' => 1],
+            'US' => ['visitors' => 4, 'visitors_on_measured_days' => 3, 'confirmed' => 1],
             'GB' => ['visitors' => 1, 'visitors_on_measured_days' => 1, 'confirmed' => 1],
         ])
-        ->and($report['bots'])->toMatchArray(['flagged' => 1, 'automation' => 1])
+        ->and($report['bots'])->toMatchArray(['flagged' => 2, 'automation' => 2])
         // The section page counts the same way.
-        ->and(app(SiteAnalyticsReport::class)->section('countries', 7)['US'])->toBe(['visitors' => 5, 'visitors_on_measured_days' => 3, 'confirmed' => 1]);
+        ->and(app(SiteAnalyticsReport::class)->section('countries', 7)['US'])->toBe(['visitors' => 4, 'visitors_on_measured_days' => 3, 'confirmed' => 1]);
+
+    // And the MCP tools give the very same numbers.
+    $query = app(App\Actions\Analytics\AnalyticsQuery::class);
+    $confirmed = $query->top('confirmed_visits', 'country', 7, 10);
+    $engaged = $query->top('engaged_visits', 'country', 7, 10);
+    expect($confirmed['whole_period_total'])->toBe($report['totals']['people']['confirmed_visitors'])
+        ->and($confirmed['whole_period_visits_on_measured_days'])->toBe($report['totals']['people']['visitors_on_measured_days'])
+        ->and($engaged['whole_period_total'])->toBe($report['totals']['people']['engaged_visitors'])
+        ->and($confirmed['measured_since'])->toBe($report['totals']['people']['measured_since'])
+        ->and(collect($confirmed['rows'])->mapWithKeys(fn ($row) => [$row['country'] => [$row['visits_on_measured_days'], $row['confirmed_visits']]])->all())
+        ->toEqual(collect($report['countries'])->map(fn ($row) => [$row['visitors_on_measured_days'], $row['confirmed']])->all());
 });

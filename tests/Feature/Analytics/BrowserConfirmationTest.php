@@ -293,11 +293,7 @@ test('a time-on-page note just after midnight counts for its view\'s visitor, no
         // The leave comes under the next day's visitor code.
         ['type' => 'page_leave', 'occurred_at' => "{$next} 00:02:00", 'visitor' => str_repeat('n', 16), 'bot' => 0, 'page' => null, 'path' => null, 'js' => null, 'view_id' => 'viewAAAA0001', 'seconds' => 240],
     ]);
-    foreach ([$day, $next] as $measured) {
-        DB::table('analytics_daily')->insert(['day' => $measured, 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0, 'js_visitors' => 0, 'engaged_visitors' => 0]);
-    }
-
-    $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
+    $this->artisan('ei:analytics-rollup', ['--from' => $day, '--to' => $next])->assertSuccessful();
     $report = app(App\Actions\Analytics\SiteAnalyticsReport::class)->handle(7);
 
     expect(DB::table('analytics_daily')->where(['day' => $day, 'type' => 'view', 'dim' => 'all', 'bot' => 0])->first())
@@ -307,13 +303,14 @@ test('a time-on-page note just after midnight counts for its view\'s visitor, no
 
 test('confirmed and engaged counts leave out days not yet marked measured, like today before its rollup', function () {
     $yesterday = now('UTC')->subDay();
-    DB::table('analytics_daily')->insert(['day' => $yesterday->toDateString(), 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0, 'js_visitors' => 0, 'engaged_visitors' => 0]);
     foreach ([[$yesterday, 'a'], [now('UTC'), 't']] as [$at, $visitor]) {
         DB::table('analytics_events')->insert([
             ['type' => 'page_view', 'occurred_at' => $at->copy()->startOfDay()->addHour(), 'visitor' => str_repeat($visitor, 16), 'bot' => 0, 'page' => 'home', 'path' => '/', 'js' => 1],
             ['type' => 'page_view', 'occurred_at' => $at->copy()->startOfDay()->addHours(2), 'visitor' => str_repeat($visitor, 16), 'bot' => 0, 'page' => 'home', 'path' => '/x', 'js' => 0],
         ]);
     }
+    // Yesterday rolled up; today's hourly rollup has not run yet.
+    $this->artisan('ei:analytics-rollup', ['--day' => $yesterday->toDateString()])->assertSuccessful();
 
     expect(app(App\Actions\Analytics\SiteAnalyticsReport::class)->handle(7)['totals']['people'])
         ->toMatchArray(['visitors' => 2, 'visitors_on_measured_days' => 1, 'confirmed_visitors' => 1, 'engaged_visitors' => 1]);
@@ -341,7 +338,6 @@ test('the day the ping is switched on mid-day is not measured; measuring starts 
 
 test('the report\'s measured base is view visitor-days, and a beacon alone is no country visit', function () {
     $day = now('UTC')->subDay()->toDateString();
-    DB::table('analytics_daily')->insert(['day' => $day, 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0, 'js_visitors' => 0, 'engaged_visitors' => 0]);
     DB::table('analytics_events')->insert([
         ['type' => 'page_view', 'occurred_at' => "{$day} 10:00:00", 'visitor' => str_repeat('a', 16), 'bot' => 0, 'country' => 'US', 'source' => null, 'view_id' => null, 'js' => 1],
         // Searched, never opened a page: a person, not a visit.
@@ -349,6 +345,7 @@ test('the report\'s measured base is view visitor-days, and a beacon alone is no
         // A leave whose view is not in range, under its own visitor code.
         ['type' => 'page_leave', 'occurred_at' => "{$day} 00:02:00", 'visitor' => str_repeat('l', 16), 'bot' => 0, 'country' => 'GB', 'source' => null, 'view_id' => 'viewGONE0001', 'js' => null],
     ]);
+    $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
 
     $report = app(App\Actions\Analytics\SiteAnalyticsReport::class)->handle(7);
 
@@ -373,7 +370,6 @@ test('the day the ping is switched off mid-day is not measured either', function
 test('once measuring has begun, the top countries are the top by visits on measured days', function () {
     $day = now('UTC')->subDay()->toDateString();
     $old = now('UTC')->subDays(3)->toDateString();
-    DB::table('analytics_daily')->insert(['day' => $day, 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0, 'js_visitors' => 0, 'engaged_visitors' => 0]);
     $view = fn (string $visitor, string $country, string $at, $js) => DB::table('analytics_events')->insert(['type' => 'page_view', 'occurred_at' => $at, 'visitor' => str_repeat($visitor, 16), 'bot' => 0, 'country' => $country, 'js' => $js]);
     // GB: three visits before measuring. US: two on the measured day.
     foreach (['a', 'b', 'c'] as $visitor) {
@@ -381,6 +377,7 @@ test('once measuring has begun, the top countries are the top by visits on measu
     }
     $view('d', 'US', "{$day} 10:00:00", 1);
     $view('e', 'US', "{$day} 11:00:00", 0);
+    $this->artisan('ei:analytics-rollup', ['--from' => $old, '--to' => $day])->assertSuccessful();
 
     expect(array_keys(app(App\Actions\Analytics\SiteAnalyticsReport::class)->handle(7)['countries']))->toBe(['US', 'GB']);
 });
