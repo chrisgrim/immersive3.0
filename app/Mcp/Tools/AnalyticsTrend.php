@@ -12,7 +12,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[IsReadOnly]
-#[Description('Moderators only. The site\'s own traffic over time from its daily totals (bots excluded): page views, visits (also confirmed_visits: browser confirmed, and engaged_visits, side by side with visits; null before they were measured), searches, ticket clicks or nav searches per day (per week beyond 90 days), optionally split by the top values of one dimension. Page views and the visit metrics split by any dimension; searches, ticket clicks and nav searches only by country, device, browser, os or city (ticket clicks also by event); an unsupported pair is refused. Up to 400 days.')]
+#[Description('Moderators only. The site\'s own traffic over time from its daily totals (bots excluded): page views, visits (also confirmed_visits: browser confirmed, and engaged_visits, side by side with visits; measured only from measured_since on, each point ending with visits_on_measured_days, the base to compare them with), searches, ticket clicks or nav searches per day (per week beyond 90 days), optionally split by the top values of one dimension. Page views and the visit metrics split by any dimension; searches, ticket clicks and nav searches only by country, device, browser, os or city (ticket clicks also by event); an unsupported pair is refused. Up to 400 days.')]
 class AnalyticsTrend extends Tool
 {
     use AnswersAnalytics;

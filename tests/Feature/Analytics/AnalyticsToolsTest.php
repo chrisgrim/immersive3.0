@@ -126,19 +126,23 @@ test('a breakdown says the whole period total and when the daily totals start', 
         ->assertSee('"totals_since":"'.now()->subDay()->toDateString().'"', false);
 });
 
-test('browser-confirmed and engaged visits read their own daily columns, unknown before measured', function () {
-    daily(['day' => now()->subDays(2)->toDateString(), 'visitors' => 9, 'engaged_visitors' => 4]);
+test('browser-confirmed and engaged visits read their own daily columns, beside the visits of measured days only', function () {
+    // Two days back: not measured yet. Yesterday: measured.
+    daily(['day' => now()->subDays(2)->toDateString(), 'visitors' => 9]);
     daily(['visitors' => 30, 'js_visitors' => 12, 'engaged_visitors' => 10]);
+    daily(['day' => now()->subDays(2)->toDateString(), 'dim' => 'country', 'key' => 'US', 'visitors' => 7]);
     daily(['dim' => 'country', 'key' => 'US', 'visitors' => 20, 'js_visitors' => 8, 'engaged_visitors' => 6]);
+    $yesterday = now()->subDay()->toDateString();
 
     asModerator()->tool(AnalyticsTrend::class, ['metric' => 'confirmed_visits', 'days' => 7])->assertOk()
-        ->assertSee('"series":[["'.now()->subDays(2)->toDateString().'",null],["'.now()->subDay()->toDateString().'",12]]', false)
-        ->assertSee('browser');
-    asModerator()->tool(AnalyticsTrend::class, ['metric' => 'engaged_visits', 'days' => 7])->assertOk()
-        ->assertSee('"series":[["'.now()->subDays(2)->toDateString().'",4],["'.now()->subDay()->toDateString().'",10]]', false);
-    asModerator()->tool(AnalyticsTop::class, ['dimension' => 'country', 'metric' => 'confirmed_visits'])->assertOk()
-        ->assertSee('"confirmed_visits":8', false)
-        ->assertSee('"visits":20', false)
-        ->assertSee('"whole_period_total":12', false);
+        ->assertSee('"measured_since":"'.$yesterday.'"', false)
+        ->assertSee('"series":[["'.now()->subDays(2)->toDateString().'",null,null],["'.$yesterday.'",12,30]]', false)
+        ->assertSee('visits_on_measured_days');
+    asModerator()->tool(AnalyticsTop::class, ['dimension' => 'country', 'metric' => 'engaged_visits'])->assertOk()
+        ->assertSee('"engaged_visits":6', false)
+        ->assertSee('"visits":27', false)
+        ->assertSee('"visits_on_measured_days":20', false)
+        ->assertSee('"whole_period_total":10', false)
+        ->assertSee('"whole_period_visits_on_measured_days":30', false);
     asModerator()->tool(AnalyticsTop::class, ['dimension' => 'query', 'metric' => 'engaged_visits'])->assertHasErrors();
 });

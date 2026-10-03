@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Schema;
 use Jaybizzle\CrawlerDetect\CrawlerDetect;
 use Throwable;
 
@@ -278,7 +279,9 @@ class Analytics
             'utm' => [$daily->whereIn('dim', ['utm_source', 'utm_medium', 'utm_campaign']), $raw->where(fn ($q) => $q->whereNotNull('utm_source')->orWhereNotNull('utm_medium')->orWhereNotNull('utm_campaign'))],
             'duration' => [$daily->where('dim', 'all')->where('seconds_count', '>', 0), $raw->where('type', self::PAGE_LEAVE)],
             'nav_search' => [$daily->where('dim', 'all')->where('type', self::NAV_SEARCH), $raw->where('type', self::NAV_SEARCH)],
-            'js_ping' => [$daily->where('dim', 'all')->whereNotNull('js_visitors'), $raw->where('type', self::PAGE_VIEW)->whereNotNull('js')],
+            'js_ping' => self::hasConfirmationColumns()
+                ? [$daily->where('dim', 'all')->whereNotNull('js_visitors'), $raw->where('type', self::PAGE_VIEW)->whereNotNull('js')]
+                : [null, null],
             default => [null, null],
         };
 
@@ -290,25 +293,59 @@ class Analytics
     }
 
     /**
-     * Per visitor flags, as the select list of a GROUP BY visitor over that
-     * visitor's people rows (bot = 0) of a day (the visitor code changes
-     * daily, so a visitor is a visitor-day). The daily totals and the admin
-     * report count them the same way:
+     * Per visitor flags, as the select list of a GROUP BY visitor over all
+     * of that visitor's rows of a day, bots included (the visitor code
+     * changes daily, so a visitor is a visitor-day). The daily totals and
+     * the admin report count them the same way:
      *
-     * - engaged (as GA4 counts it): a page on screen 10+ seconds, a ticket
-     *   click, a search result click, nav typing or a typed search, or two
-     *   or more page views.
-     * - js (browser confirmed): a page view the browser pinged, or anything
-     *   only a browser running the page's JavaScript can send (time on page,
-     *   a result click, nav typing).
+     * - automated: any of the day's rows carries BOT_AUTOMATION (its browser
+     *   said it is driven by a script); never confirmed, never engaged.
+     * - js (browser confirmed): one of the visitor's people page views was
+     *   pinged by a browser that had loaded and shown it. Only the ping
+     *   counts: any other beacon is a plain POST a script can send.
+     * - engaged (as GA4 counts it, and only when confirmed): a page on
+     *   screen 10+ seconds, a ticket click, a search result click, nav
+     *   typing or a typed search, or two or more page views.
      */
     public static function visitorFlagsSql(): string
     {
         $in = fn (string ...$types) => "type IN ('".implode("', '", $types)."')";
+        $automated = 'MAX((bot & '.self::BOT_AUTOMATION.') > 0)';
+        $confirmed = "(MAX(bot = 0 AND type = '".self::PAGE_VIEW."' AND js = 1) AND NOT {$automated})";
+        $active = "(MAX(bot = 0 AND ((type = '".self::PAGE_LEAVE."' AND seconds >= 10) OR ".$in(self::TICKET_CLICK, self::SEARCH_CLICK, self::NAV_SEARCH)."
+                OR (type = '".self::SEARCH."' AND source = 'list'))) OR SUM(bot = 0 AND ".$in(self::PAGE_VIEW, self::EVENT_VIEW).') >= 2)';
 
-        return "MAX((type = '".self::PAGE_VIEW."' AND js = 1) OR ".$in(self::PAGE_LEAVE, self::SEARCH_CLICK, self::NAV_SEARCH).') AS js,
-            MAX((type = \''.self::PAGE_LEAVE."' AND seconds >= 10) OR ".$in(self::TICKET_CLICK, self::SEARCH_CLICK, self::NAV_SEARCH)."
-                OR (type = '".self::SEARCH."' AND source = 'list')) OR SUM(".$in(self::PAGE_VIEW, self::EVENT_VIEW).') >= 2 AS engaged';
+        return "{$automated} AS automated, {$confirmed} AS js, ({$confirmed} AND {$active}) AS engaged";
+    }
+
+    /** @var bool|null whether the browser confirmation columns exist, asked once per process */
+    private ?bool $confirmationColumns = null;
+
+    /**
+     * Whether the migration adding analytics_events.js and
+     * analytics_daily.js_visitors / engaged_visitors has run. Between a
+     * deploy's rsync and its migrate (or if that migration gave up at its
+     * lock timeout) they are missing, and the flusher, rollup and readers
+     * must neither write nor read them. Asked once per process.
+     */
+    public static function hasConfirmationColumns(): bool
+    {
+        $analytics = app(self::class);
+
+        return $analytics->confirmationColumns ??= (function () {
+            try {
+                return Schema::hasColumn('analytics_events', 'js')
+                    && Schema::hasColumns('analytics_daily', ['js_visitors', 'engaged_visitors']);
+            } catch (Throwable) {
+                return false;
+            }
+        })();
+    }
+
+    /** Tests: pretend the columns are (or are not) there; null asks again. */
+    public function assumeConfirmationColumns(?bool $present): void
+    {
+        $this->confirmationColumns = $present;
     }
 
     public function forgetOverrides(): void

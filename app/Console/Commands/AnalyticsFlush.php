@@ -48,6 +48,9 @@ class AnalyticsFlush extends Command
     /** @var array<int, true> */
     private array $hostingAsns = [];
 
+    /** Whether analytics_events.js exists yet (Analytics::hasConfirmationColumns). */
+    private bool $jsColumn = false;
+
     /** @var array<string, int> daily cap key => hits counted this batch, not yet saved */
     private array $tally = [];
 
@@ -67,6 +70,7 @@ class AnalyticsFlush extends Command
         $this->crawlers = new CrawlerDetect;
         $this->geo = $geo;
         $this->hostingAsns = array_fill_keys(config('analytics.hosting_asns'), true);
+        $this->jsColumn = Analytics::hasConfirmationColumns();
         $written = 0;
 
         // Load pings not matched to their page view yet, carried from batch
@@ -201,9 +205,11 @@ class AnalyticsFlush extends Command
     }
 
     /**
-     * Marks the page views these pings confirm (js = 1), and flags the ones
-     * whose browser said it is automated (BOT_AUTOMATION). One lookup and
-     * one or two UPDATEs per 500 view ids, through the view_id index.
+     * Marks the page views these pings confirm (js = 1). A browser that said
+     * it is automated flags its visitor's whole day so far
+     * (BOT_AUTOMATION): searches and clicks from a script are not a
+     * person's either. One lookup and one UPDATE per 500 view ids (view_id
+     * index), one per 500 automated visitors and day (visitor index).
      *
      * @return list<array> the pings whose page view is not written yet
      */
@@ -216,18 +222,34 @@ class AnalyticsFlush extends Command
 
         $found = [];
         foreach (array_chunk(array_values(array_unique(array_column($pings, 'view_id'))), 500) as $ids) {
-            $found += array_fill_keys(DB::table('analytics_events')
-                ->where('type', Analytics::PAGE_VIEW)->whereIn('view_id', $ids)
-                ->pluck('view_id')->all(), true);
+            foreach (DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->whereIn('view_id', $ids)
+                ->get(['view_id', 'visitor', 'occurred_at']) as $view) {
+                $found[$view->view_id] = [$view->visitor, substr((string) $view->occurred_at, 0, 10)];
+            }
         }
 
-        $automated = array_unique(array_column(array_filter($pings, fn ($ping) => $ping['webdriver'] && isset($found[$ping['view_id']])), 'view_id'));
-        foreach (array_chunk(array_keys($found), 500) as $ids) {
-            DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->whereIn('view_id', $ids)->update(['js' => 1]);
+        // Before the migration has run there is no js column to mark.
+        if ($this->jsColumn) {
+            foreach (array_chunk(array_keys($found), 500) as $ids) {
+                DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->whereIn('view_id', $ids)->update(['js' => 1]);
+            }
         }
-        foreach (array_chunk(array_values($automated), 500) as $ids) {
-            DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->whereIn('view_id', $ids)
-                ->update(['bot' => DB::raw('bot | '.Analytics::BOT_AUTOMATION)]);
+
+        $automated = [];
+        foreach ($pings as $ping) {
+            if ($ping['webdriver'] && isset($found[$ping['view_id']])) {
+                [$visitor, $day] = $found[$ping['view_id']];
+                $automated[$day][$visitor] = true;
+            }
+        }
+        foreach ($automated as $day => $visitors) {
+            $from = Carbon::parse($day, 'UTC');
+            foreach (array_chunk(array_keys($visitors), 500) as $chunk) {
+                DB::table('analytics_events')->whereIn('visitor', $chunk)
+                    ->where('occurred_at', '>=', $from->format('Y-m-d H:i:s'))
+                    ->where('occurred_at', '<', $from->copy()->addDay()->format('Y-m-d H:i:s'))
+                    ->update(['bot' => DB::raw('bot | '.Analytics::BOT_AUTOMATION)]);
+            }
         }
 
         return array_values(array_filter($pings, fn ($ping) => ! isset($found[$ping['view_id']])));
@@ -312,9 +334,10 @@ class AnalyticsFlush extends Command
             'os' => $device['os'] ?? null,
             'city' => $place['city'] ?? null,
             'region' => $place['region'] ?? null,
+        ] + ($this->jsColumn ? [
             // 0: the page asked its browser for a load ping (see markPings).
             'js' => $type === Analytics::PAGE_VIEW && isset($data['js']) ? 0 : null,
-        ];
+        ] : []);
     }
 
     /**

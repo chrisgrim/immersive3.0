@@ -98,13 +98,21 @@ test('a ping marks its page view as browser confirmed, and is not a row of its o
         ->and($rows->pluck('bot')->all())->toBe([0, 0]);
 });
 
-test('a ping from an automated browser flags its page view', function () {
+test('a ping from an automated browser flags its visitor\'s whole day so far', function () {
+    noteFrom(Analytics::SEARCH, ['query' => 'Boise, ID', 'source' => 'list', 'results' => 0]);
     noteFrom(Analytics::PAGE_VIEW, ['view_id' => 'viewAAAA0001', 'page' => 'home', 'path' => '/', 'js' => 0]);
+    flushNow();
+    // Someone else, the same day: untouched.
+    Analytics::record(Analytics::PAGE_VIEW, ['view_id' => 'viewBBBB0001', 'page' => 'home', 'path' => '/', 'js' => 0], Request::create('/', 'GET', server: [
+        'REMOTE_ADDR' => '198.51.100.99', 'HTTP_USER_AGENT' => CHROME_UA, 'HTTP_ACCEPT_LANGUAGE' => 'en-US', 'HTTP_SEC_FETCH_SITE' => 'none',
+    ]));
     noteFrom(Analytics::PAGE_PING, ['view_id' => 'viewAAAA0001', 'webdriver' => 1]);
 
-    $row = flushNow()->sole();
+    $rows = flushNow();
 
-    expect($row->js)->toBe(1)->and($row->bot)->toBe(Analytics::BOT_AUTOMATION);
+    expect($rows->pluck('bot', 'type')->all())->toBe(['search' => Analytics::BOT_AUTOMATION, 'page_view' => 0])
+        ->and($rows->firstWhere('view_id', 'viewAAAA0001'))->js->toBe(1)->bot->toBe(Analytics::BOT_AUTOMATION)
+        ->and($rows->firstWhere('view_id', 'viewBBBB0001'))->bot->toBe(0);
 });
 
 test('a ping ahead of its view in the same batch still marks it', function () {
@@ -171,36 +179,39 @@ test('the rollup counts browser-confirmed and engaged visitor-days, for people o
         'page' => 'home', 'path' => '/', 'js' => 0, 'country' => 'US',
     ], $values));
 
-    // a: one page, pinged. b: one page, never pinged (a script).
+    // a: one page, pinged: confirmed, not engaged.
     $row('a', ['js' => 1]);
+    // b: one page, never pinged (a script).
     $row('b', []);
-    // c: two pages, no ping: engaged, not confirmed.
-    $row('c', []);
+    // c: two pages, one pinged: confirmed and engaged.
+    $row('c', ['js' => 1]);
     $row('c', ['path' => '/events/x', 'occurred_at' => "{$day} 12:01:00"]);
-    // d: one page, 12 seconds on it (time on page needs JavaScript).
+    // d: no ping, but a time-on-page beacon (any script can POST one): neither.
     $row('d', ['view_id' => 'viewDDDD0001']);
     $row('d', ['type' => 'page_leave', 'view_id' => 'viewDDDD0001', 'seconds' => 12, 'page' => null, 'path' => null, 'js' => null]);
-    // e: one page and a ticket click: engaged, not confirmed.
-    $row('e', []);
+    // e: one page, pinged, and a ticket click: confirmed and engaged.
+    $row('e', ['js' => 1]);
     $row('e', ['type' => 'ticket_click', 'event_id' => 7, 'page' => null, 'path' => null, 'js' => null]);
-    // A bot, pinged and busy: not in the people's counts.
-    $row('z', ['js' => 1, 'bot' => Analytics::BOT_AUTOMATION]);
-    $row('z', ['bot' => Analytics::BOT_AUTOMATION, 'path' => '/events/x']);
+    // y: pinged as automated, then a page written after the flag: neither.
+    $row('y', ['js' => 1, 'bot' => Analytics::BOT_AUTOMATION]);
+    $row('y', ['js' => 1, 'occurred_at' => "{$day} 12:02:00"]);
+    // A bot, pinged: not in the people's counts.
+    $row('z', ['js' => 1, 'bot' => Analytics::BOT_DATACENTER]);
 
     $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
 
     $total = fn (string $dim, string $key, int $bot = 0) => DB::table('analytics_daily')
         ->where(['day' => $day, 'type' => 'view', 'dim' => $dim, 'key' => $key, 'bot' => $bot])->first();
 
-    expect($total('all', ''))->visitors->toBe(5)->js_visitors->toBe(2)->engaged_visitors->toBe(3)
-        ->and($total('country', 'US'))->js_visitors->toBe(2)->engaged_visitors->toBe(3)
-        ->and($total('path', '/events/x'))->visitors->toBe(1)->js_visitors->toBe(0)->engaged_visitors->toBe(1)
+    expect($total('all', ''))->visitors->toBe(6)->js_visitors->toBe(3)->engaged_visitors->toBe(2)
+        ->and($total('country', 'US'))->js_visitors->toBe(3)->engaged_visitors->toBe(2)
+        ->and($total('path', '/events/x'))->visitors->toBe(1)->js_visitors->toBe(1)->engaged_visitors->toBe(1)
         ->and($total('all', '', 1))->js_visitors->toBeNull()->engaged_visitors->toBeNull()
         ->and(DB::table('analytics_daily')->where(['day' => $day, 'type' => 'ticket_click', 'dim' => 'all'])->first())
         ->engaged_visitors->toBe(1);
 });
 
-test('a day without the load ping has no browser-confirmed count, but still an engaged one', function () {
+test('a day without the load ping has no browser-confirmed or engaged count', function () {
     $day = now('UTC')->subDays(2)->toDateString();
     foreach (['a', 'a', 'b'] as $i => $visitor) {
         DB::table('analytics_events')->insert([
@@ -211,7 +222,7 @@ test('a day without the load ping has no browser-confirmed count, but still an e
     $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
 
     expect(DB::table('analytics_daily')->where(['day' => $day, 'type' => 'view', 'dim' => 'all', 'bot' => 0])->first())
-        ->visitors->toBe(2)->js_visitors->toBeNull()->engaged_visitors->toBe(1);
+        ->visitors->toBe(2)->js_visitors->toBeNull()->engaged_visitors->toBeNull();
 });
 
 test('path edges carry their browser-confirmed and engaged visitors', function () {
@@ -227,5 +238,31 @@ test('path edges carry their browser-confirmed and engaged visitors', function (
     $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
 
     expect(DB::table('analytics_daily')->where(['day' => $day, 'dim' => 'edge', 'key' => '/ > /events/x'])->first())
-        ->visitors->toBe(5)->js_visitors->toBe(3)->engaged_visitors->toBe(5);
+        ->visitors->toBe(5)->js_visitors->toBe(3)->engaged_visitors->toBe(3);
+});
+
+// ----- before the migration has run -----
+
+test('flush, rollup and readers leave the new columns alone while they do not exist yet', function () {
+    app(Analytics::class)->assumeConfirmationColumns(false);
+    $queries = [];
+    DB::listen(function ($query) use (&$queries) {
+        $queries[] = $query->sql;
+    });
+
+    noteFrom(Analytics::PAGE_VIEW, ['view_id' => 'viewAAAA0001', 'page' => 'home', 'path' => '/', 'js' => 0]);
+    noteFrom(Analytics::PAGE_PING, ['view_id' => 'viewAAAA0001', 'webdriver' => 1]);
+    Analytics::record(Analytics::PAGE_VIEW, ['view_id' => 'viewBBBB0001', 'page' => 'home', 'path' => '/'], Request::create('/', 'GET', server: [
+        'REMOTE_ADDR' => '198.51.100.99', 'HTTP_USER_AGENT' => CHROME_UA, 'HTTP_ACCEPT_LANGUAGE' => 'en-US', 'HTTP_SEC_FETCH_SITE' => 'none',
+    ]));
+    $row = flushNow()->firstWhere('view_id', 'viewAAAA0001');
+    $this->artisan('ei:analytics-rollup', ['--day' => 'today'])->assertSuccessful();
+    $report = app(App\Actions\Analytics\SiteAnalyticsReport::class)->handle(7);
+    $trend = app(App\Actions\Analytics\AnalyticsQuery::class)->trend('confirmed_visits', null, 7);
+
+    expect(collect($queries)->filter(fn ($sql) => preg_match('/`js`|\bjs (=|is)|js_visitors|engaged_visitors/i', $sql))->all())->toBe([])
+        // The automation flag needs no new column.
+        ->and($row->bot)->toBe(Analytics::BOT_AUTOMATION)
+        ->and($report['totals']['people']['confirmed_visitors'])->toBeNull()
+        ->and($trend)->toMatchArray(['measured_since' => null, 'series' => []]);
 });

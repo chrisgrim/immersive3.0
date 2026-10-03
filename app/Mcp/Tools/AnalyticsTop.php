@@ -12,7 +12,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[IsReadOnly]
-#[Description('Moderators only. The top values of one dimension over a period, from the site\'s daily totals (bots excluded): top pages, paths, events, organizers (their own page plus the pages of their events), traffic sources, referring sites, devices, browsers, operating systems, countries, cities or campaign tags, ranked by page views, visits, confirmed_visits (browser confirmed) or engaged_visits (any dimension), ticket clicks (event, country, device, browser, os, city), or searches and nav searches (query, country, device, browser, os, city), with average time on page where measured; an unsupported pair is refused. Use dimension=query with metric searches (places typed in search) or nav_searches (names typed in the nav). Up to 400 days, 50 rows.')]
+#[Description('Moderators only. The top values of one dimension over a period, from the site\'s daily totals (bots excluded): top pages, paths, events, organizers (their own page plus the pages of their events), traffic sources, referring sites, devices, browsers, operating systems, countries, cities or campaign tags, ranked by page views, visits, confirmed_visits (browser confirmed) or engaged_visits (any dimension; these two come with visits_on_measured_days and measured_since), ticket clicks (event, country, device, browser, os, city), or searches and nav searches (query, country, device, browser, os, city), with average time on page where measured; an unsupported pair is refused. Use dimension=query with metric searches (places typed in search) or nav_searches (names typed in the nav). Up to 400 days, 50 rows.')]
 class AnalyticsTop extends Tool
 {
     use AnswersAnalytics;

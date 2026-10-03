@@ -2,10 +2,12 @@
 
 namespace App\Actions\Analytics;
 
+use App\Console\Commands\AnalyticsRollup;
 use App\Models\Event;
 use App\Models\Events\RemoteLocation;
 use App\Support\Analytics\Analytics;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -38,7 +40,7 @@ class SiteAnalyticsReport
         ELSE COALESCE(rl.name, CONCAT('Type ', ".self::REMOTE.')) END';
 
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 11;
+    private const VERSION = 12;
 
     private const LIMIT = 25;
 
@@ -69,11 +71,11 @@ class SiteAnalyticsReport
         return [
             'days' => $days,
             'since' => $since->toIso8601String(),
-            'totals' => $this->totals($since),
             // The same span just before, for "vs prior period".
             // Same length, ending at this time of day N days ago, so a
             // part-day today is not set against a whole one.
-            'totals_previous' => $this->totals($since->copy()->subDays($days), now()->subDays($days)),
+            ...$this->flagged($since, null, fn () => ['totals' => $this->totals($since), 'countries' => $this->countries($since)]),
+            'totals_previous' => $this->flagged($since->copy()->subDays($days), now()->subDays($days), fn () => $this->totals($since->copy()->subDays($days), now()->subDays($days))),
             'zero_result_total' => $this->typedSearches($since)->where('results', 0)->count(),
             'daily' => $this->daily($since, $days),
             'searches' => $this->searches($since),
@@ -82,7 +84,6 @@ class SiteAnalyticsReport
             'events' => $this->events($since),
             'view_sources' => $this->viewSources($since),
             'search_clicks' => $this->searchClicks($since),
-            'countries' => $this->countries($since),
             'bots' => $this->bots($since),
         ];
     }
@@ -138,53 +139,112 @@ class SiteAnalyticsReport
     }
 
     /**
-     * Per type (map pans apart, as map_search): how many, by how many
-     * different visitors, and how many of those were browser confirmed and
-     * engaged (see withFlags). 'people' is everyone who did anything.
+     * Per type (map pans apart, as map_search): how many and by how many
+     * different visitors; on the days browser confirmation was measured,
+     * also how many visitors those days had, and how many of them were
+     * browser confirmed and engaged (see flagged()). 'people' is everyone
+     * who did anything, less browsers that said they are automated.
      */
     private function totals($since, $until = null): array
     {
-        $pinged = $this->pinged($since, $until);
-
-        return $this->withFlags($this->rows($since, null, $until), $since, $until)
+        $flagged = $this->measuredDays !== [];
+        $query = $this->rows($since, null, $until)
             ->selectRaw("CASE WHEN analytics_events.type = ? AND analytics_events.source = 'map' THEN 'map_search'
                     WHEN analytics_events.type = ? AND analytics_events.page = 'events.show' THEN ? ELSE analytics_events.type END AS kind,
-                COUNT(*) AS total, COUNT(DISTINCT analytics_events.visitor) AS visitors,
-                COUNT(DISTINCT IF(f.js, analytics_events.visitor, NULL)) AS confirmed,
-                COUNT(DISTINCT IF(f.engaged, analytics_events.visitor, NULL)) AS engaged", [Analytics::SEARCH, Analytics::PAGE_VIEW, Analytics::EVENT_VIEW])
+                COUNT(*) AS total, COUNT(DISTINCT analytics_events.visitor) AS visitors", [Analytics::SEARCH, Analytics::PAGE_VIEW, Analytics::EVENT_VIEW]);
+        if ($flagged) {
+            $this->joinFlags($query)->selectRaw($this->flagCounts().', COUNT(DISTINCT IF(COALESCE(f.automated, 0), NULL, analytics_events.visitor)) AS people', $this->measuredBindings());
+        }
+
+        return $query
             // The rollup line (kind NULL) counts each visitor once overall.
             ->groupByRaw('kind WITH ROLLUP')
             ->get()
             ->mapWithKeys(fn ($row) => [$row->kind ?? 'people' => [
                 'total' => (int) $row->total,
-                'visitors' => (int) $row->visitors,
-                'confirmed_visitors' => $pinged ? (int) $row->confirmed : null,
-                'engaged_visitors' => (int) $row->engaged,
-            ]])
+                'visitors' => (int) ($row->kind === null && $flagged ? $row->people : $row->visitors),
+            ] + $this->flagFields($row) + ($row->kind === null ? ['measured_since' => $this->measuredDays[0] ?? null] : [])])
             ->all();
     }
 
-    /**
-     * Joins each row to its visitor's flags over the same rows (f.js: browser
-     * confirmed, f.engaged; Analytics::visitorFlagsSql), the definitions the
-     * daily totals use. A visitor code lasts one day, so per visitor is per
-     * visitor-day.
-     */
-    private function withFlags(Builder $query, $since, $until = null): Builder
-    {
-        $flags = $this->rows($since, null, $until)->selectRaw('visitor, '.Analytics::visitorFlagsSql())->groupBy('visitor');
+    /** Days (Y-m-d) of the range being counted with browser confirmation measured (flagged()). */
+    private array $measuredDays = [];
 
-        return $query->leftJoinSub($flags, 'f', 'f.visitor', '=', 'analytics_events.visitor');
+    /**
+     * Runs $count with the range's visitor flags (Analytics::visitorFlagsSql,
+     * the daily totals' definitions) built once into a temporary table that
+     * every query of it joins as f, so totals and countries share one pass.
+     * Only over the days browser confirmation was measured, read from the
+     * daily totals (dim, day index): before it, confirmed and engaged are
+     * unknown, not zero, and no pass is made at all. Today counts once its
+     * hourly rollup has run.
+     */
+    private function flagged($since, $until, \Closure $count): mixed
+    {
+        $this->measuredDays = Analytics::hasConfirmationColumns()
+            ? DB::table('analytics_daily')->where('dim', 'all')->where('bot', 0)->where('type', AnalyticsRollup::VIEW)
+                ->whereBetween('day', [$since->toDateString(), ($until ?? now())->toDateString()])->whereNotNull('js_visitors')
+                ->orderBy('day')->pluck('day')->map(fn ($day) => substr((string) $day, 0, 10))->all()
+            : [];
+
+        if ($this->measuredDays === []) {
+            return $count();
+        }
+
+        // A visitor code lasts one day, so per visitor is per visitor-day.
+        // All of a visitor's rows, bots included: one flagged as automated
+        // marks the whole visitor-day.
+        $flags = DB::table('analytics_events')
+            ->where('occurred_at', '>=', max($since->copy(), Carbon::parse($this->measuredDays[0], 'UTC')))
+            ->when($until, fn ($query) => $query->where('occurred_at', '<', $until))
+            ->selectRaw('visitor, '.Analytics::visitorFlagsSql())
+            ->groupBy('visitor');
+
+        try {
+            DB::statement('DROP TEMPORARY TABLE IF EXISTS analytics_report_flags');
+            DB::statement('CREATE TEMPORARY TABLE analytics_report_flags (PRIMARY KEY (visitor)) '.$flags->toSql(), $flags->getBindings());
+
+            return $count();
+        } finally {
+            DB::statement('DROP TEMPORARY TABLE IF EXISTS analytics_report_flags');
+            $this->measuredDays = [];
+        }
     }
 
-    /**
-     * Whether browser confirmation was measured at all in the range (a page
-     * view asked for the load ping): if not, confirmed counts are null, not
-     * a misleading zero.
-     */
-    private function pinged($since, $until = null): bool
+    private function joinFlags(Builder $query): Builder
     {
-        return $this->rows($since, Analytics::PAGE_VIEW, $until)->whereNotNull('js')->exists();
+        return $query->leftJoin('analytics_report_flags as f', 'f.visitor', '=', 'analytics_events.visitor');
+    }
+
+    /** The row is on a measured day: SQL, then measuredBindings(). */
+    private function onMeasuredDay(): string
+    {
+        return 'DATE(analytics_events.occurred_at) IN ('.implode(',', array_fill(0, count($this->measuredDays), '?')).')';
+    }
+
+    private function measuredBindings(): array
+    {
+        return $this->measuredDays;
+    }
+
+    /** Visitors on measured days (people only), and of them browser confirmed and engaged. */
+    private function flagCounts(): string
+    {
+        return "COUNT(DISTINCT IF({$this->onMeasuredDay()} AND NOT COALESCE(f.automated, 0), analytics_events.visitor, NULL)) AS measured,
+            COUNT(DISTINCT IF(f.js, analytics_events.visitor, NULL)) AS confirmed,
+            COUNT(DISTINCT IF(f.engaged, analytics_events.visitor, NULL)) AS engaged";
+    }
+
+    /** The flag counts of a row, null when nothing in the range was measured. */
+    private function flagFields(object $row): array
+    {
+        $measured = $this->measuredDays !== [];
+
+        return [
+            'visitors_on_measured_days' => $measured ? (int) $row->measured : null,
+            'confirmed_visitors' => $measured ? (int) $row->confirmed : null,
+            'engaged_visitors' => $measured ? (int) $row->engaged : null,
+        ];
     }
 
     /**
@@ -337,7 +397,7 @@ class SiteAnalyticsReport
             'at_home' => $this->atHomeSearches($since, $limit),
             'events' => $this->events($since, null, $limit),
             'sources' => $this->viewSources($since, $limit),
-            'countries' => $this->countries($since, 250),
+            'countries' => $this->flagged($since, null, fn () => $this->countries($since, 250)),
         });
 
         // A cold build waits behind any other report build (same lock as
@@ -521,20 +581,29 @@ class SiteAnalyticsReport
         ];
     }
 
-    /** Visitors by country: all, and browser confirmed (null when not measured). */
+    /**
+     * Visitors by country, and on the days browser confirmation was
+     * measured, those days' visitors and how many were browser confirmed
+     * (null when nothing was measured). Inside flagged().
+     */
     private function countries($since, int $limit = 15): array
     {
-        $pinged = $this->pinged($since);
-
-        return $this->withFlags($this->rows($since), $since)
+        $query = $this->rows($since)
             ->whereNotNull('analytics_events.country')
-            ->selectRaw('analytics_events.country AS country, COUNT(DISTINCT analytics_events.visitor) AS visitors,
-                COUNT(DISTINCT IF(f.js, analytics_events.visitor, NULL)) AS confirmed')
+            ->selectRaw('analytics_events.country AS country, COUNT(DISTINCT analytics_events.visitor) AS visitors')
             ->groupBy('analytics_events.country')
             ->orderByDesc('visitors')
-            ->limit($limit)
-            ->get()
-            ->mapWithKeys(fn ($row) => [$row->country => ['visitors' => (int) $row->visitors, 'confirmed' => $pinged ? (int) $row->confirmed : null]])
+            ->limit($limit);
+        if ($this->measuredDays !== []) {
+            $this->joinFlags($query)->selectRaw($this->flagCounts(), $this->measuredBindings());
+        }
+
+        return $query->get()
+            ->mapWithKeys(fn ($row) => [$row->country => [
+                'visitors' => (int) $row->visitors,
+                'visitors_on_measured_days' => $this->flagFields($row)['visitors_on_measured_days'],
+                'confirmed' => $this->flagFields($row)['confirmed_visitors'],
+            ]])
             ->all();
     }
 

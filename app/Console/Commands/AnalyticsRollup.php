@@ -173,9 +173,11 @@ class AnalyticsRollup extends Command
         DB::transaction(function () use ($day, $range) {
             DB::table('analytics_daily')->where('day', $day->toDateString())->delete();
 
-            // Browser-confirmed visitors only on a day the load ping was on
-            // (some page view was asked for one); before that, NULL, not 0.
-            $this->pinged = DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->where('bot', 0)
+            // Browser-confirmed and engaged visitors only on a day the load
+            // ping was on (some page view was asked for one); before that,
+            // NULL, not 0. Neither column exists before the migration.
+            $this->columns = Analytics::hasConfirmationColumns();
+            $this->pinged = $this->columns && DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->where('bot', 0)
                 ->where('occurred_at', '>=', $range[0])->where('occurred_at', '<', $range[1])->whereNotNull('js')->exists();
 
             foreach ($this->dimensions() as [$types, $dim, $key, $where]) {
@@ -236,40 +238,58 @@ class AnalyticsRollup extends Command
     }
 
     /** Totals of rows that land on the same key add up instead of failing. */
-    private const MERGE = ' ON DUPLICATE KEY UPDATE hits = hits + VALUES(hits), visitors = visitors + VALUES(visitors),
-        seconds_sum = seconds_sum + VALUES(seconds_sum), seconds_count = seconds_count + VALUES(seconds_count),
-        js_visitors = js_visitors + VALUES(js_visitors), engaged_visitors = engaged_visitors + VALUES(engaged_visitors)';
+    private function merge(): string
+    {
+        return ' ON DUPLICATE KEY UPDATE hits = hits + VALUES(hits), visitors = visitors + VALUES(visitors),
+            seconds_sum = seconds_sum + VALUES(seconds_sum), seconds_count = seconds_count + VALUES(seconds_count)'
+            .($this->columns ? ', js_visitors = js_visitors + VALUES(js_visitors), engaged_visitors = engaged_visitors + VALUES(engaged_visitors)' : '');
+    }
+
+    /** Whether analytics_daily has js_visitors and engaged_visitors yet (rollupDay). */
+    private bool $columns = false;
 
     /** Whether the day being rolled up had the load ping on (rollupDay). */
     private bool $pinged = false;
 
+    /** The column list of an insert into analytics_daily. */
+    private function dailyColumns(): string
+    {
+        return 'day, type, dim, `key`, bot, hits, visitors, seconds_sum, seconds_count'.($this->columns ? ', js_visitors, engaged_visitors' : '');
+    }
+
     /**
-     * Each of the day's people (bot = 0) with their flags (js, engaged; see
+     * Each visitor of the day with their flags (js, engaged; see
      * Analytics::visitorFlagsSql), one GROUP BY over that day's rows, joined
-     * as f on the visitor. Bindings: the day's range.
+     * as f on the visitor. Bindings: the day's range. On a day without the
+     * ping nothing is joined (an empty table, the same bindings).
      */
     private function visitorFlags(): string
     {
         return 'LEFT JOIN (
-                SELECT visitor, '.Analytics::visitorFlagsSql().'
+                SELECT visitor, '.($this->pinged ? Analytics::visitorFlagsSql() : '0 AS js, 0 AS engaged').'
                 FROM analytics_events
-                WHERE occurred_at >= ? AND occurred_at < ? AND bot = 0
+                WHERE occurred_at >= ? AND occurred_at < ?'.($this->pinged ? '' : ' AND FALSE').'
                 GROUP BY visitor
             ) f ON f.visitor = ';
     }
 
     /**
      * Visitor-days among a total's visitors that were browser confirmed and
-     * engaged: for people's totals only (NULL for bots), and browser
-     * confirmed only on a day the ping was on. $bot says whether the group
-     * is bots, as an aggregate (ONLY_FULL_GROUP_BY), $visitor the visitor
-     * column.
+     * engaged: for people's totals only (NULL for bots), and only on a day
+     * the ping was on. $bot says whether the group is bots, as an aggregate
+     * (ONLY_FULL_GROUP_BY), $visitor the visitor column. Nothing before the
+     * migration has run.
      */
     private function flagCounts(string $bot, string $visitor): string
     {
-        $js = $this->pinged ? "COUNT(DISTINCT IF(f.js, {$visitor}, NULL))" : 'NULL';
+        if (! $this->columns) {
+            return '';
+        }
+        if (! $this->pinged) {
+            return ', NULL, NULL';
+        }
 
-        return "IF({$bot}, NULL, {$js}), IF({$bot}, NULL, COUNT(DISTINCT IF(f.engaged, {$visitor}, NULL)))";
+        return ", IF({$bot}, NULL, COUNT(DISTINCT IF(f.js, {$visitor}, NULL))), IF({$bot}, NULL, COUNT(DISTINCT IF(f.engaged, {$visitor}, NULL)))";
     }
 
     /**
@@ -304,9 +324,9 @@ class AnalyticsRollup extends Command
         // leave may land up to a day later (a view just before midnight UTC,
         // a tab left open); a view_id is one view, so this cannot double count.
         DB::statement("
-            INSERT INTO analytics_daily (day, type, dim, `key`, bot, hits, visitors, seconds_sum, seconds_count, js_visitors, engaged_visitors)
+            INSERT INTO analytics_daily ({$this->dailyColumns()})
             SELECT ?, {$this->typeOf()}, ?, {$key}, e.bot > 0, COUNT(*), COUNT(DISTINCT e.visitor),
-                COALESCE(SUM(l.seconds), 0), COUNT(l.seconds), {$this->flagCounts('MAX(e.bot) > 0', 'e.visitor')}
+                COALESCE(SUM(l.seconds), 0), COUNT(l.seconds){$this->flagCounts('MAX(e.bot) > 0', 'e.visitor')}
             FROM analytics_events e
             LEFT JOIN events ev ON ev.id = e.event_id
             LEFT JOIN (
@@ -318,7 +338,7 @@ class AnalyticsRollup extends Command
             WHERE e.occurred_at >= ? AND e.occurred_at < ? AND e.type <> ?{$typeSql}{$whereSql}
               AND {$this->navTypingDone()}
               AND ({$key}) IS NOT NULL
-            GROUP BY {$this->typeOf()}, {$key}, e.bot > 0".self::MERGE, [
+            GROUP BY {$this->typeOf()}, {$key}, e.bot > 0".$this->merge(), [
             $day->toDateString(), $dim,
             Analytics::PAGE_LEAVE, ...$range,
             Analytics::PAGE_VIEW,
@@ -335,8 +355,8 @@ class AnalyticsRollup extends Command
     private function insertEdges(CarbonImmutable $day, array $range): void
     {
         DB::statement("
-            INSERT INTO analytics_daily (day, type, dim, `key`, bot, hits, visitors, seconds_sum, seconds_count, js_visitors, engaged_visitors)
-            SELECT ?, '".self::VIEW."', 'edge', {$this->keyed(self::EDGE_KEY)}, 0, COUNT(*), COUNT(DISTINCT steps.visitor), 0, 0,
+            INSERT INTO analytics_daily ({$this->dailyColumns()})
+            SELECT ?, '".self::VIEW."', 'edge', {$this->keyed(self::EDGE_KEY)}, 0, COUNT(*), COUNT(DISTINCT steps.visitor), 0, 0
                 {$this->flagCounts('FALSE', 'steps.visitor')}
             FROM (
                 SELECT visitor, path, LAG(path) OVER w AS prev_path, LAG(occurred_at) OVER w AS prev_at, occurred_at
@@ -349,6 +369,6 @@ class AnalyticsRollup extends Command
             -- later did not go from one to the other.
             WHERE prev_path IS NOT NULL AND occurred_at <= prev_at + INTERVAL ".self::STEP_MINUTES.' MINUTE'."
             GROUP BY {$this->keyed(self::EDGE_KEY)}
-            HAVING COUNT(DISTINCT steps.visitor) >= ?".self::MERGE, [$day->toDateString(), ...$range, ...$range, self::MIN_EDGE_VISITORS]);
+            HAVING COUNT(DISTINCT steps.visitor) >= ?".$this->merge(), [$day->toDateString(), ...$range, ...$range, self::MIN_EDGE_VISITORS]);
     }
 }
