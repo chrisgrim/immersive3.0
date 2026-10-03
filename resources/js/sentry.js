@@ -1,5 +1,6 @@
 import { captureException, init } from '@sentry/vue';
 import { shouldSuppressErrorReports } from './preloadReload';
+import { isFromInjectedScript } from './sentryFilters';
 
 /**
  * Sentry bootstrap, loaded by app.js only when a DSN is configured.
@@ -22,7 +23,9 @@ export function installSentry(app) {
         // Same reasoning as the Vue errorHandler in app.js, for errors that never
         // reach it (plain listeners, unhandled rejections): once we're reloading
         // for a stale chunk, everything after is collateral (EI-VUE-10).
-        beforeSend: (event) => (shouldSuppressErrorReports() ? null : event),
+        // And errors thrown entirely by code other software put into the page
+        // (sentryFilters.js), whatever their message (EI-VUE-1C).
+        beforeSend: (event) => (shouldSuppressErrorReports() || isFromInjectedScript(event) ? null : event),
         // Drop noise that isn't an actionable first-party bug:
         // DuckDuckGo / in-app WKWebView bridge rejection — emitted by the
         // browser's native bridge, not our code, no stacktrace (EI-VUE-J).
