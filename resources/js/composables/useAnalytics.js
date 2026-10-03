@@ -94,26 +94,25 @@ const PAGE_PING_URL = '/api/analytics/page-ping';
 
 /**
  * The load ping for this page view (window.Laravel.analyticsView, while
- * analyticsPing is on): once, when the page's document is ready (parsed,
- * not waiting for images or slow third-party scripts, so a visitor who
- * leaves early still counts) and it has been visible at least once, so a prerendered or background tab that is
- * never shown sends nothing (if it is shown later, it pings then). Tells
- * the server a browser ran the page, and whether that browser reports
- * being driven by a script (navigator.webdriver).
+ * analyticsPing is on): once, as soon as this script runs (a browser running
+ * the page's JavaScript is the confirmation) and the page is visible, so a
+ * prerendered or background tab that is never shown sends nothing (if it is
+ * shown later, it pings then; leaving it tries once more). Tells the server
+ * whether the browser reports being driven by a script
+ * (navigator.webdriver).
  */
 export function pingPage(viewId) {
     if (!viewId || typeof document === 'undefined') return;
 
     let sent = false;
-    const ready = () => document.readyState !== 'loading';
     const shown = () => document.visibilityState === 'visible' && !document.prerendering;
 
     const ping = () => {
-        if (sent || !ready() || !shown()) return;
+        if (sent || !shown()) return;
         sent = true;
         document.removeEventListener('visibilitychange', ping);
         document.removeEventListener('prerenderingchange', ping);
-        document.removeEventListener('DOMContentLoaded', ping);
+        window.removeEventListener('pagehide', ping);
         try {
             const body = new URLSearchParams({ view_id: viewId, wd: navigator.webdriver === true ? '1' : '0' });
             if (!navigator.sendBeacon?.(PAGE_PING_URL, body)) {
@@ -123,9 +122,10 @@ export function pingPage(viewId) {
             // Analytics never gets in the way of the page.
         }
     };
+
     document.addEventListener('visibilitychange', ping);
     document.addEventListener('prerenderingchange', ping);
-    // readyState is already 'interactive' when DOMContentLoaded fires.
-    document.addEventListener('DOMContentLoaded', ping);
+    // A safety net: leaving a page that was shown but not yet pinged.
+    window.addEventListener('pagehide', ping);
     ping();
 }

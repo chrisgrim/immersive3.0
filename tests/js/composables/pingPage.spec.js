@@ -1,18 +1,15 @@
 /**
  * Specs for pingPage() in composables/useAnalytics.js: one load ping per
- * page view, only once the document is ready and has been visible, carrying
+ * page view, as soon as the script runs and the page is visible, carrying
  * whether the browser reports being automated.
  */
 import { pingPage } from '@/composables/useAnalytics';
 
 let visibility = 'visible';
-let readyState = 'interactive';
 
 beforeEach(() => {
     visibility = 'visible';
-    readyState = 'interactive';
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility });
-    Object.defineProperty(document, 'readyState', { configurable: true, get: () => readyState });
     Object.defineProperty(navigator, 'webdriver', { configurable: true, value: false });
     navigator.sendBeacon = vi.fn(() => true);
 });
@@ -27,29 +24,18 @@ const show = () => {
     document.dispatchEvent(new Event('visibilitychange'));
 };
 
-test('a ready, visible page pings once with its view id, without waiting for load', () => {
+test('a visible page pings at once, and only once', () => {
     pingPage('pingONCE1234');
     show();
-    document.dispatchEvent(new Event('DOMContentLoaded'));
-    document.dispatchEvent(new Event('DOMContentLoaded'));
+    window.dispatchEvent(new Event('pagehide'));
 
     expect(pingsFor('pingONCE1234')).toEqual([{ view_id: 'pingONCE1234', wd: '0' }]);
-});
-
-test('a page still being parsed waits for DOM ready', () => {
-    readyState = 'loading';
-    pingPage('pingLOAD1234');
-    expect(pingsFor('pingLOAD1234')).toHaveLength(0);
-
-    readyState = 'interactive';
-    document.dispatchEvent(new Event('DOMContentLoaded'));
-    expect(pingsFor('pingLOAD1234')).toHaveLength(1);
 });
 
 test('a background tab pings only once it is shown', () => {
     visibility = 'hidden';
     pingPage('pingHIDE1234');
-    document.dispatchEvent(new Event('DOMContentLoaded'));
+    window.dispatchEvent(new Event('pagehide'));
     expect(pingsFor('pingHIDE1234')).toHaveLength(0);
 
     show();
@@ -60,12 +46,21 @@ test('a background tab pings only once it is shown', () => {
 test('a prerendered page that is never shown sends nothing', () => {
     Object.defineProperty(document, 'prerendering', { configurable: true, get: () => true });
     pingPage('pingPRE12345');
-    document.dispatchEvent(new Event('DOMContentLoaded'));
     expect(pingsFor('pingPRE12345')).toHaveLength(0);
 
     delete document.prerendering;
     document.dispatchEvent(new Event('prerenderingchange'));
     expect(pingsFor('pingPRE12345')).toHaveLength(1);
+});
+
+test('leaving a shown page that has not pinged yet pings then', () => {
+    Object.defineProperty(document, 'prerendering', { configurable: true, get: () => true });
+    pingPage('pingLEAVE123');
+    delete document.prerendering;
+    // Activated without a prerenderingchange reaching us: the pagehide net.
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(pingsFor('pingLEAVE123')).toHaveLength(1);
 });
 
 test('an automated browser says so', () => {
@@ -77,7 +72,7 @@ test('an automated browser says so', () => {
 
 test('no view id, no ping', () => {
     pingPage(null);
-    document.dispatchEvent(new Event('DOMContentLoaded'));
+    window.dispatchEvent(new Event('pagehide'));
 
     expect(navigator.sendBeacon).not.toHaveBeenCalled();
 });
