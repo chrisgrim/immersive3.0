@@ -413,3 +413,37 @@ test('a weekly trend starts on a Monday, so its first week is whole', function (
     App\Mcp\Servers\EiServer::actingAs($moderator, 'api')->tool(App\Mcp\Tools\AnalyticsTrend::class, ['metric' => 'page_views', 'days' => 120])
         ->assertOk()->assertSee('["'.$monday->toDateString().'",9]', false);
 });
+
+// ----- review fixes (phase 2, round 5, Fable) -----
+
+test('one page spelled differently in its address is one path', function () {
+    captureOn('page_views');
+
+    $this->withoutVite()->get('/privacy')->assertOk();
+    $this->withoutVite()->get('/%70rivacy')->assertOk();
+
+    expect(flushedRows()->pluck('path')->unique()->values()->all())->toBe(['/privacy']);
+});
+
+test('an event page records its real slug as the path', function () {
+    captureOn('page_views');
+    $event = showableEvent();
+
+    $this->withoutVite()->get('/events/'.rawurlencode($event->slug).'%00')->assertSuccessful();
+
+    expect(flushedRows()->pluck('path')->filter()->unique()->values()->all())->toBe(['/events/'.$event->slug]);
+})->skip(fn () => false);
+
+test('open-ended text totals hold people only, empty places are left out, and old event views count for their organizer', function () {
+    $event = Event::factory()->published()->create();
+    $row = fn (array $values) => DB::table('analytics_events')->insert(array_merge(['occurred_at' => daysAgo(1).' 10:00:00', 'visitor' => str_repeat('a', 16), 'bot' => 0], $values));
+    $row(['type' => 'page_view', 'page' => 'home', 'path' => '/junk-'.uniqid(), 'bot' => 1]);
+    $row(['type' => 'search', 'source' => 'list', 'query' => '']);
+    $row(['type' => 'event_view', 'event_id' => $event->id]);
+
+    $this->artisan('ei:analytics-rollup', ['--day' => daysAgo(1)])->assertSuccessful();
+
+    expect(DB::table('analytics_daily')->where('dim', 'path')->count())->toBe(0)
+        ->and(DB::table('analytics_daily')->where('dim', 'query')->count())->toBe(0)
+        ->and(DB::table('analytics_daily')->where(['dim' => 'organizer', 'key' => (string) $event->organizer_id])->value('hits'))->toBe(1);
+});

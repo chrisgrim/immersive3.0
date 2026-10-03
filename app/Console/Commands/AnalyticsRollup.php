@@ -117,24 +117,28 @@ class AnalyticsRollup extends Command
         return [
             [null, 'all', "''", null],
             [$views, 'page', 'COALESCE(e.page, IF(e.type = \''.Analytics::EVENT_VIEW."', 'events.show', NULL))", null],
-            [[Analytics::PAGE_VIEW], 'path', 'e.path', null],
+            // Open-ended text dimensions are kept for people only: bots can
+            // send endless distinct values, which would never be pruned.
+            [[Analytics::PAGE_VIEW], 'path', 'e.path', 'e.bot = 0'],
             // Not search clicks: those are only believable checked against
             // what their search showed (SiteAnalyticsReport, raw rows).
             [[...$views, Analytics::TICKET_CLICK], 'event', 'e.event_id', null],
-            [[Analytics::PAGE_VIEW], 'organizer', 'e.organizer_id', null],
+            // An event view from before page views carried no organizer id:
+            // take it from the event.
+            [$views, 'organizer', 'COALESCE(e.organizer_id, ev.organizer_id)', null],
             [$views, 'source', 'e.source', null],
-            [$views, 'ref', "JSON_UNQUOTE(JSON_EXTRACT(e.props, '$.ref'))", null],
+            [$views, 'ref', "JSON_UNQUOTE(JSON_EXTRACT(e.props, '$.ref'))", 'e.bot = 0'],
             [null, 'country', 'e.country', null],
             [null, 'device', 'e.device', null],
             [null, 'browser', 'e.browser', null],
             [null, 'os', 'e.os', null],
-            [null, 'city', "IF(e.city IS NULL, NULL, CONCAT(e.city, IF(e.region IS NULL, '', CONCAT(', ', e.region))))", null],
-            [[Analytics::PAGE_VIEW], 'utm_source', 'e.utm_source', null],
-            [[Analytics::PAGE_VIEW], 'utm_medium', 'e.utm_medium', null],
-            [[Analytics::PAGE_VIEW], 'utm_campaign', 'e.utm_campaign', null],
-            [[Analytics::SEARCH], 'query', 'e.query', "e.source = 'list'"],
+            [null, 'city', "IF(e.city IS NULL, NULL, CONCAT(e.city, IF(e.region IS NULL, '', CONCAT(', ', e.region))))", 'e.bot = 0'],
+            [[Analytics::PAGE_VIEW], 'utm_source', 'e.utm_source', 'e.bot = 0'],
+            [[Analytics::PAGE_VIEW], 'utm_medium', 'e.utm_medium', 'e.bot = 0'],
+            [[Analytics::PAGE_VIEW], 'utm_campaign', 'e.utm_campaign', 'e.bot = 0'],
+            [[Analytics::SEARCH], 'query', "NULLIF(e.query, '')", "e.source = 'list' AND e.bot = 0"],
             [[Analytics::SEARCH], 'at_home', "IF(COALESCE({$remote}, 0) = 0, 'any', CAST({$remote} AS CHAR))", "e.source = 'list' AND (e.query IS NULL OR e.query = '') AND JSON_UNQUOTE(JSON_EXTRACT(e.props, '$.searchType')) = 'atHome'"],
-            [[Analytics::NAV_SEARCH], 'query', 'LOWER(e.query)', null],
+            [[Analytics::NAV_SEARCH], 'query', "NULLIF(LOWER(e.query), '')", 'e.bot = 0'],
         ];
     }
 
@@ -188,6 +192,7 @@ class AnalyticsRollup extends Command
             SELECT ?, {$this->typeOf()}, ?, {$key}, e.bot > 0, COUNT(*), COUNT(DISTINCT e.visitor),
                 COALESCE(SUM(l.seconds), 0), COUNT(l.seconds)
             FROM analytics_events e
+            LEFT JOIN events ev ON ev.id = e.event_id
             LEFT JOIN (
                 SELECT view_id, MAX(seconds) AS seconds FROM analytics_events
                 WHERE type = ? AND occurred_at >= ? AND occurred_at < ? AND view_id IS NOT NULL

@@ -41,6 +41,20 @@ class RecordPageView
         return $next($request);
     }
 
+    /**
+     * The page's path as one canonical string: decoded (%65 is "e") and
+     * without control characters, so a script cannot turn one page into many
+     * by spelling its address differently. Event and organizer pages use
+     * their real slug.
+     */
+    public static function path(Request $request): string
+    {
+        $path = $request->attributes->get('analytics.path')
+            ?? rawurldecode('/'.ltrim($request->path(), '/'));
+
+        return mb_substr(preg_replace('/[\p{C}\s]+/u', '', $path), 0, 191);
+    }
+
     public function terminate(Request $request, Response $response): void
     {
         $viewId = $request->attributes->get(self::VIEW_ID);
@@ -54,7 +68,7 @@ class RecordPageView
         Analytics::record(Analytics::PAGE_VIEW, [
             'view_id' => $viewId,
             'page' => $request->route()->getName(),
-            'path' => mb_substr('/'.ltrim($request->path(), '/'), 0, 191),
+            'path' => self::path($request),
             'event_id' => $request->attributes->get('analytics.event_id'),
             'organizer_id' => $request->attributes->get('analytics.organizer_id')
                 ?? (is_object($organizer) ? $organizer->getKey() : null),

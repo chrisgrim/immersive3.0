@@ -95,6 +95,7 @@ class EventController extends Controller
         // For RecordPageView, which records this page as a page view.
         $request->attributes->set('analytics.event_id', $event->id);
         $request->attributes->set('analytics.organizer_id', $event->organizer_id);
+        $request->attributes->set('analytics.path', '/events/'.$event->slug);
 
         // With page views on, that page view is the event view.
         if (Analytics::isPrefetch($request) || Analytics::captures('page_views')) {
