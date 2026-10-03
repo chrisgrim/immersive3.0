@@ -88,6 +88,9 @@ class AnalyticsQuery
 
         return $this->cached(__FUNCTION__, func_get_args(), function () use ($types, $column, $dimension, $days) {
             $bucket = $days > 90 ? 'DATE_SUB(day, INTERVAL WEEKDAY(day) DAY)' : 'day';
+            // Weekly: start on a Monday, so the first week is a whole week
+            // (the last, this week, is partial and the definitions say so).
+            $from = $days > 90 ? now()->subDays($days - 1)->startOfWeek(\Carbon\CarbonInterface::MONDAY)->toDateString() : $this->since($days);
             [$typeSql, $typeBindings] = $this->in($types);
 
             if ($dimension === null) {
@@ -95,7 +98,7 @@ class AnalyticsQuery
                     SELECT /*+ MAX_EXECUTION_TIME(5000) */ {$bucket} AS period, SUM({$column}) AS value
                     FROM analytics_daily
                     WHERE dim = 'all' AND bot = 0 AND type IN ({$typeSql}) AND day >= ?
-                    GROUP BY period ORDER BY period", [...$typeBindings, $this->since($days)]);
+                    GROUP BY period ORDER BY period", [...$typeBindings, $from]);
 
                 return ['grain' => $days > 90 ? 'week' : 'day', 'series' => array_map(fn ($row) => [$row->period, (int) $row->value], $rows)];
             }
@@ -109,7 +112,7 @@ class AnalyticsQuery
                 SELECT /*+ MAX_EXECUTION_TIME(5000) */ {$bucket} AS period, `key`, SUM({$column}) AS value
                 FROM analytics_daily
                 WHERE dim = ? AND bot = 0 AND type IN ({$typeSql}) AND day >= ? AND `key` IN ({$keySql})
-                GROUP BY period, `key` ORDER BY period", [$dimension, ...$typeBindings, $this->since($days), ...$keyBindings]);
+                GROUP BY period, `key` ORDER BY period", [$dimension, ...$typeBindings, $from, ...$keyBindings]);
 
             return [
                 'grain' => $days > 90 ? 'week' : 'day',

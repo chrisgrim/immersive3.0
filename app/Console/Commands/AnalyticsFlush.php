@@ -152,10 +152,10 @@ class AnalyticsFlush extends Command
         $visitor = substr(hash('sha256', $this->salt($day).'|'.$ip.'|'.$ua), 0, 16);
         $data = is_array($note['d'] ?? null) ? $note['d'] : [];
 
-        $bot = $this->botFlags($ua, $ip, $day, $visitor)
+        $type = mb_substr((string) $note['t'], 0, 32);
+        $bot = $this->botFlags($ua, $ip, $day, $visitor, $type)
             | (isset($this->hostingAsns[$this->geo->asn($ip) ?? 0]) ? Analytics::BOT_DATACENTER : 0)
             | ($this->missingBrowserHeaders($ua, $note['h'] ?? null) ? Analytics::BOT_HEADERS : 0);
-        $type = mb_substr((string) $note['t'], 0, 32);
         $text = fn ($key, $max) => isset($data[$key]) && is_scalar($data[$key]) && (string) $data[$key] !== '' ? mb_substr((string) $data[$key], 0, $max) : null;
         $utm = is_array($data['utm'] ?? null) ? $data['utm'] : [];
         $device = $bot === 0 && Analytics::captures('device') ? $this->device($ua) : [];
@@ -216,7 +216,14 @@ class AnalyticsFlush extends Command
         return $recent && empty($headers['sf']);
     }
 
-    private function botFlags(string $ua, string $ip, string $day, string $visitor): int
+    /**
+     * Rows that count toward the daily caps: a visit, a search, a click.
+     * Nav search keystrokes and time-on-page notes are side effects of one
+     * visit; counting them would push an ordinary heavy user over the cap.
+     */
+    private const CAPPED_TYPES = [Analytics::PAGE_VIEW, Analytics::EVENT_VIEW, Analytics::SEARCH, Analytics::TICKET_CLICK, Analytics::SEARCH_CLICK];
+
+    private function botFlags(string $ua, string $ip, string $day, string $visitor, string $type): int
     {
         $flags = 0;
 
@@ -229,17 +236,24 @@ class AnalyticsFlush extends Command
         // Per visitor, and per IP address alone: a script that changes its
         // user agent on every hit is a new "visitor" each time, but not a
         // new address. The IP cap is higher, for offices and shared networks.
+        // Rows of other types only read the counts (a capped visitor's
+        // keystrokes are flagged too), without adding to them.
         $network = substr(hash('sha256', $this->salt($day).'|'.$ip), 0, 16);
-        if ($this->overCap("analytics:hits:{$day}:{$visitor}", (int) config('analytics.daily_cap'))
-            | $this->overCap("analytics:ip-hits:{$day}:{$network}", (int) config('analytics.ip_daily_cap'))) {
+        $counts = in_array($type, self::CAPPED_TYPES, true);
+        if ($this->overCap("analytics:hits:{$day}:{$visitor}", (int) config('analytics.daily_cap'), $counts)
+            | $this->overCap("analytics:ip-hits:{$day}:{$network}", (int) config('analytics.ip_daily_cap'), $counts)) {
             $flags |= Analytics::BOT_OVER_DAILY_CAP;
         }
 
         return $flags;
     }
 
-    private function overCap(string $key, int $cap): bool
+    private function overCap(string $key, int $cap, bool $counts = true): bool
     {
+        if (! $counts) {
+            return (int) Cache::get($key, 0) > $cap;
+        }
+
         Cache::add($key, 0, now()->addDays(2));
 
         return Cache::increment($key) > $cap;

@@ -389,3 +389,27 @@ test('rebuilding a day older than the bot rows are kept is refused, so its total
 
     expect(DB::table('analytics_daily')->where('day', $old)->value('hits'))->toBe(50);
 });
+
+// ----- review fixes (phase 2, round 5) -----
+
+test('nav keystrokes and time-on-page notes do not push a person over the daily cap', function () {
+    config(['analytics.daily_cap' => 3]);
+    $as = fn () => Illuminate\Http\Request::create('/', 'GET', server: ['REMOTE_ADDR' => '198.51.100.9', 'HTTP_USER_AGENT' => PHONE_UA]);
+    foreach (range(1, 10) as $i) {
+        Analytics::record(Analytics::NAV_SEARCH, ['query' => str_repeat('s', $i + 1)], $as());
+        Analytics::record(Analytics::PAGE_LEAVE, ['view_id' => 'abcDEF12345'.($i % 10), 'seconds' => 10], $as());
+    }
+    Analytics::record(Analytics::PAGE_VIEW, ['page' => 'home', 'path' => '/'], $as());
+
+    expect(flushedRows()->where('bot', '>', 0))->toHaveCount(0);
+});
+
+test('a weekly trend starts on a Monday, so its first week is whole', function () {
+    $moderator = User::factory()->create(['type' => 'm']);
+    Laravel\Passport\Passport::actingAs($moderator, ['mcp:use', User::MODERATE_SCOPE]);
+    $monday = now()->subDays(119)->startOfWeek(\Carbon\CarbonInterface::MONDAY);
+    DB::table('analytics_daily')->insert(['day' => $monday->toDateString(), 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0, 'hits' => 9, 'visitors' => 9, 'seconds_sum' => 0, 'seconds_count' => 0]);
+
+    App\Mcp\Servers\EiServer::actingAs($moderator, 'api')->tool(App\Mcp\Tools\AnalyticsTrend::class, ['metric' => 'page_views', 'days' => 120])
+        ->assertOk()->assertSee('["'.$monday->toDateString().'",9]', false);
+});

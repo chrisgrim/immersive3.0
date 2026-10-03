@@ -13,8 +13,9 @@ return [
     'enabled' => env('ANALYTICS_ENABLED', in_array(env('APP_ENV'), ['production', 'local', 'testing'], true)),
 
     // Phase 2 captures, each off until switched on: in .env, or without a
-    // deploy with `php artisan ei:analytics-capture <name> on|off` (a cache
-    // override, read once per request). Turn on one at a time and watch.
+    // deploy with `php artisan ei:analytics-capture <name> on|off` (an
+    // override kept in capture_file, read once per request). Turn on one at
+    // a time and watch.
     'capture_file' => storage_path('app/analytics-capture.json'),
 
     'capture' => [
