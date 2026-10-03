@@ -4,6 +4,7 @@ namespace App\Mcp\Tools\Concerns;
 
 use App\Actions\Analytics\AnalyticsQuery;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 
@@ -22,8 +23,11 @@ trait AnswersAnalytics
 
     private function answer(array $data, int $days): Response
     {
+        $since = DB::table('analytics_daily')->min('day');
+
         return Response::json([
             'period' => ['days' => max(1, min(AnalyticsQuery::MAX_DAYS, $days)), 'timezone' => 'UTC'],
+            'totals_since' => $since ?? 'none yet: the daily totals are first built within the hour after deploy',
             'definitions' => AnalyticsQuery::DEFINITIONS,
             'data' => $data,
         ]);

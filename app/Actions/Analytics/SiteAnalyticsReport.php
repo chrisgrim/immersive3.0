@@ -499,8 +499,11 @@ class SiteAnalyticsReport
     /** What the bot flags caught (everything above leaves these out). */
     private function bots($since): array
     {
+        // Not time-on-page notes or nav typing: people send those and bots
+        // do not, so counting them would make the bot share look smaller.
         $row = DB::table('analytics_events')
             ->where('occurred_at', '>=', $since)
+            ->whereNotIn('type', [Analytics::PAGE_LEAVE, Analytics::NAV_SEARCH])
             ->selectRaw('COUNT(*) AS total, SUM(bot > 0) AS flagged,
                 SUM((bot & ?) > 0) AS crawler, SUM((bot & ?) > 0) AS no_user_agent,
                 SUM((bot & ?) > 0) AS over_daily_cap, SUM((bot & ?) > 0) AS datacenter, SUM((bot & ?) > 0) AS odd_headers', [

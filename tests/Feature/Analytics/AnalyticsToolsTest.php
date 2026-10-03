@@ -107,3 +107,21 @@ test('a metric and dimension pair the daily totals never hold is refused, not an
     asModerator()->tool(AnalyticsTop::class, ['dimension' => 'event', 'metric' => 'ticket_clicks'])->assertOk();
     asModerator()->tool(AnalyticsTop::class, ['dimension' => 'query'])->assertOk();
 });
+
+test('a removed event is marked as removed, with no slug to open', function () {
+    $event = Event::factory()->create(['name' => 'Gone Show']);
+    daily(['dim' => 'event', 'key' => (string) $event->id, 'hits' => 9, 'visitors' => 5]);
+    $event->delete();
+
+    asModerator()->tool(AnalyticsTop::class, ['dimension' => 'event'])->assertOk()->assertSee('"deleted":true', false);
+    asModerator()->tool(AnalyticsFor::class, ['event' => (string) $event->id])->assertOk()->assertSee('"slug":null', false)->assertSee('"deleted":true', false);
+});
+
+test('a breakdown says the whole period total and when the daily totals start', function () {
+    daily(['hits' => 50]);
+    daily(['dim' => 'device', 'key' => 'mobile', 'hits' => 3]);
+
+    asModerator()->tool(AnalyticsTop::class, ['dimension' => 'device'])->assertOk()
+        ->assertSee('"whole_period_total":50', false)
+        ->assertSee('"totals_since":"'.now()->subDay()->toDateString().'"', false);
+});

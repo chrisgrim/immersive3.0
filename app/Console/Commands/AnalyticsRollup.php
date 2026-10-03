@@ -52,7 +52,7 @@ class AnalyticsRollup extends Command
         // longer be recounted, so those days are left as they are.
         $oldest = CarbonImmutable::now('UTC')->startOfDay()->subDays(max(7, (int) config('analytics.bot_raw_days', 30)) - 2);
 
-        foreach ($this->days() as $day) {
+        foreach ($this->days($oldest) as $day) {
             if ($day->lt($oldest)) {
                 $this->warn("Skipped {$day->toDateString()}: its raw rows may already be pruned, so its totals are kept as they are.");
 
@@ -72,15 +72,29 @@ class AnalyticsRollup extends Command
         return $failed ? self::FAILURE : self::SUCCESS;
     }
 
+    /** Raw rows from before $before, but no daily totals from then yet. */
+    private function untotalledOlderDays(CarbonImmutable $before): bool
+    {
+        return ! DB::table('analytics_daily')->where('day', '<', $before->toDateString())->exists()
+            && DB::table('analytics_events')->where('occurred_at', '<', $before->format('Y-m-d H:i:s'))->exists();
+    }
+
     /** @return CarbonImmutable[] */
-    private function days(): array
+    private function days(CarbonImmutable $oldest): array
     {
         if ($this->option('day')) {
             return [CarbonImmutable::parse($this->option('day'), 'UTC')->startOfDay()];
         }
 
         $to = CarbonImmutable::parse($this->option('to') ?? 'today', 'UTC')->startOfDay();
-        $from = $this->option('from') ? CarbonImmutable::parse($this->option('from'), 'UTC')->startOfDay() : $to->subDays(2);
+        $from = match (true) {
+            (bool) $this->option('from') => CarbonImmutable::parse($this->option('from'), 'UTC')->startOfDay(),
+            // Until days before the usual three are totalled (the first runs
+            // after deploy), build every day whose raw rows are all still
+            // there. The hourly run only does today, so it cannot stop this.
+            $this->untotalledOlderDays($to->subDays(2)) => $oldest,
+            default => $to->subDays(2),
+        };
 
         $days = [];
         for ($day = $from; $day->lte($to); $day = $day->addDay()) {

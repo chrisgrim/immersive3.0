@@ -475,3 +475,18 @@ test('a loop of nav typing is caught by its own cap', function () {
 
     expect(flushedRows()->pluck('bot')->all())->toBe([0, 0, 0, Analytics::BOT_OVER_DAILY_CAP]);
 });
+
+test('the first nightly rollup after deploy builds every day still in the raw rows', function () {
+    foreach ([daysAgo(20), daysAgo(0)] as $day) {
+        DB::table('analytics_events')->insert(['type' => 'page_view', 'occurred_at' => "{$day} 12:00:00", 'visitor' => str_repeat('a', 16), 'bot' => 0, 'page' => 'home']);
+    }
+    $this->artisan('ei:analytics-rollup', ['--day' => daysAgo(0)])->assertSuccessful();
+
+    $this->artisan('ei:analytics-rollup')->assertSuccessful();
+    expect(DB::table('analytics_daily')->where(['day' => daysAgo(20), 'dim' => 'all'])->exists())->toBeTrue();
+
+    // Once the older days are totalled, it goes back to the last three.
+    DB::table('analytics_events')->insert(['type' => 'page_view', 'occurred_at' => daysAgo(10).' 12:00:00', 'visitor' => str_repeat('b', 16), 'bot' => 0, 'page' => 'home']);
+    $this->artisan('ei:analytics-rollup')->assertSuccessful();
+    expect(DB::table('analytics_daily')->where(['day' => daysAgo(10)])->exists())->toBeFalse();
+});

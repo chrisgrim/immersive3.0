@@ -294,3 +294,12 @@ test('a result click further down than the search had results is not believed', 
 
     expect(app(SiteAnalyticsReport::class)->handle(30)['search_clicks']['by_position'])->toBe(['1' => 1]);
 });
+
+test('the bot share leaves out time-on-page notes and nav typing, which only people send', function () {
+    analyticsRow(['type' => Analytics::PAGE_VIEW]);
+    analyticsRow(['type' => Analytics::PAGE_VIEW, 'bot' => Analytics::BOT_CRAWLER, 'visitor' => str_repeat('b', 16)]);
+    analyticsRow(['type' => Analytics::PAGE_LEAVE, 'seconds' => 20]);
+    analyticsRow(['type' => Analytics::NAV_SEARCH, 'query' => 'boston']);
+
+    expect(app(SiteAnalyticsReport::class)->handle(7)['bots'])->toMatchArray(['all_rows' => 2, 'flagged' => 1, 'share' => 0.5]);
+});
