@@ -43,6 +43,15 @@ class AnalyticsRollup extends Command
     /** Paths through the site: an edge is kept only if this many visitors took it. */
     public const MIN_EDGE_VISITORS = 5;
 
+    /**
+     * Each side of an edge key is cut to this many characters, so both fit
+     * the 191-character key (94 + ' > ' + 94) and a long first path cannot
+     * crowd out the second. AnalyticsQuery::paths() cuts the same way.
+     */
+    public const EDGE_SIDE = 94;
+
+    private const EDGE_KEY = 'CONCAT(LEFT(prev_path, '.self::EDGE_SIDE."), ' > ', LEFT(path, ".self::EDGE_SIDE.'))';
+
     public function handle(): int
     {
         // One rollup at a time (the nightly and hourly runs have separate
@@ -282,14 +291,14 @@ class AnalyticsRollup extends Command
     {
         DB::statement("
             INSERT INTO analytics_daily (day, type, dim, `key`, bot, hits, visitors, seconds_sum, seconds_count)
-            SELECT ?, '".self::VIEW."', 'edge', {$this->keyed("CONCAT(prev_path, ' > ', path)")}, 0, COUNT(*), COUNT(DISTINCT visitor), 0, 0
+            SELECT ?, '".self::VIEW."', 'edge', {$this->keyed(self::EDGE_KEY)}, 0, COUNT(*), COUNT(DISTINCT visitor), 0, 0
             FROM (
                 SELECT visitor, path, LAG(path) OVER (PARTITION BY visitor ORDER BY occurred_at, id) AS prev_path
                 FROM analytics_events
                 WHERE type = '".Analytics::PAGE_VIEW."' AND bot = 0 AND occurred_at >= ? AND occurred_at < ? AND path IS NOT NULL
             ) steps
             WHERE prev_path IS NOT NULL
-            GROUP BY {$this->keyed("CONCAT(prev_path, ' > ', path)")}
+            GROUP BY {$this->keyed(self::EDGE_KEY)}
             HAVING COUNT(DISTINCT visitor) >= ?".self::MERGE, [$day->toDateString(), ...$range, self::MIN_EDGE_VISITORS]);
     }
 }

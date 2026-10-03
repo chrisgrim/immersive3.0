@@ -7,8 +7,9 @@ use App\Support\Analytics\Analytics;
 use Illuminate\Http\Request;
 
 /**
- * Time on page, sent once by the browser (navigator.sendBeacon) when the
- * page is first hidden, and only after 5 visible seconds: the view's id
+ * Time on page, sent by the browser (navigator.sendBeacon) each time the
+ * page is hidden with the running total, only after 5 visible seconds and
+ * at most 10 times (the rollup keeps the largest): the view's id
  * (minted by RecordPageView), visible seconds and how far it scrolled.
  * Stateless (see the route), answers 204; bad input is not recorded.
  */

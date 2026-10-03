@@ -511,3 +511,42 @@ test('the hourly rollup of today also totals the days before deploy', function (
 
     expect(DB::table('analytics_daily')->where(['day' => daysAgo(6), 'dim' => 'all'])->exists())->toBeTrue();
 });
+
+test('an owner previewing an unpublished organizer page is not a page view', function () {
+    captureOn('page_views');
+    $owner = User::factory()->create();
+    $organizer = App\Models\Organizer::factory()->create(['status' => 'd']);
+    $organizer->users()->attach($owner->id, ['role' => 'owner']);
+
+    $this->actingAs($owner)->withoutVite()->get('/organizers/'.$organizer->slug)->assertOk();
+
+    expect(flushedRows()->where('type', 'page_view'))->toHaveCount(0);
+});
+
+test('page addresses fewer than three people opened go from the daily totals after 13 months', function () {
+    $old = now()->subDays(400)->toDateString();
+    foreach (['/rare' => 1, '/common' => 5] as $key => $visitors) {
+        DB::table('analytics_daily')->insert(['day' => $old, 'type' => 'view', 'dim' => 'path', 'key' => $key, 'bot' => 0, 'hits' => $visitors, 'visitors' => $visitors, 'seconds_sum' => 0, 'seconds_count' => 0]);
+    }
+
+    $this->artisan('ei:analytics-prune')->assertSuccessful();
+
+    expect(DB::table('analytics_daily')->where('dim', 'path')->pluck('key')->all())->toBe(['/common']);
+});
+
+test('a step from a very long address keeps both ends, and is found from either side', function () {
+    $day = daysAgo(2);
+    $long = '/events/'.str_repeat('a', 180);
+    foreach (range(1, 5) as $i) {
+        $visitor = str_repeat((string) $i, 16);
+        DB::table('analytics_events')->insert([
+            ['type' => 'page_view', 'occurred_at' => "{$day} 10:00:0{$i}", 'visitor' => $visitor, 'bot' => 0, 'page' => 'events.show', 'path' => $long],
+            ['type' => 'page_view', 'occurred_at' => "{$day} 10:01:0{$i}", 'visitor' => $visitor, 'bot' => 0, 'page' => 'search', 'path' => '/index/search'],
+        ]);
+    }
+    $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
+
+    $query = app(App\Actions\Analytics\AnalyticsQuery::class);
+    expect($query->paths($long, 'next', 7)[0]['to'] ?? null)->toBe('/index/search')
+        ->and(count($query->paths('/index/search', 'previous', 7)))->toBe(1);
+});

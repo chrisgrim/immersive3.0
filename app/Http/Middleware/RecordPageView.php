@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Support\Analytics\Analytics;
 use Closure;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
@@ -34,11 +35,29 @@ class RecordPageView
             && in_array($request->route()?->getName(), self::PAGES, true)
             && Analytics::captures('page_views')
             && ! Analytics::isPrefetch($request)
-            && ! Analytics::optedOut($request)) {
+            && ! Analytics::optedOut($request)
+            && self::isPublic($request)) {
             $request->attributes->set(self::VIEW_ID, Str::random(12));
         }
 
         return $next($request);
+    }
+
+    /**
+     * Not a preview: an organizer, community, post or event that is not
+     * published (or a hidden post) still answers 200 to its owners and to
+     * moderators, but no public visitor can see it, so it is not a view.
+     */
+    private static function isPublic(Request $request): bool
+    {
+        foreach ($request->route()?->parameters() ?? [] as $parameter) {
+            if ($parameter instanceof Model
+                && (($parameter->getAttribute('status') ?? 'p') !== 'p' || $parameter->getAttribute('is_hidden'))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

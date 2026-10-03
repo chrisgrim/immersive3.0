@@ -162,7 +162,8 @@ class AnalyticsQuery
         $days = $this->clampDays($days);
 
         return $this->cached(__FUNCTION__, func_get_args(), function () use ($path, $direction, $days) {
-            $like = $direction === 'next' ? $this->escapeLike($path).' > %' : '% > '.$this->escapeLike($path);
+            $side = $this->escapeLike(mb_substr($path, 0, AnalyticsRollup::EDGE_SIDE));
+            $like = $direction === 'next' ? $side.' > %' : '% > '.$side;
             $rows = $this->select("
                 SELECT /*+ MAX_EXECUTION_TIME(5000) */ `key`, SUM(visitors) AS visitors, SUM(hits) AS hits
                 FROM analytics_daily

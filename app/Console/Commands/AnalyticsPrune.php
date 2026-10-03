@@ -26,7 +26,7 @@ class AnalyticsPrune extends Command
         // one person's typed text outlives 13 months.
         $deleted += DB::table('analytics_daily')
             ->where('day', '<', now()->subDays(max(30, (int) config('analytics.raw_days', 395)))->toDateString())
-            ->whereIn('dim', ['query', 'ref', 'city', 'utm_source', 'utm_medium', 'utm_campaign'])
+            ->whereIn('dim', ['query', 'ref', 'city', 'utm_source', 'utm_medium', 'utm_campaign', 'path'])
             ->where('visitors', '<', 3)
             ->delete();
 

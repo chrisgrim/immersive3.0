@@ -27,20 +27,28 @@ export function trackSearchClick(searchId, eventId, position) {
 
 const PAGE_LEAVE_URL = '/api/analytics/page-leave';
 const MIN_SECONDS = 5;
+// The server keeps the largest report per view; a few are plenty.
+const MAX_BEACONS = 10;
+// The daily totals look for a page's time up to the end of the next UTC
+// day: a report from a tab left open longer than this would come too late.
+const MAX_OPEN_MS = 23 * 60 * 60 * 1000;
 
 /**
  * Time on page for this page view (window.Laravel.analyticsView, set only
  * while it is being measured): visible time is added up across tab
- * switches, and ONE beacon goes when the page is first hidden or left,
- * only after 5 visible seconds, with the deepest scroll reached.
+ * switches, and each time the page is hidden or left a beacon carries the
+ * running total (only after 5 visible seconds, only when it grew, at most
+ * 10), with the deepest scroll reached. The server keeps the largest.
  */
 export function watchPage(viewId) {
     if (!viewId || typeof document === 'undefined') return;
 
+    const loadedAt = Date.now();
     let visibleMs = 0;
-    let shownAt = document.visibilityState === 'visible' ? Date.now() : null;
+    let shownAt = document.visibilityState === 'visible' ? loadedAt : null;
     let depth = 0;
-    let sent = false;
+    let sentSeconds = 0;
+    let beacons = 0;
 
     const onScroll = () => {
         const height = document.documentElement.scrollHeight - window.innerHeight;
@@ -53,8 +61,9 @@ export function watchPage(viewId) {
             shownAt = null;
         }
         const seconds = Math.round(visibleMs / 1000);
-        if (sent || seconds < MIN_SECONDS) return;
-        sent = true;
+        if (seconds < MIN_SECONDS || seconds <= sentSeconds || beacons >= MAX_BEACONS || Date.now() - loadedAt > MAX_OPEN_MS) return;
+        sentSeconds = seconds;
+        beacons++;
         try {
             const body = new URLSearchParams({ view_id: viewId, seconds: String(seconds), depth: String(Math.min(100, depth)) });
             if (!navigator.sendBeacon?.(PAGE_LEAVE_URL, body)) {
@@ -67,7 +76,7 @@ export function watchPage(viewId) {
 
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-            if (!sent) shownAt = Date.now();
+            shownAt = Date.now();
         } else {
             send();
         }
