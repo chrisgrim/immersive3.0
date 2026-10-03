@@ -111,7 +111,7 @@
                     </div>
                     <ul v-if="data.pages.length" class="list-none p-0 m-0">
                         <li v-for="row in data.pages" :key="row.page" class="flex items-center gap-[1.2rem] py-[1.2rem] border-t border-[#EBEBEB] first:border-0">
-                            <div v-if="row.kind !== 'page'" class="shrink-0 w-[4rem] h-[4rem] rounded-[0.8rem] bg-[#F7F7F7] overflow-hidden">
+                            <div v-if="row.kind === 'event' || row.kind === 'organizer'" class="shrink-0 w-[4rem] h-[4rem] rounded-[0.8rem] bg-[#F7F7F7] overflow-hidden">
                                 <img v-if="row.thumb" :src="`${imageUrl}${row.thumb}`" alt="" loading="lazy" class="w-full h-full object-cover" @error="(e) => (e.target.style.display = 'none')">
                             </div>
                             <div class="min-w-0 flex-1">
@@ -129,7 +129,7 @@
                 </section>
             </div>
 
-            <p class="text-[1.2rem] text-[#717171]">{{ data.note }} Position 1 is the top result.</p>
+            <p class="text-[1.2rem] text-[#717171]">{{ data.note }} {{ data.pages_note }} Position 1 is the top result.</p>
         </template>
     </div>
 </template>
@@ -154,7 +154,8 @@ const position = (value) => (value === null || value === undefined ? 'n/a' : val
 const linkable = (page) => /^(\/|https?:\/\/)/.test(page || '')
 
 const pageNote = (row) => {
-    if (row.kind === 'event') return row.removed ? `Event (removed) · ${row.page}` : row.page
+    if (row.kind === 'event') return row.page
+    if (row.kind === 'gone') return 'Not a current event page'
     if (row.kind === 'organizer') return `Organizer · ${row.page}`
     return `Position ${position(row.position)}`
 }

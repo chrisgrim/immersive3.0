@@ -177,7 +177,9 @@ const countryName = (code) => {
 const number = (value) => (value ?? 0).toLocaleString()
 const position = (value) => (value === null || value === undefined ? 'n/a' : value.toFixed(1))
 
-const GOOGLE_NOTE = 'Google reports 2 to 3 days late, so the period ends on the newest day imported, and leaves out searches made by very few people. Position 1 is the top result. Lists hold the leaders by clicks and by impressions, up to 500 of each.'
+const GOOGLE_LAG = 'Google reports 2 to 3 days late, so the period ends on the newest day imported. Position 1 is the top result. The list holds the leaders by clicks and by impressions, up to 500 of each.'
+const GOOGLE_QUERIES_NOTE = `${GOOGLE_LAG} Google leaves out searches made by very few people, so these add up to less than the site totals.`
+const GOOGLE_PAGES_NOTE = `${GOOGLE_LAG} Pages can add up to more than the site totals: Google counts an impression for every page of the site shown in a list of results, while the totals count the site once per search. A page's position is that page's own. "Not a current event page": an event or organizer address that no longer matches one (removed, or renamed).`
 
 // What each section lists, how it can be sorted and filtered.
 const SECTIONS = {
@@ -299,13 +301,13 @@ const SECTIONS = {
         text: (row) => row.query,
         // The leaders by clicks and by impressions, merged.
         leaders: true,
-        footnote: GOOGLE_NOTE,
+        footnote: GOOGLE_QUERIES_NOTE,
     },
     google_pages: {
         title: 'Pages Google Sends People To',
         sub: 'Events and other pages, by clicks from Google search results',
         placeholder: 'Filter pages or events',
-        kinds: [{ key: 'all', label: 'All' }, { key: 'event', label: 'Events' }, { key: 'organizer', label: 'Organizers' }, { key: 'page', label: 'Other pages' }],
+        kinds: [{ key: 'all', label: 'All' }, { key: 'event', label: 'Events' }, { key: 'organizer', label: 'Organizers' }, { key: 'gone', label: 'Not current' }, { key: 'page', label: 'Other pages' }],
         sorts: [
             { key: 'clicks', label: 'Most clicks' },
             { key: 'impressions', label: 'Most impressions' },
@@ -322,7 +324,7 @@ const SECTIONS = {
         ],
         text: (row) => `${row.page || ''} ${row.name || ''}`,
         leaders: true,
-        footnote: GOOGLE_NOTE,
+        footnote: GOOGLE_PAGES_NOTE,
     },
     countries: {
         title: 'Visits by Country',
@@ -422,10 +424,11 @@ const SectionCell = (cellProps) => {
         const link = /^(\/|https?:\/\/)/.test(row.page || '')
             ? h('a', { href: row.page, target: '_blank', rel: 'noopener', class: 'font-semibold hover:underline block truncate' }, label)
             : h('span', { class: 'font-semibold block truncate' }, label)
-        const note = row.kind === 'event' ? (row.removed ? `Event (removed) · ${row.page}` : row.page)
-            : row.kind === 'organizer' ? `Organizer · ${row.page}` : ''
+        const note = row.kind === 'event' ? row.page
+            : row.kind === 'organizer' ? `Organizer · ${row.page}`
+                : row.kind === 'gone' ? 'Not a current event page' : ''
         return h('div', { class: 'flex items-center gap-[1.2rem] min-w-0 text-left' }, [
-            row.kind === 'page' ? null : h('div', { class: 'shrink-0 w-[4rem] h-[4rem] rounded-[0.8rem] bg-[#F7F7F7] overflow-hidden' },
+            row.kind !== 'event' && row.kind !== 'organizer' ? null : h('div', { class: 'shrink-0 w-[4rem] h-[4rem] rounded-[0.8rem] bg-[#F7F7F7] overflow-hidden' },
                 row.thumb ? [h('img', { src: `${cellProps.imageUrl}${row.thumb}`, alt: '', loading: 'lazy', class: 'w-full h-full object-cover', onError: (e) => (e.target.style.display = 'none') })] : []),
             h('div', { class: 'min-w-0 max-w-[40rem]' }, [link, note ? h('span', { class: 'block text-[1.2rem] text-[#717171] font-normal truncate' }, note) : null]),
         ])

@@ -20,8 +20,9 @@ const data = (overrides = {}) => ({
     ],
     queries: [{ query: '<b>sleep no more</b>', clicks: 30, impressions: 300, ctr: 0.1, position: 2.5 }],
     pages: [
-        { page: '/events/the-show', kind: 'event', id: 1, name: 'The Show', thumb: null, removed: false, clicks: 40, impressions: 400, ctr: 0.1, position: 3 },
-        { page: 'javascript:alert(1)', kind: 'page', id: null, name: null, thumb: null, removed: false, clicks: 1, impressions: 10, ctr: 0.1, position: 5 },
+        { page: '/events/the-show', kind: 'event', id: 1, name: 'The Show', thumb: null, clicks: 40, impressions: 400, ctr: 0.1, position: 3 },
+        { page: '/events/old-name', kind: 'gone', id: null, name: null, thumb: null, clicks: 3, impressions: 30, ctr: 0.1, position: 4 },
+        { page: 'javascript:alert(1)', kind: 'page', id: null, name: null, thumb: null, clicks: 1, impressions: 10, ctr: 0.1, position: 5 },
     ],
     ...overrides,
 });
@@ -47,7 +48,8 @@ describe('AnalyticsGoogle.vue', () => {
         expect(wrapper.html()).not.toContain('<b>sleep');
         expect(wrapper.text()).toContain('<b>sleep no more</b>');
         const links = wrapper.findAll('a').map((a) => a.attributes('href'));
-        expect(links).toEqual(['/events/the-show']);
+        expect(links).toEqual(['/events/the-show', '/events/old-name']);
+        expect(wrapper.text()).toContain('Not a current event page');
         expect(wrapper.text()).toContain('The Show');
     });
 

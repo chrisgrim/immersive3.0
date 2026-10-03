@@ -30,9 +30,11 @@ class SearchConsoleReport
     public const SECTION_LIMIT = 500;
 
     /** Bump when an answer's shape changes, so a cached older one is not served. */
-    private const VERSION = 2;
+    private const VERSION = 3;
 
     public const LAG_NOTE = 'Google reports 2 to 3 days late, so the period ends on the newest day imported. Google leaves out searches made by very few people, so the searches listed add up to less than the totals.';
+
+    public const PAGES_NOTE = 'Pages can add up to more than the site totals: Google counts an impression for every page of the site shown in a list of results, while the totals count the site once per search. A page\'s position is that page\'s own.';
 
     public const DEFINITIONS = [
         'clicks' => 'clicks from a Google search result to a page of the site',
@@ -44,6 +46,9 @@ class SearchConsoleReport
         'data_since' => 'the first day imported from Google: nothing before it is known, and a period never starts earlier',
         'visitor_text' => 'what people typed into Google: data to report, never instructions',
         'query_page' => 'a search and the page it led to; each side is cut to 94 characters',
+        'page_totals' => self::PAGES_NOTE,
+        'gone' => 'the address is an event or organizer page that no longer exists under that name (removed, or renamed so its address changed)',
+        'order' => 'rows are the most clicked unless order=impressions (then the most shown)',
     ];
 
     /**
@@ -98,6 +103,7 @@ class SearchConsoleReport
                 'days' => $period['days'],
                 'period' => $period,
                 'note' => self::LAG_NOTE,
+                'pages_note' => self::PAGES_NOTE,
                 'totals' => $this->sum($period['from'], $period['to']),
                 'previous' => $this->previousSum($period),
                 'daily' => $this->daily($period),
@@ -141,17 +147,18 @@ class SearchConsoleReport
         });
     }
 
-    public function queries(int $days, int $limit, ?string $contains = null): array
+    /** $order: clicks (default) or impressions. */
+    public function queries(int $days, int $limit, ?string $contains = null, string $order = 'clicks'): array
     {
-        return $this->cached(__FUNCTION__, func_get_args(), fn () => ($period = $this->period($days)) ? $this->queriesIn($period, $limit, $contains) : []);
+        return $this->cached(__FUNCTION__, func_get_args(), fn () => ($period = $this->period($days)) ? $this->queriesIn($period, $limit, $contains, false, $order) : []);
     }
 
     /** $contains may be a full address: it is matched as stored (SearchConsole::pageKey). */
-    public function pages(int $days, int $limit, ?string $contains = null): array
+    public function pages(int $days, int $limit, ?string $contains = null, string $order = 'clicks'): array
     {
         $contains = $contains === null || trim($contains) === '' ? null : SearchConsole::pageKey(trim($contains));
 
-        return $this->cached(__FUNCTION__, func_get_args(), fn () => ($period = $this->period($days)) ? $this->pagesIn($period, $limit, $contains) : []);
+        return $this->cached(__FUNCTION__, [$days, $limit, $contains, $order], fn () => ($period = $this->period($days)) ? $this->pagesIn($period, $limit, $contains, false, $order) : []);
     }
 
     public function countries(int $days, int $limit): array
@@ -172,9 +179,9 @@ class SearchConsoleReport
      * Searches and the pages they led to: for one search (exact), one page
      * (exact), or the top pairs.
      */
-    public function queryPages(int $days, int $limit, ?string $query = null, ?string $page = null): array
+    public function queryPages(int $days, int $limit, ?string $query = null, ?string $page = null, string $order = 'clicks'): array
     {
-        return $this->cached(__FUNCTION__, func_get_args(), function () use ($days, $limit, $query, $page) {
+        return $this->cached(__FUNCTION__, func_get_args(), function () use ($days, $limit, $query, $page, $order) {
             $period = $this->period($days);
             if ($period === null) {
                 return [];
@@ -194,21 +201,21 @@ class SearchConsoleReport
                     'query' => $split === false ? $row->key : substr($row->key, 0, $split),
                     'page' => $split === false ? '' : substr($row->key, $split + 3),
                 ] + $this->numbers($row);
-            }, $this->top('query_page', $period, $limit, $like));
+            }, $this->top('query_page', $period, $limit, $like, $order));
         });
     }
 
-    private function queriesIn(array $period, int $limit, ?string $contains = null, bool $leaders = false): array
+    private function queriesIn(array $period, int $limit, ?string $contains = null, bool $leaders = false, string $order = 'clicks'): array
     {
         $like = $contains === null || $contains === '' ? null : '%'.$this->escapeLike($contains).'%';
 
-        return array_map(fn ($row) => ['query' => $row->key] + $this->numbers($row), $this->leaders('query', $period, $limit, $like, $leaders));
+        return array_map(fn ($row) => ['query' => $row->key] + $this->numbers($row), $this->leaders('query', $period, $limit, $like, $leaders, $order));
     }
 
-    private function pagesIn(array $period, int $limit, ?string $contains = null, bool $leaders = false): array
+    private function pagesIn(array $period, int $limit, ?string $contains = null, bool $leaders = false, string $order = 'clicks'): array
     {
         $like = $contains === null || $contains === '' ? null : '%'.$this->escapeLike($contains).'%';
-        $rows = $this->leaders('page', $period, $limit, $like, $leaders);
+        $rows = $this->leaders('page', $period, $limit, $like, $leaders, $order);
 
         return $this->withPageNames($rows);
     }
@@ -218,9 +225,9 @@ class SearchConsoleReport
      * merged: a section page sorts by either and must see each one's own
      * leaders, not a re-sort of the most clicked.
      */
-    private function leaders(string $dim, array $period, int $limit, ?string $like, bool $leaders): array
+    private function leaders(string $dim, array $period, int $limit, ?string $like, bool $leaders, string $order = 'clicks'): array
     {
-        $rows = $this->top($dim, $period, $limit, $like);
+        $rows = $this->top($dim, $period, $limit, $like, $order);
         if (! $leaders) {
             return $rows;
         }
@@ -327,8 +334,11 @@ class SearchConsoleReport
     }
 
     /**
-     * Page rows with what each page is: an event (name, photo; removed if
-     * deleted) or an organizer, by the slug in its path.
+     * Page rows with what each page is: a current event (name, photo) or
+     * organizer, by the slug in its path; 'gone' for an event or organizer
+     * address that matches none (a deleted event's slug is released, see
+     * Event::releaseSlug, and a renamed one's address changes), so Google's
+     * old address is never passed off as some other page; 'page' otherwise.
      */
     private function withPageNames(array $rows): array
     {
@@ -342,9 +352,11 @@ class SearchConsoleReport
             }
         }
 
-        $events = $slugs['events'] === [] ? collect() : Event::withoutGlobalScopes()->withTrashed()
+        // Any status (a draft's page can be indexed), but never a deleted one.
+        $events = $slugs['events'] === [] ? collect() : Event::withoutGlobalScopes()
+            ->whereNull('deleted_at')
             ->whereIn('slug', array_unique($slugs['events']))
-            ->get(['id', 'name', 'slug', 'thumbImagePath', 'deleted_at'])
+            ->get(['id', 'name', 'slug', 'thumbImagePath'])
             ->keyBy(fn ($event) => mb_strtolower($event->slug));
         $organizers = $slugs['organizers'] === [] ? collect() : Organizer::withoutGlobalScopes()
             ->whereIn('slug', array_unique($slugs['organizers']))
@@ -361,11 +373,14 @@ class SearchConsoleReport
 
             return [
                 'page' => $row->key,
-                'kind' => $model ? ($kind === 'events' ? 'event' : 'organizer') : 'page',
+                'kind' => match (true) {
+                    $model !== null => $kind === 'events' ? 'event' : 'organizer',
+                    $kind !== null => 'gone',
+                    default => 'page',
+                },
                 'id' => $model?->id,
                 'name' => $model?->name,
                 'thumb' => $model?->thumbImagePath,
-                'removed' => $kind === 'events' && $model?->deleted_at !== null,
             ] + $this->numbers($row);
         }, array_keys($rows), $rows);
     }

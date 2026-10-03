@@ -378,3 +378,43 @@ test('a slow Google read answers 503, not a 500', function () {
     $this->actingAs(User::factory()->create(['type' => 'm']))->getJson('/api/admin/analytics/google')
         ->assertStatus(503)->assertJsonPath('message', 'The Google numbers took too long to read. Try again in a minute.');
 });
+
+test('a deleted event\'s old address is reported as gone, never as some other page', function () {
+    scConfigure();
+    $event = Event::factory()->published()->create(['name' => 'Closed Show', 'slug' => 'closed-show']);
+    $event->delete();
+    expect(Event::withTrashed()->find($event->id)->slug)->toStartWith('deleted--');
+
+    scRow(['clicks' => 5, 'impressions' => 50]);
+    scRow(['dim' => 'page', 'key' => '/events/closed-show', 'clicks' => 3, 'impressions' => 30, 'position_sum' => 60]);
+    scRow(['dim' => 'page', 'key' => '/organizers/nobody-now', 'clicks' => 1, 'impressions' => 10, 'position_sum' => 20]);
+    scRow(['dim' => 'page', 'key' => '/about', 'clicks' => 1, 'impressions' => 10, 'position_sum' => 20]);
+
+    $pages = collect(app(SearchConsoleReport::class)->pages(28, 10))->keyBy('page');
+
+    expect($pages['/events/closed-show'])->toMatchArray(['kind' => 'gone', 'id' => null, 'name' => null])
+        ->and($pages['/organizers/nobody-now']['kind'])->toBe('gone')
+        ->and($pages['/about']['kind'])->toBe('page');
+
+    scModerator()->tool(SearchConsoleTool::class, ['report' => 'pages'])
+        ->assertOk()
+        ->assertSee('"page":{"visitor_text":"/events/closed-show"},"gone":true', false)
+        ->assertSee('Pages can add up to more than the site totals', false);
+});
+
+test('order=impressions lists what is shown most, even with no clicks', function () {
+    scConfigure();
+    scRow(['clicks' => 5, 'impressions' => 1000]);
+    scRow(['dim' => 'query', 'key' => 'immersive dinner', 'clicks' => 5, 'impressions' => 50, 'position_sum' => 100]);
+    scRow(['dim' => 'query', 'key' => 'immersive experiences near me', 'clicks' => 0, 'impressions' => 900, 'position_sum' => 9000]);
+    scRow(['dim' => 'query_page', 'key' => 'immersive dinner > /a', 'clicks' => 5, 'impressions' => 50, 'position_sum' => 100]);
+    scRow(['dim' => 'query_page', 'key' => 'immersive experiences near me > /b', 'clicks' => 0, 'impressions' => 900, 'position_sum' => 9000]);
+
+    scModerator()->tool(SearchConsoleTool::class, ['report' => 'queries', 'limit' => 1])
+        ->assertOk()->assertSee('immersive dinner')->assertDontSee('near me');
+    scModerator()->tool(SearchConsoleTool::class, ['report' => 'queries', 'limit' => 1, 'order' => 'impressions'])
+        ->assertOk()->assertSee('"visitor_text":"immersive experiences near me"},"clicks":0,"impressions":900', false)->assertDontSee('immersive dinner');
+    scModerator()->tool(SearchConsoleTool::class, ['report' => 'query_pages', 'limit' => 1, 'order' => 'impressions'])
+        ->assertOk()->assertSee('near me');
+    scModerator()->tool(SearchConsoleTool::class, ['report' => 'queries', 'order' => 'ctr'])->assertHasErrors();
+});

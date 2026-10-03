@@ -13,7 +13,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[IsReadOnly]
-#[Description('Moderators only. Google Search Console numbers for the site (imported nightly; Google reports 2 to 3 days late): how often the site showed up in Google results (impressions), how often people clicked through (clicks), the click-through rate and the average position. report=totals (the period, the period before, and a day by day series, weekly past 90 days), queries (the Google searches that led here), pages (which pages Google sent people to, with the event or organizer each one is), countries, devices, or query_pages (searches and the pages they led to: pass query for one search, or page for one page). query and page also filter the queries and pages reports (text contained). Up to 480 days (Google keeps 16 months), 100 rows.')]
+#[Description('Moderators only. Google Search Console numbers for the site (imported nightly; Google reports 2 to 3 days late): how often the site showed up in Google results (impressions), how often people clicked through (clicks), the click-through rate and the average position. report=totals (the period, the period before, and a day by day series, weekly past 90 days), queries (the Google searches that led here), pages (which pages Google sent people to, with the event or organizer each one is), countries, devices, or query_pages (searches and the pages they led to: pass query for one search, or page for one page). query and page also filter the queries and pages reports (text contained). Rows are the most clicked unless order=impressions (the most shown, e.g. searches where the site shows up but nobody clicks). Pages can add up to more than the totals (Google counts each page shown). Up to 480 days (Google keeps 16 months), 100 rows.')]
 class SearchConsole extends Tool
 {
     use AnswersAnalytics;
@@ -37,20 +37,22 @@ class SearchConsole extends Tool
             'limit' => 'nullable|integer|min:1|max:100',
             'query' => 'nullable|string|max:191',
             'page' => 'nullable|string|max:500',
+            'order' => 'nullable|in:clicks,impressions',
         ]);
         $days = (int) ($validated['days'] ?? 28);
         $limit = (int) ($validated['limit'] ?? 25);
         $query = $validated['query'] ?? null;
         $page = $validated['page'] ?? null;
+        $order = $validated['order'] ?? 'clicks';
 
         try {
             $data = match ($validated['report']) {
                 'totals' => $report->totals($days),
-                'queries' => $this->wrapQueries($report->queries($days, $limit, $query)),
-                'pages' => array_map(fn ($row) => $this->page($row), $report->pages($days, $limit, $page)),
+                'queries' => $this->wrapQueries($report->queries($days, $limit, $query, $order)),
+                'pages' => array_map(fn ($row) => $this->page($row), $report->pages($days, $limit, $page, $order)),
                 'countries' => $report->countries($days, $limit),
                 'devices' => $report->devices($days),
-                'query_pages' => $this->wrapQueries($report->queryPages($days, $limit, $query, $page)),
+                'query_pages' => $this->wrapQueries($report->queryPages($days, $limit, $query, $page, $order)),
             };
         } catch (QueryException $e) {
             report($e);
@@ -91,14 +93,16 @@ class SearchConsole extends Tool
     private function page(array $row): array
     {
         $what = match ($row['kind']) {
-            'event' => ['event' => ['id' => $row['id'], 'name' => $row['name']] + ($row['removed'] ? ['deleted' => true] : [])],
+            'event' => ['event' => ['id' => $row['id'], 'name' => $row['name']]],
+            // An event or organizer address that matches none now.
+            'gone' => ['gone' => true],
             'organizer' => ['organizer' => ['id' => $row['id'], 'name' => $row['name']]],
             default => [],
         };
 
-        // A mapped event or organizer path is ours; any other address
-        // (and anything with a query string) is wrapped.
-        $ours = $what !== [] && str_starts_with($row['page'], '/') && ! str_contains($row['page'], '?');
+        // A current event or organizer path is ours; any other address
+        // (gone ones, and anything with a query string) is wrapped.
+        $ours = in_array($row['kind'], ['event', 'organizer'], true) && str_starts_with($row['page'], '/') && ! str_contains($row['page'], '?');
 
         return ['page' => $ours ? $row['page'] : $this->visitorText($row['page'], 191)] + $what + array_intersect_key($row, array_flip(['clicks', 'impressions', 'ctr', 'position']));
     }
@@ -111,6 +115,7 @@ class SearchConsole extends Tool
             'limit' => $schema->integer()->description('Rows (1-100, default 25).'),
             'query' => $schema->string()->description('query_pages: one Google search (exact). queries: only searches containing this.'),
             'page' => $schema->string()->description('query_pages: one page, as a path like /events/some-slug or a full address (exact). pages: only pages containing this.'),
+            'order' => $schema->string()->enum(['clicks', 'impressions'])->description('queries, pages, query_pages: the most clicked rows (default) or the most shown.'),
         ];
     }
 }
