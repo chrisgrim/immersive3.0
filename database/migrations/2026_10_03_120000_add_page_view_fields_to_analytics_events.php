@@ -50,6 +50,12 @@ return new class extends Migration
             DB::statement('ALTER TABLE analytics_events ADD INDEX analytics_events_view_id_index (view_id), ALGORITHM=INPLACE, LOCK=NONE');
         }
 
+        // The nightly bot prune: reads only bot rows (a month's worth), not
+        // 13 months of people's rows through occurred_at.
+        if (! Schema::hasIndex('analytics_events', 'analytics_events_bot_occurred_at_index')) {
+            DB::statement('ALTER TABLE analytics_events ADD INDEX analytics_events_bot_occurred_at_index (bot, occurred_at), ALGORITHM=INPLACE, LOCK=NONE');
+        }
+
         // Totals per day, kept for good (raw rows are pruned): what reports
         // and the MCP tools read for any range. Built by ei:analytics-rollup.
         if (Schema::hasTable('analytics_daily')) {
@@ -78,6 +84,7 @@ return new class extends Migration
 
         DB::statement('SET SESSION lock_wait_timeout = 10');
         DB::statement('ALTER TABLE analytics_events DROP INDEX analytics_events_view_id_index');
+        DB::statement('ALTER TABLE analytics_events DROP INDEX analytics_events_bot_occurred_at_index');
         $drop = collect(array_keys(self::COLUMNS))->map(fn ($name) => "DROP COLUMN `{$name}`")->implode(', ');
         DB::statement("ALTER TABLE analytics_events {$drop}, ALGORITHM=INSTANT");
     }

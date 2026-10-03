@@ -438,3 +438,11 @@ test('a batch that fails and is retried does not count toward the daily cap twic
 
     expect(analyticsRows()->pluck('bot')->all())->toBe([0, 0]);
 });
+
+test('a ticket click missing the headers every browser sends is not counted for the organizer', function () {
+    $as = fn (array $headers) => Illuminate\Http\Request::create('/', 'POST', server: array_merge(['REMOTE_ADDR' => '198.51.100.20', 'HTTP_USER_AGENT' => BROWSER_UA], $headers));
+
+    expect(Analytics::looksLikeBot($as(['HTTP_ACCEPT_LANGUAGE' => 'en-US', 'HTTP_SEC_FETCH_SITE' => 'same-origin'])))->toBeFalse()
+        ->and(Analytics::looksLikeBot($as(['HTTP_ACCEPT_LANGUAGE' => '', 'HTTP_SEC_FETCH_SITE' => 'same-origin'])))->toBeTrue()
+        ->and(Analytics::looksLikeBot($as(['HTTP_ACCEPT_LANGUAGE' => 'en-US'])))->toBeTrue();
+});

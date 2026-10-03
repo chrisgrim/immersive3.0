@@ -81,10 +81,7 @@ class Analytics
                 'ip' => (string) $request->ip(),
                 'ua' => mb_substr((string) $request->userAgent(), 0, 512),
                 // Whether the browser-only headers came (see BOT_HEADERS).
-                'h' => [
-                    'al' => trim((string) $request->headers->get('accept-language')) !== '',
-                    'sf' => $request->headers->has('sec-fetch-site'),
-                ],
+                'h' => self::headerFlags($request),
                 'd' => $data,
             ], JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
         } catch (Throwable $e) {
@@ -150,13 +147,44 @@ class Analytics
     public static function looksLikeBot(Request $request): bool
     {
         $ua = trim((string) $request->userAgent());
-        if ($ua === '' || (new CrawlerDetect)->isCrawler($ua)) {
+        if ($ua === '' || (new CrawlerDetect)->isCrawler($ua) || self::missingBrowserHeaders($ua, self::headerFlags($request))) {
             return true;
         }
 
         $asn = app(GeoLookup::class)->asn((string) $request->ip());
 
         return $asn !== null && in_array($asn, config('analytics.hosting_asns'), true);
+    }
+
+    /** Whether the browser-only headers came (see BOT_HEADERS). */
+    public static function headerFlags(Request $request): array
+    {
+        return [
+            'al' => trim((string) $request->headers->get('accept-language')) !== '',
+            'sf' => $request->headers->has('sec-fetch-site'),
+        ];
+    }
+
+    /**
+     * BOT_HEADERS: a real browser always sends Accept-Language, and a recent
+     * Chrome, Edge or Firefox (Chrome 80+, Firefox 90+) also Sec-Fetch-Site.
+     * Safari is not held to the second (it only added it in 16.4). Notes from
+     * before headers were recorded ($headers null) are never flagged.
+     */
+    public static function missingBrowserHeaders(string $ua, $headers): bool
+    {
+        if (! is_array($headers)) {
+            return false;
+        }
+
+        if (empty($headers['al'])) {
+            return true;
+        }
+
+        $recent = (preg_match('~(?:Chrome|Chromium)/(\d+)~', $ua, $chrome) && (int) $chrome[1] >= 80)
+            || (preg_match('~Firefox/(\d+)~', $ua, $firefox) && (int) $firefox[1] >= 90);
+
+        return $recent && empty($headers['sf']);
     }
 
     /**
@@ -293,12 +321,14 @@ class Analytics
         $key = config('analytics.buffer_key');
         $max = (int) config('analytics.buffer_max');
 
-        // The list expires a day after the last push: if the flusher stops
-        // running, the raw IPs in it do not outlive the day.
+        // The list expires a day after it was started (NX: a push never
+        // pushes the expiry back), so if the flusher stops running the raw
+        // IPs in it do not outlive the day. The flusher empties it every
+        // minute, which deletes it; the next push starts a fresh day.
         Redis::pipeline(function ($pipe) use ($key, $note, $max) {
             $pipe->rpush($key, $note);
             $pipe->ltrim($key, -$max, -1);
-            $pipe->expire($key, 86400);
+            $pipe->expire($key, 86400, 'NX');
         });
     }
 

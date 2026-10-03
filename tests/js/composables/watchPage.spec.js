@@ -80,3 +80,18 @@ test('a tab left open for more than a day sends nothing more', () => {
 
     expect(navigator.sendBeacon.mock.calls.filter(([, body]) => body.get('view_id') === 'leftOPEN1234')).toHaveLength(0);
 });
+
+test('time after coming Back to a page from the back/forward cache is added', () => {
+    watchPage('bfCACHE12345');
+    vi.advanceTimersByTime(10000);
+    window.dispatchEvent(new Event('pagehide'));
+    vi.advanceTimersByTime(60000); // on another page: not counted
+    const restored = new Event('pageshow');
+    restored.persisted = true;
+    window.dispatchEvent(restored);
+    vi.advanceTimersByTime(30000);
+    window.dispatchEvent(new Event('pagehide'));
+
+    const mine = navigator.sendBeacon.mock.calls.map(([, body]) => Object.fromEntries(body)).filter((b) => b.view_id === 'bfCACHE12345');
+    expect(mine.map((b) => b.seconds)).toEqual(['10', '40']);
+});

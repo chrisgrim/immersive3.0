@@ -82,5 +82,10 @@ export function watchPage(viewId) {
         }
     });
     window.addEventListener('pagehide', send);
+    // Back to a page kept in the back/forward cache: no visibilitychange in
+    // some browsers (mobile Safari), so start counting again here.
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted && document.visibilityState === 'visible' && shownAt === null) shownAt = Date.now();
+    });
     window.addEventListener('scroll', onScroll, { passive: true });
 }

@@ -55,7 +55,9 @@ class AnalyticsPrune extends Command
     {
         $deleted = 0;
 
-        // Small chunks so one big delete never holds the table.
+        // Small chunks so one big delete never holds the table. Bot rows are
+        // found through (bot, occurred_at): only the last month of them
+        // exists, rather than every person's row of the past 13 months.
         do {
             $batch = DB::table('analytics_events')
                 ->where('occurred_at', '<', $cutoff)
