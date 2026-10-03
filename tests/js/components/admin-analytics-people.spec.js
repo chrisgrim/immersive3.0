@@ -36,21 +36,24 @@ const mountWith = async (data) => {
 
 afterEach(() => vi.clearAllMocks());
 
-it('shows browser-confirmed and engaged people next to all visits, as shares of the measured days only', async () => {
+it('shows browser-confirmed and engaged visits next to all visits, as shares of the measured days only', async () => {
     const w = await mountWith(report(15));
 
-    expect(w.text()).toContain('People (browser confirmed)');
+    expect(w.text()).toContain('Visits (browser confirmed)');
     // 15 of the 30 visits since measuring began, not of all 40.
     expect(w.text()).toContain('50% of 30 visits since Sep 28');
-    expect(w.text()).toContain('33.3% of 30 visits since Sep 28');
-    expect(w.text()).toContain('measured since Sep 28');
-    expect(w.text()).toContain('Confirmed counts days since Sep 28 only.');
+    // Engaged: 10 of the 15 confirmed.
+    expect(w.text()).toContain('66.7% of 15 confirmed visits since Sep 28');
+    expect(w.text()).toContain('Measured since Sep 28');
+    expect(w.text()).toContain('Both columns count days since Sep 28 only.');
+    // The country's measured-day visits, not all of them.
+    expect(w.text()).toContain('United States20');
     expect(w.text()).not.toContain('Starts once browser confirmation is switched on');
 });
 
-it('says confirmation has not started rather than showing zeros', async () => {
+it('says confirmation has not started rather than showing zeros, for engaged too', async () => {
     const w = await mountWith(report(null));
 
-    expect(w.text()).toContain('Starts once browser confirmation is switched on');
+    expect(w.text().match(/Starts once browser confirmation is switched on/g)).toHaveLength(2);
     expect(w.text()).toContain('Confirmed starts once browser confirmation is switched on.');
 });

@@ -341,7 +341,7 @@ const SECTIONS = {
             { key: 'confirmed', label: 'Confirmed', align: 'right', sort: 'confirmed', format: measured },
         ],
         text: (row) => row.name,
-        footnote: 'Confirmed: visits whose browser itself reported the page ready and shown, leaving out scripts that only fetch it. Counted only on the days it was measured, so compare it with "Visits (measured days)". n/a until browser confirmation is switched on.',
+        footnote: 'Confirmed: visits whose browser ran our script and showed the page, leaving out scripts that only fetch it, automated browsers, and anyone whose browser did not run our script (JavaScript off, very quick exits). Counted only on the days it was measured, so compare it with "Visits (measured days)". n/a until browser confirmation is switched on.',
     },
 }
 

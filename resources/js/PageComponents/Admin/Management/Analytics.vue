@@ -75,8 +75,8 @@
                     </div>
                 </div>
                 <p class="text-[1.2rem] text-[#717171] mt-[1.6rem]">
-                    Visits count everyone the server saw (one person, one day). Browser confirmed means the browser itself reported the page ready and shown, which leaves out scripts that only fetch pages and browsers that say they are automated, as Google Analytics counts; engaged means browser confirmed and 10+ seconds on a page, a click, a typed search or two pages.
-                    <template v-if="measuredSince">Both are measured since {{ formatDay(measuredSince) }}, so they are compared with the visits of those days only (the change is in percentage points of them).</template>
+                    Visits count everyone the server saw (one person, one day). Browser confirmed means the visitor's browser ran our script and showed the page, as Google Analytics counts: it leaves out scripts that only fetch pages, browsers that say they are automated, and anyone whose browser did not run our script (JavaScript off, very quick exits). Engaged, among browser-confirmed visits: 10+ seconds on a page, a click, a typed search or two pages.
+                    <template v-if="measuredSince">Measured since {{ formatDay(measuredSince) }}, so compared with the visits of those days only (changes in percentage points).</template>
                 </p>
             </section>
 
@@ -351,18 +351,18 @@
                     <p class="section-sub mb-[1.2rem]">One person on one day counts once</p>
                     <ul class="breakdown">
                         <li class="text-[1.2rem] text-[#717171]">
-                            <span>Country</span><span class="flex gap-[1.6rem]"><span class="w-[6rem] text-right">All</span><span class="w-[7rem] text-right">Confirmed</span></span>
+                            <span>Country</span><span class="flex gap-[1.6rem]"><span class="w-[6rem] text-right">{{ confirmationMeasured ? 'Visits' : 'All' }}</span><span class="w-[7rem] text-right">Confirmed</span></span>
                         </li>
                         <li v-for="(row, country) in report.countries" :key="country">
                             <span class="truncate">{{ countryName(country) }}</span>
                             <span class="flex gap-[1.6rem] shrink-0">
-                                <span class="w-[6rem] text-right">{{ row.visitors.toLocaleString() }}</span>
+                                <span class="w-[6rem] text-right">{{ (confirmationMeasured ? row.visitors_on_measured_days : row.visitors).toLocaleString() }}</span>
                                 <span class="w-[7rem] text-right">{{ row.confirmed === null ? 'n/a' : row.confirmed.toLocaleString() }}</span>
                             </span>
                         </li>
                     </ul>
                     <p v-if="!confirmationMeasured" class="text-[1.2rem] text-[#717171] mt-[1.2rem]">Confirmed starts once browser confirmation is switched on.</p>
-                    <p v-else class="text-[1.2rem] text-[#717171] mt-[1.2rem]">Confirmed counts days since {{ formatDay(measuredSince) }} only.</p>
+                    <p v-else class="text-[1.2rem] text-[#717171] mt-[1.2rem]">Both columns count days since {{ formatDay(measuredSince) }} only.</p>
                 </section>
             </div>
 
@@ -525,9 +525,12 @@ const measuredSince = computed(() => report.value?.totals?.people?.measured_sinc
 const peopleFigures = computed(() => {
     const people = (key = 'totals') => report.value?.[key]?.people ?? {}
     const visits = people().visitors ?? 0
-    // Share of the measured days' visits, now and in the period before.
+    // Shares, now and in the period before, of their own base: confirmed of
+    // the measured days' visits, engaged of the confirmed visits. Null when
+    // that period measured nothing.
+    const bases = { confirmed_visitors: 'visitors_on_measured_days', engaged_visitors: 'confirmed_visitors' }
     const share = (key, field) => {
-        const base = people(key).visitors_on_measured_days
+        const base = people(key)[bases[field]]
         const count = people(key)[field]
         return base && count != null ? count / base : null
     }
@@ -537,9 +540,14 @@ const peopleFigures = computed(() => {
         if (now === null || before === null) return null
         return { up: now >= before, text: `${Math.abs(Math.round((now - before) * 1000) / 10)} pts` }
     }
-    const measuredNote = (field) => {
+    const since = () => formatDay(measuredSince.value)
+    const notes = {
+        confirmed_visitors: (rate) => `${percent(rate)} of ${people().visitors_on_measured_days.toLocaleString()} visits since ${since()}`,
+        engaged_visitors: (rate) => `${percent(rate)} of ${people().confirmed_visitors.toLocaleString()} confirmed visits since ${since()}`,
+    }
+    const note = (field) => {
         const rate = share('totals', field)
-        return rate === null ? null : `${percent(rate)} of ${people().visitors_on_measured_days.toLocaleString()} visits since ${formatDay(measuredSince.value)}`
+        return rate === null ? null : notes[field](rate)
     }
 
     return [
@@ -550,16 +558,16 @@ const peopleFigures = computed(() => {
             note: `vs ${(people('totals_previous').visitors ?? 0).toLocaleString()} the ${days.value} days before`,
         },
         {
-            label: 'People (browser confirmed)',
+            label: 'Visits (browser confirmed)',
             value: people().confirmed_visitors ?? null,
             change: shareChange('confirmed_visitors'),
-            note: measuredNote('confirmed_visitors'),
+            note: note('confirmed_visitors'),
         },
         {
             label: 'Engaged',
             value: people().engaged_visitors ?? null,
             change: shareChange('engaged_visitors'),
-            note: measuredNote('engaged_visitors'),
+            note: note('engaged_visitors'),
         },
     ]
 })
