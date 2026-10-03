@@ -22,9 +22,13 @@ class EventClickController extends Controller
     {
         $event = Event::findOrFail($eventId);
 
+        // Strings only: an array here (click_type[]=x) used to 500.
+        $clickType = is_string($request->input('click_type')) ? mb_substr($request->input('click_type'), 0, 50) : 'link';
+        $destination = is_string($request->input('destination_url')) ? $request->input('destination_url') : null;
+
         $record = fn () => Analytics::record(Analytics::TICKET_CLICK, [
             'event_id' => $event->id,
-            'source' => mb_substr((string) $request->input('click_type', 'link'), 0, 16),
+            'source' => mb_substr($clickType, 0, 16),
         ], $request);
 
         // Bots are recorded (flagged, like every other row) but left out of
@@ -56,8 +60,8 @@ class EventClickController extends Controller
             'organizer_id' => $event->organizer_id,
             'user_id' => auth()->id(), // Will be null for guest users
             'referer_url' => substr($request->header('referer', ''), 0, 255),
-            'destination_url' => substr($request->input('destination_url', $event->ticketUrl ?? $event->websiteUrl ?? $event->organizer->website), 0, 255),
-            'click_type' => $request->input('click_type', 'link'),
+            'destination_url' => substr((string) ($destination ?? $event->ticketUrl ?? $event->websiteUrl ?? $event->organizer->website), 0, 255),
+            'click_type' => $clickType,
         ]);
 
         return response()->json(['success' => true]);

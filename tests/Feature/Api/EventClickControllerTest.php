@@ -154,3 +154,13 @@ test('getStats 404s for missing event', function () {
     $mod = User::factory()->create(['type' => 'm']);
     $this->actingAs($mod)->getJson('/api/events/99999/click-stats')->assertStatus(404);
 });
+
+test('trackClick shrugs off array input instead of failing', function () {
+    $event = Event::factory()->create(['ticketUrl' => 'https://tix.example.com']);
+
+    $this->postJson("/api/events/{$event->id}/track-click", ['click_type' => ['x'], 'destination_url' => ['y']])->assertOk();
+
+    expect(TrackClick::where('event_id', $event->id)->first())
+        ->click_type->toBe('link')
+        ->destination_url->toBe('https://tix.example.com');
+});
