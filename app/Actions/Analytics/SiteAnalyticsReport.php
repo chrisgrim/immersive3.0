@@ -56,7 +56,9 @@ class SiteAnalyticsReport
         // 30s) and then reads its cached result instead of starting another.
         // Throws LockTimeoutException if that is not enough; callers answer
         // "still building, try again" (AdminAnalyticsController, the MCP tool).
-        return Cache::lock('analytics:report:building', 120)->block(30, fn () => Cache::remember($key, now()->addMinutes(10), fn () => $this->build($days)));
+        // A cached report is answered at once, without waiting on the lock
+        // (section pages hold it too while they build).
+        return Cache::get($key) ?? Cache::lock('analytics:report:building', 120)->block(30, fn () => Cache::remember($key, now()->addMinutes(10), fn () => $this->build($days)));
     }
 
     private function build(int $days): array

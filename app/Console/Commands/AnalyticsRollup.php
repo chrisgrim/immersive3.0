@@ -99,7 +99,10 @@ class AnalyticsRollup extends Command
         // and any save of an event viewed that day would wait on the rollup.
         // READ COMMITTED reads without locking. Applies to the next
         // transaction only, and only when none is open (tests wrap one).
-        if (DB::transactionLevel() === 0 && DB::getDriverName() === 'mysql') {
+        // Needs row-based binary logging: MySQL refuses INSERT ... SELECT at
+        // READ COMMITTED under statement logging, so then it keeps the default.
+        if (DB::transactionLevel() === 0 && DB::getDriverName() === 'mysql'
+            && in_array(DB::scalar('SELECT IF(@@log_bin, @@binlog_format, \'OFF\')'), ['ROW', 'OFF'], true)) {
             DB::statement('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
         }
 
