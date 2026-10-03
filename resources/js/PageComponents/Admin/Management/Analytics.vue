@@ -180,8 +180,10 @@
                         <p v-else-if="unmetFinder.failed" class="empty">The search failed. Please try again.</p>
                         <p v-else-if="!unmetMatches.length" class="empty">No searches for "{{ unmetFinder.query }}" found nothing in this period.</p>
                         <ul v-else class="list-none p-0 m-0 space-y-[0.8rem]">
-                            <li v-for="row in unmetMatches" :key="row.place" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem]">
-                                <p class="text-[1.4rem] font-semibold truncate">{{ row.place }}</p>
+                            <li v-for="row in unmetMatches" :key="`${row.at_home}:${row.place}`" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem]">
+                                <p class="text-[1.4rem] font-semibold truncate">
+                                    <span v-if="row.at_home" class="inline-block rounded-full bg-[#F7F7F7] text-[#717171] text-[1.1rem] font-semibold px-[0.8rem] py-[0.1rem] mr-[0.6rem] align-middle">At Home</span>{{ row.place }}
+                                </p>
                                 <p class="text-[1.2rem] text-[#717171]">
                                     {{ row.searches }} {{ row.searches === 1 ? 'search' : 'searches' }} · {{ row.visitors }} {{ row.visitors === 1 ? 'visit' : 'visits' }} · last {{ formatDay(row.last_searched) }}
                                 </p>
@@ -189,9 +191,11 @@
                         </ul>
                     </template>
                     <ul v-else-if="report.zero_result_searches.length" class="list-none p-0 m-0 space-y-[0.8rem]">
-                        <li v-for="row in visibleUnmet" :key="row.place" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem] flex justify-between items-center gap-[1.2rem]">
+                        <li v-for="row in visibleUnmet" :key="`${row.at_home}:${row.place}`" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem] flex justify-between items-center gap-[1.2rem]">
                             <div class="min-w-0">
-                                <p class="text-[1.4rem] font-semibold truncate">{{ row.place }}</p>
+                                <p class="text-[1.4rem] font-semibold truncate">
+                                    <span v-if="row.at_home" class="inline-block rounded-full bg-[#F7F7F7] text-[#717171] text-[1.1rem] font-semibold px-[0.8rem] py-[0.1rem] mr-[0.6rem] align-middle">At Home</span>{{ row.place }}
+                                </p>
                                 <p class="text-[1.2rem] text-[#717171]">
                                     {{ row.searches }} {{ row.searches === 1 ? 'search' : 'searches' }} · {{ row.visitors }} {{ row.visitors === 1 ? 'visit' : 'visits' }} · last {{ formatDay(row.last_searched) }}
                                 </p>
@@ -229,7 +233,7 @@
                     </thead>
                     <tbody>
                         <tr v-for="row in report.at_home_searches" :key="row.place" class="border-b border-[#EBEBEB] last:border-0">
-                            <td class="py-[1.2rem] pr-[0.8rem]">{{ row.place.replace(/^At Home:\s*/, '') }}</td>
+                            <td class="py-[1.2rem] pr-[0.8rem]">{{ row.place }}</td>
                             <td class="text-right">{{ row.searches.toLocaleString() }}</td>
                             <td class="text-right">{{ row.found_nothing.toLocaleString() }}</td>
                             <td class="text-right font-semibold">{{ row.clicked.toLocaleString() }}</td>

@@ -69,7 +69,7 @@
                     <component :is="RiInformationLine" class="w-6 h-6 mb-3" />
                     <h3 class="text-2.5xl font-semibold mb-2">Cookie preferences</h3>
                     <p class="text-1xl text-neutral-500">
-                        We use only essential cookies, to keep you signed in and protect forms. Our own visit counts use no cookies, and any analytics service we use is named in the Privacy Policy. To keep your visits out of our own counts, turn on Global Privacy Control or Do Not Track in your browser. Questions:
+                        Our own cookies only make the site work (signing in, security, preferences). Our own visit counts use no cookies, and any analytics service we use is named in the Privacy Policy. To keep your visits out of our own counts, turn on Global Privacy Control or Do Not Track in your browser. Questions:
                         <a href="mailto:support@everythingimmersive.com" class="underline hover:no-underline">support@everythingimmersive.com</a>.
                     </p>
                 </div>

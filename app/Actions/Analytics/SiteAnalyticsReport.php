@@ -31,26 +31,14 @@ class SiteAnalyticsReport
      */
     public const MAX_DAYS = 90;
 
+    private const REMOTE = "CAST(JSON_EXTRACT(analytics_events.props, '$.remoteLocation') AS UNSIGNED)";
+
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 2;
+    private const VERSION = 3;
 
     private const LIMIT = 25;
 
     private const FILTER_PATHS = "'$.categories', '$.tags', '$.start', '$.priceMin', '$.priceMax'";
-
-    /**
-     * Where a search looked: the place typed, or for an At Home search (no
-     * place) its online type, as AT_HOME.'<remote location id>' (empty: any
-     * type), turned into "At Home: Zoom" by labelPlaces(). The prefix starts
-     * with a control character, which typed places never contain (they are
-     * stripped on the way in), so no search can pose as an At Home line.
-     */
-    private const AT_HOME = "\x1Fathome:";
-
-    private const PLACE = "CASE WHEN NULLIF(analytics_events.query, '') IS NOT NULL THEN analytics_events.query
-        WHEN JSON_UNQUOTE(JSON_EXTRACT(analytics_events.props, '$.searchType')) = 'atHome'
-            THEN CONCAT(CHAR(31), 'athome:', COALESCE(JSON_EXTRACT(analytics_events.props, '$.remoteLocation'), ''))
-        END";
 
     public function handle(int $days = 30): array
     {
@@ -199,21 +187,19 @@ class SiteAnalyticsReport
             ->all();
     }
 
-    /** At Home searches by online type ("At Home: Zoom"; no type picked: "any type"). */
+    /** At Home searches by online type (none picked: "any type"). */
     private function atHomeSearches($since): array
     {
         $clicked = $this->believableClicks($since)->select('analytics_events.search_id')->distinct();
 
-        return $this->typedSearches($since)
+        return $this->atHome($this->typedSearches($since))
             ->leftJoinSub($clicked, 'clicked', 'clicked.search_id', '=', 'analytics_events.search_id')
-            ->where(fn ($query) => $query->whereNull('query')->orWhere('query', ''))
-            ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(analytics_events.props, '$.searchType')) = 'atHome'")
-            ->selectRaw('('.self::PLACE.') AS place, COUNT(*) AS searches, SUM(results = 0) AS found_nothing, COUNT(clicked.search_id) AS clicked')
-            ->groupBy('place')
+            ->selectRaw(self::REMOTE.' AS remote_id, COUNT(*) AS searches, SUM(results = 0) AS found_nothing, COUNT(clicked.search_id) AS clicked')
+            ->groupBy('remote_id')
             ->orderByDesc('searches')
             ->limit(self::LIMIT)
             ->get()
-            ->pipe(fn ($rows) => $this->labelPlaces($rows))
+            ->pipe(fn ($rows) => $this->nameTypes($rows))
             ->map(fn ($row) => [
                 'place' => $row->place,
                 'searches' => (int) $row->searches,
@@ -222,6 +208,24 @@ class SiteAnalyticsReport
                 'click_rate' => $row->searches > 0 ? round($row->clicked / $row->searches, 3) : null,
             ])
             ->all();
+    }
+
+    /** At Home searches: no place typed, the At Home tab. */
+    private function atHome(Builder $query): Builder
+    {
+        return $query
+            ->where(fn ($none) => $none->whereNull('analytics_events.query')->orWhere('analytics_events.query', ''))
+            ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(analytics_events.props, '$.searchType')) = 'atHome'");
+    }
+
+    /** remote_id → the online type's name as `place` ("Any type" when none was picked). */
+    private function nameTypes($rows)
+    {
+        $names = RemoteLocation::whereIn('id', $rows->pluck('remote_id')->filter())->pluck('name', 'id');
+
+        return $rows->each(function ($row) use ($names) {
+            $row->place = $row->remote_id ? ucfirst($names[$row->remote_id] ?? "Type {$row->remote_id}") : 'Any type';
+        });
     }
 
     /**
@@ -269,49 +273,56 @@ class SiteAnalyticsReport
     private function zeroResultSearches($since, ?string $contains = null): array
     {
         $like = $contains === null ? null : '%'.self::escapeLike($contains).'%';
-        $types = $like === null ? [] : RemoteLocation::where('name', 'like', $like)->pluck('id')->all();
+        $columns = "COUNT(*) AS searches,
+            SUM(JSON_CONTAINS_PATH(COALESCE(props, '{}'), 'one', ".self::FILTER_PATHS.')) AS with_filters,
+            COUNT(DISTINCT visitor) AS visitors, MAX(occurred_at) AS last_searched';
 
-        return $this->typedSearches($since)
+        // Typed places, grouped on the text in its own collation, so
+        // "Austin" and "austin" are one place.
+        $places = $this->typedSearches($since)
             ->where('results', 0)
-            ->when($like !== null, fn ($query) => $query->where(fn ($match) => $match
-                ->where('analytics_events.query', 'like', $like)
-                ->when($types !== [], fn ($match) => $match->orWhere(fn ($atHome) => $atHome
-                    ->where(fn ($none) => $none->whereNull('analytics_events.query')->orWhere('analytics_events.query', ''))
-                    ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(analytics_events.props, '$.searchType')) = 'atHome'")
-                    ->whereIn(DB::raw("CAST(JSON_EXTRACT(analytics_events.props, '$.remoteLocation') AS UNSIGNED)"), $types)))))
-            ->selectRaw('COALESCE('.self::PLACE.", '(no place)') AS place, COUNT(*) AS searches,
-                SUM(JSON_CONTAINS_PATH(COALESCE(props, '{}'), 'one', ".self::FILTER_PATHS.')) AS with_filters,
-                COUNT(DISTINCT visitor) AS visitors, MAX(occurred_at) AS last_searched')
-            ->groupBy('place')
+            ->whereNotNull('analytics_events.query')
+            ->where('analytics_events.query', '!=', '')
+            ->when($like !== null, fn ($query) => $query->where('analytics_events.query', 'like', $like))
+            ->selectRaw("analytics_events.query AS place, {$columns}")
+            ->groupBy('analytics_events.query')
             ->orderByDesc('searches')
             ->limit(self::LIMIT)
             ->get()
-            ->pipe(fn ($rows) => $this->labelPlaces($rows))
+            // each() stops at a callback returning false, so no arrow fn here.
+            ->each(function ($row) {
+                $row->at_home = false;
+            });
+
+        // At Home searches, grouped by online type: a separate list, so no
+        // typed text can be mistaken for one.
+        $types = $like === null ? null : RemoteLocation::where('name', 'like', $like)->pluck('id')->all();
+        $atHome = $types === [] ? collect() : $this->atHome($this->typedSearches($since))
+            ->where('results', 0)
+            ->when($types !== null, fn ($query) => $query->whereIn(DB::raw(self::REMOTE), $types))
+            ->selectRaw(self::REMOTE." AS remote_id, {$columns}")
+            ->groupBy('remote_id')
+            ->orderByDesc('searches')
+            ->limit(self::LIMIT)
+            ->get()
+            ->pipe(fn ($rows) => $this->nameTypes($rows))
+            ->each(function ($row) {
+                $row->at_home = true;
+            });
+
+        return $places->concat($atHome)
+            ->sortByDesc('searches')
+            ->take(self::LIMIT)
             ->map(fn ($row) => [
                 'place' => $row->place,
+                'at_home' => $row->at_home,
                 'searches' => (int) $row->searches,
                 'with_filters' => (int) $row->with_filters,
                 'visitors' => (int) $row->visitors,
                 'last_searched' => $row->last_searched,
             ])
+            ->values()
             ->all();
-    }
-
-    /** AT_HOME places (see PLACE) become "At Home: <type name>". */
-    private function labelPlaces($rows)
-    {
-        $ids = $rows->pluck('place')
-            ->filter(fn ($place) => str_starts_with((string) $place, self::AT_HOME))
-            ->map(fn ($place) => (int) substr($place, strlen(self::AT_HOME)))
-            ->filter();
-        $names = $ids->isEmpty() ? collect() : RemoteLocation::whereIn('id', $ids)->pluck('name', 'id');
-
-        return $rows->each(function ($row) use ($names) {
-            if (str_starts_with((string) $row->place, self::AT_HOME)) {
-                $id = (int) substr($row->place, strlen(self::AT_HOME));
-                $row->place = $id ? 'At Home: '.ucfirst($names[$id] ?? "type {$id}") : 'At Home (any type)';
-            }
-        });
     }
 
     /** The most viewed events, with their ticket clicks and click-through. */

@@ -165,9 +165,10 @@ test('At Home searches are listed by their online type, not as one "(no place)" 
 
     $report = app(SiteAnalyticsReport::class)->handle(30);
 
-    expect(collect($report['zero_result_searches'])->pluck('searches', 'place')->all())->toBe(['At Home: Zoom' => 2])
+    expect($report['zero_result_searches'])->toHaveCount(1)
+        ->and($report['zero_result_searches'][0])->toMatchArray(['place' => 'Zoom', 'at_home' => true, 'searches' => 2])
         ->and($report['searches'])->toBe([])
-        ->and(collect($report['at_home_searches'])->pluck('searches', 'place')->all())->toBe(['At Home: Zoom' => 2, 'At Home (any type)' => 1]);
+        ->and(collect($report['at_home_searches'])->pluck('searches', 'place')->all())->toBe(['Zoom' => 2, 'Any type' => 1]);
 });
 
 test('the search boxes find any event by name and any typed place, for moderators only', function () {
@@ -190,13 +191,22 @@ test('the search boxes find any event by name and any typed place, for moderator
 test('a typed place cannot pose as an At Home line, and the unmet search box finds At Home types', function () {
     $zoom = App\Models\Events\RemoteLocation::create(['name' => 'zoom', 'slug' => 'zoom', 'user_id' => User::factory()->create()->id]);
     analyticsRow(['query' => null, 'results' => 0, 'props' => json_encode(['searchType' => 'atHome', 'remoteLocation' => $zoom->id])]);
-    analyticsRow(['query' => "@athome:{$zoom->id}", 'results' => 0]);
+    analyticsRow(['query' => 'Zoom', 'results' => 0]);
 
     $report = app(SiteAnalyticsReport::class);
 
-    expect(collect($report->handle(30)['zero_result_searches'])->pluck('searches', 'place')->all())
-        ->toBe(['At Home: Zoom' => 1, "@athome:{$zoom->id}" => 1])
-        ->and(collect($report->findUnmet('zoom'))->pluck('place')->all())->toBe(['At Home: Zoom']);
+    expect(collect($report->handle(30)['zero_result_searches'])->map(fn ($row) => [$row['place'], $row['at_home']])->all())
+        ->toEqualCanonicalizing([['Zoom', true], ['Zoom', false]])
+        ->and(collect($report->findUnmet('zoom'))->pluck('at_home')->all())->toEqualCanonicalizing([true, false]);
+});
+
+test('the same place typed in different case or accents is one place', function () {
+    analyticsRow(['query' => 'Austin, TX', 'results' => 0]);
+    analyticsRow(['query' => 'austin, tx', 'results' => 0]);
+    analyticsRow(['query' => 'Montréal', 'results' => 0]);
+    analyticsRow(['query' => 'Montreal', 'results' => 0]);
+
+    expect(collect(app(SiteAnalyticsReport::class)->handle(30)['zero_result_searches'])->pluck('searches')->all())->toBe([2, 2]);
 });
 
 test('the event search ranks every match by views, however many names match', function () {
