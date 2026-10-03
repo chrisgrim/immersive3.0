@@ -69,10 +69,21 @@ class SearchConsole extends Tool
         ]);
     }
 
-    /** What people typed into Google is visitor text: wrapped, cleaned and capped. */
+    /**
+     * What people typed into Google is visitor text, and so is an address
+     * Google indexed (its query string can carry anything): wrapped,
+     * cleaned and capped.
+     */
     private function wrapQueries(array $rows): array
     {
-        return array_map(fn ($row) => ['query' => ['visitor_text' => mb_substr(trim(preg_replace('/[\p{C}\x{E0000}-\x{E007F}]+/u', ' ', $row['query']) ?? ''), 0, 100)]] + $row, $rows);
+        return array_map(fn ($row) => ['query' => $this->visitorText($row['query'], 100)]
+            + (isset($row['page']) ? ['page' => $this->visitorText($row['page'], 191)] : [])
+            + $row, $rows);
+    }
+
+    private function visitorText(?string $text, int $max): array
+    {
+        return ['visitor_text' => mb_substr(trim(preg_replace('/[\p{C}\x{E0000}-\x{E007F}]+/u', ' ', (string) $text) ?? ''), 0, $max)];
     }
 
     /** A page row for an assistant: the address, and the event or organizer it is. */
@@ -84,7 +95,8 @@ class SearchConsole extends Tool
             default => [],
         };
 
-        return ['page' => $row['page']] + $what + array_intersect_key($row, array_flip(['clicks', 'impressions', 'ctr', 'position']));
+        // An event or organizer page is ours; any other address is wrapped.
+        return ['page' => $what ? $row['page'] : $this->visitorText($row['page'], 191)] + $what + array_intersect_key($row, array_flip(['clicks', 'impressions', 'ctr', 'position']));
     }
 
     public function schema(JsonSchema $schema): array
