@@ -174,11 +174,15 @@ class AnalyticsRollup extends Command
             DB::table('analytics_daily')->where('day', $day->toDateString())->delete();
 
             // Browser-confirmed and engaged visitors only on a day the load
-            // ping was on (some page view was asked for one); before that,
+            // ping was on (its page views were asked for one); before that,
             // NULL, not 0. Neither column exists before the migration.
             $this->columns = Analytics::hasConfirmationColumns();
+            // A whole day only: the day the ping was switched on counts from
+            // the next, so a part-measured day never sets confirmed against
+            // a whole day's visits. Its first people page view tells.
             $this->pinged = $this->columns && DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->where('bot', 0)
-                ->where('occurred_at', '>=', $range[0])->where('occurred_at', '<', $range[1])->whereNotNull('js')->exists();
+                ->where('occurred_at', '>=', $range[0])->where('occurred_at', '<', $range[1])
+                ->orderBy('occurred_at')->orderBy('id')->limit(1)->get(['js'])->first()?->js !== null;
 
             foreach ($this->dimensions() as [$types, $dim, $key, $where]) {
                 $this->insert($day, $range, $types, $dim, $key, $where);

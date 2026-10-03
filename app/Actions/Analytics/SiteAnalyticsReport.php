@@ -166,7 +166,7 @@ class SiteAnalyticsReport
             ->mapWithKeys(fn ($row) => [$row->kind ?? 'people' => [
                 'total' => (int) $row->total,
                 'visitors' => (int) ($row->kind === null ? $row->people : $row->visitors),
-            ] + $this->flagFields($row) + ($row->kind === null ? ['measured_since' => $this->measuredDays[0] ?? null] : [])])
+            ] + $this->flagFields($row, $row->kind === null ? 'view_measured' : 'measured') + ($row->kind === null ? ['measured_since' => $this->measuredDays[0] ?? null] : [])])
             ->all();
     }
 
@@ -241,31 +241,41 @@ class SiteAnalyticsReport
         return 'DATE(analytics_events.occurred_at) IN ('.implode(',', array_fill(0, count($this->measuredDays), '?')).')';
     }
 
-    /** flagCounts()' bindings: the measured days, once for each of its three counts. */
+    /** flagCounts()' bindings: the measured days, once for each of its four counts. */
     private function measuredBindings(): array
     {
-        return [...$this->measuredDays, ...$this->measuredDays, ...$this->measuredDays];
+        return [...$this->measuredDays, ...$this->measuredDays, ...$this->measuredDays, ...$this->measuredDays];
     }
 
-    /** Visitors on measured days (people only), and of them browser confirmed and engaged. */
+    /**
+     * Visitors on measured days (people only; per kind, and view_measured:
+     * those with a page or event view, the base every surface compares
+     * confirmed and engaged with, as the daily totals' 'view' visitors), and
+     * of them browser confirmed and engaged.
+     */
     private function flagCounts(): string
     {
-        // All three on measured days and server rows only: today counts
-        // once its hourly rollup marks it measured, never before.
+        // All on measured days and server rows only: today counts once its
+        // hourly rollup marks it measured, never before.
         $on = "{$this->serverRow()} AND {$this->onMeasuredDay()}";
+        $views = "analytics_events.type IN ('".Analytics::PAGE_VIEW."', '".Analytics::EVENT_VIEW."') AND {$this->onMeasuredDay()}";
 
         return "COUNT(DISTINCT IF({$on} AND NOT COALESCE(f.automated, 0), analytics_events.visitor, NULL)) AS measured,
+            COUNT(DISTINCT IF({$views} AND NOT COALESCE(f.automated, 0), analytics_events.visitor, NULL)) AS view_measured,
             COUNT(DISTINCT IF({$on} AND f.js, analytics_events.visitor, NULL)) AS confirmed,
             COUNT(DISTINCT IF({$on} AND f.engaged, analytics_events.visitor, NULL)) AS engaged";
     }
 
-    /** The flag counts of a row, null when nothing in the range was measured. */
-    private function flagFields(object $row): array
+    /**
+     * The flag counts of a row, null when nothing in the range was
+     * measured. $base: the measured visitors column to report.
+     */
+    private function flagFields(object $row, string $base = 'measured'): array
     {
         $measured = $this->measuredDays !== [];
 
         return [
-            'visitors_on_measured_days' => $measured ? (int) $row->measured : null,
+            'visitors_on_measured_days' => $measured ? (int) $row->{$base} : null,
             'confirmed_visitors' => $measured ? (int) $row->confirmed : null,
             'engaged_visitors' => $measured ? (int) $row->engaged : null,
         ];
@@ -614,8 +624,11 @@ class SiteAnalyticsReport
     {
         $query = $this->rows($since)
             ->whereNotNull('analytics_events.country')
-            ->selectRaw('analytics_events.country AS country, COUNT(DISTINCT analytics_events.visitor) AS visitors')
+            // Server rows only, like the people line: a late beacon alone is
+            // not a visit from anywhere.
+            ->selectRaw('analytics_events.country AS country, COUNT(DISTINCT IF('.$this->serverRow().', analytics_events.visitor, NULL)) AS visitors')
             ->groupBy('analytics_events.country')
+            ->havingRaw('visitors > 0')
             ->orderByDesc('visitors')
             ->limit($limit);
         if ($this->measuredDays !== []) {
@@ -625,7 +638,7 @@ class SiteAnalyticsReport
         return $query->get()
             ->mapWithKeys(fn ($row) => [$row->country => [
                 'visitors' => (int) $row->visitors,
-                'visitors_on_measured_days' => $this->flagFields($row)['visitors_on_measured_days'],
+                'visitors_on_measured_days' => $this->flagFields($row, 'view_measured')['visitors_on_measured_days'],
                 'confirmed' => $this->flagFields($row)['confirmed_visitors'],
             ]])
             ->all();

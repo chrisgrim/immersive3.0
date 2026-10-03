@@ -318,3 +318,40 @@ test('confirmed and engaged counts leave out days not yet marked measured, like 
     expect(app(App\Actions\Analytics\SiteAnalyticsReport::class)->handle(7)['totals']['people'])
         ->toMatchArray(['visitors' => 2, 'visitors_on_measured_days' => 1, 'confirmed_visitors' => 1, 'engaged_visitors' => 1]);
 });
+
+test('the day the ping is switched on mid-day is not measured; measuring starts with the next whole day', function () {
+    $on = now('UTC')->subDays(3)->toDateString();
+    $next = now('UTC')->subDays(2)->toDateString();
+    DB::table('analytics_events')->insert([
+        // Morning, before the switch: not asked. Afternoon: pinged.
+        ['type' => 'page_view', 'occurred_at' => "{$on} 08:00:00", 'visitor' => str_repeat('a', 16), 'bot' => 0, 'page' => 'home', 'path' => '/', 'js' => null],
+        ['type' => 'page_view', 'occurred_at' => "{$on} 15:00:00", 'visitor' => str_repeat('b', 16), 'bot' => 0, 'page' => 'home', 'path' => '/', 'js' => 1],
+        ['type' => 'page_view', 'occurred_at' => "{$next} 08:00:00", 'visitor' => str_repeat('c', 16), 'bot' => 0, 'page' => 'home', 'path' => '/', 'js' => 1],
+    ]);
+
+    $this->artisan('ei:analytics-rollup', ['--from' => $on, '--to' => $next])->assertSuccessful();
+
+    $all = fn (string $day) => DB::table('analytics_daily')->where(['day' => $day, 'type' => 'view', 'dim' => 'all', 'bot' => 0])->first();
+    expect($all($on))->visitors->toBe(2)->js_visitors->toBeNull()->engaged_visitors->toBeNull()
+        ->and($all($next))->js_visitors->toBe(1)
+        ->and(app(App\Actions\Analytics\AnalyticsQuery::class)->trend('confirmed_visits', null, 7)['measured_since'])->toBe($next)
+        ->and(app(App\Actions\Analytics\SiteAnalyticsReport::class)->handle(7)['totals']['people'])
+        ->toMatchArray(['visitors' => 3, 'visitors_on_measured_days' => 1, 'confirmed_visitors' => 1, 'measured_since' => $next]);
+});
+
+test('the report\'s measured base is view visitor-days, and a beacon alone is no country visit', function () {
+    $day = now('UTC')->subDay()->toDateString();
+    DB::table('analytics_daily')->insert(['day' => $day, 'type' => 'view', 'dim' => 'all', 'key' => '', 'bot' => 0, 'js_visitors' => 0, 'engaged_visitors' => 0]);
+    DB::table('analytics_events')->insert([
+        ['type' => 'page_view', 'occurred_at' => "{$day} 10:00:00", 'visitor' => str_repeat('a', 16), 'bot' => 0, 'country' => 'US', 'source' => null, 'view_id' => null, 'js' => 1],
+        // Searched, never opened a page: a person, not a visit.
+        ['type' => 'search', 'occurred_at' => "{$day} 10:00:00", 'visitor' => str_repeat('s', 16), 'bot' => 0, 'country' => 'US', 'source' => 'list', 'view_id' => null, 'js' => null],
+        // A leave whose view is not in range, under its own visitor code.
+        ['type' => 'page_leave', 'occurred_at' => "{$day} 00:02:00", 'visitor' => str_repeat('l', 16), 'bot' => 0, 'country' => 'GB', 'source' => null, 'view_id' => 'viewGONE0001', 'js' => null],
+    ]);
+
+    $report = app(App\Actions\Analytics\SiteAnalyticsReport::class)->handle(7);
+
+    expect($report['totals']['people'])->toMatchArray(['visitors' => 2, 'visitors_on_measured_days' => 1, 'confirmed_visitors' => 1])
+        ->and($report['countries'])->toBe(['US' => ['visitors' => 2, 'visitors_on_measured_days' => 1, 'confirmed' => 1]]);
+});
