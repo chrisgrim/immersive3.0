@@ -123,12 +123,14 @@
                     </div>
                     <input
                         type="search"
+                        maxlength="100"
                         :value="placeFinder.query"
                         @input="(e) => placeFinder.search(e.target.value)"
                         placeholder="Find a place"
                         class="w-full mb-[1.2rem] rounded-[1.2rem] border border-[#EBEBEB] px-[1.4rem] py-[1rem] text-[1.4rem] focus:outline-none focus:border-[#222222]"
                     >
                     <p v-if="placeFinder.active && placeFinder.loading" class="empty">Searching…</p>
+                    <p v-else-if="placeFinder.active && placeFinder.failed" class="empty">The search failed. Please try again.</p>
                     <p v-else-if="placeFinder.active && !placeFinder.results.length" class="empty">No searches for "{{ placeFinder.query }}" in this period.</p>
                     <table v-else-if="placeRows.length" class="w-full text-[1.4rem]">
                         <thead class="text-[1.2rem] text-[#717171]">
@@ -167,6 +169,7 @@
                     </div>
                     <input
                         type="search"
+                        maxlength="100"
                         :value="unmetFinder.query"
                         @input="(e) => unmetFinder.search(e.target.value)"
                         placeholder="Find a place"
@@ -174,11 +177,14 @@
                     >
                     <template v-if="unmetFinder.active">
                         <p v-if="unmetFinder.loading" class="empty">Searching…</p>
+                        <p v-else-if="unmetFinder.failed" class="empty">The search failed. Please try again.</p>
                         <p v-else-if="!unmetMatches.length" class="empty">No searches for "{{ unmetFinder.query }}" found nothing in this period.</p>
                         <ul v-else class="list-none p-0 m-0 space-y-[0.8rem]">
                             <li v-for="row in unmetMatches" :key="row.place" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem]">
                                 <p class="text-[1.4rem] font-semibold truncate">{{ row.place }}</p>
-                                <p class="text-[1.2rem] text-[#717171]">{{ row.found_nothing }} of {{ row.searches }} {{ row.searches === 1 ? 'search' : 'searches' }} found nothing</p>
+                                <p class="text-[1.2rem] text-[#717171]">
+                                    {{ row.searches }} {{ row.searches === 1 ? 'search' : 'searches' }} · {{ row.visitors }} {{ row.visitors === 1 ? 'visit' : 'visits' }} · last {{ formatDay(row.last_searched) }}
+                                </p>
                             </li>
                         </ul>
                     </template>
@@ -211,7 +217,7 @@
                     <h2 class="section-title">Top At Home Searches</h2>
                     <p class="section-sub">Online events people looked for, by type</p>
                 </div>
-                <table v-if="report.at_home_searches.length" class="w-full text-[1.4rem]">
+                <table v-if="report.at_home_searches?.length" class="w-full text-[1.4rem]">
                     <thead class="text-[1.2rem] text-[#717171]">
                         <tr class="border-b border-[#EBEBEB]">
                             <th class="text-left font-normal py-[0.8rem]">Type</th>
@@ -245,12 +251,14 @@
                 </div>
                 <input
                     type="search"
+                        maxlength="100"
                     :value="eventFinder.query"
                     @input="(e) => eventFinder.search(e.target.value)"
                     placeholder="Find an event by name"
                     class="w-full mb-[1.2rem] rounded-[1.2rem] border border-[#EBEBEB] px-[1.4rem] py-[1rem] text-[1.4rem] focus:outline-none focus:border-[#222222]"
                 >
                 <p v-if="eventFinder.active && eventFinder.loading" class="empty">Searching…</p>
+                <p v-else-if="eventFinder.active && eventFinder.failed" class="empty">The search failed. Please try again.</p>
                 <p v-else-if="eventFinder.active && !eventFinder.results.length" class="empty">No views of an event matching "{{ eventFinder.query }}" in this period.</p>
                 <ul v-else-if="eventRows.length" class="list-none p-0 m-0">
                     <li v-for="row in eventRows" :key="row.event_id" class="grid grid-cols-[4.8rem_1fr] md:grid-cols-[4.8rem_1fr_9rem_9rem_16rem] gap-x-[1.6rem] gap-y-[0.8rem] items-center py-[1.6rem] border-t border-[#EBEBEB] first:border-0">
@@ -260,7 +268,7 @@
                         <div class="min-w-0">
                             <a v-if="row.slug" :href="`/events/${row.slug}`" target="_blank" class="text-[1.4rem] font-semibold hover:underline block truncate">{{ row.name }}</a>
                             <span v-else class="text-[1.4rem] font-semibold text-[#717171] block truncate">{{ row.name || `Event ${row.event_id}` }} (removed)</span>
-                            <p class="text-[1.2rem] text-[#717171]">{{ row.city || 'Online' }}</p>
+                            <p class="text-[1.2rem] text-[#717171]">{{ row.city || (row.online ? 'Online' : '') }}</p>
                         </div>
                         <div class="col-start-2 md:col-start-auto flex md:block gap-[1.6rem] items-baseline">
                             <span class="block text-[1.2rem] leading-[1.6rem] text-[#717171]">Views</span>
@@ -450,6 +458,7 @@ const makeFinder = (kind) => {
         query: '',
         results: [],
         loading: false,
+        failed: false,
         active: computed(() => finder.query.trim().length >= 2),
         search(text) {
             finder.query = text
@@ -463,11 +472,15 @@ const makeFinder = (kind) => {
         },
         async run() {
             const request = ++latestFind
+            finder.failed = false
             try {
                 const { data } = await axios.get('/api/admin/analytics/find', { params: { kind, q: finder.query.trim(), days: days.value } })
                 if (request === latestFind) finder.results = data
             } catch (error) {
-                if (request === latestFind) finder.results = []
+                if (request === latestFind) {
+                    finder.results = []
+                    finder.failed = true
+                }
                 console.error('[admin-analytics] search failed', error)
             } finally {
                 if (request === latestFind) finder.loading = false
@@ -478,11 +491,11 @@ const makeFinder = (kind) => {
 }
 
 const placeFinder = makeFinder('places')
-const unmetFinder = makeFinder('places')
+const unmetFinder = makeFinder('unmet')
 const eventFinder = makeFinder('events')
 
 const placeRows = computed(() => (placeFinder.active ? placeFinder.results : visibleSearches.value))
-const unmetMatches = computed(() => unmetFinder.results.filter((row) => row.found_nothing > 0))
+const unmetMatches = computed(() => unmetFinder.results)
 const eventRows = computed(() => (eventFinder.active ? eventFinder.results : visibleEvents.value))
 
 const ordinal = (n) => {

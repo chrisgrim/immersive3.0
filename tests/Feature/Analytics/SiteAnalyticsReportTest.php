@@ -186,3 +186,25 @@ test('the search boxes find any event by name and any typed place, for moderator
     $this->getJson('/api/admin/analytics/find?kind=places&q=0%25')->assertOk()->assertJsonCount(1)->assertJsonPath('0.place', '100% Real, TX');
     $this->getJson('/api/admin/analytics/find?kind=events&q=x')->assertUnprocessable();
 });
+
+test('a typed place cannot pose as an At Home line, and the unmet search box finds At Home types', function () {
+    $zoom = App\Models\Events\RemoteLocation::create(['name' => 'zoom', 'slug' => 'zoom', 'user_id' => User::factory()->create()->id]);
+    analyticsRow(['query' => null, 'results' => 0, 'props' => json_encode(['searchType' => 'atHome', 'remoteLocation' => $zoom->id])]);
+    analyticsRow(['query' => "@athome:{$zoom->id}", 'results' => 0]);
+
+    $report = app(SiteAnalyticsReport::class);
+
+    expect(collect($report->handle(30)['zero_result_searches'])->pluck('searches', 'place')->all())
+        ->toBe(['At Home: Zoom' => 1, "@athome:{$zoom->id}" => 1])
+        ->and(collect($report->findUnmet('zoom'))->pluck('place')->all())->toBe(['At Home: Zoom']);
+});
+
+test('the event search ranks every match by views, however many names match', function () {
+    $busy = Event::factory()->published()->create(['name' => 'The Busiest Show']);
+    Event::factory()->count(5)->published()->create(['name' => 'The Quiet Show']);
+    foreach (range(1, 3) as $i) {
+        analyticsRow(['type' => Analytics::EVENT_VIEW, 'event_id' => $busy->id]);
+    }
+
+    expect(app(SiteAnalyticsReport::class)->findEvents('the')[0]['event_id'])->toBe($busy->id);
+});

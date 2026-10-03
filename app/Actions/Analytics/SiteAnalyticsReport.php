@@ -31,25 +31,34 @@ class SiteAnalyticsReport
      */
     public const MAX_DAYS = 90;
 
+    /** Bump when the report's shape changes (see handle()). */
+    private const VERSION = 2;
+
     private const LIMIT = 25;
 
     private const FILTER_PATHS = "'$.categories', '$.tags', '$.start', '$.priceMin', '$.priceMax'";
 
     /**
      * Where a search looked: the place typed, or for an At Home search (no
-     * place) its online type, as '@athome:<remote location id>' (empty: any
-     * type), turned into "At Home: Zoom" by placeLabels().
+     * place) its online type, as AT_HOME.'<remote location id>' (empty: any
+     * type), turned into "At Home: Zoom" by labelPlaces(). The prefix starts
+     * with a control character, which typed places never contain (they are
+     * stripped on the way in), so no search can pose as an At Home line.
      */
+    private const AT_HOME = "\x1Fathome:";
+
     private const PLACE = "CASE WHEN NULLIF(analytics_events.query, '') IS NOT NULL THEN analytics_events.query
         WHEN JSON_UNQUOTE(JSON_EXTRACT(analytics_events.props, '$.searchType')) = 'atHome'
-            THEN CONCAT('@athome:', COALESCE(JSON_EXTRACT(analytics_events.props, '$.remoteLocation'), ''))
+            THEN CONCAT(CHAR(31), 'athome:', COALESCE(JSON_EXTRACT(analytics_events.props, '$.remoteLocation'), ''))
         END";
 
     public function handle(int $days = 30): array
     {
         $days = max(1, min(self::MAX_DAYS, $days));
 
-        $key = "analytics:report:{$days}";
+        // Versioned: a report cached by older code (a different shape) must
+        // not be served to newer code right after a deploy.
+        $key = 'analytics:report:'.self::VERSION.":{$days}";
 
         // One build at a time: a second request waits for the first (up to
         // 30s) and then reads its cached result instead of starting another.
@@ -222,9 +231,10 @@ class SiteAnalyticsReport
      */
     public function findEvents(string $text, int $days = 30): array
     {
+        // Every matching event (a few thousand at most), ranked by views
+        // inside events(), so a common word cannot crowd out the busiest.
         $ids = Event::withoutGlobalScopes()->withTrashed()
             ->where('name', 'like', '%'.self::escapeLike($text).'%')
-            ->limit(200)
             ->pluck('id')
             ->all();
 
@@ -234,6 +244,12 @@ class SiteAnalyticsReport
     public function findPlaces(string $text, int $days = 30): array
     {
         return $this->searches($this->since($days), $text);
+    }
+
+    /** Searches that found nothing, for a typed place or an At Home type whose name matches. */
+    public function findUnmet(string $text, int $days = 30): array
+    {
+        return $this->zeroResultSearches($this->since($days), $text);
     }
 
     private function since(int $days)
@@ -250,10 +266,19 @@ class SiteAnalyticsReport
      * Searches that found nothing, by place: the gaps worth filling. Split
      * into "with filters" (the filters may be why) and plain.
      */
-    private function zeroResultSearches($since): array
+    private function zeroResultSearches($since, ?string $contains = null): array
     {
+        $like = $contains === null ? null : '%'.self::escapeLike($contains).'%';
+        $types = $like === null ? [] : RemoteLocation::where('name', 'like', $like)->pluck('id')->all();
+
         return $this->typedSearches($since)
             ->where('results', 0)
+            ->when($like !== null, fn ($query) => $query->where(fn ($match) => $match
+                ->where('analytics_events.query', 'like', $like)
+                ->when($types !== [], fn ($match) => $match->orWhere(fn ($atHome) => $atHome
+                    ->where(fn ($none) => $none->whereNull('analytics_events.query')->orWhere('analytics_events.query', ''))
+                    ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(analytics_events.props, '$.searchType')) = 'atHome'")
+                    ->whereIn(DB::raw("CAST(JSON_EXTRACT(analytics_events.props, '$.remoteLocation') AS UNSIGNED)"), $types)))))
             ->selectRaw('COALESCE('.self::PLACE.", '(no place)') AS place, COUNT(*) AS searches,
                 SUM(JSON_CONTAINS_PATH(COALESCE(props, '{}'), 'one', ".self::FILTER_PATHS.')) AS with_filters,
                 COUNT(DISTINCT visitor) AS visitors, MAX(occurred_at) AS last_searched')
@@ -272,18 +297,18 @@ class SiteAnalyticsReport
             ->all();
     }
 
-    /** '@athome:<id>' places (see PLACE) become "At Home: <type name>". */
+    /** AT_HOME places (see PLACE) become "At Home: <type name>". */
     private function labelPlaces($rows)
     {
         $ids = $rows->pluck('place')
-            ->filter(fn ($place) => str_starts_with((string) $place, '@athome:'))
-            ->map(fn ($place) => (int) substr($place, 8))
+            ->filter(fn ($place) => str_starts_with((string) $place, self::AT_HOME))
+            ->map(fn ($place) => (int) substr($place, strlen(self::AT_HOME)))
             ->filter();
         $names = $ids->isEmpty() ? collect() : RemoteLocation::whereIn('id', $ids)->pluck('name', 'id');
 
         return $rows->each(function ($row) use ($names) {
-            if (str_starts_with((string) $row->place, '@athome:')) {
-                $id = (int) substr($row->place, 8);
+            if (str_starts_with((string) $row->place, self::AT_HOME)) {
+                $id = (int) substr($row->place, strlen(self::AT_HOME));
                 $row->place = $id ? 'At Home: '.ucfirst($names[$id] ?? "type {$id}") : 'At Home (any type)';
             }
         });
@@ -304,7 +329,7 @@ class SiteAnalyticsReport
         $events = Event::withoutGlobalScopes()->withTrashed()
             ->with('location:id,event_id,city,region,country')
             ->whereIn('id', $counts->pluck('event_id'))
-            ->get(['id', 'name', 'slug', 'thumbImagePath', 'deleted_at'])
+            ->get(['id', 'name', 'slug', 'thumbImagePath', 'hasLocation', 'deleted_at'])
             ->keyBy('id');
 
         return $counts->map(fn ($row) => [
@@ -313,6 +338,7 @@ class SiteAnalyticsReport
             'slug' => isset($events[$row->event_id]) && ! $events[$row->event_id]->trashed() ? $events[$row->event_id]->slug : null,
             'thumb' => $events[$row->event_id]->thumbImagePath ?? null,
             'city' => $events[$row->event_id]->location->city ?? null,
+            'online' => isset($events[$row->event_id]) && ! $events[$row->event_id]->hasLocation,
             'views' => (int) $row->views,
             'ticket_clicks' => (int) $row->ticket_clicks,
             'click_through' => $row->views > 0 ? round($row->ticket_clicks / $row->views, 3) : null,
