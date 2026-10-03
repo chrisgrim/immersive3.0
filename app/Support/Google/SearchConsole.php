@@ -75,21 +75,21 @@ class SearchConsole
     }
 
     /**
-     * A page address as stored: the path (with any query string) for the
-     * site's own host or its www., the whole address for any other host
-     * (a subdomain on a domain property), cut to 191 characters.
+     * A page address as stored: for the site's own host or its www., the
+     * path alone (no query string or fragment, no trailing slash except
+     * "/"), so /events/x?ref=y adds up with /events/x; the whole address for
+     * any other host (a subdomain on a domain property). Cut to 191
+     * characters.
      */
     public static function pageKey(string $url): string
     {
-        $parts = parse_url($url);
+        $parts = parse_url($url) ?: [];
         $host = strtolower($parts['host'] ?? '');
         $own = self::host();
 
         if ($own !== null && ($host === $own || $host === "www.{$own}")) {
-            $url = ($parts['path'] ?? '') === '' ? '/' : $parts['path'];
-            if (isset($parts['query'])) {
-                $url .= '?'.$parts['query'];
-            }
+            $url = rtrim($parts['path'] ?? '', '/');
+            $url = $url === '' ? '/' : $url;
         }
 
         return mb_substr($url, 0, 191);
@@ -97,9 +97,11 @@ class SearchConsole
 
     /**
      * One searchAnalytics/query call. Retries a 429 or 5xx (waiting as
-     * Google asks, or longer each time) and a stale token; anything else
-     * throws, a SearchConsoleException whose fatal() says whether every
-     * later call would fail the same way (no access, wrong property).
+     * Google asks, or longer each time), a dropped connection and a busy
+     * token endpoint, and a stale token once; anything else throws a
+     * SearchConsoleException whose fatal() says whether later calls would
+     * fail the same way: no access, a wrong property or a refused key, or
+     * Google still unavailable after every try.
      */
     public function query(array $body): array
     {
@@ -112,9 +114,12 @@ class SearchConsole
                     ->acceptJson()
                     ->timeout(60)
                     ->post($url, $body);
-            } catch (ConnectionException $e) {
+            } catch (ConnectionException|ServiceAccountTokenException $e) {
+                if ($e instanceof ServiceAccountTokenException && ! $e->retryable()) {
+                    throw new SearchConsoleException($e->getMessage(), true, $e);
+                }
                 if ($attempt >= self::ATTEMPTS) {
-                    throw new SearchConsoleException('Search Console could not be reached: '.$e->getMessage(), false, $e);
+                    throw new SearchConsoleException('Google could not be reached after '.self::ATTEMPTS.' tries: '.$e->getMessage(), true, $e);
                 }
                 $this->wait($attempt, null);
 
@@ -132,15 +137,16 @@ class SearchConsole
                 continue;
             }
 
-            if (($response->status() === 429 || $response->serverError()) && $attempt < self::ATTEMPTS) {
+            $busy = $response->status() === 429 || $response->serverError();
+            if ($busy && $attempt < self::ATTEMPTS) {
                 $this->wait($attempt, $response);
 
                 continue;
             }
 
             throw new SearchConsoleException(
-                'Search Console answered HTTP '.$response->status().': '.mb_substr((string) $response->json('error.message', ''), 0, 300),
-                in_array($response->status(), [401, 403, 404], true),
+                'Search Console answered HTTP '.$response->status().($busy ? ' after '.self::ATTEMPTS.' tries' : '').': '.mb_substr((string) $response->json('error.message', ''), 0, 300),
+                $busy || in_array($response->status(), [401, 403, 404], true),
             );
         }
     }
@@ -152,11 +158,16 @@ class SearchConsole
         Sleep::for(min(60, max($asked, 2 ** $attempt)))->seconds();
     }
 
-    /** A key Google refuses (or no key at all) fails every call alike: fatal. */
+    /**
+     * No readable key fails every call alike: fatal. A busy token endpoint
+     * or a dropped connection is left to query() to retry.
+     */
     private function accessToken(): string
     {
         try {
             return $this->token()->accessToken();
+        } catch (ServiceAccountTokenException $e) {
+            throw $e;
         } catch (RuntimeException $e) {
             throw new SearchConsoleException($e->getMessage(), true, $e);
         }

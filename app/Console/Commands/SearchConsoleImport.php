@@ -20,7 +20,8 @@ use Throwable;
  *
  * Idempotent: a day's rows are deleted and inserted again in one
  * transaction. A day that fails is reported and skipped (its old rows stay);
- * a failure every day would share (no access, a refused key) stops the run.
+ * a failure every day would share (no access, a refused key, Google still
+ * unavailable after every retry) is reported once and stops the run.
  * Does nothing while Search Console is not configured.
  */
 class SearchConsoleImport extends Command
@@ -103,7 +104,7 @@ class SearchConsoleImport extends Command
                 $this->error("{$day->toDateString()}: {$e->getMessage()}");
                 $failed = true;
                 if ($e->fatal()) {
-                    $this->error('Stopped: every other day would fail the same way.');
+                    $this->error('Stopped: Google is refusing access or unavailable, so the other days would fail the same way. Run again later.');
 
                     return self::FAILURE;
                 }

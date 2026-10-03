@@ -10,7 +10,9 @@ use RuntimeException;
  * An OAuth access token for a Google service account, without Google's SDK:
  * a JWT signed with the account's private key (RS256, openssl_sign) is
  * traded at Google's token endpoint for a one-hour access token, which is
- * cached for 50 minutes. Errors never include the key.
+ * cached for 50 minutes. Errors never include the key. A dropped connection
+ * throws Laravel's ConnectionException; a busy Google (429, 5xx) a
+ * retryable ServiceAccountTokenException.
  *
  * https://developers.google.com/identity/protocols/oauth2/service-account#httprest
  */
@@ -55,7 +57,12 @@ class ServiceAccountToken
         $token = $response->json('access_token');
         if (! $response->successful() || ! is_string($token) || $token === '') {
             // Google's error code and description only (e.g. invalid_grant).
-            throw new RuntimeException('Google refused the service account token: HTTP '.$response->status().' '.mb_substr((string) ($response->json('error') ?? ''), 0, 60).' '.mb_substr((string) ($response->json('error_description') ?? ''), 0, 200));
+            // A 429 or 5xx is Google being busy: worth trying again. Anything
+            // else (a refused or revoked key) fails every try alike.
+            throw new ServiceAccountTokenException(
+                'Google refused the service account token: HTTP '.$response->status().' '.mb_substr((string) ($response->json('error') ?? ''), 0, 60).' '.mb_substr((string) ($response->json('error_description') ?? ''), 0, 200),
+                $response->status() === 429 || $response->serverError(),
+            );
         }
 
         $seconds = min(self::CACHE_SECONDS, max(60, (int) $response->json('expires_in', 3600) - 300));

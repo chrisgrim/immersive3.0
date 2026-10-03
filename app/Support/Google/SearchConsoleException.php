@@ -12,7 +12,10 @@ class SearchConsoleException extends RuntimeException
         parent::__construct($message, 0, $previous);
     }
 
-    /** Every later call would fail the same way (no access, wrong property). */
+    /**
+     * Every later call would fail the same way: no access, a wrong property,
+     * a refused key, or Google still unavailable after every retry.
+     */
     public function fatal(): bool
     {
         return $this->fatal;
