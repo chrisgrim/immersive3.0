@@ -175,6 +175,13 @@ class UpdateEvent extends Tool
             ]);
         }
 
+        // The sent dates as the calendar days they stand for, read once here,
+        // before anything adds stored or history days to the list. A bad
+        // timezone reads as UTC here and is refused below.
+        if (isset($input['dateArray']) && is_array($input['dateArray'])) {
+            $input['dateArray'] = $this->sentDays($input['dateArray'], Show::validTimezone($input['timezone'] ?? $event->timezone ?? 'UTC'));
+        }
+
         $validator = Validator::make(
             $input,
             collect(EventUpdateRules::rules($event->timezone))->except(self::STRIPPED_KEYS)->all(),
@@ -649,6 +656,38 @@ class UpdateEvent extends Tool
     }
 
     /**
+     * Each sent date as "Y-m-d 00:00:00", the local calendar day it names
+     * (the form the rest of this tool and Show::saveShows() read as a date).
+     *
+     * A plain "Y-m-d" is that date. A "Y-m-d H:i:s" is a UTC instant, except
+     * that exactly midnight means that date when no other value in the list
+     * carries a real time (assistants were told to send dates that way). In
+     * a list with real times a midnight is one of them: 8 PM in New York in
+     * summer (7 PM in winter) is exactly 00:00 UTC the next day, and read as
+     * a date it moved the show a day later. The same whole-list rule
+     * Show::usesCurtainTimes() applies to stored rows. Anything else is left
+     * for validation to refuse.
+     *
+     * @param  array<int, mixed>  $dates
+     * @return array<int, mixed>
+     */
+    protected function sentDays(array $dates, string $tz): array
+    {
+        $exactly = fn ($d, string $format) => is_string($d) && ($parsed = \DateTime::createFromFormat('!'.$format, $d)) !== false && $parsed->format($format) === $d;
+        $isDate = fn ($d) => $exactly($d, 'Y-m-d');
+        $isInstant = fn ($d) => $exactly($d, 'Y-m-d H:i:s');
+        $curtainTimes = Show::usesCurtainTimes(array_filter($dates, $isInstant));
+
+        return array_map(function ($date) use ($tz, $curtainTimes, $isDate, $isInstant) {
+            if ($isDate($date)) {
+                return $date.' 00:00:00';
+            }
+
+            return $isInstant($date) ? Show::localDay($date, $tz, $curtainTimes).' 00:00:00' : $date;
+        }, $dates);
+    }
+
+    /**
      * Collapse a UTC datetime list to one entry per calendar day (in the given
      * timezone), keeping the first occurrence of each day. A show on EI
      * represents a day — the wizard's calendar cannot select the same day twice
@@ -841,7 +880,7 @@ class UpdateEvent extends Tool
             'remote_description' => $schema->string()->description('For remote events: how attendees join, max 3000 chars.'),
             'timezone' => $schema->string()->description('IANA timezone of the event, e.g. "America/New_York". geocode-address results include coordinates you can infer it from.'),
             'showtype' => $schema->string()->enum(['s', 'o', 'a'])->description('s = specific dates, o = ongoing/recurring, a = always available. WARNING: changing this wipes and recreates all shows (ticket tiers are kept). Always-available events have no embargo on the website, so clear it explicitly with embargo_date=null when switching to "a".'),
-            'dateArray' => $schema->array()->description('The calendar dates the event plays, each as "Y-m-d 00:00:00" — exactly midnight means that date in the event timezone, whatever the timezone ("2026-10-31 00:00:00" = Oct 31). Do not convert curtain times to UTC here: a value with any other time is read as a real UTC instant and lands on whatever local day that is (8 PM Eastern is 00:00 UTC, which would then read as a date). Times of day belong in show_times. One show is stored per calendar day. REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it. The one exception is the older show days get-event reports under older_show_days (days more than a year old, kept as weekly runs): they are kept automatically, so do not list them. To drop some, name them in remove_older_show_days.'),
+            'dateArray' => $schema->array()->description('The calendar dates the event plays, each as a plain date "Y-m-d" ("2026-10-31" = Oct 31 in the event timezone). Do not send times of day here; they belong in show_times. (Older form, still accepted: "Y-m-d 00:00:00" means that date when every value in the list is at midnight; a value with any other time is read as a real UTC instant and lands on whatever local day that is, and in such a list a midnight value is a real instant too.) One show is stored per calendar day. REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it. The one exception is the older show days get-event reports under older_show_days (days more than a year old, kept as weekly runs): they are kept automatically, so do not list them. To drop some, name them in remove_older_show_days.'),
             'ongoing_config' => $schema->object()->description('For showtype=o: {startDate, endDate (UTC "Y-m-d H:i:s", anchored at noon in the event timezone), daysOfWeek: [0-6, Sunday=0]}. The server generates the concrete occurrence dates from this rule — send it alone, WITHOUT dateArray, for a normal weekly run. For a NEW run, startDate is the day it really began, however long ago (staff can go back up to '.Show::STAFF_LOOKBACK_YEARS.' years; days more than a year old are kept compactly). For a run that already has older_show_days (see get-event), start the recipe at the earliest date in show_dates: the older days are kept as they are, and a recipe reaching further back does not add days to them.'),
             'always_config' => $schema->object()->description('For showtype=a: {endDate (UTC "Y-m-d H:i:s")} — when the listing should close. Defaults to 6 months out if omitted.'),
             'show_times' => $schema->string()->description('Human-readable showtimes text, max 500 chars, e.g. "Fridays 8pm, Saturdays 6pm & 9pm".'),

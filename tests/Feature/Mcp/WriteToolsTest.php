@@ -885,9 +885,9 @@ test('update-event does not regress the wizard step marker', function () {
     expect($event->fresh()->status)->toBe('9');
 });
 
-test('update-event collapses a midnight date and a curtain time on the same calendar day', function () {
-    // "2030-06-10 00:00:00" means June 10; 02:00 UTC on June 11 is 19:00 on
-    // June 10 in Los Angeles. Same day, so one show.
+test('update-event collapses a plain date and a curtain time on the same calendar day', function () {
+    // "2030-06-10" means June 10; 02:00 UTC on June 11 is 19:00 on June 10
+    // in Los Angeles. Same day, so one show.
     $admin = writeToolUser('a');
     $event = draftFor(writeToolOrganizer($admin), $admin);
 
@@ -895,10 +895,46 @@ test('update-event collapses a midnight date and a curtain time on the same cale
         'event_slug' => $event->slug,
         'showtype' => 's',
         'timezone' => 'America/Los_Angeles',
-        'dateArray' => ['2030-06-10 00:00:00', '2030-06-11 02:00:00', '2030-06-12 00:00:00'],
+        'dateArray' => ['2030-06-10', '2030-06-11 02:00:00', '2030-06-12'],
     ])->assertOk();
 
     expect($event->fresh()->shows()->count())->toBe(2);
+});
+
+test('update-event reads plain dates as those dates, and a midnight beside real times as a real time', function () {
+    $admin = writeToolUser('a');
+    $event = draftFor(writeToolOrganizer($admin), $admin);
+    $days = fn () => $event->fresh()->shows->map(fn ($show) => \App\Models\Events\Show::localDay($show->date, 'America/New_York', true))->sort()->values()->all();
+
+    // Plain dates: those dates, in any timezone.
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => 'America/New_York',
+        'dateArray' => ['2030-06-10', '2030-06-12'],
+    ])->assertOk();
+    expect($days())->toBe(['2030-06-10', '2030-06-12']);
+
+    // 8 PM in New York in June is exactly 00:00 UTC the next day. Sent with
+    // another real time (7 PM on June 12), it is that evening, June 10.
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => 'America/New_York',
+        'dateArray' => ['2030-06-11 00:00:00', '2030-06-12 23:00:00'],
+        'confirm_schedule_replace' => true,
+    ])->assertOk();
+    expect($days())->toBe(['2030-06-10', '2030-06-12']);
+
+    // A list of midnights alone keeps meaning those dates (the older form).
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => 'America/New_York',
+        'dateArray' => ['2030-06-11 00:00:00'],
+        'confirm_schedule_replace' => true,
+    ])->assertOk();
+    expect($days())->toBe(['2030-06-11']);
+
+    // Not a date at all: refused, naming the entry.
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => 'America/New_York',
+        'dateArray' => ['2030-02-30'],
+    ])->assertSee('dateArray.0');
 });
 
 test('update-event collapses multiple datetimes on the same day to one show', function () {
