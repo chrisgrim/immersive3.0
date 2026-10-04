@@ -65,7 +65,7 @@
                         <p class="text-[1.3rem] text-[#717171]">{{ figure.label }}</p>
                         <div class="flex items-baseline gap-[0.8rem] mt-[0.4rem]">
                             <span :class="figure.value === null ? 'text-[1.4rem] text-[#717171]' : 'text-[2.8rem] leading-[3.4rem] font-bold tracking-[-0.02em]'">
-                                {{ figure.value === null ? 'Starts once browser confirmation is switched on' : figure.value.toLocaleString() }}
+                                {{ figure.value === null ? 'No whole measured day yet' : figure.value.toLocaleString() }}
                             </span>
                             <span v-if="figure.change" :class="['text-[1.2rem] font-semibold', figure.change.up ? 'text-[#008A05]' : 'text-[#E00B41]']">
                                 {{ figure.change.up ? '↑' : '↓' }} {{ figure.change.text }}

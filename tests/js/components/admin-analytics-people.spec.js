@@ -48,12 +48,12 @@ it('shows browser-confirmed and engaged visits next to all visits, as shares of 
     expect(w.text()).toContain('Both columns count days since Sep 28 only.');
     // The country's measured-day visits, not all of them.
     expect(w.text()).toContain('United States20');
-    expect(w.text()).not.toContain('Starts once browser confirmation is switched on');
+    expect(w.text()).not.toContain('No whole measured day yet');
 });
 
 it('says confirmation has not started rather than showing zeros, for engaged too', async () => {
     const w = await mountWith(report(null));
 
-    expect(w.text().match(/Starts once browser confirmation is switched on/g)).toHaveLength(2);
+    expect(w.text().match(/No whole measured day yet/g)).toHaveLength(2);
     expect(w.text()).toContain('Confirmed starts once browser confirmation is switched on.');
 });
