@@ -443,3 +443,27 @@ test('the load ping stays off while its columns do not exist, even when switched
     Illuminate\Support\Facades\Cache::forget('analytics:confirmation-columns');
     expect(Analytics::pingsOn())->toBeTrue();
 });
+
+test('pings wait however many runs it takes for the js column', function () {
+    app(Analytics::class)->assumeConfirmationColumns(false);
+    noteFrom(Analytics::PAGE_PING, ['view_id' => 'viewWAIT0001', 'webdriver' => 0]);
+
+    foreach (range(1, 5) as $run) {
+        flushNow();
+    }
+
+    expect(collect(app(Analytics::class)->pop(10))->filter(fn ($note) => str_contains($note, 'viewWAIT0001')))->toHaveCount(1);
+});
+
+test('a day with event views from while page views were off is not a measured day', function () {
+    $day = now('UTC')->subDays(2)->toDateString();
+    DB::table('analytics_events')->insert([
+        ['type' => 'page_view', 'occurred_at' => "{$day} 15:00:00", 'visitor' => str_repeat('a', 16), 'bot' => 0, 'page' => 'home', 'path' => '/', 'js' => 1],
+        ['type' => 'event_view', 'occurred_at' => "{$day} 08:00:00", 'visitor' => str_repeat('b', 16), 'bot' => 0, 'page' => null, 'path' => null, 'js' => null],
+    ]);
+
+    $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
+
+    expect(DB::table('analytics_daily')->where(['day' => $day, 'type' => 'view', 'dim' => 'all', 'bot' => 0])->first())
+        ->visitors->toBe(2)->js_visitors->toBeNull();
+});

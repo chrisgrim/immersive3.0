@@ -284,6 +284,16 @@ class AnalyticsFlush extends Command
      */
     private function retryPings(Analytics $analytics, array $pings): void
     {
+        // No js column yet: the pings go back untouched, however long the
+        // migration takes (the buffer's own one-day limit still applies).
+        if (! $this->jsColumn) {
+            if ($pings !== []) {
+                $analytics->putBack(array_column($pings, 'note'));
+            }
+
+            return;
+        }
+
         $again = [];
         foreach ($pings as $ping) {
             if ($ping['tries'] + 1 < self::PING_TRIES) {

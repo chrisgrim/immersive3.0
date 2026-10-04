@@ -180,7 +180,12 @@ class AnalyticsRollup extends Command
         // occurred_at index).
         $views = fn () => DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->where('bot', 0)
             ->where('occurred_at', '>=', $range[0])->where('occurred_at', '<', $range[1]);
-        $this->pinged = $this->columns && $views()->exists() && ! $views()->whereNull('js')->exists();
+        // A people event_view that day means page views were off for part of
+        // it (event pages fall back to event_view): those visitors could
+        // never be confirmed, so the day is not whole either.
+        $eventViews = fn () => DB::table('analytics_events')->where('type', Analytics::EVENT_VIEW)->where('bot', 0)
+            ->where('occurred_at', '>=', $range[0])->where('occurred_at', '<', $range[1]);
+        $this->pinged = $this->columns && $views()->exists() && ! $views()->whereNull('js')->exists() && ! $eventViews()->exists();
         // Whether the ping was on at all that day, even for part of it: the
         // privacy page keeps naming the capture while such days are kept.
         $jsSeen = $this->pinged || ($this->columns && $views()->whereNotNull('js')->exists());
