@@ -280,7 +280,7 @@ class Analytics
             'duration' => [$daily->where('dim', 'all')->where('seconds_count', '>', 0), $raw->where('type', self::PAGE_LEAVE)],
             'nav_search' => [$daily->where('dim', 'all')->where('type', self::NAV_SEARCH), $raw->where('type', self::NAV_SEARCH)],
             'js_ping' => self::hasConfirmationColumns()
-                ? [$daily->where('dim', 'all')->whereNotNull('js_visitors'), $raw->where('type', self::PAGE_VIEW)->whereNotNull('js')]
+                ? [$daily->where('dim', \App\Console\Commands\AnalyticsRollup::CAPTURE_DIM)->where('type', 'js_ping'), $raw->where('type', self::PAGE_VIEW)->whereNotNull('js')]
                 : [null, null],
             default => [null, null],
         };
@@ -499,6 +499,22 @@ class Analytics
      *
      * @param  array<string, int>  $visitors
      */
+    /** Takes visitors out of the live count (an automated browser, found later). */
+    public function forgetLive(array $visitors): void
+    {
+        if ($visitors === []) {
+            return;
+        }
+
+        if (config('analytics.buffer') === 'array') {
+            $this->liveSet = array_diff_key($this->liveSet, array_flip($visitors));
+
+            return;
+        }
+
+        Redis::zrem(self::LIVE_KEY, ...$visitors);
+    }
+
     public function markLive(array $visitors): void
     {
         $cutoff = now()->subMinutes(10)->getTimestamp();

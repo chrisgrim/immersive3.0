@@ -245,6 +245,19 @@ class AnalyticsFlush extends Command
                 Cache::put("analytics:automated:{$day}:{$visitor}", true, now()->addDays(2));
             }
         }
+        // An automated browser is no live person either: out of this run's
+        // live list and the live set it may already be in.
+        // (+, not array_merge: a visitor code made only of digits would be renumbered.)
+        $all = [];
+        foreach ($automated as $visitors) {
+            $all += $visitors;
+        }
+        $automatedVisitors = array_map('strval', array_keys($all));
+        foreach ($automatedVisitors as $visitor) {
+            unset($this->live[$visitor]);
+        }
+        app(Analytics::class)->forgetLive($automatedVisitors);
+
         foreach ($automated as $day => $visitors) {
             $from = Carbon::parse($day, 'UTC');
             foreach (array_chunk(array_keys($visitors), 500) as $chunk) {

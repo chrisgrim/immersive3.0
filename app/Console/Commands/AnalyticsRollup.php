@@ -181,6 +181,9 @@ class AnalyticsRollup extends Command
         $views = fn () => DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->where('bot', 0)
             ->where('occurred_at', '>=', $range[0])->where('occurred_at', '<', $range[1]);
         $this->pinged = $this->columns && $views()->exists() && ! $views()->whereNull('js')->exists();
+        // Whether the ping was on at all that day, even for part of it: the
+        // privacy page keeps naming the capture while such days are kept.
+        $jsSeen = $this->pinged || ($this->columns && $views()->whereNotNull('js')->exists());
 
         try {
             if ($this->pinged) {
@@ -197,7 +200,7 @@ class AnalyticsRollup extends Command
             }
 
             $nextReadsCommitted();
-            DB::transaction(function () use ($day, $range) {
+            DB::transaction(function () use ($day, $range, $jsSeen) {
                 DB::table('analytics_daily')->where('day', $day->toDateString())->delete();
 
                 foreach ($this->dimensions() as [$types, $dim, $key, $where]) {
@@ -205,6 +208,13 @@ class AnalyticsRollup extends Command
                 }
 
                 $this->insertEdges($day, $range);
+
+                if ($jsSeen) {
+                    DB::table('analytics_daily')->insert([
+                        'day' => $day->toDateString(), 'type' => 'js_ping', 'dim' => self::CAPTURE_DIM, 'key' => '', 'bot' => 0,
+                        'hits' => 1, 'visitors' => 0, 'seconds_sum' => 0, 'seconds_count' => 0,
+                    ]);
+                }
             });
         } finally {
             if ($this->pinged) {
@@ -278,6 +288,9 @@ class AnalyticsRollup extends Command
 
     /** Whether the day being rolled up had the load ping on (rollupDay). */
     private bool $pinged = false;
+
+    /** A marker row: that capture recorded something that day (read by the privacy page). */
+    public const CAPTURE_DIM = 'capture';
 
     /** The column list of an insert into analytics_daily. */
     private function dailyColumns(): string

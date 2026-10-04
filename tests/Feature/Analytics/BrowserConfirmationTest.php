@@ -401,3 +401,31 @@ test('measured counts compare whole days with the same number of whole days befo
     expect($report['totals']['people'])->toMatchArray(['visitors_on_measured_days' => 30, 'confirmed_visitors' => 15, 'engaged_visitors' => 3, 'measured_since' => now('UTC')->subDays(6)->toDateString()])
         ->and($report['totals_previous']['people'])->toMatchArray(['visitors_on_measured_days' => 70, 'confirmed_visitors' => 35, 'engaged_visitors' => 7, 'measured_since' => now('UTC')->subDays(12)->toDateString()]);
 });
+
+test('an automated browser found by its ping leaves the live count', function () {
+    switchOn('live');
+    noteFrom(Analytics::PAGE_VIEW, ['view_id' => 'viewLIVE0001', 'page' => 'home', 'path' => '/', 'js' => 0]);
+    flushNow();
+    expect(app(Analytics::class)->liveCount())->toBe(1);
+
+    noteFrom(Analytics::PAGE_PING, ['view_id' => 'viewLIVE0001', 'webdriver' => 1]);
+    flushNow();
+
+    expect(app(Analytics::class)->liveCount())->toBe(0);
+});
+
+test('a day the ping was on for only part of keeps the privacy page naming it after the raw rows are gone', function () {
+    switchOn('page_views');
+    config(['analytics.capture.js_ping' => false]);
+    $day = now('UTC')->subDays(20)->toDateString();
+    DB::table('analytics_events')->insert([
+        ['type' => 'page_view', 'occurred_at' => "{$day} 08:00:00", 'visitor' => str_repeat('a', 16), 'bot' => 0, 'page' => 'home', 'path' => '/', 'js' => 1],
+        ['type' => 'page_view', 'occurred_at' => "{$day} 15:00:00", 'visitor' => str_repeat('b', 16), 'bot' => 0, 'page' => 'home', 'path' => '/', 'js' => null],
+    ]);
+    $this->artisan('ei:analytics-rollup', ['--day' => $day])->assertSuccessful();
+    // Not a measured day, but the capture was on: a marker row says so.
+    expect(DB::table('analytics_daily')->where(['day' => $day, 'dim' => 'capture', 'type' => 'js_ping'])->exists())->toBeTrue();
+
+    Illuminate\Support\Facades\Cache::flush();
+    expect(Analytics::recentlyCaptured('js_ping'))->toBeTrue();
+});
