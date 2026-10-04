@@ -367,7 +367,7 @@
                             <span>{{ visitsBy === 'country' ? 'Country' : 'Device' }}</span><span class="flex gap-[1.6rem]"><span class="w-[6rem] text-right">{{ confirmationMeasured ? 'Visits' : 'All' }}</span><span class="w-[7rem] text-right">Confirmed</span></span>
                         </li>
                         <li v-for="row in visitRows" :key="row.key">
-                            <span class="truncate">{{ row.name }}<span v-if="row.share" class="text-[#717171]"> {{ row.share }}</span></span>
+                            <span class="truncate">{{ row.name }}<span v-if="row.share" class="text-[#717171] ml-[0.6rem]">{{ row.share }}</span></span>
                             <span class="flex gap-[1.6rem] shrink-0">
                                 <span class="w-[6rem] text-right">{{ row.visits.toLocaleString() }}</span>
                                 <span class="w-[7rem] text-right">{{ row.confirmed === null ? 'n/a' : row.confirmed.toLocaleString() }}</span>
