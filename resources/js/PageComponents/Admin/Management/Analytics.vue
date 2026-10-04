@@ -356,7 +356,7 @@
                         <li v-for="(row, country) in report.countries" :key="country">
                             <span class="truncate">{{ countryName(country) }}</span>
                             <span class="flex gap-[1.6rem] shrink-0">
-                                <span class="w-[6rem] text-right">{{ (confirmationMeasured ? row.visitors_on_measured_days : row.visitors).toLocaleString() }}</span>
+                                <span class="w-[6rem] text-right">{{ ((confirmationMeasured ? row.visitors_on_measured_days : row.visitors) ?? 0).toLocaleString() }}</span>
                                 <span class="w-[7rem] text-right">{{ row.confirmed === null ? 'n/a' : row.confirmed.toLocaleString() }}</span>
                             </span>
                         </li>
