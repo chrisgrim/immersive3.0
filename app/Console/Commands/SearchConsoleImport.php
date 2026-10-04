@@ -16,8 +16,9 @@ use Throwable;
  * Copies Google Search Console's daily totals into search_console_daily:
  * for each day, the whole-site totals and the totals by search, page,
  * country, device and search-and-page pair. Google's data settles after
- * 2 to 3 days, so the nightly run re-reads the last 5 days ending 2 days
- * ago; --from backfills (Google keeps 16 months).
+ * 2 to 3 days (its final numbers can take longer), so the nightly run
+ * re-reads the last 10 days ending 2 days ago, which also fills any day a
+ * slow Google or a missed night left out; --from backfills (Google keeps 16 months).
  *
  * Idempotent: a day's rows are deleted and inserted again in one
  * transaction. Each month a run stored a day in is then rebuilt in
@@ -32,7 +33,7 @@ class SearchConsoleImport extends Command
     protected $signature = 'ei:search-console-import
         {--from= : First day (Y-m-d), as far back as 16 months}
         {--to= : Last day (default 2 days ago)}
-        {--days= : How many days ending --to (default 5)}
+        {--days= : How many days ending --to (default 10)}
         {--rebuild-months : Only rebuild the monthly totals from the daily rows (no call to Google)}';
 
     protected $description = 'Import Google Search Console totals (searches, pages, clicks, impressions, position) per day.';
@@ -162,7 +163,7 @@ class SearchConsoleImport extends Command
             $to = $this->option('to') ? CarbonImmutable::parse($this->option('to'), 'UTC')->startOfDay() : $today->subDays(2);
             $from = $this->option('from')
                 ? CarbonImmutable::parse($this->option('from'), 'UTC')->startOfDay()
-                : $to->subDays(max(1, (int) ($this->option('days') ?: 5)) - 1);
+                : $to->subDays(max(1, (int) ($this->option('days') ?: 10)) - 1);
         } catch (Throwable) {
             $this->error('Dates must be Y-m-d.');
 
