@@ -20,7 +20,7 @@ class PagePingController extends Controller
     {
         $viewId = $request->input('view_id');
 
-        if (Analytics::captures('js_ping') && is_string($viewId) && preg_match(Analytics::SEARCH_ID_PATTERN, $viewId)) {
+        if (Analytics::pingsOn() && is_string($viewId) && preg_match(Analytics::SEARCH_ID_PATTERN, $viewId)) {
             Analytics::record(Analytics::PAGE_PING, [
                 'view_id' => $viewId,
                 'webdriver' => (string) $request->input('wd') === '1' ? 1 : 0,

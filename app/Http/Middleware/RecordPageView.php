@@ -98,7 +98,7 @@ class RecordPageView
             // The page asks its browser for a load ping (master-container):
             // 0 until the ping marks it 1, so "not confirmed" and "not asked"
             // stay apart.
-            'js' => Analytics::captures('js_ping') ? 0 : null,
+            'js' => Analytics::pingsOn() ? 0 : null,
         ], $request);
     }
 }

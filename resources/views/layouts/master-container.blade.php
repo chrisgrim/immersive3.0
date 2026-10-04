@@ -69,7 +69,7 @@
                 @php
                     $analyticsViewId = isset($exception) ? null : request()->attributes->get(\App\Http\Middleware\RecordPageView::VIEW_ID);
                     $analyticsDuration = $analyticsViewId && \App\Support\Analytics\Analytics::captures('duration');
-                    $analyticsPing = $analyticsViewId && \App\Support\Analytics\Analytics::captures('js_ping');
+                    $analyticsPing = $analyticsViewId && \App\Support\Analytics\Analytics::pingsOn();
                 @endphp
                 analyticsView: {!! $analyticsDuration || $analyticsPing ? json_encode($analyticsViewId) : 'null' !!},
                 analyticsDuration: {!! $analyticsDuration ? 'true' : 'false' !!},

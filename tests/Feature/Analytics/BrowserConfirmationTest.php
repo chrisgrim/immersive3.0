@@ -261,8 +261,11 @@ test('flush, rollup and readers leave the new columns alone while they do not ex
     $trend = app(App\Actions\Analytics\AnalyticsQuery::class)->trend('confirmed_visits', null, 7);
 
     expect(collect($queries)->filter(fn ($sql) => preg_match('/`js`|\bjs (=|is)|js_visitors|engaged_visitors/i', $sql))->all())->toBe([])
-        // The automation flag needs no new column.
-        ->and($row->bot)->toBe(Analytics::BOT_AUTOMATION)
+        // A ping that cannot be recorded yet waits for a later run instead
+        // of being used up (and the switch stays off until the columns exist).
+        ->and($row->bot)->toBe(0)
+        ->and(collect(app(Analytics::class)->pop(10))->filter(fn ($note) => str_contains($note, 'viewAAAA0001') && str_contains($note, Analytics::PAGE_PING)))->toHaveCount(1)
+        ->and(Analytics::pingsOn())->toBeFalse()
         ->and($report['totals']['people']['confirmed_visitors'])->toBeNull()
         ->and($trend)->toMatchArray(['measured_since' => null, 'series' => []]);
 });
@@ -428,4 +431,15 @@ test('a day the ping was on for only part of keeps the privacy page naming it af
 
     Illuminate\Support\Facades\Cache::flush();
     expect(Analytics::recentlyCaptured('js_ping'))->toBeTrue();
+});
+
+test('the load ping stays off while its columns do not exist, even when switched on', function () {
+    switchOn('page_views', 'js_ping');
+    app(Analytics::class)->assumeConfirmationColumns(false);
+    Illuminate\Support\Facades\Cache::forget('analytics:confirmation-columns');
+    expect(Analytics::pingsOn())->toBeFalse();
+
+    app(Analytics::class)->assumeConfirmationColumns(true);
+    Illuminate\Support\Facades\Cache::forget('analytics:confirmation-columns');
+    expect(Analytics::pingsOn())->toBeTrue();
 });

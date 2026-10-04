@@ -215,6 +215,12 @@ class AnalyticsFlush extends Command
      */
     private function markPings(array $pings): array
     {
+        // No js column yet (the migration is still to run): nothing can be
+        // marked, so every ping waits for a later run instead of being used up.
+        if (! $this->jsColumn) {
+            return array_values($pings);
+        }
+
         $pings = array_values(array_filter($pings, fn ($ping) => $ping['view_id'] !== null));
         if ($pings === []) {
             return [];

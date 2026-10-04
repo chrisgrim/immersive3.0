@@ -370,6 +370,25 @@ class Analytics
         })();
     }
 
+    /**
+     * The load ping is on: switched on AND its columns exist. Switched on
+     * before the migration finished, it stays off rather than ask for pings
+     * the flusher could not record. Web requests read the column check from
+     * the cache (ten minutes), and only while the switch is on.
+     */
+    public static function pingsOn(): bool
+    {
+        if (! self::captures('js_ping')) {
+            return false;
+        }
+
+        try {
+            return (bool) Cache::remember('analytics:confirmation-columns', now()->addMinutes(10), fn () => self::hasConfirmationColumns());
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
     /** Tests: pretend the columns are (or are not) there; null asks again. */
     public function assumeConfirmationColumns(?bool $present): void
     {
