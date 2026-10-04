@@ -20,7 +20,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Partially update an event: send only the fields you are changing. Works on any event you can manage — for moderators and admins that is EVERY event on the platform, not just your own organizers (find slugs with list-all-events). Uses the same validation as the website. An event whose run ended more than 90 days ago is a historical record: organizers can no longer edit it (moderators and admins can) — create a new listing with create-event-draft instead. All dates are UTC "Y-m-d H:i:s". Set showtype + dates before or together with tickets. Publishing is impossible from here — use submit-event-for-review when the draft is complete.')]
+#[Description('Partially update an event: send only the fields you are changing. Works on any event you can manage — for moderators and admins that is EVERY event on the platform, not just your own organizers (find slugs with list-all-events). Uses the same validation as the website. An event whose run ended more than 90 days ago is a historical record: organizers can no longer edit it (moderators and admins can) — create a new listing with create-event-draft instead. Show dates (dateArray) are plain calendar dates "Y-m-d"; other dates are UTC "Y-m-d H:i:s" (embargo_date: local wall-clock time). Set showtype + dates before or together with tickets. Publishing is impossible from here — use submit-event-for-review when the draft is complete.')]
 class UpdateEvent extends Tool
 {
     use BuildsSyntheticRequests;
@@ -179,7 +179,7 @@ class UpdateEvent extends Tool
         // before anything adds stored or history days to the list. A bad
         // timezone reads as UTC here and is refused below.
         if (isset($input['dateArray']) && is_array($input['dateArray'])) {
-            $input['dateArray'] = $this->sentDays($input['dateArray'], Show::validTimezone($input['timezone'] ?? $event->timezone ?? 'UTC'));
+            $input['dateArray'] = $this->sentDays($input['dateArray'], Show::validTimezone(is_string($input['timezone'] ?? null) ? $input['timezone'] : ($event->timezone ?? 'UTC')));
         }
 
         $validator = Validator::make(

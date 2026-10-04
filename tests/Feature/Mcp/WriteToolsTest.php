@@ -935,6 +935,12 @@ test('update-event reads plain dates as those dates, and a midnight beside real 
         'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => 'America/New_York',
         'dateArray' => ['2030-02-30'],
     ])->assertSee('dateArray.0');
+
+    // A timezone that is not even text is a validation error, not a crash.
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => ['America/New_York'],
+        'dateArray' => ['2030-06-10'],
+    ])->assertSee('validation_failed');
 });
 
 test('update-event collapses multiple datetimes on the same day to one show', function () {
