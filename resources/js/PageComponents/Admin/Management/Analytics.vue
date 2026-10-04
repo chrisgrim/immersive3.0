@@ -344,23 +344,37 @@
                 </section>
 
                 <section class="card p-[2.4rem]">
-                    <button type="button" class="section-link" @click="openSection('countries')">
+                    <button v-if="visitsBy === 'country'" type="button" class="section-link" @click="openSection('countries')">
                         <span class="section-title">Visits by Country</span>
                         <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
                     </button>
+                    <h2 v-else class="section-title">Visits by Device</h2>
                     <p class="section-sub mb-[1.2rem]">One person on one day counts once</p>
-                    <ul class="breakdown">
+                    <div class="inline-flex bg-[#F7F7F7] rounded-full p-[0.4rem] mb-[1.2rem]" role="group" aria-label="Show visits by">
+                        <button
+                            v-for="option in visitsByOptions"
+                            :key="option.key"
+                            type="button"
+                            @click="visitsBy = option.key"
+                            :aria-pressed="visitsBy === option.key"
+                            :class="['px-[1.2rem] py-[0.6rem] rounded-full text-[1.2rem] font-semibold whitespace-nowrap', visitsBy === option.key ? 'bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)]' : 'text-[#717171]']"
+                        >
+                            {{ option.label }}
+                        </button>
+                    </div>
+                    <ul v-if="visitRows.length" class="breakdown">
                         <li class="text-[1.2rem] text-[#717171]">
-                            <span>Country</span><span class="flex gap-[1.6rem]"><span class="w-[6rem] text-right">{{ confirmationMeasured ? 'Visits' : 'All' }}</span><span class="w-[7rem] text-right">Confirmed</span></span>
+                            <span>{{ visitsBy === 'country' ? 'Country' : 'Device' }}</span><span class="flex gap-[1.6rem]"><span class="w-[6rem] text-right">{{ confirmationMeasured ? 'Visits' : 'All' }}</span><span class="w-[7rem] text-right">Confirmed</span></span>
                         </li>
-                        <li v-for="(row, country) in report.countries" :key="country">
-                            <span class="truncate">{{ countryName(country) }}</span>
+                        <li v-for="row in visitRows" :key="row.key">
+                            <span class="truncate">{{ row.name }}<span v-if="row.share" class="text-[#717171]"> {{ row.share }}</span></span>
                             <span class="flex gap-[1.6rem] shrink-0">
-                                <span class="w-[6rem] text-right">{{ ((confirmationMeasured ? row.visitors_on_measured_days : row.visitors) ?? 0).toLocaleString() }}</span>
+                                <span class="w-[6rem] text-right">{{ row.visits.toLocaleString() }}</span>
                                 <span class="w-[7rem] text-right">{{ row.confirmed === null ? 'n/a' : row.confirmed.toLocaleString() }}</span>
                             </span>
                         </li>
                     </ul>
+                    <p v-else class="empty">{{ visitsBy === 'device' ? 'No device information yet.' : 'No visits yet.' }}</p>
                     <p v-if="!confirmationMeasured" class="text-[1.2rem] text-[#717171] mt-[1.2rem]">Confirmed starts once browser confirmation is switched on.</p>
                     <p v-else class="text-[1.2rem] text-[#717171] mt-[1.2rem]">Both columns count days since {{ formatDay(measuredSince) }} only.</p>
                 </section>
@@ -619,6 +633,30 @@ const hovered = computed(() => (hoverIndex.value === null ? null : chart.value.c
 const onChartMove = (event) => {
     hoverIndex.value = nearestIndex(chart.value, event)
 }
+
+// ---- Visits by country or by device (a switch on the card) ----
+const visitsBy = ref('country')
+const visitsByOptions = [
+    { key: 'country', label: 'Country' },
+    { key: 'device', label: 'Device' },
+]
+const deviceNames = { mobile: 'Phone', desktop: 'Computer', tablet: 'Tablet', other: 'Other' }
+
+const visitRows = computed(() => {
+    const byDevice = visitsBy.value === 'device'
+    const rows = Object.entries((byDevice ? report.value?.devices : report.value?.countries) || {}).map(([key, row]) => ({
+        key,
+        name: byDevice ? deviceNames[key] || key : countryName(key),
+        visits: (confirmationMeasured.value ? row.visitors_on_measured_days : row.visitors) ?? 0,
+        confirmed: row.confirmed,
+    }))
+    // Devices are few, so each one's share of all visits is worth showing.
+    if (byDevice) {
+        const total = rows.reduce((sum, row) => sum + row.visits, 0)
+        rows.forEach((row) => (row.share = total ? percent(row.visits / total) : null))
+    }
+    return rows
+})
 
 const regionNames = typeof Intl !== 'undefined' && Intl.DisplayNames ? new Intl.DisplayNames(['en'], { type: 'region' }) : null
 const countryName = (code) => {

@@ -57,3 +57,15 @@ it('says confirmation has not started rather than showing zeros, for engaged too
     expect(w.text().match(/No whole measured day yet/g)).toHaveLength(2);
     expect(w.text()).toContain('Confirmed starts once browser confirmation is switched on.');
 });
+
+it('switches the visits card from countries to devices, with each device\'s share', async () => {
+    const w = await mountWith({ ...report(null), devices: { mobile: { visitors: 30, visitors_on_measured_days: null, confirmed: null }, desktop: { visitors: 10, visitors_on_measured_days: null, confirmed: null } } });
+
+    expect(w.text()).toContain('Visits by Country');
+    await w.findAll('button').find((b) => b.text() === 'Device').trigger('click');
+
+    expect(w.text()).toContain('Visits by Device');
+    expect(w.text()).toContain('Phone75%30');
+    expect(w.text()).toContain('Computer25%10');
+    expect(w.text()).not.toContain('United States');
+});

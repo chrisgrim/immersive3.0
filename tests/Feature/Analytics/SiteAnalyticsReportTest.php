@@ -348,3 +348,19 @@ test('the report counts browser-confirmed and engaged people beside the visits o
         ->and(collect($confirmed['rows'])->mapWithKeys(fn ($row) => [$row['country'] => [$row['visits_on_measured_days'], $row['confirmed_visits']]])->all())
         ->toEqual(collect($report['countries'])->map(fn ($row) => [$row['visitors_on_measured_days'], $row['confirmed']])->all());
 });
+
+test('the report counts people by device type, like countries', function () {
+    $view = fn (string $visitor, ?string $device, array $row = []) => analyticsRow(array_merge(['type' => Analytics::PAGE_VIEW, 'page' => 'home', 'path' => '/', 'visitor' => str_repeat($visitor, 16), 'device' => $device], $row));
+
+    $view('a', 'mobile');
+    $view('a', 'mobile');           // the same person twice: one visit
+    $view('b', 'mobile');
+    $view('c', 'desktop');
+    $view('d', null);               // before device capture: left out
+    $view('e', 'tablet', ['bot' => Analytics::BOT_DATACENTER]);
+
+    expect(app(SiteAnalyticsReport::class)->handle(7)['devices'])->toBe([
+        'mobile' => ['visitors' => 2, 'visitors_on_measured_days' => null, 'confirmed' => null],
+        'desktop' => ['visitors' => 1, 'visitors_on_measured_days' => null, 'confirmed' => null],
+    ]);
+});

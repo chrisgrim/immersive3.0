@@ -39,7 +39,7 @@ class SiteAnalyticsReport
         ELSE COALESCE(rl.name, CONCAT('Type ', ".self::REMOTE.')) END';
 
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 14;
+    private const VERSION = 15;
 
     private const LIMIT = 25;
 
@@ -72,6 +72,7 @@ class SiteAnalyticsReport
             'since' => $since->toIso8601String(),
             'totals' => $this->totals($since, null, $this->measuredWindow($days)),
             'countries' => $this->countries($since, $days),
+            'devices' => $this->devices($since, $days),
             // The same span just before, for "vs prior period".
             // Same length, ending at this time of day N days ago, so a
             // part-day today is not set against a whole one (measured
@@ -570,24 +571,39 @@ class SiteAnalyticsReport
      */
     private function countries($since, int $days, int $limit = 15): array
     {
-        $measured = $this->measured('country', $this->measuredWindow($days));
-        $countries = $this->rows($since)
-            ->whereNotNull('analytics_events.country')
-            ->selectRaw("analytics_events.country AS country, COUNT(DISTINCT IF(analytics_events.type IN ('".implode("', '", Analytics::SERVER_TYPES)."'), analytics_events.visitor, NULL)) AS visitors")
-            ->groupBy('analytics_events.country')
+        return $this->visitorsBy('country', $since, $days, $limit);
+    }
+
+    /**
+     * Visitors by device type (mobile, desktop, tablet, other), counted like
+     * countries(). Only from the day device capture was switched on.
+     */
+    private function devices($since, int $days): array
+    {
+        return $this->visitorsBy('device', $since, $days, 10);
+    }
+
+    /** countries() and devices(): visitors per value of $column (also its daily totals dim). */
+    private function visitorsBy(string $column, $since, int $days, int $limit): array
+    {
+        $measured = $this->measured($column, $this->measuredWindow($days));
+        $rows = $this->rows($since)
+            ->whereNotNull("analytics_events.{$column}")
+            ->selectRaw("analytics_events.{$column} AS value, COUNT(DISTINCT IF(analytics_events.type IN ('".implode("', '", Analytics::SERVER_TYPES)."'), analytics_events.visitor, NULL)) AS visitors")
+            ->groupBy("analytics_events.{$column}")
             ->havingRaw('visitors > 0')
             ->get()
             ->map(fn ($row) => [
-                'country' => $row->country,
+                'value' => $row->value,
                 'visitors' => (int) $row->visitors,
-                'visitors_on_measured_days' => $measured === [] ? null : ($measured[$row->country]['visitors_on_measured_days'] ?? 0),
-                'confirmed' => $measured === [] ? null : ($measured[$row->country]['confirmed_visitors'] ?? 0),
+                'visitors_on_measured_days' => $measured === [] ? null : ($measured[$row->value]['visitors_on_measured_days'] ?? 0),
+                'confirmed' => $measured === [] ? null : ($measured[$row->value]['confirmed_visitors'] ?? 0),
             ]);
 
-        return $countries
+        return $rows
             ->sortBy([['visitors_on_measured_days', 'desc'], ['visitors', 'desc']])
             ->take($limit)
-            ->mapWithKeys(fn ($row) => [$row['country'] => array_diff_key($row, ['country' => 1])])
+            ->mapWithKeys(fn ($row) => [$row['value'] => array_diff_key($row, ['value' => 1])])
             ->all();
     }
 
