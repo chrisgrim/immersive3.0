@@ -359,8 +359,12 @@ test('the report counts people by device type, like countries', function () {
     $view('d', null);               // before device capture: left out
     $view('e', 'tablet', ['bot' => Analytics::BOT_DATACENTER]);
 
-    expect(app(SiteAnalyticsReport::class)->handle(7)['devices'])->toBe([
+    $report = app(SiteAnalyticsReport::class)->handle(7);
+
+    expect($report['devices'])->toBe([
         'mobile' => ['visitors' => 2, 'visitors_on_measured_days' => null, 'confirmed' => null],
         'desktop' => ['visitors' => 1, 'visitors_on_measured_days' => null, 'confirmed' => null],
-    ]);
+    ])
+        // Recording began with the first row that has a device.
+        ->and($report['devices_since'])->toBe(now()->subDay()->toDateString());
 });

@@ -69,3 +69,14 @@ it('switches the visits card from countries to devices, with each device\'s shar
     expect(w.text()).toContain('Computer25%10');
     expect(w.text()).not.toContain('United States');
 });
+
+it('shows all device visits when devices have no measured days yet, and says from when devices count', async () => {
+    const w = await mountWith({ ...report(15), devices_since: '2026-09-30', devices: { mobile: { visitors: 8, visitors_on_measured_days: null, confirmed: null } } });
+
+    await w.findAll('button').find((b) => b.text() === 'Device').trigger('click');
+
+    // Not "0" just because measuring started before device recording.
+    expect(w.text()).toContain('Phone100%8');
+    expect(w.text()).toContain('Devices are counted from Sep 30, when we started recording them.');
+    expect(w.text()).toContain('Confirmed starts after the first whole day these were recorded.');
+});

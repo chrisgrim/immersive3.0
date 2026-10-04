@@ -364,7 +364,7 @@
                     </div>
                     <ul v-if="visitRows.length" class="breakdown">
                         <li class="text-[1.2rem] text-[#717171]">
-                            <span>{{ visitsBy === 'country' ? 'Country' : 'Device' }}</span><span class="flex gap-[1.6rem]"><span class="w-[6rem] text-right">{{ confirmationMeasured ? 'Visits' : 'All' }}</span><span class="w-[7rem] text-right">Confirmed</span></span>
+                            <span>{{ visitsBy === 'country' ? 'Country' : 'Device' }}</span><span class="flex gap-[1.6rem]"><span class="w-[6rem] text-right">{{ visitsMeasured ? 'Visits' : 'All' }}</span><span class="w-[7rem] text-right">Confirmed</span></span>
                         </li>
                         <li v-for="row in visitRows" :key="row.key">
                             <span class="truncate">{{ row.name }}<span v-if="row.share" class="text-[#717171] ml-[0.6rem]">{{ row.share }}</span></span>
@@ -375,7 +375,8 @@
                         </li>
                     </ul>
                     <p v-else class="empty">{{ visitsBy === 'device' ? 'No device information yet.' : 'No visits yet.' }}</p>
-                    <p v-if="!confirmationMeasured" class="text-[1.2rem] text-[#717171] mt-[1.2rem]">Confirmed starts once browser confirmation is switched on.</p>
+                    <p v-if="visitsBy === 'device' && devicesSinceShown" class="text-[1.2rem] text-[#717171] mt-[1.2rem]">Devices are counted from {{ formatDay(report.devices_since) }}, when we started recording them.</p>
+                    <p v-if="!visitsMeasured" class="text-[1.2rem] text-[#717171] mt-[1.2rem]">{{ confirmationMeasured ? 'Confirmed starts after the first whole day these were recorded.' : 'Confirmed starts once browser confirmation is switched on.' }}</p>
                     <p v-else class="text-[1.2rem] text-[#717171] mt-[1.2rem]">Both columns count days since {{ formatDay(measuredSince) }} only.</p>
                 </section>
             </div>
@@ -642,12 +643,18 @@ const visitsByOptions = [
 ]
 const deviceNames = { mobile: 'Phone', desktop: 'Computer', tablet: 'Tablet', other: 'Other' }
 
+const visitEntries = computed(() => Object.entries((visitsBy.value === 'device' ? report.value?.devices : report.value?.countries) || {}))
+
+// Measured-day visits only when this list has them: device capture may have
+// started after measuring did, and its rows would all read 0.
+const visitsMeasured = computed(() => confirmationMeasured.value && visitEntries.value.some(([, row]) => row.visitors_on_measured_days !== null))
+
 const visitRows = computed(() => {
     const byDevice = visitsBy.value === 'device'
-    const rows = Object.entries((byDevice ? report.value?.devices : report.value?.countries) || {}).map(([key, row]) => ({
+    const rows = visitEntries.value.map(([key, row]) => ({
         key,
         name: byDevice ? deviceNames[key] || key : countryName(key),
-        visits: (confirmationMeasured.value ? row.visitors_on_measured_days : row.visitors) ?? 0,
+        visits: (visitsMeasured.value ? row.visitors_on_measured_days : row.visitors) ?? 0,
         confirmed: row.confirmed,
     }))
     // Devices are few, so each one's share of all visits is worth showing.
@@ -657,6 +664,9 @@ const visitRows = computed(() => {
     }
     return rows
 })
+
+// Only worth saying when recording began inside the period shown.
+const devicesSinceShown = computed(() => !!report.value?.devices_since && report.value.devices_since > (report.value.since || '').slice(0, 10))
 
 const regionNames = typeof Intl !== 'undefined' && Intl.DisplayNames ? new Intl.DisplayNames(['en'], { type: 'region' }) : null
 const countryName = (code) => {

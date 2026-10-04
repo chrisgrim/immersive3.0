@@ -73,6 +73,7 @@ class SiteAnalyticsReport
             'totals' => $this->totals($since, null, $this->measuredWindow($days)),
             'countries' => $this->countries($since, $days),
             'devices' => $this->devices($since, $days),
+            'devices_since' => $this->devicesSince(),
             // The same span just before, for "vs prior period".
             // Same length, ending at this time of day N days ago, so a
             // part-day today is not set against a whole one (measured
@@ -581,6 +582,19 @@ class SiteAnalyticsReport
     private function devices($since, int $days): array
     {
         return $this->visitorsBy('device', $since, $days, 10);
+    }
+
+    /**
+     * The first day a device type was recorded (Y-m-d), from the daily
+     * totals or, before the first rollup, the raw rows; null if never.
+     * Device capture can start mid-period, so the page says from when.
+     */
+    private function devicesSince(): ?string
+    {
+        $day = DB::table('analytics_daily')->where('dim', 'device')->where('bot', 0)->min('day')
+            ?? DB::table('analytics_events')->whereNotNull('device')->where('bot', 0)->min('occurred_at');
+
+        return $day === null ? null : substr((string) $day, 0, 10);
     }
 
     /** countries() and devices(): visitors per value of $column (also its daily totals dim). */
