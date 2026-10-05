@@ -16,7 +16,9 @@ use Illuminate\Support\Facades\Mail;
 test('an inbox reply emails a caught-up receiver and the email renders', function () {
     Mail::fake();
 
-    $sender = User::factory()->create(['type' => 'u', 'email_verified_at' => now()]);
+    // A fixed name: a random one like O'Keefe is HTML-escaped in the email
+    // and the check below would miss it now and then.
+    $sender = User::factory()->create(['type' => 'u', 'email_verified_at' => now(), 'name' => 'Sam Rivera']);
     $receiver = User::factory()->create(['type' => 'u', 'unread' => null]);
     $conversation = Conversation::factory()->create([
         'user_one' => $sender->id,

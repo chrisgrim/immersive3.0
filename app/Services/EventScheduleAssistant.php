@@ -207,7 +207,7 @@ class EventScheduleAssistant
     protected function executeTool(Event $event, Authenticatable $user, string $name, array $input): array
     {
         if ($name === 'get_schedule') {
-            return [json_encode($this->scheduleSnapshot($event->refresh())), false, false];
+            return [json_encode($this->modelSnapshot($event->refresh())), false, false];
         }
 
         if ($name === 'update_schedule') {
@@ -282,9 +282,26 @@ class EventScheduleAssistant
         ];
     }
 
+    /**
+     * The snapshot as the model sees it: the show days as plain local dates
+     * ("Y-m-d"), the form it sends back, instead of the stored UTC values.
+     * A stored midnight copied back next to a new date could be read as a
+     * real time and move the show a day.
+     *
+     * @return array<string, mixed>
+     */
+    protected function modelSnapshot(Event $event): array
+    {
+        $snapshot = $this->scheduleSnapshot($event);
+        unset($snapshot['show_dates']);
+        $snapshot['show_days'] = $event->shows->map(fn ($show) => $event->localDate($show->date))->filter()->unique()->sort()->values()->all();
+
+        return $snapshot;
+    }
+
     protected function systemPrompt(Event $event): string
     {
-        $snapshot = json_encode($this->scheduleSnapshot($event), JSON_PRETTY_PRINT);
+        $snapshot = json_encode($this->modelSnapshot($event), JSON_PRETTY_PRINT);
         $nowUtc = now('UTC')->format('Y-m-d H:i:s');
 
         return <<<PROMPT
@@ -295,30 +312,30 @@ class EventScheduleAssistant
         the Dates step.
 
         The current UTC time is {$nowUtc}. On Everything Immersive a "show" is a CALENDAR DAY,
-        not a clock time: show dates are stored in UTC as "Y-m-d H:i:s", anchored at NOON in
-        the event's timezone. The real show time(s) live in the free-text show_times field.
-        The event has its own timezone.
+        not a clock time: every date you read (show_days) and send (dateArray, startDate,
+        endDate) is a plain date "Y-m-d" in the event's own timezone. The real show time(s)
+        live in the free-text show_times field.
 
         ONE SHOW PER DAY — never put two shows on the same date:
         - Each entry in dateArray must be a distinct calendar day. If the user wants more than
           one showing on a day (e.g. a matinee AND an evening), that is still ONE date —
           describe both times in show_times, do NOT add the date twice.
-        - Build each dateArray entry as 12:00 (noon) in the event's timezone, converted to UTC.
-          Do NOT encode the real show time in the date.
+        - Send each dateArray entry as a plain date "Y-m-d" (e.g. "2026-11-06"). Do NOT add a
+          time of day or convert to UTC. To keep the existing days, copy them from show_days.
         - show_times is OPTIONAL free text that is routinely left empty, and nothing requires
           it to publish. If the user gives you times, put them there (e.g. "Fridays 7:30 PM"
           or "Matinee 2 PM, evening 8 PM") and state them back to confirm. If they don't
           mention times, leave show_times as it is and do NOT ask for them.
 
         Show types:
-        - "s" specific dates: pass every show day as a noon-anchored UTC datetime in dateArray.
-        - "o" ongoing/recurring (weekly): pass ongoing_config {startDate, endDate (noon in the
-          event timezone, as UTC), daysOfWeek:[0-6, 0=Sunday]} and the server expands the
+        - "s" specific dates: pass every show day as a plain date "Y-m-d" in dateArray.
+        - "o" ongoing/recurring (weekly): pass ongoing_config {startDate, endDate (plain dates
+          "Y-m-d"), daysOfWeek:[0-6, 0=Sunday]} and the server expands the
           weekly occurrences for you. Do NOT enumerate the dates in dateArray — send
           ongoing_config alone. If the run has exceptions (e.g. skip a holiday week), send
           dateArray with the FULL list of dates you want instead — an explicit dateArray
           replaces the whole schedule, it does not subtract from the recurrence.
-        - "a" always available: pass always_config {endDate}.
+        - "a" always available: pass always_config {endDate} (a plain date "Y-m-d").
         Patterns that are not weekly (e.g. "every third day") do NOT fit ongoing mode — use
         specific dates ("s") and expand the full list yourself.
 
@@ -393,11 +410,11 @@ class EventScheduleAssistant
                         'dateArray' => [
                             'type' => 'array',
                             'items' => ['type' => 'string'],
-                            'description' => 'Show datetimes in UTC "Y-m-d H:i:s". Required for showtype s. For showtype o you normally OMIT this and send ongoing_config instead — the server expands the recurrence. Only include it for an ongoing run with exceptions, and then send the FULL list of dates you want (it replaces the whole schedule, it does not subtract from the recurrence).',
+                            'description' => 'Show days as plain dates "Y-m-d" in the event timezone (no time of day; copy existing ones from show_days). Required for showtype s. For showtype o you normally OMIT this and send ongoing_config instead — the server expands the recurrence. Only include it for an ongoing run with exceptions, and then send the FULL list of dates you want (it replaces the whole schedule, it does not subtract from the recurrence).',
                         ],
                         'ongoing_config' => [
                             'type' => 'object',
-                            'description' => 'For showtype o. {startDate, endDate as UTC "Y-m-d H:i:s" (noon in the event timezone); daysOfWeek: array of 0-6 with 0=Sunday}. The server generates the occurrence dates from this — send it ALONE, without dateArray, for a normal weekly run.',
+                            'description' => 'For showtype o. {startDate, endDate as plain dates "Y-m-d" in the event timezone; daysOfWeek: array of 0-6 with 0=Sunday}. The server generates the occurrence dates from this — send it ALONE, without dateArray, for a normal weekly run.',
                             'properties' => [
                                 'startDate' => ['type' => 'string'],
                                 'endDate' => ['type' => 'string'],
@@ -411,7 +428,7 @@ class EventScheduleAssistant
                         ],
                         'always_config' => [
                             'type' => 'object',
-                            'description' => 'For showtype a. {endDate as UTC "Y-m-d H:i:s"}.',
+                            'description' => 'For showtype a. {endDate as a plain date "Y-m-d" in the event timezone}.',
                             'properties' => [
                                 'endDate' => ['type' => 'string'],
                             ],

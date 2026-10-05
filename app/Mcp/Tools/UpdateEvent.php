@@ -180,10 +180,10 @@ class UpdateEvent extends Tool
         // timezone reads as UTC here and is refused below.
         $sentTz = Show::validTimezone(is_string($input['timezone'] ?? null) ? $input['timezone'] : ($event->timezone ?? 'UTC'));
         if (isset($input['dateArray']) && is_array($input['dateArray'])) {
-            // A list whose every time is exactly midnight UTC can mean two
-            // different days: the plain dates of the older form, or real
-            // curtain times (6 PM Chicago in winter is 00:00 UTC). Where the
-            // two readings disagree, ask instead of guessing.
+            // A value at exactly midnight UTC can mean two different days: a
+            // plain date in the older form, or a real curtain time (6 PM
+            // Chicago in winter is 00:00 UTC). Where the two readings
+            // disagree, ask instead of guessing.
             $ambiguous = $this->ambiguousMidnights($input['dateArray'], $sentTz);
             if ($ambiguous !== []) {
                 return Response::json([
@@ -684,12 +684,11 @@ class UpdateEvent extends Tool
      *
      * A plain "Y-m-d" is that date. A "Y-m-d H:i:s" is a UTC instant, except
      * that exactly midnight means that date when no other value in the list
-     * carries a real time (assistants were told to send dates that way). In
-     * a list with real times a midnight is one of them: 8 PM in New York in
-     * summer (7 PM in winter) is exactly 00:00 UTC the next day, and read as
-     * a date it moved the show a day later. The same whole-list rule
-     * Show::usesCurtainTimes() applies to stored rows. Anything else is left
-     * for validation to refuse.
+     * carries a real time (the older form assistants were told to use). A
+     * midnight whose two readings land on different local days never gets
+     * here: ambiguousMidnights() refuses it first, so this only decides
+     * values where both readings agree. Anything else is left for
+     * validation to refuse.
      *
      * @param  array<int, mixed>  $dates
      * @return array<int, mixed>
@@ -711,10 +710,12 @@ class UpdateEvent extends Tool
     }
 
     /**
-     * The dateArray values that read as two different days: only when every
-     * "Y-m-d H:i:s" value in the list is exactly midnight (so sentDays() would
-     * read them as plain dates) and, as a real UTC instant, the value falls on
-     * another day in $tz. Zones at or ahead of UTC never disagree.
+     * The dateArray values that read as two different days: an exact
+     * midnight "Y-m-d H:i:s" whose UTC date (the older plain-date form) is
+     * not its local day in $tz (a real UTC instant). Refused whatever else is
+     * in the list: beside real times it could still be a stored midnight
+     * copied back from get-event, and reading it as an instant would move
+     * that show a day. Zones at or ahead of UTC never disagree.
      *
      * @param  array<int, mixed>  $dates
      * @return array<int, string>
@@ -725,11 +726,8 @@ class UpdateEvent extends Tool
             && ($parsed = \DateTime::createFromFormat('!Y-m-d H:i:s', $d)) !== false
             && $parsed->format('Y-m-d H:i:s') === $d));
 
-        if (Show::usesCurtainTimes($instants)) {
-            return []; // a list with real times reads every value as an instant
-        }
-
-        return array_values(array_filter($instants, fn ($d) => Show::localDay($d, $tz, true) !== substr($d, 0, 10)));
+        return array_values(array_filter($instants, fn ($d) => substr($d, 11) === '00:00:00'
+            && Show::localDay($d, $tz, true) !== substr($d, 0, 10)));
     }
 
     /**
@@ -944,7 +942,7 @@ class UpdateEvent extends Tool
             'remote_description' => $schema->string()->description('For remote events: how attendees join, max 3000 chars.'),
             'timezone' => $schema->string()->description('IANA timezone of the event, e.g. "America/New_York". geocode-address results include coordinates you can infer it from.'),
             'showtype' => $schema->string()->enum(['s', 'o', 'a'])->description('s = specific dates, o = ongoing/recurring, a = always available. WARNING: changing this wipes and recreates all shows (ticket tiers are kept). Always-available events have no embargo on the website, so clear it explicitly with embargo_date=null when switching to "a".'),
-            'dateArray' => $schema->array()->description('The calendar dates the event plays, each as a plain date "Y-m-d" ("2026-10-31" = Oct 31 in the event timezone). Do not send times of day here; they belong in show_times. (Older form: a "Y-m-d H:i:s" value is a real UTC instant and lands on whatever local day that is. A list whose every value is exactly 00:00:00 means those dates only where that is also the local day, as in timezones at or ahead of UTC; elsewhere, such as the Americas, it is refused as ambiguous_dates, so send plain dates.) One show is stored per calendar day. REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it. The one exception is the older show days get-event reports under older_show_days (days more than a year old, kept as weekly runs): they are kept automatically, so do not list them. To drop some, name them in remove_older_show_days.'),
+            'dateArray' => $schema->array()->description('The calendar dates the event plays, each as a plain date "Y-m-d" ("2026-10-31" = Oct 31 in the event timezone). Do not send times of day here; they belong in show_times. (Older form: a "Y-m-d H:i:s" value is a real UTC instant and lands on whatever local day that is. A value at exactly 00:00:00 is accepted only where that is also its local day, as in timezones at or ahead of UTC; elsewhere, such as the Americas, it is refused as ambiguous_dates, so send plain dates. get-event\'s show_days are already plain dates: copy those, not show_dates.) One show is stored per calendar day. REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it. The one exception is the older show days get-event reports under older_show_days (days more than a year old, kept as weekly runs): they are kept automatically, so do not list them. To drop some, name them in remove_older_show_days.'),
             'ongoing_config' => $schema->object()->description('For showtype=o: {startDate, endDate (plain dates "Y-m-d" in the event timezone, e.g. "2026-11-06"; a UTC "Y-m-d H:i:s" anchored at noon in the event timezone also works, and an exact midnight means that date), daysOfWeek: [0-6, Sunday=0]}. The server generates the concrete occurrence dates from this rule — send it alone, WITHOUT dateArray, for a normal weekly run. For a NEW run, startDate is the day it really began, however long ago (staff can go back up to '.Show::STAFF_LOOKBACK_YEARS.' years; days more than a year old are kept compactly). For a run that already has older_show_days (see get-event), start the recipe at the earliest date in show_dates: the older days are kept as they are, and a recipe reaching further back does not add days to them.'),
             'always_config' => $schema->object()->description('For showtype=a: {endDate: a plain date "Y-m-d" in the event timezone (or a UTC "Y-m-d H:i:s"; an exact midnight means that date)} — the day the listing should close. Defaults to 6 months out if omitted.'),
             'show_times' => $schema->string()->description('Human-readable showtimes text, max 500 chars, e.g. "Fridays 8pm, Saturdays 6pm & 9pm".'),

@@ -159,3 +159,31 @@ test('schedule assistant validates the message and history', function () {
         ])
         ->assertStatus(422);
 });
+
+test('schedule assistant shows the model plain show days, never the stored UTC values', function () {
+    $admin = scheduleAdmin();
+    $event = scheduleEvent($admin);
+    $event->update(['timezone' => 'America/Chicago', 'showtype' => 's']);
+    // A date-only row stored at midnight: in Chicago that instant is the evening before.
+    $event->shows()->create(['date' => '2030-11-08 00:00:00']);
+
+    fakeClaude(['showtype' => 's', 'dateArray' => ['2030-11-08', '2030-11-09']]);
+
+    $this->actingAs($admin, 'sanctum')
+        ->postJson("/api/hosting/event/{$event->slug}/schedule-assistant", ['message' => 'add the 9th'])
+        ->assertOk()
+        // The page itself still gets the stored values it renders from.
+        ->assertJsonStructure(['schedule' => ['show_dates']]);
+
+    Http::assertSent(function ($request) {
+        $system = json_encode($request['system'] ?? '');
+
+        return str_contains($system, 'show_days')
+            && str_contains($system, '2030-11-08')
+            && ! str_contains($system, '2030-11-08 00:00:00')
+            && ! str_contains($system, 'show_dates\\":');
+    });
+
+    $days = $event->fresh()->shows->map(fn ($s) => $event->localDate($s->date))->sort()->values()->all();
+    expect($days)->toBe(['2030-11-08', '2030-11-09']);
+});

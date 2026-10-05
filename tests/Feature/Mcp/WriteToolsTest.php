@@ -913,14 +913,23 @@ test('update-event reads plain dates as those dates, and a midnight beside real 
     ])->assertOk();
     expect($days())->toBe(['2030-06-10', '2030-06-12']);
 
-    // 8 PM in New York in June is exactly 00:00 UTC the next day. Sent with
-    // another real time (7 PM on June 12), it is that evening, June 10.
+    // 8 PM in New York in June is exactly 00:00 UTC the next day. Even beside
+    // another real time (7 PM on June 12) it could be a stored midnight copied
+    // back from get-event, so it is refused rather than guessed.
     EiServer::actingAs($admin)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => 'America/New_York',
-        'dateArray' => ['2030-06-11 00:00:00', '2030-06-12 23:00:00'],
+        'dateArray' => ['2030-06-11 00:00:00', '2030-06-14 23:00:00'],
+        'confirm_schedule_replace' => true,
+    ])->assertSee('ambiguous_dates')->assertSee('2030-06-11 00:00:00')->assertDontSee('2030-06-14 23:00:00');
+    expect($days())->toBe(['2030-06-10', '2030-06-12']);
+
+    // A real time that is not midnight still reads as its local day.
+    EiServer::actingAs($admin)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => 'America/New_York',
+        'dateArray' => ['2030-06-10', '2030-06-14 23:00:00'],
         'confirm_schedule_replace' => true,
     ])->assertOk();
-    expect($days())->toBe(['2030-06-10', '2030-06-12']);
+    expect($days())->toBe(['2030-06-10', '2030-06-14']);
 
     // A list of midnights alone could be the dates (the older form) or 8 PM
     // the evening before: refused as ambiguous, the schedule untouched.
@@ -929,7 +938,7 @@ test('update-event reads plain dates as those dates, and a midnight beside real 
         'dateArray' => ['2030-06-11 00:00:00'],
         'confirm_schedule_replace' => true,
     ])->assertSee('ambiguous_dates')->assertSee('2030-06-11 00:00:00');
-    expect($days())->toBe(['2030-06-10', '2030-06-12']);
+    expect($days())->toBe(['2030-06-10', '2030-06-14']);
 
     // Not a date at all: refused, naming the entry.
     EiServer::actingAs($admin)->tool(UpdateEvent::class, [
@@ -2699,4 +2708,45 @@ test('update-event reads an always-available end sent as a plain date as that da
     ])->assertOk();
 
     expect(substr((string) $event->fresh()->closingDate, 0, 10))->toBe($end);
+});
+
+test('update-event refuses stored midnights copied back beside a new timed date', function () {
+    // An older date-only schedule is stored as midnights. An assistant that
+    // copies get-event's show_dates and adds a noon-anchored day used to have
+    // every midnight read as a real time: the evening before in Chicago.
+    $user = writeToolUser();
+    $tz = 'America/Chicago';
+    $event = liveEvent($user, 's', [now($tz)->addDays(30)->toDateString().' 00:00:00', now($tz)->addDays(31)->toDateString().' 00:00:00'], ['timezone' => $tz]);
+    $before = $event->fresh()->shows->pluck('date')->sort()->values()->all();
+
+    $sent = array_merge(
+        array_map(fn ($d) => (string) $d, $event->shows->pluck('date')->all()),
+        [scheduleDay(32, $tz)]
+    );
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => $tz,
+        'showtype' => 's',
+        'dateArray' => $sent,
+        'confirm_live_edit' => true,
+    ])->assertSee('ambiguous_dates');
+
+    expect($event->fresh()->shows->pluck('date')->sort()->values()->all())->toBe($before);
+});
+
+test('an always-available end date closes at the end of that local day, even at UTC+13', function () {
+    $user = writeToolUser();
+    $tz = 'Pacific/Auckland';
+    $event = draftFor(writeToolOrganizer($user), $user, ['timezone' => $tz]);
+    $end = now($tz)->addDays(70)->toDateString();
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => $tz,
+        'showtype' => 'a',
+        'always_config' => ['endDate' => $end],
+    ])->assertOk();
+
+    expect((string) $event->fresh()->closingDate)->toBe($end.' 23:59:59');
 });

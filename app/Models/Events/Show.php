@@ -1260,8 +1260,11 @@ class Show extends Model
         if ($type === 'a') {
             // For 'always available' shows, check if there's a specific end date in the configuration
             if ($request && isset($request->always_config) && $request->always_config['endDate']) {
-                // Parse in UTC (frontend already converted)
-                return Carbon::parse($request->always_config['endDate'], 'UTC')->endOfDay()->format('Y-m-d H:i:s');
+                // End of the LOCAL day the end date names, like the other
+                // types below. Ending its UTC day closed the listing a day
+                // early at UTC+12 and beyond: noon in Auckland is the
+                // previous day in UTC.
+                return self::localDay($request->always_config['endDate'], $timezone).' 23:59:59';
             }
 
             // Default for always shows: 6 months from now in the event's timezone
