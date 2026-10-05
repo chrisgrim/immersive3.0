@@ -142,7 +142,7 @@
         <!-- Name Change Modal -->
         <teleport to="body">
             <div v-if="showNameChangeModal" 
-                 class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
+                 class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-[1003]">
                 <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
                     <!-- Header -->
                     <div class="p-8 pb-6">
@@ -195,7 +195,7 @@
              link. Holds the explanation + the actual Claim action so the inline warning stays light. -->
         <teleport to="body">
             <div v-if="claimModalDup"
-                 class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
+                 class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-[1003]">
                 <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
                     <!-- Header -->
                     <div class="p-8 pb-6">
