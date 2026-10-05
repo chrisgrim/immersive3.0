@@ -394,7 +394,7 @@ class EventScheduleAssistant
             ],
             [
                 'name' => 'update_schedule',
-                'description' => 'Update the event schedule. Send only the fields you are changing. All datetimes are UTC "Y-m-d H:i:s".',
+                'description' => 'Update the event schedule. Send only the fields you are changing. Show days and run start/end dates are plain dates "Y-m-d" in the event timezone; embargo_date is a local wall-clock time.',
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
