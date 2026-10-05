@@ -30,9 +30,9 @@
 
 				<!-- Filter Buttons -->
 				<div class="hidden md:flex gap-6 flex-wrap">
-					<div @click="createNewEvent" class="cursor-pointer">
+					<div @click="createNewEvent" :aria-busy="creatingEvent" :class="creatingEvent ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'">
 						<div class="rounded-full bg-gray-100 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
-							<div class="px-6 py-3 text-lg font-medium flex flex-row items-center gap-2"><span class="text-5xl">+</span> Add Event</div>
+							<div class="px-6 py-3 text-lg font-medium flex flex-row items-center gap-2"><span class="text-5xl">+</span> {{ creatingEvent ? 'Creating…' : 'Add Event' }}</div>
 						</div>
 					</div>
 					<button 
@@ -54,9 +54,9 @@
 				<div class="flex justify-between items-center md:hidden mb-16">
 					<h3 class="text-4xl md:text-5xl font-black leading-tight">Your Listings</h3>
 					<div class="flex gap-4">
-						<div @click="createNewEvent" class="cursor-pointer flex">
+						<div @click="createNewEvent" :aria-busy="creatingEvent" class="flex" :class="creatingEvent ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'">
 							<div class="rounded-full bg-gray-100 flex items-center w-16 h-16 md:w-auto justify-center text-4xl font-light hover:bg-gray-200">
-								<div class="px-0 md:px-6 text-1xl font-medium flex flex-row items-center gap-2"><span class="text-4xl">+</span> <span class="hidden md:inline">Add Event</span></div>
+								<div class="px-0 md:px-6 text-1xl font-medium flex flex-row items-center gap-2"><span class="text-4xl">+</span> <span class="hidden md:inline">{{ creatingEvent ? 'Creating…' : 'Add Event' }}</span></div>
 							</div>
 						</div>
 						<div @click="isOpen = !isOpen" class="cursor-pointer flex">
@@ -201,12 +201,13 @@
 				 class="py-12">
 				<button 
 					@click="createNewEvent"
-					class="inline-flex items-center px-8 py-4 border border-black rounded-full hover:bg-gray-800 hover:text-white gap-2"
+					:disabled="creatingEvent"
+					class="inline-flex items-center px-8 py-4 border border-black rounded-full hover:bg-gray-800 hover:text-white gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
 					</svg>
-					Create New Event
+					{{ creatingEvent ? 'Creating…' : 'Create New Event' }}
 				</button>
 			</div>
 		</div>
@@ -215,7 +216,7 @@
 		<div v-if="selectedEvent" 
 			 class="fixed inset-0 bg-black bg-opacity-50 flex md:items-center justify-center z-[401]"
 			 @click="closeModal">
-			<div class="bg-white w-full rounded-t-2xl md:rounded-3xl md:p-20 p-8 md:max-w-3xl relative mt-auto md:mt-0 md:mx-4" 
+			<div class="bg-white w-full rounded-t-2xl md:rounded-3xl md:p-20 p-8 md:max-w-3xl relative mt-auto md:mt-0 md:mx-4 max-h-[90vh] supports-[height:100dvh]:max-h-[90dvh] overflow-y-auto" 
 				 @click.stop>
 				<!-- Close Button -->
 				<div 
@@ -289,13 +290,15 @@
 						</button>
 						<button
 							@click="duplicateEvent(selectedEvent)"
-							class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100">
-							Duplicate Event
+							:disabled="duplicatingEvent || deletingEvent"
+							class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+							{{ duplicatingEvent ? 'Duplicating…' : 'Duplicate Event' }}
 						</button>
 						<button 
 							@click="confirmRemoveEvent(selectedEvent)"
-							class="w-full text-lg px-6 py-3 border border-red-500 text-red-500 rounded-xl hover:bg-red-50">
-							Delete Event
+							:disabled="deletingEvent || duplicatingEvent"
+							class="w-full text-lg px-6 py-3 border border-red-500 text-red-500 rounded-xl hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed">
+							{{ deletingEvent ? 'Deleting…' : 'Delete Event' }}
 						</button>
 					</div>
 				</template>
@@ -304,7 +307,7 @@
 
 		<!-- Submission Modal -->
 		<div v-if="showSubmissionModal" 
-			 class="fixed inset-0 bg-black bg-opacity-50 flex md:items-center justify-center z-50"
+			 class="fixed inset-0 bg-black bg-opacity-50 flex md:items-center justify-center z-[401]"
 			 @click="closeSubmissionModal">
 			<div class="bg-white w-full rounded-t-2xl md:rounded-3xl md:p-20 p-8 md:max-w-3xl relative mt-auto md:mt-0 md:mx-4" 
 				 @click.stop>
@@ -329,7 +332,7 @@
 		<!-- Locked Event Modal — a published run that ended more than 90 days ago (Event::EDIT_WINDOW_DAYS) -->
 		<teleport to="body">
 			<div v-if="lockedEvent"
-				 class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50"
+				 class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-[401]"
 				 @click="closeLockedModal">
 				<div class="bg-white w-full md:max-w-[56rem] md:mx-4 rounded-t-[3.2rem] md:rounded-[3.2rem] shadow-2xl relative max-h-[92vh] overflow-y-auto px-[2.4rem] pt-[5.2rem] pb-[3.2rem] md:px-[4rem] md:pt-[5.6rem] md:pb-[4rem]"
 					 role="dialog"
@@ -385,55 +388,6 @@
 			</div>
 		</teleport>
 
-		<!-- Name Change Modal -->
-		<teleport to="body">
-			<div v-if="showNameChangeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
-				<div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
-					<!-- Header -->
-					<div class="p-8 pb-6">
-						<h2 class="text-2xl font-bold mb-2">Name Change Request</h2>
-						<p class="text-gray-500 font-normal">Submit a request to change your event's name</p>
-					</div>
-
-					<!-- Content -->
-					<div class="p-8 overflow-y-auto flex-1">
-						<div class="space-y-6">
-							<p class="text-gray-600">
-								Changing the event name requires admin approval. Once submitted:
-							</p>
-							<ul class="text-gray-600 list-disc ml-5">
-								<li>The current name will remain until approved</li>
-								<li>The name field will be locked until a decision is made</li>
-							</ul>
-							<div class="mt-8">
-								<p class="text-gray-500 font-normal mb-4">New Name</p>
-								<p class="text-4xl font-bold">
-									{{ pendingNameChange }}
-								</p>
-							</div>
-						</div>
-					</div>
-
-					<!-- Footer -->
-					<div class="p-8 border-t border-neutral-400 bg-white md:rounded-b-2xl">
-						<div class="flex justify-end space-x-4">
-							<button 
-								@click="cancelNameChange"
-								class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl"
-							>
-								Cancel
-							</button>
-							<button 
-								@click="confirmNameChange"
-								class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl"
-							>
-								Submit Request
-							</button>
-						</div>
-					</div>
-				</div>
-			</div>
-		</teleport>
 	</div>
 </template>
 
@@ -528,7 +482,11 @@ const confirmRemoveEvent = async (event) => {
 		return;
 	}
 
+	if (deletingEvent.value) return;
+
 	if (confirm('Are you sure you want to remove this event?')) {
+		// Stays on after success: the page reloads, so the button can't be pressed twice meanwhile.
+		deletingEvent.value = true;
 		try {
 			await axios.delete(`/hosting/event/${event.slug}`);
 			closeModal(); // Close the modal
@@ -539,6 +497,7 @@ const confirmRemoveEvent = async (event) => {
 			// Force a page reload
 			window.location.reload();
 		} catch (error) {
+			deletingEvent.value = false;
 			console.error('Error deleting event:', error);
 			alert('Failed to delete event. Please try again.');
 		}
@@ -604,7 +563,16 @@ const closeSubmissionModal = () => {
 };
 
 
+// Busy flags for the dashboard actions, so a double click can't make two
+// drafts, two copies or two delete requests. On success the page navigates
+// away, so they stay on; they reset only on error.
+const creatingEvent = ref(false);
+const duplicatingEvent = ref(false);
+const deletingEvent = ref(false);
+
 const createNewEvent = async () => {
+	if (creatingEvent.value) return;
+
 	// Check if organizer is at the unpublished-events cap (bypass for admins)
 	const unpublishedCount = props.organizer.events.filter(
 		event => !['p', 'e'].includes(event.status) && !event.is_deleted
@@ -615,6 +583,8 @@ const createNewEvent = async () => {
 		return;
 	}
 
+	creatingEvent.value = true;
+
 	try {
 		const response = await axios.post(`/hosting/event/create`, {
 			organizer_id: props.organizer.id
@@ -623,6 +593,7 @@ const createNewEvent = async () => {
 		// Redirect to the new event's edit page
 		window.location.href = `/hosting/event/${response.data.event.slug}/edit`;
 	} catch (error) {
+		creatingEvent.value = false;
 		console.error('Error creating event:', error);
 		alert('Failed to create new event. Please try again.');
 	}
@@ -681,47 +652,6 @@ const getFilteredEvents = (filterId) => {
 const filteredEvents = computed(() => {
 	return getFilteredEvents(currentFilter.value);
 });
-
-const showNameChangeModal = ref(false);
-const pendingNameChange = ref('');
-const originalName = ref('');
-
-const handleNameInput = () => {
-	$v.value.event.name.$touch();
-	if (event.name?.length > 100) {
-		event.name = event.name.slice(0, 100);
-	}
-
-	// If event is published or embargoed, show modal
-	if (['p', 'e'].includes(event.status)) {
-		pendingNameChange.value = event.name;
-		originalName.value = event.name;
-		showNameChangeModal.value = true;
-	}
-};
-
-const confirmNameChange = async () => {
-	try {
-		// Make API call to submit name change request
-		await axios.post(`/events/${event.slug}/name-change`, {
-			requested_name: pendingNameChange.value,
-			current_name: originalName.value
-		});
-
-		showNameChangeModal.value = false;
-		// Optionally show success message
-		alert('Name change request submitted successfully');
-	} catch (error) {
-		console.error('Error submitting name change:', error);
-		alert('Failed to submit name change request. Please try again.');
-	}
-};
-
-const cancelNameChange = () => {
-	showNameChangeModal.value = false;
-	event.name = originalName.value;
-	$v.value.event.name.$reset();
-};
 
 const selectFilter = (id) => {
 	currentFilter.value = id;
@@ -793,12 +723,16 @@ const duplicateLockedEvent = async () => {
 };
 
 const duplicateEvent = async (event) => {
+	if (duplicatingEvent.value) return;
+
 	if (confirm('Are you sure you want to duplicate this event?')) {
+		duplicatingEvent.value = true;
 		try {
 			const response = await axios.post(`/api/events/${event.slug}/duplicate`);
 			closeModal(); // Close the modal first
 			window.location.href = `/hosting/event/${response.data.event.slug}/edit`;
 		} catch (error) {
+			duplicatingEvent.value = false;
 			if (error.response?.status === 422) {
 				alert(error.response.data.message);
 			} else {

@@ -87,8 +87,8 @@
         <!-- Name Change Modal -->
         <teleport to="body">
             <div v-if="showNameChangeModal" 
-                 class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50">
-                <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
+                 class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-[1003]">
+                <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] supports-[height:100dvh]:max-h-[90dvh] relative z-50">
                     <!-- Header -->
                     <div class="p-8 pb-6">
                         <h2 class="text-2xl font-bold mb-2">Name Change Request</h2>
@@ -124,16 +124,17 @@
                         <div class="flex justify-end space-x-4">
                             <button 
                                 @click="cancelNameChange"
-                                class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl"
+                                :disabled="isSubmitting"
+                                class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl disabled:opacity-50"
                             >
                                 Cancel
                             </button>
                             <button 
                                 @click="confirmNameChange"
                                 :disabled="isSubmitting"
-                                class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl"
+                                class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl disabled:opacity-50"
                             >
-                                Submit Request
+                                {{ isSubmitting ? 'Submitting…' : 'Submit Request' }}
                             </button>
                         </div>
                     </div>
@@ -296,6 +297,8 @@ defineExpose({
     submitData: async () => {
         if (organizer.name !== originalName.value && organizer.status !== 'n') {
             pendingNameChange.value = organizer.name;
+            // Close the phone keyboard first, or it can cover the popup's buttons.
+            document.activeElement?.blur();
             showNameChangeModal.value = true;
             return false;
         }

@@ -9,7 +9,7 @@
     >
         <div
             v-if="show"
-            class="fixed bottom-[10%] left-1/2 -translate-x-1/2 z-50 bg-white rounded-xl shadow-custom-6 py-4 px-8 border"
+            class="fixed bottom-[12rem] md:bottom-[10%] left-1/2 -translate-x-1/2 z-[402] bg-white rounded-xl shadow-custom-6 py-4 px-8 border"
         >
             <div class="flex items-center gap-8">
                 <p class="text-lg text-gray-600">{{ message }}</p>

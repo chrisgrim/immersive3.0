@@ -253,7 +253,7 @@
                                 <p class="text-neutral-500 font-normal text-1xl leading-tight">{{ props.event?.location.city }}, {{ props.event?.location.region }} {{ props.event?.location.postal_code }}</p>
                             </div>
                             <!-- Map -->
-                            <div class="w-full h-[30rem] rounded-lg overflow-hidden">
+                            <div class="w-full h-[30rem] rounded-lg overflow-hidden relative z-0">
                                 <l-map 
                                     ref="locationMapRef"
                                     :zoom="map.zoom" 
@@ -540,7 +540,7 @@
                             </button>
                             <button 
                                 @click="confirmReject"
-                                :disabled="!rejectionReason.trim()"
+                                :disabled="!rejectionReason.trim() || isRejecting"
                                 class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <div class="flex items-center gap-2">
@@ -691,7 +691,7 @@ const closeRejectModal = () => {
 };
 
 const confirmReject = async () => {
-    if (!rejectionReason.value.trim()) return;
+    if (!rejectionReason.value.trim() || isRejecting.value) return;
     
     try {
         processing.value = true;
@@ -701,10 +701,10 @@ const confirmReject = async () => {
         });
         
         closeRejectModal();
+        // Busy flags stay on while the dashboard loads, so Reject can't be sent twice.
         window.location.href = '/admin/dashboard?view=approve-events';
     } catch (error) {
         console.error('Error rejecting event:', error);
-    } finally {
         processing.value = false;
         isRejecting.value = false;
     }
