@@ -32,8 +32,10 @@ class AdminSubmissionNotifier
         $admins = User::where('type', 'a')->get()->filter(fn ($admin) => $admin->wantsNotification($prefKey));
 
         foreach ($admins as $admin) {
+            // Queued, so the person submitting doesn't wait on the mail server. The
+            // mailables copy plain values in their constructors, so they queue cleanly.
             try {
-                Mail::to($admin)->send($makeMailable());
+                Mail::to($admin)->queue($makeMailable());
             } catch (\Exception $e) {
                 report($e);
                 Log::error('Failed to send admin submission notification:', [

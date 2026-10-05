@@ -1686,7 +1686,7 @@ test('submit-event-for-review submits a complete draft and notifies admins', fun
 
     $response->assertOk()->assertSee('submitted for review');
     expect($event->fresh()->status)->toBe('r');
-    Mail::assertSent(\App\Mail\EventSubmittedNotification::class);
+    Mail::assertQueued(\App\Mail\EventSubmittedNotification::class);
 });
 
 test('submit-event-for-review rejects an event whose only image is a gallery image', function () {

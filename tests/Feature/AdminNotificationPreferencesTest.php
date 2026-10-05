@@ -144,8 +144,8 @@ test('creating an organizer emails admins who want organizer notifications', fun
         ->postJson('/organizers', ['name' => 'Fresh Org', 'description' => 'A new org'])
         ->assertOk();
 
-    Mail::assertSent(OrganizerSubmittedNotification::class, fn ($m) => $m->hasTo($subscribed->email));
-    Mail::assertNotSent(OrganizerSubmittedNotification::class, fn ($m) => $m->hasTo($optedOut->email));
+    Mail::assertQueued(OrganizerSubmittedNotification::class, fn ($m) => $m->hasTo($subscribed->email));
+    Mail::assertNotQueued(OrganizerSubmittedNotification::class, fn ($m) => $m->hasTo($optedOut->email));
 });
 
 test('submitting an event emails admins who want event notifications', function () {
@@ -161,8 +161,8 @@ test('submitting an event emails admins who want event notifications', function 
         ->postJson(route('hosting.event.submit', $event))
         ->assertOk();
 
-    Mail::assertSent(EventSubmittedNotification::class, fn ($m) => $m->hasTo($subscribed->email));
-    Mail::assertNotSent(EventSubmittedNotification::class, fn ($m) => $m->hasTo($optedOut->email));
+    Mail::assertQueued(EventSubmittedNotification::class, fn ($m) => $m->hasTo($subscribed->email));
+    Mail::assertNotQueued(EventSubmittedNotification::class, fn ($m) => $m->hasTo($optedOut->email));
 });
 
 test('the organizers opt-out does not silence event notifications (independent toggles)', function () {
@@ -176,7 +176,7 @@ test('the organizers opt-out does not silence event notifications (independent t
 
     $this->actingAs($member)->postJson(route('hosting.event.submit', $event))->assertOk();
 
-    Mail::assertSent(EventSubmittedNotification::class, fn ($m) => $m->hasTo($admin->email));
+    Mail::assertQueued(EventSubmittedNotification::class, fn ($m) => $m->hasTo($admin->email));
 });
 
 // ---------------------------------------------------------------------------
