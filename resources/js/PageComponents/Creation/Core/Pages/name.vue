@@ -143,7 +143,7 @@
         <teleport to="body">
             <div v-if="showNameChangeModal" 
                  class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-[1003]">
-                <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
+                <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] supports-[height:100dvh]:max-h-[90dvh] relative z-50">
                     <!-- Header -->
                     <div class="p-8 pb-6">
                         <h2 class="text-2xl font-bold mb-2">Name Change Request</h2>
@@ -196,7 +196,7 @@
         <teleport to="body">
             <div v-if="claimModalDup"
                  class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-[1003]">
-                <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] relative z-50">
+                <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] supports-[height:100dvh]:max-h-[90dvh] relative z-50">
                     <!-- Header -->
                     <div class="p-8 pb-6">
                         <h2 class="text-3xl font-bold mb-2">Claim {{ claimModalDup.organizer.name }}?</h2>
@@ -420,6 +420,8 @@ defineExpose({
         // Check if this is a name change for a published/embargoed event
         if (['p', 'e'].includes(event.status) && event.name !== originalName.value) {
             pendingNameChange.value = event.name;
+            // Close the phone keyboard first, or it can cover the popup's buttons.
+            document.activeElement?.blur();
             showNameChangeModal.value = true;
             return false; // Prevent immediate submission
         }
