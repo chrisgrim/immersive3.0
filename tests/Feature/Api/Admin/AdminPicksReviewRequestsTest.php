@@ -234,7 +234,7 @@ test('requests approve applies the name change to the model and marks it approve
     // processAdminDirectChange reports requiresRefresh true when the slug changed.
     expect($response->json('requiresRefresh'))->toBeTrue();
     // The service emails the model owner about the applied change.
-    Mail::assertSent(NameChangeNotification::class, fn ($mail) => $mail->hasTo($owner->email));
+    Mail::assertQueued(NameChangeNotification::class, fn ($mail) => $mail->hasTo($owner->email));
 });
 
 test('requests approve is denied to non-moderators', function () {
@@ -272,7 +272,7 @@ test('requests reject marks the request rejected, stores the reason and emails t
     // The model's name must NOT have changed on rejection.
     expect($organizer->fresh()->name)->toBe('Unchanged Org');
 
-    Mail::assertSent(NameChangeNotification::class, fn ($mail) => $mail->hasTo($owner->email));
+    Mail::assertQueued(NameChangeNotification::class, fn ($mail) => $mail->hasTo($owner->email));
 });
 
 test('requests reject is denied to non-moderators', function () {

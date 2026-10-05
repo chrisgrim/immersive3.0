@@ -204,8 +204,8 @@ class CommunityActions
             'expires_at' => now()->addDays(7)
         ]);
 
-        // Send invitation email
-        Mail::to($request->email)->send(new CuratorInvitation($community, $invitation));
+        // Send invitation email (queued, so the inviter doesn't wait on the mail server)
+        Mail::to($request->email)->queue(new CuratorInvitation($community, $invitation));
 
         return response()->json([
             'message' => 'Invitation sent successfully'

@@ -54,8 +54,8 @@ class PrivacyController extends Controller
     {
         $user = $request->user();
 
-        Mail::to($user->email)->send(new PersonalDataRequestReceived($user));
-        Mail::to(config('mail.legal_email'))->send(new PersonalDataRequestInternalNotice($user));
+        Mail::to($user->email)->queue(new PersonalDataRequestReceived($user));
+        Mail::to(config('mail.legal_email'))->queue(new PersonalDataRequestInternalNotice($user));
 
         return response()->json(['message' => 'Request received']);
     }

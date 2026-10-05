@@ -40,7 +40,7 @@ test('approve flips an in-review organizer to published and emails the owner', f
         ->assertOk();
 
     expect($organizer->fresh()->status)->toBe('p');
-    Mail::assertSent(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
+    Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
 });
 
 test('approve does not email when moderator approves their own organizer', function () {
@@ -50,7 +50,7 @@ test('approve does not email when moderator approves their own organizer', funct
         ->postJson("/api/admin/approve/organizers/{$organizer->slug}/approve")
         ->assertOk();
 
-    Mail::assertNothingSent();
+    Mail::assertNothingQueued();
 });
 
 test('approve is denied to non-moderators', function () {
@@ -77,7 +77,7 @@ test('reject sets status to n and emails the owner with the reason', function ()
         ->assertOk()
         ->assertJsonPath('organizer.status', 'n');
 
-    Mail::assertSent(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
+    Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
 });
 
 test('reject requires a reason', function () {
@@ -98,7 +98,7 @@ test('reject does not email when moderator rejects their own organizer', functio
         ])
         ->assertOk();
 
-    Mail::assertNothingSent();
+    Mail::assertNothingQueued();
 });
 
 test('reject is denied to non-moderators', function () {
@@ -216,7 +216,7 @@ test('moveEvents emails the source owner when admin is not the owner', function 
         ])
         ->assertOk();
 
-    Mail::assertSent(Comments::class, fn ($m) => $m->hasTo($owner->email));
+    Mail::assertQueued(Comments::class, fn ($m) => $m->hasTo($owner->email));
 });
 
 test('moveEvents does NOT email when moderator is the source owner', function () {
@@ -230,7 +230,7 @@ test('moveEvents does NOT email when moderator is the source owner', function ()
         ])
         ->assertOk();
 
-    Mail::assertNothingSent();
+    Mail::assertNothingQueued();
 });
 
 test('moveEvents is denied to non-moderators', function () {

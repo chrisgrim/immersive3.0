@@ -145,7 +145,7 @@ test('update sends a notification email when the receiver was caught up (H-Q1 re
         ->postJson("/inbox/conversation/{$this->conversation->id}", ['message' => 'first ping'])
         ->assertOk();
 
-    Mail::assertSent(MessageMail::class, fn ($mail) => $mail->hasTo($this->other->email));
+    Mail::assertQueued(MessageMail::class, fn ($mail) => $mail->hasTo($this->other->email));
 });
 
 test('update does NOT re-send when the receiver already has unread messages', function () {
@@ -156,7 +156,7 @@ test('update does NOT re-send when the receiver already has unread messages', fu
         ->postJson("/inbox/conversation/{$this->conversation->id}", ['message' => 'second ping'])
         ->assertOk();
 
-    Mail::assertNotSent(MessageMail::class);
+    Mail::assertNotQueued(MessageMail::class);
 });
 
 test('update bumps the conversation updated_at timestamp', function () {

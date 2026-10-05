@@ -92,7 +92,7 @@ test('a logged-in user can claim a claimable organizer and admins are notified',
         'message' => 'This is my company',
     ]);
 
-    Mail::assertSent(OwnershipClaimNotification::class, fn ($mail) => $mail->hasTo($admin->email));
+    Mail::assertQueued(OwnershipClaimNotification::class, fn ($mail) => $mail->hasTo($admin->email));
 });
 
 test('claiming an externally-owned organizer is rejected', function () {
@@ -165,7 +165,7 @@ test('approving a claim transfers full ownership and reassigns events', function
     expect($claim->processed_by)->toBe($admin->id);
     expect($claim->processed_at)->not->toBeNull();
 
-    Mail::assertSent(OwnershipClaimNotification::class, fn ($mail) => $mail->hasTo($claimant->email));
+    Mail::assertQueued(OwnershipClaimNotification::class, fn ($mail) => $mail->hasTo($claimant->email));
 });
 
 test('approving one claim auto-rejects sibling pending claims for the same organizer', function () {
@@ -243,7 +243,7 @@ test('rejecting a claim records the reason and notifies the claimant', function 
     expect($claim->admin_notes)->toBe('Could not verify');
     expect($claim->processed_by)->toBe($admin->id);
 
-    Mail::assertSent(OwnershipClaimNotification::class, fn ($mail) => $mail->hasTo($claimant->email));
+    Mail::assertQueued(OwnershipClaimNotification::class, fn ($mail) => $mail->hasTo($claimant->email));
 });
 
 // ---------------------------------------------------------------------------

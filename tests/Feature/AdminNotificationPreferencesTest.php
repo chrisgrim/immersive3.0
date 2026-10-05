@@ -114,8 +114,8 @@ test('ownership-claim admin email skips admins who opted out of organizer notifi
 
     $this->actingAs($claimant)->postJson("/api/organizers/{$org->slug}/claim")->assertStatus(201);
 
-    Mail::assertSent(OwnershipClaimNotification::class, fn ($m) => $m->hasTo($subscribed->email));
-    Mail::assertNotSent(OwnershipClaimNotification::class, fn ($m) => $m->hasTo($optedOut->email));
+    Mail::assertQueued(OwnershipClaimNotification::class, fn ($m) => $m->hasTo($subscribed->email));
+    Mail::assertNotQueued(OwnershipClaimNotification::class, fn ($m) => $m->hasTo($optedOut->email));
 });
 
 test('name-change admin email respects the organizer opt-out', function () {

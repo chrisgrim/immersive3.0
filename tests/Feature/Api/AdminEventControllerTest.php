@@ -54,7 +54,7 @@ test('approve flips an in-review event to published and notifies the owner', fun
     expect($event->organizer->fresh()->status)->toBe('p');
     expect($event->curatedCheck()->exists())->toBeTrue();
 
-    Mail::assertSent(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
+    Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
     expect(Message::where('conversation_id', '!=', null)->where('user_id', $this->moderator->id)->exists())->toBeTrue();
 });
 
@@ -80,7 +80,7 @@ test('approve does not email when moderator approves their own event', function 
         ->postJson("/api/admin/approve/events/{$event->slug}/approve")
         ->assertOk();
 
-    Mail::assertNothingSent();
+    Mail::assertNothingQueued();
 });
 
 test('approve is denied to non-moderators', function () {
@@ -111,7 +111,7 @@ test('reject sets status to n and emails the owner with the reason', function ()
     // the controller's $event->update(['rejection_reason' => ...]) silently
     // drops it. The reason lives in the email + in-app message only.
 
-    Mail::assertSent(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
+    Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
 });
 
 test('reject requires a reason', function () {
@@ -145,7 +145,7 @@ test('reject does not email when moderator rejects their own event', function ()
         ])
         ->assertOk();
 
-    Mail::assertNothingSent();
+    Mail::assertNothingQueued();
 });
 
 test('reject is denied to non-moderators', function () {

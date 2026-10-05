@@ -51,6 +51,8 @@ class ModerateSubmission
         }
 
         Message::notification($item, $inAppMessage, $item->slug);
-        Mail::to($owner)->send(new Comments($item, $emailMessage, $type));
+        // Queued: the status has already changed, so a mail-server hiccup must
+        // not turn the moderator's click into an error.
+        Mail::to($owner)->queue(new Comments($item, $emailMessage, $type));
     }
 }

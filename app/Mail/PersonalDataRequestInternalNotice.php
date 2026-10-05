@@ -16,21 +16,30 @@ class PersonalDataRequestInternalNotice extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public User $user;
+    // Copied off the user rather than holding the model: this mail is queued,
+    // and someone who asks for their data and then deletes their account must
+    // still get (and the team must still see) the request.
+    public ?string $name;
+
+    public ?string $email;
+
+    public int $userId;
 
     public function __construct(User $user)
     {
-        $this->user = $user;
+        $this->name = $user->name;
+        $this->email = $user->email;
+        $this->userId = $user->id;
     }
 
     public function build()
     {
-        return $this->subject("Personal data request: {$this->user->name}")
+        return $this->subject("Personal data request: {$this->name}")
             ->text('emails.personal-data-request-internal')
             ->with([
-                'name' => $this->user->name,
-                'email' => $this->user->email,
-                'userId' => $this->user->id,
+                'name' => $this->name,
+                'email' => $this->email,
+                'userId' => $this->userId,
             ]);
     }
 }

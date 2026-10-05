@@ -177,8 +177,19 @@ test('requesting personal data emails the user and the team', function () {
         ->postJson('/api/account-settings/privacy/data-request')
         ->assertOk();
 
-    Mail::assertSent(PersonalDataRequestReceived::class, fn ($mail) => $mail->hasTo('me@example.com'));
-    Mail::assertSent(PersonalDataRequestInternalNotice::class, fn ($mail) => $mail->hasTo(config('mail.legal_email')));
+    Mail::assertQueued(PersonalDataRequestReceived::class, fn ($mail) => $mail->hasTo('me@example.com'));
+    Mail::assertQueued(PersonalDataRequestInternalNotice::class, fn ($mail) => $mail->hasTo(config('mail.legal_email')));
+});
+
+test('the queued data-request emails still render after the account is deleted', function () {
+    $user = User::factory()->create(['name' => 'Gone Soon', 'email' => 'gone@example.com']);
+    $received = serialize(new PersonalDataRequestReceived($user));
+    $notice = serialize(new PersonalDataRequestInternalNotice($user));
+
+    $user->delete();
+
+    expect(unserialize($received)->render())->toContain('Gone Soon')
+        ->and(unserialize($notice)->render())->toContain('gone@example.com');
 });
 
 test('guests cannot request personal data', function () {

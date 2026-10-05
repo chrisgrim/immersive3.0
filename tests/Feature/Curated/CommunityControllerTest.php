@@ -377,7 +377,7 @@ test('inviteCurator creates an invitation and sends the invitation mail', functi
     expect($invitation->token)->not->toBeEmpty();
     expect($invitation->accepted_at)->toBeNull();
 
-    Mail::assertSent(CuratorInvitationMail::class, fn ($mail) => $mail->hasTo('invitee@example.com'));
+    Mail::assertQueued(CuratorInvitationMail::class, fn ($mail) => $mail->hasTo('invitee@example.com'));
 });
 
 test('inviteCurator validates the email field', function () {
@@ -389,7 +389,7 @@ test('inviteCurator validates the email field', function () {
         ->assertStatus(422)
         ->assertJsonValidationErrors(['email']);
 
-    Mail::assertNothingSent();
+    Mail::assertNothingQueued();
 });
 
 test('inviteCurator fails when the email is not a registered EI user', function () {
@@ -403,7 +403,7 @@ test('inviteCurator fails when the email is not a registered EI user', function 
         ->assertStatus(422)
         ->assertJsonValidationErrors(['email']);
 
-    Mail::assertNothingSent();
+    Mail::assertNothingQueued();
 });
 
 test('inviteCurator rejects an email already a curator', function () {

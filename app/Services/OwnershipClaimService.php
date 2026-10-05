@@ -187,7 +187,7 @@ class OwnershipClaimService
         $admins = User::where('type', 'a')->get()->filter(fn ($admin) => $admin->wantsNotification('organizers'));
         foreach ($admins as $admin) {
             try {
-                Mail::to($admin)->send(new OwnershipClaimNotification($claim, true));
+                Mail::to($admin)->queue(new OwnershipClaimNotification($claim, true));
             } catch (\Exception $e) {
                 report($e);
                 Log::error('Failed to send ownership-claim admin notification:', ['admin_id' => $admin->id, 'error' => $e->getMessage()]);
@@ -200,7 +200,7 @@ class OwnershipClaimService
         try {
             $claim->loadMissing(['user', 'organizer']);
             if ($claim->user) {
-                Mail::to($claim->user)->send(new OwnershipClaimNotification($claim, false));
+                Mail::to($claim->user)->queue(new OwnershipClaimNotification($claim, false));
             }
         } catch (\Exception $e) {
             report($e);
@@ -222,7 +222,7 @@ class OwnershipClaimService
         try {
             $claim->loadMissing(['organizer', 'user']);
             if ($claim->user) {
-                Mail::to($claim->user)->send(new OwnershipClaimNotification($claim, false));
+                Mail::to($claim->user)->queue(new OwnershipClaimNotification($claim, false));
             }
         } catch (\Exception $e) {
             report($e);

@@ -114,7 +114,7 @@ test('processAdminDirectChange updates name and slug and notifies the owner', fu
     // which here coincides with the service's Str::slug($newName) = 'renamed-org'.
     expect($organizer->slug)->toBe('renamed-org');
 
-    Mail::assertSent(NameChangeNotification::class, fn ($mail) => $mail->hasTo($owner->email));
+    Mail::assertQueued(NameChangeNotification::class, fn ($mail) => $mail->hasTo($owner->email));
 });
 
 test('processAdminDirectChange returns requiresRefresh false when the slug is unchanged', function () {
@@ -131,7 +131,7 @@ test('processAdminDirectChange returns requiresRefresh false when the slug is un
     expect($result['requiresRefresh'])->toBeFalse();
 
     // Owner is still notified regardless.
-    Mail::assertSent(NameChangeNotification::class, fn ($mail) => $mail->hasTo($owner->email));
+    Mail::assertQueued(NameChangeNotification::class, fn ($mail) => $mail->hasTo($owner->email));
 });
 
 test('processAdminDirectChange moves images to the new slug directory when the slug changes', function () {
@@ -199,7 +199,7 @@ test('processAdminDirectChange does not move images when the model has none', fu
 
     expect($result['requiresRefresh'])->toBeTrue();
     expect($organizer->images()->count())->toBe(0);
-    Mail::assertSent(NameChangeNotification::class);
+    Mail::assertQueued(NameChangeNotification::class);
 });
 
 test('processAdminDirectChange notifies the owner for a Community (resolved via user_id)', function () {
@@ -216,5 +216,5 @@ test('processAdminDirectChange notifies the owner for a Community (resolved via 
 
     // Community has no user() relation (only owner()); resolving the owner via user_id means
     // it is now correctly notified — previously Mail::to(null) threw and was swallowed.
-    Mail::assertSent(NameChangeNotification::class, fn ($mail) => $mail->hasTo($owner->email));
+    Mail::assertQueued(NameChangeNotification::class, fn ($mail) => $mail->hasTo($owner->email));
 });

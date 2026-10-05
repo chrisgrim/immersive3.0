@@ -203,7 +203,7 @@ class ConversationsController extends Controller
             ];
 
             try {
-                Mail::to($receiver->email)->send(new Message($attributes));
+                Mail::to($receiver->email)->queue(new Message($attributes));
             } catch (\Exception $e) {
                 // Keep this one error log for critical failures
                 report($e);

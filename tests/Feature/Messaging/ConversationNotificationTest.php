@@ -30,7 +30,7 @@ test('an inbox reply emails a caught-up receiver and the email renders', functio
 
     expect($receiver->fresh()->unread)->toBe('m');
 
-    Mail::assertSent(MessageMail::class, function (MessageMail $mail) use ($receiver, $sender) {
+    Mail::assertQueued(MessageMail::class, function (MessageMail $mail) use ($receiver, $sender) {
         $html = $mail->render();
 
         return $mail->hasTo($receiver->email)
@@ -53,5 +53,5 @@ test('a receiver who already has unread messages is not emailed again', function
         ->postJson("/inbox/conversation/{$conversation->id}", ['message' => 'Hello again'])
         ->assertOk();
 
-    Mail::assertNothingSent();
+    Mail::assertNothingQueued();
 });

@@ -76,6 +76,7 @@ test('a stranger cannot read, edit, illustrate or submit another organizer\'s ev
     viaToken($stranger)->tool(SubmitEventForReview::class, ['event_slug' => $draft->slug])->assertHasErrors();
     expect($draft->fresh()->status)->toBe('0');
     Mail::assertNothingSent();
+    Mail::assertNothingQueued();
 });
 
 test('a denial reads the same whether the slug is unknown or someone else\'s', function () {

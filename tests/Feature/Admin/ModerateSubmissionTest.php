@@ -22,7 +22,19 @@ test('rejecting sends the owner the reason in-app and by email, worded the same 
 
     expect($event->fresh()->status)->toBe('n')
         ->and(Message::latest('id')->value('message'))->toBe("We've reviewed your event and have some feedback that needs to be addressed.\n\nReason: Add a ticket link.");
-    Mail::assertSent(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
+    Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
+});
+
+test('the queued rejection email still renders if the event is deleted before it goes out', function () {
+    $event = Event::factory()->create(['name' => 'Deleted Before Delivery', 'status' => 'r']);
+    $this->actingAs(User::factory()->create(['type' => 'm']));
+    $mail = serialize(new Comments($event, 'Reason: x', 'rejected'));
+
+    $event->forceDelete();
+
+    $mail = unserialize($mail);
+    expect($mail->render())->toContain('Deleted Before Delivery')
+        ->and($mail->envelope()->subject)->toBe('Update About Deleted Before Delivery');
 });
 
 test('a moderator acting on their own submission, or one with no owner, sends nothing and does not fail', function () {
@@ -35,5 +47,5 @@ test('a moderator acting on their own submission, or one with no owner, sends no
     app(ModerateSubmission::class)->reject($orphan, null, 'x', 'event', Message::MESSAGES['REJECTED']);
 
     expect($own->fresh()->status)->toBe('n')->and($orphan->fresh()->status)->toBe('n');
-    Mail::assertNothingSent();
+    Mail::assertNothingQueued();
 });

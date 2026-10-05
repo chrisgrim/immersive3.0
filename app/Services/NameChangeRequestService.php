@@ -105,7 +105,7 @@ class NameChangeRequestService
                     'user' => $owner,
                     'type' => class_basename($model),
                 ];
-                Mail::to($owner)->send(new NameChangeNotification($changeData, false));
+                Mail::to($owner)->queue(new NameChangeNotification($changeData, false));
             }
         } catch (\Exception $e) {
             report($e);

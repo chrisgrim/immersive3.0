@@ -182,7 +182,7 @@ class AdminOrganizerController extends Controller
 
             try {
                 Message::notification($organizer->fresh(), $body, $destination->fresh()->slug);
-                Mail::to($organizer->user)->send(new Comments($organizer->fresh(), $body, 'events_moved'));
+                Mail::to($organizer->user)->queue(new Comments($organizer->fresh(), $body, 'events_moved'));
             } catch (\Exception $e) {
                 \Log::warning('Events-moved notification failed: '.$e->getMessage());
             }

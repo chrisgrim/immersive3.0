@@ -98,7 +98,7 @@ test('approve flips a pending community to published and notifies the owner', fu
     expect(Message::where('user_id', $this->moderator->id)->exists())->toBeTrue();
 
     // The approval email is addressed to the community owner (Mail::to($community->owner)).
-    Mail::assertSent(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
+    Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
 });
 
 test('approve does not notify when moderator approves their own community', function () {
@@ -109,7 +109,7 @@ test('approve does not notify when moderator approves their own community', func
         ->assertOk();
 
     expect($community->fresh()->status)->toBe('p');
-    Mail::assertNothingSent();
+    Mail::assertNothingQueued();
     expect(Message::count())->toBe(0);
 });
 
@@ -143,7 +143,7 @@ test('reject sets status to n and emails the owner with the reason', function ()
     // lives in the email + in-app message.
 
     // The rejection email is addressed to the community owner (Mail::to($community->owner)).
-    Mail::assertSent(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
+    Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
     expect(Message::where('user_id', $this->moderator->id)->exists())->toBeTrue();
 });
 
@@ -182,7 +182,7 @@ test('reject still sets status to n when moderator rejects their own community b
     // before the self-check, so even self-rejection flips the status; only the
     // notification/email are skipped.
     expect($community->fresh()->status)->toBe('n');
-    Mail::assertNothingSent();
+    Mail::assertNothingQueued();
     expect(Message::count())->toBe(0);
 });
 
