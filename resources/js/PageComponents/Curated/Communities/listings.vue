@@ -65,7 +65,9 @@
             <div class="hidden md:flex gap-6 flex-wrap mb-12">
                 <button 
                     @click="addShelf"
-                    class="cursor-pointer rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
+                    :disabled="addingShelf"
+                    :aria-label="addingShelf ? 'Adding shelf…' : 'Add shelf'"
+                    class="cursor-pointer rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200 disabled:opacity-50 disabled:cursor-wait">
                     +
                 </button>
                 <draggable
@@ -93,7 +95,7 @@
             <div class="flex justify-between items-center md:hidden mb-16">
                 <h3 class="text-5xl leading-tight">Your <br>Shelves</h3>
                 <div class="flex gap-4">
-                    <div @click="addShelf" class="cursor-pointer flex">
+                    <div @click="addShelf" class="cursor-pointer flex" :class="{ 'opacity-50 cursor-wait': addingShelf }">
                         <div class="rounded-full bg-gray-100 w-16 h-16 flex items-center justify-center text-4xl font-light hover:bg-gray-200">
                             +
                         </div>
@@ -218,7 +220,11 @@ const handleImageError = () => {
 };
 
 // Methods
+const addingShelf = ref(false)
+
 const addShelf = async () => {
+    if (addingShelf.value) return
+    addingShelf.value = true
     try {
         const res = await axios.post(`/communities/${community.value.slug}/shelves`)
         
@@ -241,6 +247,8 @@ const addShelf = async () => {
         }
     } catch (err) {
         console.error(err)
+    } finally {
+        addingShelf.value = false
     }
 }
 

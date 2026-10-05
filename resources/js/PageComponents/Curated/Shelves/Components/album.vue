@@ -75,16 +75,19 @@
             <div class="bg-white p-6 rounded-2xl max-w-md w-full mx-4">
                 <h3 class="text-xl mb-4">Delete Post</h3>
                 <p class="mb-6">Are you sure you want to delete this post?</p>
+                <p v-if="deleteError" class="mb-4 text-red-500">{{ deleteError }}</p>
                 <div class="flex justify-end gap-4">
                     <button 
                         @click="closeDeleteModal"
-                        class="px-4 py-2 rounded-full border border-black hover:bg-black hover:text-white">
+                        :disabled="isDeleting"
+                        class="px-4 py-2 rounded-full border border-black hover:bg-black hover:text-white disabled:opacity-50 disabled:cursor-not-allowed">
                         Cancel
                     </button>
                     <button 
                         @click="deletePost"
-                        class="px-4 py-2 rounded-full bg-red-500 text-white border border-red-500 hover:bg-white hover:text-red-500">
-                        Delete
+                        :disabled="isDeleting"
+                        class="px-4 py-2 rounded-full bg-red-500 text-white border border-red-500 hover:bg-white hover:text-red-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                        {{ isDeleting ? 'Deleting…' : 'Delete' }}
                     </button>
                 </div>
             </div>
@@ -197,25 +200,36 @@ const canShowDeleteButton = (post) => {
     return true
 }
 
+const isDeleting = ref(false)
+const deleteError = ref('')
+
 const openDeleteModal = (post) => {
     selectedPost.value = post
+    deleteError.value = ''
     showDeleteModal.value = true
 }
 
 const closeDeleteModal = () => {
+    if (isDeleting.value) return
     selectedPost.value = null
     showDeleteModal.value = false
 }
 
 const deletePost = async () => {
-    if (!selectedPost.value) return
+    if (!selectedPost.value || isDeleting.value) return
     
+    isDeleting.value = true
+    deleteError.value = ''
     try {
         await axios.delete(`/communities/${props.community.slug}/posts/${selectedPost.value.slug}`)
         posts.value = posts.value.filter(post => post.id !== selectedPost.value.id)
+        isDeleting.value = false
         closeDeleteModal()
     } catch (error) {
         console.error('Delete failed:', error)
+        deleteError.value = 'Could not delete this post. Please try again.'
+    } finally {
+        isDeleting.value = false
     }
 }
 

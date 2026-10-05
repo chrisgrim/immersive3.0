@@ -66,7 +66,7 @@
             v-model="card.blurb"
             @cancel="cancelCard"
             @save="saveCard"
-            :disabled="disabled"
+            :is-disabled="disabled"
             :class="{ 'border-red-500': v$.card.blurb.$error }" />
         <div v-if="v$.card.blurb.$error" class="text-red-500 text-sm mt-1">
             <p v-if="!v$.card.blurb.required">Please add a description.</p>
@@ -169,9 +169,11 @@ const hasImage = computed(() => {
 
 // Methods
 const saveCard = async () => {
+    if (disabled.value) return
     const isValid = await v$.value.$validate()
     if (!isValid) return
 
+    disabled.value = true
     addCardData()
     try {
         const res = await axios.post(
@@ -181,6 +183,7 @@ const saveCard = async () => {
         emit('update', res.data)
         disabled.value = false
     } catch (error) {
+        disabled.value = false
         console.error('Failed to save card:', error)
     }
 }

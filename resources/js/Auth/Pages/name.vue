@@ -71,12 +71,13 @@
                                         :disabled="isVerifying || !isValidEmail"
                                         class="absolute right-4 top-1/2 -translate-y-1/2 px-4 py-2 bg-black text-white rounded-xl hover:bg-gray-800 disabled:bg-gray-300"
                                     >
-                                        Verify
+                                        {{ isVerifying ? 'Sending…' : 'Verify' }}
                                     </button>
                                 </div>
                                 <button 
                                     @click="cancelEmailChange"
-                                    class="text-gray-500 hover:text-gray-700"
+                                    :disabled="isVerifying"
+                                    class="text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     Cancel
                                 </button>
@@ -232,6 +233,7 @@ const handleNameInput = () => {
 };
 
 const initiateEmailChange = async () => {
+    if (isVerifying.value) return;
     try {
         isVerifying.value = true;
         emailError.value = '';

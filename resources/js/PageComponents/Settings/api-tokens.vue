@@ -46,10 +46,11 @@
                         </p>
                     </div>
                     <button
-                        class="rounded-full border border-red-600 text-red-600 px-6 h-14 hover:bg-red-50 flex-shrink-0 text-1xl"
+                        class="rounded-full border border-red-600 text-red-600 px-6 h-14 hover:bg-red-50 flex-shrink-0 text-1xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        :disabled="disconnectingId === app.id"
                         @click="disconnect(app)"
                     >
-                        Disconnect
+                        {{ disconnectingId === app.id ? 'Disconnecting…' : 'Disconnect' }}
                     </button>
                 </div>
             </div>
@@ -122,10 +123,11 @@
                         </p>
                     </div>
                     <button
-                        class="rounded-full border border-red-600 text-red-600 px-6 h-14 hover:bg-red-50 flex-shrink-0 text-1xl"
+                        class="rounded-full border border-red-600 text-red-600 px-6 h-14 hover:bg-red-50 flex-shrink-0 text-1xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        :disabled="revokingId === token.id"
                         @click="revokeToken(token)"
                     >
-                        Revoke
+                        {{ revokingId === token.id ? 'Revoking…' : 'Revoke' }}
                     </button>
                 </div>
             </div>
@@ -170,10 +172,21 @@ const fetchTokens = async () => {
     tokensLoaded.value = true;
 };
 
+const disconnectingId = ref(null);
+const revokingId = ref(null);
+
 const disconnect = async (app) => {
+    if (disconnectingId.value === app.id) return;
     if (!window.confirm(`Disconnect ${app.app}? It will stop working immediately.`)) return;
-    await axios.delete(`/oauth/connections/${app.id}`);
-    apps.value = apps.value.filter((a) => a.id !== app.id);
+    disconnectingId.value = app.id;
+    try {
+        await axios.delete(`/oauth/connections/${app.id}`);
+        apps.value = apps.value.filter((a) => a.id !== app.id);
+    } catch (error) {
+        window.alert('Could not disconnect. Please try again.');
+    } finally {
+        disconnectingId.value = null;
+    }
 };
 
 const createToken = async () => {
@@ -224,9 +237,17 @@ const copyToken = async () => {
 };
 
 const revokeToken = async (token) => {
+    if (revokingId.value === token.id) return;
     if (!window.confirm(`Revoke "${token.name}"? Anything using it will stop working immediately.`)) return;
-    await axios.delete(`/settings/api-tokens/${token.id}`);
-    tokens.value = tokens.value.filter((t) => t.id !== token.id);
+    revokingId.value = token.id;
+    try {
+        await axios.delete(`/settings/api-tokens/${token.id}`);
+        tokens.value = tokens.value.filter((t) => t.id !== token.id);
+    } catch (error) {
+        window.alert('Could not revoke this key. Please try again.');
+    } finally {
+        revokingId.value = null;
+    }
 };
 
 const formatDate = (value) => new Date(value).toLocaleDateString(undefined, {

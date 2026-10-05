@@ -100,11 +100,13 @@
             <!-- Save/Cancel Buttons for Name Edit -->
             <div v-if="editName && shelf.status !== 'a'" class="flex gap-4 mb-4">
                 <button 
-                    class="rounded-full border border-black py-2 px-4 bg-white hover:bg-black hover:text-white hover:border-black"
+                    class="rounded-full border border-black py-2 px-4 bg-white hover:bg-black hover:text-white hover:border-black disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="savingShelf"
                     @click="resetShelf">Cancel</button>
                 <button 
-                    class="rounded-full text-white border border-black py-2 px-4 bg-black hover:bg-white hover:text-black hover:border-black"
-                    @click="patchShelf">Save</button>
+                    class="rounded-full text-white border border-black py-2 px-4 bg-black hover:bg-white hover:text-black hover:border-black disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="savingShelf"
+                    @click="patchShelf">{{ savingShelf ? 'Saving…' : 'Save' }}</button>
             </div>
 
             <!-- Collection Album (Posts) -->
@@ -164,16 +166,22 @@ const rules = {
 const v$ = useVuelidate(rules, { shelf })
 
 // Methods
+const savingShelf = ref(false)
+
 const patchShelf = async () => {
+    if (savingShelf.value) return
     const isValid = await v$.value.$validate()
     if (!isValid) return
 
+    savingShelf.value = true
     try {
         const res = await axios.put(`/communities/${props.community.slug}/shelves/${shelf.value.id}`, shelf.value)
         shelf.value = res.data
         clear()
     } catch (err) {
         serverErrors.value = err.response?.data?.errors || { error: err.message }
+    } finally {
+        savingShelf.value = false
     }
 }
 

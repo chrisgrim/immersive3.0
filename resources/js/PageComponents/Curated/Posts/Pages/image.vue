@@ -6,7 +6,7 @@
             <!-- Current Image Display -->
             <div class="relative">
                 <div v-if="!hasImage" 
-                     @click="showImageModal = true"
+                     @click="!isUploading && (showImageModal = true)"
                      class="relative aspect-[16/9] flex items-center justify-center border border-dashed border-neutral-300 rounded-2xl cursor-pointer hover:border-black hover:border-2"
                 >
                     <component :is="RiImageCircleLine" style="width:4rem; height: 4rem;" />
@@ -22,6 +22,8 @@
                         v-if="isVisible"
                         @click="deleteImage" 
                         class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white rounded-full"
+                        :class="{ 'opacity-50 pointer-events-none': isUploading }"
+                        :aria-disabled="isUploading"
                         @mouseenter="hoveredImage = true"
                         @mouseleave="hoveredImage = false"
                     >
@@ -37,6 +39,13 @@
                             @update:modelValue="handleVisibilityChange" 
                         />
                     </div>
+                </div>
+                <div
+                    v-if="isUploading"
+                    class="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/70"
+                    aria-live="polite"
+                >
+                    <span class="text-xl">Uploading…</span>
                 </div>
             </div>
         </div>
@@ -107,6 +116,7 @@ const imageUrl = computed(() => import.meta.env.VITE_IMAGE_URL);
 const showImageModal = ref(false);
 const hoveredImage = ref(false);
 const fileInput = ref(null);
+const isUploading = ref(false);
 
 // Computed
 const hasImage = computed(() => {
@@ -145,8 +155,12 @@ const handleFileChange = (event) => {
         
         const formData = new FormData();
         formData.append('image', file);
-        submitData(formData);
+        event.target.value = '';
         showImageModal.value = false;
+        isUploading.value = true;
+        submitData(formData).finally(() => {
+            isUploading.value = false;
+        });
     }
 };
 
@@ -159,6 +173,7 @@ const handleEventSelect = (event) => {
 };
 
 const deleteImage = () => {
+    if (isUploading.value) return;
     submitData({ deleteImage: true });
 };
 

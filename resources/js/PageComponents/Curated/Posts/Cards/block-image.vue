@@ -4,13 +4,22 @@
         @mouseleave="overImage = false"
         class="relative aspect-[16/9] w-full">
         <label 
-            class="block w-full h-full cursor-pointer rounded-2xl overflow-hidden"
+            class="block w-full h-full rounded-2xl overflow-hidden"
+            :class="disabled ? 'cursor-wait' : 'cursor-pointer'"
         >  
             <template v-if="hasImage">
                 <img 
                     :src="imageFile.src" 
                     class="w-full h-full object-cover rounded-2xl"
+                    :class="{ 'opacity-50': disabled }"
                 />
+                <div
+                    v-if="disabled"
+                    class="absolute inset-0 flex items-center justify-center rounded-2xl"
+                    aria-live="polite"
+                >
+                    <span class="px-4 py-2 rounded-full bg-white text-lg">Uploading…</span>
+                </div>
             </template>
             <div 
                 v-else
@@ -25,6 +34,7 @@
                 type="file"
                 class="hidden"
                 accept="image/jpeg,image/png,image/webp,image/avif"
+                :disabled="disabled"
                 @change="onFileChange">
         </label>
 
@@ -96,6 +106,7 @@ const isVisible = computed({
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/avif'];
 
 const saveCard = async () => {
+    disabled.value = true
     addCardData()
     try {
         const res = await axios.post(
@@ -105,6 +116,7 @@ const saveCard = async () => {
         emit('update', res.data)
         disabled.value = false
     } catch (error) {
+        disabled.value = false
         console.error('Failed to save card:', error)
         
         // Handle validation errors
@@ -140,6 +152,7 @@ const addCardData = () => {
 }
 
 const onFileChange = async (event) => {
+    if (disabled.value) return
     const file = event.target.files[0]
     if (!file) return
 

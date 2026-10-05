@@ -9,7 +9,7 @@
         <div class="flex justify-end gap-2 p-2 border-t">
             <button 
                 @click="$emit('cancel')"
-                class="px-4 py-2 text-2xl hover:bg-gray-100 rounded-lg"
+                class="px-4 py-2 text-2xl hover:bg-gray-100 rounded-lg disabled:opacity-50"
                 :disabled="isDisabled">
                 Cancel
             </button>
@@ -17,7 +17,7 @@
                 @click="$emit('save')"
                 :disabled="isDisabled"
                 class="px-4 py-2 text-2xl bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">
-                Save
+                {{ isDisabled ? 'Saving…' : 'Save' }}
             </button>
         </div>
     </div>

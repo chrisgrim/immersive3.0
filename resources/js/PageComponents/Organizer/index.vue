@@ -117,10 +117,14 @@
                         <div class="flex items-center gap-2">
                             <button 
                                 @click="switchTeam(team)"
-                                class="text-2xl font-medium hover:underline"
+                                :disabled="switchingTeamId !== null"
+                                class="text-2xl font-medium hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:no-underline"
                             >
                                 {{ team.name }}
                             </button>
+                            <span v-if="switchingTeamId === team.id" class="text-gray-500" aria-live="polite">
+                                Switching…
+                            </span>
                             <span 
                                 v-if="team === currentTeam"
                                 class="text-sm px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
@@ -246,12 +250,18 @@ const fetchTeams = async (page = 1, search = '') => {
     }
 }
 
+const switchingTeamId = ref(null)
+
 const switchTeam = async (team) => {
+    if (switchingTeamId.value !== null) return
+    switchingTeamId.value = team.id
     try {
         await axios.post(`/teams/switch/${team.slug}`)
+        // Stay busy while the events page loads
         window.location.href = '/hosting/events'
     } catch (error) {
         console.error('Error switching team:', error)
+        switchingTeamId.value = null
     }
 }
 

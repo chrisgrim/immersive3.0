@@ -174,7 +174,7 @@
                             </button>
                             <button 
                                 @click="confirmReject"
-                                :disabled="!rejectionReason.trim()"
+                                :disabled="processing || !rejectionReason.trim()"
                                 class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <div class="flex items-center gap-2">
@@ -220,7 +220,7 @@ const closeRejectModal = () => {
 }
 
 const confirmReject = async () => {
-    if (!rejectionReason.value.trim()) return
+    if (processing.value || !rejectionReason.value.trim()) return
     
     try {
         processing.value = true
@@ -231,10 +231,9 @@ const confirmReject = async () => {
         closeRejectModal()
         window.location.href = '/admin/dashboard?view=approve-communities'
     } catch (error) {
-        console.error('Error rejecting community:', error)
-    } finally {
         processing.value = false
         isRejecting.value = false
+        console.error('Error rejecting community:', error)
     }
 }
 

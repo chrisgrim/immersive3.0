@@ -46,10 +46,10 @@
             <div class="bg-white w-full rounded-xl p-8 border border-neutral-200">
                 <h2 class="text-3xl font-medium text-gray-900">Email Verification</h2>
                 <p class="mt-4 text-xl text-gray-600">Please verify your email address to access all features.</p>
-                <form method="POST" action="{{ route('verification.send') }}" class="mt-6">
+                <form method="POST" action="{{ route('verification.send') }}" class="mt-6" v-on:submit="busySubmit($event, 'Sending…')">
                     @csrf
                     <button type="submit"
-                            class="px-8 py-4 bg-gradient-to-r from-[#E41E53] to-[#FF4E85] text-white text-xl font-medium rounded-full hover:from-[#FF2E63] hover:to-[#FF5E95] transition-all">
+                            class="px-8 py-4 bg-gradient-to-r from-[#E41E53] to-[#FF4E85] text-white text-xl font-medium rounded-full hover:from-[#FF2E63] hover:to-[#FF5E95] transition-all disabled:opacity-50">
                         Resend Verification Email
                     </button>
                 </form>

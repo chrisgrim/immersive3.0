@@ -191,7 +191,7 @@
         <!-- Confirmation Modal -->
         <Teleport to="body">
             <div v-if="showConfirmModal" 
-                 class="fixed inset-0 flex items-center justify-center z-50"
+                 class="fixed inset-0 flex items-center justify-center z-[1003]"
             >
                 <div class="absolute inset-0 bg-black/50" @click="showConfirmModal = false"></div>
                 <div class="relative bg-white rounded-xl p-12 max-w-xl w-full mx-4">
@@ -407,14 +407,16 @@ provide('setComponentReady', (ready) => {
 });
 
 const submitEvent = async () => {
+    if (isSubmittingEvent.value) return;
     try {
         isSubmittingEvent.value = true;
         const response = await axios.post(`/hosting/event/${event.slug}/submit`);
+        // Stay busy while the events page loads
         window.location.href = '/hosting/events?submitted=' + encodeURIComponent(event.name);
     } catch (error) {
         console.error('Submission error:', error);
-    } finally {
         isSubmittingEvent.value = false;
+        showToast(error.response?.data?.message || 'Could not submit your event. Please try again.');
     }
 };
 

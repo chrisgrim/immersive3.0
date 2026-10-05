@@ -28,6 +28,13 @@
                             <span class="text-4xl font-bold text-neutral-400">{{ user.name?.[0]?.toUpperCase() }}</span>
                         </div>
                     </div>
+                    <div
+                        v-if="uploadingAvatar"
+                        class="absolute inset-0 rounded-full bg-black/50 text-white text-base flex items-center justify-center"
+                        aria-live="polite"
+                    >
+                        Uploading…
+                    </div>
 
                     <template v-if="isOwner">
                         <input ref="avatarInput" type="file" accept="image/jpeg,image/png,image/webp,image/avif" class="hidden" @change="handleAvatarChange">

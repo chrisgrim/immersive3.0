@@ -119,7 +119,7 @@
                             >
                                 {{ deleting ? 'Deleting…' : 'Delete my account' }}
                             </button>
-                            <button type="button" class="px-6 py-3 rounded-lg text-1xl font-medium hover:bg-neutral-100" @click="closeDeleteModal">Cancel</button>
+                            <button type="button" :disabled="deleting" class="px-6 py-3 rounded-lg text-1xl font-medium hover:bg-neutral-100 disabled:opacity-50" @click="closeDeleteModal">Cancel</button>
                         </div>
                     </template>
                     <template v-else>
@@ -223,6 +223,8 @@ const requestData = async () => {
 };
 
 const closeDeleteModal = () => {
+    // The backdrop and Cancel cannot close the popup while the deletion is in flight
+    if (deleting.value) return;
     showDeleteModal.value = false;
     deleteConfirmText.value = '';
     deleteError.value = '';
@@ -230,21 +232,22 @@ const closeDeleteModal = () => {
 };
 
 const confirmDelete = async () => {
+    if (deleting.value) return;
     deleting.value = true;
     deleteError.value = '';
 
     try {
         await axios.delete('/api/account-settings');
+        // Stay busy while the homepage loads
         window.location.href = '/';
     } catch (error) {
+        deleting.value = false;
         if (error.response?.status === 422) {
             deleteBlockedMessage.value = error.response.data?.message || 'Your account cannot be deleted right now.';
         } else {
             deleteError.value = 'Something went wrong. Please try again.';
             console.error('[privacy] failed to delete account', error);
         }
-    } finally {
-        deleting.value = false;
     }
 };
 

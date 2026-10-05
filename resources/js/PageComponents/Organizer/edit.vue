@@ -320,6 +320,7 @@ const handleSubmitClick = () => {
 };
 
 const handleConfirmedSubmit = async () => {
+    if (isSubmitting.value || isSubmittingEvent.value) return;
     showConfirmModal.value = false;
     // First save any changes, then submit
     await saveChanges();
@@ -327,17 +328,28 @@ const handleConfirmedSubmit = async () => {
 };
 
 const submitOrganizer = async () => {
+    if (isSubmittingEvent.value) return;
+    let redirecting = false;
     try {
         isSubmittingEvent.value = true;
         const response = await axios.post(`/organizers/${organizer.slug}/submit`);
         
         if (response.data.organizer) {
+            // Stay busy while the organizer page loads
+            redirecting = true;
             window.location.href = `/organizers/${response.data.organizer.slug}`;
         }
     } catch (error) {
         console.error('Error:', error);
+        errorMessage.value = error.response?.data?.message || 'Could not submit. Please try again.';
+        showErrorModal.value = true;
+        setTimeout(() => {
+            showErrorModal.value = false;
+        }, 5000);
     } finally {
-        isSubmittingEvent.value = false;
+        if (!redirecting) {
+            isSubmittingEvent.value = false;
+        }
     }
 };
 

@@ -166,7 +166,7 @@
                             v-model="card.blurb"
                             @cancel="resetCard"
                             @save="updateCard"
-                            :disabled="disabled"
+                            :is-disabled="disabled"
                             :class="{ 'border-red-500': v$.card.blurb.$error }" />
                         <div v-if="v$.card.blurb.$error" class="text-red-500 text-sm mt-1">
                             <p v-if="!v$.card.blurb.atLeastOneRequired">Please add a title, description, or image.</p>
@@ -401,7 +401,7 @@
                         v-model="card.blurb"
                         @cancel="resetCard"
                         @save="updateCard"
-                        :disabled="disabled"
+                        :is-disabled="disabled"
                         :class="{ 'border-red-500': v$.card.blurb.$error }" />
                     <div v-if="v$.card.blurb.$error" class="text-red-500 text-sm mt-1">
                         <p v-if="!v$.card.blurb.atLeastOneRequired">Please add a title, description, or image.</p>
@@ -413,7 +413,9 @@
                 <div class="absolute top-[-1rem] right-[-1rem]">
                     <button 
                         @click="deleteCard"
-                        class="w-12 h-12 flex rounded-full justify-center items-center border-2 bg-white hover:bg-black group">
+                        :disabled="isDeleting"
+                        :aria-label="isDeleting ? 'Deleting…' : 'Delete card'"
+                        class="w-12 h-12 flex rounded-full justify-center items-center border-2 bg-white hover:bg-black group disabled:opacity-50 disabled:cursor-wait">
                         <svg class="w-12 h-12 fill-black hover:fill-white">
                             <use :xlink:href="`/storage/website-files/icons.svg#ri-close-line`" />
                         </svg>
@@ -550,9 +552,11 @@ const v$ = useVuelidate(rules, { card })
 
 // Methods
 const updateCard = async () => {
+    if (disabled.value) return
     const isValid = await v$.value.$validate()
     if (!isValid) return
 
+    disabled.value = true
     appendCardData()
     try {
         const res = await axios.post(
@@ -563,6 +567,7 @@ const updateCard = async () => {
         cardBeforeEdit.value = { ...res.data }
         clear()
     } catch (error) {
+        disabled.value = false
         console.error('Failed to update card:', error)
         
         // Handle validation errors
@@ -596,7 +601,10 @@ const resetCard = () => {
     clear()
 }
 
+const isDeleting = ref(false)
+
 const deleteCard = async () => {
+    if (isDeleting.value) return
     if (!props.parentCard?.post?.slug) {
         console.error('Post slug is missing from parentCard:', props.parentCard)
         return
@@ -604,10 +612,12 @@ const deleteCard = async () => {
 
     const url = `/communities/${props.community.slug}/posts/${props.parentCard.post.slug}/cards/${card.value.id}`
 
+    isDeleting.value = true
     try {
         const res = await axios.delete(url)
         emit('update', res.data)
     } catch (error) {
+        isDeleting.value = false
         // If we get a 404, the card might have already been deleted
         if (error.response?.status === 404) {
             console.warn('Card not found - might have been already deleted')
@@ -622,6 +632,7 @@ const deleteCard = async () => {
             url,
             message: error.response?.data?.message
         })
+        alert('Could not delete this card. Please try again.')
     }
 }
 

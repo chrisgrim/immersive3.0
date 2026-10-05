@@ -197,3 +197,37 @@ describe('the Blade :event="pageData.event" bindings', () => {
         page.unmount();
     });
 });
+
+describe('the Blade busySubmit binding', () => {
+    const FORMS = [
+        'resources/views/auth/user-profile.blade.php',
+        'resources/views/auth/user-profile-guest.blade.php',
+    ];
+
+    it.each(FORMS)('disables the resend button in %s on submit', (file) => {
+        const source = fs.readFileSync(path.resolve(process.cwd(), file), 'utf8');
+        const [, expression] = source.match(/v-on:submit="([^"]+)"/);
+
+        const host = document.createElement('div');
+        host.innerHTML = `<form v-on:submit="${expression}"><button type="submit">Resend Verification Email</button></form>`;
+        document.body.appendChild(host);
+
+        const errors = [];
+        const app = createApp({ data: () => ({ user: null }) });
+        app.config.warnHandler = () => {};
+        app.config.errorHandler = (err) => errors.push(err);
+        installBladeBridge(app);
+        app.mount(host);
+
+        const form = host.querySelector('form');
+        form.dispatchEvent(new Event('submit', { cancelable: true }));
+
+        const button = host.querySelector('button');
+        expect(errors).toEqual([]);
+        expect(button.disabled).toBe(true);
+        expect(button.textContent).toBe('Sending…');
+
+        app.unmount();
+        host.remove();
+    });
+});

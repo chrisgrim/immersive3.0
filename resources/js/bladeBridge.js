@@ -43,4 +43,14 @@ export function installBladeBridge(app) {
         // iOS 15.4, and this is plain server JSON anyway.
         return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
     };
+
+    // A plain Blade <form> inside the Vue root (`v-on:submit="busySubmit($event, 'Sending…')"`):
+    // disable its submit button as the browser starts the POST, so a double
+    // click cannot send it twice. The submit itself is not cancelled.
+    app.config.globalProperties.busySubmit = (event, label) => {
+        const button = event?.target?.querySelector?.('button[type="submit"]');
+        if (!button) return;
+        button.disabled = true;
+        if (label) button.textContent = label;
+    };
 }

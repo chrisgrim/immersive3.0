@@ -129,9 +129,10 @@
                                     Back
                                 </a>
                                 <button 
-                                    class="mt-8 rounded-2xl py-4 px-8 bg-black text-white hover:bg-white hover:text-black border border-black"
+                                    class="mt-8 rounded-2xl py-4 px-8 bg-black text-white hover:bg-white hover:text-black border border-black disabled:opacity-50 disabled:cursor-not-allowed"
+                                    :disabled="isSubmitting"
                                     @click="submitPost">
-                                    Create Post
+                                    {{ isSubmitting ? 'Creating…' : 'Create Post' }}
                                 </button>
                             </div>
                             
@@ -249,14 +250,20 @@ function initializePostObject() {
     }
 }
 
+const isSubmitting = ref(false)
+
 async function submitPost() {
+    if (isSubmitting.value) return
     const isValid = await v$.value.$validate()
     if (!isValid) return
 
+    isSubmitting.value = true
     try {
         const res = await axios.post(`/communities/${props.community.slug}/posts`, post)
+        // Stay busy while the edit page loads
         window.location.href = `/communities/${props.community.slug}/posts/${res.data.slug}/edit`
     } catch (err) {
+        isSubmitting.value = false
         onErrors(err)
     }
 }

@@ -199,7 +199,7 @@
                             :disabled="!isFormComplete || isSubmitting"
                             @click="checkDuplicateAndSubmit"
                         >
-                            {{ isSubmitting ? 'Creating...' : 'Create Organization' }}
+                            {{ isSubmitting ? 'Creating…' : 'Create Organization' }}
                         </button>
                     </div>
                 </div>
@@ -479,6 +479,7 @@ const onSubmit = async () => {
     
     isSubmitting.value = true;
     errors.value = {}; // Clear previous errors
+    let redirecting = false;
     
     try {
         await $v.value.$validate();
@@ -509,6 +510,8 @@ const onSubmit = async () => {
             }
         });
         if (response.data.redirect) {
+            // Stay busy while the next page loads so it cannot be submitted twice
+            redirecting = true;
             window.location.href = response.data.redirect;
         }
     } catch (error) {
@@ -520,7 +523,9 @@ const onSubmit = async () => {
         }
         console.error('Submission error:', error);
     } finally {
-        isSubmitting.value = false;
+        if (!redirecting) {
+            isSubmitting.value = false;
+        }
     }
 };
 
@@ -676,12 +681,15 @@ const openOrganizerPage = () => {
 
 // Duplicate name check methods
 const checkDuplicateAndSubmit = async () => {
-    if (!$v.value) return;
+    if (!$v.value || isSubmitting.value) return;
+    // Busy from the first click, so a double click during the name check cannot create two orgs
+    isSubmitting.value = true;
     
     // First run basic validation
     await $v.value.$validate();
     
     if ($v.value.$error) {
+        isSubmitting.value = false;
         if ($v.value.team.name.$error) {
             errors.value.name = ['Name must be between 1 and 80 characters'];
         }
@@ -704,6 +712,7 @@ const checkDuplicateAndSubmit = async () => {
             // Duplicates found, show modal
             existingOrganizations.value = response.data.existing_organizations || [];
             showDuplicateModal.value = true;
+            isSubmitting.value = false;
         }
     } catch (error) {
         console.error('Error checking name availability:', error);
@@ -718,6 +727,7 @@ const closeDuplicateModal = () => {
 };
 
 const proceedWithSubmission = async () => {
+    if (isSubmitting.value) return;
     showDuplicateModal.value = false;
     await onSubmit();
 };

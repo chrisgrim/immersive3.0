@@ -105,9 +105,10 @@
                                 <button 
                                     v-else-if="canManageCurators || curator.id === user.id"
                                     @click="markForRemoval(curator)"
-                                    class="text-red-500 hover:text-red-700"
+                                    :disabled="isLeaving"
+                                    class="text-red-500 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {{ curator.id === user.id ? 'Leave' : 'Remove' }}
+                                    {{ curator.id === user.id ? (isLeaving ? 'Leaving…' : 'Leave') : 'Remove' }}
                                 </button>
                             </div>
                         </div>
@@ -261,7 +262,12 @@ const inviteCurator = async () => {
     }
 };
 
+const isLeaving = ref(false);
+
 const removeCurator = async (curator) => {
+    if (isLeaving.value) return;
+    isLeaving.value = true;
+    let redirecting = false;
     try {
         const endpoint = curator.id === user.id
             ? `/communities/${community.slug}/curators/self`  // Changed to match route
@@ -274,12 +280,18 @@ const removeCurator = async (curator) => {
             
             // If removing self, redirect to homepage
             if (curator.id === user.id) {
+                // Stay busy while the homepage loads
+                redirecting = true;
                 window.location.href = '/';
             }
         }
     } catch (error) {
         console.error('Error:', error);
         alert(error.response?.data?.message || 'Failed to remove curator');
+    } finally {
+        if (!redirecting) {
+            isLeaving.value = false;
+        }
     }
 };
 
@@ -296,6 +308,7 @@ const selectNewOwner = (curator) => {
 };
 
 const markForRemoval = (curator) => {
+    if (isLeaving.value) return;
     // Don't allow removing the owner
     if (curator.id === community.owner?.id) {
         alert('Cannot remove the community owner.');

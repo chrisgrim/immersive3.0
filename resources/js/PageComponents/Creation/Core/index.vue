@@ -216,27 +216,30 @@ const REVERSE_STEP_MAP = Object.fromEntries(
     Object.entries(STEP_MAP).map(([key, value]) => [value, key])
 );
 
+// Returns true when the browser is on its way to the events page
 const submitEvent = async () => {
     try {
         isSubmitting.value = true;
         const response = await axios.post(`/hosting/event/${event.slug}/submit`);
         window.location.href = '/hosting/events?submitted=' + encodeURIComponent(event.name);
+        return true;
     } catch (error) {
         console.error('Submission error:', error);
-    } finally {
-        isSubmitting.value = false;
+        return false;
     }
 };
 
 const goToNext = async () => {
     if (isSubmitting.value) return;
     isSubmitting.value = true;
+    // Stays true once the submit redirect starts, so the button stays busy while the next page loads
+    let redirecting = false;
     try {
         const isValid = await currentComponentRef.value.isValid();
         if (!isValid) return;
 
         if (isLastStep.value) {
-            await submitEvent();
+            redirecting = await submitEvent();
             return;
         }
 
@@ -301,7 +304,9 @@ const goToNext = async () => {
             };
         }
     } finally {
-        isSubmitting.value = false;
+        if (!redirecting) {
+            isSubmitting.value = false;
+        }
     }
 };
 
