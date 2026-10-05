@@ -8,6 +8,11 @@ use Illuminate\Contracts\Foundation\MaintenanceMode;
  * (bootstrap/app.php): while the site is down, assistants are down too.
  */
 test('the mcp and oauth endpoints all answer 503 during maintenance', function () {
+    // Keep the "down" flag in this test's own array cache. The default file
+    // driver writes storage/framework/down, which every parallel test process
+    // shares, so other tests would randomly get 503s while this one runs.
+    config(['app.maintenance.driver' => 'cache', 'app.maintenance.store' => 'array']);
+
     $token = mcpToken(User::factory()->create());
     app(MaintenanceMode::class)->activate(['status' => 503, 'time' => now()->getTimestamp()]);
 

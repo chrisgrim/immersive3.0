@@ -309,6 +309,10 @@ test('an assistant can only ever be granted the default scope', function () {
 // ── the full flow ─────────────────────────────────────────────────────────
 
 test('approve, exchange the code with PKCE, and the token opens the mcp endpoint', function () {
+    // Stop the clock: expires_in is counted from "now", and a second ticking
+    // over mid-test made it 3599.
+    $this->freezeTime();
+
     [$verifier, $challenge] = pkcePair();
     $user = consentUser('a');
     $client = oauthClient();

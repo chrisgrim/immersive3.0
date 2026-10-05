@@ -2157,7 +2157,10 @@ test('switching show type refreshes the closing date and clears the old recurren
     expect($after->showtype)->toBe('a')
         ->and($after->shows()->count())->toBe(1)
         // closingDate now tracks the new sentinel show rather than the old run.
-        ->and(substr((string) $after->closingDate, 0, 10))->toBe(substr($sentinel, 0, 10))
+        // closingDate is a local day and the show a UTC instant, so compare the
+        // show's day in the event's timezone (in UTC it reads a day later each
+        // evening in the Americas).
+        ->and(substr((string) $after->closingDate, 0, 10))->toBe(\App\Models\Events\Show::localDay($sentinel, $tz, true))
         ->and($after->showtype_config)->toBeNull()
         ->and($after->start_date)->toBeNull();
 });
@@ -2557,7 +2560,9 @@ test('update-event recognises the same days sent at different times: no replacem
         'event_slug' => $event->slug,
         'timezone' => $tz,
         'showtype' => 's',
-        'dateArray' => [scheduleDayAt(30, 18, $tz), scheduleDayAt(31, 21, $tz)],
+        // 5 PM, not 6: in winter 6 PM Chicago is exactly midnight UTC, which
+        // the tool reads as a plain date (see Show::localDay), so the next day.
+        'dateArray' => [scheduleDayAt(30, 17, $tz), scheduleDayAt(31, 21, $tz)],
         'confirm_live_edit' => true,
     ]);
 
@@ -2590,8 +2595,9 @@ test('update-event recognises a past day sent at a different time and keeps it',
         'event_slug' => $event->slug,
         'timezone' => $tz,
         'showtype' => 's',
-        // The same past day at 6 PM instead of 8, the same future day, one new day.
-        'dateArray' => [scheduleDayAt(-3, 18, $tz), scheduleDayAt(30, 18, $tz), scheduleDayAt(31, 18, $tz)],
+        // The same past day at 5 PM instead of 8, the same future day, one new day.
+        // (Not 6 PM: in winter that is exactly midnight UTC, read as a plain date.)
+        'dateArray' => [scheduleDayAt(-3, 17, $tz), scheduleDayAt(30, 17, $tz), scheduleDayAt(31, 17, $tz)],
         'confirm_live_edit' => true,
     ]);
 

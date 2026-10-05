@@ -425,6 +425,13 @@ test('a place label is city and state at home, city and country abroad', functio
 // shows (id, event_id, date) and a summary of the whole run.
 
 test('show embeds the event JSON exactly once and every island binds pageData.event', function () {
+    // Pretend the Vite dev server is running, so the page names its entry
+    // script the same way whether or not `npm run dev` is up on this machine.
+    $hot = storage_path('framework/testing/vite.hot');
+    @mkdir(dirname($hot), 0755, true);
+    file_put_contents($hot, 'http://localhost:5173');
+    \Illuminate\Support\Facades\Vite::useHotFile($hot);
+
     $event = makeShowableEvent();
 
     $html = $this->get("/events/{$event->slug}")->assertOk()->getContent();
