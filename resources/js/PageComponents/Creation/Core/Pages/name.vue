@@ -172,18 +172,19 @@
                     <!-- Footer -->
                     <div class="p-8 border-t border-neutral-400 bg-white md:rounded-b-2xl">
                         <div class="flex justify-end space-x-4">
-                            <button 
+                            <button
                                 @click="cancelNameChange"
-                                class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl"
+                                :disabled="isSubmitting"
+                                class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl disabled:opacity-50"
                             >
                                 Cancel
                             </button>
-                            <button 
+                            <button
                                 @click="confirmNameChange"
                                 :disabled="isSubmitting"
-                                class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl"
+                                class="px-6 py-3 bg-black text-white rounded-2xl hover:bg-gray-800 text-xl disabled:opacity-50"
                             >
-                                Submit Request
+                                {{ isSubmitting ? 'Submitting…' : 'Submit Request' }}
                             </button>
                         </div>
                     </div>

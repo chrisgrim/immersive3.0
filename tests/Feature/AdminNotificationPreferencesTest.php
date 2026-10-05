@@ -127,8 +127,8 @@ test('name-change admin email respects the organizer opt-out', function () {
     $this->actingAs($requester);
     (new NameChangeRequestService)->handleNameChange($org, 'A Brand New Name', 'rebrand');
 
-    Mail::assertSent(NameChangeNotification::class, fn ($m) => $m->hasTo($subscribed->email));
-    Mail::assertNotSent(NameChangeNotification::class, fn ($m) => $m->hasTo($optedOut->email));
+    Mail::assertQueued(NameChangeNotification::class, fn ($m) => $m->hasTo($subscribed->email));
+    Mail::assertNotQueued(NameChangeNotification::class, fn ($m) => $m->hasTo($optedOut->email));
 });
 
 // ---------------------------------------------------------------------------

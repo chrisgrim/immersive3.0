@@ -48,9 +48,9 @@ test('createNameChangeRequest emails every admin', function () {
     $this->service->handleNameChange($organizer, 'Some New Name');
 
     // One notification per admin, and none to non-admins.
-    Mail::assertSent(NameChangeNotification::class, User::where('type', 'a')->count());
-    Mail::assertSent(NameChangeNotification::class, fn ($mail) => $mail->hasTo($admin1->email));
-    Mail::assertSent(NameChangeNotification::class, fn ($mail) => $mail->hasTo($admin2->email));
+    Mail::assertQueued(NameChangeNotification::class, User::where('type', 'a')->count());
+    Mail::assertQueued(NameChangeNotification::class, fn ($mail) => $mail->hasTo($admin1->email));
+    Mail::assertQueued(NameChangeNotification::class, fn ($mail) => $mail->hasTo($admin2->email));
 });
 
 test('handleNameChange records a null reason when none is provided', function () {

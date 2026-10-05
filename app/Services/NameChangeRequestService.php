@@ -40,7 +40,7 @@ class NameChangeRequestService
         try {
             $admins = User::where('type', 'a')->get()->filter(fn ($admin) => $admin->wantsNotification('organizers'));
             foreach ($admins as $admin) {
-                Mail::to($admin)->send(new NameChangeNotification($request, true));
+                Mail::to($admin)->queue(new NameChangeNotification($request, true));
             }
         } catch (\Exception $e) {
             report($e);
