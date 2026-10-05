@@ -177,7 +177,7 @@
         <!-- Add Confirmation Modal -->
         <Teleport to="body">
             <div v-if="showConfirmModal" 
-                 class="fixed inset-0 flex items-center justify-center z-50"
+                 class="fixed inset-0 flex items-center justify-center z-[1003]"
             >
                 <div class="absolute inset-0 bg-black/50" @click="!isSubmittingEvent && (showConfirmModal = false)"></div>
                 <div class="relative bg-white rounded-xl p-12 max-w-xl w-full mx-4">

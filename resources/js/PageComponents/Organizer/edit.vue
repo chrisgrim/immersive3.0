@@ -65,7 +65,7 @@
                         <div class="px-8 py-6 flex gap-4">
                             <!-- Update button -->
                             <button 
-                                @click="saveChanges"
+                                @click="saveChanges()"
                                 :disabled="isSubmitting || isSubmittingEvent"
                                 :class="{
                                     'px-6 py-3 rounded-lg transition-colors': true,
@@ -263,13 +263,26 @@ const setStep = (step) => {
     }
 };
 
-const saveChanges = async () => {
+// Returns true only when the changes were saved, so Submit can stop on a
+// failed save instead of sending the organizer for review anyway.
+const saveChanges = async ({ fromSubmit = false } = {}) => {
     try {
         const isValid = await currentComponentRef.value.isValid();
-        if (!isValid) return;
+        if (!isValid) {
+            // The step shows what is wrong inline; when this came from Submit the
+            // popup just closed, so say why nothing was submitted.
+            if (fromSubmit) {
+                errorMessage.value = 'Please fix the highlighted fields before submitting.';
+                showErrorModal.value = true;
+                setTimeout(() => {
+                    showErrorModal.value = false;
+                }, 5000);
+            }
+            return false;
+        }
 
         const submitData = await currentComponentRef.value.submitData();
-        if (!submitData) return;
+        if (!submitData) return false;
         
         isSubmitting.value = true;
         errors.value = {};
@@ -290,6 +303,7 @@ const saveChanges = async () => {
                 showSuccessModal.value = false;
             }, 3000);
         }
+        return true;
     } catch (error) {
         console.error('Error:', error);
         
@@ -310,6 +324,7 @@ const saveChanges = async () => {
         setTimeout(() => {
             showErrorModal.value = false;
         }, 5000);
+        return false;
     } finally {
         isSubmitting.value = false;
     }
@@ -322,8 +337,8 @@ const handleSubmitClick = () => {
 const handleConfirmedSubmit = async () => {
     if (isSubmitting.value || isSubmittingEvent.value) return;
     showConfirmModal.value = false;
-    // First save any changes, then submit
-    await saveChanges();
+    // First save any changes, then submit, but only if the save went through
+    if (!(await saveChanges({ fromSubmit: true }))) return;
     await submitOrganizer();
 };
 

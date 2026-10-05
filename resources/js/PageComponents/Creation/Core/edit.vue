@@ -193,7 +193,7 @@
             <div v-if="showConfirmModal" 
                  class="fixed inset-0 flex items-center justify-center z-[1003]"
             >
-                <div class="absolute inset-0 bg-black/50" @click="showConfirmModal = false"></div>
+                <div class="absolute inset-0 bg-black/50" @click="!isSubmittingEvent && (showConfirmModal = false)"></div>
                 <div class="relative bg-white rounded-xl p-12 max-w-xl w-full mx-4">
                     <h3 class="text-xl font-medium mb-2">Ready to Submit?</h3>
                     <p class="text-gray-500 mb-4">Have you made all your changes to your event?</p>
@@ -201,14 +201,27 @@
                     <div class="flex justify-end gap-3">
                         <button 
                             @click="showConfirmModal = false"
-                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                            :disabled="isSubmittingEvent"
+                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Cancel
                         </button>
                         <button 
                             @click="handleConfirmedSubmit"
-                            class="px-4 py-2 text-white bg-black rounded-lg hover:bg-gray-800"
+                            :disabled="isSubmittingEvent"
+                            :aria-busy="isSubmittingEvent"
+                            class="px-4 py-2 text-white bg-black rounded-lg hover:bg-gray-800 disabled:cursor-wait flex items-center justify-center gap-2"
                         >
+                            <svg
+                                v-if="isSubmittingEvent"
+                                class="animate-spin h-5 w-5"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                            >
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
                             Submit
                         </button>
                     </div>
@@ -424,9 +437,11 @@ const handleSubmitClick = () => {
     showConfirmModal.value = true;
 };
 
+// The popup stays open with a spinner while the request runs; it closes only
+// on failure (on success the page is already moving to the events list).
 const handleConfirmedSubmit = async () => {
-    showConfirmModal.value = false;
     await submitEvent();
+    if (!isSubmittingEvent.value) showConfirmModal.value = false;
 };
 
 // Measure container width on mount and window resize
