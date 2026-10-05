@@ -754,3 +754,14 @@ test('the public community page does not expose curator emails', function () {
         ->assertOk()
         ->assertDontSee('curator-secret@example.com');
 });
+
+test('a queued curator invite still renders after the community is deleted', function () {
+    $community = Community::factory()->create(['name' => 'Gone Community']);
+    $invitation = CuratorInvitation::factory()->create(['community_id' => $community->id]);
+
+    $queued = serialize(new CuratorInvitationMail($community, $invitation));
+    $community->forceDelete();
+
+    $html = unserialize($queued)->render();
+    expect($html)->toContain('Gone Community')->toContain($invitation->token);
+});

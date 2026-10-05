@@ -14,32 +14,23 @@
                     Curator Invitation
                 </h2>
 
-                @php
-                    $imagePath = '';
-                    if ($community->images && $community->images->count() > 0) {
-                        $imagePath = $community->images->first()->large_image_path;
-                    } else {
-                        $imagePath = $community->largeImagePath;
-                    }
-                    $imagePath = ltrim($imagePath, '/');
-                @endphp
                 
                 <div style="width: 100%; padding-bottom: 66.67%; position: relative; margin: 2rem auto; border-radius: 0.5rem; overflow: hidden;">
                     <img src="{{ rtrim(config('app.image_url'), '/') . '/' . $imagePath }}" 
-                         alt="{{ $community->name }}" 
+                         alt="{{ $communityName }}" 
                          style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;">
                 </div>
             </div>
             <div>
                 <div style="text-align: center;margin: auto;">
                     <span style="font-family: 'Sen', sans-serif;color: #374151;">
-                        <p>You've been invited to be a curator for <strong>{{ $community->name }}</strong>.</p>
+                        <p>You've been invited to be a curator for <strong>{{ $communityName }}</strong>.</p>
                         <p>This invitation will expire in 7 days.</p>
                     </span>
                 </div>
             </div>
             <div style="text-align: center;margin: auto;">
-                <a href="{{ url("/communities/curator-invitations/{$invitation->token}") }}">
+                <a href="{{ url("/communities/curator-invitations/{$token}") }}">
                     <button style="
                         border: 1px solid #ff385c;
                         padding: .8rem 1.5rem;
