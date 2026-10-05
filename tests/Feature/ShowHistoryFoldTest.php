@@ -586,7 +586,7 @@ test('update-event keeps older days when a dateArray leaves them out, and drops 
         'event_slug' => $event->slug,
         'showtype' => 's',
         'timezone' => FOLD_TZ,
-        'dateArray' => ['2026-10-10 00:00:00', '2026-10-17 00:00:00'],
+        'dateArray' => ['2026-10-10', '2026-10-17'],
         'remove_older_show_days' => ['2001-01-06'],
     ];
     \App\Mcp\Servers\EiServer::actingAs($admin)->tool(\App\Mcp\Tools\UpdateEvent::class, $args)
@@ -607,7 +607,7 @@ test('update-event with replace_older_show_days asks before dropping the older d
         'event_slug' => $event->slug,
         'showtype' => 's',
         'timezone' => FOLD_TZ,
-        'dateArray' => ['2026-10-10 00:00:00'],
+        'dateArray' => ['2026-10-10'],
         'replace_older_show_days' => true,
     ])->assertOk()->assertSee('confirm_schedule_replace')->assertSee('"shows_to_remove":31', false);
 });
@@ -656,7 +656,7 @@ test('a live-edit preview shows the dates sent and a count of the older days kep
         'event_slug' => $event->slug,
         'showtype' => 's',
         'timezone' => FOLD_TZ,
-        'dateArray' => ['2026-10-10 00:00:00', '2026-10-17 00:00:00'],
+        'dateArray' => ['2026-10-10', '2026-10-17'],
     ]);
 
     $response->assertOk()->assertSee('confirm_live_edit')

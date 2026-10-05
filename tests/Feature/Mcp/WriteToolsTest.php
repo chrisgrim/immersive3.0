@@ -922,13 +922,14 @@ test('update-event reads plain dates as those dates, and a midnight beside real 
     ])->assertOk();
     expect($days())->toBe(['2030-06-10', '2030-06-12']);
 
-    // A list of midnights alone keeps meaning those dates (the older form).
+    // A list of midnights alone could be the dates (the older form) or 8 PM
+    // the evening before: refused as ambiguous, the schedule untouched.
     EiServer::actingAs($admin)->tool(UpdateEvent::class, [
         'event_slug' => $event->slug, 'showtype' => 's', 'timezone' => 'America/New_York',
         'dateArray' => ['2030-06-11 00:00:00'],
         'confirm_schedule_replace' => true,
-    ])->assertOk();
-    expect($days())->toBe(['2030-06-11']);
+    ])->assertSee('ambiguous_dates')->assertSee('2030-06-11 00:00:00');
+    expect($days())->toBe(['2030-06-10', '2030-06-12']);
 
     // Not a date at all: refused, naming the entry.
     EiServer::actingAs($admin)->tool(UpdateEvent::class, [
@@ -1052,10 +1053,9 @@ test('update-event does not confirm when only adding shows', function () {
     expect($event->fresh()->shows()->count())->toBe(3);
 });
 
-test('update-event lets a regular user add today as a midnight date in a US timezone', function () {
-    // 20:00 in Los Angeles on Sep 26 is already Sep 27 in UTC. A midnight
-    // value means that calendar date; reading it as a UTC instant named
-    // Sep 25 and refused today as "in the past".
+test('update-event lets a regular user add today as a plain date in a US timezone', function () {
+    // 20:00 in Los Angeles on Sep 26 is already Sep 27 in UTC. A plain date
+    // is that calendar date, so today is not refused as "in the past".
     $this->travelTo(\Illuminate\Support\Carbon::parse('2026-09-27 03:00:00', 'UTC'));
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);
@@ -1064,12 +1064,12 @@ test('update-event lets a regular user add today as a midnight date in a US time
         'event_slug' => $event->slug,
         'showtype' => 's',
         'timezone' => 'America/Los_Angeles',
-        'dateArray' => ['2026-09-26 00:00:00', '2026-10-01 00:00:00'],
+        'dateArray' => ['2026-09-26', '2026-10-01'],
     ])->assertOk()->assertDontSee('past_dates');
     expect($event->fresh()->shows()->count())->toBe(2);
 });
 
-test('update-event names a refused midnight date as the date that was sent', function () {
+test('update-event names a refused past date as the date that was sent', function () {
     $this->travelTo(\Illuminate\Support\Carbon::parse('2026-09-27 03:00:00', 'UTC'));
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);
@@ -1078,7 +1078,7 @@ test('update-event names a refused midnight date as the date that was sent', fun
         'event_slug' => $event->slug,
         'showtype' => 's',
         'timezone' => 'America/Los_Angeles',
-        'dateArray' => ['2026-09-20 00:00:00', '2026-10-01 00:00:00'],
+        'dateArray' => ['2026-09-20', '2026-10-01'],
     ])->assertOk()->assertSee('past_dates')->assertSee('2026-09-20')->assertDontSee('2026-09-19');
 });
 
@@ -2608,11 +2608,11 @@ test('update-event recognises a past day sent at a different time and keeps it',
     expect($event->shows->pluck('id')->all())->toContain($pastId);
 });
 
-test('update-event reads a value at exactly midnight UTC as that calendar date', function () {
-    // Assistants send a list of dates as "Y-m-d 00:00:00"; the tool's
-    // description says so. A Los Angeles event: read as an instant, midnight
-    // UTC would be 5 PM the evening BEFORE — Reign of Terror's whole run
-    // would have shifted a day.
+test('update-event refuses midnight-only dates that could be two days, and takes plain dates', function () {
+    // A Los Angeles event: "Y-m-d 00:00:00" could be that date (the older
+    // form) or 5 PM the evening BEFORE as a real UTC instant. Guessing the
+    // date once shifted Reign of Terror's run; guessing the instant would
+    // shift a winter 6 PM Chicago show. So the tool asks instead.
     $user = writeToolUser();
     $tz = 'America/Los_Angeles';
     $event = draftFor(writeToolOrganizer($user), $user, ['timezone' => $tz]);
@@ -2623,9 +2623,80 @@ test('update-event reads a value at exactly midnight UTC as that calendar date',
         'timezone' => $tz,
         'showtype' => 's',
         'dateArray' => [$day.' 00:00:00'],
+    ])->assertSee('ambiguous_dates')->assertSee('plain date');
+    expect($event->fresh()->shows()->count())->toBe(0);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => $tz,
+        'showtype' => 's',
+        'dateArray' => [$day],
     ])->assertOk();
 
     $event->refresh();
     expect($event->shows->pluck('date')->all())->toBe([scheduleDay(30, $tz)]);
     expect((string) $event->closingDate)->toBe($day.' 23:59:59');
+});
+
+test('update-event takes midnight dates where both readings agree (at or ahead of UTC)', function () {
+    // In Berlin, 00:00 UTC is 1 or 2 AM the same day: no second reading.
+    $user = writeToolUser();
+    $tz = 'Europe/Berlin';
+    $event = draftFor(writeToolOrganizer($user), $user, ['timezone' => $tz]);
+    $day = now($tz)->addDays(30)->toDateString();
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => $tz,
+        'showtype' => 's',
+        'dateArray' => [$day.' 00:00:00'],
+    ])->assertOk()->assertDontSee('ambiguous_dates');
+
+    expect($event->fresh()->shows->pluck('date')->all())->toBe([scheduleDay(30, $tz)]);
+});
+
+test('update-event reads a run start and end sent as plain dates or midnight as those dates', function () {
+    // Chicago: a plain "Y-m-d" used to be refused, and a midnight read as
+    // the evening before, so a weekly run started and ended a day early.
+    $user = writeToolUser();
+    $tz = 'America/Chicago';
+    $start = now($tz)->addDays(10)->startOfWeek(\Carbon\Carbon::FRIDAY)->addWeek();
+    $end = $start->copy()->addWeeks(2);
+
+    foreach ([
+        [$start->toDateString(), $end->toDateString()],
+        [$start->toDateString().' 00:00:00', $end->toDateString().' 00:00:00'],
+    ] as [$startSent, $endSent]) {
+        $event = draftFor(writeToolOrganizer($user), $user, ['timezone' => $tz]);
+
+        EiServer::actingAs($user)->tool(UpdateEvent::class, [
+            'event_slug' => $event->slug,
+            'timezone' => $tz,
+            'showtype' => 'o',
+            'ongoing_config' => ['startDate' => $startSent, 'endDate' => $endSent, 'daysOfWeek' => [5]],
+        ])->assertOk();
+
+        $days = $event->fresh()->shows->map(fn ($show) => \App\Models\Events\Show::localDay($show->date, $tz, true))->sort()->values()->all();
+        expect($days)->toBe([
+            $start->toDateString(),
+            $start->copy()->addWeek()->toDateString(),
+            $end->toDateString(),
+        ]);
+    }
+});
+
+test('update-event reads an always-available end sent as a plain date as that date', function () {
+    $user = writeToolUser();
+    $tz = 'America/Chicago';
+    $event = draftFor(writeToolOrganizer($user), $user, ['timezone' => $tz]);
+    $end = now($tz)->addDays(40)->toDateString();
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'timezone' => $tz,
+        'showtype' => 'a',
+        'always_config' => ['endDate' => $end],
+    ])->assertOk();
+
+    expect(substr((string) $event->fresh()->closingDate, 0, 10))->toBe($end);
 });

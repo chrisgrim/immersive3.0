@@ -57,8 +57,9 @@ class EiServer extends Server
     5. Description (up to 5000 chars)
     6. Schedule: specific dates, ongoing/recurring, or always available —
        then tickets (1-10 tiers), the ticket purchase URL, and button text.
-       All datetimes are UTC "Y-m-d H:i:s". Show dates (dateArray) are plain
-       calendar dates, "Y-m-d"; curtain times go in show_times.
+       All datetimes are UTC "Y-m-d H:i:s". Show dates (dateArray) and run
+       start/end dates (ongoing_config, always_config) are plain calendar
+       dates, "Y-m-d"; curtain times go in show_times.
        The one exception is embargo_date: a wall-clock time in the event's own
        timezone (the website stores noon on the chosen day).
     7. Primary image via `attach-event-image` (rank 0; gallery = ranks 1-4).

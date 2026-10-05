@@ -20,7 +20,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Partially update an event: send only the fields you are changing. Works on any event you can manage — for moderators and admins that is EVERY event on the platform, not just your own organizers (find slugs with list-all-events). Uses the same validation as the website. An event whose run ended more than 90 days ago is a historical record: organizers can no longer edit it (moderators and admins can) — create a new listing with create-event-draft instead. Show dates (dateArray) are plain calendar dates "Y-m-d"; other dates are UTC "Y-m-d H:i:s" (embargo_date: local wall-clock time). Set showtype + dates before or together with tickets. Publishing is impossible from here — use submit-event-for-review when the draft is complete.')]
+#[Description('Partially update an event: send only the fields you are changing. Works on any event you can manage — for moderators and admins that is EVERY event on the platform, not just your own organizers (find slugs with list-all-events). Uses the same validation as the website. An event whose run ended more than 90 days ago is a historical record: organizers can no longer edit it (moderators and admins can) — create a new listing with create-event-draft instead. Show dates (dateArray) and run start/end dates (ongoing_config, always_config) are plain calendar dates "Y-m-d"; other datetimes are UTC "Y-m-d H:i:s" (embargo_date: local wall-clock time). Set showtype + dates before or together with tickets. Publishing is impossible from here — use submit-event-for-review when the draft is complete.')]
 class UpdateEvent extends Tool
 {
     use BuildsSyntheticRequests;
@@ -122,7 +122,7 @@ class UpdateEvent extends Tool
             $stored = $event->shows()->pluck('date');
             $rowsCurtain = Show::usesCurtainTimes($stored);
             $input['dateArray'] = $stored
-                ->map(fn ($d) => Show::localDay($d, $rowsTz, $rowsCurtain).' 00:00:00')
+                ->map(fn ($d) => Show::localDay($d, $rowsTz, $rowsCurtain)) // plain dates, as a caller sends them
                 ->unique()->values()->all();
             $input['showtype'] ??= $event->showtype;
         }
@@ -178,8 +178,31 @@ class UpdateEvent extends Tool
         // The sent dates as the calendar days they stand for, read once here,
         // before anything adds stored or history days to the list. A bad
         // timezone reads as UTC here and is refused below.
+        $sentTz = Show::validTimezone(is_string($input['timezone'] ?? null) ? $input['timezone'] : ($event->timezone ?? 'UTC'));
         if (isset($input['dateArray']) && is_array($input['dateArray'])) {
-            $input['dateArray'] = $this->sentDays($input['dateArray'], Show::validTimezone(is_string($input['timezone'] ?? null) ? $input['timezone'] : ($event->timezone ?? 'UTC')));
+            // A list whose every time is exactly midnight UTC can mean two
+            // different days: the plain dates of the older form, or real
+            // curtain times (6 PM Chicago in winter is 00:00 UTC). Where the
+            // two readings disagree, ask instead of guessing.
+            $ambiguous = $this->ambiguousMidnights($input['dateArray'], $sentTz);
+            if ($ambiguous !== []) {
+                return Response::json([
+                    'error' => 'ambiguous_dates',
+                    'message' => 'These dateArray values are exactly midnight UTC, which in '.$sentTz.' could mean that date or the evening before: '.implode(', ', $ambiguous).'. Send each show day as a plain date "Y-m-d" (curtain times go in show_times) and try again.',
+                    'ambiguous_dates' => $ambiguous,
+                ]);
+            }
+
+            $input['dateArray'] = $this->sentDays($input['dateArray'], $sentTz);
+        }
+
+        // Run bounds are days too: read them the same way, so a plain date or a
+        // midnight means that date rather than the evening before in the Americas.
+        foreach (['ongoing_config.startDate', 'ongoing_config.endDate', 'always_config.endDate'] as $key) {
+            $bound = data_get($input, $key);
+            if (is_string($bound) && ($noon = $this->sentBound($bound, $sentTz)) !== null) {
+                data_set($input, $key, $noon);
+            }
         }
 
         $validator = Validator::make(
@@ -688,6 +711,47 @@ class UpdateEvent extends Tool
     }
 
     /**
+     * The dateArray values that read as two different days: only when every
+     * "Y-m-d H:i:s" value in the list is exactly midnight (so sentDays() would
+     * read them as plain dates) and, as a real UTC instant, the value falls on
+     * another day in $tz. Zones at or ahead of UTC never disagree.
+     *
+     * @param  array<int, mixed>  $dates
+     * @return array<int, string>
+     */
+    protected function ambiguousMidnights(array $dates, string $tz): array
+    {
+        $instants = array_values(array_filter($dates, fn ($d) => is_string($d)
+            && ($parsed = \DateTime::createFromFormat('!Y-m-d H:i:s', $d)) !== false
+            && $parsed->format('Y-m-d H:i:s') === $d));
+
+        if (Show::usesCurtainTimes($instants)) {
+            return []; // a list with real times reads every value as an instant
+        }
+
+        return array_values(array_filter($instants, fn ($d) => Show::localDay($d, $tz, true) !== substr($d, 0, 10)));
+    }
+
+    /**
+     * A run bound (ongoing_config startDate/endDate, always_config endDate) as
+     * noon of the day it names in $tz, in UTC "Y-m-d H:i:s", the form the
+     * wizard sends. A plain "Y-m-d" or an exact midnight is that date; any
+     * other time is a real UTC instant and keeps its local day. Null for a
+     * value in neither form, left for validation to refuse.
+     */
+    protected function sentBound(string $value, string $tz): ?string
+    {
+        foreach (['Y-m-d', 'Y-m-d H:i:s'] as $format) {
+            $parsed = \DateTime::createFromFormat('!'.$format, $value);
+            if ($parsed !== false && $parsed->format($format) === $value) {
+                return Show::atLocalNoon(strlen($value) === 10 ? $value.' 00:00:00' : $value, $tz);
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Collapse a UTC datetime list to one entry per calendar day (in the given
      * timezone), keeping the first occurrence of each day. A show on EI
      * represents a day — the wizard's calendar cannot select the same day twice
@@ -880,9 +944,9 @@ class UpdateEvent extends Tool
             'remote_description' => $schema->string()->description('For remote events: how attendees join, max 3000 chars.'),
             'timezone' => $schema->string()->description('IANA timezone of the event, e.g. "America/New_York". geocode-address results include coordinates you can infer it from.'),
             'showtype' => $schema->string()->enum(['s', 'o', 'a'])->description('s = specific dates, o = ongoing/recurring, a = always available. WARNING: changing this wipes and recreates all shows (ticket tiers are kept). Always-available events have no embargo on the website, so clear it explicitly with embargo_date=null when switching to "a".'),
-            'dateArray' => $schema->array()->description('The calendar dates the event plays, each as a plain date "Y-m-d" ("2026-10-31" = Oct 31 in the event timezone). Do not send times of day here; they belong in show_times. (Older form, still accepted: "Y-m-d 00:00:00" means that date when every value in the list is at midnight; a value with any other time is read as a real UTC instant and lands on whatever local day that is, and in such a list a midnight value is a real instant too.) One show is stored per calendar day. REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it. The one exception is the older show days get-event reports under older_show_days (days more than a year old, kept as weekly runs): they are kept automatically, so do not list them. To drop some, name them in remove_older_show_days.'),
-            'ongoing_config' => $schema->object()->description('For showtype=o: {startDate, endDate (UTC "Y-m-d H:i:s", anchored at noon in the event timezone), daysOfWeek: [0-6, Sunday=0]}. The server generates the concrete occurrence dates from this rule — send it alone, WITHOUT dateArray, for a normal weekly run. For a NEW run, startDate is the day it really began, however long ago (staff can go back up to '.Show::STAFF_LOOKBACK_YEARS.' years; days more than a year old are kept compactly). For a run that already has older_show_days (see get-event), start the recipe at the earliest date in show_dates: the older days are kept as they are, and a recipe reaching further back does not add days to them.'),
-            'always_config' => $schema->object()->description('For showtype=a: {endDate (UTC "Y-m-d H:i:s")} — when the listing should close. Defaults to 6 months out if omitted.'),
+            'dateArray' => $schema->array()->description('The calendar dates the event plays, each as a plain date "Y-m-d" ("2026-10-31" = Oct 31 in the event timezone). Do not send times of day here; they belong in show_times. (Older form: a "Y-m-d H:i:s" value is a real UTC instant and lands on whatever local day that is. A list whose every value is exactly 00:00:00 means those dates only where that is also the local day, as in timezones at or ahead of UTC; elsewhere, such as the Americas, it is refused as ambiguous_dates, so send plain dates.) One show is stored per calendar day. REQUIRED for showtype=s (list every specific date). OPTIONAL for showtype=o: send ongoing_config instead and the server expands the weekly recurrence for you. Only include dateArray for an ongoing event when you need exceptions (e.g. skip a holiday week) — and then send the FULL list of occurrence dates you want, because an explicit dateArray REPLACES the whole schedule rather than subtracting from it. The one exception is the older show days get-event reports under older_show_days (days more than a year old, kept as weekly runs): they are kept automatically, so do not list them. To drop some, name them in remove_older_show_days.'),
+            'ongoing_config' => $schema->object()->description('For showtype=o: {startDate, endDate (plain dates "Y-m-d" in the event timezone, e.g. "2026-11-06"; a UTC "Y-m-d H:i:s" anchored at noon in the event timezone also works, and an exact midnight means that date), daysOfWeek: [0-6, Sunday=0]}. The server generates the concrete occurrence dates from this rule — send it alone, WITHOUT dateArray, for a normal weekly run. For a NEW run, startDate is the day it really began, however long ago (staff can go back up to '.Show::STAFF_LOOKBACK_YEARS.' years; days more than a year old are kept compactly). For a run that already has older_show_days (see get-event), start the recipe at the earliest date in show_dates: the older days are kept as they are, and a recipe reaching further back does not add days to them.'),
+            'always_config' => $schema->object()->description('For showtype=a: {endDate: a plain date "Y-m-d" in the event timezone (or a UTC "Y-m-d H:i:s"; an exact midnight means that date)} — the day the listing should close. Defaults to 6 months out if omitted.'),
             'show_times' => $schema->string()->description('Human-readable showtimes text, max 500 chars, e.g. "Fridays 8pm, Saturdays 6pm & 9pm".'),
             'tickets' => $schema->array()->description('1-'.EventUpdateRules::MAX_TICKET_TIERS.' ticket tiers for the event: [{"name": "General", "ticket_price": 25.00, "currency": "USD", "description": ""}]. Names must be unique; name "Free" requires price 0; name "PWYC" = pay-what-you-can; description shows truncated around 60 chars. Currency is a 3-letter ISO 4217 code (USD, GBP, EUR, AUD, SGD, JPY, INR…) — any current currency is accepted; omit it and the event\'s location country decides (USD for remote events). Requires dates to exist first.'),
             'ticketUrl' => $schema->string()->description('URL where attendees buy tickets. Required before submission.'),
