@@ -59,18 +59,29 @@
             {{-- Mobility Advisories --}}
             <div class="hover:bg-neutral-50 transition-all duration-200">
                 <div class="flex flex-col gap-2">
+                    @php($wheelchair = $event->advisories?->wheelchairLevel())
                     <div class="flex">
                         <span class="text-3xl md:text-2xl mr-2">•</span>
                         <span class="text-3xl md:text-2xl">
-                            Event is <span>@if(!$event->advisories['wheelchairReady']) not @endif</span> wheelchair accessible
+                            Event is {{ match ($wheelchair) {
+                                \App\Models\Events\Advisory::WHEELCHAIR_FULL => 'wheelchair accessible',
+                                \App\Models\Events\Advisory::WHEELCHAIR_PARTIAL => 'partially wheelchair accessible',
+                                default => 'not wheelchair accessible',
+                            } }}
                         </span>
                     </div>
-                    {{-- Excluded here — each one restates the hardcoded wheelchairReady
+                    @if($wheelchair !== \App\Models\Events\Advisory::WHEELCHAIR_FULL && filled($event->advisories?->wheelchairDescription) && $event->advisories->wheelchairDescription !== \App\Models\Events\Advisory::WHEELCHAIR_DEFAULT_EXPLANATION)
+                        <div class="my-4 inline-flex self-start border-2 border-[#222222] p-6 rounded-2xl">
+                            <p class="block text-[#222222] whitespace-pre-wrap">{{ $event->advisories->wheelchairDescription }}</p>
+                        </div>
+                    @endif
+                    {{-- Excluded here: each one restates the hardcoded wheelchair
                          line above in different words, duplicating it whenever an
                          organizer also selects it as an advisory: id 22 "Event is
-                         wheelchair accessible.", id 262 "Wheelchair accessible",
-                         id 263 "Not wheelchair accessible". --}}
-                    @foreach($event->mobilityAdvisories->whereNotIn('id', [22, 262, 263]) as $item)
+                         wheelchair accessible.", and the automatic chips "Wheelchair
+                         accessible" (262), "Not wheelchair accessible" (263) and
+                         "Partially wheelchair accessible". --}}
+                    @foreach($event->mobilityAdvisories->whereNotIn('id', [22, 262, 263])->whereNotIn('slug', \App\Models\Events\Advisory::WHEELCHAIR_CHIP_SLUGS) as $item)
                         <div class="flex">
                             <span class="text-2xl md:text-1xl mr-2">•</span>
                             <span class="text-2xl md:text-1xl">{{ $item['name'] }}</span>

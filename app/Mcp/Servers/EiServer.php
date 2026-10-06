@@ -69,7 +69,8 @@ class EiServer extends Server
     8. Advisories — ask each explicitly: contact level, age limit, interaction
        level, the audience's role, whether there is sexual content (description
        required if yes), at least one content advisory, wheelchair accessibility
-       (yes/no), and at least one mobility advisory. Prefer the options from
+       (full, partial or none; description of what is not accessible required
+       unless full), and at least one mobility advisory. Prefer the options from
        list-event-attributes over inventing new ones.
 
     `get-event` returns a readiness checklist of what's still missing;

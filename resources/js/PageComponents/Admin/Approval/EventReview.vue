@@ -421,6 +421,12 @@
                                 <p class="font-medium mb-4">Sexual Content Description</p>
                                 <p class="text-neutral-700 text-2.5xl font-normal whitespace-pre-line">{{ props.event?.advisories.sexualDescription }}</p>
                             </div>
+
+                            <!-- Wheelchair Description (anything short of full access) -->
+                            <div v-if="props.event?.advisories?.wheelchairDescription && wheelchairLevel(props.event?.advisories) !== 'full'">
+                                <p class="font-medium mb-4">{{ wheelchairLevel(props.event?.advisories) === 'partial' ? 'Partially' : 'Not' }} Wheelchair Accessible</p>
+                                <p class="text-neutral-700 text-2.5xl font-normal whitespace-pre-line">{{ props.event?.advisories.wheelchairDescription }}</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -557,6 +563,7 @@
 </template>
 
 <script setup>
+import { wheelchairLevel } from '@/composables/wheelchairAccess';
 import { computed, ref } from 'vue';
 import moment from 'moment-timezone';
 import { summarizeSchedule } from '@/composables/useShowDates';

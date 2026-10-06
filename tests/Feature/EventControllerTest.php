@@ -176,14 +176,63 @@ test('show does not duplicate the wheelchair-accessible line when advisory id 22
     $start = strpos($content, 'Mobility Advisories');
     $section = substr($content, $start, strpos($content, 'Tags</h3>', $start) - $start);
 
-    // The hardcoded line (advisories.wheelchairReady) — distinct from the
-    // advisory row's own rendering (plain text, trailing period, no nested
-    // empty <span>) by its literal "Event is <span></span> wheelchair
-    // accessible" markup.
-    expect($section)->toContain('Event is <span></span> wheelchair accessible');
+    // The hardcoded line (the advisories row's wheelchair answer), distinct
+    // from the advisory row's own rendering by having no trailing period.
+    expect($section)->toMatch('/Event is wheelchair accessible\s*<\/span>/');
     // The advisory row's distinct text (with its trailing period) must not
     // appear at all — that's the second, now-filtered occurrence.
     expect($section)->not->toContain('Event is wheelchair accessible.');
+});
+
+test('show names partial wheelchair access with its explanation and hides the automatic chip', function () {
+    $event = makeShowableEvent();
+    $event->advisories()->update([
+        'wheelchairAccess' => 'partial',
+        'wheelchairReady' => false,
+        'wheelchairDescription' => 'The basement scene has stairs only.',
+    ]);
+    $chip = MobilityAdvisory::create([
+        'name' => 'Partially Wheelchair Accessible',
+        'user_id' => $event->user_id,
+        'slug' => 'partially-wheelchair-accessible',
+    ]);
+    $event->mobilityAdvisories()->attach($chip->id);
+
+    $content = $this->get("/events/{$event->slug}")->assertOk()->getContent();
+    $start = strpos($content, 'Mobility Advisories');
+    $section = substr($content, $start, strpos($content, 'Tags</h3>', $start) - $start);
+
+    expect($section)->toMatch('/Event is partially wheelchair accessible\s*<\/span>/');
+    expect($section)->toContain('The basement scene has stairs only.');
+    expect($section)->not->toContain('>Partially Wheelchair Accessible<');
+    // Partial access is not "no accessible entrance".
+    expect($content)->not->toContain('NoAccessibleEntrance');
+});
+
+test('show does not repeat the default explanation old no answers were given', function () {
+    $event = makeShowableEvent();
+    $event->advisories()->update([
+        'wheelchairAccess' => 'none',
+        'wheelchairReady' => false,
+        'wheelchairDescription' => \App\Models\Events\Advisory::WHEELCHAIR_DEFAULT_EXPLANATION,
+    ]);
+
+    $content = $this->get("/events/{$event->slug}")->assertOk()->getContent();
+    $start = strpos($content, 'Mobility Advisories');
+    $section = substr($content, $start, strpos($content, 'Tags</h3>', $start) - $start);
+
+    expect($section)->toMatch('/Event is not wheelchair accessible\s*<\/span>/');
+    expect($section)->not->toContain('Not wheelchair accessible.');
+});
+
+test('show claims no accessible entrance only for a not accessible answer', function () {
+    $event = makeShowableEvent();
+
+    $event->advisories()->update(['wheelchairAccess' => null, 'wheelchairReady' => null]);
+    expect($this->get("/events/{$event->slug}")->getContent())->not->toContain('NoAccessibleEntrance');
+
+    $event->advisories()->update(['wheelchairAccess' => 'none', 'wheelchairReady' => false, 'wheelchairDescription' => 'Stairs only']);
+    expect($this->get("/events/{$event->slug}")->getContent())->toContain('NoAccessibleEntrance');
 });
 
 test('show renders a fallback message when no interaction advisories are set', function () {

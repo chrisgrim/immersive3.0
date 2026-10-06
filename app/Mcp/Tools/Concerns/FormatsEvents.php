@@ -3,6 +3,7 @@
 namespace App\Mcp\Tools\Concerns;
 
 use App\Models\Event;
+use App\Models\Events\Advisory;
 
 trait FormatsEvents
 {
@@ -67,7 +68,7 @@ trait FormatsEvents
      */
     protected const SEXUAL_CHIP_SLUGS = ['sexual-content', 'no-sexual-content'];
 
-    protected const WHEELCHAIR_CHIP_SLUGS = ['wheelchair-accessible', 'not-wheelchair-accessible'];
+    protected const WHEELCHAIR_CHIP_SLUGS = Advisory::WHEELCHAIR_CHIP_SLUGS;
 
     /**
      * What still needs to be filled in before the event can be submitted.
@@ -106,7 +107,11 @@ trait FormatsEvents
             // The wizard forces explicit yes/no answers (nullable columns, so
             // null means "never answered").
             'sexual_content_answered' => $event->advisories?->sexual !== null,
-            'wheelchair_answered' => $event->advisories?->wheelchairReady !== null,
+            'wheelchair_answered' => $event->advisories?->wheelchairLevel() !== null,
+            // Like the sexual content description: anything short of full
+            // access must say what is and is not accessible.
+            'wheelchair_explained' => in_array($event->advisories?->wheelchairLevel(), [null, Advisory::WHEELCHAIR_FULL], true)
+                || filled($event->advisories?->wheelchairDescription),
             // At least one advisory beyond the automatic yes/no chips.
             'content_advisories' => $event->contentAdvisories
                 ->reject(fn ($a) => in_array($a->slug, self::SEXUAL_CHIP_SLUGS))->isNotEmpty(),
@@ -153,7 +158,7 @@ trait FormatsEvents
             ['9', $r['primary_image']],
             ['A', $r['contact_level'] && $r['age_limit'] && $r['interactive_level'] && $r['audience_role']],
             ['B', $r['sexual_content_answered'] && $r['content_advisories']],
-            ['C', $r['wheelchair_answered'] && $r['mobility_advisories']],
+            ['C', $r['wheelchair_answered'] && $r['wheelchair_explained'] && $r['mobility_advisories']],
         ];
 
         $marker = '0';

@@ -95,7 +95,11 @@ class GetEvent extends Tool
                 'genres' => $event->genres->map->only(['id', 'name']),
                 'content_advisories' => $event->contentAdvisories->pluck('name'),
                 'mobility_advisories' => $event->mobilityAdvisories->pluck('name'),
-                'advisories' => $event->advisories?->only(['sexual', 'sexualDescription', 'audience', 'wheelchairReady']),
+                'advisories' => $event->advisories ? [
+                    ...$event->advisories->only(['sexual', 'sexualDescription', 'audience']),
+                    'wheelchairAccess' => $event->advisories->wheelchairLevel(),
+                    'wheelchairDescription' => $event->advisories->wheelchairDescription,
+                ] : null,
                 'contact_level' => $event->contactLevels->first()?->only(['id', 'name']),
                 'interactive_level' => $event->interactive_level?->only(['id', 'name']),
                 'age_limit' => $event->age_limits?->only(['id', 'name']),

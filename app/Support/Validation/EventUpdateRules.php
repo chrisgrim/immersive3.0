@@ -210,7 +210,10 @@ class EventUpdateRules
             // Add validation for mobilityAdvisories
             'mobilityAdvisories' => 'nullable|array|max:16',
             'mobilityAdvisories.*.name' => 'sometimes|string|max:100',
+            // The old yes/no, still accepted (read as full / none).
             'wheelchairReady' => 'sometimes|boolean',
+            'wheelchairAccess' => 'sometimes|in:full,partial,none',
+            'wheelchairDescription' => 'nullable|string|max:1000|required_if:wheelchairAccess,partial,none',
             // Add validation for contact and interactive levels
             'contactLevel' => 'sometimes|array',
             'contactLevel.id' => 'required_with:contactLevel|exists:contact_levels,id',

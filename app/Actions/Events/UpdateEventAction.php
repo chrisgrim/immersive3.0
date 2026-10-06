@@ -3,6 +3,7 @@
 namespace App\Actions\Events;
 
 use App\Models\Event;
+use App\Models\Events\Advisory;
 use App\Models\Events\ContentAdvisory;
 use App\Models\Events\MobilityAdvisory;
 use App\Models\Events\RemoteLocation;
@@ -113,6 +114,18 @@ class UpdateEventAction
             throw ValidationException::withMessages(['dateArray' => $problem]);
         }
 
+        // An explanation sent without an answer may not blank the one an
+        // answer short of full needs (sent with the answer, the rules already
+        // require it). Refused here, before anything is written.
+        if (! isset($validatedData['wheelchairAccess']) && ! isset($validatedData['wheelchairReady'])
+            && array_key_exists('wheelchairDescription', $validatedData)
+            && blank($validatedData['wheelchairDescription'])
+            && ! in_array($event->advisories?->wheelchairLevel(), [null, Advisory::WHEELCHAIR_FULL], true)) {
+            throw ValidationException::withMessages([
+                'wheelchairDescription' => 'Please explain the wheelchair access.',
+            ]);
+        }
+
         // Handle attendance type changes (using either hasLocation or attendance_type_id)
         if (isset($validatedData['attendance_type_id']) && $event->category) {
             // Check if category is compatible with the attendance type
@@ -206,6 +219,17 @@ class UpdateEventAction
         }
 
         if (isset($validatedData['mobilityAdvisories'])) {
+            // The automatic wheelchair chip always matches the saved answer,
+            // even when an old browser tab sends a "Not Wheelchair Accessible"
+            // chip for an answer that stayed partial.
+            $chipLevel = Advisory::levelFromInput($validatedData, $event->advisories?->wheelchairLevel());
+            if ($chipLevel !== null) {
+                $validatedData['mobilityAdvisories'] = collect($validatedData['mobilityAdvisories'])
+                    ->reject(fn ($a) => in_array(Str::slug(is_array($a) ? ($a['name'] ?? '') : $a), Advisory::WHEELCHAIR_CHIP_SLUGS, true))
+                    ->push(['name' => Advisory::WHEELCHAIR_CHIPS[$chipLevel]])
+                    ->values()
+                    ->all();
+            }
             MobilityAdvisory::saveAdvisories($event, $validatedData['mobilityAdvisories']);
         }
 
@@ -226,9 +250,24 @@ class UpdateEventAction
             }
         }
 
-        // Add wheelchair status to advisory data
-        if (isset($validatedData['wheelchairReady'])) {
-            $advisoryData['wheelchairReady'] = $validatedData['wheelchairReady'];
+        // Wheelchair answer (full / partial / none) and its explanation. An
+        // explanation sent on its own updates an answer short of full (a
+        // blank one was refused at the top).
+        $currentWheelchair = $event->advisories?->wheelchairLevel();
+        $wheelchairLevel = Advisory::levelFromInput($validatedData, $currentWheelchair);
+        if ($wheelchairLevel !== null) {
+            $description = array_key_exists('wheelchairDescription', $validatedData)
+                ? $validatedData['wheelchairDescription']
+                : $event->advisories?->wheelchairDescription;
+            // An old yes/no "no" never carries an explanation: give it the
+            // same default the migration gave every earlier "no".
+            if ($wheelchairLevel !== Advisory::WHEELCHAIR_FULL && blank($description)) {
+                $description = Advisory::WHEELCHAIR_DEFAULT_EXPLANATION;
+            }
+            $advisoryData += Advisory::wheelchairColumns($wheelchairLevel, $description);
+        } elseif (array_key_exists('wheelchairDescription', $validatedData)
+            && $currentWheelchair !== null && $currentWheelchair !== Advisory::WHEELCHAIR_FULL) {
+            $advisoryData += Advisory::wheelchairColumns($currentWheelchair, $validatedData['wheelchairDescription']);
         }
 
         if (! empty($advisoryData)) {

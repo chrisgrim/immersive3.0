@@ -310,6 +310,111 @@ test('web update advisories and wheelchair status persist on the advisories row'
     expect((bool) $advisories->wheelchairReady)->toBeTrue();
 });
 
+test('web update saves a partial wheelchair answer with its explanation', function () {
+    $user = extractionUser();
+    $event = extractionEvent($user);
+
+    $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'wheelchairAccess' => 'partial',
+        'wheelchairDescription' => 'Upstairs is stairs only',
+    ])->assertStatus(200);
+
+    $advisories = $event->fresh()->advisories;
+    expect($advisories->wheelchairAccess)->toBe('partial');
+    expect($advisories->wheelchairDescription)->toBe('Upstairs is stairs only');
+    // The old yes/no stays in step: only full access is a yes.
+    expect((bool) $advisories->wheelchairReady)->toBeFalse();
+});
+
+test('web update refuses partial or no wheelchair access without an explanation', function (string $level) {
+    $user = extractionUser();
+    $event = extractionEvent($user);
+
+    $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'wheelchairAccess' => $level,
+        'wheelchairDescription' => '',
+    ])->assertStatus(422)->assertJsonValidationErrors('wheelchairDescription');
+})->with(['partial', 'none']);
+
+test('web update to full wheelchair access clears the old explanation', function () {
+    $user = extractionUser();
+    $event = extractionEvent($user);
+    $event->advisories()->update(['wheelchairAccess' => 'none', 'wheelchairDescription' => 'Stairs', 'wheelchairReady' => false]);
+
+    $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'wheelchairAccess' => 'full',
+    ])->assertStatus(200);
+
+    $advisories = $event->fresh()->advisories;
+    expect($advisories->wheelchairAccess)->toBe('full');
+    expect($advisories->wheelchairDescription)->toBeNull();
+    expect((bool) $advisories->wheelchairReady)->toBeTrue();
+});
+
+test('web update still accepts the old yes/no wheelchair answer', function () {
+    $user = extractionUser();
+    $event = extractionEvent($user);
+
+    $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'wheelchairReady' => false,
+    ])->assertStatus(200);
+
+    $advisories = $event->fresh()->advisories;
+    expect($advisories->wheelchairAccess)->toBe('none');
+    // Never left without an explanation.
+    expect($advisories->wheelchairDescription)->toBe(\App\Models\Events\Advisory::WHEELCHAIR_DEFAULT_EXPLANATION);
+});
+
+test('web update refuses a blank wheelchair explanation sent on its own', function () {
+    $user = extractionUser();
+    $event = extractionEvent($user);
+    $event->advisories()->update(['wheelchairAccess' => 'partial', 'wheelchairDescription' => 'Attic is ladder only', 'wheelchairReady' => false]);
+
+    $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'name' => 'Renamed before the refusal',
+        'wheelchairDescription' => '',
+    ])->assertStatus(422)->assertJsonValidationErrors('wheelchairDescription');
+
+    expect($event->fresh()->advisories->wheelchairDescription)->toBe('Attic is ladder only');
+    // Refused before anything was written.
+    expect($event->fresh()->name)->not->toBe('Renamed before the refusal');
+});
+
+test('an old browser tab sending no keeps a partial wheelchair answer partial', function () {
+    $user = extractionUser();
+    $event = extractionEvent($user);
+    $event->advisories()->update(['wheelchairAccess' => 'partial', 'wheelchairDescription' => 'Attic is ladder only', 'wheelchairReady' => false]);
+
+    $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'wheelchairReady' => false,
+        'mobilityAdvisories' => [
+            ['name' => 'Not Wheelchair Accessible'],
+            ['name' => 'Uneven terrain'],
+        ],
+    ])->assertStatus(200);
+
+    $advisories = $event->fresh()->advisories;
+    expect($advisories->wheelchairAccess)->toBe('partial');
+    // The old tab's chip is swapped for the one matching the answer.
+    $slugs = $event->fresh()->mobilityAdvisories->pluck('slug');
+    expect($slugs)->toContain('partially-wheelchair-accessible', 'uneven-terrain');
+    expect($slugs)->not->toContain('not-wheelchair-accessible');
+    expect($advisories->wheelchairDescription)->toBe('Attic is ladder only');
+});
+
+test('the old yes/no wins when code from before the change answered last', function () {
+    $user = extractionUser();
+    $event = extractionEvent($user);
+
+    // Partial, then an old deploy wrote only "yes".
+    $event->advisories()->update(['wheelchairAccess' => 'partial', 'wheelchairReady' => true]);
+    expect($event->fresh()->advisories->wheelchairLevel())->toBe('full');
+
+    // Full, then an old deploy wrote only "no".
+    $event->advisories()->update(['wheelchairAccess' => 'full', 'wheelchairReady' => false]);
+    expect($event->fresh()->advisories->wheelchairLevel())->toBe('none');
+});
+
 // ── show_times on the shared write path ────────────────────────────────
 
 test('web update clears show_times when the wizard sends it empty', function () {

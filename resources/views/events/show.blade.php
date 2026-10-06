@@ -244,7 +244,7 @@
         },
         "keywords": @json(collect($event->genres)->pluck('name')),
         "isAccessibleForFree": {{ ($hasFreeTicket || (isset($event->priceranges[0]) && $event->priceranges[0]->price == 0)) ? 'true' : 'false' }},
-        @if(! ($event->advisories['wheelchairReady'] ?? true))
+        @if($event->advisories?->wheelchairLevel() === \App\Models\Events\Advisory::WHEELCHAIR_NONE)
         "accessibilityHazard": ["NoAccessibleEntrance"],
         @endif
         "typicalAgeRange": @json($event->age_limits ? $event->age_limits['name'] : ($event->advisories['ageRestriction'] ?? ''))

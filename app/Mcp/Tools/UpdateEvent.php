@@ -7,6 +7,7 @@ use App\Actions\Events\UpdateEventAction;
 use App\Mcp\Tools\Concerns\BuildsSyntheticRequests;
 use App\Mcp\Tools\Concerns\FormatsEvents;
 use App\Models\Event;
+use App\Models\Events\Advisory;
 use App\Models\Events\Show;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Support\Currency;
@@ -857,8 +858,8 @@ class UpdateEvent extends Tool
      * Mirror the wizard's automatic advisory chips: answering the sexual-content
      * question adds "Sexual Content"/"No Sexual Content" to the content
      * advisories, and the wheelchair question adds "Wheelchair Accessible"/
-     * "Not Wheelchair Accessible" to the mobility advisories (replacing the
-     * opposite chip if the answer changed).
+     * "Partially Wheelchair Accessible"/"Not Wheelchair Accessible" to the
+     * mobility advisories (replacing the other chip if the answer changed).
      */
     protected function applyAutoChips(array &$validated, Event $event): void
     {
@@ -870,10 +871,10 @@ class UpdateEvent extends Tool
             );
         }
 
-        if (isset($validated['wheelchairReady'])) {
+        if (($wheelchairLevel = Advisory::levelFromInput($validated, $event->advisories?->wheelchairLevel())) !== null) {
             $validated['mobilityAdvisories'] = $this->mergeChip(
                 $validated['mobilityAdvisories'] ?? $event->mobilityAdvisories->map(fn ($a) => ['name' => $a->name])->values()->all(),
-                $validated['wheelchairReady'] ? 'Wheelchair Accessible' : 'Not Wheelchair Accessible',
+                Advisory::WHEELCHAIR_CHIPS[$wheelchairLevel],
                 self::WHEELCHAIR_CHIP_SLUGS
             );
         }
@@ -910,7 +911,9 @@ class UpdateEvent extends Tool
             'contentAdvisories' => $event->contentAdvisories->pluck('name'),
             'mobilityAdvisories' => $event->mobilityAdvisories->pluck('name'),
             'advisories' => $event->advisories?->only(['sexual', 'sexualDescription', 'audience']),
-            'wheelchairReady' => $event->advisories?->wheelchairReady,
+            'wheelchairReady' => $event->advisories ? $event->advisories->wheelchairLevel() === Advisory::WHEELCHAIR_FULL : null,
+            'wheelchairAccess' => $event->advisories?->wheelchairLevel(),
+            'wheelchairDescription' => $event->advisories?->wheelchairDescription,
             'contactLevel' => $event->contactLevels->first()?->only(['id', 'name']),
             'interactiveLevel' => $event->interactive_level?->only(['id', 'name']),
             'ageLimit' => $event->age_limits?->only(['id', 'name']),
@@ -956,7 +959,8 @@ class UpdateEvent extends Tool
             'advisories' => $schema->object()->description('{sexual: bool, sexualDescription, audience}. ALWAYS ask the user whether the event contains sexual content — an explicit yes/no is required before submission, and if yes, sexualDescription (max 1000) must explain it. "audience" (max 1000) describes the role the audience plays and is also required. Answering the sexual question automatically adds the matching "Sexual Content"/"No Sexual Content" chip to the content advisories.'),
             'contentAdvisories' => $schema->array()->description('Content warnings: [{"name": "Loud noises"}]. At least 1 beyond the automatic sexual-content chip is required before submission, max 16 total. Offer the user the options from list-event-attributes first; free-form names are allowed but prefer existing ones.'),
             'mobilityAdvisories' => $schema->array()->description('Mobility/accessibility notes: [{"name": "Extended standing"}]. At least 1 beyond the automatic wheelchair chip is required before submission, max 16 total. Offer options from list-event-attributes first.'),
-            'wheelchairReady' => $schema->boolean()->description('ALWAYS ask the user whether the event is wheelchair accessible — an explicit yes/no is required before submission. Answering automatically adds the matching "Wheelchair Accessible"/"Not Wheelchair Accessible" mobility chip.'),
+            'wheelchairAccess' => $schema->string()->enum(Advisory::WHEELCHAIR_LEVELS)->description('ALWAYS ask the user how wheelchair accessible the event is: "full" (fully accessible), "partial" (some areas or activities are not) or "none" (not accessible). An explicit answer is required before submission. Answering automatically adds the matching "Wheelchair Accessible"/"Partially Wheelchair Accessible"/"Not Wheelchair Accessible" mobility chip.'),
+            'wheelchairDescription' => $schema->string()->description('Required (max 1000) when wheelchairAccess is "partial" or "none": ask the user to explain what is and is not accessible. Cleared when the answer is "full".'),
             'embargo_date' => $schema->string()->description('Optional "Y-m-d H:i:s" as a wall-clock time in the EVENT\'S OWN timezone (not UTC), in the future: if set, the event stays hidden until then after approval. The website stores noon on the chosen day, e.g. "2026-10-01 12:00:00"; the publisher runs every two hours. Send null to lift an embargo and publish immediately. Omitting it leaves any existing embargo untouched.'),
             'videos' => $schema->array()->description('Optional, up to 4: [{"platform": "youtube"|"tiktok", "url": "...", "id": "platform video id", "rank": 0}]. Instagram is not supported.'),
             'acknowledge_duplicate' => $schema->boolean()->description('Set true only after the user confirms a duplicate-name warning.'),

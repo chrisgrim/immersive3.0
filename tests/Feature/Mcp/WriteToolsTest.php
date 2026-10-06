@@ -718,6 +718,49 @@ test('update-event auto-adds the wheelchair chip and preserves other advisories'
     expect($slugs)->toContain('extended-standing');
 });
 
+test('update-event swaps the wheelchair chip for a partial answer and needs an explanation', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'wheelchairAccess' => 'full',
+    ])->assertOk();
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'wheelchairAccess' => 'partial',
+    ])->assertOk()->assertSee('validation_failed')->assertSee('wheelchairDescription');
+    expect($event->fresh()->advisories->wheelchairAccess)->toBe('full');
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'wheelchairAccess' => 'partial',
+        'wheelchairDescription' => 'The attic is ladder access only',
+    ])->assertOk();
+
+    $event->refresh();
+    $slugs = $event->mobilityAdvisories->pluck('slug');
+    expect($slugs)->toContain('partially-wheelchair-accessible');
+    expect($slugs)->not->toContain('wheelchair-accessible');
+    expect($event->advisories->wheelchairAccess)->toBe('partial');
+    expect($event->advisories->wheelchairDescription)->toBe('The attic is ladder access only');
+});
+
+test('update-event refuses a blank wheelchair explanation sent on its own', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $event->advisories()->update(['wheelchairAccess' => 'none', 'wheelchairDescription' => 'Stairs only', 'wheelchairReady' => false]);
+
+    $response = EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'wheelchairDescription' => '   ',
+    ]);
+
+    $response->assertSee('wheelchairDescription');
+    expect($event->fresh()->advisories->wheelchairDescription)->toBe('Stairs only');
+});
+
 test('update-event requires sexualDescription when sexual content is true', function () {
     $user = writeToolUser();
     $event = draftFor(writeToolOrganizer($user), $user);
@@ -1742,6 +1785,7 @@ test('submit enforces the wizard-parity requirements one by one', function () {
         'audience_role' => fn (Event $e) => $e->advisories()->update(['audience' => null]),
         'sexual_content_answered' => fn (Event $e) => $e->advisories()->update(['sexual' => null]),
         'wheelchair_answered' => fn (Event $e) => $e->advisories()->update(['wheelchairReady' => null]),
+        'wheelchair_explained' => fn (Event $e) => $e->advisories()->update(['wheelchairAccess' => 'partial', 'wheelchairReady' => false, 'wheelchairDescription' => null]),
         // Only the auto chip left => "at least one beyond the chip" fails.
         'content_advisories' => fn (Event $e) => $e->contentAdvisories()->sync([
             \App\Models\Events\ContentAdvisory::where('slug', 'no-sexual-content')->first()->id,

@@ -6,7 +6,7 @@
             <!-- Initial Wheelchair Selection -->
             <div v-if="!hasSelectedWheelchair">
                 <p class="font-strong mt-6">Is your event wheelchair accessible?</p>
-                <div class="flex flex-row gap-8 relative mt-6">
+                <div class="flex flex-row flex-wrap gap-8 relative mt-6">
                     <button 
                         v-for="option in WHEELCHAIR_OPTIONS" 
                         :key="option.value"
@@ -53,6 +53,27 @@
                     @onSelect="itemRemoved"
                 />
 
+                <!-- Wheelchair Description (anything short of full access) -->
+                <div v-if="needsDescription" class="mt-12">
+                    <p class="text-neutral-500 font-normal mb-4">Explain what is and is not wheelchair accessible</p>
+                    <textarea 
+                        v-model="event.advisories.wheelchairDescription"
+                        @input="handleDescriptionInput"
+                        class="w-full p-4 text-2.5xl md:text-1xl border border-neutral-300 rounded-2xl relative outline-none transition-all duration-200 hover:border-[#222222]"
+                        :class="{ 
+                            'border-red-500 focus:border-red-500 focus:shadow-focus-error': showDescriptionError,
+                            'focus:border-[#222222] focus:shadow-focus-black': !showDescriptionError 
+                        }"
+                        rows="4"
+                    ></textarea>
+                    <div class="flex justify-end mt-1 relative text-neutral-500">
+                        {{ event.advisories.wheelchairDescription?.length || 0 }}/1000
+                        <p v-if="showDescriptionError" 
+                           class="text-red-500 text-1xl px-4 absolute left-0 top-0">
+                            Please explain the wheelchair access
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -65,14 +86,24 @@ import { required } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 import Dropdown from '@/GlobalComponents/dropdown.vue';
 import List from '@/GlobalComponents/dropdown-list.vue';
+import { wheelchairLevel } from '@/composables/wheelchairAccess';
 
 // 2. Constants
 const WHEELCHAIR_OPTIONS = [
-    { value: true, label: 'Yes' },
-    { value: false, label: 'No' }
+    { value: 'full', label: 'Fully accessible' },
+    { value: 'partial', label: 'Partially accessible' },
+    { value: 'none', label: 'Not accessible' }
 ];
 
-const WHEELCHAIR_SLUGS = ['wheelchair-accessible', 'not-wheelchair-accessible'];
+// The automatic chip each answer adds (same names as Advisory::WHEELCHAIR_CHIPS).
+const WHEELCHAIR_CHIPS = {
+    full: { name: 'Wheelchair Accessible', slug: 'wheelchair-accessible' },
+    partial: { name: 'Partially Wheelchair Accessible', slug: 'partially-wheelchair-accessible' },
+    none: { name: 'Not Wheelchair Accessible', slug: 'not-wheelchair-accessible' }
+};
+
+const WHEELCHAIR_SLUGS = Object.values(WHEELCHAIR_CHIPS).map(chip => chip.slug);
+
 
 // 3. Injections & State
 const event = inject('event');
@@ -90,6 +121,16 @@ const mobilityAdvisories = computed(() =>
 
 const hasRequiredAdvisories = computed(() => otherAdvisories.value.length > 0);
 
+const needsDescription = computed(() => 
+    hasSelectedWheelchair.value && event.advisories?.wheelchairAccess !== 'full'
+);
+
+const descriptionTouched = ref(false);
+
+const showDescriptionError = computed(() => 
+    needsDescription.value && descriptionTouched.value && !event.advisories.wheelchairDescription?.trim()
+);
+
 // 5. Validation Rules
 const rules = {
     hasSelectedWheelchair: { 
@@ -106,22 +147,34 @@ const $v = useVuelidate(rules, {
 });
 
 // 6. Helper Functions
-const createWheelchairAdvisory = (isAccessible) => ({
-    id: isAccessible ? 'wheelchair-accessible' : 'not-wheelchair-accessible',
-    name: isAccessible ? 'Wheelchair Accessible' : 'Not Wheelchair Accessible',
-    slug: isAccessible ? 'wheelchair-accessible' : 'not-wheelchair-accessible',
+const createWheelchairAdvisory = (level) => ({
+    id: WHEELCHAIR_CHIPS[level].slug,
+    name: WHEELCHAIR_CHIPS[level].name,
+    slug: WHEELCHAIR_CHIPS[level].slug,
     permanent: true
 });
 
 // 7. Event Handlers
-const onSelectWheelchair = (isAccessible) => {
-    wheelchairAdvisory.value = createWheelchairAdvisory(isAccessible);
+const onSelectWheelchair = (level) => {
+    wheelchairAdvisory.value = createWheelchairAdvisory(level);
     hasSelectedWheelchair.value = true;
     
     event.advisories = {
         ...event.advisories || {},
-        wheelchairReady: isAccessible
+        wheelchairAccess: level,
+        wheelchairReady: level === 'full',
+        wheelchairDescription: level === 'full' ? null : ''
     };
+
+    // Like the sexual content question: ask for the explanation right away.
+    descriptionTouched.value = level !== 'full';
+};
+
+const handleDescriptionInput = () => {
+    descriptionTouched.value = true;
+    if (event.advisories.wheelchairDescription?.length > 1000) {
+        event.advisories.wheelchairDescription = event.advisories.wheelchairDescription.slice(0, 1000);
+    }
 };
 
 const itemSelected = (item) => {
@@ -138,8 +191,11 @@ const itemRemoved = (item) => {
     if (WHEELCHAIR_SLUGS.includes(item.slug)) {
         hasSelectedWheelchair.value = false;
         wheelchairAdvisory.value = null;
+        descriptionTouched.value = false;
         if (event.advisories) {
+            event.advisories.wheelchairAccess = null;
             event.advisories.wheelchairReady = null;
+            event.advisories.wheelchairDescription = null;
         }
         return;
     }
@@ -172,6 +228,12 @@ defineExpose({
             return false;
         }
 
+        if (needsDescription.value && !event.advisories.wheelchairDescription?.trim()) {
+            descriptionTouched.value = true;
+            errors.value = { mobility: ['Please explain the wheelchair access'] };
+            return false;
+        }
+
         return true;
     },
     submitData: () => ({
@@ -180,7 +242,10 @@ defineExpose({
             name: advisory.name,
             slug: advisory.slug
         })),
-        wheelchairReady: Boolean(event.advisories?.wheelchairReady)
+        wheelchairAccess: event.advisories?.wheelchairAccess,
+        wheelchairDescription: event.advisories?.wheelchairAccess === 'full'
+            ? null
+            : event.advisories?.wheelchairDescription?.trim()
     })
 });
 
@@ -188,9 +253,11 @@ defineExpose({
 onMounted(async () => {
     await fetchMobilityAdvisories();
     
-    if (event.advisories?.wheelchairReady !== undefined && event.advisories?.wheelchairReady !== null) {
+    const level = wheelchairLevel(event.advisories);
+    if (level) {
+        event.advisories.wheelchairAccess = level;
         hasSelectedWheelchair.value = true;
-        wheelchairAdvisory.value = createWheelchairAdvisory(event.advisories.wheelchairReady);
+        wheelchairAdvisory.value = createWheelchairAdvisory(level);
         
         if (event.mobility_advisories?.length) {
             event.mobility_advisories.forEach(advisory => {
