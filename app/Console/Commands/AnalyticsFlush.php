@@ -236,7 +236,8 @@ class AnalyticsFlush extends Command
 
         // Before the migration has run there is no js column to mark.
         if ($this->jsColumn) {
-            foreach (array_chunk(array_keys($found), 500) as $ids) {
+            // strval: an all-digits view id is an int key (see the UPDATE below).
+            foreach (array_chunk(array_map('strval', array_keys($found)), 500) as $ids) {
                 DB::table('analytics_events')->where('type', Analytics::PAGE_VIEW)->whereIn('view_id', $ids)->update(['js' => 1]);
             }
         }
