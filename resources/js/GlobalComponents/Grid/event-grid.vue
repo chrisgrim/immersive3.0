@@ -155,7 +155,7 @@ const getEventTags = (item) => {
 
 const getFixedPrice = (event) => {
     if (!event.price_range) return ''
-    return event.price_range.replace(/\d+(\.\d{1,2})?/g, dec => parseInt(dec))
+    return event.price_range.replace(/(\d[\d,]*)\.\d{1,2}/g, '$1')
 }
 
 const handleCategoryClick = (categoryId) => {

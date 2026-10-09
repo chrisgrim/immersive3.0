@@ -125,7 +125,7 @@ const mapConfig = {
 // Helper Methods
 const getFixedPrice = (event) => {
     if (!event || !event.price_range) return '0';
-    return event.price_range.replace(/\d+(\.\d{1,2})?/g, dec => parseInt(dec));
+    return event.price_range.replace(/(\d[\d,]*)\.\d{1,2}/g, '$1');
 };
 
 // Get marker width based on price
