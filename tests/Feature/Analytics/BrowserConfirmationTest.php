@@ -115,6 +115,24 @@ test('a ping from an automated browser flags its visitor\'s whole day so far', f
         ->and($rows->firstWhere('view_id', 'viewBBBB0001'))->bot->toBe(0);
 });
 
+test('an automated visitor whose code is all digits is flagged by a string, not a number', function () {
+    // MySQL compares an unquoted number with every visitor code as a number
+    // and fails on the first hex one (prod, 2026-10-09).
+    DB::table('analytics_events')->insert(['type' => 'page_view', 'occurred_at' => now('UTC'), 'visitor' => '6118006215453984', 'bot' => 0, 'page' => 'home', 'path' => '/', 'js' => 0, 'view_id' => 'viewDIGIT001']);
+    noteFrom(Analytics::PAGE_PING, ['view_id' => 'viewDIGIT001', 'webdriver' => 1]);
+    $bindings = [];
+    DB::listen(function ($query) use (&$bindings) {
+        if (str_starts_with($query->sql, 'update') && str_contains($query->sql, '`visitor` in')) {
+            $bindings = $query->bindings;
+        }
+    });
+
+    $rows = flushNow();
+
+    expect($bindings[0])->toBe('6118006215453984')
+        ->and($rows->firstWhere('view_id', 'viewDIGIT001'))->bot->toBe(Analytics::BOT_AUTOMATION);
+});
+
 test('a ping ahead of its view in the same batch still marks it', function () {
     noteFrom(Analytics::PAGE_PING, ['view_id' => 'viewAAAA0001', 'webdriver' => 0]);
     noteFrom(Analytics::PAGE_VIEW, ['view_id' => 'viewAAAA0001', 'page' => 'home', 'path' => '/', 'js' => 0]);

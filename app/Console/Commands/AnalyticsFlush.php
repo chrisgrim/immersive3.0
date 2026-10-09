@@ -266,7 +266,9 @@ class AnalyticsFlush extends Command
 
         foreach ($automated as $day => $visitors) {
             $from = Carbon::parse($day, 'UTC');
-            foreach (array_chunk(array_keys($visitors), 500) as $chunk) {
+            // strval: a digits-only visitor code is an int key here, and an
+            // unquoted number makes MySQL compare (and fail on) every hex code.
+            foreach (array_chunk(array_map('strval', array_keys($visitors)), 500) as $chunk) {
                 DB::table('analytics_events')->whereIn('visitor', $chunk)
                     ->where('occurred_at', '>=', $from->format('Y-m-d H:i:s'))
                     ->where('occurred_at', '<', $from->copy()->addDay()->format('Y-m-d H:i:s'))
