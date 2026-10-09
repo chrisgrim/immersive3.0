@@ -40,7 +40,13 @@
                     <!-- Form. The textarea is 16px on phones: iOS zooms the page into any
                          smaller field it focuses. -->
                     <form v-else novalidate @submit.prevent="submit">
-                        <p class="mt-3 text-2xl text-neutral-500">Know an immersive event that's not on the site? Share the name, a link, and where it is.</p>
+                        <!-- Creators and PR reps kept using this box to have us list their
+                             own show, so point them at the real submission flow first. -->
+                        <div class="mt-6 rounded-2xl bg-neutral-100 p-6">
+                            <p class="text-2xl text-neutral-900">Are you a creator, producer, or press agent for an event?</p>
+                            <a href="/hosting/getting-started" class="mt-2 inline-block text-2xl font-semibold text-black underline hover:text-neutral-700">Submit your event here</a>
+                        </div>
+                        <p class="mt-8 text-2xl text-neutral-500">Otherwise, if you're a fan who is <strong class="font-semibold text-neutral-900">not involved</strong> with the experience, tell us about it below: the name, a link, and where it is.</p>
 
                         <textarea
                             ref="messageInput"
