@@ -46,7 +46,7 @@
                             <p class="text-2xl text-neutral-900">Are you a creator, producer, or press agent for an event?</p>
                             <a href="/hosting/getting-started" class="mt-2 inline-block text-2xl font-semibold text-black underline hover:text-neutral-700">Submit your event here</a>
                         </div>
-                        <p class="mt-8 text-2xl text-neutral-500">Otherwise, if you're a fan who is <strong class="font-semibold text-neutral-900">not involved</strong> with the experience, tell us about it below: the name, a link, and where it is.</p>
+                        <p class="mt-8 text-2xl text-neutral-500">Otherwise, fans can tell us about an event below: the name, a link, and where it is.</p>
 
                         <textarea
                             ref="messageInput"
