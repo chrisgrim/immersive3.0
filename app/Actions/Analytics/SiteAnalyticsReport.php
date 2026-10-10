@@ -3,8 +3,10 @@
 namespace App\Actions\Analytics;
 
 use App\Console\Commands\AnalyticsRollup;
+use App\Models\Category;
 use App\Models\Event;
 use App\Models\Events\RemoteLocation;
+use App\Models\Genre;
 use App\Support\Analytics\Analytics;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Cache;
@@ -39,11 +41,24 @@ class SiteAnalyticsReport
         ELSE COALESCE(rl.name, CONCAT('Type ', ".self::REMOTE.')) END';
 
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 15;
+    private const VERSION = 16;
 
     private const LIMIT = 25;
 
-    private const FILTER_PATHS = "'$.categories', '$.tags', '$.start', '$.priceMin', '$.priceMax'";
+    private const FILTER_PATHS = "'$.categories', '$.tags', '$.start', '$.end', '$.priceMin', '$.priceMax'";
+
+    /**
+     * Each kind of filter a search can carry, as a test on its props: for
+     * the filter counts and for the filters on searches that found nothing.
+     */
+    private const FILTER_PATHS_TEST = "JSON_CONTAINS_PATH(COALESCE(analytics_events.props, '{}'), 'one', ".self::FILTER_PATHS.')';
+
+    private const FILTER_KINDS = [
+        'category' => "JSON_CONTAINS_PATH(COALESCE(analytics_events.props, '{}'), 'one', '$.categories')",
+        'genre' => "JSON_CONTAINS_PATH(COALESCE(analytics_events.props, '{}'), 'one', '$.tags')",
+        'dates' => "JSON_CONTAINS_PATH(COALESCE(analytics_events.props, '{}'), 'one', '$.start', '$.end')",
+        'price' => "JSON_CONTAINS_PATH(COALESCE(analytics_events.props, '{}'), 'one', '$.priceMin', '$.priceMax')",
+    ];
 
     public function handle(int $days = 30): array
     {
@@ -84,6 +99,7 @@ class SiteAnalyticsReport
             'searches' => $this->searches($since),
             'at_home_searches' => $this->atHomeSearches($since),
             'zero_result_searches' => $this->zeroResultSearches($since),
+            'filters' => $this->filterUsage($since),
             'events' => $this->events($since),
             'view_sources' => $this->viewSources($since),
             'search_clicks' => $this->searchClicks($since),
@@ -405,7 +421,7 @@ class SiteAnalyticsReport
         $like = $contains === null ? null : '%'.self::escapeLike($contains).'%';
         $columns = "COUNT(*) AS searches,
             SUM(JSON_CONTAINS_PATH(COALESCE(props, '{}'), 'one', ".self::FILTER_PATHS.')) AS with_filters,
-            COUNT(DISTINCT visitor) AS visitors, MAX(occurred_at) AS last_searched';
+            COUNT(DISTINCT visitor) AS visitors, MAX(occurred_at) AS last_searched, '.self::filterSums();
 
         // Typed places, grouped on the text in its own collation, so
         // "Austin" and "austin" are one place.
@@ -466,11 +482,70 @@ class SiteAnalyticsReport
                 'place' => $row->place,
                 'searches' => (int) $row->searches,
                 'with_filters' => (int) $row->with_filters,
+                // Which filters those were: how many had each kind on.
+                'filters' => self::filterCounts($row),
                 'visitors' => (int) $row->visitors,
                 'last_searched' => $row->last_searched,
             ])
             ->values()
             ->all();
+    }
+
+    /** One SUM per filter kind, named filter_<kind>. */
+    private static function filterSums(): string
+    {
+        return collect(self::FILTER_KINDS)->map(fn ($test, $kind) => "SUM({$test}) AS filter_{$kind}")->implode(', ');
+    }
+
+    private static function filterCounts(object $row): array
+    {
+        return collect(self::FILTER_KINDS)->map(fn ($test, $kind) => (int) $row->{"filter_{$kind}"})->all();
+    }
+
+    /**
+     * Which filters people use: how many typed searches had each kind on
+     * (and how many of those found nothing), and the categories and genres
+     * picked most. A search with two genres counts once for each.
+     */
+    private function filterUsage($since, int $limit = self::LIMIT): array
+    {
+        $totals = $this->typedSearches($since)
+            ->selectRaw('COUNT(*) AS searches, SUM('.self::FILTER_PATHS_TEST.') AS with_filters, '.self::filterSums().', '
+                .collect(self::FILTER_KINDS)->map(fn ($test, $kind) => "SUM({$test} AND results = 0) AS empty_{$kind}")->implode(', '))
+            ->first();
+
+        return [
+            'searches' => (int) $totals->searches,
+            'with_filters' => (int) $totals->with_filters,
+            'kinds' => collect(self::FILTER_KINDS)->map(fn ($test, $kind) => [
+                'searches' => (int) $totals->{"filter_{$kind}"},
+                'found_nothing' => (int) $totals->{"empty_{$kind}"},
+            ])->all(),
+            'categories' => $this->pickedMost($since, 'categories', Category::class, $limit),
+            'genres' => $this->pickedMost($since, 'tags', Genre::class, $limit),
+        ];
+    }
+
+    /** The ids in one props list ($.categories or $.tags), most picked first, with their names. */
+    private function pickedMost($since, string $list, string $model, int $limit): array
+    {
+        $rows = $this->typedSearches($since)
+            ->crossJoin(DB::raw("JSON_TABLE(analytics_events.props, '$.{$list}[*]' COLUMNS (id INT PATH '$')) AS picked"))
+            ->whereNotNull('picked.id')
+            ->selectRaw('picked.id, COUNT(*) AS searches, SUM(results = 0) AS found_nothing')
+            ->groupBy('picked.id')
+            ->orderByDesc('searches')
+            ->limit($limit)
+            ->get();
+
+        $names = $model::query()->withoutGlobalScopes()->whereIn('id', $rows->pluck('id'))->pluck('name', 'id');
+
+        return $rows->map(fn ($row) => [
+            'id' => (int) $row->id,
+            'name' => $names[$row->id] ?? null,
+            'searches' => (int) $row->searches,
+            'found_nothing' => (int) $row->found_nothing,
+        ])->all();
     }
 
     /** The most viewed events, with their ticket clicks and click-through. */

@@ -368,3 +368,38 @@ test('the report counts people by device type, like countries', function () {
         // Recording began with the first row that has a device.
         ->and($report['devices_since'])->toBe(now()->subDay()->toDateString());
 });
+
+test('the report counts which filters searches use, and which ones were on when nothing was found', function () {
+    $category = \App\Models\Category::factory()->create(['name' => 'Immersive Theatre']);
+    $genre = \App\Models\Genre::factory()->create(['name' => 'Horror']);
+    $other = \App\Models\Genre::factory()->create(['name' => 'Comedy']);
+
+    analyticsRow(['query' => 'Boise, ID', 'results' => 0, 'props' => json_encode(['tags' => [$genre->id, $other->id]])]);
+    analyticsRow(['query' => 'Boise, ID', 'results' => 0, 'props' => json_encode(['tags' => [$genre->id], 'start' => '2026-10-01'])]);
+    analyticsRow(['query' => 'Austin, TX', 'results' => 4, 'props' => json_encode(['categories' => [$category->id], 'priceMax' => 50])]);
+    analyticsRow(['query' => 'Austin, TX', 'results' => 9]);
+    analyticsRow(['query' => 'Austin, TX', 'results' => 0, 'source' => 'map', 'props' => json_encode(['tags' => [$other->id]])]);
+
+    $report = app(SiteAnalyticsReport::class)->handle(30);
+
+    expect($report['filters'])->toMatchArray([
+        'searches' => 4,
+        'with_filters' => 3,
+        'kinds' => [
+            'category' => ['searches' => 1, 'found_nothing' => 0],
+            'genre' => ['searches' => 2, 'found_nothing' => 2],
+            'dates' => ['searches' => 1, 'found_nothing' => 1],
+            'price' => ['searches' => 1, 'found_nothing' => 0],
+        ],
+    ])
+        ->and($report['filters']['genres'])->toBe([
+            ['id' => $genre->id, 'name' => 'Horror', 'searches' => 2, 'found_nothing' => 2],
+            ['id' => $other->id, 'name' => 'Comedy', 'searches' => 1, 'found_nothing' => 1],
+        ])
+        ->and($report['filters']['categories'])->toBe([['id' => $category->id, 'name' => 'Immersive Theatre', 'searches' => 1, 'found_nothing' => 0]])
+        ->and($report['zero_result_searches'][0])->toMatchArray([
+            'place' => 'Boise, ID',
+            'with_filters' => 2,
+            'filters' => ['category' => 0, 'genre' => 2, 'dates' => 1, 'price' => 0],
+        ]);
+});

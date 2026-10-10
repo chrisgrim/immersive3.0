@@ -57,6 +57,168 @@
                 </div>
             </div>
 
+            <!-- Top events: first, since which events people open is what is looked for most -->
+            <section class="card p-[2.4rem]">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-start gap-[1.2rem] mb-[0.8rem]">
+                    <div>
+                        <button type="button" class="section-link" @click="openSection('events')">
+                            <span class="section-title">Top Events</span>
+                            <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                        </button>
+                        <p class="section-sub">The most viewed events and how often a view became a ticket click</p>
+                    </div>
+                    <div class="inline-flex self-start bg-[#F7F7F7] rounded-full p-[0.4rem]" role="group" aria-label="Sort events by">
+                        <button
+                            v-for="option in eventSorts"
+                            :key="option.key"
+                            type="button"
+                            @click="eventSort = option.key"
+                            :aria-pressed="eventSort === option.key"
+                            :class="['px-[1.2rem] py-[0.6rem] rounded-full text-[1.2rem] font-semibold whitespace-nowrap', eventSort === option.key ? 'bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)]' : 'text-[#717171]']"
+                        >
+                            {{ option.label }}
+                        </button>
+                    </div>
+                </div>
+                <ul v-if="eventRows.length" class="list-none p-0 m-0">
+                    <li v-for="row in eventRows" :key="row.event_id" class="grid grid-cols-[4.8rem_1fr] md:grid-cols-[4.8rem_1fr_9rem_9rem_16rem] gap-x-[1.6rem] gap-y-[0.8rem] items-center py-[1.6rem] border-t border-[#EBEBEB] first:border-0">
+                        <div class="w-[4.8rem] h-[4.8rem] rounded-[0.8rem] bg-[#F7F7F7] overflow-hidden">
+                            <img v-if="row.thumb" :src="`${imageUrl}${row.thumb}`" alt="" loading="lazy" class="w-full h-full object-cover" @error="(e) => (e.target.style.display = 'none')">
+                        </div>
+                        <div class="min-w-0">
+                            <a v-if="row.slug" :href="`/events/${row.slug}`" target="_blank" class="text-[1.4rem] font-semibold hover:underline block truncate">{{ row.name }}</a>
+                            <span v-else class="text-[1.4rem] font-semibold text-[#717171] block truncate">{{ row.name || `Event ${row.event_id}` }} (removed)</span>
+                            <p class="text-[1.2rem] text-[#717171]">{{ row.city || (row.online ? 'Online' : '') }}</p>
+                        </div>
+                        <div class="col-start-2 md:col-start-auto flex md:block gap-[1.6rem] items-baseline">
+                            <span class="block text-[1.2rem] leading-[1.6rem] text-[#717171]">Views</span>
+                            <span class="block text-[1.4rem] leading-[2rem] font-semibold">{{ row.views.toLocaleString() }}</span>
+                        </div>
+                        <div class="col-start-2 md:col-start-auto flex md:block gap-[1.6rem] items-baseline">
+                            <span class="block text-[1.2rem] leading-[1.6rem] text-[#717171] whitespace-nowrap">Ticket clicks</span>
+                            <span class="block text-[1.4rem] leading-[2rem] font-semibold">{{ row.ticket_clicks.toLocaleString() }}</span>
+                        </div>
+                        <div class="col-start-2 md:col-start-auto">
+                            <div class="flex justify-between text-[1.2rem]">
+                                <span class="text-[#717171]">Click-through</span>
+                                <span class="font-semibold">{{ percent(row.click_through) }}</span>
+                            </div>
+                            <div class="h-[0.4rem] rounded-full bg-[#EBEBEB] mt-[0.6rem]">
+                                <div class="h-full rounded-full bg-[#FF385C]" :style="{ width: `${barWidth(row.click_through)}%` }"></div>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+                <p v-else-if="eventSort === 'click_through' && report.events.length" class="empty">No event has 10 or more views in this period yet.</p>
+                <p v-else class="empty">No event views yet.</p>
+                <p v-if="eventSort === 'click_through' && eventRows.length" class="text-[1.2rem] text-[#717171] mt-[0.8rem]">Events with at least 10 views.</p>
+            </section>
+
+            <!-- Searches + unmet demand -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-[2.4rem]">
+                <section class="card p-[2.4rem] flex flex-col">
+                    <div class="mb-[1.6rem]">
+                        <button type="button" class="section-link" @click="openSection('places')">
+                            <span class="section-title">Top Searched Places</span>
+                            <span class="section-count">{{ report.search_clicks.searches.toLocaleString() }} searches</span>
+                            <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                        </button>
+                        <p class="section-sub">Where people look for events, and how often a search led to a click</p>
+                    </div>
+                    <table v-if="placeRows.length" class="w-full text-[1.4rem]">
+                        <thead class="text-[1.2rem] text-[#717171]">
+                            <tr class="border-b border-[#EBEBEB]">
+                                <th class="text-left font-normal py-[0.8rem]">Place</th>
+                                <th class="text-right font-normal">Searches</th>
+                                <th class="text-right font-normal">Clicked</th>
+                                <th class="text-right font-normal">Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="row in placeRows" :key="row.place" class="border-b border-[#EBEBEB] last:border-0">
+                                <td class="py-[1.2rem] pr-[0.8rem]">{{ row.place }}</td>
+                                <td class="text-right">{{ row.searches.toLocaleString() }}</td>
+                                <td class="text-right font-semibold">{{ row.clicked.toLocaleString() }}</td>
+                                <td class="text-right">{{ percent(row.click_rate) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p v-else class="empty">No searches yet.</p>
+                </section>
+
+                <section class="card p-[2.4rem] flex flex-col">
+                    <div class="mb-[1.6rem]">
+                        <button type="button" class="section-link" @click="openSection('unmet')">
+                            <span class="section-title">Unmet Local Demand</span>
+                            <span class="section-count">{{ unmetTotal.toLocaleString() }} missed</span>
+                            <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                        </button>
+                        <p class="section-sub">Searches that found no events</p>
+                    </div>
+                    <ul v-if="unmetRows.length" class="list-none p-0 m-0 space-y-[0.8rem]">
+                        <li v-for="row in unmetRows" :key="`${row.kind}:${row.place}`" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem] flex justify-between items-center gap-[1.2rem]">
+                            <div class="min-w-0">
+                                <p class="text-[1.4rem] font-semibold truncate">
+                                    <span v-if="row.kind === 'at_home'" class="inline-block rounded-full bg-[#F7F7F7] text-[#717171] text-[1.1rem] font-semibold px-[0.8rem] py-[0.1rem] mr-[0.6rem] align-middle">At Home</span><span v-if="row.kind === 'no_place'" class="text-[#717171] italic">No place typed</span><template v-else>{{ row.place }}</template>
+                                </p>
+                                <p class="text-[1.2rem] text-[#717171]">
+                                    {{ row.searches }} {{ row.searches === 1 ? 'search' : 'searches' }} · {{ row.visitors }} {{ row.visitors === 1 ? 'visit' : 'visits' }} · last {{ formatDay(row.last_searched) }}
+                                </p>
+                            </div>
+                            <span v-if="row.with_filters" class="shrink-0 flex flex-wrap justify-end gap-[0.4rem]" :title="`${row.with_filters} of these had a filter on, which may be why`">
+                                <span v-for="kind in filterKinds.filter((k) => row.filters?.[k.key])" :key="kind.key" class="rounded-full bg-[#F7F7F7] text-[#717171] text-[1.2rem] px-[1.2rem] py-[0.4rem] whitespace-nowrap">
+                                    {{ row.filters[kind.key] }} {{ kind.short }}
+                                </span>
+                            </span>
+                        </li>
+                    </ul>
+                    <p v-else class="empty">Every search found something.</p>
+                    <p class="mt-auto pt-[1.6rem] border-t border-[#EBEBEB] text-[1.2rem] text-[#717171]">
+                        The tags show how many of those searches had a category, genre, date or price filter on, which may be why nothing matched.
+                    </p>
+                </section>
+            </div>
+
+            <!-- Filters: which ones people pick, and which ones were on when a
+                 search found nothing. -->
+            <section v-if="report.filters" class="card p-[2.4rem]">
+                <div class="mb-[1.6rem]">
+                    <h2 class="section-title">Top Filters</h2>
+                    <p class="section-sub">
+                        {{ report.filters.with_filters.toLocaleString() }} of {{ report.filters.searches.toLocaleString() }} searches ({{ percent(report.filters.searches ? report.filters.with_filters / report.filters.searches : null) }}) had a filter on
+                    </p>
+                </div>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-[1.2rem] mb-[2.4rem]">
+                    <div v-for="kind in filterKinds" :key="kind.key" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem]">
+                        <p class="text-[1.3rem] text-[#717171]">{{ kind.label }}</p>
+                        <p class="text-[2rem] font-bold">{{ report.filters.kinds[kind.key].searches.toLocaleString() }}</p>
+                        <p class="text-[1.2rem] text-[#717171]">{{ report.filters.kinds[kind.key].found_nothing.toLocaleString() }} found nothing</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-[2.4rem]">
+                    <div v-for="list in filterLists" :key="list.key">
+                        <h3 class="text-[1.4rem] font-semibold mb-[0.8rem]">{{ list.label }}</h3>
+                        <table v-if="report.filters[list.key].length" class="w-full text-[1.4rem]">
+                            <thead class="text-[1.2rem] text-[#717171]">
+                                <tr class="border-b border-[#EBEBEB]">
+                                    <th class="text-left font-normal py-[0.8rem]">{{ list.column }}</th>
+                                    <th class="text-right font-normal">Searches</th>
+                                    <th class="text-right font-normal">Found nothing</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="row in report.filters[list.key].slice(0, 10)" :key="row.id" class="border-b border-[#EBEBEB] last:border-0">
+                                    <td class="py-[1.2rem] pr-[0.8rem]">{{ row.name || `#${row.id} (removed)` }}</td>
+                                    <td class="text-right">{{ row.searches.toLocaleString() }}</td>
+                                    <td class="text-right">{{ row.found_nothing.toLocaleString() }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p v-else class="empty">None picked yet.</p>
+                    </div>
+                </div>
+            </section>
+
             <!-- People: everyone the server saw, beside those a browser confirmed
                  and those who engaged (compared side by side for a while). -->
             <section class="card p-[2.4rem]">
@@ -142,69 +304,6 @@
                 </details>
             </section>
 
-            <!-- Searches + unmet demand -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-[2.4rem]">
-                <section class="card p-[2.4rem] flex flex-col">
-                    <div class="mb-[1.6rem]">
-                        <button type="button" class="section-link" @click="openSection('places')">
-                            <span class="section-title">Top Searched Places</span>
-                            <span class="section-count">{{ report.search_clicks.searches.toLocaleString() }} searches</span>
-                            <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-                        </button>
-                        <p class="section-sub">Where people look for events, and how often a search led to a click</p>
-                    </div>
-                    <table v-if="placeRows.length" class="w-full text-[1.4rem]">
-                        <thead class="text-[1.2rem] text-[#717171]">
-                            <tr class="border-b border-[#EBEBEB]">
-                                <th class="text-left font-normal py-[0.8rem]">Place</th>
-                                <th class="text-right font-normal">Searches</th>
-                                <th class="text-right font-normal">Clicked</th>
-                                <th class="text-right font-normal">Rate</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="row in placeRows" :key="row.place" class="border-b border-[#EBEBEB] last:border-0">
-                                <td class="py-[1.2rem] pr-[0.8rem]">{{ row.place }}</td>
-                                <td class="text-right">{{ row.searches.toLocaleString() }}</td>
-                                <td class="text-right font-semibold">{{ row.clicked.toLocaleString() }}</td>
-                                <td class="text-right">{{ percent(row.click_rate) }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <p v-else class="empty">No searches yet.</p>
-                </section>
-
-                <section class="card p-[2.4rem] flex flex-col">
-                    <div class="mb-[1.6rem]">
-                        <button type="button" class="section-link" @click="openSection('unmet')">
-                            <span class="section-title">Unmet Local Demand</span>
-                            <span class="section-count">{{ unmetTotal.toLocaleString() }} missed</span>
-                            <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-                        </button>
-                        <p class="section-sub">Searches that found no events</p>
-                    </div>
-                    <ul v-if="unmetRows.length" class="list-none p-0 m-0 space-y-[0.8rem]">
-                        <li v-for="row in unmetRows" :key="`${row.kind}:${row.place}`" class="border border-[#EBEBEB] rounded-[1.2rem] px-[1.6rem] py-[1.2rem] flex justify-between items-center gap-[1.2rem]">
-                            <div class="min-w-0">
-                                <p class="text-[1.4rem] font-semibold truncate">
-                                    <span v-if="row.kind === 'at_home'" class="inline-block rounded-full bg-[#F7F7F7] text-[#717171] text-[1.1rem] font-semibold px-[0.8rem] py-[0.1rem] mr-[0.6rem] align-middle">At Home</span><span v-if="row.kind === 'no_place'" class="text-[#717171] italic">No place typed</span><template v-else>{{ row.place }}</template>
-                                </p>
-                                <p class="text-[1.2rem] text-[#717171]">
-                                    {{ row.searches }} {{ row.searches === 1 ? 'search' : 'searches' }} · {{ row.visitors }} {{ row.visitors === 1 ? 'visit' : 'visits' }} · last {{ formatDay(row.last_searched) }}
-                                </p>
-                            </div>
-                            <span v-if="row.with_filters" class="shrink-0 rounded-full bg-[#F7F7F7] text-[#717171] text-[1.2rem] px-[1.2rem] py-[0.4rem]" :title="`${row.with_filters} of these had a filter on, which may be why`">
-                                {{ row.with_filters }} filtered
-                            </span>
-                        </li>
-                    </ul>
-                    <p v-else class="empty">Every search found something.</p>
-                    <p class="mt-auto pt-[1.6rem] border-t border-[#EBEBEB] text-[1.2rem] text-[#717171]">
-                        "Filtered" searches had a category, genre, date or price set, which may be why nothing matched.
-                    </p>
-                </section>
-            </div>
-
             <!-- At Home -->
             <section class="card p-[2.4rem]">
                 <div class="mb-[1.6rem]">
@@ -238,64 +337,6 @@
                 </div>
                 <p v-else class="empty">No At Home searches yet.</p>
             </section>
-
-            <!-- Conversion by event -->
-            <section class="card p-[2.4rem]">
-                <div class="flex flex-col md:flex-row md:justify-between md:items-start gap-[1.2rem] mb-[0.8rem]">
-                    <div>
-                        <button type="button" class="section-link" @click="openSection('events')">
-                            <span class="section-title">Conversion by Event</span>
-                            <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-                        </button>
-                        <p class="section-sub">The most viewed events and how often a view became a ticket click</p>
-                    </div>
-                    <div class="inline-flex self-start bg-[#F7F7F7] rounded-full p-[0.4rem]" role="group" aria-label="Sort events by">
-                        <button
-                            v-for="option in eventSorts"
-                            :key="option.key"
-                            type="button"
-                            @click="eventSort = option.key"
-                            :aria-pressed="eventSort === option.key"
-                            :class="['px-[1.2rem] py-[0.6rem] rounded-full text-[1.2rem] font-semibold whitespace-nowrap', eventSort === option.key ? 'bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)]' : 'text-[#717171]']"
-                        >
-                            {{ option.label }}
-                        </button>
-                    </div>
-                </div>
-                <ul v-if="eventRows.length" class="list-none p-0 m-0">
-                    <li v-for="row in eventRows" :key="row.event_id" class="grid grid-cols-[4.8rem_1fr] md:grid-cols-[4.8rem_1fr_9rem_9rem_16rem] gap-x-[1.6rem] gap-y-[0.8rem] items-center py-[1.6rem] border-t border-[#EBEBEB] first:border-0">
-                        <div class="w-[4.8rem] h-[4.8rem] rounded-[0.8rem] bg-[#F7F7F7] overflow-hidden">
-                            <img v-if="row.thumb" :src="`${imageUrl}${row.thumb}`" alt="" loading="lazy" class="w-full h-full object-cover" @error="(e) => (e.target.style.display = 'none')">
-                        </div>
-                        <div class="min-w-0">
-                            <a v-if="row.slug" :href="`/events/${row.slug}`" target="_blank" class="text-[1.4rem] font-semibold hover:underline block truncate">{{ row.name }}</a>
-                            <span v-else class="text-[1.4rem] font-semibold text-[#717171] block truncate">{{ row.name || `Event ${row.event_id}` }} (removed)</span>
-                            <p class="text-[1.2rem] text-[#717171]">{{ row.city || (row.online ? 'Online' : '') }}</p>
-                        </div>
-                        <div class="col-start-2 md:col-start-auto flex md:block gap-[1.6rem] items-baseline">
-                            <span class="block text-[1.2rem] leading-[1.6rem] text-[#717171]">Views</span>
-                            <span class="block text-[1.4rem] leading-[2rem] font-semibold">{{ row.views.toLocaleString() }}</span>
-                        </div>
-                        <div class="col-start-2 md:col-start-auto flex md:block gap-[1.6rem] items-baseline">
-                            <span class="block text-[1.2rem] leading-[1.6rem] text-[#717171] whitespace-nowrap">Ticket clicks</span>
-                            <span class="block text-[1.4rem] leading-[2rem] font-semibold">{{ row.ticket_clicks.toLocaleString() }}</span>
-                        </div>
-                        <div class="col-start-2 md:col-start-auto">
-                            <div class="flex justify-between text-[1.2rem]">
-                                <span class="text-[#717171]">Click-through</span>
-                                <span class="font-semibold">{{ percent(row.click_through) }}</span>
-                            </div>
-                            <div class="h-[0.4rem] rounded-full bg-[#EBEBEB] mt-[0.6rem]">
-                                <div class="h-full rounded-full bg-[#FF385C]" :style="{ width: `${barWidth(row.click_through)}%` }"></div>
-                            </div>
-                        </div>
-                    </li>
-                </ul>
-                <p v-else-if="eventSort === 'click_through' && report.events.length" class="empty">No event has 10 or more views in this period yet.</p>
-                <p v-else class="empty">No event views yet.</p>
-                <p v-if="eventSort === 'click_through' && eventRows.length" class="text-[1.2rem] text-[#717171] mt-[0.8rem]">Events with at least 10 views.</p>
-            </section>
-
 
             <!-- Smaller breakdowns -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-[2.4rem]">
@@ -399,6 +440,18 @@ import axios from 'axios'
 import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue'
 import AnalyticsSection from './AnalyticsSection.vue'
 import { lineChart, nearestIndex, formatDay } from './analyticsChart.js'
+
+// The filter kinds the report counts (SiteAnalyticsReport::FILTER_KINDS).
+const filterKinds = [
+    { key: 'category', label: 'Category', short: 'category' },
+    { key: 'genre', label: 'Genre', short: 'genre' },
+    { key: 'dates', label: 'Dates', short: 'dates' },
+    { key: 'price', label: 'Price', short: 'price' },
+]
+const filterLists = [
+    { key: 'categories', label: 'Categories picked most', column: 'Category' },
+    { key: 'genres', label: 'Genres picked most', column: 'Genre' },
+]
 
 const dayOptions = [
     { days: 7, label: '7 days' },

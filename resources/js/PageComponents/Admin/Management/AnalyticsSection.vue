@@ -249,7 +249,7 @@ const SECTIONS = {
         text: (row) => row.place,
     },
     events: {
-        title: 'Conversion by Event',
+        title: 'Top Events',
         sub: 'How often a view of each event became a ticket click',
         placeholder: 'Filter events by name or city',
         minViews: true,
