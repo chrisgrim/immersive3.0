@@ -421,3 +421,13 @@ test('the report lists the organizer pages people open most, bots left out', fun
         ['organizer_id' => $quiet->id, 'name' => 'Punchdrunk', 'slug' => $quiet->slug, 'thumb' => $quiet->thumbImagePath, 'views' => 1, 'visitors' => 1],
     ]);
 });
+
+test('filter lists skip values that are not ids and count a search once when it lists an id twice', function () {
+    $genre = \App\Models\Genre::factory()->create(['name' => 'Horror']);
+
+    analyticsRow(['query' => 'Boise, ID', 'results' => 0, 'props' => json_encode(['tags' => [$genre->id, $genre->id, 'abc', null, -4]])]);
+    analyticsRow(['query' => 'Boise, ID', 'results' => 3, 'props' => null]);
+
+    expect(app(SiteAnalyticsReport::class)->handle(30)['filters']['genres'])
+        ->toBe([['id' => $genre->id, 'name' => 'Horror', 'searches' => 1, 'found_nothing' => 1]]);
+});

@@ -528,13 +528,18 @@ class SiteAnalyticsReport
         ];
     }
 
-    /** The ids in one props list ($.categories or $.tags), most picked first, with their names. */
+    /**
+     * The ids in one props list ($.categories or $.tags), most picked first,
+     * with their names. The lists are ids the search page resolved, but a
+     * value that is not a whole number is skipped rather than read as 0, and
+     * an id listed twice in one search counts that search once.
+     */
     private function pickedMost($since, string $list, string $model, int $limit): array
     {
         $rows = $this->typedSearches($since)
-            ->crossJoin(DB::raw("JSON_TABLE(analytics_events.props, '$.{$list}[*]' COLUMNS (id INT PATH '$')) AS picked"))
-            ->whereNotNull('picked.id')
-            ->selectRaw('picked.id, COUNT(*) AS searches, SUM(results = 0) AS found_nothing')
+            ->crossJoin(DB::raw("JSON_TABLE(COALESCE(analytics_events.props, '{}'), '$.{$list}[*]' COLUMNS (id BIGINT UNSIGNED PATH '$' NULL ON EMPTY NULL ON ERROR)) AS picked"))
+            ->where('picked.id', '>', 0)
+            ->selectRaw('picked.id, COUNT(DISTINCT analytics_events.id) AS searches, COUNT(DISTINCT CASE WHEN analytics_events.results = 0 THEN analytics_events.id END) AS found_nothing')
             ->groupBy('picked.id')
             ->orderByDesc('searches')
             ->limit($limit)
