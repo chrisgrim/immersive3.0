@@ -427,6 +427,8 @@ test('filter lists skip values that are not ids and count a search once when it 
 
     analyticsRow(['query' => 'Boise, ID', 'results' => 0, 'props' => json_encode(['tags' => [$genre->id, $genre->id, 'abc', null, -4]])]);
     analyticsRow(['query' => 'Boise, ID', 'results' => 3, 'props' => null]);
+    // MySQL would round this into the genre's id.
+    analyticsRow(['query' => 'Boise, ID', 'results' => 0, 'props' => json_encode(['tags' => [$genre->id - 0.4]])]);
 
     expect(app(SiteAnalyticsReport::class)->handle(30)['filters']['genres'])
         ->toBe([['id' => $genre->id, 'name' => 'Horror', 'searches' => 1, 'found_nothing' => 1]]);

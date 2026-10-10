@@ -537,7 +537,9 @@ class SiteAnalyticsReport
     private function pickedMost($since, string $list, string $model, int $limit): array
     {
         $rows = $this->typedSearches($since)
-            ->crossJoin(DB::raw("JSON_TABLE(COALESCE(analytics_events.props, '{}'), '$.{$list}[*]' COLUMNS (id BIGINT UNSIGNED PATH '$' NULL ON EMPTY NULL ON ERROR)) AS picked"))
+            ->crossJoin(DB::raw("JSON_TABLE(COALESCE(analytics_events.props, '{}'), '$.{$list}[*]' COLUMNS (id BIGINT UNSIGNED PATH '$' NULL ON EMPTY NULL ON ERROR, raw JSON PATH '$')) AS picked"))
+            // Whole numbers only: MySQL would round 1.5 into id 2.
+            ->whereRaw("JSON_TYPE(picked.raw) IN ('INTEGER', 'UNSIGNED INTEGER')")
             ->where('picked.id', '>', 0)
             ->selectRaw('picked.id, COUNT(DISTINCT analytics_events.id) AS searches, COUNT(DISTINCT CASE WHEN analytics_events.results = 0 THEN analytics_events.id END) AS found_nothing')
             ->groupBy('picked.id')
