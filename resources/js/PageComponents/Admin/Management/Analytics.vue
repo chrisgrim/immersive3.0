@@ -114,6 +114,34 @@
                 <p v-if="eventSort === 'click_through' && eventRows.length" class="text-[1.2rem] text-[#717171] mt-[0.8rem]">Events with at least 10 views.</p>
             </section>
 
+            <!-- Organizers: the organizer pages people open most. -->
+            <section v-if="report.organizers" class="card p-[2.4rem]">
+                <div class="mb-[0.8rem]">
+                    <h2 class="section-title">Top Organizers</h2>
+                    <p class="section-sub">The organizer pages people open most</p>
+                </div>
+                <ul v-if="report.organizers.length" class="list-none p-0 m-0">
+                    <li v-for="row in report.organizers.slice(0, 10)" :key="row.organizer_id" class="grid grid-cols-[4.8rem_1fr_9rem_9rem] gap-x-[1.6rem] items-center py-[1.6rem] border-t border-[#EBEBEB] first:border-0">
+                        <div class="w-[4.8rem] h-[4.8rem] rounded-full bg-[#F7F7F7] overflow-hidden">
+                            <img v-if="row.thumb" :src="`${imageUrl}${row.thumb}`" alt="" loading="lazy" class="w-full h-full object-cover" @error="(e) => (e.target.style.display = 'none')">
+                        </div>
+                        <div class="min-w-0">
+                            <a v-if="row.slug" :href="`/organizers/${row.slug}`" target="_blank" class="text-[1.4rem] font-semibold hover:underline block truncate">{{ row.name }}</a>
+                            <span v-else class="text-[1.4rem] font-semibold text-[#717171] block truncate">Organizer {{ row.organizer_id }} (removed)</span>
+                        </div>
+                        <div>
+                            <span class="block text-[1.2rem] leading-[1.6rem] text-[#717171]">Views</span>
+                            <span class="block text-[1.4rem] leading-[2rem] font-semibold">{{ row.views.toLocaleString() }}</span>
+                        </div>
+                        <div>
+                            <span class="block text-[1.2rem] leading-[1.6rem] text-[#717171]">Visits</span>
+                            <span class="block text-[1.4rem] leading-[2rem] font-semibold">{{ row.visitors.toLocaleString() }}</span>
+                        </div>
+                    </li>
+                </ul>
+                <p v-else class="empty">No organizer page views yet.</p>
+            </section>
+
             <!-- Searches + unmet demand -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-[2.4rem]">
                 <section class="card p-[2.4rem] flex flex-col">

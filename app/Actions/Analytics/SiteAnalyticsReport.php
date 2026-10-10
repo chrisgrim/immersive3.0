@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Event;
 use App\Models\Events\RemoteLocation;
 use App\Models\Genre;
+use App\Models\Organizer;
 use App\Support\Analytics\Analytics;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Cache;
@@ -41,7 +42,7 @@ class SiteAnalyticsReport
         ELSE COALESCE(rl.name, CONCAT('Type ', ".self::REMOTE.')) END';
 
     /** Bump when the report's shape changes (see handle()). */
-    private const VERSION = 16;
+    private const VERSION = 17;
 
     private const LIMIT = 25;
 
@@ -101,6 +102,7 @@ class SiteAnalyticsReport
             'zero_result_searches' => $this->zeroResultSearches($since),
             'filters' => $this->filterUsage($since),
             'events' => $this->events($since),
+            'organizers' => $this->organizers($since),
             'view_sources' => $this->viewSources($since),
             'search_clicks' => $this->searchClicks($since),
             'bots' => $this->bots($since),
@@ -584,6 +586,36 @@ class SiteAnalyticsReport
             'views' => (int) $row->views,
             'ticket_clicks' => (int) $row->ticket_clicks,
             'click_through' => $row->views > 0 ? round($row->ticket_clicks / $row->views, 3) : null,
+        ])->all();
+    }
+
+    /**
+     * The organizer pages people open most (page views, so only while the
+     * page_views capture is on), with each organizer's name and address.
+     */
+    private function organizers($since, int $limit = self::LIMIT): array
+    {
+        $counts = $this->rows($since, Analytics::PAGE_VIEW)
+            ->where('page', 'organizers.show')
+            ->whereNotNull('organizer_id')
+            ->selectRaw('organizer_id, COUNT(*) AS views, COUNT(DISTINCT visitor) AS visitors')
+            ->groupBy('organizer_id')
+            ->orderByDesc('views')
+            ->limit($limit)
+            ->get();
+
+        $organizers = Organizer::withoutGlobalScopes()
+            ->whereIn('id', $counts->pluck('organizer_id'))
+            ->get(['id', 'name', 'slug', 'thumbImagePath'])
+            ->keyBy('id');
+
+        return $counts->map(fn ($row) => [
+            'organizer_id' => (int) $row->organizer_id,
+            'name' => $organizers[$row->organizer_id]->name ?? null,
+            'slug' => $organizers[$row->organizer_id]->slug ?? null,
+            'thumb' => $organizers[$row->organizer_id]->thumbImagePath ?? null,
+            'views' => (int) $row->views,
+            'visitors' => (int) $row->visitors,
         ])->all();
     }
 

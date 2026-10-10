@@ -403,3 +403,21 @@ test('the report counts which filters searches use, and which ones were on when 
             'filters' => ['category' => 0, 'genre' => 2, 'dates' => 1, 'price' => 0],
         ]);
 });
+
+test('the report lists the organizer pages people open most, bots left out', function () {
+    $busy = \App\Models\Organizer::factory()->create(['name' => 'Third Rail Projects']);
+    $quiet = \App\Models\Organizer::factory()->create(['name' => 'Punchdrunk']);
+
+    $view = fn ($organizer, array $row = []) => analyticsRow(array_merge(['type' => Analytics::PAGE_VIEW, 'page' => 'organizers.show', 'organizer_id' => $organizer->id], $row));
+    $view($busy);
+    $view($busy, ['visitor' => str_repeat('b', 16)]);
+    $view($busy);
+    $view($quiet);
+    $view($quiet, ['bot' => Analytics::BOT_DATACENTER]);
+    $view($quiet, ['occurred_at' => now()->subDays(40)]);
+
+    expect(app(SiteAnalyticsReport::class)->handle(30)['organizers'])->toBe([
+        ['organizer_id' => $busy->id, 'name' => 'Third Rail Projects', 'slug' => $busy->slug, 'thumb' => $busy->thumbImagePath, 'views' => 3, 'visitors' => 2],
+        ['organizer_id' => $quiet->id, 'name' => 'Punchdrunk', 'slug' => $quiet->slug, 'thumb' => $quiet->thumbImagePath, 'views' => 1, 'visitors' => 1],
+    ]);
+});
