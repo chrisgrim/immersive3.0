@@ -50,19 +50,36 @@
                 <!-- Age Limit Section -->
                 <div class="w-full">
                     <h4 class="mb-8">Age Requirement</h4>
-                    <div v-if="!selectedAge" class="flex flex-col w-full">
-                        <div class="grid grid-cols-4 md:grid-cols-3 gap-4">
-                            <div 
-                                v-for="age in ageLimitList" 
-                                :key="age.id" 
-                                @click="selectAgeLimit(age)"
-                                class="relative cursor-pointer items-end flex justify-between p-8 min-h-32 md:min-h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
+                    <!-- Any youngest age from 1 to 21 can be typed: a short list kept
+                         missing shows like 9 + VR or 4 + light walks. -->
+                    <div v-if="!selectedAge" class="flex flex-col md:flex-row md:items-center gap-6 w-full">
+                        <button
+                            v-if="allAges"
+                            type="button"
+                            @click="selectAgeLimit(allAges)"
+                            class="px-8 py-6 text-2xl text-left border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
+                        >
+                            {{ allAges.name }}
+                        </button>
+                        <p class="text-2xl text-neutral-500">or</p>
+                        <form class="flex items-center gap-4" novalidate @submit.prevent="selectTypedAge">
+                            <label for="age-minimum" class="text-2xl">Ages</label>
+                            <input
+                                id="age-minimum"
+                                v-model="typedAge"
+                                type="number"
+                                inputmode="numeric"
+                                :min="MIN_AGE"
+                                :max="MAX_AGE"
+                                placeholder="9"
+                                class="w-28 px-6 py-5 text-[1.6rem] md:text-2xl border border-neutral-300 rounded-2xl focus:border-black focus:shadow-[0_0_0_1px_black] focus:outline-none"
+                                :class="{ 'border-red-500': typedAgeError }"
                             >
-                                <div class="w-full">
-                                    <p class="text-2xl leading-tight break-words hyphens-auto">{{ age.name }}</p>
-                                </div>
-                            </div>
-                        </div>
+                            <span class="text-2xl">and up</span>
+                            <button type="submit" class="px-8 py-5 bg-black text-white rounded-2xl hover:bg-neutral-800 text-xl font-semibold">
+                                Set
+                            </button>
+                        </form>
                     </div>
                     <div v-else class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 transition-all duration-200">
                         <div>
@@ -84,7 +101,10 @@
                             <component :is="hoveredLocation === 'closeAge' ? RiCloseCircleFill : RiCloseCircleLine" />
                         </div>
                     </div>
-                    <p v-if="$v.selectedAge.$error" 
+                    <p v-if="!selectedAge && typedAgeError" class="text-red-500 text-1xl mt-2 py-2 leading-tight">
+                        {{ typedAgeError }}
+                    </p>
+                    <p v-else-if="$v.selectedAge.$error" 
                        class="text-red-500 text-1xl mt-2 py-2 leading-tight">
                         Please select an age requirement
                     </p>
@@ -186,12 +206,19 @@ const selectedAge = ref(null);
 const selectedInteractive = ref(null);
 const contactLevelList = ref([]);
 const ageLimitList = ref([]);
+const typedAge = ref('');
+const typedAgeError = ref('');
 const contentInteractiveList = ref([]);
 
 // 3. Computed
 const currentContactLevel = computed(() => 
     event.contact_levels?.length > 0 ? event.contact_levels[0] : null
 );
+
+// Mirrors the "1 +" to "21 +" rows in age_limits; "All ages" is its own row.
+const MIN_AGE = 1;
+const MAX_AGE = 21;
+const allAges = computed(() => ageLimitList.value.find((age) => age.name === 'All ages') || null);
 
 const currentAgeLimit = computed(() => 
     event.age_limits || null
@@ -255,6 +282,18 @@ const selectAgeLimit = (age) => {
 
 const deselectAgeLimit = () => {
     selectedAge.value = null;
+    typedAge.value = '';
+};
+
+const selectTypedAge = () => {
+    const age = Number(typedAge.value);
+    const match = Number.isInteger(age) && ageLimitList.value.find((row) => row.name === `${age} +`);
+    if (!match) {
+        typedAgeError.value = `Please type a whole age from ${MIN_AGE} to ${MAX_AGE}`;
+        return;
+    }
+    typedAgeError.value = '';
+    selectAgeLimit(match);
 };
 
 const selectInteractiveLevel = (interactive) => {
@@ -275,6 +314,8 @@ const handleAudienceInput = () => {
 // 7. Component API
 defineExpose({
     isValid: async () => {
+        // A typed age counts even if they went straight to Next without Set.
+        if (!selectedAge.value && typedAge.value !== '') selectTypedAge();
         const isValid = await $v.value.$validate();
         return isValid;
     },

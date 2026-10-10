@@ -36,7 +36,7 @@ class ListEventAttributes extends Tool
                 ->get(['id', 'name']),
             'contact_levels' => ContactLevel::orderBy('id')->get(['id', 'name']),
             'interactive_levels' => InteractiveLevel::orderBy('id')->get(['id', 'name', 'description']),
-            'age_limits' => AgeLimit::orderBy('id')->get(['id', 'name']),
+            'age_limits' => AgeLimit::orderBy('age')->get(['id', 'name']),
             'attendance_types' => AttendanceType::orderBy('id')->get(['id', 'name']),
             // Same visibility as the wizard's suggestion dropdowns: curated
             // (admin) advisories plus ones this user created previously.
