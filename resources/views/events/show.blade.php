@@ -44,7 +44,7 @@
     <meta property="og:title" content="{{$event->name}}" />
     <meta property="og:description" content="{{$event->tag_line ? $event->tag_line : $event->description}}" />
     <meta property="og:url" content="{{ $url }}" />
-    <meta property="og:site_name" content="{{config('app.name')}}" />
+    <meta property="og:site_name" content="Everything Immersive" />
     <meta property="article:publisher" content="https://www.everythingimmersive.com" />
     <meta property="article:section" content="Events" />
     <meta property="article:published_time" content="{{$event->created_at}}" />

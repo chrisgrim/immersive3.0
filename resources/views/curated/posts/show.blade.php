@@ -16,7 +16,7 @@
     <meta property="og:title" content="{{ $post->name }}" />
     <meta property="og:description" content="{{ Str::limit(strip_tags($post->blurb ?? ''), 160) }}" />
     <meta property="og:url" content="{{ url('/communities/' . $community->slug . '/posts/' . $post->slug) }}" />
-    <meta property="og:site_name" content="EverythingImmersive" />
+    <meta property="og:site_name" content="Everything Immersive" />
     <meta property="article:publisher" content="https://www.everythingimmersive.com" />
     <meta property="article:section" content="Communities" />
     <meta property="article:published_time" content="{{ $post->created_at->toIso8601String() }}" />
