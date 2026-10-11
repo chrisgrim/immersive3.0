@@ -49,10 +49,11 @@
 
                 <!-- Age Limit Section -->
                 <div class="w-full">
-                    <h4 class="mb-8">Age Requirement</h4>
-                    <!-- Organizers pick from the usual ages, or Custom to type one. -->
-                    <div v-if="!selectedAge && !isStaff && !customAge" class="flex flex-col w-full">
-                        <div class="grid grid-cols-4 md:grid-cols-3 gap-4">
+                    <h4 class="mb-8">{{ customAge && !selectedAge ? 'Custom Age Requirement' : 'Age Requirement' }}</h4>
+                    <!-- The usual ages as buttons, or Custom to type any youngest age
+                         from 1 to 21 (shows like 9 + VR). -->
+                    <div v-if="!selectedAge && !customAge" class="flex flex-col w-full">
+                        <div class="grid grid-cols-3 gap-4">
                             <div 
                                 v-for="age in standardAgeList" 
                                 :key="age.id" 
@@ -64,7 +65,7 @@
                                 </div>
                             </div>
                             <div
-                                @click="customAge = true"
+                                @click="openCustomAge"
                                 class="relative cursor-pointer items-end flex justify-between p-8 min-h-32 md:min-h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
                             >
                                 <div class="w-full">
@@ -73,20 +74,10 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Staff (and organizers who chose Custom) type any youngest age
-                         from 1 to 21: the usual list misses shows like 9 + VR. -->
-                    <div v-else-if="!selectedAge" class="flex flex-col md:flex-row md:items-center gap-6 w-full">
-                        <button
-                            v-if="allAges"
-                            type="button"
-                            @click="selectAgeLimit(allAges)"
-                            class="px-8 py-6 text-2xl text-left border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
-                        >
-                            {{ allAges.name }}
-                        </button>
-                        <p class="text-2xl text-neutral-500">or</p>
+                    <!-- No Set button: Enter or Next takes the typed age. -->
+                    <div v-else-if="!selectedAge" class="flex flex-col items-start gap-6 w-full">
                         <form class="flex items-center gap-4" novalidate @submit.prevent="selectTypedAge">
-                            <label for="age-minimum" class="text-2xl">Ages</label>
+                            <label for="age-minimum" class="sr-only">Youngest age</label>
                             <input
                                 id="age-minimum"
                                 v-model="typedAge"
@@ -94,17 +85,13 @@
                                 inputmode="numeric"
                                 :min="MIN_AGE"
                                 :max="MAX_AGE"
-                                placeholder="9"
                                 class="w-28 px-6 py-5 text-[1.6rem] md:text-2xl border border-neutral-300 rounded-2xl focus:border-black focus:shadow-[0_0_0_1px_black] focus:outline-none"
                                 :class="{ 'border-red-500': typedAgeError }"
                             >
                             <span class="text-2xl">and up</span>
-                            <button type="submit" class="px-8 py-5 bg-black text-white rounded-2xl hover:bg-neutral-800 text-xl font-semibold">
-                                Set
-                            </button>
                         </form>
-                        <button v-if="!isStaff" type="button" class="text-xl underline text-neutral-500 hover:text-black" @click="leaveCustomAge">
-                            Back to the usual ages
+                        <button type="button" class="text-xl underline text-neutral-500 hover:text-black" @click="leaveCustomAge">
+                            Use standard age requirements
                         </button>
                     </div>
                     <div v-else class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 transition-all duration-200">
@@ -219,7 +206,7 @@
 
 <script setup>
 // 1. Imports
-import { ref, inject, onMounted, computed } from 'vue';
+import { ref, inject, onMounted, computed, nextTick } from 'vue';
 import { required, maxLength } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 import { RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";
@@ -244,11 +231,6 @@ const currentContactLevel = computed(() =>
 // Mirrors the "1 +" to "21 +" rows in age_limits; "All ages" is its own row.
 const MIN_AGE = 1;
 const MAX_AGE = 21;
-const allAges = computed(() => ageLimitList.value.find((age) => age.name === 'All ages') || null);
-
-// Organizers see the usual ages only; moderators and admins type any age.
-const user = inject('user');
-const isStaff = computed(() => !!user?.isModerator);
 const STANDARD_AGES = ['10 +', '13 +', '16 +', '18 +', '21 +', 'All ages'];
 const customAge = ref(false);
 const standardAgeList = computed(() => ageLimitList.value.filter((age) => STANDARD_AGES.includes(age.name)));
@@ -316,6 +298,12 @@ const selectAgeLimit = (age) => {
 const deselectAgeLimit = () => {
     selectedAge.value = null;
     leaveCustomAge();
+};
+
+const openCustomAge = async () => {
+    customAge.value = true;
+    await nextTick();
+    document.getElementById('age-minimum')?.focus();
 };
 
 // Back to the buttons drops whatever was typed, so Next can't save it.
