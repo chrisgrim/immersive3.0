@@ -103,7 +103,7 @@
                                 Set
                             </button>
                         </form>
-                        <button v-if="!isStaff" type="button" class="text-xl underline text-neutral-500 hover:text-black" @click="customAge = false">
+                        <button v-if="!isStaff" type="button" class="text-xl underline text-neutral-500 hover:text-black" @click="leaveCustomAge">
                             Back to the usual ages
                         </button>
                     </div>
@@ -315,8 +315,14 @@ const selectAgeLimit = (age) => {
 
 const deselectAgeLimit = () => {
     selectedAge.value = null;
-    typedAge.value = '';
+    leaveCustomAge();
+};
+
+// Back to the buttons drops whatever was typed, so Next can't save it.
+const leaveCustomAge = () => {
     customAge.value = false;
+    typedAge.value = '';
+    typedAgeError.value = '';
 };
 
 const selectTypedAge = () => {
