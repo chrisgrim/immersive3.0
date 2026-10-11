@@ -2794,3 +2794,26 @@ test('an always-available end date closes at the end of that local day, even at 
 
     expect((string) $event->fresh()->closingDate)->toBe($end.' 23:59:59');
 });
+
+// ── ages ───────────────────────────────────────────────────────────────
+
+test('list-event-attributes lists every age from 1 to 21', function () {
+    $response = EiServer::actingAs(writeToolUser())
+        ->tool(\App\Mcp\Tools\ListEventAttributes::class, ['type' => 'age_limits']);
+
+    $response->assertOk()->assertSee(array_map(fn ($age) => "\"{$age} +\"", range(1, 21)));
+});
+
+test('update-event saves any age, such as 9 +', function () {
+    $user = writeToolUser();
+    $event = draftFor(writeToolOrganizer($user), $user);
+    $nine = \App\Models\Events\AgeLimit::where('name', '9 +')->firstOrFail();
+
+    $response = EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'ageLimit' => ['id' => $nine->id],
+    ]);
+
+    $response->assertOk();
+    expect($event->fresh()->age_limits_id)->toBe($nine->id);
+});

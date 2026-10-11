@@ -50,9 +50,24 @@
                 <!-- Age Limit Section -->
                 <div class="w-full">
                     <h4 class="mb-8">Age Requirement</h4>
-                    <!-- Any youngest age from 1 to 21 can be typed: a short list kept
-                         missing shows like 9 + VR or 4 + light walks. -->
-                    <div v-if="!selectedAge" class="flex flex-col md:flex-row md:items-center gap-6 w-full">
+                    <!-- Organizers pick from the usual ages. -->
+                    <div v-if="!selectedAge && !isStaff" class="flex flex-col w-full">
+                        <div class="grid grid-cols-4 md:grid-cols-3 gap-4">
+                            <div 
+                                v-for="age in standardAgeList" 
+                                :key="age.id" 
+                                @click="selectAgeLimit(age)"
+                                class="relative cursor-pointer items-end flex justify-between p-8 min-h-32 md:min-h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
+                            >
+                                <div class="w-full">
+                                    <p class="text-2xl leading-tight break-words hyphens-auto">{{ age.name }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Staff can type any youngest age from 1 to 21: the usual list
+                         misses shows like 9 + VR or 4 + light walks. -->
+                    <div v-else-if="!selectedAge" class="flex flex-col md:flex-row md:items-center gap-6 w-full">
                         <button
                             v-if="allAges"
                             type="button"
@@ -219,6 +234,12 @@ const currentContactLevel = computed(() =>
 const MIN_AGE = 1;
 const MAX_AGE = 21;
 const allAges = computed(() => ageLimitList.value.find((age) => age.name === 'All ages') || null);
+
+// Organizers see the usual ages only; moderators and admins type any age.
+const user = inject('user');
+const isStaff = computed(() => !!user?.isModerator);
+const STANDARD_AGES = ['6 +', '8 +', '10 +', '12 +', '13 +', '16 +', '18 +', '21 +', 'All ages'];
+const standardAgeList = computed(() => ageLimitList.value.filter((age) => STANDARD_AGES.includes(age.name)));
 
 const currentAgeLimit = computed(() => 
     event.age_limits || null
