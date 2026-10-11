@@ -50,8 +50,8 @@
                 <!-- Age Limit Section -->
                 <div class="w-full">
                     <h4 class="mb-8">Age Requirement</h4>
-                    <!-- Organizers pick from the usual ages. -->
-                    <div v-if="!selectedAge && !isStaff" class="flex flex-col w-full">
+                    <!-- Organizers pick from the usual ages, or Custom to type one. -->
+                    <div v-if="!selectedAge && !isStaff && !customAge" class="flex flex-col w-full">
                         <div class="grid grid-cols-4 md:grid-cols-3 gap-4">
                             <div 
                                 v-for="age in standardAgeList" 
@@ -63,10 +63,18 @@
                                     <p class="text-2xl leading-tight break-words hyphens-auto">{{ age.name }}</p>
                                 </div>
                             </div>
+                            <div
+                                @click="customAge = true"
+                                class="relative cursor-pointer items-end flex justify-between p-8 min-h-32 md:min-h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
+                            >
+                                <div class="w-full">
+                                    <p class="text-2xl leading-tight break-words hyphens-auto">Custom</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <!-- Staff can type any youngest age from 1 to 21: the usual list
-                         misses shows like 9 + VR or 4 + light walks. -->
+                    <!-- Staff (and organizers who chose Custom) type any youngest age
+                         from 1 to 21: the usual list misses shows like 9 + VR. -->
                     <div v-else-if="!selectedAge" class="flex flex-col md:flex-row md:items-center gap-6 w-full">
                         <button
                             v-if="allAges"
@@ -95,6 +103,9 @@
                                 Set
                             </button>
                         </form>
+                        <button v-if="!isStaff" type="button" class="text-xl underline text-neutral-500 hover:text-black" @click="customAge = false">
+                            Back to the usual ages
+                        </button>
                     </div>
                     <div v-else class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 transition-all duration-200">
                         <div>
@@ -238,7 +249,8 @@ const allAges = computed(() => ageLimitList.value.find((age) => age.name === 'Al
 // Organizers see the usual ages only; moderators and admins type any age.
 const user = inject('user');
 const isStaff = computed(() => !!user?.isModerator);
-const STANDARD_AGES = ['6 +', '8 +', '10 +', '12 +', '13 +', '16 +', '18 +', '21 +', 'All ages'];
+const STANDARD_AGES = ['10 +', '13 +', '16 +', '18 +', '21 +', 'All ages'];
+const customAge = ref(false);
 const standardAgeList = computed(() => ageLimitList.value.filter((age) => STANDARD_AGES.includes(age.name)));
 
 const currentAgeLimit = computed(() => 
@@ -304,6 +316,7 @@ const selectAgeLimit = (age) => {
 const deselectAgeLimit = () => {
     selectedAge.value = null;
     typedAge.value = '';
+    customAge.value = false;
 };
 
 const selectTypedAge = () => {

@@ -1,8 +1,9 @@
 /**
  * Specs for Creation/Core/Pages/advisories.vue, the age requirement.
  *
- * Organizers pick from the usual ages as buttons; moderators and admins get
- * "All ages" plus a box to type any youngest age from 1 to 21.
+ * Organizers pick from the usual ages as buttons, or Custom to type one;
+ * moderators and admins get "All ages" plus a box to type any youngest age
+ * from 1 to 21.
  */
 import { mount, flushPromises } from '@vue/test-utils';
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -37,10 +38,21 @@ describe('advisories.vue age requirement', () => {
 
         expect(wrapper.find('#age-minimum').exists()).toBe(false);
         const text = wrapper.text();
-        for (const name of ['6 +', '8 +', '10 +', '12 +', '13 +', '16 +', '18 +', '21 +', 'All ages']) {
+        for (const name of ['10 +', '13 +', '16 +', '18 +', '21 +', 'All ages', 'Custom']) {
             expect(text).toContain(name);
         }
-        expect(text).not.toContain('9 +');
+        expect(text).not.toContain('12 +');
+    });
+
+    it('lets organizers choose Custom and type an age, such as 4', async () => {
+        const wrapper = makeWrapper({ isModerator: false });
+        await flushPromises();
+
+        await wrapper.findAll('p').find((p) => p.text() === 'Custom').trigger('click');
+        await wrapper.find('#age-minimum').setValue('4');
+        await wrapper.find('form').trigger('submit');
+
+        expect(wrapper.vm.submitData().ageLimit).toEqual(AGES[3]);
     });
 
     it('lets moderators type any age, such as 9', async () => {
