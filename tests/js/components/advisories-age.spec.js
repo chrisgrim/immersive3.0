@@ -11,14 +11,16 @@ import Advisories from '@/PageComponents/Creation/Core/Pages/advisories.vue';
 
 const AGES = [
     ...Array.from({ length: 21 }, (_, i) => ({ id: i + 1, name: `${i + 1} +`, age: i + 1 })),
-    { id: 99, name: 'All ages', age: 100 },
+    // Listed first, the way the API would sort a row stored with age 0.
 ];
+AGES.unshift({ id: 99, name: 'All ages', age: 0 });
+const age = (n) => AGES.find((row) => row.name === `${n} +`);
 
-function makeWrapper(user = { isModerator: false }) {
+function makeWrapper(user = { isModerator: false }, saved = null) {
     return mount(Advisories, {
         global: {
             provide: {
-                event: reactive({ advisories: { audience: '' }, contact_levels: [], age_limits: null }),
+                event: reactive({ advisories: { audience: '' }, contact_levels: [], age_limits: saved }),
                 user,
             },
         },
@@ -76,7 +78,7 @@ describe('advisories.vue age requirement', () => {
         await wrapper.find('#age-minimum').setValue('4');
         await wrapper.find('form').trigger('submit');
 
-        expect(wrapper.vm.submitData().ageLimit).toEqual(AGES[3]);
+        expect(wrapper.vm.submitData().ageLimit).toEqual(age(4));
     });
 
     it('takes a typed age on Next without Enter', async () => {
@@ -87,7 +89,7 @@ describe('advisories.vue age requirement', () => {
         await wrapper.find('#age-minimum').setValue('9');
         await wrapper.vm.isValid();
 
-        expect(wrapper.vm.submitData().ageLimit).toEqual(AGES[8]);
+        expect(wrapper.vm.submitData().ageLimit).toEqual(age(9));
     });
 
     it('refuses an age past 21', async () => {
@@ -127,5 +129,28 @@ describe('advisories.vue age requirement', () => {
         await wrapper.vm.isValid();
 
         expect(wrapper.vm.submitData().ageLimit).toBeNull();
+    });
+
+    it('lists the buttons in order, All ages after 21 +', async () => {
+        const wrapper = makeWrapper();
+        await flushPromises();
+
+        const labels = wrapper.findAll('.grid p').map((p) => p.text());
+        expect(labels).toEqual(['10 +', '13 +', '16 +', '18 +', '21 +', 'All ages', 'Custom']);
+    });
+
+    it('keeps a saved custom age, and removing it shows the buttons', async () => {
+        const wrapper = makeWrapper({ isModerator: false }, age(9));
+        await flushPromises();
+
+        expect(wrapper.vm.submitData().ageLimit).toEqual(age(9));
+        expect(wrapper.text()).toContain('9 +');
+        expect(wrapper.text()).not.toContain('Custom');
+
+        await wrapper.find('.cursor-pointer.bg-white').trigger('click');
+
+        expect(wrapper.vm.submitData().ageLimit).toBeNull();
+        expect(wrapper.findAll('.grid p').map((p) => p.text())).toContain('Custom');
+        expect(wrapper.find('#age-minimum').exists()).toBe(false);
     });
 });

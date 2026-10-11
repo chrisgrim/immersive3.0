@@ -233,7 +233,10 @@ const MIN_AGE = 1;
 const MAX_AGE = 21;
 const STANDARD_AGES = ['10 +', '13 +', '16 +', '18 +', '21 +', 'All ages'];
 const customAge = ref(false);
-const standardAgeList = computed(() => ageLimitList.value.filter((age) => STANDARD_AGES.includes(age.name)));
+// In this order whatever the rows' stored ages are ("All ages" was 0 once).
+const standardAgeList = computed(() => STANDARD_AGES
+    .map((name) => ageLimitList.value.find((age) => age.name === name))
+    .filter(Boolean));
 
 const currentAgeLimit = computed(() => 
     event.age_limits || null
