@@ -100,4 +100,16 @@ describe('advisories.vue age requirement', () => {
         expect(wrapper.text()).not.toContain('Please type a whole age');
         expect(wrapper.find('#age-minimum').exists()).toBe(false);
     });
+
+    it('does not save a valid typed age after an organizer goes back', async () => {
+        const wrapper = makeWrapper({ isModerator: false });
+        await flushPromises();
+
+        await wrapper.findAll('p').find((p) => p.text() === 'Custom').trigger('click');
+        await wrapper.find('#age-minimum').setValue('9');
+        await wrapper.findAll('button').find((b) => b.text() === 'Back to the usual ages').trigger('click');
+        await wrapper.vm.isValid();
+
+        expect(wrapper.vm.submitData().ageLimit).toBeNull();
+    });
 });
