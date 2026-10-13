@@ -64,6 +64,10 @@ export function installSentry(app) {
             // it throws from its own inline "global code" when its namespace
             // is not set up yet. Browser code, not ours (EI-VUE-1A).
             'window.__firefox__',
+            // DuckDuckGo's iOS browser rejects with this from its own injected
+            // scripts. No stacktrace, and the text appears nowhere in our code
+            // or our libraries (EI-VUE-1E).
+            'invalid origin',
         ],
         // Errors thrown entirely inside Google Maps' own minified scripts are
         // not fixable from our code — e.g. the Places attribution renderer
