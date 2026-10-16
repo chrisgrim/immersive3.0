@@ -4,30 +4,25 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\EventSuggestion;
+use Illuminate\Http\Request;
 
 class AdminEventSuggestionController extends Controller
 {
-    public function index()
+    public const PER_PAGE = 25;
+
+    /**
+     * Newest first, a page at a time. With ?done=1 (the page's default) the done
+     * ones are mixed in as a record; without it only the pending queue shows.
+     */
+    public function index(Request $request)
     {
-        // Pending and done are read separately so a long history of done ones can
-        // never push a new suggestion off the page. Each is capped so a flood
-        // does not load every row at once.
-        $pending = EventSuggestion::with('user:id,name,email')
-            ->where('status', 'pending')
-            ->latest()
-            ->limit(200)
-            ->get();
+        $page = EventSuggestion::with(['user:id,name,email', 'processor:id,name'])
+            ->whereIn('status', $request->boolean('done') ? ['pending', 'done'] : ['pending'])
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate(self::PER_PAGE);
 
-        $done = EventSuggestion::with(['user:id,name,email', 'processor:id,name'])
-            ->where('status', 'done')
-            ->latest()
-            ->limit(200)
-            ->get();
-
-        // One list, newest first, so the page reads as a record of everything sent.
-        $suggestions = $pending->concat($done)
-            ->sortBy([['created_at', 'desc'], ['id', 'desc']])
-            ->values();
+        $suggestions = $page->getCollection();
 
         return response()->json([
             'suggestions' => $suggestions->map(fn (EventSuggestion $s) => [
@@ -43,6 +38,12 @@ class AdminEventSuggestionController extends Controller
                     'email' => $s->user->email,
                 ] : null,
             ]),
+            'pagination' => [
+                'current_page' => $page->currentPage(),
+                'last_page' => $page->lastPage(),
+                'per_page' => $page->perPage(),
+                'total' => $page->total(),
+            ],
         ]);
     }
 

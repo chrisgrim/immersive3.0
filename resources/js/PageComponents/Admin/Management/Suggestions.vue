@@ -1,6 +1,14 @@
 <template>
     <div class="space-y-8">
-        <h1 class="text-4xl font-medium">Suggestions</h1>
+        <div class="flex items-center justify-between gap-4">
+            <h1 class="text-4xl font-medium">Suggestions</h1>
+            <button
+                @click="toggleDone"
+                class="px-4 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 flex-shrink-0"
+            >
+                {{ showDone ? 'Hide done' : 'Show done' }}
+            </button>
+        </div>
         <p class="text-gray-500 font-normal">Events people think we're missing, sent from the "Tell us about an event" link and the "Missing an event?" button.</p>
 
         <!-- Loading State -->
@@ -10,7 +18,7 @@
 
         <!-- Empty -->
         <div v-else-if="!suggestions.length" class="text-center py-12">
-            <p class="text-gray-500 text-lg">No suggestions yet</p>
+            <p class="text-gray-500 text-lg">{{ showDone ? 'No suggestions yet' : 'No new suggestions' }}</p>
         </div>
 
         <!-- Suggestions List -->
@@ -62,6 +70,12 @@
             </div>
         </div>
 
+        <Pagination
+            v-if="!loading && pagination"
+            :pagination="pagination"
+            @paginate="fetchSuggestions"
+        />
+
         <!-- Toast Message -->
         <div v-if="showToast"
             class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg">
@@ -74,8 +88,21 @@
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue'
+import Pagination from '@/GlobalComponents/pagination.vue'
+
+// Remembered per browser so the page opens the way it was left.
+const SHOW_DONE_KEY = 'admin-suggestions-show-done'
+const readShowDone = () => {
+    try {
+        return localStorage.getItem(SHOW_DONE_KEY) !== '0'
+    } catch {
+        return true
+    }
+}
 
 const suggestions = ref([])
+const pagination = ref(null)
+const showDone = ref(readShowDone())
 const loading = ref(true)
 const processing = ref(null)
 const processingAction = ref(null)
@@ -117,17 +144,28 @@ const messageParts = (message) => {
     return parts
 }
 
-const fetchSuggestions = async () => {
+const fetchSuggestions = async (page = 1) => {
     try {
         loading.value = true
-        const { data } = await axios.get('/api/admin/approve/suggestions')
+        const { data } = await axios.get('/api/admin/approve/suggestions', {
+            params: { page, done: showDone.value ? 1 : 0 },
+        })
         suggestions.value = data.suggestions || []
+        pagination.value = data.pagination || null
     } catch (error) {
         console.error('Error fetching suggestions:', error)
         showToastMessage('Failed to load suggestions')
     } finally {
         loading.value = false
     }
+}
+
+const toggleDone = () => {
+    showDone.value = !showDone.value
+    try {
+        localStorage.setItem(SHOW_DONE_KEY, showDone.value ? '1' : '0')
+    } catch {}
+    fetchSuggestions(1)
 }
 
 const act = async (suggestion, action, request, doneMessage, update) => {
@@ -141,7 +179,7 @@ const act = async (suggestion, action, request, doneMessage, update) => {
     } catch (error) {
         console.error(`Error (${action}) suggestion:`, error)
         showToastMessage(error.response?.data?.message || 'Something went wrong')
-        await fetchSuggestions()
+        await fetchSuggestions(pagination.value?.current_page)
     } finally {
         processing.value = null
         processingAction.value = null
@@ -152,12 +190,12 @@ const markDone = (suggestion) => act(
     suggestion, 'done',
     () => axios.post(`/api/admin/approve/suggestions/${suggestion.id}/done`),
     'Marked as done',
-    // Stays on the list, grayed out, with who did it and when.
-    () => Object.assign(suggestion, {
+    // Stays on the list, grayed out, with who did it and when (or leaves it while done ones are hidden).
+    () => showDone.value ? Object.assign(suggestion, {
         status: 'done',
         processed_at: new Date().toISOString(),
         processed_by: window.Laravel?.user?.name ?? null,
-    }),
+    }) : (suggestions.value = suggestions.value.filter(s => s.id !== suggestion.id)),
 )
 
 const remove = (suggestion) => act(

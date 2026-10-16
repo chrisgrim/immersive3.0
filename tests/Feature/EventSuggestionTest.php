@@ -5,6 +5,7 @@ use AltchaOrg\Altcha\Altcha;
 use AltchaOrg\Altcha\Challenge;
 use AltchaOrg\Altcha\Payload;
 use AltchaOrg\Altcha\SolveChallengeOptions;
+use App\Http\Controllers\Admin\AdminEventSuggestionController;
 use App\Http\Controllers\EventSuggestionController;
 use App\Models\EventSuggestion;
 use App\Models\User;
@@ -199,7 +200,7 @@ test('moderators see pending and done suggestions newest first, and only pending
 
     $pending = pendingSuggestion();
 
-    $this->actingAs($mod)->getJson('/api/admin/approve/suggestions')
+    $this->actingAs($mod)->getJson('/api/admin/approve/suggestions?done=1')
         ->assertOk()
         ->assertJsonCount(2, 'suggestions')
         ->assertJsonPath('suggestions.0.id', $pending->id)
@@ -213,24 +214,41 @@ test('moderators see pending and done suggestions newest first, and only pending
         ->assertJsonPath('suggestions', 1);
 });
 
-test('a long history of done suggestions never hides a pending one', function () {
+test('hiding done suggestions leaves only the pending queue', function () {
     $pending = pendingSuggestion();
-    $pending->created_at = now()->subYear();
-    $pending->save();
-
-    foreach (range(1, 201) as $i) {
-        $s = pendingSuggestion();
-        $s->status = 'done';
-        $s->save();
-    }
+    $handled = pendingSuggestion();
+    $handled->status = 'done';
+    $handled->save();
 
     $mod = User::factory()->create(['type' => 'm']);
 
-    $ids = collect($this->actingAs($mod)->getJson('/api/admin/approve/suggestions')
+    $this->actingAs($mod)->getJson('/api/admin/approve/suggestions?done=0')
         ->assertOk()
-        ->json('suggestions'))->pluck('id');
+        ->assertJsonCount(1, 'suggestions')
+        ->assertJsonPath('suggestions.0.id', $pending->id);
+});
 
-    expect($ids)->toContain($pending->id);
+test('suggestions come a page at a time', function () {
+    $perPage = AdminEventSuggestionController::PER_PAGE;
+    foreach (range(1, $perPage + 1) as $i) {
+        $s = pendingSuggestion();
+        $s->created_at = now()->subMinutes($i);
+        $s->save();
+    }
+    $oldest = EventSuggestion::orderBy('created_at')->first();
+
+    $mod = User::factory()->create(['type' => 'm']);
+
+    $this->actingAs($mod)->getJson('/api/admin/approve/suggestions?done=1')
+        ->assertOk()
+        ->assertJsonCount($perPage, 'suggestions')
+        ->assertJsonPath('pagination.last_page', 2)
+        ->assertJsonPath('pagination.total', $perPage + 1);
+
+    $this->actingAs($mod)->getJson('/api/admin/approve/suggestions?done=1&page=2')
+        ->assertOk()
+        ->assertJsonCount(1, 'suggestions')
+        ->assertJsonPath('suggestions.0.id', $oldest->id);
 });
 
 test('marking a suggestion done takes it off the queue and records who did it', function () {
