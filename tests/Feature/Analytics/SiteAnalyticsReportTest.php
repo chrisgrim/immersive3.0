@@ -433,3 +433,19 @@ test('filter lists skip values that are not ids and count a search once when it 
     expect(app(SiteAnalyticsReport::class)->handle(30)['filters']['genres'])
         ->toBe([['id' => $genre->id, 'name' => 'Horror', 'searches' => 1, 'found_nothing' => 1]]);
 });
+
+test('the hourly warm rebuilds a cached report, so the page shows new numbers without a cold build', function () {
+    analyticsRow(['type' => Analytics::EVENT_VIEW, 'event_id' => 1, 'occurred_at' => now()->subHour()]);
+    expect(app(SiteAnalyticsReport::class)->handle(30)['totals']['event_view']['total'])->toBe(1);
+
+    // Still cached: a new row does not show until the report is rebuilt.
+    analyticsRow(['type' => Analytics::EVENT_VIEW, 'event_id' => 1, 'occurred_at' => now()->subMinutes(5)]);
+    expect(app(SiteAnalyticsReport::class)->handle(30)['totals']['event_view']['total'])->toBe(1);
+
+    $this->artisan('ei:analytics-warm')->assertSuccessful();
+
+    DB::enableQueryLog();
+    expect(app(SiteAnalyticsReport::class)->handle(30)['totals']['event_view']['total'])->toBe(2)
+        ->and(app(SiteAnalyticsReport::class)->handle(7)['totals']['event_view']['total'])->toBe(2)
+        ->and(DB::getQueryLog())->toBeEmpty();
+});

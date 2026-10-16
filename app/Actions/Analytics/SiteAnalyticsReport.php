@@ -44,6 +44,13 @@ class SiteAnalyticsReport
     /** Bump when the report's shape changes (see handle()). */
     private const VERSION = 17;
 
+    /**
+     * How long a built report is kept. ei:analytics-warm rebuilds the page's
+     * ranges every hour, so the page answers from cache; this is longer than
+     * that hour so a slow or missed run never leaves a gap.
+     */
+    public const CACHE_MINUTES = 150;
+
     private const LIMIT = 25;
 
     private const FILTER_PATHS = "'$.categories', '$.tags', '$.start', '$.end', '$.priceMin', '$.priceMax'";
@@ -65,9 +72,7 @@ class SiteAnalyticsReport
     {
         $days = max(1, min(self::MAX_DAYS, $days));
 
-        // Versioned: a report cached by older code (a different shape) must
-        // not be served to newer code right after a deploy.
-        $key = 'analytics:report:'.self::VERSION.":{$days}";
+        $key = $this->reportKey($days);
 
         // One build at a time: a second request waits for the first (up to
         // 30s) and then reads its cached result instead of starting another.
@@ -75,7 +80,27 @@ class SiteAnalyticsReport
         // "still building, try again" (AdminAnalyticsController, the MCP tool).
         // A cached report is answered at once, without waiting on the lock
         // (section pages hold it too while they build).
-        return Cache::get($key) ?? Cache::lock('analytics:report:building', 120)->block(30, fn () => Cache::remember($key, now()->addMinutes(10), fn () => $this->build($days)));
+        return Cache::get($key) ?? Cache::lock('analytics:report:building', 120)->block(30, fn () => Cache::remember($key, now()->addMinutes(self::CACHE_MINUTES), fn () => $this->build($days)));
+    }
+
+    /**
+     * Builds the report afresh and caches it (ei:analytics-warm), so the
+     * admin page never waits on a cold build. Holds the same lock as handle().
+     */
+    public function refresh(int $days): void
+    {
+        $days = max(1, min(self::MAX_DAYS, $days));
+
+        Cache::lock('analytics:report:building', 120)->block(30, fn () => Cache::put($this->reportKey($days), $this->build($days), now()->addMinutes(self::CACHE_MINUTES)));
+    }
+
+    /**
+     * Versioned: a report cached by older code (a different shape) must not
+     * be served to newer code right after a deploy.
+     */
+    private function reportKey(int $days): string
+    {
+        return 'analytics:report:'.self::VERSION.":{$days}";
     }
 
     private function build(int $days): array
@@ -390,7 +415,7 @@ class SiteAnalyticsReport
         $limit = self::SECTION_LIMIT;
 
         $key = 'analytics:section:'.self::VERSION.":{$name}:{$days}";
-        $build = fn () => Cache::remember($key, now()->addMinutes(10), fn () => match ($name) {
+        $build = fn () => Cache::remember($key, now()->addMinutes(self::CACHE_MINUTES), fn () => match ($name) {
             'places' => $this->searches($since, null, $limit),
             'unmet' => $this->zeroResultSearches($since, null, $limit),
             'at_home' => $this->atHomeSearches($since, $limit),

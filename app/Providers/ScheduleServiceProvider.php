@@ -47,6 +47,13 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->hourlyAt(45)
                 ->withoutOverlapping();
 
+            // The admin Analytics pages' numbers, rebuilt ahead of time so
+            // they open at once (see AnalyticsWarm).
+            $schedule->command('ei:analytics-warm')
+                ->hourlyAt(50)
+                ->withoutOverlapping(30)
+                ->when(fn () => config('analytics.enabled'));
+
             $schedule->command('ei:analytics-prune')
                 ->dailyAt('03:40')
                 ->withoutOverlapping();

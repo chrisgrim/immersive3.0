@@ -34,6 +34,9 @@ class SearchConsoleReport
 
     private ?array $lastPeriod = null;
 
+    /** While true (warm()), answers are rebuilt and cached instead of read from cache. */
+    private bool $refreshing = false;
+
     /**
      * The spelling a line is shown with when several land on one key (the
      * column is case and accent insensitive: "Sleep No More" and "sleep no
@@ -116,6 +119,21 @@ class SearchConsoleReport
             'queries' => $this->queriesIn($period, 10),
             'pages' => $this->pagesIn($period, 10),
         ], ['configured' => true, 'has_data' => false, 'note' => self::LAG_NOTE]);
+    }
+
+    /**
+     * Rebuilds the "From Google" block for `days` and caches it
+     * (ei:analytics-warm), so the Search page never waits on a cold read.
+     */
+    public function warm(int $days): void
+    {
+        $this->refreshing = true;
+
+        try {
+            $this->dashboard($days);
+        } finally {
+            $this->refreshing = false;
+        }
     }
 
     /** One list in full for a section page: google_queries or google_pages. */
@@ -449,7 +467,19 @@ class SearchConsoleReport
             return $none;
         }
 
-        return Cache::remember('search-console:'.self::VERSION.':'.md5($method.'|'.json_encode($args).'|'.json_encode($period)), now()->addMinutes(10), fn () => $build($period));
+        // Kept as long as the site's own report (ei:analytics-warm refreshes
+        // both hourly). Safe to keep: a new import moves the period, so the key.
+        $key = 'search-console:'.self::VERSION.':'.md5($method.'|'.json_encode($args).'|'.json_encode($period));
+        $ttl = now()->addMinutes(SiteAnalyticsReport::CACHE_MINUTES);
+
+        if ($this->refreshing) {
+            $answer = $build($period);
+            Cache::put($key, $answer, $ttl);
+
+            return $answer;
+        }
+
+        return Cache::remember($key, $ttl, fn () => $build($period));
     }
 
     private function escapeLike(string $text): string

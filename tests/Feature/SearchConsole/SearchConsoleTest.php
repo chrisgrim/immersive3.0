@@ -465,7 +465,7 @@ test('a period always labels the rows built for it, even after an import moves t
     $this->actingAs($moderator)->getJson('/api/admin/analytics/section/google_queries?days=7')
         ->assertOk()->assertJsonPath('period.to', now()->subDays(4)->toDateString())->assertJsonPath('rows.0.query', 'old day search');
 
-    // A new day lands within the 10 minutes the first answer is cached.
+    // A new day lands while the first answer is still cached.
     scRow(['day' => now()->subDays(3)->toDateString(), 'clicks' => 9, 'impressions' => 90]);
     scRow(['day' => now()->subDays(3)->toDateString(), 'dim' => 'query', 'key' => 'new day search', 'clicks' => 9, 'impressions' => 90, 'position_sum' => 90]);
 
@@ -556,4 +556,16 @@ test('query_pages with both a search and a page answers that one pair', function
     $pairs = app(SearchConsoleReport::class)->queryPages(28, 10, 'Sleep No More', 'https://everythingimmersive.com/events/the-show?x=1');
 
     expect($pairs)->toHaveCount(1)->and($pairs[0])->toMatchArray(['query' => 'sleep no more', 'page' => '/events/the-show', 'clicks' => 5]);
+});
+
+test('the hourly warm caches the From Google block for each range the Search page offers', function () {
+    scConfigure();
+    scRow(['day' => now()->subDays(3)->toDateString(), 'clicks' => 5, 'impressions' => 50]);
+
+    $this->artisan('ei:analytics-warm')->assertSuccessful();
+
+    DB::enableQueryLog();
+    $answer = app(SearchConsoleReport::class)->dashboard(28);
+    expect($answer['totals']['clicks'])->toBe(5)
+        ->and(collect(DB::getQueryLog())->pluck('query')->filter(fn ($q) => ! str_contains($q, 'MIN(day) AS first'))->all())->toBeEmpty();
 });
