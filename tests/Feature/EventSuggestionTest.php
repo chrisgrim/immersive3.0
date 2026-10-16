@@ -187,22 +187,50 @@ function pendingSuggestion(): EventSuggestion
     ]);
 }
 
-test('moderators see pending suggestions and they count toward the dashboard badge', function () {
-    $pending = pendingSuggestion();
+test('moderators see pending and done suggestions newest first, and only pending count toward the badge', function () {
+    $mod = User::factory()->create(['type' => 'm', 'name' => 'Kathryn']);
+
     $handled = pendingSuggestion();
+    $handled->created_at = now()->subDays(2);
     $handled->status = 'done';
+    $handled->processed_by = $mod->id;
+    $handled->processed_at = now()->subDay();
     $handled->save();
 
-    $mod = User::factory()->create(['type' => 'm']);
+    $pending = pendingSuggestion();
 
     $this->actingAs($mod)->getJson('/api/admin/approve/suggestions')
         ->assertOk()
-        ->assertJsonCount(1, 'suggestions')
-        ->assertJsonPath('suggestions.0.id', $pending->id);
+        ->assertJsonCount(2, 'suggestions')
+        ->assertJsonPath('suggestions.0.id', $pending->id)
+        ->assertJsonPath('suggestions.0.status', 'pending')
+        ->assertJsonPath('suggestions.1.id', $handled->id)
+        ->assertJsonPath('suggestions.1.status', 'done')
+        ->assertJsonPath('suggestions.1.processed_by', 'Kathryn');
 
     $this->actingAs($mod)->getJson('/api/admin/approval-counts')
         ->assertOk()
         ->assertJsonPath('suggestions', 1);
+});
+
+test('a long history of done suggestions never hides a pending one', function () {
+    $pending = pendingSuggestion();
+    $pending->created_at = now()->subYear();
+    $pending->save();
+
+    foreach (range(1, 201) as $i) {
+        $s = pendingSuggestion();
+        $s->status = 'done';
+        $s->save();
+    }
+
+    $mod = User::factory()->create(['type' => 'm']);
+
+    $ids = collect($this->actingAs($mod)->getJson('/api/admin/approve/suggestions')
+        ->assertOk()
+        ->json('suggestions'))->pluck('id');
+
+    expect($ids)->toContain($pending->id);
 });
 
 test('marking a suggestion done takes it off the queue and records who did it', function () {

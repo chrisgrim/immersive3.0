@@ -25,4 +25,10 @@ class EventSuggestion extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    /** The moderator who marked it done. */
+    public function processor()
+    {
+        return $this->belongsTo(User::class, 'processed_by');
+    }
 }

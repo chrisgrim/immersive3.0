@@ -10,13 +10,16 @@
 
         <!-- Empty -->
         <div v-else-if="!suggestions.length" class="text-center py-12">
-            <p class="text-gray-500 text-lg">No new suggestions</p>
+            <p class="text-gray-500 text-lg">No suggestions yet</p>
         </div>
 
         <!-- Suggestions List -->
         <div v-else class="space-y-4">
+            <!-- Done ones stay on the list, grayed out with no buttons, so the page is a record. -->
             <div v-for="suggestion in suggestions" :key="suggestion.id"
-                class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                :class="['rounded-lg border p-6', isDone(suggestion)
+                    ? 'bg-gray-50 border-gray-200 opacity-60'
+                    : 'bg-white shadow-sm border-gray-200']">
                 <div class="flex flex-col md:flex-row md:justify-between md:items-start gap-6">
                     <div class="space-y-2 min-w-0">
                         <div class="text-sm text-gray-500">{{ formatDate(suggestion.created_at) }}</div>
@@ -32,9 +35,12 @@
                             <template v-if="suggestion.user">From {{ suggestion.user.name }} ({{ suggestion.user.email }})</template>
                             <template v-else>Anonymous</template>
                         </div>
+                        <div v-if="isDone(suggestion)" class="text-sm font-medium text-gray-600">
+                            Done{{ suggestion.processed_by ? ` by ${suggestion.processed_by}` : '' }}{{ suggestion.processed_at ? ` on ${formatDate(suggestion.processed_at)}` : '' }}
+                        </div>
                     </div>
 
-                    <div class="flex gap-3 flex-shrink-0">
+                    <div v-if="!isDone(suggestion)" class="flex gap-3 flex-shrink-0">
                         <button
                             @click="markDone(suggestion)"
                             :disabled="processing === suggestion.id"
@@ -86,6 +92,8 @@ const showToastMessage = (message) => {
     }, 3000)
 }
 
+const isDone = (suggestion) => suggestion.status === 'done'
+
 const formatDate = (date) => {
     return new Date(date).toLocaleDateString('en-US', {
         month: 'short',
@@ -122,12 +130,12 @@ const fetchSuggestions = async () => {
     }
 }
 
-const act = async (suggestion, action, request, doneMessage) => {
+const act = async (suggestion, action, request, doneMessage, update) => {
     try {
         processing.value = suggestion.id
         processingAction.value = action
         await request()
-        suggestions.value = suggestions.value.filter(s => s.id !== suggestion.id)
+        update()
         showToastMessage(doneMessage)
         emit('update-counts')
     } catch (error) {
@@ -144,12 +152,19 @@ const markDone = (suggestion) => act(
     suggestion, 'done',
     () => axios.post(`/api/admin/approve/suggestions/${suggestion.id}/done`),
     'Marked as done',
+    // Stays on the list, grayed out, with who did it and when.
+    () => Object.assign(suggestion, {
+        status: 'done',
+        processed_at: new Date().toISOString(),
+        processed_by: window.Laravel?.user?.name ?? null,
+    }),
 )
 
 const remove = (suggestion) => act(
     suggestion, 'delete',
     () => axios.delete(`/api/admin/approve/suggestions/${suggestion.id}`),
     'Suggestion deleted',
+    () => { suggestions.value = suggestions.value.filter(s => s.id !== suggestion.id) },
 )
 
 onMounted(fetchSuggestions)

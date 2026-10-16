@@ -9,18 +9,34 @@ class AdminEventSuggestionController extends Controller
 {
     public function index()
     {
-        $suggestions = EventSuggestion::with('user:id,name,email')
+        // Pending and done are read separately so a long history of done ones can
+        // never push a new suggestion off the page. Each is capped so a flood
+        // does not load every row at once.
+        $pending = EventSuggestion::with('user:id,name,email')
             ->where('status', 'pending')
             ->latest()
-            // A flood would otherwise load every row into the page at once.
             ->limit(200)
             ->get();
+
+        $done = EventSuggestion::with(['user:id,name,email', 'processor:id,name'])
+            ->where('status', 'done')
+            ->latest()
+            ->limit(200)
+            ->get();
+
+        // One list, newest first, so the page reads as a record of everything sent.
+        $suggestions = $pending->concat($done)
+            ->sortBy([['created_at', 'desc'], ['id', 'desc']])
+            ->values();
 
         return response()->json([
             'suggestions' => $suggestions->map(fn (EventSuggestion $s) => [
                 'id' => $s->id,
                 'message' => $s->message,
+                'status' => $s->status,
                 'created_at' => $s->created_at,
+                'processed_at' => $s->processed_at,
+                'processed_by' => $s->processor?->name,
                 'user' => $s->user ? [
                     'id' => $s->user->id,
                     'name' => $s->user->name,
