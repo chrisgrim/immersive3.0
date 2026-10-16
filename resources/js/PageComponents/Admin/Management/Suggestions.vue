@@ -144,29 +144,46 @@ const messageParts = (message) => {
     return parts
 }
 
-const fetchSuggestions = async (page = 1) => {
+// Only the newest request may fill the list, so a slow older one can't land last.
+let latestRequest = 0
+
+// Returns true once the list shows that page; on failure the list and toggle stay as they were.
+const fetchSuggestions = async (page = 1, done = showDone.value) => {
+    const request = ++latestRequest
     try {
         loading.value = true
         const { data } = await axios.get('/api/admin/approve/suggestions', {
-            params: { page, done: showDone.value ? 1 : 0 },
+            params: { page, done: done ? 1 : 0 },
         })
+        if (request !== latestRequest) return false
+        // A page that emptied (its last row went) steps back to the new last page.
+        if (!data.suggestions?.length && page > 1 && data.pagination?.last_page < page) {
+            return fetchSuggestions(data.pagination.last_page, done)
+        }
         suggestions.value = data.suggestions || []
         pagination.value = data.pagination || null
+        showDone.value = done
+        return true
     } catch (error) {
+        if (request !== latestRequest) return false
         console.error('Error fetching suggestions:', error)
         showToastMessage('Failed to load suggestions')
+        return false
     } finally {
-        loading.value = false
+        if (request === latestRequest) loading.value = false
     }
 }
 
-const toggleDone = () => {
-    showDone.value = !showDone.value
-    try {
-        localStorage.setItem(SHOW_DONE_KEY, showDone.value ? '1' : '0')
-    } catch {}
-    fetchSuggestions(1)
+const toggleDone = async () => {
+    // The button only flips once the other list has loaded.
+    if (await fetchSuggestions(1, !showDone.value)) {
+        try {
+            localStorage.setItem(SHOW_DONE_KEY, showDone.value ? '1' : '0')
+        } catch {}
+    }
 }
+
+const refreshPage = () => fetchSuggestions(pagination.value?.current_page || 1)
 
 const act = async (suggestion, action, request, doneMessage, update) => {
     try {
@@ -179,7 +196,7 @@ const act = async (suggestion, action, request, doneMessage, update) => {
     } catch (error) {
         console.error(`Error (${action}) suggestion:`, error)
         showToastMessage(error.response?.data?.message || 'Something went wrong')
-        await fetchSuggestions(pagination.value?.current_page)
+        await refreshPage()
     } finally {
         processing.value = null
         processingAction.value = null
@@ -190,20 +207,21 @@ const markDone = (suggestion) => act(
     suggestion, 'done',
     () => axios.post(`/api/admin/approve/suggestions/${suggestion.id}/done`),
     'Marked as done',
-    // Stays on the list, grayed out, with who did it and when (or leaves it while done ones are hidden).
+    // Stays on the list, grayed out, with who did it and when. While done ones
+    // are hidden it leaves, and the page reloads so it stays full and the page count right.
     () => showDone.value ? Object.assign(suggestion, {
         status: 'done',
         processed_at: new Date().toISOString(),
         processed_by: window.Laravel?.user?.name ?? null,
-    }) : (suggestions.value = suggestions.value.filter(s => s.id !== suggestion.id)),
+    }) : refreshPage(),
 )
 
 const remove = (suggestion) => act(
     suggestion, 'delete',
     () => axios.delete(`/api/admin/approve/suggestions/${suggestion.id}`),
     'Suggestion deleted',
-    () => { suggestions.value = suggestions.value.filter(s => s.id !== suggestion.id) },
+    refreshPage,
 )
 
-onMounted(fetchSuggestions)
+onMounted(() => fetchSuggestions())
 </script>

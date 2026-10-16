@@ -50,6 +50,11 @@ class AdminEventSuggestionController extends Controller
     /** Handled (added to the site, or looked at and passed on): off the queue, kept for the record. */
     public function done(EventSuggestion $suggestion)
     {
+        // Already done (another moderator, or a stale page): keep who did it first.
+        if ($suggestion->status === 'done') {
+            return response()->json(['message' => 'Already marked as done'], 409);
+        }
+
         $suggestion->status = 'done';
         $suggestion->processed_by = auth()->id();
         $suggestion->processed_at = now();
@@ -61,6 +66,11 @@ class AdminEventSuggestionController extends Controller
     /** Spam or junk: gone for good. */
     public function destroy(EventSuggestion $suggestion)
     {
+        // Done ones are the record and have no Delete button; refuse a stale page too.
+        if ($suggestion->status === 'done') {
+            return response()->json(['message' => 'Done suggestions are kept for the record'], 409);
+        }
+
         $suggestion->delete();
 
         return response()->json(['message' => 'Suggestion deleted']);

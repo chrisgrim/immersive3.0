@@ -272,6 +272,18 @@ test('deleting a suggestion removes it', function () {
     expect(EventSuggestion::count())->toBe(0);
 });
 
+test('a done suggestion cannot be marked again or deleted', function () {
+    $first = User::factory()->create(['type' => 'm']);
+    $second = User::factory()->create(['type' => 'm']);
+    $suggestion = pendingSuggestion();
+
+    $this->actingAs($first)->postJson("/api/admin/approve/suggestions/{$suggestion->id}/done")->assertOk();
+    $this->actingAs($second)->postJson("/api/admin/approve/suggestions/{$suggestion->id}/done")->assertStatus(409);
+    $this->actingAs($second)->deleteJson("/api/admin/approve/suggestions/{$suggestion->id}")->assertStatus(409);
+
+    expect($suggestion->fresh()->processed_by)->toBe($first->id);
+});
+
 test('regular users cannot see or act on the queue', function () {
     $suggestion = pendingSuggestion();
     $user = User::factory()->create(['type' => 'u']);
