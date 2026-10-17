@@ -60,9 +60,12 @@ class ScheduleServiceProvider extends ServiceProvider
 
             // Google Search Console totals (the last 5 settled days), only
             // while it is configured (see SearchConsoleImport).
+            // Each import moves the period every Search answer is cached
+            // under, so the warm runs again straight after it.
             $schedule->command('ei:search-console-import')
                 ->dailyAt('04:10')
                 ->withoutOverlapping()
+                ->then(fn () => \Illuminate\Support\Facades\Artisan::call('ei:analytics-warm'))
                 ->when(fn () => \App\Support\Google\SearchConsole::configured());
 
             $schedule->command('ei:archive-clicks')

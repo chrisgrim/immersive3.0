@@ -467,19 +467,18 @@ class SearchConsoleReport
             return $none;
         }
 
-        // Kept as long as the site's own report (ei:analytics-warm refreshes
-        // both hourly). Safe to keep: a new import moves the period, so the key.
         $key = 'search-console:'.self::VERSION.':'.md5($method.'|'.json_encode($args).'|'.json_encode($period));
-        $ttl = now()->addMinutes(SiteAnalyticsReport::CACHE_MINUTES);
 
+        // Warmed answers are kept like the site's own report (ei:analytics-warm
+        // refreshes both hourly, and right after each import moves the period).
         if ($this->refreshing) {
             $answer = $build($period);
-            Cache::put($key, $answer, $ttl);
+            Cache::put($key, $answer, now()->addMinutes(SiteAnalyticsReport::WARM_MINUTES));
 
             return $answer;
         }
 
-        return Cache::remember($key, $ttl, fn () => $build($period));
+        return Cache::remember($key, now()->addMinutes(SiteAnalyticsReport::CACHE_MINUTES), fn () => $build($period));
     }
 
     private function escapeLike(string $text): string

@@ -45,11 +45,14 @@ class SiteAnalyticsReport
     private const VERSION = 17;
 
     /**
-     * How long a built report is kept. ei:analytics-warm rebuilds the page's
-     * ranges every hour, so the page answers from cache; this is longer than
-     * that hour so a slow or missed run never leaves a gap.
+     * How long a report built by ei:analytics-warm is kept. It rebuilds the
+     * page's ranges every hour, so the page answers from cache; this is
+     * longer than that hour so a slow or missed run never leaves a gap.
      */
-    public const CACHE_MINUTES = 150;
+    public const WARM_MINUTES = 150;
+
+    /** How long anything built on request (sections, other ranges) is kept. */
+    public const CACHE_MINUTES = 10;
 
     private const LIMIT = 25;
 
@@ -91,7 +94,7 @@ class SiteAnalyticsReport
     {
         $days = max(1, min(self::MAX_DAYS, $days));
 
-        Cache::lock('analytics:report:building', 120)->block(30, fn () => Cache::put($this->reportKey($days), $this->build($days), now()->addMinutes(self::CACHE_MINUTES)));
+        Cache::lock('analytics:report:building', 120)->block(30, fn () => Cache::put($this->reportKey($days), $this->build($days), now()->addMinutes(self::WARM_MINUTES)));
     }
 
     /**

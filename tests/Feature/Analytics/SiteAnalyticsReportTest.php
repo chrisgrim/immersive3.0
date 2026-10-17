@@ -449,3 +449,16 @@ test('the hourly warm rebuilds a cached report, so the page shows new numbers wi
         ->and(app(SiteAnalyticsReport::class)->handle(7)['totals']['event_view']['total'])->toBe(2)
         ->and(DB::getQueryLog())->toBeEmpty();
 });
+
+test('a warmed report outlasts the hour until the next warm, while one built on request is kept 10 minutes', function () {
+    $this->artisan('ei:analytics-warm')->assertSuccessful();
+    app(SiteAnalyticsReport::class)->handle(14);
+
+    $this->travel(70)->minutes();
+    DB::enableQueryLog();
+    app(SiteAnalyticsReport::class)->handle(30);
+    expect(DB::getQueryLog())->toBeEmpty();
+
+    app(SiteAnalyticsReport::class)->handle(14);
+    expect(DB::getQueryLog())->not->toBeEmpty();
+});
