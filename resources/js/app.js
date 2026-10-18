@@ -175,6 +175,7 @@ app.component('vue-event-actions', ShowComponents.EventActions);
 
 app.component('vue-user-profile', AuthComponents.UserEdit);
 app.component('vue-user-login', AuthComponents.Login);
+app.component('vue-passkey-offer', defineAsyncComponent(() => import('./GlobalComponents/passkey-offer.vue')));
 app.component('vue-suggest-event', defineAsyncComponent(() => import('./GlobalComponents/suggest-event.vue')));
 app.component('vue-api-tokens', defineAsyncComponent(() => import('./PageComponents/Settings/api-tokens.vue')));
 

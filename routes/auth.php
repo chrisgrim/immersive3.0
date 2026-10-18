@@ -3,8 +3,11 @@
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\LoginCodeController;
+use App\Http\Controllers\Auth\PasskeyLoginController;
 use App\Http\Controllers\Auth\SocialAuthController;
 use Illuminate\Support\Facades\Route;
+use Laravel\Passkeys\Http\Controllers\PasskeyLoginController as PackagePasskeyLoginController;
+use Laravel\Passkeys\Http\Controllers\PasskeyRegistrationController;
 
 // Main auth routes
 Route::get('/login', function () {
@@ -32,6 +35,29 @@ Route::post('/login/verify', [LoginCodeController::class, 'verify'])
 Route::get('/login/auto/{code}', [LoginCodeController::class, 'autoLogin'])
     ->middleware('guest')
     ->name('login.auto');
+
+// Passkey login (laravel/passkeys; its own routes are off, see
+// AppServiceProvider). Options are a fresh one-time challenge kept in the
+// session; the browser signs it and posts the answer back.
+Route::get('/passkeys/login/options', [PackagePasskeyLoginController::class, 'index'])
+    ->middleware(['guest', 'throttle:passkey-login'])
+    ->name('passkey.login-options');
+
+Route::post('/passkeys/login', [PasskeyLoginController::class, 'store'])
+    ->middleware(['guest', 'throttle:passkey-login'])
+    ->name('passkey.login');
+
+// Adding and removing passkeys (Account settings > Login & security).
+Route::middleware(['auth', 'throttle:passkey-manage'])->group(function () {
+    Route::get('/user/passkeys/options', [PasskeyRegistrationController::class, 'index'])
+        ->name('passkey.registration-options');
+
+    Route::post('/user/passkeys', [PasskeyRegistrationController::class, 'store'])
+        ->name('passkey.store');
+
+    Route::delete('/user/passkeys/{passkey}', [PasskeyRegistrationController::class, 'destroy'])
+        ->name('passkey.destroy');
+});
 
 // Social login - Google
 Route::get('/auth/google', [SocialAuthController::class, 'redirectToGoogle'])

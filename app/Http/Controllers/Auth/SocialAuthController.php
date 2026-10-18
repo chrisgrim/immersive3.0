@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\Passkeys\PasskeyOffer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -74,6 +75,7 @@ class SocialAuthController extends Controller
             }
 
             Auth::login($user);
+            PasskeyOffer::queue($user);
 
             return redirect()->intended('/');
         } catch (\Exception $e) {
@@ -199,6 +201,7 @@ class SocialAuthController extends Controller
             }
 
             Auth::login($user);
+            PasskeyOffer::queue($user);
 
             return redirect()->intended('/');
 
@@ -321,6 +324,7 @@ class SocialAuthController extends Controller
             }
 
             Auth::login($user);
+            PasskeyOffer::queue($user);
 
             return redirect()->intended('/');
 

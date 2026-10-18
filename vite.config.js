@@ -66,13 +66,16 @@ export default defineConfig(({ command, mode }) => {
             // fetch them. Skipped entirely when there's no token to upload with.
             sourcemap: sentryAuthToken ? 'hidden' : false,
         },
+        // No host here on purpose: once `valet secure ei` has made a
+        // certificate, laravel-vite-plugin serves HMR as https://ei.test:5173
+        // with it (passkeys need the page on https, and an https page cannot
+        // load scripts from plain http). Without a certificate it falls back
+        // to http://localhost:5173 as before.
         server: {
-            host: 'localhost',
             port: 5173,
             strictPort: true,
             cors: true,
             hmr: {
-                host: 'localhost',
                 overlay: true,
             },
         },

@@ -64,9 +64,14 @@
                     <div class="space-y-6">
                         <div>
                             <label for="email" class="sr-only">Email address</label>
+                            <!-- "webauthn" lets the browser list saved passkeys in
+                                 this field's suggestions (passkey autofill). -->
                             <input 
+                                id="email"
                                 v-model="email"
                                 type="email" 
+                                name="email"
+                                autocomplete="email webauthn"
                                 required 
                                 class="appearance-none rounded-full w-full p-6 border border-neutral-300 placeholder-neutral-500 text-neutral-900 text-2xl focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
                                 placeholder="Email address"
@@ -88,6 +93,17 @@
                             <template v-else>
                                 Continue
                             </template>
+                        </button>
+
+                        <button
+                            v-if="canUsePasskeys"
+                            type="button"
+                            :disabled="isPasskeySigningIn"
+                            class="w-full relative inline-flex items-center justify-center p-6 rounded-full border border-neutral-300 bg-white text-2xl font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                            @click="passkeySignIn"
+                        >
+                            <RiKey2Line class="absolute left-6 w-10 h-10" />
+                            <span>{{ isPasskeySigningIn ? 'Waiting for your passkey…' : 'Sign in with a passkey' }}</span>
                         </button>
                     </div>
                 </div>
@@ -185,8 +201,10 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, computed } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue'
 import axios from 'axios'
+import { RiKey2Line } from '@remixicon/vue'
+import { autofillSupported, cancelPasskeyCeremony, passkeysSupported, signInWithPasskey } from '@/composables/usePasskeys'
 
 // Define props
 const props = defineProps({
@@ -215,6 +233,48 @@ const codeDigits = ref(['', '', '', '', '', ''])
 const isResending = ref(false)
 const isVerifying = ref(false)
 const showResendStatus = ref(false)
+
+// Passkey sign-in is for guests only: its routes are guest-only, and a
+// signed-in browser would get a redirect back instead of an answer.
+const canUsePasskeys = passkeysSupported() && !window.Laravel?.user
+const isPasskeySigningIn = ref(false)
+
+const finishPasskeySignIn = (redirect) => {
+    if (redirect) {
+        window.location.href = redirect
+    }
+}
+
+// Waits in the background for the person to pick a passkey from the email
+// field's suggestions. Ends quietly when they never do.
+const startPasskeyAutofill = async () => {
+    if (!canUsePasskeys || autoCode.value || !(await autofillSupported())) return
+    try {
+        finishPasskeySignIn(await signInWithPasskey({ autofill: true }))
+    } catch (error) {
+        errors.value = [error.message]
+    }
+}
+
+// The button: opens the browser's passkey sheet straight away (this also
+// ends the waiting autofill, which then resolves as cancelled).
+const passkeySignIn = async () => {
+    isPasskeySigningIn.value = true
+    errors.value = []
+    let redirect = null
+    try {
+        redirect = await signInWithPasskey()
+        finishPasskeySignIn(redirect)
+    } catch (error) {
+        errors.value = [error.message]
+    } finally {
+        isPasskeySigningIn.value = false
+    }
+    // Still here (cancelled or failed): put the autofill back.
+    if (!redirect && !unmounted) {
+        startPasskeyAutofill()
+    }
+}
 
 // Set default CSRF token for all axios requests
 const csrfMeta = document.querySelector('meta[name="csrf-token"]')
@@ -344,7 +404,17 @@ const resendCode = async () => {
     }
 }
 
+// The nav shows this form in a modal: closing it must not leave a passkey
+// request hanging in the browser.
+let unmounted = false
+onBeforeUnmount(() => {
+    unmounted = true
+    cancelPasskeyCeremony()
+})
+
 onMounted(() => {
+    startPasskeyAutofill()
+
     if (autoCode.value && autoCode.value.length === 6) {
         // If we have both code and email, proceed automatically
         if (autoEmail.value) {

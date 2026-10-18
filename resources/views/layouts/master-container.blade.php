@@ -95,5 +95,10 @@
 		<footer>
             @yield('footer')
         </footer>
+        {{-- "Sign in faster next time?" once, right after an email code or
+             social sign-in by someone with no passkey (PasskeyOffer). --}}
+        @if (\App\Support\Passkeys\PasskeyOffer::take())
+            <vue-passkey-offer></vue-passkey-offer>
+        @endif
 	</body>
 </html>

@@ -45,6 +45,59 @@
                 </div>
             </div>
 
+            <!-- Passkeys -->
+            <div>
+                <div class="flex items-center gap-3 pt-[32px] pb-[24px] border-b border-neutral-200">
+                    <h3 class="text-4xl font-semibold">Passkeys</h3>
+                    <span v-if="passkeysRecommended && !passkeys.length" class="text-sm font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                        Recommended
+                    </span>
+                </div>
+                <p class="text-1xl text-neutral-500 pt-[24px] mb-[8px]">
+                    Sign in with your face, fingerprint or device PIN instead of waiting for an email code.
+                    <template v-if="passkeysRecommended">Your account can edit any event, so a passkey keeps it safer: it cannot be phished like an emailed code.</template>
+                </p>
+
+                <div class="divide-y divide-neutral-200">
+                    <div v-for="passkey in passkeys" :key="passkey.id" class="flex items-center justify-between py-[24px] gap-4">
+                        <div class="flex items-center gap-4 min-w-0">
+                            <img v-if="passkey.icon" :src="passkey.icon.light" alt="" class="w-6 h-6 flex-shrink-0">
+                            <component :is="RiKey2Line" v-else class="w-6 h-6 text-neutral-500 flex-shrink-0" />
+                            <div class="min-w-0">
+                                <p class="text-2.5xl font-semibold text-black truncate">{{ passkey.authenticator || passkey.name }}</p>
+                                <p class="text-1xl text-neutral-500">
+                                    <template v-if="passkey.authenticator">{{ passkey.name }} · </template>Added {{ timeAgo(passkey.created_at).toLowerCase() }}<template v-if="passkey.last_used_at"> · Last used {{ timeAgo(passkey.last_used_at).toLowerCase() }}</template>
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            :disabled="removingPasskeyId === passkey.id"
+                            class="text-1xl font-medium underline hover:no-underline disabled:opacity-50 flex-shrink-0"
+                            @click="removeOnePasskey(passkey)"
+                        >
+                            {{ removingPasskeyId === passkey.id ? 'Removing…' : 'Remove' }}
+                        </button>
+                    </div>
+                </div>
+
+                <p v-if="passkeyError" class="text-1xl text-red-700 pt-[16px]" role="alert">{{ passkeyError }}</p>
+                <p v-if="passkeyStatus" class="text-1xl text-green-700 pt-[16px]" role="status">{{ passkeyStatus }}</p>
+
+                <div class="pt-[24px]">
+                    <button
+                        v-if="canUsePasskeys"
+                        type="button"
+                        :disabled="addingPasskey"
+                        class="px-6 py-2 rounded-full border border-black text-1xl font-medium hover:bg-black hover:text-white transition-colors disabled:opacity-50"
+                        @click="addOnePasskey"
+                    >
+                        {{ addingPasskey ? 'Waiting for your device…' : (passkeys.length ? 'Add another passkey' : 'Add a passkey') }}
+                    </button>
+                    <p v-else class="text-1xl text-neutral-500">This browser cannot make passkeys. Try Safari, Chrome, Edge or Firefox on an up-to-date device.</p>
+                </div>
+            </div>
+
             <!-- Device history -->
             <div>
                 <h3 class="text-4xl font-semibold pt-[32px] pb-[24px] border-b border-neutral-200">Device history</h3>
@@ -104,7 +157,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { RiGoogleFill, RiGithubFill, RiAppleFill, RiMailLine, RiComputerLine, RiSmartphoneLine, RiTabletLine } from '@remixicon/vue';
+import { RiGoogleFill, RiGithubFill, RiAppleFill, RiMailLine, RiComputerLine, RiSmartphoneLine, RiTabletLine, RiKey2Line } from '@remixicon/vue';
+import { addPasskey, removePasskey, passkeysSupported, syncPasswordManager } from '@/composables/usePasskeys';
 
 const INITIAL_DEVICE_COUNT = 5;
 
@@ -114,6 +168,15 @@ const provider = ref(null);
 const devices = ref([]);
 const loggingOutId = ref(null);
 const showAllDevices = ref(false);
+
+const passkeys = ref([]);
+const passkeySignals = ref(null);
+const passkeysRecommended = ref(false);
+const canUsePasskeys = passkeysSupported();
+const addingPasskey = ref(false);
+const removingPasskeyId = ref(null);
+const passkeyError = ref('');
+const passkeyStatus = ref('');
 
 const visibleDevices = computed(() => (
     showAllDevices.value ? devices.value : devices.value.slice(0, INITIAL_DEVICE_COUNT)
@@ -167,11 +230,61 @@ const fetchData = async () => {
         const { data } = await axios.get('/api/account-settings/login-security');
         provider.value = data.provider;
         devices.value = data.devices;
+        applyPasskeys(data);
     } catch (error) {
         console.error('[login-security] failed to load', error);
         loadError.value = true;
     } finally {
         loading.value = false;
+    }
+};
+
+const applyPasskeys = (data) => {
+    passkeys.value = data.passkeys ?? [];
+    passkeySignals.value = data.passkeySignals ?? null;
+    passkeysRecommended.value = !!data.passkeysRecommended;
+};
+
+// Re-read after a change: the list (with the provider name and logo the
+// server works out) and the signal data both come from the server.
+const refreshPasskeys = async () => {
+    const { data } = await axios.get('/api/account-settings/login-security');
+    applyPasskeys(data);
+};
+
+const addOnePasskey = async () => {
+    addingPasskey.value = true;
+    passkeyError.value = '';
+    passkeyStatus.value = '';
+    try {
+        const saved = await addPasskey();
+        if (saved) {
+            await refreshPasskeys();
+            passkeyStatus.value = 'Passkey saved. Next time, pick it when you sign in.';
+        }
+    } catch (error) {
+        passkeyError.value = error.message;
+    } finally {
+        addingPasskey.value = false;
+    }
+};
+
+const removeOnePasskey = async (passkey) => {
+    removingPasskeyId.value = passkey.id;
+    passkeyError.value = '';
+    passkeyStatus.value = '';
+    try {
+        await removePasskey(passkey.id);
+        await refreshPasskeys();
+        // Now that the list is fresh, tell the password manager which
+        // passkeys are left, so the removed one stops being offered.
+        syncPasswordManager(passkeySignals.value);
+        passkeyStatus.value = 'Passkey removed. You can still sign in with an email code.';
+    } catch (error) {
+        console.error('[login-security] failed to remove passkey', error);
+        passkeyError.value = 'Could not remove the passkey. Please try again.';
+    } finally {
+        removingPasskeyId.value = null;
     }
 };
 

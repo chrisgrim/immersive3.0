@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Mail\LoginCode;
 use App\Models\User;
+use App\Support\Passkeys\PasskeyOffer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
@@ -188,6 +189,8 @@ class LoginCodeController extends Controller
 
         // Generate session
         $request->session()->regenerate();
+
+        PasskeyOffer::queue($user);
 
         // Back to where the guest redirect sent them from — the OAuth consent
         // screen, when an assistant asked to connect (routes/oauth.php) — and

@@ -96,6 +96,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // Sentry event per stale token — every assistant, every hour. The
         // audit table keeps the 401s; Sentry keeps the real errors.
         $exceptions->dontReport(\League\OAuth2\Server\Exception\OAuthServerException::class);
+
+        // A passkey answer that fails webauthn-lib's checks (wrong challenge,
+        // origin or signature, a reused answer) is a refused sign-in, not a
+        // bug: laravel/passkeys lets these through as 500s, so answer like
+        // its own InvalidPasskeyException does and keep them out of Sentry.
+        $exceptions->dontReport(\Webauthn\Exception\WebauthnException::class);
+        $exceptions->render(fn (\Webauthn\Exception\WebauthnException $e) => response()->json([
+            'message' => 'That passkey could not be verified. Please try again.',
+            'errors' => ['credential' => ['That passkey could not be verified. Please try again.']],
+        ], 422));
     })
     ->withCommands([
         CheckClosingEvents::class,

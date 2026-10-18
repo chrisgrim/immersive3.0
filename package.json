@@ -34,6 +34,7 @@
   "dependencies": {
     "@remixicon/vue": "^4.2.0",
     "@sentry/vue": "^10.53.1",
+    "@simplewebauthn/browser": "^14.0.0",
     "@tiptap/extension-link": "^2.10.3",
     "@tiptap/pm": "^2.9.1",
     "@tiptap/starter-kit": "^2.9.1",

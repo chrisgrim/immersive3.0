@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Mail\PasskeyChanged;
 use App\Models\User;
 use Carbon\CarbonInterval;
 use Illuminate\Auth\Notifications\ResetPassword;
@@ -9,8 +10,12 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Event as EventFacade;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Passkeys\Events\PasskeyDeleted;
+use Laravel\Passkeys\Events\PasskeyRegistered;
+use Laravel\Passkeys\Passkeys;
 use Laravel\Passport\Passport;
 use SocialiteProviders\Apple\AppleExtendSocialite;
 use SocialiteProviders\Manager\SocialiteWasCalled;
@@ -28,6 +33,14 @@ class AppServiceProvider extends ServiceProvider
         // (consent gating, throttles, no CSRF on the token endpoint). Must be
         // called here, before Passport's provider boots and would register them.
         Passport::ignoreRoutes();
+
+        // Same for passkeys: routes/auth.php declares them with EI's own
+        // limiters instead of the package's shared throttle:6,1.
+        Passkeys::ignoreRoutes();
+        $this->app->singleton(
+            \Laravel\Passkeys\Contracts\PasskeyLoginResponse::class,
+            \App\Http\Responses\PasskeyLoginResponse::class,
+        );
 
         // One per process, so the 'array' analytics buffer (tests) holds.
         $this->app->singleton(\App\Support\Analytics\Analytics::class);
@@ -52,6 +65,12 @@ class AppServiceProvider extends ServiceProvider
         // Google/GitHub are built into Socialite core, but Apple is a provider package
         // that must be wired up via the SocialiteWasCalled event.
         EventFacade::listen(SocialiteWasCalled::class, [AppleExtendSocialite::class, 'handle']);
+
+        // Tell the account owner whenever a passkey is added or removed.
+        EventFacade::listen(PasskeyRegistered::class, fn (PasskeyRegistered $event) => Mail::to($event->user)
+            ->send(new PasskeyChanged(PasskeyChanged::ADDED, $event->passkey->name)));
+        EventFacade::listen(PasskeyDeleted::class, fn (PasskeyDeleted $event) => Mail::to($event->user)
+            ->send(new PasskeyChanged(PasskeyChanged::REMOVED, $event->passkey->name)));
 
         $this->configurePassport();
         $this->configureRateLimiting();
@@ -123,6 +142,16 @@ class AppServiceProvider extends ServiceProvider
         // shares an address, so its own, roomier counter.
         RateLimiter::for('analytics-ping', fn (Request $request) => Limit::perMinute(240)
             ->by('analytics-ping:'.$request->ip()));
+
+        // Passkey sign-in. Autofill asks for options on every login page and
+        // login modal view, so roomy per IP; the answer is single use and
+        // the signature cannot be guessed, so this only stops floods.
+        RateLimiter::for('passkey-login', fn (Request $request) => Limit::perMinute(30)
+            ->by('passkey-login:'.$request->ip()));
+
+        // Adding and removing passkeys in Account settings.
+        RateLimiter::for('passkey-manage', fn (Request $request) => Limit::perMinute(10)
+            ->by('passkey-manage:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
         RateLimiter::for('event-suggestion-send', fn (Request $request) => Limit::perHour(10)
             ->by('event-suggestion-send:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));

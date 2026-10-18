@@ -11,7 +11,17 @@
  *    working) for others.
  *  - The "Show all N devices" collapse/expand behavior past 5 devices.
  */
+import { vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
+
+vi.mock('@/composables/usePasskeys', () => ({
+    addPasskey: vi.fn(),
+    removePasskey: vi.fn(),
+    passkeysSupported: vi.fn(() => true),
+    syncPasswordManager: vi.fn(),
+}));
+
+import * as passkeyApi from '@/composables/usePasskeys';
 import LoginSecurity from '@/PageComponents/AccountSettings/Pages/LoginSecurity.vue';
 
 function device(overrides = {}) {
@@ -105,5 +115,67 @@ describe('AccountSettings LoginSecurity.vue', () => {
         expect(wrapper.text()).toContain('Browser 6');
         expect(wrapper.text()).toContain('Browser 7');
         expect(wrapper.text()).not.toContain('Show all 7 devices');
+    });
+
+    describe('passkeys', () => {
+        const passkey = (overrides = {}) => ({
+            id: 3,
+            name: 'Chrome on Mac',
+            authenticator: 'Google Password Manager',
+            icon: { light: 'data:image/svg+xml;base64,AA==', dark: 'data:image/svg+xml;base64,AA==' },
+            created_at: new Date().toISOString(),
+            last_used_at: null,
+            ...overrides,
+        });
+        const signals = { rpId: 'ei.test', userId: 'u', allAcceptedCredentialIds: [] };
+
+        async function mountWithPasskeys(passkeys, extra = {}) {
+            window.axios.get.mockResolvedValue({ data: { provider: null, devices: [], passkeys, passkeySignals: signals, ...extra } });
+            const wrapper = mount(LoginSecurity);
+            await flushPromises();
+            return wrapper;
+        }
+
+        it('lists passkeys by their password manager, with the logo', async () => {
+            const wrapper = await mountWithPasskeys([passkey()]);
+
+            expect(wrapper.text()).toContain('Google Password Manager');
+            expect(wrapper.text()).toContain('Chrome on Mac');
+            expect(wrapper.find('img').attributes('src')).toBe('data:image/svg+xml;base64,AA==');
+            expect(wrapper.text()).toContain('Add another passkey');
+        });
+
+        it('adds a passkey and reloads the list', async () => {
+            const wrapper = await mountWithPasskeys([]);
+            passkeyApi.addPasskey.mockResolvedValue({ id: '3', name: 'Chrome on Mac' });
+            window.axios.get.mockResolvedValue({ data: { provider: null, devices: [], passkeys: [passkey()], passkeySignals: signals } });
+
+            await wrapper.findAll('button').find((b) => b.text() === 'Add a passkey').trigger('click');
+            await flushPromises();
+
+            expect(passkeyApi.addPasskey).toHaveBeenCalled();
+            expect(wrapper.text()).toContain('Google Password Manager');
+            expect(wrapper.text()).toContain('Passkey saved');
+        });
+
+        it('removes a passkey, then tells the password manager what is left', async () => {
+            const wrapper = await mountWithPasskeys([passkey()]);
+            passkeyApi.removePasskey.mockResolvedValue();
+            window.axios.get.mockResolvedValue({ data: { provider: null, devices: [], passkeys: [], passkeySignals: signals } });
+
+            await wrapper.findAll('button').find((b) => b.text() === 'Remove').trigger('click');
+            await flushPromises();
+
+            expect(passkeyApi.removePasskey).toHaveBeenCalledWith(3);
+            expect(passkeyApi.syncPasswordManager).toHaveBeenCalledWith(signals);
+            expect(wrapper.text()).not.toContain('Google Password Manager');
+        });
+
+        it('recommends passkeys to staff who have none', async () => {
+            const wrapper = await mountWithPasskeys([], { passkeysRecommended: true });
+
+            expect(wrapper.text()).toContain('Recommended');
+            expect(wrapper.text()).toContain('cannot be phished');
+        });
     });
 });

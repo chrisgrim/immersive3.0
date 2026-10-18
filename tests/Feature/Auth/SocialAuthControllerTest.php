@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Support\Passkeys\PasskeyOffer;
 use Illuminate\Support\Facades\Http;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
@@ -135,6 +136,26 @@ test('google callback links an existing user and logs them in', function () {
     $this->assertAuthenticatedAs($existing);
     // No duplicate row created.
     expect(User::where('email', 'existing@example.com')->count())->toBe(1);
+});
+
+test('google sign-in offers a passkey next, unless the user already has one', function () {
+    $user = User::factory()->create(['email' => 'existing@example.com']);
+
+    Socialite::shouldReceive('driver->stateless->user')
+        ->andReturn(fakeSocialiteUser([
+            'email' => 'existing@example.com',
+            'raw' => ['email_verified' => true],
+        ]));
+
+    $this->get('/auth/google/callback?code=abc')->assertRedirect('/');
+    expect(session(PasskeyOffer::SESSION_KEY))->toBeTrue();
+
+    auth()->logout();
+    $this->flushSession();
+    $user->passkeys()->create(['name' => 'Phone', 'credential_id' => 'abc', 'credential' => []]);
+
+    $this->get('/auth/google/callback?code=abc')->assertRedirect('/');
+    expect(session(PasskeyOffer::SESSION_KEY))->toBeNull();
 });
 
 test('google callback redirects to login when socialite throws', function () {
