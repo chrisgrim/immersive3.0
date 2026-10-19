@@ -215,6 +215,69 @@ describe('usePasskeys', () => {
         webauthn.startAuthentication.mockReset();
     });
 
+    it('a slow sign-in answer is waited for, however long, before any new options', async () => {
+        vi.useFakeTimers();
+        window.axios.get.mockResolvedValue({ data: { options: { challenge: 'c', rpId: 'ei.test' } } });
+        webauthn.startAuthentication.mockResolvedValue({ id: 'cred1' });
+        let answer;
+        window.axios.post.mockImplementation(() => new Promise((resolve) => { answer = resolve; }));
+
+        const autofill = signInWithPasskey({ autofill: true });
+        await vi.waitFor(() => expect(answer).toBeTypeOf('function'));
+        const button = signInWithPasskey();
+        await vi.advanceTimersByTimeAsync(10000);
+
+        // The answer would use up any new challenge when it lands, so none is asked for.
+        expect(window.axios.get).toHaveBeenCalledTimes(1);
+        answer({ data: { redirect: '/hub', signals: SIGNALS } });
+        await vi.advanceTimersByTimeAsync(1000);
+
+        await expect(autofill).resolves.toBe('/hub');
+        await expect(button).resolves.toBe('/hub');
+        expect(window.axios.get).toHaveBeenCalledTimes(1);
+        expect(window.axios.post).toHaveBeenCalledTimes(1);
+        vi.useRealTimers();
+        webauthn.startAuthentication.mockReset();
+    });
+
+    it('an older autofill that opens late and cuts off the button\'s sheet: the sheet opens again', async () => {
+        vi.useFakeTimers();
+        window.axios.get.mockResolvedValue({ data: { options: { challenge: 'c', rpId: 'ei.test' } } });
+        window.axios.post.mockResolvedValue({ data: { redirect: '/hub', signals: SIGNALS } });
+        const aborted = () => Object.assign(new Error('aborted'), { name: 'AbortError', code: 'ERROR_CEREMONY_ABORTED' });
+        // Like simplewebauthn: each new ceremony aborts the one before, and the
+        // autofill ignores cancelling while it is still checking the browser.
+        let abortOpen = null;
+        let finishAutofillCheck;
+        const open = (outcome) => new Promise((resolve, reject) => {
+            abortOpen?.();
+            abortOpen = () => { abortOpen = null; reject(aborted()); };
+            outcome?.(resolve);
+        });
+        webauthn.WebAuthnAbortService.cancelCeremony.mockImplementation(() => abortOpen?.());
+        webauthn.startAuthentication
+            .mockImplementationOnce(() => new Promise((resolve) => { finishAutofillCheck = resolve; }).then(() => open()))
+            .mockImplementationOnce(() => open())
+            .mockImplementationOnce(() => open((resolve) => resolve({ id: 'cred1' })));
+
+        const autofill = signInWithPasskey({ autofill: true });
+        await vi.waitFor(() => expect(finishAutofillCheck).toBeTypeOf('function'));
+        const button = signInWithPasskey();
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(webauthn.startAuthentication).toHaveBeenCalledTimes(2);
+
+        finishAutofillCheck();
+        await vi.advanceTimersByTimeAsync(1000);
+
+        await expect(button).resolves.toBe('/hub');
+        await expect(autofill).resolves.toBeNull();
+        expect(webauthn.startAuthentication).toHaveBeenCalledTimes(3);
+        expect(window.axios.post).toHaveBeenCalledTimes(1);
+        vi.useRealTimers();
+        webauthn.WebAuthnAbortService.cancelCeremony.mockReset();
+        webauthn.startAuthentication.mockReset();
+    });
+
     it('already signed in elsewhere (the options route redirects to a page): autofill stays quiet', async () => {
         window.axios.get.mockResolvedValue({ data: '<!doctype html>' });
 

@@ -150,6 +150,10 @@ let latestAttempt = 0;
 // Settles once the latest attempt and every one before it have finished.
 let running = Promise.resolve(null);
 let sharedOptions = null;
+// Sign-in answers on their way to the server. Each one uses up the session's
+// challenge when it arrives, so a newer attempt waits for it however long it
+// takes (axios gives up after 30 s) before asking for options of its own.
+let answersInFlight = 0;
 
 const loginOptions = () => {
     sharedOptions ??= http().get('/passkeys/login/options')
@@ -189,7 +193,7 @@ const stopAttempt = async (previous) => {
     } catch {
         return; // the library never arrived, so no sheet is open to cancel
     }
-    for (let waited = 0; !done && waited < STOP_WAIT_MS; waited += 25) {
+    for (let waited = 0; !done && (waited < STOP_WAIT_MS || answersInFlight > 0); waited += 25) {
         WebAuthnAbortService.cancelCeremony();
         await Promise.race([previous, wait(25)]);
     }
@@ -277,22 +281,31 @@ const runSignIn = async ({ autofill, current }) => {
     if (!current()) return null;
 
     let credential;
-    try {
-        credential = await startAuthentication({ optionsJSON: options, useBrowserAutofill: autofill });
-    } catch (error) {
-        if (isCancelled(error)) return null;
-        throw new Error(firstError(error, 'Could not use a passkey. Please try again.'));
+    for (let tries = 1; !credential; tries++) {
+        try {
+            credential = await startAuthentication({ optionsJSON: options, useBrowserAutofill: autofill });
+        } catch (error) {
+            // An older attempt the wait gave up on can open its sheet late,
+            // which aborts this one (simplewebauthn keeps one at a time).
+            // Nobody asked this one to stop, so open it again.
+            if (error?.code === 'ERROR_CEREMONY_ABORTED' && current() && tries < 3) continue;
+            if (isCancelled(error)) return null;
+            throw new Error(firstError(error, 'Could not use a passkey. Please try again.'));
+        }
     }
     // Picked just as a newer attempt started or the form closed: that one wins.
     if (!current()) return null;
 
     // This answer uses the challenge up, whatever the server says.
     sharedOptions = null;
+    answersInFlight++;
     try {
         const { data } = await http().post('/passkeys/login', { credential, remember: true });
+        answersInFlight--;
         await syncPasswordManager(data.signals);
         return data.redirect || '/';
     } catch (error) {
+        answersInFlight--;
         const data = error?.response?.data;
         if (data?.code === 'unknown_credential') {
             // Removed on EI (or the account is gone): ask the password
