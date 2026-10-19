@@ -42,10 +42,12 @@ return [
     | A new secret gives every user a new handle, so password managers would
     | treat new passkeys as a different account and the browser's "these are
     | the passkeys you still have" signal would stop matching old ones.
+    | Unset or empty falls back to APP_KEY (`?:`, since env() keeps an empty
+    | value), which then must never be rotated either.
     |
     */
 
-    'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
+    'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET') ?: config('app.key'),
 
     /*
     |--------------------------------------------------------------------------

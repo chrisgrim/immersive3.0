@@ -180,6 +180,17 @@ test('a removed passkey answers unknown_credential so the page can tell the pass
     $this->assertGuest();
 });
 
+test('a passkey answer from another address of the site (www) does not sign in', function () {
+    $user = User::factory()->create();
+    registerPasskey($this, $user);
+
+    $options = passkeyLoginOptions($this);
+    $fromWww = (new FakePasskeyAuthenticator('ei.test', 'https://www.ei.test'))->authenticate($options);
+
+    $this->postJson('/passkeys/login', ['credential' => $fromWww])->assertUnprocessable();
+    $this->assertGuest();
+});
+
 test('signed-in browsers are sent away from the passkey login routes', function () {
     $user = User::factory()->create();
 
@@ -194,6 +205,29 @@ test('passkey login options are rate limited per connection', function () {
     }
 
     $this->getJson('/passkeys/login/options')->assertTooManyRequests();
+});
+
+test('adding and removing passkeys is rate limited per person', function () {
+    Cache::flush();
+    $user = User::factory()->create();
+
+    foreach (range(1, 10) as $ignored) {
+        $this->actingAs($user)->getJson('/user/passkeys/options')->assertOk();
+    }
+
+    $this->actingAs($user)->getJson('/user/passkeys/options')->assertTooManyRequests();
+});
+
+test('an empty user handle secret falls back to the app key, never an empty key', function () {
+    $before = [$_ENV['PASSKEYS_USER_HANDLE_SECRET'] ?? null, $_SERVER['PASSKEYS_USER_HANDLE_SECRET'] ?? null];
+    $_ENV['PASSKEYS_USER_HANDLE_SECRET'] = $_SERVER['PASSKEYS_USER_HANDLE_SECRET'] = '';
+    try {
+        $config = require config_path('passkeys.php');
+    } finally {
+        [$_ENV['PASSKEYS_USER_HANDLE_SECRET'], $_SERVER['PASSKEYS_USER_HANDLE_SECRET']] = $before;
+    }
+
+    expect($config['user_handle_secret'])->toBe(config('app.key'))->not->toBe('');
 });
 
 // ---------------------------------------------------------------------------
@@ -290,4 +324,12 @@ test('the next page shows the offer once', function () {
         ->get('/')->assertOk()->assertSee('<vue-passkey-offer>', false);
 
     $this->get('/')->assertOk()->assertDontSee('<vue-passkey-offer>', false);
+});
+
+test('the offer never covers the connect-an-app consent page, it waits for the next page', function () {
+    $this->actingAs(User::factory()->create())->withSession([PasskeyOffer::SESSION_KEY => true]);
+    $this->app->instance('request', \Illuminate\Http\Request::create('/oauth/authorize'));
+
+    expect(PasskeyOffer::take())->toBeFalse()
+        ->and(session(PasskeyOffer::SESSION_KEY))->toBeTrue();
 });

@@ -37,6 +37,26 @@ beforeEach(() => {
 });
 
 describe('passkey-offer.vue', () => {
+    it('takes keyboard focus, keeps Tab inside, and Escape means not now', async () => {
+        await mountOffer();
+        const dialog = document.body.querySelector('[role=dialog]');
+        const buttons = [...dialog.querySelectorAll('button')];
+        const save = buttons.find((b) => b.textContent.includes('Save a passkey'));
+
+        expect(document.activeElement).toBe(save);
+
+        // Save is last: Tab goes round to the first button (Close), Shift+Tab back.
+        dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+        expect(document.activeElement).toBe(buttons[0]);
+        dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+        expect(document.activeElement).toBe(save);
+
+        dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await flushPromises();
+        expect(document.body.textContent).not.toContain('Sign in faster next time');
+        expect(Number(localStorage.getItem(SNOOZE_KEY))).toBeGreaterThan(Date.now());
+    });
+
     it('offers to save a passkey', async () => {
         await mountOffer();
         expect(document.body.textContent).toContain('Sign in faster next time');

@@ -76,7 +76,7 @@ export const syncPasswordManager = async (signals) => {
             rpID: signals.rpId,
             userID: signals.userId,
             userName: signals.name,
-            displayName: signals.displayName,
+            userDisplayName: signals.displayName,
         }),
     ]);
 };
@@ -149,24 +149,39 @@ export const autofillSupported = async () => {
     }
 };
 
+// Signals are only hints: never hold up the page longer than this for them.
+const SIGNAL_WAIT_MS = 1000;
+
 /**
  * Signs in with a passkey. With `autofill`, waits quietly until the person
  * picks a passkey from the email field's suggestions (the field needs
  * autocomplete="email webauthn"); without it, opens the browser's passkey
  * sheet right away.
  *
- * Resolves to the address to go to next, or null when cancelled. Only call
- * it for guests: the routes are guest-only and answer a signed-in browser
- * with a redirect, not JSON.
+ * `isCurrent` is asked once the options arrive, before any passkey sheet
+ * opens: when it answers false (a newer attempt started, the form closed)
+ * this one stops there as if cancelled, so it cannot cut off the newer one.
+ *
+ * Resolves to the address to go to next, or null when cancelled. Autofill
+ * also resolves null when the options could not be fetched (rate limit,
+ * network): it is a background offer, and nobody asked for it yet. Only
+ * call it for guests: the routes are guest-only and answer a signed-in
+ * browser with a redirect, not JSON.
  */
-export const signInWithPasskey = async ({ autofill = false } = {}) => {
+export const signInWithPasskey = async ({ autofill = false, isCurrent = () => true } = {}) => {
     const { startAuthentication } = await load();
 
     let options;
+    try {
+        ({ data: { options } } = await http().get('/passkeys/login/options'));
+    } catch (error) {
+        if (autofill) return null;
+        throw new Error(firstError(error, 'Could not use a passkey. Please try again.'));
+    }
+    if (!isCurrent()) return null;
+
     let credential;
     try {
-        const { data } = await http().get('/passkeys/login/options');
-        options = data.options;
         credential = await startAuthentication({ optionsJSON: options, useBrowserAutofill: autofill });
     } catch (error) {
         if (isCancelled(error)) return null;
@@ -175,7 +190,10 @@ export const signInWithPasskey = async ({ autofill = false } = {}) => {
 
     try {
         const { data } = await http().post('/passkeys/login', { credential, remember: true });
-        await syncPasswordManager(data.signals);
+        await Promise.race([
+            syncPasswordManager(data.signals),
+            new Promise((resolve) => setTimeout(resolve, SIGNAL_WAIT_MS)),
+        ]);
         return data.redirect || '/';
     } catch (error) {
         const data = error?.response?.data;

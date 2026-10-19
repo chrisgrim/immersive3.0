@@ -101,11 +101,18 @@ return Application::configure(basePath: dirname(__DIR__))
         // origin or signature, a reused answer) is a refused sign-in, not a
         // bug: laravel/passkeys lets these through as 500s, so answer like
         // its own InvalidPasskeyException does and keep them out of Sentry.
+        // The reason still goes to the log (message only, no credential): a
+        // wrong APP_URL or a www address refuses every passkey with "Invalid
+        // origin", and that must be findable.
         $exceptions->dontReport(\Webauthn\Exception\WebauthnException::class);
-        $exceptions->render(fn (\Webauthn\Exception\WebauthnException $e) => response()->json([
-            'message' => 'That passkey could not be verified. Please try again.',
-            'errors' => ['credential' => ['That passkey could not be verified. Please try again.']],
-        ], 422));
+        $exceptions->render(function (\Webauthn\Exception\WebauthnException $e) {
+            \Illuminate\Support\Facades\Log::warning('Passkey refused', ['reason' => $e->getMessage()]);
+
+            return response()->json([
+                'message' => 'That passkey could not be verified. Please try again.',
+                'errors' => ['credential' => ['That passkey could not be verified. Please try again.']],
+            ], 422);
+        });
     })
     ->withCommands([
         CheckClosingEvents::class,

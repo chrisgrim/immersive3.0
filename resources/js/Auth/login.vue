@@ -46,32 +46,32 @@
                     </template>
 
                     <!-- Social Login Buttons: three across, logos only (the names are for screen readers and the hover tip) -->
-                    <div class="grid grid-cols-3 gap-4">
+                    <div class="grid grid-cols-3 gap-4" role="group" aria-label="Other ways to sign in">
                         <a href="/auth/google"
-                           title="Google"
+                           title="Continue with Google"
                            class="flex items-center justify-center p-6 rounded-full border border-neutral-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors">
                             <svg class="w-10 h-10" aria-hidden="true" viewBox="0 0 24 24">
                                 <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z" fill="currentColor"/>
                             </svg>
-                            <span class="sr-only">Google</span>
+                            <span class="sr-only">Continue with Google</span>
                         </a>
                         
                         <a href="/auth/github"
-                           title="GitHub"
+                           title="Continue with GitHub"
                            class="flex items-center justify-center p-6 rounded-full border border-neutral-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors">
                             <svg class="w-10 h-10" aria-hidden="true" viewBox="0 0 24 24">
                                 <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z" fill="currentColor"/>
                             </svg>
-                            <span class="sr-only">GitHub</span>
+                            <span class="sr-only">Continue with GitHub</span>
                         </a>
 
                         <a href="/auth/apple"
-                           title="Apple"
+                           title="Continue with Apple"
                            class="flex items-center justify-center p-6 rounded-full border border-neutral-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors">
                             <svg class="w-10 h-10" aria-hidden="true" viewBox="0 0 24 24">
                                 <path d="M17.05 12.536c-.024-2.435 1.99-3.604 2.08-3.66-1.135-1.658-2.9-1.886-3.525-1.91-1.5-.151-2.927.883-3.687.883-.76 0-1.93-.86-3.176-.838-1.634.024-3.142.95-3.983 2.415-1.698 2.944-.434 7.305 1.219 9.698.808 1.17 1.772 2.484 3.036 2.437 1.219-.05 1.68-.789 3.153-.789 1.473 0 1.888.789 3.176.765 1.31-.024 2.139-1.193 2.94-2.367.927-1.357 1.31-2.671 1.333-2.739-.029-.014-2.561-.983-2.586-3.895zM14.63 5.31c.672-.815 1.125-1.948.999-3.075-.966.039-2.137.643-2.832 1.457-.623.722-1.169 1.875-1.022 2.98 1.078.084 2.18-.547 2.855-1.362z" fill="currentColor"/>
                             </svg>
-                            <span class="sr-only">Apple</span>
+                            <span class="sr-only">Continue with Apple</span>
                         </a>
                     </div>
 
@@ -259,12 +259,20 @@ const finishPasskeySignIn = (redirect) => {
     }
 }
 
+// Each start (autofill or button) takes a new number; an older one that is
+// still fetching its options then stops before opening anything, so it can
+// never cut off the newer one's passkey sheet. Closing the form does the same.
+let passkeyAttempt = 0
+const passkeyAttemptIsCurrent = (attempt) => () => attempt === passkeyAttempt && !unmounted
+
 // Waits in the background for the person to pick a passkey from the email
 // field's suggestions. Ends quietly when they never do.
 const startPasskeyAutofill = async () => {
+    const attempt = ++passkeyAttempt
     if (!canUsePasskeys || autoCode.value || !(await autofillSupported())) return
+    if (!passkeyAttemptIsCurrent(attempt)()) return
     try {
-        finishPasskeySignIn(await signInWithPasskey({ autofill: true }))
+        finishPasskeySignIn(await signInWithPasskey({ autofill: true, isCurrent: passkeyAttemptIsCurrent(attempt) }))
     } catch (error) {
         errors.value = [error.message]
     }
@@ -273,19 +281,20 @@ const startPasskeyAutofill = async () => {
 // The button: opens the browser's passkey sheet straight away (this also
 // ends the waiting autofill, which then resolves as cancelled).
 const passkeySignIn = async () => {
+    const attempt = ++passkeyAttempt
     isPasskeySigningIn.value = true
     errors.value = []
     let redirect = null
     try {
-        redirect = await signInWithPasskey()
+        redirect = await signInWithPasskey({ isCurrent: passkeyAttemptIsCurrent(attempt) })
         finishPasskeySignIn(redirect)
     } catch (error) {
         errors.value = [error.message]
     } finally {
         isPasskeySigningIn.value = false
     }
-    // Still here (cancelled or failed): put the autofill back.
-    if (!redirect && !unmounted) {
+    // Still here (cancelled or failed) and nothing newer started: put the autofill back.
+    if (!redirect && passkeyAttemptIsCurrent(attempt)()) {
         startPasskeyAutofill()
     }
 }

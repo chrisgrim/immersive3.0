@@ -24,9 +24,17 @@ class PasskeyOffer
         }
     }
 
-    /** Once per sign-in: reading it clears it. */
+    /**
+     * Once per sign-in: reading it clears it. Never on the "connect an app"
+     * consent page (a sign-in sent there from an AI assistant): the offer
+     * waits for the next ordinary page instead of covering that choice.
+     */
     public static function take(): bool
     {
-        return auth()->check() && (bool) session()->pull(self::SESSION_KEY, false);
+        if (! auth()->check() || request()->is('oauth/*')) {
+            return false;
+        }
+
+        return (bool) session()->pull(self::SESSION_KEY, false);
     }
 }

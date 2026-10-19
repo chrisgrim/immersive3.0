@@ -6,10 +6,14 @@
             @click.self="notNow"
         >
             <div
+                ref="dialog"
                 class="relative bg-white w-full md:max-w-[56rem] md:mx-8 md:rounded-3xl rounded-t-3xl shadow-xl text-left"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="passkey-offer-title"
+                tabindex="-1"
+                @keydown.esc="notNow"
+                @keydown.tab="keepFocusInside"
             >
                 <button type="button" class="absolute top-6 right-6 p-2 rounded-full text-neutral-500 hover:text-black hover:bg-neutral-100" aria-label="Close" @click="notNow">
                     <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -24,7 +28,7 @@
                         <h2 id="passkey-offer-title" class="mt-6 text-4xl md:text-5xl font-semibold tracking-tight text-neutral-900">You're all set</h2>
                         <p class="mt-4 text-2xl text-neutral-500">Next time, pick your passkey when you sign in. No email code needed.</p>
                         <div class="flex justify-end mt-10">
-                            <button type="button" class="px-8 py-4 bg-black text-white rounded-2xl hover:bg-neutral-800 text-xl font-semibold" @click="close">
+                            <button ref="doneButton" type="button" class="px-8 py-4 bg-black text-white rounded-2xl hover:bg-neutral-800 text-xl font-semibold" @click="close">
                                 Done
                             </button>
                         </div>
@@ -41,6 +45,7 @@
                                 Not now
                             </button>
                             <button
+                                ref="saveButton"
                                 type="button"
                                 :disabled="saving"
                                 class="px-8 py-4 bg-black text-white rounded-2xl hover:bg-neutral-800 text-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
@@ -64,7 +69,7 @@
  * "Not now" hides it in this browser for SNOOZE_DAYS: a passkey belongs to
  * a device or password manager, so the answer is per browser too.
  */
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, nextTick } from 'vue';
 import { RiKey2Line } from '@remixicon/vue';
 import { addPasskey, passkeysSupported } from '@/composables/usePasskeys';
 
@@ -72,6 +77,11 @@ const SNOOZE_KEY = 'ei.passkeyOfferSnoozedUntil';
 const SNOOZE_DAYS = 90;
 
 const isOpen = ref(false);
+const dialog = ref(null);
+const saveButton = ref(null);
+const doneButton = ref(null);
+// Where focus was before the sheet opened, given back when it closes.
+let focusBefore = null;
 const saving = ref(false);
 const saved = ref(false);
 const error = ref('');
@@ -92,8 +102,24 @@ const snooze = () => {
     }
 };
 
+// A modal sheet: Tab and Shift+Tab go round its own buttons only.
+const keepFocusInside = (event) => {
+    const buttons = [...dialog.value.querySelectorAll('button:not([disabled])')];
+    if (!buttons.length) return;
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.value)) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+};
+
 const close = () => {
     isOpen.value = false;
+    focusBefore?.focus?.();
 };
 
 const notNow = () => {
@@ -107,6 +133,8 @@ const save = async () => {
     try {
         if (await addPasskey()) {
             saved.value = true;
+            await nextTick();
+            doneButton.value?.focus();
         }
     } catch (e) {
         error.value = e.message;
@@ -115,7 +143,11 @@ const save = async () => {
     }
 };
 
-onMounted(() => {
+onMounted(async () => {
     isOpen.value = passkeysSupported() && !!window.Laravel?.user && !snoozed();
+    if (!isOpen.value) return;
+    focusBefore = document.activeElement;
+    await nextTick();
+    saveButton.value?.focus();
 });
 </script>

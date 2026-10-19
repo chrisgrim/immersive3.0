@@ -84,7 +84,38 @@ describe('usePasskeys', () => {
         expect(webauthn.sendSignal).toHaveBeenCalledWith(expect.objectContaining({
             signalName: 'currentUserDetails',
             userName: 'pat@example.com',
+            userDisplayName: 'Pat',
         }));
+    });
+
+    it('autofill stays quiet when the options cannot be fetched (rate limit, network)', async () => {
+        window.axios.get.mockRejectedValue({ response: { status: 429, data: { message: 'Too Many Attempts.' } } });
+
+        await expect(signInWithPasskey({ autofill: true })).resolves.toBeNull();
+        expect(webauthn.startAuthentication).not.toHaveBeenCalled();
+
+        await expect(signInWithPasskey()).rejects.toThrow('Too Many Attempts.');
+    });
+
+    it('an attempt that is no longer current stops before opening a passkey sheet', async () => {
+        window.axios.get.mockResolvedValue({ data: { options: { challenge: 'c' } } });
+
+        await expect(signInWithPasskey({ isCurrent: () => false })).resolves.toBeNull();
+        expect(webauthn.startAuthentication).not.toHaveBeenCalled();
+    });
+
+    it('a password manager that never answers the signal does not hold up the sign-in', async () => {
+        vi.useFakeTimers();
+        window.axios.get.mockResolvedValue({ data: { options: { challenge: 'c', rpId: 'ei.test' } } });
+        webauthn.startAuthentication.mockResolvedValue({ id: 'cred1' });
+        window.axios.post.mockResolvedValue({ data: { redirect: '/hub', signals: SIGNALS } });
+        webauthn.sendSignal.mockReturnValue(new Promise(() => {}));
+
+        const signingIn = signInWithPasskey();
+        await vi.advanceTimersByTimeAsync(1000);
+
+        await expect(signingIn).resolves.toBe('/hub');
+        vi.useRealTimers();
     });
 
     it('a closed passkey sheet is null, not an error', async () => {
