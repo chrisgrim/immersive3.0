@@ -23,6 +23,28 @@
                 </div>
 
                 <div class="space-y-6 mt-12">
+                    <!-- Passkey first, then an "Or" before the other ways in -->
+                    <template v-if="canUsePasskeys">
+                        <button
+                            type="button"
+                            :disabled="isPasskeySigningIn"
+                            class="w-full relative inline-flex items-center justify-center p-6 rounded-full border border-neutral-300 bg-white text-2xl font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                            @click="passkeySignIn"
+                        >
+                            <RiKey2Line class="absolute left-6 w-10 h-10" />
+                            <span>{{ isPasskeySigningIn ? 'Waiting for your passkey…' : 'Sign in with a passkey' }}</span>
+                        </button>
+
+                        <div class="relative">
+                            <div class="absolute inset-0 flex items-center">
+                                <div class="w-full border-t border-neutral-200"></div>
+                            </div>
+                            <div class="relative flex justify-center text-2xl">
+                                <span class="px-4 bg-white text-neutral-800">Or</span>
+                            </div>
+                        </div>
+                    </template>
+
                     <!-- Social Login Buttons -->
                     <div class="space-y-6">
                         <a href="/auth/google" 
@@ -93,17 +115,6 @@
                             <template v-else>
                                 Continue
                             </template>
-                        </button>
-
-                        <button
-                            v-if="canUsePasskeys"
-                            type="button"
-                            :disabled="isPasskeySigningIn"
-                            class="w-full relative inline-flex items-center justify-center p-6 rounded-full border border-neutral-300 bg-white text-2xl font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                            @click="passkeySignIn"
-                        >
-                            <RiKey2Line class="absolute left-6 w-10 h-10" />
-                            <span>{{ isPasskeySigningIn ? 'Waiting for your passkey…' : 'Sign in with a passkey' }}</span>
                         </button>
                     </div>
                 </div>
