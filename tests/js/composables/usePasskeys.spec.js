@@ -215,6 +215,13 @@ describe('usePasskeys', () => {
         webauthn.startAuthentication.mockReset();
     });
 
+    it('already signed in elsewhere (the options route redirects to a page): autofill stays quiet', async () => {
+        window.axios.get.mockResolvedValue({ data: '<!doctype html>' });
+
+        await expect(signInWithPasskey({ autofill: true })).resolves.toBeNull();
+        expect(webauthn.startAuthentication).not.toHaveBeenCalled();
+    });
+
     it('a sign-in after the last one finished asks for fresh options', async () => {
         window.axios.get.mockResolvedValue({ data: { options: { challenge: 'c', rpId: 'ei.test' } } });
         webauthn.startAuthentication.mockRejectedValue(cancelled());

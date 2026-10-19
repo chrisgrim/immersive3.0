@@ -153,7 +153,12 @@ let sharedOptions = null;
 
 const loginOptions = () => {
     sharedOptions ??= http().get('/passkeys/login/options')
-        .then(({ data }) => data.options)
+        .then(({ data }) => {
+            // Signed in meanwhile (another tab): the guest-only route
+            // redirects, and axios follows it to a page, not options.
+            if (!data?.options?.challenge) throw new Error('No passkey options');
+            return data.options;
+        })
         .catch((error) => {
             sharedOptions = null;
             throw error;
@@ -161,9 +166,10 @@ const loginOptions = () => {
     return sharedOptions;
 };
 
-// Longest we wait for an older attempt to stop: past the app's 30 s request
-// timeout, so only a frozen one (never seen) is left behind.
-const STOP_WAIT_MS = 35000;
+// Longest we wait for an older attempt to stop. With the options shared,
+// what is left to wait for is its sheet answering the abort (milliseconds);
+// this only bites when a browser ignores the abort (a known Safari bug).
+const STOP_WAIT_MS = 3000;
 
 /**
  * Waits until the attempt `previous` has finished, cancelling it as it
