@@ -140,15 +140,30 @@ export const removePasskey = async (id) => {
     await http().delete(`/user/passkeys/${id}`);
 };
 
-// Sign-in attempts run one at a time. The server keeps a single challenge
-// per session, so two overlapping options requests would leave the sheet
-// holding the wrong one; and simplewebauthn aborts whichever ceremony
-// started first, so a late older one would cut off the newer one.
+// Sign-in attempts run one at a time, and attempts that overlap share one
+// options request. The server keeps a single challenge per session (until
+// a sign-in answer uses it up), so a second options request would leave an
+// open sheet holding a challenge the server no longer has; and
+// simplewebauthn aborts whichever ceremony started first, so a late older
+// one would cut off the newer one.
 let latestAttempt = 0;
+// Settles once the latest attempt and every one before it have finished.
 let running = Promise.resolve(null);
+let sharedOptions = null;
 
-// Longest we wait for an older attempt to stop (a slow options request).
-const STOP_WAIT_MS = 10000;
+const loginOptions = () => {
+    sharedOptions ??= http().get('/passkeys/login/options')
+        .then(({ data }) => data.options)
+        .catch((error) => {
+            sharedOptions = null;
+            throw error;
+        });
+    return sharedOptions;
+};
+
+// Longest we wait for an older attempt to stop: past the app's 30 s request
+// timeout, so only a frozen one (never seen) is left behind.
+const STOP_WAIT_MS = 35000;
 
 /**
  * Waits until the attempt `previous` has finished, cancelling it as it
@@ -162,7 +177,12 @@ const stopAttempt = async (previous) => {
     await Promise.race([previous, wait(0)]);
     if (done) return;
 
-    const { WebAuthnAbortService } = await load();
+    let WebAuthnAbortService;
+    try {
+        ({ WebAuthnAbortService } = await load());
+    } catch {
+        return; // the library never arrived, so no sheet is open to cancel
+    }
     for (let waited = 0; !done && waited < STOP_WAIT_MS; waited += 25) {
         WebAuthnAbortService.cancelCeremony();
         await Promise.race([previous, wait(25)]);
@@ -217,19 +237,33 @@ export const signInWithPasskey = ({ autofill = false, isCurrent = () => true } =
         if (signedInBy) return signedInBy;
         return current() ? runSignIn({ autofill, current }) : null;
     });
-    const mine = result.then((redirect) => redirect, () => null);
+    // Also waits for `previous`, so an older attempt left behind by the cap
+    // is still cancelled by the next newer one or by closing the form.
+    const mine = Promise.allSettled([previous, result])
+        .then(([, own]) => (own.status === 'fulfilled' ? own.value : null));
     running = mine;
-    // Finished: a later attempt starts fresh rather than following this one.
-    mine.then(() => { if (running === mine) running = Promise.resolve(null); });
+    // All finished: a later attempt starts fresh (new options, nothing to follow).
+    mine.then(() => {
+        if (running === mine) {
+            running = Promise.resolve(null);
+            sharedOptions = null;
+        }
+    });
     return result;
 };
 
 const runSignIn = async ({ autofill, current }) => {
-    const { startAuthentication } = await load();
+    let startAuthentication;
+    try {
+        ({ startAuthentication } = await load());
+    } catch {
+        if (autofill) return null;
+        throw new Error('Could not use a passkey. Please reload the page and try again.');
+    }
 
     let options;
     try {
-        ({ data: { options } } = await http().get('/passkeys/login/options'));
+        options = await loginOptions();
     } catch (error) {
         if (autofill) return null;
         throw new Error(firstError(error, 'Could not use a passkey. Please try again.'));
@@ -243,7 +277,11 @@ const runSignIn = async ({ autofill, current }) => {
         if (isCancelled(error)) return null;
         throw new Error(firstError(error, 'Could not use a passkey. Please try again.'));
     }
+    // Picked just as a newer attempt started or the form closed: that one wins.
+    if (!current()) return null;
 
+    // This answer uses the challenge up, whatever the server says.
+    sharedOptions = null;
     try {
         const { data } = await http().post('/passkeys/login', { credential, remember: true });
         await syncPasswordManager(data.signals);

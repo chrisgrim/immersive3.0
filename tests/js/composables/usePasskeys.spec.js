@@ -138,13 +138,19 @@ describe('usePasskeys', () => {
             window.axios.get.mockReset();
         });
 
-        it('while the older one is still fetching its options', async () => {
+        it('while the older one is still fetching its options: one request, shared', async () => {
+            let answer;
+            window.axios.get.mockImplementation(() => new Promise((resolve) => { answer = resolve; }));
+
             const autofill = signInWithPasskey({ autofill: true });
+            await vi.waitFor(() => expect(answer).toBeTypeOf('function'));
             const button = signInWithPasskey();
+            answer({ data: { options: { challenge: 'c', rpId: 'ei.test' } } });
 
             await expect(autofill).resolves.toBeNull();
             await expect(button).resolves.toBe('/hub');
             expect(events).toEqual(['button sheet']);
+            expect(window.axios.get).toHaveBeenCalledTimes(1);
         });
 
         it('while the older one already has its sheet open', async () => {
@@ -155,6 +161,8 @@ describe('usePasskeys', () => {
             await expect(autofill).resolves.toBeNull();
             await expect(button).resolves.toBe('/hub');
             expect(events).toEqual(['autofill sheet', 'autofill aborted', 'button sheet']);
+            // The button reused the autofill's challenge: the server still has it.
+            expect(window.axios.get).toHaveBeenCalledTimes(1);
         });
 
         it('and when the older one signed the person in meanwhile, the newer one just follows it', async () => {
@@ -180,15 +188,42 @@ describe('usePasskeys', () => {
 
     it('closing the form stops an attempt still fetching its options', async () => {
         let answer;
-        window.axios.get.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+        window.axios.get.mockImplementation(() => new Promise((resolve) => { answer = resolve; }));
 
         const pending = signInWithPasskey({ autofill: true });
+        await vi.waitFor(() => expect(answer).toBeTypeOf('function'));
         const closing = cancelPasskeyCeremony();
         answer({ data: { options: { challenge: 'c' } } });
 
         await expect(pending).resolves.toBeNull();
         await closing;
         expect(webauthn.startAuthentication).not.toHaveBeenCalled();
+    });
+
+    it('a passkey picked just as the form closed is not sent', async () => {
+        window.axios.get.mockResolvedValue({ data: { options: { challenge: 'c' } } });
+        let pick;
+        webauthn.startAuthentication.mockImplementation(() => new Promise((resolve) => { pick = resolve; }));
+
+        const pending = signInWithPasskey({ autofill: true });
+        await vi.waitFor(() => expect(pick).toBeTypeOf('function'));
+        cancelPasskeyCeremony();
+        pick({ id: 'cred1' });
+
+        await expect(pending).resolves.toBeNull();
+        expect(window.axios.post).not.toHaveBeenCalled();
+        webauthn.startAuthentication.mockReset();
+    });
+
+    it('a sign-in after the last one finished asks for fresh options', async () => {
+        window.axios.get.mockResolvedValue({ data: { options: { challenge: 'c', rpId: 'ei.test' } } });
+        webauthn.startAuthentication.mockRejectedValue(cancelled());
+
+        await signInWithPasskey();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await signInWithPasskey();
+
+        expect(window.axios.get).toHaveBeenCalledTimes(2);
     });
 
     it('a signal that never settles does not hold up the "passkey no longer on any account" message', async () => {
