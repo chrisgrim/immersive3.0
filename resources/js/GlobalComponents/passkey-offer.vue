@@ -123,24 +123,27 @@ const close = () => {
 };
 
 const notNow = () => {
+    // The device's own passkey sheet is open: let it answer first.
+    if (saving.value) return;
     snooze();
     close();
 };
 
 const save = async () => {
+    // Save is disabled while waiting, and a disabled button drops focus to
+    // the page behind: hold it on the sheet itself meanwhile.
+    dialog.value?.focus();
     saving.value = true;
     error.value = '';
     try {
-        if (await addPasskey()) {
-            saved.value = true;
-            await nextTick();
-            doneButton.value?.focus();
-        }
+        saved.value = !!(await addPasskey());
     } catch (e) {
         error.value = e.message;
     } finally {
         saving.value = false;
     }
+    await nextTick();
+    (saved.value ? doneButton : saveButton).value?.focus();
 };
 
 onMounted(async () => {

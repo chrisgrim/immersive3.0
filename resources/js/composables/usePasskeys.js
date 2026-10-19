@@ -20,9 +20,18 @@ let library = null;
 const http = () => window.axios ?? axios;
 
 const load = () => {
-    library ??= import('@simplewebauthn/browser');
+    // A failed download (a deploy swapping files) is tried again next time.
+    library ??= import('@simplewebauthn/browser').catch((error) => {
+        library = null;
+        throw error;
+    });
     return library;
 };
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Signals are only hints: never hold anything up longer than this for one.
+const SIGNAL_WAIT_MS = 1000;
 
 /** True for a cancelled or superseded ceremony (closed sheet, timeout, a newer one started). */
 export const isCancelled = (error) => (
@@ -50,7 +59,7 @@ const firstError = (error, fallback) => {
 const signal = async (opts) => {
     try {
         const { sendSignal } = await load();
-        await sendSignal(opts);
+        await Promise.race([sendSignal(opts), wait(SIGNAL_WAIT_MS)]);
     } catch {
         // Unsupported or refused: nothing to do, it is only a hint.
     }
@@ -131,11 +140,40 @@ export const removePasskey = async (id) => {
     await http().delete(`/user/passkeys/${id}`);
 };
 
+// Sign-in attempts run one at a time. The server keeps a single challenge
+// per session, so two overlapping options requests would leave the sheet
+// holding the wrong one; and simplewebauthn aborts whichever ceremony
+// started first, so a late older one would cut off the newer one.
+let latestAttempt = 0;
+let running = Promise.resolve(null);
+
+// Longest we wait for an older attempt to stop (a slow options request).
+const STOP_WAIT_MS = 10000;
+
+/**
+ * Waits until the attempt `previous` has finished, cancelling it as it
+ * goes. It may still be fetching its options (it then sees it is stale and
+ * stops) or preparing its sheet (simplewebauthn awaits an autofill check
+ * before its ceremony can be aborted), so cancelling once is not enough.
+ */
+const stopAttempt = async (previous) => {
+    let done = false;
+    previous.then(() => { done = true; });
+    await Promise.race([previous, wait(0)]);
+    if (done) return;
+
+    const { WebAuthnAbortService } = await load();
+    for (let waited = 0; !done && waited < STOP_WAIT_MS; waited += 25) {
+        WebAuthnAbortService.cancelCeremony();
+        await Promise.race([previous, wait(25)]);
+    }
+};
+
 /** Stops a pending passkey sheet or autofill (e.g. the login modal closed). */
 export const cancelPasskeyCeremony = async () => {
+    latestAttempt++;
     if (!library) return;
-    const { WebAuthnAbortService } = await library;
-    WebAuthnAbortService.cancelCeremony();
+    await stopAttempt(running);
 };
 
 /** Can this browser offer passkeys in the email field's autofill list? */
@@ -149,18 +187,15 @@ export const autofillSupported = async () => {
     }
 };
 
-// Signals are only hints: never hold up the page longer than this for them.
-const SIGNAL_WAIT_MS = 1000;
-
 /**
  * Signs in with a passkey. With `autofill`, waits quietly until the person
  * picks a passkey from the email field's suggestions (the field needs
  * autocomplete="email webauthn"); without it, opens the browser's passkey
  * sheet right away.
  *
- * `isCurrent` is asked once the options arrive, before any passkey sheet
- * opens: when it answers false (a newer attempt started, the form closed)
- * this one stops there as if cancelled, so it cannot cut off the newer one.
+ * A new call first stops the one before it (see stopAttempt), and an
+ * attempt that is no longer the latest, or whose `isCurrent` answers false
+ * (the form closed), stops before opening a sheet, as if cancelled.
  *
  * Resolves to the address to go to next, or null when cancelled. Autofill
  * also resolves null when the options could not be fetched (rate limit,
@@ -168,7 +203,28 @@ const SIGNAL_WAIT_MS = 1000;
  * call it for guests: the routes are guest-only and answer a signed-in
  * browser with a redirect, not JSON.
  */
-export const signInWithPasskey = async ({ autofill = false, isCurrent = () => true } = {}) => {
+export const signInWithPasskey = ({ autofill = false, isCurrent = () => true } = {}) => {
+    const attempt = ++latestAttempt;
+    const previous = running;
+    const current = () => attempt === latestAttempt && isCurrent();
+
+    // When the older one signed the person in (they picked from the autofill
+    // as they tapped the button), this one has nothing left to do: same answer.
+    let signedInBy = null;
+    previous.then((redirect) => { signedInBy = redirect; });
+
+    const result = stopAttempt(previous).then(() => {
+        if (signedInBy) return signedInBy;
+        return current() ? runSignIn({ autofill, current }) : null;
+    });
+    const mine = result.then((redirect) => redirect, () => null);
+    running = mine;
+    // Finished: a later attempt starts fresh rather than following this one.
+    mine.then(() => { if (running === mine) running = Promise.resolve(null); });
+    return result;
+};
+
+const runSignIn = async ({ autofill, current }) => {
     const { startAuthentication } = await load();
 
     let options;
@@ -178,7 +234,7 @@ export const signInWithPasskey = async ({ autofill = false, isCurrent = () => tr
         if (autofill) return null;
         throw new Error(firstError(error, 'Could not use a passkey. Please try again.'));
     }
-    if (!isCurrent()) return null;
+    if (!current()) return null;
 
     let credential;
     try {
@@ -190,10 +246,7 @@ export const signInWithPasskey = async ({ autofill = false, isCurrent = () => tr
 
     try {
         const { data } = await http().post('/passkeys/login', { credential, remember: true });
-        await Promise.race([
-            syncPasswordManager(data.signals),
-            new Promise((resolve) => setTimeout(resolve, SIGNAL_WAIT_MS)),
-        ]);
+        await syncPasswordManager(data.signals);
         return data.redirect || '/';
     } catch (error) {
         const data = error?.response?.data;

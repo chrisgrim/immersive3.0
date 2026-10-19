@@ -37,6 +37,28 @@ beforeEach(() => {
 });
 
 describe('passkey-offer.vue', () => {
+    it('while the device sheet is open, focus stays on the sheet and Escape waits; after a failure focus is back on Save', async () => {
+        let fail;
+        passkeyApi.addPasskey.mockReturnValue(new Promise((resolve, reject) => { fail = reject; }));
+        await mountOffer();
+        const dialog = document.body.querySelector('[role=dialog]');
+        const save = [...dialog.querySelectorAll('button')].find((b) => b.textContent.includes('Save a passkey'));
+
+        save.click();
+        await flushPromises();
+        expect(document.activeElement).toBe(dialog);
+
+        dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await flushPromises();
+        expect(document.body.textContent).toContain('Waiting for your device');
+        expect(localStorage.getItem(SNOOZE_KEY)).toBeNull();
+
+        fail(new Error('Could not create a passkey.'));
+        await flushPromises();
+        expect(document.body.textContent).toContain('Could not create a passkey.');
+        expect(document.activeElement.textContent).toContain('Save a passkey');
+    });
+
     it('takes keyboard focus, keeps Tab inside, and Escape means not now', async () => {
         await mountOffer();
         const dialog = document.body.querySelector('[role=dialog]');
