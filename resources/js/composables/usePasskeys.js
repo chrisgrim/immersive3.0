@@ -299,13 +299,13 @@ const runSignIn = async ({ autofill, current }) => {
     // This answer uses the challenge up, whatever the server says.
     sharedOptions = null;
     answersInFlight++;
+    const answer = http().post('/passkeys/login', { credential, remember: true });
+    answer.then(() => answersInFlight--, () => answersInFlight--);
     try {
-        const { data } = await http().post('/passkeys/login', { credential, remember: true });
-        answersInFlight--;
-        await syncPasswordManager(data.signals);
-        return data.redirect || '/';
+        const { data } = await answer;
+        await syncPasswordManager(data?.signals);
+        return data?.redirect || '/';
     } catch (error) {
-        answersInFlight--;
         const data = error?.response?.data;
         if (data?.code === 'unknown_credential') {
             // Removed on EI (or the account is gone): ask the password
