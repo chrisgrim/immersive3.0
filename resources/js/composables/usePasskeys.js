@@ -299,10 +299,8 @@ const runSignIn = async ({ autofill, current }) => {
     // This answer uses the challenge up, whatever the server says.
     sharedOptions = null;
     answersInFlight++;
-    const answer = http().post('/passkeys/login', { credential, remember: true });
-    answer.then(() => answersInFlight--, () => answersInFlight--);
     try {
-        const { data } = await answer;
+        const { data } = await http().post('/passkeys/login', { credential, remember: true });
         await syncPasswordManager(data?.signals);
         return data?.redirect || '/';
     } catch (error) {
@@ -317,5 +315,8 @@ const runSignIn = async ({ autofill, current }) => {
             });
         }
         throw new Error(firstError(error, 'Could not sign in with that passkey. Please try again.'));
+    } finally {
+        // Only now, so a waiting attempt sees this one's redirect, not a gap.
+        answersInFlight--;
     }
 };
