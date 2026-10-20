@@ -80,6 +80,23 @@ test('reject sets status to n and emails the owner with the reason', function ()
     Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($owner->email));
 });
 
+test('reject is worded as a question: the organizer is sent back, not deleted, and can resubmit', function () {
+    $owner = User::factory()->create();
+    $organizer = Organizer::factory()->create(['user_id' => $owner->id, 'status' => 'r']);
+
+    $this->actingAs($this->moderator)
+        ->postJson("/api/admin/approve/organizers/{$organizer->slug}/reject", ['reason' => 'Is this a real company?'])
+        ->assertOk();
+
+    expect(\App\Models\Messaging\Message::latest('id')->value('message'))
+        ->toBe("We have a question about your organization before we can approve it.\n\nQuestion: Is this a real company?\n\nReply here, or update your organization and resubmit it.")
+        ->and($organizer->fresh())->not->toBeNull()
+        ->and($this->getJson('/api/admin/approve/organizers')->json('data'))->toBeEmpty();
+
+    $this->actingAs($owner)->postJson("/organizers/{$organizer->slug}/submit")->assertOk();
+    expect($organizer->fresh()->status)->toBe('r');
+});
+
 test('reject requires a reason', function () {
     $organizer = Organizer::factory()->create(['status' => 'r']);
 

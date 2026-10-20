@@ -9,6 +9,14 @@
         <div class="flex-1 overflow-auto">
             <div class="max-w-screen-xl mx-auto px-8 pt-8">
                 <div class="w-full md:w-[61rem] mx-auto pb-24 space-y-8">
+                    <!-- User Section: the account that submitted the organizer,
+                         first so it is seen at a glance. -->
+                    <div v-if="props.organizer?.owner" class="p-8 shadow-custom-1 rounded-3xl">
+                        <h3 class="text-xl font-semibold mb-4">User:</h3>
+                        <h4 class="text-4xl font-medium">{{ props.organizer.owner.name }}</h4>
+                        <p class="text-gray-600 text-xl">{{ props.organizer.owner.email }}</p>
+                    </div>
+
                     <!-- Profile and Basic Info Section -->
                     <div class="p-8 shadow-custom-1 rounded-3xl">
                         <div v-if="props.organizer?.images?.length" class="mb-8">
@@ -82,7 +90,8 @@
                     </div>
                 </a>
 
-                <!-- Reject Button -->
+                <!-- Ask a question: sends it back to the submitter (not a
+                     rejection), who can reply or update it and resubmit. -->
                 <button
                     @click="onReject"
                     :disabled="processing"
@@ -94,7 +103,7 @@
                 >
                     <div class="flex items-center justify-center gap-2">
                         <LoadingSpinner v-if="processing && isRejecting" />
-                        {{ processing && isRejecting ? 'Rejecting...' : 'Reject' }}
+                        {{ processing && isRejecting ? 'Sending...' : 'Ask a question' }}
                     </div>
                 </button>
 
@@ -122,19 +131,19 @@
                 <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh]">
                     <!-- Header -->
                     <div class="p-8 pb-6">
-                        <h2 class="text-2xl font-bold mb-2">Reject Organizer</h2>
-                        <p class="text-gray-500 font-normal">Please provide a reason for rejecting this organizer</p>
+                        <h2 class="text-2xl font-bold mb-2">Ask a question</h2>
+                        <p class="text-gray-500 font-normal">It goes to whoever submitted this organizer, by message and email. The organizer leaves this list until they reply or update it and resubmit. Nothing is deleted.</p>
                     </div>
 
                     <!-- Content -->
                     <div class="p-8 pt-0 overflow-y-auto flex-1">
                         <div class="space-y-6">
                             <div>
-                                <p class="text-gray-500 font-normal mb-4">Reason</p>
+                                <p class="text-gray-500 font-normal mb-4">Your question</p>
                                 <textarea 
                                     v-model="rejectionReason"
                                     class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4"
-                                    placeholder="Enter reason for rejection..."
+                                    placeholder="For example: Is this a real company? Do you have a website or social page we can see?"
                                     rows="4"
                                 ></textarea>
                             </div>
@@ -157,7 +166,7 @@
                             >
                                 <div class="flex items-center gap-2">
                                     <LoadingSpinner v-if="processing && isRejecting" />
-                                    {{ processing && isRejecting ? 'Rejecting...' : 'Reject' }}
+                                    {{ processing && isRejecting ? 'Sending...' : 'Send question' }}
                                 </div>
                             </button>
                         </div>

@@ -2,9 +2,9 @@
 
 namespace App\Models\Messaging;
 
-use App\Models\User;
 use App\Models\Event;
 use App\Models\Organizer;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -15,10 +15,10 @@ class Message extends Model
     protected $fillable = ['message', 'user_id', 'conversation_id', 'is_seen', 'deleted_from_sender', 'deleted_from_receiver'];
 
     /**
-    * The relations to eager load on every query. I am adding shows here because I need to filter by dates for the search
-    *
-    * @var array
-    */
+     * The relations to eager load on every query. I am adding shows here because I need to filter by dates for the search
+     *
+     * @var array
+     */
     protected $with = ['user'];
 
     public const MESSAGES = [
@@ -26,6 +26,7 @@ class Message extends Model
         'APPROVED_EMBARGOED' => 'Your event has been approved and will be displayed on your chosen date.',
         'REJECTED' => 'We have reviewed your event submission and have some feedback that needs to be addressed. Please see the details below:',
         'ORGANIZER_REJECTED' => 'We have reviewed your organization and have some feedback that needs to be addressed. Please see the details below:',
+        'ORGANIZER_QUESTION' => 'We have a question about your organization before we can approve it. Reply to our message on Everything Immersive, or update your organization and resubmit it.',
         'ORGANIZER_APPROVED' => 'Your organization has been approved!',
         'COMMUNITY_REJECTED' => 'We have reviewed your community and have some feedback that needs to be addressed. Please see the details below:',
         'COMMUNITY_APPROVED' => 'Your community has been approved!',
@@ -42,7 +43,7 @@ class Message extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function event() 
+    public function event()
     {
         return $this->belongsTo(Event::class)->withTrashed();
     }
@@ -60,10 +61,7 @@ class Message extends Model
     /**
      * Create a notification message for any model type
      *
-     * @param Model $model The model instance (Event, Organizer, etc.)
-     * @param string $message
-     * @param string $slug
-     * @return Message
+     * @param  Model  $model  The model instance (Event, Organizer, etc.)
      */
     public static function notification(Model $model, string $message, string $slug): Message
     {
@@ -74,10 +72,10 @@ class Message extends Model
                 'conversable_type' => get_class($model),
                 'conversable_id' => $model->id,
                 'user_one' => $adminId,
-                'user_two' => $model->user_id
+                'user_two' => $model->user_id,
             ],
             [
-                'subject' => $model->name
+                'subject' => $model->name,
             ]
         );
 
@@ -92,7 +90,7 @@ class Message extends Model
             'message' => $message,
             'is_seen' => false,
             'deleted_from_sender' => false,
-            'deleted_from_receiver' => false
+            'deleted_from_receiver' => false,
         ]);
     }
 }

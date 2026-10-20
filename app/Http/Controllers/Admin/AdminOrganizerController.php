@@ -265,11 +265,13 @@ class AdminOrganizerController extends Controller
     {
         $validated = $request->validate(ModerateSubmission::REASON_RULES);
 
+        // Shown to moderators as "Ask a question": many organizers are sent
+        // back because nobody can tell whether the company is real yet.
         app(ModerateSubmission::class)
-            ->reject($organizer, $organizer->user, $validated['reason'], 'organizer', Message::MESSAGES['ORGANIZER_REJECTED']);
+            ->askQuestion($organizer, $organizer->user, $validated['reason'], 'organization', Message::MESSAGES['ORGANIZER_QUESTION']);
 
         return response()->json([
-            'message' => 'Organizer rejected successfully',
+            'message' => 'Question sent to the organizer',
             'organizer' => $organizer->fresh(),
         ]);
     }

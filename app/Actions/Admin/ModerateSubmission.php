@@ -41,6 +41,24 @@ class ModerateSubmission
     }
 
     /**
+     * Send a submission back with a question rather than a verdict (is this a
+     * real company?). Same effect as reject(): out of the review queue, editable,
+     * and back in it when the owner resubmits; only the wording differs.
+     */
+    public function askQuestion(Model $item, ?User $owner, string $question, string $noun, string $emailIntro): void
+    {
+        $item->update(['status' => 'n']);
+
+        $this->notifyOwner(
+            $item,
+            $owner,
+            "We have a question about your {$noun} before we can approve it.\n\nQuestion: {$question}\n\nReply here, or update your {$noun} and resubmit it.",
+            "{$emailIntro}\n\nQuestion: {$question}",
+            'rejected',
+        );
+    }
+
+    /**
      * An in-app message and an email to the owner, unless the moderator
      * acting is the owner (or there is no owner to tell).
      */
