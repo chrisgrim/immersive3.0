@@ -387,6 +387,14 @@ class User extends Authenticatable implements PasskeyUser
     public const MODERATE_SCOPE = 'mcp:moderate';
 
     /**
+     * The scope of a read-only key: it opens /mcp/read (EiReadServer), which
+     * has no tool that changes anything, and never /mcp, which needs mcp:use.
+     * A moderator mints one on the API keys page for a checker that should see
+     * every published event and be unable to edit any of them.
+     */
+    public const READ_SCOPE = 'mcp:read';
+
+    /**
      * Whether the credential this request authenticated with may exercise
      * moderator/admin powers.
      *

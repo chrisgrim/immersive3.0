@@ -5,6 +5,7 @@ namespace App\Mcp\Tools;
 use App\Mcp\Tools\Concerns\FormatsEvents;
 use App\Models\Event;
 use App\Models\Events\Show;
+use App\Models\User;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Support\ShowHistory;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -36,7 +37,13 @@ class GetEvent extends Tool
         // One message whether the slug is unknown or the event is someone
         // else's: two different messages were an existence oracle for every
         // draft on the platform.
-        if (! $event || ! $request->user()->can('manage', $event)) {
+        // A read-only key (EiReadServer) sees what is public, published events,
+        // and only those: not even its owner's own drafts.
+        $readOnly = $request->user()->tokenCan(User::READ_SCOPE);
+        $canManage = $event && ! $readOnly && $request->user()->can('manage', $event);
+        $readable = $canManage || ($event && $readOnly && $event->isPublished());
+
+        if (! $readable) {
             return Response::error('No event with that slug that you can view. Slugs come from list-my-events; list-all-events covers published events.');
         }
 
@@ -77,9 +84,11 @@ class GetEvent extends Tool
                 // and leaving it out left clients able to see the flag was unmet
                 // but not the field that clears it — they guessed at
                 // remote_description (visible below) instead.
-                'location' => $event->location?->only([
+                // A secret location's street is only for those who can edit the
+                // event, as on the public page (EventController::show).
+                'location' => $event->location?->only(array_values(array_diff([
                     'venue', 'home', 'street', 'city', 'region', 'country', 'postal_code', 'latitude', 'longitude', 'hiddenLocationToggle', 'hiddenLocation',
-                ]),
+                ], ! $canManage && $event->location->hiddenLocationToggle ? ['home', 'street', 'postal_code'] : []))),
                 'remote_locations' => $event->remotelocations->pluck('name'),
                 'remote_description' => $event->remote_description,
                 'timezone' => $event->timezone,

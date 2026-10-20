@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\Oauth\RegisterClientController;
+use App\Mcp\Servers\EiReadServer;
 use App\Mcp\Servers\EiServer;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Laravel\Mcp\Facades\Mcp;
 use Laravel\Passport\Http\Controllers\AccessTokenController;
@@ -38,6 +40,13 @@ Mcp::web('/mcp', EiServer::class)
     ->middleware(['mcp.ip-throttle', 'mcp.audit', 'auth:api', 'scope:mcp:use', 'throttle:mcp'])
     ->name('mcp.ei');
 
+// The read-only door: a server with only reading tools, for a key carrying
+// mcp:read alone (a checker that must see every published event and be unable
+// to change one). Such a key lacks mcp:use, so /mcp above refuses it.
+Mcp::web('/mcp/read', EiReadServer::class)
+    ->middleware(['mcp.ip-throttle', 'mcp.audit', 'auth:api', 'scope:'.User::READ_SCOPE, 'throttle:mcp'])
+    ->name('mcp.ei.read');
+
 // OAuth discovery metadata and dynamic client registration. Registered
 // inside a throttled group so the well-known documents cannot be hammered…
 Route::middleware('throttle:oauth-metadata')->group(function () {
@@ -55,6 +64,8 @@ Route::post('oauth/register', RegisterClientController::class)
 // the same pre-auth limit as the real endpoint.
 Route::get('mcp', fn () => response('', 405)->header('Allow', 'POST'))->middleware('mcp.ip-throttle');
 Route::delete('mcp', fn () => response('', 405)->header('Allow', 'POST'))->middleware('mcp.ip-throttle');
+Route::get('mcp/read', fn () => response('', 405)->header('Allow', 'POST'))->middleware('mcp.ip-throttle');
+Route::delete('mcp/read', fn () => response('', 405)->header('Allow', 'POST'))->middleware('mcp.ip-throttle');
 
 // The token endpoint is called by the client program, not a browser: no
 // session, no CSRF. It lives here, outside the web group, for that reason.

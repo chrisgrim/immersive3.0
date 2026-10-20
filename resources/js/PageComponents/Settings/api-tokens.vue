@@ -87,12 +87,23 @@
                 </div>
 
                 <label v-if="isModerator" class="flex items-start gap-3 mt-6 text-1xl cursor-pointer" data-test="moderate-option">
-                    <input v-model="moderate" type="checkbox" class="mt-1">
+                    <input v-model="moderate" type="checkbox" class="mt-1" @change="moderate && (readOnly = false)">
                     <span>
                         <strong class="font-semibold">Include moderator powers.</strong>
                         <span class="text-neutral-500">
                             This key will be able to read and edit any event or organizer on the site. Only for
                             scripts that need it — an assistant you connect above never gets this.
+                        </span>
+                    </span>
+                </label>
+
+                <label v-if="isModerator" class="flex items-start gap-3 mt-4 text-1xl cursor-pointer" data-test="read-only-option">
+                    <input v-model="readOnly" type="checkbox" class="mt-1" @change="readOnly && (moderate = false)">
+                    <span>
+                        <strong class="font-semibold">Read only.</strong>
+                        <span class="text-neutral-500">
+                            This key can read any published event and change nothing. It connects to
+                            /mcp/read instead of /mcp.
                         </span>
                     </span>
                 </label>
@@ -116,6 +127,7 @@
                         <p class="text-2xl font-medium truncate">
                             {{ token.name }}
                             <span v-if="token.moderate" class="ml-2 rounded-full bg-red-50 text-red-700 px-3 py-1 text-sm font-medium align-middle">moderator powers</span>
+                            <span v-if="token.read_only" class="ml-2 rounded-full bg-neutral-100 text-neutral-700 px-3 py-1 text-sm font-medium align-middle">read only</span>
                         </p>
                         <p class="text-1xl text-neutral-500">
                             Created {{ formatDate(token.created_at) }}
@@ -155,6 +167,7 @@ const tokens = ref([]);
 const tokensLoaded = ref(false);
 const newTokenName = ref('');
 const moderate = ref(false);
+const readOnly = ref(false);
 const freshToken = ref(null);
 const creating = ref(false);
 const createError = ref(null);
@@ -199,10 +212,12 @@ const createToken = async () => {
         const response = await axios.post('/settings/api-tokens', {
             name: newTokenName.value.trim(),
             moderate: isModerator.value && moderate.value,
+            read_only: isModerator.value && readOnly.value,
         });
         freshToken.value = response.data.token;
         newTokenName.value = '';
         moderate.value = false;
+        readOnly.value = false;
         await fetchTokens();
     } catch (error) {
         createError.value = error.response?.data?.errors?.name?.[0]

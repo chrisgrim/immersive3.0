@@ -37,6 +37,7 @@ class ApiTokenController extends Controller
                 'name' => $token->name,
                 'scopes' => $token->scopes,
                 'moderate' => in_array(User::MODERATE_SCOPE, $token->scopes ?? [], true),
+                'read_only' => in_array(User::READ_SCOPE, $token->scopes ?? [], true),
                 'expires_at' => $token->expires_at,
                 'created_at' => $token->created_at,
             ])->values(),
@@ -48,6 +49,7 @@ class ApiTokenController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:60',
             'moderate' => 'sometimes|boolean',
+            'read_only' => 'sometimes|boolean',
         ]);
 
         $user = $request->user();
@@ -61,7 +63,18 @@ class ApiTokenController extends Controller
 
         $scopes = ['mcp:use'];
 
-        if ($request->boolean('moderate')) {
+        if ($request->boolean('read_only')) {
+            // A read-only key sees every published event, so like moderator
+            // powers it is a moderator's to mint; it carries mcp:read alone.
+            if (! $user->isModerator()) {
+                return response()->json(['message' => 'Only moderators can create a read-only key.'], 403);
+            }
+            if ($request->boolean('moderate')) {
+                return response()->json(['message' => 'A key is either read-only or has moderator powers, not both.'], 422);
+            }
+
+            $scopes = [User::READ_SCOPE];
+        } elseif ($request->boolean('moderate')) {
             // isModerator() is credential-aware; on this web session it is the
             // plain role check, which is exactly what should decide this.
             if (! $user->isModerator()) {

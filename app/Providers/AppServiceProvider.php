@@ -95,6 +95,7 @@ class AppServiceProvider extends ServiceProvider
         Passport::tokensCan([
             'mcp:use' => 'Create and edit events for your organizers',
             User::MODERATE_SCOPE => 'Moderator: read and edit any event or organizer on the platform',
+            User::READ_SCOPE => 'Read only: read any published event, change nothing',
         ]);
         Passport::defaultScopes(['mcp:use']);
 
