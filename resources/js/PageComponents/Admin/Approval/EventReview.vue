@@ -28,6 +28,15 @@
         <div class="flex-1 overflow-auto">
             <div class="max-w-screen-xl mx-auto px-8 pt-8">
                 <div class="w-full md:w-[61rem] mx-auto pb-24 space-y-8">
+                    <!-- User Section: the account that created the event. Any
+                         member of the organizer's team can, so it is not always
+                         the organizer's owner. First, so who submitted is seen at a glance. -->
+                    <div v-if="props.event?.user" class="p-8 shadow-custom-1 rounded-3xl">
+                        <h3 class="text-xl font-semibold mb-4">User:</h3>
+                        <h4 class="text-4xl font-medium">{{ props.event.user.name }}</h4>
+                        <p class="text-gray-600 text-xl">{{ props.event.user.email }}</p>
+                    </div>
+
                     <!-- Images Section -->
                     <div v-if="props.event?.images?.length" class="p-8 shadow-custom-1 rounded-3xl">
                         <div class="grid gap-4 justify-center">
@@ -230,15 +239,6 @@
                                 </a>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- User Section: the account that created the event. Any
-                         member of the organizer's team can, so it is not always
-                         the organizer's owner. -->
-                    <div v-if="props.event?.user" class="p-8 shadow-custom-1 rounded-3xl">
-                        <h3 class="text-xl font-semibold mb-4">User:</h3>
-                        <h4 class="text-4xl font-medium">{{ props.event.user.name }}</h4>
-                        <p class="text-gray-600 text-xl">{{ props.event.user.email }}</p>
                     </div>
 
                     <!-- Location Section -->
