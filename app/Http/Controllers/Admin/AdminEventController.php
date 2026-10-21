@@ -147,6 +147,25 @@ class AdminEventController extends Controller
      * Reverting is an env change, not a deploy of new code: set
      * EI_INTERLEAVE_REVIEW_QUEUE=false and re-cache config.
      */
+    /** The AI crawler's drafts waiting for a moderator (see Event::scopeCrawlerDrafts). */
+    public function crawled()
+    {
+        return Event::crawlerDrafts()
+            ->withoutGlobalScope(LatestPublishedFirstScope::class)
+            ->with('organizer:id,name,slug,status')
+            ->latest('updated_at')
+            ->paginate(20)
+            // Plain rows: Event's appended accessors would query per row.
+            ->through(fn (Event $e) => [
+                'id' => $e->id, 'name' => $e->name, 'slug' => $e->slug,
+                'sent_back' => $e->status === Event::STATUS_REJECTED,
+                'organizer' => $e->organizer ? ['name' => $e->organizer->name, 'slug' => $e->organizer->slug,
+                    'new' => $e->organizer->status !== 'p'] : null,
+                'websiteUrl' => $e->websiteUrl, 'ticketUrl' => $e->ticketUrl,
+                'created_at' => $e->created_at, 'updated_at' => $e->updated_at,
+            ]);
+    }
+
     public function getPending()
     {
         $query = Event::where('status', 'r')

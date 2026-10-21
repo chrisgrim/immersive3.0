@@ -35,6 +35,7 @@ class DashboardController extends Controller
             'requests' => NameChangeRequest::where('status', 'pending')->count()
                 + OwnershipClaim::where('status', 'pending')->count(),
             'suggestions' => EventSuggestion::where('status', 'pending')->count(),
+            'crawler' => Event::crawlerDrafts()->count(),
         ]);
     }
 }

@@ -488,6 +488,21 @@ class Event extends Model
     }
 
     /**
+     * The AI crawler's events not yet submitted, or sent back: what the
+     * admin's "AI crawler" section lists for a moderator to check, fix and
+     * submit. Once submitted (r) it is in the Approval Queue; once live it is
+     * done. Rejected (n) ones stay, since the rejection message goes to the
+     * crawler's account and nobody would see it otherwise.
+     */
+    public function scopeCrawlerDrafts($query)
+    {
+        $crawler = config('ei.crawler_user_id');
+
+        return $query->when($crawler, fn ($q) => $q->where('user_id', $crawler), fn ($q) => $q->whereRaw('1 = 0'))
+            ->whereNotIn('status', [self::STATUS_IN_REVIEW, ...self::LIVE_STATUSES]);
+    }
+
+    /**
      * event_id has to be in the select alongside date — a hasMany relation
      * needs its own foreign key present in the result set to match rows
      * back to their parent during EAGER loading (with()/load()/loadMissing()

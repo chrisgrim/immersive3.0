@@ -417,6 +417,7 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
             // Events
             Route::controller(AdminEventController::class)->group(function () {
                 Route::GET('/events', 'index');
+                Route::GET('/crawler-events', 'crawled');
                 Route::PATCH('/events/{event}', 'update');
                 Route::PATCH('/events/{event}/toggle-check', 'toggleCheck');
                 Route::DELETE('/events/{event}', 'destroy');

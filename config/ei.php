@@ -31,6 +31,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | The AI crawler's account
+    |--------------------------------------------------------------------------
+    |
+    | Worker (Chris's AI) drafts events from links Chris gives it, through MCP,
+    | as its own moderator account. Its drafts wait in the admin's "AI crawler"
+    | section for a moderator to check and submit; Worker never submits. This
+    | is that account's user id. Unset: the section is empty.
+    | See Event::scopeCrawlerDrafts().
+    |
+    */
+
+    'crawler_user_id' => env('EI_CRAWLER_USER_ID'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Event page: upcoming show rows embedded in the page
     |--------------------------------------------------------------------------
     |

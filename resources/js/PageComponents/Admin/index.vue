@@ -71,6 +71,26 @@
                             </ul>
                         </div>
 
+                        <!-- AI crawler: Worker's drafts, waiting for a moderator to check and submit -->
+                        <div class="nav-section">
+                            <h2 class="text-4xl font-medium mb-6">AI crawler</h2>
+                            <ul class="space-y-2">
+                                <li>
+                                    <a @click="handleNavigation('crawler-events')"
+                                       :class="['nav-link', currentView === 'crawler-events' ? 'bg-blue-50 text-blue-600' : '']"
+                                    >
+                                        <div class="flex items-center justify-between">
+                                            <span>Drafts</span>
+                                            <span v-if="counts.crawler > 0"
+                                                  class="bg-red-500 text-white text-sm px-2 py-1 rounded-full">
+                                                {{ counts.crawler }}
+                                            </span>
+                                        </div>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+
                         <!-- Management Section -->
                         <div class="nav-section">
                             <h2 class="text-4xl font-medium mb-6">Management</h2>
@@ -205,6 +225,7 @@ import ManageSuggestions from './Management/Suggestions.vue'
 import ManageAnalytics from './Management/Analytics.vue'
 import AnalyticsSearch from './Management/AnalyticsSearch.vue'
 import ScrapingScraper from './Scraping/Scraper.vue'
+import CrawlerEvents from './Crawler/Events.vue'
 import axios from 'axios'
 
 const isMobile = ref(false)
@@ -218,7 +239,8 @@ const counts = ref({
     organizers: 0,
     communities: 0,
     requests: 0,
-    suggestions: 0
+    suggestions: 0,
+    crawler: 0
 })
 
 const checkMobile = () => {
@@ -441,6 +463,7 @@ const currentComponent = computed(() => {
         'settings-tags': SettingsTags,
         'settings-advisories': SettingsAdvisories,
         'scraping-scraper': ScrapingScraper,
+        'crawler-events': CrawlerEvents,
     }
     return components[currentView.value]
 })
