@@ -101,3 +101,16 @@ it('lets a moderator open and submit a held draft, which moves to the approval q
         ->and($this->getJson('/api/admin/manage/crawler-events')->json('data'))->toBe([])
         ->and(collect($this->getJson('/api/admin/approve/events')->json('data'))->pluck('id')->all())->toContain($draft->id);
 });
+
+it('lifts the hold when a moderator approves it from the queue', function () {
+    Notification::fake();
+    \Illuminate\Support\Facades\Storage::fake('digitalocean');
+    [$crawler, $organizer] = crawlerSetup();
+    $draft = heldDraft($organizer, $crawler, ['status' => 'r']);
+
+    $this->actingAs(User::factory()->create(['type' => 'm']));
+    $this->postJson("/api/admin/approve/events/{$draft->slug}/approve")->assertSuccessful();
+
+    expect($draft->fresh()->held_for_staff)->toBeFalse()
+        ->and($draft->fresh()->status)->toBeIn(['p', 'e']);
+});
