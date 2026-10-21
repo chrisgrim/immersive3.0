@@ -43,6 +43,7 @@ class ListMyEvents extends Tool
 
         $events = Event::withoutGlobalScope(LatestPublishedFirstScope::class)
             ->whereIn('organizer_id', $teamIds)
+            ->visibleToTeam($user)
             ->with('organizer:id,name')
             ->orderByDesc('updated_at')
             ->limit(100)

@@ -548,7 +548,7 @@ class UpdateEvent extends Tool
 
         // Duplicate-name guard, same as the web flow.
         if (isset($validated['name']) && $validated['name'] !== $event->name && ! $request->get('acknowledge_duplicate')) {
-            $duplicates = app(CheckDuplicateEventNames::class)->handle($validated['name'], $event->id);
+            $duplicates = app(CheckDuplicateEventNames::class)->handle($validated['name'], $event->id, $request->user());
             if ($duplicates) {
                 return Response::json([
                     'error' => 'duplicate_name',

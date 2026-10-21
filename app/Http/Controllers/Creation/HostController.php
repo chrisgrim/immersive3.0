@@ -28,8 +28,8 @@ class HostController extends Controller
         }
 
         $organizer = Organizer::withUserRole()
-            ->with(['images', 'events' => function ($query) {
-                $query->withTrashed()->with(['images', 'clicks', 'currentUserFavorite']);
+            ->with(['images', 'events' => function ($query) use ($user) {
+                $query->withTrashed()->visibleToTeam($user)->with(['images', 'clicks', 'currentUserFavorite']);
             }])
             ->find($currentOrganizer->id);
 

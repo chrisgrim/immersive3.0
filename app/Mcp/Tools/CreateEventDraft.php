@@ -53,7 +53,7 @@ class CreateEventDraft extends Tool
 
         // Duplicate-name guard, same as the web flow.
         if (! empty($validated['name']) && empty($validated['acknowledge_duplicate'])) {
-            $duplicates = app(CheckDuplicateEventNames::class)->handle($validated['name']);
+            $duplicates = app(CheckDuplicateEventNames::class)->handle($validated['name'], null, $user);
             if ($duplicates) {
                 return Response::json([
                     'error' => 'duplicate_name',
@@ -64,6 +64,12 @@ class CreateEventDraft extends Tool
         }
 
         $event = Event::newEvent($organizer->id);
+
+        // The AI crawler's drafts wait for staff, out of the organizer's sight
+        // until approved (Event::isHeldFrom); the admin lists them under AI crawler.
+        if ($user->id === (int) config('ei.crawler_user_id')) {
+            $event->forceFill(['held_for_staff' => true])->save();
+        }
 
         if (! empty($validated['name'])) {
             $event = app(UpdateEventAction::class)->handle(

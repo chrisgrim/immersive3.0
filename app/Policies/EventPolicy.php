@@ -44,6 +44,10 @@ class EventPolicy
      */
     public function manage(User $user, Event $event): bool
     {
+        if ($event->isHeldFrom($user)) {
+            return false;
+        }
+
         // An event whose organizer row is gone belongs to nobody but a moderator.
         $organizer = $event->organizer;
 

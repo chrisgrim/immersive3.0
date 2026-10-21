@@ -105,7 +105,7 @@ class HostEventController extends Controller
 
         // Check for duplicate event names if name is being updated (skip if user acknowledged)
         if (isset($validatedData['name']) && $validatedData['name'] !== $event->name && ! $request->boolean('acknowledge_duplicate')) {
-            $duplicates = app(CheckDuplicateEventNames::class)->handle($validatedData['name'], $event->id);
+            $duplicates = app(CheckDuplicateEventNames::class)->handle($validatedData['name'], $event->id, auth()->user());
             if ($duplicates) {
                 return response()->json([
                     'message' => 'Duplicate event name detected',
@@ -217,7 +217,7 @@ class HostEventController extends Controller
 
         // If name is provided, check for duplicates (skip if user acknowledged)
         if ($request->has('name') && ! empty($request->name) && ! $request->boolean('acknowledge_duplicate')) {
-            $duplicates = app(CheckDuplicateEventNames::class)->handle($request->name);
+            $duplicates = app(CheckDuplicateEventNames::class)->handle($request->name, null, auth()->user());
             if ($duplicates) {
                 return response()->json([
                     'message' => 'Duplicate event name detected',
@@ -249,7 +249,8 @@ class HostEventController extends Controller
 
         $duplicates = app(CheckDuplicateEventNames::class)->handle(
             $request->name,
-            $request->event_id
+            $request->event_id,
+            auth()->user()
         );
 
         if ($duplicates) {

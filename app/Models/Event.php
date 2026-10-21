@@ -72,6 +72,7 @@ class Event extends Model
         'hasLocation' => 'boolean',
         'showtype_config' => 'array',
         'show_history' => 'array',
+        'held_for_staff' => 'boolean',
     ];
 
     protected $fillable = [
@@ -85,6 +86,14 @@ class Event extends Model
     protected static function booted()
     {
         static::addGlobalScope(new LatestPublishedFirstScope);
+
+        // Approved, by whatever path (approval, an admin status edit, an
+        // embargo lifting): the organizer's team sees it from now on.
+        static::saving(function (Event $event) {
+            if ($event->held_for_staff && in_array($event->status, self::LIVE_STATUSES, true)) {
+                $event->held_for_staff = false;
+            }
+        });
 
         // A deleted event is gone from EI, so it gives up its slug: the name
         // it went by is free for the next listing, and its old URL finds
@@ -492,14 +501,28 @@ class Event extends Model
      * admin's "AI crawler" section lists for a moderator to check, fix and
      * submit. Once submitted (r) it is in the Approval Queue; once live it is
      * done. Rejected (n) ones stay, since the rejection message goes to the
-     * crawler's account and nobody would see it otherwise.
+     * crawler's account and nobody would see it otherwise. Read from the hold
+     * rather than the creator, which a copy or an ownership claim rewrites.
      */
     public function scopeCrawlerDrafts($query)
     {
-        $crawler = config('ei.crawler_user_id');
-
-        return $query->when($crawler, fn ($q) => $q->where('user_id', $crawler), fn ($q) => $q->whereRaw('1 = 0'))
+        return $query->where('held_for_staff', true)
             ->whereNotIn('status', [self::STATUS_IN_REVIEW, ...self::LIVE_STATUSES]);
+    }
+
+    /** Events a user may see on their team's lists: a held one only by staff. */
+    public function scopeVisibleToTeam($query, ?User $user)
+    {
+        return $query->when(! $user?->isModerator(), fn ($q) => $q->where('held_for_staff', false));
+    }
+
+    /**
+     * Drafted by the AI crawler and not approved yet: staff only. The
+     * organizer's team neither sees nor edits it until it goes live.
+     */
+    public function isHeldFrom(?User $user): bool
+    {
+        return $this->held_for_staff && ! $user?->isModerator();
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Actions\Events;
 
 use App\Models\Event;
+use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
@@ -14,7 +15,7 @@ class CheckDuplicateEventNames
     /**
      * @return Collection|null null when the name is unused; otherwise the duplicates.
      */
-    public function handle(?string $name, ?int $excludeId = null): ?Collection
+    public function handle(?string $name, ?int $excludeId = null, ?User $viewer = null): ?Collection
     {
         if (empty($name)) {
             return null;
@@ -24,6 +25,8 @@ class CheckDuplicateEventNames
             ->when($excludeId, function ($query) use ($excludeId) {
                 return $query->where('id', '!=', $excludeId);
             })
+            // A held draft's name is staff's business until it is approved.
+            ->visibleToTeam($viewer)
             ->with(['organizer.owner', 'organizer.users'])
             ->select('id', 'name', 'slug', 'status', 'organizer_id')
             ->get();

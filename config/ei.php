@@ -35,10 +35,10 @@ return [
     |--------------------------------------------------------------------------
     |
     | Worker (Chris's AI) drafts events from links Chris gives it, through MCP,
-    | as its own moderator account. Its drafts wait in the admin's "AI crawler"
-    | section for a moderator to check and submit; Worker never submits. This
-    | is that account's user id. Unset: the section is empty.
-    | See Event::scopeCrawlerDrafts().
+    | as its own moderator account. Its drafts are held out of the organizer's
+    | sight until approved and wait in the admin's "AI crawler" section for a
+    | moderator to check and submit; Worker never submits. This is that
+    | account's user id. See Event::isHeldFrom() and scopeCrawlerDrafts().
     |
     */
 
