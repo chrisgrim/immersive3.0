@@ -2817,3 +2817,83 @@ test('update-event saves any age, such as 9 +', function () {
     $response->assertOk();
     expect($event->fresh()->age_limits_id)->toBe($nine->id);
 });
+
+test('update-event keeps the words in a draft someone else started unless the user says to replace them', function () {
+    $starter = writeToolUser();
+    $starter->update(['name' => 'Ada Organizer']);
+    $event = draftFor(writeToolOrganizer($starter), $starter, ['description' => 'A haunted lighthouse, told by its keeper.', 'tag_line' => '']);
+    $moderator = writeToolUser('m');
+
+    // rewriting their description: refused, with their words shown
+    EiServer::actingAs($moderator)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'description' => 'An immersive show by the sea.',
+    ])->assertOk()->assertSee('replace_starter_text')->assertSee('Ada Organizer')->assertSee('A haunted lighthouse, told by its keeper.');
+    expect($event->fresh()->description)->toBe('A haunted lighthouse, told by its keeper.');
+
+    // adding to their words, or filling an empty field, goes through
+    EiServer::actingAs($moderator)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'description' => "A haunted lighthouse,\n told by its keeper. Runs Fridays in October.",
+        'tag_line' => 'One night at the lighthouse',
+    ])->assertOk()->assertDontSee('replace_starter_text');
+    expect($event->fresh()->tag_line)->toBe('One night at the lighthouse');
+    expect($event->fresh()->description)->toContain('Runs Fridays in October.');
+
+    // with the user's say-so it replaces them
+    EiServer::actingAs($moderator)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'description' => 'An immersive show by the sea.',
+        'replace_starter_text' => true,
+    ])->assertOk();
+    expect($event->fresh()->description)->toBe('An immersive show by the sea.');
+});
+
+test('update-event lets a starter rewrite their own draft, and get-event says who started it', function () {
+    $starter = writeToolUser();
+    $starter->update(['name' => 'Ada Organizer']);
+    $event = draftFor(writeToolOrganizer($starter), $starter, ['description' => 'First words.']);
+
+    EiServer::actingAs($starter)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'description' => 'Second thoughts.',
+    ])->assertOk()->assertDontSee('replace_starter_text');
+    expect($event->fresh()->description)->toBe('Second thoughts.');
+
+    EiServer::actingAs(writeToolUser('m'))->tool(\App\Mcp\Tools\GetEvent::class, ['event_slug' => $event->slug])
+        ->assertOk()->assertSee('"started_by":"Ada Organizer"', false)->assertSee('"started_by_you":false', false)->assertSee('started_at');
+});
+
+test('replace_starter_text takes only a real yes, and the guard is for staff on drafts outside the team', function () {
+    $starter = writeToolUser();
+    $organizer = writeToolOrganizer($starter);
+    $moderator = writeToolUser('m');
+    $words = 'A haunted lighthouse, told by its keeper.';
+
+    // "false" as a string is not a yes
+    $event = draftFor($organizer, $starter, ['description' => $words]);
+    EiServer::actingAs($moderator)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'description' => 'Rewritten.', 'replace_starter_text' => 'false',
+    ])->assertOk()->assertSee('replace_starter_text');
+    expect($event->fresh()->description)->toBe($words);
+
+    // a teammate on the organizer carries on a colleague's draft freely
+    $teammate = writeToolUser();
+    $teammate->teams()->attach($organizer->id, ['role' => 'editor']);
+    EiServer::actingAs($teammate)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug, 'description' => 'Rewritten by the team.',
+    ])->assertOk()->assertDontSee('replace_starter_text');
+    expect($event->fresh()->description)->toBe('Rewritten by the team.');
+
+    // Worker's crawler drafts are machine text for staff to finish
+    $crawler = writeToolUser('m');
+    config(['ei.crawler_user_id' => $crawler->id]);
+    $crawled = draftFor($organizer, $crawler, ['description' => 'Crawled words.', 'held_for_staff' => true]);
+    EiServer::actingAs($moderator)->tool(UpdateEvent::class, [
+        'event_slug' => $crawled->slug, 'description' => 'Fixed by staff.',
+    ])->assertOk()->assertDontSee('replace_starter_text');
+    expect($crawled->fresh()->description)->toBe('Fixed by staff.');
+    EiServer::actingAs($moderator)->tool(\App\Mcp\Tools\GetEvent::class, ['event_slug' => $crawled->slug])
+        ->assertOk()->assertSee('"started_by_crawler":true', false);
+    expect(Event::where('organizer_id', $organizer->id)->count())->toBe(2);
+});

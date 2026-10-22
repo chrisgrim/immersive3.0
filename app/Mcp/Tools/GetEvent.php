@@ -63,6 +63,7 @@ class GetEvent extends Tool
             'images',
             'videos',
             'organizer:id,name,slug',
+            'user:id,name',
         ]);
 
         $readiness = $this->readiness($event);
@@ -74,6 +75,16 @@ class GetEvent extends Tool
                 // than Event::EDIT_WINDOW_DAYS ago and the caller is not
                 // staff. Tell the client before it tries.
                 'edit_locked' => $event->isEditLockedFor($request->user()),
+                // Who started the listing (its account owner: an approved
+                // ownership claim moves that) and when, so an abandoned draft
+                // is plain to see; update-event keeps its text for staff unless
+                // the user says to replace it.
+                'started_by' => $canManage ? $event->user?->name : null,
+                'started_by_you' => $event->user_id === $request->user()->id,
+                // Worker's crawler made it: machine text, for staff to finish freely.
+                'started_by_crawler' => (bool) config('ei.crawler_user_id') && $event->user_id === (int) config('ei.crawler_user_id'),
+                'started_at' => $event->created_at?->toDateTimeString(),
+                'last_saved_at' => $event->updated_at?->toDateTimeString(),
                 'tag_line' => $event->tag_line,
                 'description' => $event->description,
                 'category' => $event->category?->only(['id', 'name']),

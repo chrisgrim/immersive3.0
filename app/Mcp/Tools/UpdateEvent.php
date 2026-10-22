@@ -9,6 +9,7 @@ use App\Mcp\Tools\Concerns\FormatsEvents;
 use App\Models\Event;
 use App\Models\Events\Advisory;
 use App\Models\Events\Show;
+use App\Models\User;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Support\Currency;
 use App\Support\RecurringDates;
@@ -75,7 +76,7 @@ class UpdateEvent extends Tool
         ));
 
         $input = collect($request->all())
-            ->except(array_merge(self::STRIPPED_KEYS, ['event_slug', 'acknowledge_duplicate', 'confirm_live_edit', 'confirm_schedule_replace']))
+            ->except(array_merge(self::STRIPPED_KEYS, ['event_slug', 'acknowledge_duplicate', 'confirm_live_edit', 'confirm_schedule_replace', 'replace_starter_text']))
             ->all();
 
         // The videos array is accepted as a real array here; the shared action
@@ -574,6 +575,27 @@ class UpdateEvent extends Tool
         // Mirror that so MCP events carry the same advisory data as wizard ones.
         $this->applyAutoChips($validated, $event);
 
+        // Staff finishing someone else's unfinished draft: the words already in
+        // it are kept. A text field that has text takes text that still holds
+        // it (added to); replacing it takes the user's say-so, and only a real
+        // true counts ("false" as a string is not one). Live events have their
+        // own before-and-after below; submitted and rejected ones are the
+        // review queue's; the organizer's own team and Worker's crawler drafts
+        // are theirs to rewrite.
+        if ($this->keepsStarterText($event, $user)
+            && filter_var($request->get('replace_starter_text'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) !== true
+            && ($kept = $this->starterTextReplaced($event, $validated)) !== []) {
+            $event->loadMissing('user:id,name');
+
+            return Response::json([
+                'action_required' => 'replace_starter_text',
+                'message' => 'This unfinished draft was started by '.($event->user?->name ?? 'someone else').' on '.$event->created_at?->toDateString()
+                    .'. Keep the words already in it: send text that still contains what is there (add to it, do not rewrite it). Only if the user asks to replace it, show them the current text below, get their explicit OK, then call again with replace_starter_text=true.',
+                'event' => $this->eventSummary($event),
+                'current_text' => $kept,
+            ]);
+        }
+
         // Editing a LIVE (published/embargoed) event applies immediately, so
         // require an explicit confirmation after showing the user what changes.
         if (in_array($event->status, Event::LIVE_STATUSES, true) && ! $request->get('confirm_live_edit')) {
@@ -890,6 +912,50 @@ class UpdateEvent extends Tool
     }
 
     /**
+     * Whether this caller is finishing an unfinished draft someone outside its
+     * organizer's team started: staff, on a draft that isn't Worker's crawler's.
+     */
+    protected function keepsStarterText(Event $event, User $user): bool
+    {
+        $crawler = (int) config('ei.crawler_user_id');
+
+        // A draft is anything not yet sent in: not live, submitted or rejected
+        // (the wizard's step markers included).
+        $draft = ! in_array($event->status, [...Event::LIVE_STATUSES, Event::STATUS_IN_REVIEW, Event::STATUS_REJECTED], true);
+
+        return $draft
+            && ! $event->held_for_staff
+            && ! ($crawler && $event->user_id === $crawler)
+            && $event->user_id !== $user->id
+            && ! ($event->organizer && $user->belongsToOrganization($event->organizer));
+    }
+
+    /**
+     * The text already in it that this call would lose: each text field they filled in
+     * that the new value no longer contains (spacing aside), with their words.
+     *
+     * @return array<string, string>
+     */
+    protected function starterTextReplaced(Event $event, array $validated): array
+    {
+        $plain = fn ($v) => trim(preg_replace('/\s+/u', ' ', (string) $v));
+        $fields = [];
+        foreach (['name', 'tag_line', 'description', 'show_times', 'remote_description'] as $key) {
+            if (array_key_exists($key, $validated)) {
+                $fields[$key] = [$event->{$key}, $validated[$key]];
+            }
+        }
+        if (is_array($validated['location'] ?? null) && array_key_exists('hiddenLocation', $validated['location'])) {
+            $fields['location.hiddenLocation'] = [$event->location?->hiddenLocation, $validated['location']['hiddenLocation']];
+        }
+
+        return collect($fields)
+            ->filter(fn ($pair) => $plain($pair[0]) !== '' && ! str_contains($plain($pair[1]), $plain($pair[0])))
+            ->map(fn ($pair) => (string) $pair[0])
+            ->all();
+    }
+
+    /**
      * Current vs proposed values for a live-edit confirmation, so the AI can
      * show the user a concrete diff before anything is applied.
      */
@@ -964,6 +1030,7 @@ class UpdateEvent extends Tool
             'embargo_date' => $schema->string()->description('Optional "Y-m-d H:i:s" as a wall-clock time in the EVENT\'S OWN timezone (not UTC), in the future: if set, the event stays hidden until then after approval. The website stores noon on the chosen day, e.g. "2026-10-01 12:00:00"; the publisher runs every two hours. Send null to lift an embargo and publish immediately. Omitting it leaves any existing embargo untouched.'),
             'videos' => $schema->array()->description('Optional, up to 4: [{"platform": "youtube"|"tiktok", "url": "...", "id": "platform video id", "rank": 0}]. Instagram is not supported.'),
             'acknowledge_duplicate' => $schema->boolean()->description('Set true only after the user confirms a duplicate-name warning.'),
+            'replace_starter_text' => $schema->boolean()->description('Required to replace (not add to) the text already in an unfinished draft someone outside the organizer\'s team started (staff only): the first call returns their current text instead of applying. Show it to the user, get their explicit OK, then retry with this set to true.'),
             'confirm_live_edit' => $schema->boolean()->description('Required when editing a PUBLISHED or EMBARGOED event: the first call returns a current-vs-proposed diff instead of applying. Show the user the diff, get their explicit confirmation, then retry with this set to true.'),
             'remove_older_show_days' => $schema->array()->description('Older show days to delete, as calendar dates "Y-m-d" (days listed under older_show_days in get-event). Those days are otherwise always kept when you send dateArray or ongoing_config. Deleting a day that already happened is staff-only; for anyone else it is kept and reported under preserved_past_dates.'),
             'replace_older_show_days' => $schema->boolean()->description('Rarely needed. true makes dateArray (or the ongoing_config expansion) the WHOLE schedule, older show days included, so any older day it leaves out is deleted (staff only). Default false: older show days are kept.'),
