@@ -68,15 +68,10 @@ class AttachEventImage extends Tool
         }
 
         try {
-            // Same delete-then-save sequence as the web upload path. The new
-            // image was already downloaded, sniffed, and decode-verified by
-            // RemoteImageIngest, so the remaining failure window (storage
-            // outage mid-save) matches the web flow's existing behavior.
-            if ($existingAtRank) {
-                ImageHandler::deleteImage($existingAtRank);
-            }
-
-            $created = ImageHandler::saveImage(
+            // Same save-then-delete sequence as the web upload path: a storage
+            // outage mid-save throws and leaves the old picture in place.
+            $created = ImageHandler::replaceImage(
+                $existingAtRank,
                 $image,
                 $event,
                 ($rank === 0) ? 900 : 1200,

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Services\ImageHandler;
@@ -44,27 +45,32 @@ class AdminCategoryController extends Controller
                 $validated['applicable_attendance_types'] = array_map('intval', $validated['applicable_attendance_types']);
             }
 
-            $category = Category::create($validated);
+            // All or nothing: a failed picture upload leaves no category behind
+            $category = DB::transaction(function () use ($request, $validated) {
+                $category = Category::create($validated);
 
-            // Handle image uploads
-            if ($request->hasFile('image')) {
-                $images = $request->file('image');
-                $indices = $request->input('image_index', []);
+                // Handle image uploads
+                if ($request->hasFile('image')) {
+                    $images = $request->file('image');
+                    $indices = $request->input('image_index', []);
 
-                foreach ($images as $key => $image) {
-                    $imageIndex = $indices[$key] ?? 0;
-                    $dimensions = $imageIndex === 1 ? 400 : 800;
+                    foreach ($images as $key => $image) {
+                        $imageIndex = $indices[$key] ?? 0;
+                        $dimensions = $imageIndex === 1 ? 400 : 800;
 
-                    ImageHandler::saveImage(
-                        $image,
-                        $category,
-                        $dimensions,
-                        $dimensions,
-                        'category-images',
-                        $imageIndex
-                    );
+                        ImageHandler::saveImage(
+                            $image,
+                            $category,
+                            $dimensions,
+                            $dimensions,
+                            'category-images',
+                            $imageIndex
+                        );
+                    }
                 }
-            }
+
+                return $category;
+            });
 
             return $category->load('images');
         } catch (\Exception $e) {
@@ -145,17 +151,15 @@ class AdminCategoryController extends Controller
 
             // Find existing image with this rank
             $existingImage = $category->images()->where('rank', $imageIndex)->first();
-            if ($existingImage) {
-                ImageHandler::deleteImage($existingImage);
-            }
 
             // Set dimensions based on image type
             $dimensions = $imageIndex === 1
                 ? 400  // icon size
                 : 800; // main image size
 
-            // Save new image
-            ImageHandler::saveImage(
+            // Save new image, then remove the old one
+            ImageHandler::replaceImage(
+                $existingImage,
                 $request->file('image'),
                 $category,
                 $dimensions,

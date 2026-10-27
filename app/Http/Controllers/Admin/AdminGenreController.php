@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use App\Models\Genre;
 use App\Services\ImageHandler;
@@ -51,23 +52,28 @@ class AdminGenreController extends Controller
             'image' => 'nullable|file|mimes:jpeg,png,jpg,webp,avif|max:8192',
         ]);
 
-        $genre = Genre::create([
-            'name' => $request->name,
-            'slug' => Str::slug($request->name),
-            'rank' => $request->rank ?? 0,
-            'admin' => $request->admin ?? true,
-            'user_id' => auth()->user()->id,
-        ]);
+        // All or nothing: a failed picture upload leaves no genre behind
+        $genre = DB::transaction(function () use ($request) {
+            $genre = Genre::create([
+                'name' => $request->name,
+                'slug' => Str::slug($request->name),
+                'rank' => $request->rank ?? 0,
+                'admin' => $request->admin ?? true,
+                'user_id' => auth()->user()->id,
+            ]);
 
-        if ($request->hasFile('image')) {
-            ImageHandler::saveImage(
-                $request->file('image'),
-                $genre,
-                400,  // icon size
-                400,
-                'genre-images'
-            );
-        }
+            if ($request->hasFile('image')) {
+                ImageHandler::saveImage(
+                    $request->file('image'),
+                    $genre,
+                    400,  // icon size
+                    400,
+                    'genre-images'
+                );
+            }
+
+            return $genre;
+        });
 
         return response()->json($genre->fresh()->load('images'), 201);
     }
@@ -116,12 +122,9 @@ class AdminGenreController extends Controller
                 'image' => 'required|file|mimes:jpeg,png,jpg,webp,avif|max:8192',
             ]);
 
-            // Delete old images first
-            foreach ($genre->images as $image) {
-                ImageHandler::deleteImage($image);
-            }
-
-            ImageHandler::saveImage(
+            // Save the new image, then remove the old ones
+            ImageHandler::replaceImage(
+                $genre->images()->get(),
                 $request->file('image'),
                 $genre,
                 400,  // icon size

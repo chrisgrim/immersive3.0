@@ -188,6 +188,11 @@
                         </div>
                     </div>
 
+                    <!-- Errors the fields above don't show (a picture that couldn't be saved) -->
+                    <p v-if="errors.image || errors.general" class="text-red-500 text-1xl mt-8">
+                        {{ (errors.image || errors.general)[0] }}
+                    </p>
+
                     <!-- Submit Button -->
                     <div v-if="team.name && team.description" class="w-full flex justify-center sm:justify-end mt-8 sm:mt-12">
                         <button 

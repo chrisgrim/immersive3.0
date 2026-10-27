@@ -45,25 +45,29 @@ class CardActions
             ]);
         }
 
-        // If order is specified, make room for the new card
-        if ($request->order !== null) {
-            $this->shiftCardsOrder($post, $request->order);
-        }
+        // All or nothing, for the same reason: a failed picture upload
+        // leaves no orphaned card or shifted siblings.
+        DB::transaction(function () use ($request, $post) {
+            // If order is specified, make room for the new card
+            if ($request->order !== null) {
+                $this->shiftCardsOrder($post, $request->order);
+            }
 
-        $card = Card::create([
-            'post_id' => $post->id,
-            'event_id' => $request->event_id,
-            'name' => $request->name,
-            'blurb' => $request->blurb,
-            'url' => $request->url,
-            'button_text' => $request->button_text,
-            'type' => $request->type,
-            'order' => $request->order ?? ($post->cards()->exists() ? $post->cards->last()->order + 1 : 0),
-        ]);
+            $card = Card::create([
+                'post_id' => $post->id,
+                'event_id' => $request->event_id,
+                'name' => $request->name,
+                'blurb' => $request->blurb,
+                'url' => $request->url,
+                'button_text' => $request->button_text,
+                'type' => $request->type,
+                'order' => $request->order ?? ($post->cards()->exists() ? $post->cards->last()->order + 1 : 0),
+            ]);
 
-        if ($request->hasFile('image')) {
-            ImageHandler::saveImage($request->file('image'), $card, 800, 500, 'card-images');
-        }
+            if ($request->hasFile('image')) {
+                ImageHandler::saveImage($request->file('image'), $card, 800, 500, 'card-images');
+            }
+        });
 
         return $post->load('cards.images', 'user');
     }
@@ -83,12 +87,7 @@ class CardActions
             $request->validate([
                 'image' => 'file|mimes:jpeg,png,jpg,webp,avif|max:8192',
             ]);
-            if ($card->images()->exists()) {
-                foreach ($card->images as $image) {
-                    ImageHandler::deleteImage($image);
-                }
-            }
-            ImageHandler::saveImage($request->file('image'), $card, 800, 500, 'card-images');
+            ImageHandler::replaceImage($card->images()->get(), $request->file('image'), $card, 800, 500, 'card-images');
             $card->touch();
         }
 

@@ -577,9 +577,7 @@ const updateCard = async () => {
             // Build user-friendly error message
             let errorMessages = [];
             if (errors.image) {
-                errorMessages.push('Invalid image file. Please upload a JPEG, PNG, WebP, or AVIF image.');
-                // Clear the invalid image preview
-                imageFile.value = null;
+                errorMessages.push(...errors.image);
             }
             for (const [field, messages] of Object.entries(errors)) {
                 if (field !== 'image') {
@@ -598,6 +596,8 @@ const updateCard = async () => {
 
 const resetCard = () => {
     card.value = { ...cardBeforeEdit.value }
+    // A picture that failed to save is kept for a retry; Cancel drops it
+    imageFile.value = null
     clear()
 }
 

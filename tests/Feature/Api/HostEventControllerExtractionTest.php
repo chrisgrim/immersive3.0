@@ -468,3 +468,51 @@ test('a schedule edit that omits show_times leaves it standing', function () {
     expect($after->show_times)->toBe('Fridays 8pm')
         ->and($after->shows()->count())->toBe(2);
 });
+
+test('a cover swap whose upload fails keeps the old cover, though the editor listed it for deletion', function () {
+    $user = extractionUser();
+    $event = extractionEvent($user);
+
+    $this->actingAs($user)->post("/api/hosting/event/{$event->slug}", [
+        'images' => [UploadedFile::fake()->image('primary.jpg', 900, 1200)],
+        'ranks' => [0],
+    ])->assertStatus(200);
+    $old = $event->images()->where('rank', 0)->first();
+
+    // The s3 disk answers a failed write with false, not an exception
+    $disk = Mockery::mock(Storage::disk('digitalocean'))->makePartial();
+    $disk->shouldReceive('put')->andReturn(false);
+    Storage::set('digitalocean', $disk);
+
+    // What the editor sends for a cover swap: the new file, and the old cover's path to delete
+    $this->actingAs($user)->postJson("/api/hosting/event/{$event->slug}", [
+        'images' => [UploadedFile::fake()->image('newprimary.jpg', 900, 1200)],
+        'ranks' => [0],
+        'deletedImages' => json_encode([$old->large_image_path]),
+    ])->assertStatus(422)->assertJsonValidationErrors(['images' => "couldn't be saved"]);
+
+    expect($event->images()->pluck('id')->all())->toBe([$old->id]);
+    expect($event->fresh()->largeImagePath)->toBe($old->large_image_path);
+});
+
+test('a cover swap the editor sends with the old cover listed for deletion leaves only the new cover', function () {
+    $user = extractionUser();
+    $event = extractionEvent($user);
+
+    $this->actingAs($user)->post("/api/hosting/event/{$event->slug}", [
+        'images' => [UploadedFile::fake()->image('primary.jpg', 900, 1200)],
+        'ranks' => [0],
+    ])->assertStatus(200);
+    $old = $event->images()->where('rank', 0)->first();
+
+    $this->actingAs($user)->post("/api/hosting/event/{$event->slug}", [
+        'images' => [UploadedFile::fake()->image('newprimary.jpg', 900, 1200)],
+        'ranks' => [0],
+        'deletedImages' => json_encode([$old->large_image_path]),
+    ])->assertStatus(200);
+
+    $images = $event->images()->get();
+    expect($images)->toHaveCount(1);
+    expect($images->first()->id)->not->toBe($old->id);
+    expect($event->fresh()->largeImagePath)->toBe($images->first()->large_image_path);
+});

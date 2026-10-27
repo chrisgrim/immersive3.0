@@ -282,14 +282,19 @@ class UpdateEventAction
             // 1. First, get all current images and their ranks
             $existingImages = $event->images()->orderBy('rank')->get();
 
-            // 2. Handle deletions first
+            // 2. Handle deletions first, except a picture a new upload is
+            // replacing: replaceImage removes that one once the new one is
+            // stored, so a failed upload leaves it in place.
+            $uploadRanks = $request->hasFile('images')
+                ? collect(array_keys($request->file('images')))->map(fn ($i) => (int) ($request->input('ranks', [])[$i] ?? 0))->all()
+                : [];
             if ($request->has('deletedImages')) {
                 $deletedImages = json_decode($request->input('deletedImages', '[]'), true);
                 foreach ($deletedImages as $deletedImagePath) {
                     $image = $existingImages->first(function ($img) use ($deletedImagePath) {
                         return $img->large_image_path === $deletedImagePath;
                     });
-                    if ($image) {
+                    if ($image && ! in_array($image->rank, $uploadRanks, true)) {
                         ImageHandler::deleteImage($image);
                         $existingImages = $existingImages->reject(fn ($img) => $img->id === $image->id);
                     }
@@ -324,14 +329,11 @@ class UpdateEventAction
                 foreach ($request->file('images') as $index => $image) {
                     $rank = (int) ($ranks[$index] ?? 0);
 
-                    // First delete any existing image with this rank
+                    // Save the new image with the correct rank, then remove the
+                    // one it replaces (kept if the upload fails)
                     $existingImage = $event->images()->where('rank', $rank)->first();
-                    if ($existingImage) {
-                        ImageHandler::deleteImage($existingImage);
-                    }
-
-                    // Save the new image with the correct rank
-                    ImageHandler::saveImage(
+                    ImageHandler::replaceImage(
+                        $existingImage,
                         $image,
                         $event,
                         ($rank === 0) ? 900 : 1200,  // Width

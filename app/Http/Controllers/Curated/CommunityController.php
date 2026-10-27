@@ -241,13 +241,8 @@ class CommunityController extends Controller
 
             // Handle image updates
             if ($request->hasFile('image')) {
-                // Delete existing images if there are any
-                if ($community->images()->exists()) {
-                    foreach ($community->images as $image) {
-                        ImageHandler::deleteImage($image);
-                    }
-                }
-                ImageHandler::saveImage($request->file('image'), $community, 1200, 675, 'community-images');
+                // Save the new image, then remove the old ones
+                ImageHandler::replaceImage($community->images()->get(), $request->file('image'), $community, 1200, 675, 'community-images');
             } elseif ($request->has('remove_image')) {
                 if ($community->images()->exists()) {
                     foreach ($community->images as $image) {

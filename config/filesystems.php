@@ -64,6 +64,9 @@ return [
             'bucket' => env('DO_BUCKET'),
             'endpoint' => env('DO_ENDPOINT'),
             'visibility' => 'public',
+            // A failed write still only returns false (callers check it), but
+            // the storage error behind it goes to Sentry instead of vanishing.
+            'report' => true,
             // Every image is written under a fresh uniqid() name and never
             // overwritten (ImageHandler: new uploads, slug moves and event
             // duplication all mint a new name), so a browser may keep each

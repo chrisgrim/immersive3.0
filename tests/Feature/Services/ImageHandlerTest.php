@@ -421,3 +421,67 @@ test('removing an image nobody else uses still deletes its files', function () {
 
     Storage::disk('digitalocean')->assertMissing('public/event-images/only-mine/f.webp');
 });
+
+test('saveImage saves no row and cleans up when a write fails', function () {
+    $event = Event::factory()->create(['slug' => 'flaky-show', 'largeImagePath' => null]);
+    $file = UploadedFile::fake()->image('upload.jpg', 800, 600);
+
+    // The third write (the thumb jpg) fails the way the s3 disk does: false, no throw
+    $real = Storage::disk('digitalocean');
+    $calls = 0;
+    $disk = Mockery::mock($real)->makePartial();
+    $disk->shouldReceive('put')->andReturnUsing(function ($path, $contents) use ($real, &$calls) {
+        return ++$calls === 3 ? false : $real->put($path, $contents);
+    });
+    Storage::set('digitalocean', $disk);
+
+    expect(fn () => ImageHandler::saveImage($file, $event, 800, 600, 'event-images', 0))
+        ->toThrow(\Illuminate\Validation\ValidationException::class, "couldn't be saved");
+
+    expect($calls)->toBe(3);
+    expect($event->images()->count())->toBe(0);
+    expect($event->fresh()->largeImagePath)->toBeNull();
+    expect($real->allFiles('public/event-images/flaky-show'))->toBe([]);
+});
+
+// ----- replaceImage() -----
+
+test('replaceImage keeps the old picture when the new upload fails', function () {
+    $event = Event::factory()->create(['slug' => 'swap-show']);
+    $old = ImageHandler::saveImage(UploadedFile::fake()->image('old.jpg', 800, 600), $event, 800, 600, 'event-images', 0);
+
+    // Every write of the new upload fails the way the s3 disk does: false, no throw
+    $real = Storage::disk('digitalocean');
+    $disk = Mockery::mock($real)->makePartial();
+    $disk->shouldReceive('put')->andReturn(false);
+    Storage::set('digitalocean', $disk);
+
+    expect(fn () => ImageHandler::replaceImage($old, UploadedFile::fake()->image('new.jpg', 800, 600), $event, 800, 600, 'event-images', 0))
+        ->toThrow(\Illuminate\Validation\ValidationException::class, "couldn't be saved");
+
+    expect($event->images()->pluck('id')->all())->toBe([$old->id]);
+    expect($event->fresh()->largeImagePath)->toBe($old->large_image_path);
+    $real->assertExists("public/{$old->large_image_path}");
+});
+
+test('replaceImage removes the old picture once the new one is in, and the event shows the new one', function () {
+    $event = Event::factory()->create(['slug' => 'swap-ok-show']);
+    $old = ImageHandler::saveImage(UploadedFile::fake()->image('old.jpg', 800, 600), $event, 800, 600, 'event-images', 0);
+
+    $new = ImageHandler::replaceImage($old, UploadedFile::fake()->image('new.jpg', 800, 600), $event, 800, 600, 'event-images', 0);
+
+    expect($event->images()->pluck('id')->all())->toBe([$new->id]);
+    expect($event->fresh()->largeImagePath)->toBe($new->large_image_path);
+    Storage::disk('digitalocean')->assertMissing("public/{$old->large_image_path}");
+    Storage::disk('digitalocean')->assertExists("public/{$new->large_image_path}");
+});
+
+test('replaceImage still drops an old row it cannot remove, so the model keeps one picture', function () {
+    $event = Event::factory()->create(['slug' => 'legacy-show']);
+    // A legacy row whose path deleteImage refuses to touch
+    $legacy = $event->images()->create(['large_image_path' => 'oddpath.webp', 'thumb_image_path' => 'oddpath-thumb.webp', 'rank' => 1]);
+
+    $new = ImageHandler::replaceImage($legacy, UploadedFile::fake()->image('new.jpg', 800, 600), $event, 800, 600, 'event-images', 1);
+
+    expect($event->images()->pluck('id')->all())->toBe([$new->id]);
+});

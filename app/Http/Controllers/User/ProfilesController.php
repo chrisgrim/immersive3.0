@@ -62,17 +62,10 @@ class ProfilesController extends Controller
     {
         try {
             if ($request->hasFile('image')) {
-                // Delete existing images
-                foreach ($user->images as $image) {
-                    try {
-                        ImageHandler::deleteImage($image);
-                    } catch (\Exception $e) {
-                        // Continue with the upload even if deletion fails
-                    }
-                }
-
-                // Save new image with correct type parameter
-                ImageHandler::saveImage(
+                // Save the new image, then remove the old ones (a failed
+                // removal doesn't stop the upload)
+                ImageHandler::replaceImage(
+                    $user->images()->get(),
                     $request->file('image'),
                     $user,
                     600,  // width
@@ -117,6 +110,9 @@ class ProfilesController extends Controller
 
             return $result;
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // e.g. the picture couldn't be saved: a 422 the page shows, not a bug for Sentry
+            throw $e;
         } catch (\Exception $e) {
             report($e);
             \Log::error('Update failed', [

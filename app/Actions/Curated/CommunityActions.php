@@ -2,6 +2,7 @@
 
 namespace App\Actions\Curated;
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Models\Curated\Card;
 use App\Models\Curated\Post;
@@ -26,26 +27,33 @@ class CommunityActions
      */
     public function create(Request $request)
     {
-        $community = Community::create([
-            'blurb' => $request->blurb,
-            'description' => $request->description ? $request->description : null,
-            'name' => $request->name,
-            'user_id' => auth()->id(),
-            'slug' => Str::slug($request->name),
-        ]);
-
         if ($request->hasFile('image')) {
             $request->validate([
                 'image' => 'file|mimes:jpeg,png,jpg,webp,avif|max:8192'
             ]);
-            ImageHandler::saveImage($request->file('image'), $community, 800, 500, 'community-images', 0);
         }
 
-        $community->shelves()->create(['user_id' => auth()->id()]);
-        $community->shelves()->create(['user_id' => auth()->id(), 'name' => 'Archived', 'status' => 'a']);
-        $community->curators()->attach(auth()->user()->id);
+        // All or nothing: a failed picture upload leaves no community behind
+        // (one without its curator can't be seen, fixed or made again).
+        return DB::transaction(function () use ($request) {
+            $community = Community::create([
+                'blurb' => $request->blurb,
+                'description' => $request->description ? $request->description : null,
+                'name' => $request->name,
+                'user_id' => auth()->id(),
+                'slug' => Str::slug($request->name),
+            ]);
 
-        return $community;
+            if ($request->hasFile('image')) {
+                ImageHandler::saveImage($request->file('image'), $community, 800, 500, 'community-images', 0);
+            }
+
+            $community->shelves()->create(['user_id' => auth()->id()]);
+            $community->shelves()->create(['user_id' => auth()->id(), 'name' => 'Archived', 'status' => 'a']);
+            $community->curators()->attach(auth()->user()->id);
+
+            return $community;
+        });
     }
 
     /**
@@ -64,17 +72,9 @@ class CommunityActions
                 $request->validate([
                     'image' => 'file|mimes:jpeg,png,jpg,webp,avif|max:8192'
                 ]);
-                if ($community->images()->exists()) {
-                    foreach ($community->images as $image) {
-                        if ($image->large_image_path || $image->thumb_image_path) {
-                            ImageHandler::deleteImage($image);
-                            $image->delete();
-                        }
-                    }
-                    $community->unsetRelation('images');
-                }
-
-                ImageHandler::saveImage($request->file('image'), $community, 800, 500, 'community-images');
+                $old = $community->images()->get()->filter(fn ($image) => $image->large_image_path || $image->thumb_image_path);
+                ImageHandler::replaceImage($old, $request->file('image'), $community, 800, 500, 'community-images');
+                $community->unsetRelation('images');
                 $community->touch();
             } catch (\Exception $e) {
                 throw $e;

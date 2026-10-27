@@ -38,25 +38,33 @@ class ImageHandler
         $image = Image::read($imagePath);
 
         // Process and save image in both jpg and webp formats
-        $jpg = clone $image;
-        $jpg->cover($width, $height);
-        $encodedJpg = $jpg->encode(new JpegEncoder(quality: 75));
-        Storage::disk('digitalocean')->put("/public/$directory/$fileName.jpg", (string) $encodedJpg);
+        $variants = [
+            "$fileName.jpg" => [$width, $height, new JpegEncoder(quality: 75)],
+            "$fileName.webp" => [$width, $height, new WebpEncoder(quality: 75)],
+            "$fileName-thumb.jpg" => [$width / 2, $height / 2, new JpegEncoder(quality: 75)],
+            "$fileName-thumb.webp" => [$width / 2, $height / 2, new WebpEncoder(quality: 75)],
+        ];
 
-        $webp = clone $image;
-        $webp->cover($width, $height);
-        $encodedWebp = $webp->encode(new WebpEncoder(quality: 75));
-        Storage::disk('digitalocean')->put("/public/$directory/$fileName.webp", (string) $encodedWebp);
-
-        $thumbJpg = clone $image;
-        $thumbJpg->cover($width / 2, $height / 2);
-        $encodedThumbJpg = $thumbJpg->encode(new JpegEncoder(quality: 75));
-        Storage::disk('digitalocean')->put("/public/$directory/$fileName-thumb.jpg", (string) $encodedThumbJpg);
-
-        $thumbWebp = clone $image;
-        $thumbWebp->cover($width / 2, $height / 2);
-        $encodedThumbWebp = $thumbWebp->encode(new WebpEncoder(quality: 75));
-        Storage::disk('digitalocean')->put("/public/$directory/$fileName-thumb.webp", (string) $encodedThumbWebp);
+        // The disk doesn't throw, so a failed write only returns false. Check
+        // every one: a row is saved only once all four files are stored, and a
+        // half-finished upload is cleaned up rather than left pointing nowhere.
+        $disk = Storage::disk('digitalocean');
+        $written = [];
+        foreach ($variants as $name => [$w, $h, $encoder]) {
+            $path = "/public/$directory/$name";
+            $encoded = (clone $image)->cover($w, $h)->encode($encoder);
+            if (! $disk->put($path, (string) $encoded)) {
+                if ($written) $disk->delete($written);
+                Log::error("Image upload failed: $path did not upload", ['written' => $written]);
+                // A 422 on the upload's own field, so the form shows it beside the
+                // picture (the event editor names that field "images"). The storage
+                // error itself reaches Sentry through the disk's 'report' setting.
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    $type === 'event-images' ? 'images' : 'image' => "The picture couldn't be saved. Please try again.",
+                ]);
+            }
+            $written[] = $path;
+        }
 
         // Create the image with specified rank
         $createdImage = $model->images()->create([
@@ -76,6 +84,32 @@ class ImageHandler
         }
         
         return $createdImage;
+    }
+
+    /**
+     * Swap pictures without ever leaving the model with none: the new upload is
+     * saved first, and the old ones are removed only once it is stored. If the
+     * upload fails, saveImage throws and the old pictures stay as they were.
+     */
+    public static function replaceImage($old, $upload, $model, $width, $height, $type, $rank = 0)
+    {
+        $old = $old instanceof \Illuminate\Database\Eloquent\Model ? [$old] : collect($old)->all();
+
+        $created = static::saveImage($upload, $model, $width, $height, $type, $rank);
+
+        // The new picture is in. A leftover old file is only clutter, so a
+        // failed clean-up is reported and never undoes the upload, but the
+        // old row still goes, or the model would show two pictures.
+        foreach ($old as $image) {
+            try {
+                static::deleteImage($image);
+            } catch (\Throwable $e) {
+                report($e);
+                $image->delete();
+            }
+        }
+
+        return $created;
     }
 
     public static function deleteImage($image)
@@ -135,7 +169,9 @@ class ImageHandler
         $image->delete();
 
         // If parent model has image path columns, only clear them if this was the main image (rank 0)
-        if ($parent && \Schema::hasColumns($parent->getTable(), ['largeImagePath', 'thumbImagePath']) && $imageRank === 0) {
+        // and they still point at it: after replaceImage they already show the new one.
+        if ($parent && \Schema::hasColumns($parent->getTable(), ['largeImagePath', 'thumbImagePath']) && $imageRank === 0
+            && $parent->largeImagePath === $image->large_image_path) {
             $parent->update([
                 'largeImagePath' => null,
                 'thumbImagePath' => null

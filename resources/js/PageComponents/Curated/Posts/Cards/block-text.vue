@@ -266,8 +266,7 @@ const saveCard = async () => {
         if (error.response?.status === 422 && error.response?.data?.errors) {
             const errors = error.response.data.errors;
             if (errors.image) {
-                alert('Invalid image file. Please upload a JPEG, PNG, WebP, or AVIF image.');
-                imageFile.value = null;
+                alert(errors.image.join('\n'));
             } else {
                 const allErrors = Object.values(errors).flat();
                 alert(allErrors.join('\n'));

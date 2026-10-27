@@ -2,6 +2,7 @@
 
 namespace App\Actions\Organizers;
 
+use Illuminate\Support\Facades\DB;
 use App\Models\Organizer;
 use App\Models\User;
 use App\Services\AdminSubmissionNotifier;
@@ -29,21 +30,27 @@ class CreateOrganizerAction
             }
         }
 
-        // Create the organizer with user_id
-        $organizer = $user->organizers()->create($validated);
+        // All or nothing: if the picture fails to upload, no half-made
+        // organizer is left behind and the user can simply try again.
+        $organizer = DB::transaction(function () use ($user, $validated, $image) {
+            // Create the organizer with user_id
+            $organizer = $user->organizers()->create($validated);
 
-        // The creating user is attached as an owner member by Organizer's own
-        // saved hook (the owner is always a member).
+            // The creating user is attached as an owner member by Organizer's own
+            // saved hook (the owner is always a member).
 
-        if ($image) {
-            ImageHandler::saveImage($image, $organizer, 800, 800, 'organizer-images');
-        }
+            if ($image) {
+                ImageHandler::saveImage($image, $organizer, 800, 800, 'organizer-images');
+            }
 
-        // Update current_team_id for the user
-        $user->update(['current_team_id' => $organizer->id]);
+            // Update current_team_id for the user
+            $user->update(['current_team_id' => $organizer->id]);
 
-        // Update status for the organizer
-        $organizer->update(['status' => 'r']);
+            // Update status for the organizer
+            $organizer->update(['status' => 'r']);
+
+            return $organizer;
+        });
 
         // Notify admins (who haven't opted out) that a new organizer entered the review queue.
         app(AdminSubmissionNotifier::class)->organizerSubmitted($organizer);

@@ -78,10 +78,7 @@ class UpdateOrganizer extends Tool
 
         if ($image !== null) {
             try {
-                foreach ($organizer->images as $existing) {
-                    ImageHandler::deleteImage($existing);
-                }
-                ImageHandler::saveImage($image, $organizer, 800, 800, 'organizer-images');
+                ImageHandler::replaceImage($organizer->images()->get(), $image, $organizer, 800, 800, 'organizer-images');
             } finally {
                 @unlink($image->getRealPath());
             }

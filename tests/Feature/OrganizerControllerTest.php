@@ -486,3 +486,24 @@ test('requestNameChange is denied to a non-member', function () {
 
     expect(NameChangeRequest::count())->toBe(0);
 });
+
+test('store leaves no organizer behind and says so when its picture fails to upload', function () {
+    $user = User::factory()->create(['type' => 'u']);
+
+    // The s3 disk answers a failed write with false, not an exception
+    $disk = Mockery::mock(Storage::disk('digitalocean'))->makePartial();
+    $disk->shouldReceive('put')->andReturn(false);
+    Storage::set('digitalocean', $disk);
+
+    $this->actingAs($user)
+        ->postJson('/organizers', [
+            'name' => 'Spotty Upload Org',
+            'description' => 'We make immersive things.',
+            'image' => UploadedFile::fake()->image('logo.jpg', 800, 800),
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['image' => "couldn't be saved"]);
+
+    expect(Organizer::where('name', 'Spotty Upload Org')->exists())->toBeFalse();
+    expect($user->fresh()->current_team_id)->toBeNull();
+});

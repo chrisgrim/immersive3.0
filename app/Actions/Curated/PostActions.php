@@ -2,6 +2,7 @@
 
 namespace App\Actions\Curated;
 
+use Illuminate\Support\Facades\DB;
 use App\Models\Curated\Community;
 use App\Models\Curated\Post;
 use App\Services\ImageHandler;
@@ -18,22 +19,28 @@ class PostActions
      */
     public function create(Request $request, Community $community)
     {
-        $post = $community->posts()->create([
-            'blurb' => $request->blurb,
-            'name' => $request->name,
-            'slug' => Str::slug($request->name).'-'.$community->id,
-            'user_id' => auth()->user()->id,
-            'shelf_id' => $this->shelfIdWithin($community, $request->shelf_id),
-        ]);
-
         if ($request->hasFile('image')) {
             $request->validate([
                 'image' => 'file|mimes:jpeg,png,jpg,webp,avif|max:8192',
             ]);
-            ImageHandler::saveImage($request->file('image'), $post, 1000, 563, 'post-images');
         }
 
-        return $post;
+        // All or nothing: a failed picture upload leaves no post behind
+        return DB::transaction(function () use ($request, $community) {
+            $post = $community->posts()->create([
+                'blurb' => $request->blurb,
+                'name' => $request->name,
+                'slug' => Str::slug($request->name).'-'.$community->id,
+                'user_id' => auth()->user()->id,
+                'shelf_id' => $this->shelfIdWithin($community, $request->shelf_id),
+            ]);
+
+            if ($request->hasFile('image')) {
+                ImageHandler::saveImage($request->file('image'), $post, 1000, 563, 'post-images');
+            }
+
+            return $post;
+        });
     }
 
     /**
@@ -84,13 +91,8 @@ class PostActions
             $request->validate([
                 'image' => 'file|mimes:jpeg,png,jpg,webp,avif|max:8192',
             ]);
+            ImageHandler::replaceImage($post->images()->get(), $request->file('image'), $post, 1000, 563, 'post-images');
             $post->update(['event_id' => null]);
-            if ($post->images()->exists()) {
-                foreach ($post->images as $image) {
-                    ImageHandler::deleteImage($image);
-                }
-            }
-            ImageHandler::saveImage($request->file('image'), $post, 1000, 563, 'post-images');
             $post->touch();
         }
 

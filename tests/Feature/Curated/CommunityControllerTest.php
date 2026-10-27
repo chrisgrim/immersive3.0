@@ -765,3 +765,24 @@ test('a queued curator invite still renders after the community is deleted', fun
     $html = unserialize($queued)->render();
     expect($html)->toContain('Gone Community')->toContain($invitation->token);
 });
+
+test('store leaves no community behind when its picture fails to upload', function () {
+    $user = User::factory()->create(['type' => 'u']);
+
+    // The s3 disk answers a failed write with false, not an exception
+    $disk = Mockery::mock(Storage::disk('digitalocean'))->makePartial();
+    $disk->shouldReceive('put')->andReturn(false);
+    Storage::set('digitalocean', $disk);
+
+    $this->actingAs($user)
+        ->postJson('/communities', [
+            'name' => 'Spotty Upload',
+            'blurb' => 'With an image',
+            'image' => UploadedFile::fake()->image('cover.jpg', 800, 450),
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['image' => "couldn't be saved"]);
+
+    expect(Community::where('name', 'Spotty Upload')->exists())->toBeFalse();
+    expect(Image::count())->toBe(0);
+});

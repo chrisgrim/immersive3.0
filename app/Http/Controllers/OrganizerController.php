@@ -92,6 +92,9 @@ class OrganizerController extends Controller
 
                 return response()->json(['redirect' => route('hosting.event.edit', ['event' => $event->slug])], 200);
             }
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // e.g. the picture couldn't be saved: a 422 the form can show
+            throw $e;
         } catch (\Exception $e) {
             report($e);
             Log::error('Failed to create organizer: '.$e->getMessage());
@@ -166,15 +169,8 @@ class OrganizerController extends Controller
 
             // Handle image removal or update
             if ($request->hasFile('image')) {
-                // Delete existing images if there are any
-                if ($organizer->images()->exists()) {
-                    foreach ($organizer->images as $image) {
-                        ImageHandler::deleteImage($image);
-                    }
-                }
-
-                // Save new image
-                ImageHandler::saveImage($request->file('image'), $organizer, 800, 800, 'organizer-images');
+                // Save the new image, then remove the old ones
+                ImageHandler::replaceImage($organizer->images()->get(), $request->file('image'), $organizer, 800, 800, 'organizer-images');
             } elseif ($request->has('remove_image')) {
                 // Delete existing images without adding new ones
                 if ($organizer->images()->exists()) {
@@ -205,6 +201,8 @@ class OrganizerController extends Controller
                 'organizer' => $organizer,
             ]);
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
         } catch (\Exception $e) {
             report($e);
             Log::error('Failed to update organizer: '.$e->getMessage());
