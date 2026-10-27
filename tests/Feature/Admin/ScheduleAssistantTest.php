@@ -5,6 +5,12 @@ use App\Models\Organizer;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 
+// The assistant refuses without a key. Claude is faked below, so any key will
+// do; set one here so the tests don't depend on the machine's .env.
+beforeEach(function () {
+    config(['services.anthropic.api_key' => 'test-key']);
+});
+
 function scheduleAdmin(string $type = 'a'): User
 {
     return User::factory()->create(['type' => $type, 'email_verified_at' => now()]);
