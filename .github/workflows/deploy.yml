@@ -1,18 +1,10 @@
 name: Deploy
 
+# Manual only: a push to GitHub deploys nothing. Production is the only target
+# (the dev site was retired 2026-10-29). Deploy with
+#   gh workflow run deploy.yml -R chrisgrim/immersive3.0 --ref main
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Deploy to'
-        required: true
-        default: 'dev'
-        type: choice
-        options:
-          - dev
-          - production
 
 jobs:
   deploy:
@@ -31,24 +23,11 @@ jobs:
       - name: Determine deploy environment
         id: deploy-env
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.environment }}" = "production" ]; then
-            echo "env=production" >> $GITHUB_OUTPUT
-            echo "path=/var/www/ei" >> $GITHUB_OUTPUT
-          else
-            echo "env=dev" >> $GITHUB_OUTPUT
-            echo "path=/var/www/secret" >> $GITHUB_OUTPUT
-          fi
+          echo "env=production" >> $GITHUB_OUTPUT
+          echo "path=/var/www/ei" >> $GITHUB_OUTPUT
 
       - name: Install npm dependencies
         run: npm ci
-
-      - name: Build assets (dev)
-        if: steps.deploy-env.outputs.env == 'dev'
-        run: npm run build
-        env:
-          VITE_IMAGE_URL: ${{ secrets.VITE_IMAGE_URL_DEV }}
-          VITE_BASE_URL: ${{ secrets.VITE_BASE_URL_DEV }}
-          VITE_GOOGLE_MAPS_KEY: ${{ secrets.VITE_GOOGLE_MAPS_KEY }}
 
       - name: Build assets (production)
         if: steps.deploy-env.outputs.env == 'production'
@@ -171,13 +150,6 @@ jobs:
             fi
 
             echo "✅ Deployment complete!"
-          EOF
-
-      - name: Block crawlers on dev
-        if: steps.deploy-env.outputs.env == 'dev'
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
-            echo -e "User-agent: *\nDisallow: /" > /var/www/secret/public/robots.txt
           EOF
 
       # Post-deploy smoke test. Curls the deployed site's home page from the
