@@ -41,6 +41,13 @@ vi.mock('@vue-leaflet/vue-leaflet', () => ({
     LTileLayer: { name: 'LTileLayer', render() { return h('div', { class: 'l-tile-layer-stub' }); } },
 }));
 
+// city-search-input.vue imports /storage/website-files/icons.svg, which
+// only resolves where `php artisan storage:link` has been run. The picker's
+// tests only need its modelValue prop and select event, so stand it in.
+vi.mock('@/PageComponents/Search/Components/city-search-input.vue', () => ({
+    default: { name: 'CitySearchInput', props: ['modelValue', 'placeholder'], emits: ['select', 'update:modelValue'], render() { return h('input'); } },
+}));
+
 function makeWrapper(props = {}) {
     return mount(SavedSearchLocationPicker, {
         props,
@@ -104,5 +111,69 @@ describe('saved-search-location-picker.vue', () => {
         });
 
         expect(wrapper.emitted('located')).toBeFalsy();
+    });
+});
+
+// onMoveEnd needs mapRef.value.leafletObject. The mocked LMap above takes a
+// `fakeMap` through provide/inject-free data so these tests can stand in a
+// minimal Leaflet map whose view they control.
+function makeMapWrapper(fakeMap) {
+    const FakeLMap = {
+        name: 'LMap',
+        props: ['zoom', 'center'],
+        emits: ['moveend'],
+        data: () => ({ leafletObject: fakeMap }),
+        render() { return h('div', { class: 'l-map-stub' }); },
+    };
+    return mount(SavedSearchLocationPicker, {
+        global: { stubs: { LMap: FakeLMap, LTileLayer: true, CitySearchInput: true } },
+    });
+}
+
+function fakeLeafletMap() {
+    const view = { lat: 39.8283, lng: -98.5795, zoom: 4 };
+    return {
+        view,
+        setView([lat, lng], zoom) { Object.assign(view, { lat, lng, zoom }); },
+        getCenter: () => ({ lat: view.lat, lng: view.lng }),
+        getZoom: () => view.zoom,
+        getBounds: () => ({
+            getNorthEast: () => ({ lat: view.lat + 0.02, lng: view.lng + 0.03 }),
+            getSouthWest: () => ({ lat: view.lat - 0.02, lng: view.lng - 0.03 }),
+        }),
+    };
+}
+
+describe('saved-search-location-picker.vue map moves', () => {
+    it('keeps a typed city a city even when the jump to it fires moveend more than once', async () => {
+        const map = fakeLeafletMap();
+        const wrapper = makeMapWrapper(map);
+        const lmap = wrapper.findComponent({ name: 'LMap' });
+
+        await wrapper.findComponent(CitySearchInput).vm.$emit('select', { lat: 34.0522, lng: -118.2437, name: 'Los Angeles, CA' });
+        await lmap.vm.$emit('moveend');
+        await lmap.vm.$emit('moveend');
+        await lmap.vm.$emit('moveend');
+
+        const located = wrapper.emitted('located');
+        expect(located).toHaveLength(1);
+        expect(located[0][0].city).toBe('Los Angeles, CA');
+        expect(wrapper.findComponent(CitySearchInput).props('modelValue')).not.toBe('Custom Map Search');
+    });
+
+    it('still turns a real pan away from the typed city into a custom map search', async () => {
+        const map = fakeLeafletMap();
+        const wrapper = makeMapWrapper(map);
+        const lmap = wrapper.findComponent({ name: 'LMap' });
+
+        await wrapper.findComponent(CitySearchInput).vm.$emit('select', { lat: 34.0522, lng: -118.2437, name: 'Los Angeles, CA' });
+        await lmap.vm.$emit('moveend');
+        map.setView([34.10, -118.30], 13);
+        await lmap.vm.$emit('moveend');
+
+        const located = wrapper.emitted('located');
+        expect(located).toHaveLength(2);
+        expect(located[1][0].city).toBe('Custom Map Search');
+        expect(located[1][0].live).toBe(true);
     });
 });

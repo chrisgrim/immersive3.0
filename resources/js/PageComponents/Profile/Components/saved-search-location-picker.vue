@@ -68,23 +68,33 @@ const center = ref(hasInitialLocation ? [props.lat, props.lng] : [39.8283, -98.5
 const query = ref(props.city || '');
 const mapRef = ref(null);
 
-// setView() from handleCitySelect below fires its own moveend — without this
-// it would immediately re-trigger "custom map search" for the exact spot the
-// typed pick just resolved via CitySearchInput's own (more precise) Places
-// lookup.
-let suppressNextMoveEnd = false;
+// Moving the map to a typed city fires moveend — and not necessarily just
+// once: the explicit setView() below AND vue-leaflet's own watchers on the
+// reactive zoom/center props can each fire one. A one-shot "skip the next
+// moveend" flag only swallowed the first, so the second turned a typed city
+// into a zoom-13 "Custom Map Search" box (Chris, 2026-11-02: "I typed in LA
+// but it kept going to custom search"). Instead, remember where we put the
+// map and ignore any moveend that lands on that same view; a real user
+// pan/zoom away from it still counts.
+let programmaticView = null;
+
+const isProgrammaticView = (map) => {
+    if (!programmaticView) return false;
+    const c = map.getCenter();
+    return map.getZoom() === programmaticView.zoom
+        && Math.abs(c.lat - programmaticView.lat) < 1e-4
+        && Math.abs(c.lng - programmaticView.lng) < 1e-4;
+};
 
 // Panning/zooming the map itself sets a "custom map search" — bounds read
 // straight off the Leaflet instance (no network round-trip needed, unlike
 // resolving a typed city), replacing whatever city/bounds were there before.
 const onMoveEnd = () => {
-    if (suppressNextMoveEnd) {
-        suppressNextMoveEnd = false;
-        return;
-    }
     if (!mapRef.value?.leafletObject) return;
 
     const map = mapRef.value.leafletObject;
+    if (isProgrammaticView(map)) return;
+    programmaticView = null;
     const c = map.getCenter();
     const bounds = map.getBounds();
 
@@ -110,7 +120,7 @@ const onMoveEnd = () => {
 const handleCitySelect = (place) => {
     if (!Number.isFinite(place.lat) || !Number.isFinite(place.lng)) return;
 
-    suppressNextMoveEnd = true;
+    programmaticView = { lat: place.lat, lng: place.lng, zoom: 13 };
     zoom.value = 13;
     center.value = [place.lat, place.lng];
     if (mapRef.value?.leafletObject) {
