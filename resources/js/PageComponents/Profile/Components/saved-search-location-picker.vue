@@ -68,22 +68,29 @@ const center = ref(hasInitialLocation ? [props.lat, props.lng] : [39.8283, -98.5
 const query = ref(props.city || '');
 const mapRef = ref(null);
 
-// Moving the map to a typed city fires moveend — and not necessarily just
-// once: the explicit setView() below AND vue-leaflet's own watchers on the
-// reactive zoom/center props can each fire one. A one-shot "skip the next
-// moveend" flag only swallowed the first, so the second turned a typed city
-// into a zoom-13 "Custom Map Search" box (Chris, 2026-11-02: "I typed in LA
-// but it kept going to custom search"). Instead, remember where we put the
-// map and ignore any moveend that lands on that same view; a real user
-// pan/zoom away from it still counts.
-let programmaticView = null;
+// Moving the map to a typed city must not count as a "custom map search".
+// The old one-shot "skip the next moveend" flag lost to a second move: the
+// pick ALSO changed the reactive zoom/center props, so vue-leaflet's own
+// watchers moved the map again, and that later moveend turned a typed city
+// into a zoom-13 box (Chris, 2026-11-02: "I typed in LA but it kept going
+// to custom search"). Reviews with the real libraries (Codex, Fable) found
+// the other ways a move can land on the pick without being the user's:
+//  - moves fired INSIDE setView (an interrupted pan or inertia flushes its
+//    moveend at a half-way spot) -> ignored by movingProgrammatically;
+//  - moves fired AFTER it that end on the picked view (a drag released
+//    without moving, a window resize's debounced moveend) -> ignored by
+//    endsOnPickedView, judged in screen pixels rather than degrees.
+// The first moveend that ends anywhere else is the user's own move.
+// Don't call map.stop() first: it fires its own moveend at the old view.
+let movingProgrammatically = false;
+let pickedView = null;
+const PICK_TOLERANCE_PX = 2;
 
-const isProgrammaticView = (map) => {
-    if (!programmaticView) return false;
-    const c = map.getCenter();
-    return map.getZoom() === programmaticView.zoom
-        && Math.abs(c.lat - programmaticView.lat) < 1e-4
-        && Math.abs(c.lng - programmaticView.lng) < 1e-4;
+const endsOnPickedView = (map) => {
+    if (!pickedView || map.getZoom() !== pickedView.zoom) return false;
+    const here = map.project(map.getCenter(), pickedView.zoom);
+    const picked = map.project(pickedView.latlng, pickedView.zoom);
+    return Math.hypot(here.x - picked.x, here.y - picked.y) <= PICK_TOLERANCE_PX;
 };
 
 // Panning/zooming the map itself sets a "custom map search" — bounds read
@@ -92,9 +99,11 @@ const isProgrammaticView = (map) => {
 const onMoveEnd = () => {
     if (!mapRef.value?.leafletObject) return;
 
+    if (movingProgrammatically) return;
+
     const map = mapRef.value.leafletObject;
-    if (isProgrammaticView(map)) return;
-    programmaticView = null;
+    if (endsOnPickedView(map)) return;
+    pickedView = null;
     const c = map.getCenter();
     const bounds = map.getBounds();
 
@@ -120,11 +129,28 @@ const onMoveEnd = () => {
 const handleCitySelect = (place) => {
     if (!Number.isFinite(place.lat) || !Number.isFinite(place.lng)) return;
 
-    programmaticView = { lat: place.lat, lng: place.lng, zoom: 13 };
-    zoom.value = 13;
-    center.value = [place.lat, place.lng];
-    if (mapRef.value?.leafletObject) {
-        mapRef.value.leafletObject.setView([place.lat, place.lng], 13);
+    pickedView = { latlng: [place.lat, place.lng], zoom: 13 };
+    const map = mapRef.value?.leafletObject;
+    if (map) {
+        movingProgrammatically = true;
+        try {
+            // A zoom animation still running (zoom button, double-click,
+            // pinch) makes setView return without moving, then lands on its
+            // old target 250ms later. Leaflet 1.9 has no public way to end
+            // it, so finish it now (private, guarded) and move from there.
+            if (map._animatingZoom && typeof map._onZoomTransitionEnd === 'function') {
+                map._onZoomTransitionEnd();
+            }
+            map.setView([place.lat, place.lng], 13, { animate: false });
+        } finally {
+            movingProgrammatically = false;
+        }
+    } else {
+        // Map not created yet. vue-leaflet snapshots these props at setup,
+        // so this only lands if the pick beats that (practically never);
+        // left as the best effort it has always been.
+        zoom.value = 13;
+        center.value = [place.lat, place.lng];
     }
     emit('located', {
         lat: place.lat,

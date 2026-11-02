@@ -8,11 +8,12 @@
  *  - handleCitySelect ignores CitySearchInput's provisional {lat:null,
  *    lng:null} emit (fired before the real coordinates resolve).
  *
- * NOT covered: onMoveEnd (the map-pan "custom map search" path) — it reads
- * mapRef.value.leafletObject, a real Leaflet map instance that only exists
- * once <l-map> actually mounts and initializes, which jsdom/vue-leaflet
- * cannot do here even when stubbed. LMap/LTileLayer are stubbed out entirely
- * so the component can mount at all.
+ *  - onMoveEnd, against a fake Leaflet map whose setView fires moveend
+ *    synchronously the way Leaflet's does: a pick is a city, late moveends
+ *    that end on it are ignored, a real pan is a custom map search.
+ *
+ * LMap/LTileLayer are stubbed (jsdom can't run vue-leaflet here), so the
+ * real-library races were checked separately in review (Codex, Fable).
  */
 import { mount } from '@vue/test-utils';
 import { describe, it, expect, vi } from 'vitest';
@@ -130,30 +131,52 @@ function makeMapWrapper(fakeMap) {
     });
 }
 
+// Like Leaflet: setView({animate:false}) fires moveend synchronously,
+// inside the call (Map._resetView -> _moveEnd). `fire` is wired to the
+// LMap stub's moveend emit once the wrapper exists.
 function fakeLeafletMap() {
     const view = { lat: 39.8283, lng: -98.5795, zoom: 4 };
-    return {
+    const map = {
         view,
-        setView([lat, lng], zoom) { Object.assign(view, { lat, lng, zoom }); },
+        calls: [],
+        fire: () => {},
+        setView([lat, lng], zoom, options) {
+            map.calls.push({ lat, lng, zoom, options });
+            Object.assign(view, { lat, lng, zoom });
+            map.fire();
+        },
         getCenter: () => ({ lat: view.lat, lng: view.lng }),
         getZoom: () => view.zoom,
+        // Equirectangular stand-in for Leaflet's projection: 256px world at
+        // zoom 0, doubling each level. Close enough for pixel distances.
+        project(latlng, zoom) {
+            const [lat, lng] = Array.isArray(latlng) ? latlng : [latlng.lat, latlng.lng];
+            const k = (256 * 2 ** zoom) / 360;
+            return { x: lng * k, y: -lat * k };
+        },
         getBounds: () => ({
             getNorthEast: () => ({ lat: view.lat + 0.02, lng: view.lng + 0.03 }),
             getSouthWest: () => ({ lat: view.lat - 0.02, lng: view.lng - 0.03 }),
         }),
     };
+    return map;
 }
 
-describe('saved-search-location-picker.vue map moves', () => {
-    it('keeps a typed city a city even when the jump to it fires moveend more than once', async () => {
-        const map = fakeLeafletMap();
-        const wrapper = makeMapWrapper(map);
-        const lmap = wrapper.findComponent({ name: 'LMap' });
+function mountWithMap() {
+    const map = fakeLeafletMap();
+    const wrapper = makeMapWrapper(map);
+    const lmap = wrapper.findComponent({ name: 'LMap' });
+    map.fire = () => lmap.vm.$emit('moveend');
+    return { map, wrapper, lmap };
+}
 
-        await wrapper.findComponent(CitySearchInput).vm.$emit('select', { lat: 34.0522, lng: -118.2437, name: 'Los Angeles, CA' });
-        await lmap.vm.$emit('moveend');
-        await lmap.vm.$emit('moveend');
-        await lmap.vm.$emit('moveend');
+const LA = { lat: 34.0522, lng: -118.2437, name: 'Los Angeles, CA' };
+
+describe('saved-search-location-picker.vue map moves', () => {
+    it('keeps a typed city a city: the jump to it is not a custom map search', async () => {
+        const { wrapper } = mountWithMap();
+
+        await wrapper.findComponent(CitySearchInput).vm.$emit('select', LA);
 
         const located = wrapper.emitted('located');
         expect(located).toHaveLength(1);
@@ -161,14 +184,68 @@ describe('saved-search-location-picker.vue map moves', () => {
         expect(wrapper.findComponent(CitySearchInput).props('modelValue')).not.toBe('Custom Map Search');
     });
 
-    it('still turns a real pan away from the typed city into a custom map search', async () => {
-        const map = fakeLeafletMap();
-        const wrapper = makeMapWrapper(map);
-        const lmap = wrapper.findComponent({ name: 'LMap' });
+    it('moves the map exactly once, without animation, and leaves the l-map props alone', async () => {
+        // The bug: the pick also changed the reactive zoom/center props, so
+        // vue-leaflet moved the map a second time and that later moveend
+        // got through. Only one move, and no prop change, closes that.
+        const { map, wrapper, lmap } = mountWithMap();
 
-        await wrapper.findComponent(CitySearchInput).vm.$emit('select', { lat: 34.0522, lng: -118.2437, name: 'Los Angeles, CA' });
+        await wrapper.findComponent(CitySearchInput).vm.$emit('select', LA);
+
+        expect(map.calls).toEqual([{ lat: 34.0522, lng: -118.2437, zoom: 13, options: { animate: false } }]);
+        expect(lmap.props('zoom')).toBe(4);
+        expect(lmap.props('center')).toEqual([39.8283, -98.5795]);
+    });
+
+    it('re-picking the same city after a pan stays a city', async () => {
+        const { map, wrapper, lmap } = mountWithMap();
+        const input = wrapper.findComponent(CitySearchInput);
+
+        await input.vm.$emit('select', LA);
+        map.view.lng = -118.20;
         await lmap.vm.$emit('moveend');
-        map.setView([34.10, -118.30], 13);
+        await input.vm.$emit('select', LA);
+
+        const cities = wrapper.emitted('located').map((e) => e[0].city);
+        expect(cities).toEqual(['Los Angeles, CA', 'Custom Map Search', 'Los Angeles, CA']);
+    });
+
+    it('ignores a half-way moveend fired inside the jump (interrupted pan or inertia)', async () => {
+        const { map, wrapper } = mountWithMap();
+        const realSetView = map.setView;
+        // Leaflet's setView first flushes the in-flight pan's moveend
+        // wherever it had got to, then lands and fires again.
+        map.setView = (latlng, zoom, options) => {
+            map.view.lat = 36;
+            map.view.lng = -110;
+            map.fire();
+            realSetView(latlng, zoom, options);
+        };
+
+        await wrapper.findComponent(CitySearchInput).vm.$emit('select', LA);
+
+        expect(wrapper.emitted('located').map((e) => e[0].city)).toEqual(['Los Angeles, CA']);
+        expect(wrapper.findComponent(CitySearchInput).props('modelValue')).not.toBe('Custom Map Search');
+    });
+
+    it('ignores a late moveend that ends on the picked city (drag release, finishing zoom)', async () => {
+        const { map, wrapper, lmap } = mountWithMap();
+
+        await wrapper.findComponent(CitySearchInput).vm.$emit('select', LA);
+        // Leaflet lands on whole pixels: about a pixel off the exact spot.
+        map.view.lng += 0.00008;
+        await lmap.vm.$emit('moveend');
+        await lmap.vm.$emit('moveend');
+
+        expect(wrapper.emitted('located').map((e) => e[0].city)).toEqual(['Los Angeles, CA']);
+    });
+
+    it('still turns a real pan away from the typed city into a custom map search', async () => {
+        const { map, wrapper, lmap } = mountWithMap();
+
+        await wrapper.findComponent(CitySearchInput).vm.$emit('select', LA);
+        map.view.lat = 34.10;
+        map.view.lng = -118.30;
         await lmap.vm.$emit('moveend');
 
         const located = wrapper.emitted('located');
