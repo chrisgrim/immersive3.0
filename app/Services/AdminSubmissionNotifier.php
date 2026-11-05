@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Mail\EventSubmittedNotification;
+use App\Mail\LinkRequestEscalated;
 use App\Mail\OrganizerSubmittedNotification;
 use App\Models\Event;
 use App\Models\Organizer;
+use App\Models\ProjectLinkRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -26,10 +28,17 @@ class AdminSubmissionNotifier
         $this->notifyAdmins('events', fn () => new EventSubmittedNotification($event));
     }
 
-    private function notifyAdmins(string $prefKey, callable $makeMailable): void
+    /** Unlike the queue notices, this goes to moderators as well as admins. */
+    public function linkRequestEscalated(ProjectLinkRequest $request): void
     {
-        // Tiny set (admins only) + opt-out default lives in wantsNotification(), so filter in PHP.
-        $admins = User::where('type', 'a')->get()->filter(fn ($admin) => $admin->wantsNotification($prefKey));
+        $this->notifyAdmins('events', fn () => new LinkRequestEscalated($request), ['a', 'm']);
+    }
+
+    /** @param  array<int, string>  $types  who hears about it (User::$type) */
+    private function notifyAdmins(string $prefKey, callable $makeMailable, array $types = ['a']): void
+    {
+        // Tiny set (staff only) + opt-out default lives in wantsNotification(), so filter in PHP.
+        $admins = User::whereIn('type', $types)->get()->filter(fn ($admin) => $admin->wantsNotification($prefKey));
 
         foreach ($admins as $admin) {
             // Queued, so the person submitting doesn't wait on the mail server. The

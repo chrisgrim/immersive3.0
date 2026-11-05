@@ -22,6 +22,11 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->withoutOverlapping()
                 ->appendOutputTo(storage_path('logs/event-renewals.log'));
 
+            // Link requests left unanswered for 72 hours go to the moderators.
+            $schedule->command('ei:escalate-link-requests')
+                ->hourlyAt(15)
+                ->withoutOverlapping();
+
             $schedule->command('ei:publish-embargoed')
                 ->everyTwoHours()
                 ->withoutOverlapping()
