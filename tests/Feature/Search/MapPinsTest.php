@@ -14,7 +14,7 @@ use Tests\Support\FakeSearchEngine;
  */
 function mapPinKeys(): array
 {
-    return ['id', 'slug', 'name', 'tag_line', 'price_range', 'thumbImagePath', 'location_latlon'];
+    return ['id', 'slug', 'public_url', 'name', 'tag_line', 'price_range', 'thumbImagePath', 'location_latlon'];
 }
 
 function pinnableEvents(int $count)
