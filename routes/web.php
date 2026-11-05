@@ -15,6 +15,7 @@ use App\Http\Controllers\SavedSearchController;
 use App\Http\Controllers\Search\ListingsController;
 use App\Http\Controllers\User\ConversationsController;
 use App\Http\Controllers\User\ProfilesController;
+use App\Http\Controllers\VenueController;
 use App\Models\SlugRedirect;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -48,6 +49,8 @@ Route::GET('/organizers/{organizer}', [OrganizerController::class, 'show'])
         return redirect(...$destination);
     })
     ->name('organizers.show');
+
+Route::GET('/venues/{venue}', [VenueController::class, 'show'])->name('venues.show');
 
 // Redirect singular versions to plural with 301 redirects
 Route::GET('/event/{slug}', function ($slug) {

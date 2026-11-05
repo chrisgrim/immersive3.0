@@ -7,8 +7,12 @@ use App\Models\Events\Show;
 use App\Models\Organizer;
 use App\Models\Project;
 use App\Models\SlugRedirect;
+use App\Models\Venue;
 use App\Scopes\DateScope;
 use App\Support\Analytics\Analytics;
+use App\Support\Projects\OrganizerShows;
+use App\Support\Projects\ProjectLine;
+use App\Support\Projects\ProjectPage;
 use App\Support\ShowHistory;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -97,20 +101,20 @@ class EventController extends Controller
         return $this->redirectTo($show->publicPath(), 302);
     }
 
-    /**
-     * The project page is not built yet (it comes with a later stage), so for
-     * now the show's address leads to a published run. Temporary (302), so
-     * nothing is remembered once the real page takes over here.
-     */
+    /** The show's own page, public only while a run is published. */
     private function showProject(Project $project)
     {
-        $run = $project->runs()->where('status', Event::STATUS_PUBLISHED)
-            ->orderByStillRunningFirst()
-            ->first();
+        $page = ProjectPage::for($project);
 
-        abort_unless($run !== null, 404);
+        abort_unless($page['run_count'] > 0, 404);
 
-        return $this->redirectTo($run->publicPath(), 302);
+        // Its own kind of view: not an event page, though it shares the route.
+        $request = request();
+        $request->attributes->set('analytics.page', 'projects.show');
+        $request->attributes->set('analytics.path', $project->publicPath());
+        $request->attributes->set('analytics.organizer_id', $project->organizer_id);
+
+        return view('projects.show', ['project' => $project, 'page' => $page]);
     }
 
     private function movedTo(string $path)
@@ -183,9 +187,17 @@ class EventController extends Controller
         if ($event->location?->hiddenLocationToggle) {
             $event->location->makeHidden(['home', 'street', 'postal_code']);
         }
-        $pageEvent = Js::from($event);
 
-        return view('events.show', compact('event', 'pageEvent'));
+        // A secret-location listing never reads its venue, however it got one.
+        // Sent to Blade rather than Vue: the page's JSON has no use for it.
+        $venue = $event->location?->venue_id && ! $event->location->hiddenLocationToggle
+            ? Venue::where('status', Venue::APPROVED)->whereNull('merged_into_id')->find($event->location->venue_id)
+            : null;
+
+        $pageEvent = Js::from($event);
+        $projectLine = ProjectLine::for($event);
+
+        return view('events.show', compact('event', 'pageEvent', 'venue', 'projectLine'));
     }
 
     /** One analytics note per view of a live event page (Analytics::EVENT_VIEW). */
@@ -194,7 +206,7 @@ class EventController extends Controller
         // For RecordPageView, which records this page as a page view.
         $request->attributes->set('analytics.event_id', $event->id);
         $request->attributes->set('analytics.organizer_id', $event->organizer_id);
-        $request->attributes->set('analytics.path', '/events/'.$event->slug);
+        $request->attributes->set('analytics.path', $event->publicPath());
 
         // With page views on, that page view is the event view.
         if (Analytics::isPrefetch($request) || Analytics::captures('page_views')) {
@@ -328,12 +340,6 @@ class EventController extends Controller
 
     public function getOrganizerPaginatedEvents(Organizer $organizer, Request $request)
     {
-        return Event::where('status', 'p')
-            ->where('organizer_id', $organizer->id)
-            ->where('archived', false)
-            ->with(['category', 'genres', 'currentUserFavorite'])
-            ->orderByStillRunningFirst()
-            ->orderBy('created_at', 'desc')
-            ->paginate($request->input('pageSize', 10));
+        return OrganizerShows::paginate($organizer, (int) $request->input('page', 1), (int) $request->input('pageSize', 10));
     }
 }

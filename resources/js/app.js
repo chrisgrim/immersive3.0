@@ -169,6 +169,7 @@ app.component('vue-show-more', ShowComponents.ShowMore);
 app.component('vue-show-purchase', ShowComponents.ShowPurchase);
 app.component('vue-show-purchase-mobile', ShowComponents.ShowPurchaseMobile);
 app.component('vue-show-map', ShowComponents.ShowMap);
+app.component('vue-venue-map', defineAsyncComponent(() => import('./PageComponents/EventShow/venue-map.vue')));
 app.component('vue-show-calendar-mobile', ShowComponents.ShowCalendarMobile);
 app.component('vue-similar-events', ShowComponents.SimilarEvents);
 app.component('vue-event-actions', ShowComponents.EventActions);

@@ -220,7 +220,7 @@
         @if($event->hasLocation)
         "location": {
             "@type": "Place",
-            "name": @json($event->location->venue ? $event->location->venue : $event->name),
+            "name": @json($venue?->name ?: ($event->location->venue ? $event->location->venue : $event->name)),
             "address": {
                 "@type": "PostalAddress",
                 @unless($event->location->hiddenLocationToggle)
@@ -476,6 +476,7 @@
                                                     @endif
                                                 @endif
                                             </a>
+                                            @include('events.show.project-line')
                                         </div>
 
                                         {{-- Event Title --}}
@@ -567,6 +568,7 @@
                                                         @endif
                                                     @endif
                                                 </a>
+                                                @include('events.show.project-line')
                                             </div>
 
                                             {{-- Event Title --}}
@@ -719,6 +721,7 @@
                                                     @endif
                                                 @endif
                                             </a>
+                                            @include('events.show.project-line')
                                         </div>
 
                                         {{-- Event Title --}}

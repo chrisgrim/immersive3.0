@@ -46,7 +46,17 @@
                     <p class="text-2xl md:text-1xl leading-tight font-semibold">Venue</p>
                     @if($event->hasLocation && $event->location)
                         {{-- The venue name is optional; without one, say where it is rather than calling it remote. --}}
-                        <p class="text-xl font-medium text-neutral-500">{{ $event->location->venue ?: $event->location->placeLabel() }}</p>
+                        @if($venue ?? null)
+                            <a href="{{ $venue->publicPath() }}" class="text-xl font-medium text-neutral-500 hover:text-black">{{ $venue->displayName() }}</a>
+                            @if($venue->directions)
+                                <details class="mt-2">
+                                    <summary class="text-xl font-medium text-neutral-500 hover:text-black cursor-pointer">How to get there</summary>
+                                    <p class="text-xl text-neutral-600 mt-2 whitespace-pre-line">{{ $venue->directions }}</p>
+                                </details>
+                            @endif
+                        @else
+                            <p class="text-xl font-medium text-neutral-500">{{ $event->location->venue ?: $event->location->placeLabel() }}</p>
+                        @endif
                     @else
                         <p class="text-xl font-medium text-neutral-500">{{ ucfirst($event->remoteLocations->first()?->name ?? 'Remote Event') }}</p>
                     @endif

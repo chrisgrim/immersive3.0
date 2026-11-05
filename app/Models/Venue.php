@@ -47,6 +47,26 @@ class Venue extends Model
         return '/venues/'.$this->slug;
     }
 
+    /** With its room, when it has one. */
+    public function displayName(): string
+    {
+        return $this->room ? "{$this->name}, {$this->room}" : $this->name;
+    }
+
+    /** The venue this one ended up merged into, or itself. */
+    public function winner(): self
+    {
+        $venue = $this;
+        $seen = [];
+
+        while ($venue->merged_into_id && ! isset($seen[$venue->id]) && ($next = self::find($venue->merged_into_id))) {
+            $seen[$venue->id] = true;
+            $venue = $next;
+        }
+
+        return $venue;
+    }
+
     /** Refuses live venues and old addresses of anything but $exceptId. */
     public static function uniqueSlug(?string $name, ?int $exceptId = null): string
     {

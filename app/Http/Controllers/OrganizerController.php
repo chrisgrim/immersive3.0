@@ -8,6 +8,7 @@ use App\Models\Event;
 use App\Models\Organizer;
 use App\Services\ImageHandler;
 use App\Services\NameChangeRequestService;
+use App\Support\Projects\OrganizerShows;
 use App\Support\Validation\OrganizerRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,6 +30,10 @@ class OrganizerController extends Controller
                 $query->where('status', 'pending')->latest();
             }])
             ->firstOrFail();
+
+        // Its shows, each once. A company that made a show but presents no
+        // run of it has none of its own events to start from.
+        $organizer->setRelation('events', OrganizerShows::paginate($organizer, 1, 10)->getCollection());
 
         // Since 'show' is excepted from auth middleware, we need to check for user
         if ($organizer->status !== 'p' &&

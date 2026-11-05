@@ -10,6 +10,17 @@ enum RunType: string
     case UsPremiere = 'us_premiere';
     case RegionalPremiere = 'regional_premiere';
 
+    /** As the project page prints it. */
+    public function label(): string
+    {
+        return match ($this) {
+            self::Workshop => 'Workshop',
+            self::WorldPremiere => 'World premiere',
+            self::UsPremiere => 'US premiere',
+            self::RegionalPremiere => 'Regional premiere',
+        };
+    }
+
     /** @return array<int, string> */
     public static function values(): array
     {

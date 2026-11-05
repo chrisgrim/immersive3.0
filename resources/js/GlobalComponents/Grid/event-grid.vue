@@ -11,15 +11,31 @@
             v-for="(card, index) in items"
             :key="card.id"
             class="relative flex flex-col group w-full min-w-0">
-            <favorite-event :user="user" :event="card" />
+            <!-- A show on an organizer's page is a page, not a listing to save. -->
+            <favorite-event v-if="!card.show" :user="user" :event="card" />
             <a
                 :href="getUrl(card)"
                 class="block h-full flex flex-col"
                 @click="(e) => onCardClick(e, card, index)"
             >
+                <!-- A show with several runs: a stack, at most three cards deep -->
+                <div class="relative">
+                <template v-if="card.show?.depth > 1">
+                    <div
+                        v-for="layer in card.show.depth - 1"
+                        :key="layer"
+                        data-stack-layer
+                        class="absolute inset-0 rounded-2xl bg-neutral-200 border border-white"
+                        :style="{ transform: `translate(${layer * 6}px, ${layer * -6}px)`, zIndex: -layer + 5, opacity: 1 - layer * 0.25 }"
+                    ></div>
+                </template>
                 <!-- Event Image Container with 3:4 aspect ratio -->
-                <div class="relative overflow-hidden rounded-2xl bg-gray-100 transition-transform duration-200 ease-in-out group-hover:scale-[1.02]">
+                <div class="relative z-[6] overflow-hidden rounded-2xl bg-gray-100 transition-transform duration-200 ease-in-out group-hover:scale-[1.02]">
                     <div class="pb-[133.33%]"></div>
+                    <div v-if="card.show" class="absolute top-3 left-3 right-3 z-10 flex flex-wrap gap-2">
+                        <span v-if="card.show.original" class="px-3 py-1 rounded-full bg-black text-white text-md font-medium">Original</span>
+                        <span v-if="card.show.runs > 1" class="px-3 py-1 rounded-full bg-white text-black text-md font-medium">{{ card.show.runs }} runs</span>
+                    </div>
                     <!-- Past Event Banner -->
                     <div v-if="!card.isShowing" 
                          class="absolute bottom-0 left-0 right-0 bg-black text-white py-6 text-center text-lg font-bold z-10">
@@ -51,6 +67,7 @@
                             :alt="`${card.name} Event`"
                         >
                     </picture>
+                </div>
                 </div>
 
                 <!-- Content wrapper -->
@@ -146,7 +163,7 @@ const handleClick = (event, card) => {
 const imageUrl = computed(() => import.meta.env.VITE_IMAGE_URL)
 
 const getUrl = (card) => {
-    return `/events/${card.slug}`
+    return card.public_url || `/events/${card.slug}`
 }
 
 const getEventTags = (item) => {
