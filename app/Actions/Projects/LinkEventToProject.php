@@ -116,6 +116,15 @@ class LinkEventToProject
             ]);
 
             AuditLog::record($fresh, 'link_request.rejected', $actor, ['event_id' => $fresh->event_id]);
+
+            if (! $actor->isModerator()) {
+                $name = $fresh->event?->name;
+                $show = $fresh->project?->name;
+                $body = "\"{$name}\" will not be listed as part of \"{$show}\"."
+                    .($note ? "\n\nReason: {$note}" : '');
+
+                DB::afterCommit(fn () => $this->tell($fresh->event?->organizer, $body));
+            }
         });
 
         $request->refresh();
@@ -351,23 +360,33 @@ class LinkEventToProject
         }
     }
 
-    /** On a moderator's link, the listing's organizer and the page-keeping organizer are told. */
+    /**
+     * On a moderator's link, the listing's organizer and the page-keeping
+     * organizer are told. On a keeper's, the presenter: the keeper already knows.
+     */
     private function notify(Event $run, Project $project, User $actor): void
     {
-        if (! $actor->isModerator()) {
+        $body = "\"{$run->name}\" is now listed as part of \"{$project->name}\".";
+
+        $organizers = $actor->isModerator()
+            ? collect([$run->organizer, $project->keeper()])
+            : collect([$run->organizer]);
+
+        $organizers->filter()->unique('id')->each(fn (Organizer $organizer) => $this->tell($organizer, $body));
+    }
+
+    private function tell(?Organizer $organizer, string $body): void
+    {
+        if ($organizer === null) {
             return;
         }
 
-        $body = "\"{$run->name}\" is now listed as part of \"{$project->name}\".";
-
-        foreach (collect([$run->organizer, $project->keeper()])->filter()->unique('id') as $organizer) {
-            try {
-                app(ModerateSubmission::class)->notifyOwner($organizer, $organizer->owner, $body, $body, 'update');
-            } catch (\Exception $e) {
-                // The link stands; a mail-server hiccup must not undo the moderator's click.
-                report($e);
-                Log::warning('Link notification failed: '.$e->getMessage());
-            }
+        try {
+            app(ModerateSubmission::class)->notifyOwner($organizer, $organizer->owner, $body, $body, 'update');
+        } catch (\Exception $e) {
+            // The decision stands; a mail-server hiccup must not undo the click.
+            report($e);
+            Log::warning('Link notification failed: '.$e->getMessage());
         }
     }
 

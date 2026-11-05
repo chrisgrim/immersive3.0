@@ -160,6 +160,29 @@ test('the keeper declines a request', function () {
         ->and($listing->fresh()->isLinked())->toBeFalse();
 });
 
+test('the presenter hears when a keeper declines, with the reason', function () {
+    $listing = publishedListing('Ha Ha Ha', 'Rome');
+    $request = ProjectLinkRequest::create(['event_id' => $listing->id, 'project_id' => $this->project->id]);
+
+    $this->actingAs($this->keeper)->postJson("/hosting/projects/ha-ha-ha/link-requests/{$request->id}/reject", ['note' => 'Not ours'])->assertOk();
+
+    Mail::assertQueued(App\Mail\Comments::class, 1);
+    Mail::assertQueued(App\Mail\Comments::class, fn ($mail) => $mail->hasTo($listing->organizer->owner->email)
+        && str_contains($mail->attributes['body'], 'will not be listed as part of "Ha Ha Ha"')
+        && str_contains($mail->attributes['body'], 'Reason: Not ours'));
+    expect(App\Models\Messaging\Message::where('message', 'like', '%will not be listed%')->count())->toBe(1);
+});
+
+test('the presenter hears when a keeper approves', function () {
+    $listing = publishedListing('Ha Ha Ha', 'Rome');
+    $request = ProjectLinkRequest::create(['event_id' => $listing->id, 'project_id' => $this->project->id]);
+
+    $this->actingAs($this->keeper)->postJson("/hosting/projects/ha-ha-ha/link-requests/{$request->id}/approve")->assertOk();
+
+    Mail::assertQueued(App\Mail\Comments::class, 1);
+    Mail::assertQueued(App\Mail\Comments::class, fn ($mail) => $mail->hasTo($listing->organizer->owner->email));
+});
+
 test('a keeper cannot approve a listing that is not live, nor publish one by approving', function () {
     $draft = publishedListing('Ha Ha Ha', 'Rome', ['status' => 'r']);
     $request = ProjectLinkRequest::create(['event_id' => $draft->id, 'project_id' => $this->project->id]);

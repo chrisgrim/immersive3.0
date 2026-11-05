@@ -192,7 +192,7 @@ test('unlinking the first listing gives it a fresh slug and leaves the project i
     $this->get('/events/ha-ha-ha-chicago')->assertOk();
     $this->get('/events/ha-ha-ha/chicago-2026')->assertRedirect('/events/ha-ha-ha-chicago');
     // The show still lives at its address.
-    $this->get('/events/ha-ha-ha')->assertRedirect('/events/ha-ha-ha/new-york-2026');
+    $this->get('/events/ha-ha-ha')->assertOk()->assertViewIs('projects.show');
 });
 
 test('unlinking after a project rename never hands the former address to the run', function () {
@@ -677,7 +677,7 @@ test('a moderator\'s link tells the listing\'s organizer and the page keeper, on
     expect(App\Models\Messaging\Message::count())->toBe(2);
 });
 
-test('a page keeper approving a request tells nobody, and may not set the maker', function () {
+test('a page keeper approving a request tells the presenter only, and may not set the maker', function () {
     $first = publishedListing('Ha Ha Ha', 'Chicago');
     $this->link->link(publishedListing('Ha Ha Ha', 'New York'), $first, $this->moderator);
     Mail::fake();
@@ -691,7 +691,9 @@ test('a page keeper approving a request tells nobody, and may not set the maker'
     $this->link->approve($request, $keeper);
 
     expect($third->refresh()->isLinked())->toBeTrue();
-    Mail::assertNothingQueued();
+    Mail::assertQueued(App\Mail\Comments::class, 1);
+    Mail::assertQueued(App\Mail\Comments::class, fn ($mail) => $mail->hasTo($third->organizer->owner->email)
+        && str_contains($mail->attributes['body'], 'is now listed as part of "Ha Ha Ha"'));
 });
 
 test('a project cannot be made by anyone but a moderator, and strangers are refused', function () {
