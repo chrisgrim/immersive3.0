@@ -161,3 +161,11 @@ function staffModerator(): User
 {
     return User::factory()->create(['type' => 'm']);
 }
+
+/** An MCP tool call as this user's token, with these scopes. */
+function viaToken(User $user, array $scopes = ['mcp:use'])
+{
+    Passport::actingAs($user, $scopes);
+
+    return App\Mcp\Servers\EiServer::actingAs($user, 'api');
+}

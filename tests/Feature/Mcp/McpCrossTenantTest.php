@@ -1,6 +1,5 @@
 <?php
 
-use App\Mcp\Servers\EiServer;
 use App\Mcp\Tools\AttachEventImage;
 use App\Mcp\Tools\CopyCredits;
 use App\Mcp\Tools\CreateEventDraft;
@@ -31,7 +30,6 @@ use App\Models\User;
 use App\Models\Venue;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
-use Laravel\Passport\Passport;
 
 /**
  * The boundary an MCP token can never cross: another organizer's events and
@@ -59,13 +57,6 @@ function tenantEvent(Organizer $organizer, User $user, string $status = '0'): Ev
 }
 
 /** Act through the api guard with a token carrying exactly these scopes. */
-function viaToken(User $user, array $scopes = ['mcp:use'])
-{
-    Passport::actingAs($user, $scopes);
-
-    return EiServer::actingAs($user, 'api');
-}
-
 beforeEach(fn () => Mail::fake());
 
 test('a stranger cannot read, edit, illustrate or submit another organizer\'s events, draft or published', function () {

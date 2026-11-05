@@ -82,11 +82,11 @@ describe('venue-picker.vue', () => {
         await wrapper.find('[data-venue-input]').setValue('Good');
         await vi.advanceTimersByTimeAsync(400);
         await flushPromises();
-        vi.useRealTimers();
 
         expect(wrapper.text()).toContain('170 N Dearborn St, Chicago');
 
         await wrapper.find('[data-venue-suggestions] button').trigger('click');
+        vi.useRealTimers();
 
         expect(onPicked).toHaveBeenCalled();
         expect(wrapper.find('[data-venue-linked]').exists()).toBe(true);
