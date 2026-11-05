@@ -41,7 +41,6 @@ class DissolveProject
             $run = $runs->first();
             $address = $locked->slug;
             $from = $run->addressPath();
-            $morph = $run->getMorphClass();
 
             $run->forceFill(['project_id' => null, 'instance_slug' => null, 'edition' => null, 'slug' => $address]);
             $run->setRelation('project', null);
@@ -50,9 +49,7 @@ class DissolveProject
             $this->credits->copyWritersDown($locked, $run);
 
             // Its old addresses (former slugs, old instance paths) are the run's now.
-            SlugRedirect::where('redirectable_type', $locked->getMorphClass())
-                ->where('redirectable_id', $locked->id)
-                ->update(['redirectable_type' => $morph, 'redirectable_id' => $run->id]);
+            SlugRedirect::repoint($locked, $run);
 
             SlugRedirect::remember($from, $run);
             SlugRedirect::forget($run->addressPath(), $run);

@@ -7,6 +7,8 @@ use App\Models\Credit;
 use App\Models\Event;
 use App\Models\Project;
 use App\Support\Projects\InstanceAddress;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 
 /**
  * What happens to credits as listings join and leave shows. A show carries
@@ -28,7 +30,7 @@ class CreditLifecycle
             ->where('department', CreditDepartment::Writing->value)
             ->get()
             ->each(function (Credit $writer) use ($project, $held) {
-                if ($held->contains(fn (Credit $credit) => $credit->isEquivalentTo($writer))) {
+                if ($this->holds($held, $writer)) {
                     $writer->delete();
 
                     return;
@@ -62,6 +64,32 @@ class CreditLifecycle
     {
         $project->writers()->approved()->orderBy('rank')->orderBy('id')->get()
             ->each(fn (Credit $credit) => $credit->copyOnto($run));
+    }
+
+    /**
+     * Copies $rows onto $destination, skipping any it already holds an
+     * equivalent of. Adds, and never replaces.
+     *
+     * @return int how many rows were added
+     */
+    public function addMissing(Collection $rows, Model $destination): int
+    {
+        $held = $destination->credits()->get();
+        $added = 0;
+
+        foreach ($rows as $row) {
+            if (! $this->holds($held, $row)) {
+                $held->push($row->copyOnto($destination));
+                $added++;
+            }
+        }
+
+        return $added;
+    }
+
+    private function holds(Collection $held, Credit $row): bool
+    {
+        return $held->contains(fn (Credit $credit) => $credit->isEquivalentTo($row));
     }
 
     private function previousRun(Event $run, Project $project): ?Event

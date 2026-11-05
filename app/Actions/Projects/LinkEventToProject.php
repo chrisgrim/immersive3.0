@@ -57,6 +57,46 @@ class LinkEventToProject
         return $this->run($event, $target, $actor, $options, null);
     }
 
+    /**
+     * A moderator's whole decision: link $event to what it asked for or to
+     * $target instead, and correct who made the show and its address. A new
+     * project takes those as it is made; an existing one is updated first,
+     * in the same transaction, and a moderator never has two steps to do.
+     */
+    public function decide(Event $event, ?ProjectLinkRequest $request, Project|Event|null $target, User $actor, ?Organizer $maker = null, ?string $slug = null): Event
+    {
+        $resolved = $target ?? ($request ? $this->requestedTarget($request) : $this->refuse('Choose a show to link this listing to.'));
+        $project = $resolved instanceof Event ? $resolved->project : $resolved;
+
+        return DB::transaction(function () use ($event, $request, $target, $resolved, $project, $actor, $maker, $slug) {
+            $options = array_filter(['maker' => $maker, 'slug' => $slug]);
+
+            if ($project && $options !== []) {
+                app(UpdateProject::class)->handle($project, array_filter(['organizer_id' => $maker?->id, 'slug' => $slug]), $actor);
+                $options = [];
+            }
+
+            return $request
+                ? $this->approve($request, $actor, $options, $target)
+                : $this->link($event, $resolved, $actor, $options);
+        });
+    }
+
+    /**
+     * The show a moderator named, or null if they named none. One that has
+     * gone is refused here: read as "none", it would quietly confirm whatever
+     * the listing asked for instead.
+     */
+    public function namedTarget(?int $projectId, ?int $sourceEventId): Project|Event|null
+    {
+        if (! $projectId && ! $sourceEventId) {
+            return null;
+        }
+
+        return ($projectId ? Project::find($projectId) : Event::find($sourceEventId))
+            ?? $this->refuse('That show no longer exists.');
+    }
+
     public function reject(ProjectLinkRequest $request, User $actor, ?string $note = null): void
     {
         $this->authorizeDecision($this->requestedTarget($request), $actor);
@@ -299,10 +339,15 @@ class LinkEventToProject
             ->whereIn('event_id', array_filter([$run->id, $source?->id]))
             ->update(['status' => ProjectLinkRequest::WITHDRAWN]);
 
-        // Anyone else who asked to join the first listing now asks to join its show.
+        // Anyone else who asked to join the first listing now asks to join
+        // its show, and that show has a company to tell.
         if ($source !== null) {
-            ProjectLinkRequest::pending()->where('source_event_id', $source->id)
+            $waiting = ProjectLinkRequest::pending()->where('source_event_id', $source->id)->get();
+
+            ProjectLinkRequest::whereKey($waiting->modelKeys())
                 ->update(['project_id' => $project->id, 'source_event_id' => null]);
+
+            $waiting->filter->submitted_at->each(fn (ProjectLinkRequest $other) => app(TellKeeper::class)->requestWaiting($other->refresh()));
         }
     }
 

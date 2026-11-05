@@ -5,20 +5,26 @@ use App\Http\Controllers\AccountSettings\LoginSecurityController;
 use App\Http\Controllers\AccountSettings\PersonalInformationController;
 use App\Http\Controllers\AccountSettings\PrivacyController;
 use App\Http\Controllers\Admin\AdminAdvisoryController;
+use App\Http\Controllers\Admin\AdminArtistController;
 use App\Http\Controllers\Admin\AdminCategoryController;
 // Controller Imports - Search
 use App\Http\Controllers\Admin\AdminCommunityController;
+use App\Http\Controllers\Admin\AdminCreditController;
 use App\Http\Controllers\Admin\AdminDocksController;
 use App\Http\Controllers\Admin\AdminEventController;
 // Controller Imports - Admin
 use App\Http\Controllers\Admin\AdminEventSuggestionController;
 use App\Http\Controllers\Admin\AdminGenreController;
+use App\Http\Controllers\Admin\AdminLinkRequestController;
 use App\Http\Controllers\Admin\AdminOrganizerController;
 use App\Http\Controllers\Admin\AdminOwnershipClaimController;
+use App\Http\Controllers\Admin\AdminProjectController;
 use App\Http\Controllers\Admin\AdminRequestsController;
 use App\Http\Controllers\Admin\AdminReviewController;
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AdminVenueController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Api\ArtistController;
 use App\Http\Controllers\Api\EventScraperController;
 use App\Http\Controllers\Api\GeonamesController;
 use App\Http\Controllers\Api\SimilarEventsController;
@@ -101,6 +107,10 @@ Route::middleware(['throttle:180,1'])->group(function () {
 
 // Authenticated user operations - Very high limits (300/min = 5/sec)
 Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
+    // The credits panels' artist picker
+    Route::GET('/artists/search', [ArtistController::class, 'search']);
+    Route::POST('/artists', [ArtistController::class, 'store']);
+
     Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])
         ->middleware('can:manage,event')
         ->name('event.update');
@@ -339,6 +349,7 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
 
         // Organizers
         Route::controller(AdminOrganizerController::class)->group(function () {
+            Route::POST('/organizers/bare', 'storeBare');
             Route::GET('/organizers/{organizer}', 'show');
             Route::prefix('manage')->group(function () {
                 Route::GET('/organizers', 'index');
@@ -473,6 +484,40 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
             Route::POST('/events/{event}/duplicate', [HostEventController::class, 'duplicate'])
                 ->middleware(['can:moderate,App\Models\Event']);
         });
+
+        // Projects: shows and the listings that are their runs
+        Route::controller(AdminProjectController::class)->group(function () {
+            Route::GET('/projects', 'index');
+            Route::POST('/events/{event}/project', 'assign');
+            Route::PATCH('/projects/{project}', 'update');
+            Route::POST('/projects/{project}/merge', 'merge');
+            Route::POST('/projects/{project}/dissolve', 'dissolve');
+        });
+
+        Route::controller(AdminLinkRequestController::class)->group(function () {
+            Route::GET('/link-requests', 'index');
+            Route::POST('/link-requests/{linkRequest}/approve', 'approve');
+            Route::POST('/link-requests/{linkRequest}/reject', 'reject');
+        });
+
+        Route::controller(AdminVenueController::class)->group(function () {
+            Route::GET('/venues', 'index');
+            Route::PATCH('/venues/{venue}', 'update');
+            Route::POST('/venues/{venue}/approve', 'approve');
+            Route::POST('/venues/{venue}/merge', 'merge');
+        });
+
+        Route::controller(AdminArtistController::class)->group(function () {
+            Route::GET('/artists', 'index');
+            Route::POST('/artists', 'store');
+            Route::GET('/artists/{artist}', 'show');
+            Route::PATCH('/artists/{artist}', 'update');
+            Route::DELETE('/artists/{artist}', 'destroy');
+            Route::POST('/artists/{artist}/approve', 'approve');
+            Route::POST('/artists/{artist}/merge', 'merge');
+        });
+
+        Route::POST('/events/{event}/credits/copy', [AdminCreditController::class, 'copy']);
 
         // Docks
         Route::controller(AdminDocksController::class)->group(function () {

@@ -3,19 +3,30 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Actions\Admin\ModerateSubmission;
+use App\Actions\Projects\LinkEventToProject;
+use App\Actions\Projects\LinkReview;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\Messaging\Message;
+use App\Models\Organizer;
+use App\Models\Project;
+use App\Models\ProjectLinkRequest;
+use App\Models\User;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Services\EventNotificationDispatcher;
 use App\Services\ImageHandler;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class AdminEventController extends Controller
 {
+    public function __construct(private LinkEventToProject $links, private LinkReview $linkReview) {}
+
     public function index(Request $request)
     {
         $query = Event::query()
@@ -123,6 +134,9 @@ class AdminEventController extends Controller
 
         $event->duplicateEvents = $duplicateEvents;
 
+        // The review screen reloads through here, so it never sees getPending's copy.
+        $this->linkReview->attachTo(collect([$event]));
+
         return response()->json($event);
     }
 
@@ -174,7 +188,10 @@ class AdminEventController extends Controller
             ->latest();
 
         if (! config('ei.interleave_review_queue')) {
-            return $query->paginate(20);
+            $page = $query->paginate(20);
+            $this->linkReview->attachTo($page->getCollection());
+
+            return $page;
         }
 
         // Reordering by organizer cannot be expressed as a single SQL sort, so
@@ -187,8 +204,12 @@ class AdminEventController extends Controller
         $perPage = 20;
         $page = LengthAwarePaginator::resolveCurrentPage();
 
+        // Only the page shown: name matches are a search per listing.
+        $shown = $ordered->forPage($page, $perPage)->values();
+        $this->linkReview->attachTo($shown);
+
         return new LengthAwarePaginator(
-            $ordered->forPage($page, $perPage)->values(),
+            $shown,
             $ordered->count(),
             $perPage,
             $page,
@@ -307,41 +328,57 @@ class AdminEventController extends Controller
         return $event->fresh(['organizer', 'images', 'category', 'location']);
     }
 
-    public function approve(Event $event)
+    /**
+     * Approve the listing, and with it decide any link: `link.action` is
+     * confirm (join what it asked for), change (join `link.project_id` or
+     * `link.source_event_id` instead) or reject (the listing alone). No
+     * `link` leaves a pending request pending. A refused link undoes the
+     * whole approval: the moderator sees why and nothing has half happened.
+     */
+    public function approve(Event $event, Request $request)
     {
         $event->load(['user', 'organizer']);
 
+        $link = $this->validatedLink($request, $event);
+
         try {
-            // Approve organizer if not already approved
-            if ($event->organizer->status !== 'p') {
-                $event->organizer->update(['status' => 'p']);
-            }
+            $status = DB::transaction(function () use ($event, $link, $request) {
+                // Approve organizer if not already approved
+                if ($event->organizer->status !== 'p') {
+                    $event->organizer->update(['status' => 'p']);
+                }
 
-            // Create curated check record
-            $event->curatedCheck()->create();
+                // Create curated check record
+                $event->curatedCheck()->create();
 
-            // Generate final slug
-            $slug = Event::finalSlug($event);
+                // Generate final slug
+                $slug = Event::finalSlug($event);
 
-            // Update event with slug first before finalizing images
-            $previousSlug = $event->slug;
-            $event->slug = $slug;
-            $event->save();
-            // A re-approval can move a listing that has been public.
-            $event->rememberOldAddress($previousSlug);
+                // Update event with slug first before finalizing images
+                $previousSlug = $event->slug;
+                $event->slug = $slug;
+                $event->save();
+                // A re-approval can move a listing that has been public.
+                $event->rememberOldAddress($previousSlug);
 
-            // Finalize images with the new slug
-            ImageHandler::finalize($event, $slug, 'event');
+                // Determine status based on embargo date (a wall-clock time in the
+                // event's own timezone; the model decides, same as the publish cron)
+                $status = $event->embargoIsPending() ? 'e' : 'p';
 
-            // Determine status based on embargo date (a wall-clock time in the
-            // event's own timezone; the model decides, same as the publish cron)
-            $status = $event->embargoIsPending() ? 'e' : 'p';
+                // Format the date explicitly to match Elasticsearch mapping
+                $event->update([
+                    'status' => $status,
+                    'published_at' => now()->format('Y-m-d H:i:s'),
+                ]);
 
-            // Format the date explicitly to match Elasticsearch mapping
-            $event->update([
-                'status' => $status,
-                'published_at' => now()->format('Y-m-d H:i:s'),
-            ]);
+                $this->applyLink($event, $link, $request->user());
+
+                // Last: moved files do not roll back, so nothing that can
+                // still refuse comes after them.
+                ImageHandler::finalize($event, $slug, 'event');
+
+                return $status;
+            });
 
             // Clear caches since we're publishing a new event
             Cache::forget('active-categories');
@@ -364,6 +401,8 @@ class AdminEventController extends Controller
                 'message' => 'Event approved successfully',
                 'event' => $event->fresh(['images', 'organizer']),
             ]);
+        } catch (ValidationException|AuthorizationException $e) {
+            throw $e;
         } catch (\Exception $e) {
             report($e);
             \Log::error('Error approving event: '.$e->getMessage());
@@ -371,6 +410,63 @@ class AdminEventController extends Controller
             return response()->json([
                 'message' => 'Error approving event. Please try again.',
             ], 500);
+        }
+    }
+
+    /** @return array{action: string, pending: ?ProjectLinkRequest, target: Project|Event|null, maker: ?Organizer, slug: ?string, note: ?string}|null */
+    private function validatedLink(Request $request, Event $event): ?array
+    {
+        $validated = $request->validate([
+            'link' => ['sometimes', 'array'],
+            'link.action' => ['required_with:link', 'in:confirm,change,reject'],
+            'link.project_id' => ['nullable', 'integer', 'exists:projects,id'],
+            'link.source_event_id' => ['nullable', 'integer', 'exists:events,id'],
+            'link.organizer_id' => ['nullable', 'integer', 'exists:organizers,id'],
+            'link.slug' => ['nullable', 'string', 'max:255', 'regex:'.Project::SLUG_PATTERN],
+            'link.note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $link = $validated['link'] ?? null;
+
+        if ($link === null) {
+            return null;
+        }
+
+        $target = $link['action'] === 'change'
+            ? $this->links->namedTarget($link['project_id'] ?? null, $link['source_event_id'] ?? null)
+            : null;
+
+        if ($link['action'] === 'change' && $target === null) {
+            throw ValidationException::withMessages(['link.project_id' => 'Choose the show to link this listing to.']);
+        }
+
+        return [
+            'action' => $link['action'],
+            'pending' => ProjectLinkRequest::pending()->where('event_id', $event->id)->latest('id')->first(),
+            'target' => $target,
+            'maker' => ! empty($link['organizer_id']) ? Organizer::find($link['organizer_id']) : null,
+            'slug' => $link['slug'] ?? null,
+            'note' => $link['note'] ?? null,
+        ];
+    }
+
+    private function applyLink(Event $event, ?array $link, User $moderator): void
+    {
+        if ($link === null) {
+            return;
+        }
+
+        if ($link['action'] === 'reject') {
+            if ($link['pending']) {
+                $this->links->reject($link['pending'], $moderator, $link['note']);
+            }
+
+            return;
+        }
+
+        // A confirm with nothing pending has nothing to confirm.
+        if ($link['pending'] || $link['target']) {
+            $this->links->decide($event, $link['pending'], $link['target'], $moderator, $link['maker'], $link['slug']);
         }
     }
 

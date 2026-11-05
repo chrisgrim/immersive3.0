@@ -35,4 +35,15 @@ class ProjectPolicy
     {
         return $user->isModerator();
     }
+
+    /** Who made it, its address and who keeps the page are a moderator's to change. */
+    public function update(User $user, Project $project): bool
+    {
+        return $user->isModerator();
+    }
+
+    public function merge(User $user): bool
+    {
+        return $user->isModerator();
+    }
 }

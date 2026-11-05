@@ -31,8 +31,8 @@ class RequestLink
                 $this->refuse('A listing cannot join itself.');
             }
 
-            if ($target->trashed()) {
-                $this->refuse('That listing has been deleted.');
+            if ($target->trashed() || ! in_array($target->status, Event::LIVE_STATUSES, true)) {
+                $this->refuse('That listing is not live.');
             }
         }
 
@@ -100,6 +100,11 @@ class RequestLink
                 'project_id' => $project?->id,
                 'source_event_id' => $request->source_event_id,
             ]);
+
+            // A draft's keeper hears when it is submitted (Event's saved hook).
+            if ($request->submitted_at !== null) {
+                app(TellKeeper::class)->requestWaiting($request);
+            }
 
             return $request;
         });

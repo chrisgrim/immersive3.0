@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Actions\Admin\ModerateSubmission;
 use App\Http\Controllers\Controller;
 use App\Mail\Comments;
+use App\Models\AuditLog;
 use App\Models\Event;
 use App\Models\Messaging\Message;
 use App\Models\Organizer;
 use App\Models\Project;
 use App\Models\SlugRedirect;
 use App\Models\User;
+use App\Support\Validation\OrganizerRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -128,6 +130,29 @@ class AdminOrganizerController extends Controller
         }
 
         return $organizer->fresh(['owner', 'users']);
+    }
+
+    /**
+     * A bare organizer: a name, so a project has a maker to point at when the
+     * company that made the show is not on EI yet. Public straight away, with
+     * no review notice. The moderator's staff ownership is what
+     * Organizer::isClaimable reads, so the company can claim it later; it
+     * bypasses CreateOrganizerAction, which would move their current team.
+     */
+    public function storeBare(Request $request)
+    {
+        $validated = $request->validate(['name' => OrganizerRules::name()]);
+
+        $organizer = Organizer::create([
+            'name' => $validated['name'],
+            'description' => '',
+            'status' => 'p',
+            'user_id' => $request->user()->id,
+        ]);
+
+        AuditLog::record($organizer, 'organizer.bare_created', $request->user());
+
+        return response()->json(['organizer' => $organizer->only(['id', 'name', 'slug', 'status'])], 201);
     }
 
     public function destroy(Organizer $organizer)

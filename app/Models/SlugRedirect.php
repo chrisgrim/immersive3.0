@@ -42,6 +42,14 @@ class SlugRedirect extends Model
         );
     }
 
+    /** Everything that led to $from leads to $to now. */
+    public static function repoint(Model $from, Model $to): void
+    {
+        static::where('redirectable_type', $from->getMorphClass())
+            ->where('redirectable_id', $from->getKey())
+            ->update(['redirectable_type' => $to->getMorphClass(), 'redirectable_id' => $to->getKey()]);
+    }
+
     /** $record lives at $path now, so its alias there goes. Other records' rows stay. */
     public static function forget(string $path, Model $record): void
     {

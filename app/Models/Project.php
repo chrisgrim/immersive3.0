@@ -20,6 +20,9 @@ class Project extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /** What a chosen address may look like: never a released deleted--{id}. */
+    public const SLUG_PATTERN = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/';
+
     protected $fillable = ['slug', 'name', 'description', 'largeImagePath', 'thumbImagePath', 'organizer_id', 'editor_organizer_id'];
 
     protected static function booted(): void

@@ -33,13 +33,19 @@ class Artist extends Model
         return 'slug';
     }
 
+    /** Artists have no public page yet; this is the address they will have. */
+    public function publicPath(): string
+    {
+        return '/artists/'.$this->slug;
+    }
+
     private static function uniqueSlug(?string $name): string
     {
         $base = Slug::base($name, 'artist');
         $slug = $base;
         $count = 2;
 
-        while (static::where('slug', $slug)->exists()) {
+        while (static::where('slug', $slug)->exists() || SlugRedirect::where('path', 'artists/'.$slug)->exists()) {
             $slug = $base.'-'.$count;
             $count++;
         }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Actions\Projects\RequestLink;
+use App\Actions\Projects\TellKeeper;
 use App\Jobs\SyncEventSearchIndex;
 use App\Models\Admin\CuratedEventCheck;
 use App\Models\Admin\ReviewEvent;
@@ -171,10 +172,18 @@ class Event extends Model
             $pending = ProjectLinkRequest::pending()->where('event_id', $event->id)->whereNull('escalated_at');
 
             if ($event->status === self::STATUS_IN_REVIEW) {
-                $pending->update(['submitted_at' => now()]);
+                $started = (clone $pending)->get();
             } elseif (in_array($event->status, self::LIVE_STATUSES, true)) {
-                $pending->whereNull('submitted_at')->update(['submitted_at' => now()]);
+                $pending->whereNull('submitted_at');
+                $started = (clone $pending)->get();
+            } else {
+                return;
             }
+
+            $pending->update(['submitted_at' => now()]);
+
+            // The clock assumes the company knows.
+            $started->each(fn (ProjectLinkRequest $request) => app(TellKeeper::class)->requestWaiting($request));
         });
 
         // scopeStillRunning caches the timezones in use; a zone it has not

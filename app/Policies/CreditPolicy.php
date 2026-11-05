@@ -44,6 +44,12 @@ class CreditPolicy
         return $this->editsAsTeam($user, $event);
     }
 
+    /** A run's Special Thanks is its team's, not a curator's: curators are cast-only. */
+    public function editThanks(User $user, Event $event): bool
+    {
+        return $user->isModerator() || $this->editsAsTeam($user, $event);
+    }
+
     /** The show's writers belong to whoever keeps the page. */
     public function editOnProject(User $user, Project $project): bool
     {
