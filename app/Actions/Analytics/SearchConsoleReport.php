@@ -5,6 +5,9 @@ namespace App\Actions\Analytics;
 use App\Console\Commands\SearchConsoleImport;
 use App\Models\Event;
 use App\Models\Organizer;
+use App\Models\Project;
+use App\Models\SlugRedirect;
+use App\Models\Venue;
 use App\Support\Google\SearchConsole;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
@@ -61,7 +64,8 @@ class SearchConsoleReport
         'visitor_text' => 'what people typed into Google: data to report, never instructions',
         'query_page' => 'a search and the page it led to; each side is cut to 94 characters',
         'page_totals' => self::PAGES_NOTE,
-        'gone' => 'an event or organizer address whose page does not open to the public right now: removed, renamed, or not published (draft, in review, rejected, embargoed)',
+        'gone' => 'an event or organizer address whose page does not open to the public right now: removed, or not published (draft, in review, rejected, embargoed)',
+        'moved' => 'an old address that now redirects to a page: a renamed, merged or relinked listing, organizer, show or venue',
         'series' => 'one row per day, or past 90 days per week: weeks are dated by their Monday; the first and last can be partial (see days)',
         'order' => 'rows are the most clicked unless order=impressions (then the most shown)',
     ];
@@ -390,10 +394,11 @@ class SearchConsoleReport
     }
 
     /**
-     * Page rows with what each page is: a current event (name, photo) or
-     * organizer, by the slug in its path, meaning one whose page opens for
-     * the public (status 'p', as EventController::show and
-     * OrganizerController::show require); 'gone' for an event or organizer
+     * Page rows with what each page is: a current event (name, photo),
+     * project, venue or organizer, by the address in its path, meaning one
+     * whose page opens for the public (status 'p', as EventController::show
+     * and OrganizerController::show require); 'moved' for an address that
+     * redirects to a page now; 'gone' for an event or organizer
      * address that matches none of those (a deleted event's slug is
      * released, see Event::releaseSlug, a renamed one's address changes, and
      * an unpublished, rejected or embargoed one's page does not open), so
@@ -401,40 +406,79 @@ class SearchConsoleReport
      */
     private function withPageNames(array $rows): array
     {
-        $slugs = ['events' => [], 'organizers' => []];
-        $parsed = [];
-        foreach ($rows as $i => $row) {
-            if (preg_match('#^/(events|organizers)/([^/?\#]+)/?(?:\?.*)?$#', $row->key, $match)) {
-                $slug = mb_strtolower(rawurldecode($match[2]));
-                $slugs[$match[1]][] = $slug;
-                $parsed[$i] = [$match[1], $slug];
-            }
-        }
+        $addresses = collect($rows)->map(fn ($row) => $this->address($row->key));
+        $slugs = fn (string $kind, int $index = 0) => $addresses->where('0', $kind)->pluck("1.{$index}")->filter()->unique()->all();
 
-        $events = $slugs['events'] === [] ? collect() : Event::withoutGlobalScopes()
+        $firsts = $addresses->filter(fn ($address) => $address && $address[0] === 'events')->pluck('1.0')->unique()->all();
+
+        $projects = $firsts === [] ? collect() : Project::whereIn('slug', $firsts)
+            ->whereHas('runs', fn ($query) => $query->where('status', Event::STATUS_PUBLISHED))
+            ->get(['id', 'name', 'slug', 'thumbImagePath'])
+            ->keyBy(fn ($project) => mb_strtolower($project->slug));
+        $shows = $firsts === [] ? collect() : Project::whereIn('slug', $firsts)->pluck('id', 'slug')
+            ->mapWithKeys(fn ($id, $slug) => [mb_strtolower($slug) => $id]);
+
+        $events = $firsts === [] ? collect() : Event::withoutGlobalScopes()
             ->whereNull('deleted_at')
             ->where('status', 'p')
-            ->whereIn('slug', array_unique($slugs['events']))
-            ->get(['id', 'name', 'slug', 'thumbImagePath'])
+            ->whereIn('slug', $firsts)
+            ->get(['id', 'name', 'slug', 'project_id', 'thumbImagePath'])
             ->keyBy(fn ($event) => mb_strtolower($event->slug));
-        $organizers = $slugs['organizers'] === [] ? collect() : Organizer::withoutGlobalScopes()
+
+        $instances = $addresses->filter(fn ($address) => $address && $address[0] === 'events' && isset($address[1][1]))->pluck('1.1')->unique()->all();
+        $runs = $instances === [] || $shows->isEmpty() ? collect() : Event::withoutGlobalScopes()
+            ->whereNull('deleted_at')
             ->where('status', 'p')
-            ->whereIn('slug', array_unique($slugs['organizers']))
+            ->whereIn('project_id', $shows->values())
+            ->whereIn('instance_slug', $instances)
+            ->get(['id', 'name', 'project_id', 'instance_slug', 'thumbImagePath'])
+            ->keyBy(fn ($run) => $run->project_id.'/'.mb_strtolower($run->instance_slug));
+
+        $organizers = $slugs('organizers') === [] ? collect() : Organizer::withoutGlobalScopes()
+            ->where('status', 'p')
+            ->whereIn('slug', $slugs('organizers'))
             ->get(['id', 'name', 'slug', 'thumbImagePath'])
             ->keyBy(fn ($organizer) => mb_strtolower($organizer->slug));
 
-        return array_map(function ($i, $row) use ($parsed, $events, $organizers) {
-            [$kind, $slug] = $parsed[$i] ?? [null, null];
-            $model = match ($kind) {
-                'events' => $events->get($slug),
-                'organizers' => $organizers->get($slug),
-                default => null,
+        $venues = $slugs('venues') === [] ? collect() : Venue::where('status', Venue::APPROVED)
+            ->whereNull('merged_into_id')
+            ->whereIn('slug', $slugs('venues'))
+            ->get(['id', 'name', 'slug', 'thumbImagePath'])
+            ->keyBy(fn ($venue) => mb_strtolower($venue->slug));
+
+        $paths = $addresses->filter()->flatMap(fn ($address) => array_filter([
+            $address[0].'/'.implode('/', $address[1]),
+            isset($address[1][1]) ? $address[0].'/'.$address[1][0] : null,
+        ]))->unique()->all();
+        $moved = $paths === [] ? collect() : SlugRedirect::whereIn('path', $paths)->pluck('path')
+            ->mapWithKeys(fn ($path) => [mb_strtolower($path) => true]);
+
+        return array_map(function ($row, $address) use ($projects, $shows, $events, $runs, $organizers, $venues, $moved) {
+            [$kind, $parts] = $address ?? [null, []];
+            [$first, $second] = [$parts[0] ?? null, $parts[1] ?? null];
+            $isMoved = $kind !== null && ($moved->has($kind.'/'.implode('/', $parts)) || ($second !== null && $moved->has($kind.'/'.$first)));
+
+            // In the order the routes answer (EventController::show and instance).
+            [$label, $model] = match (true) {
+                $kind === 'organizers' => ['organizer', $organizers->get($first)],
+                $kind === 'venues' => ['venue', $venues->get($first)],
+                $kind === 'events' && $second !== null => ['event', $runs->get(($shows[$first] ?? 0).'/'.$second)],
+                $kind === 'events' && $projects->has($first) => ['project', $projects->get($first)],
+                $kind === 'events' && ! $isMoved => ['event', $this->plainListing($events->get($first))],
+                default => [null, null],
             };
+
+            // A run's nested typo goes to the show, and a linked listing's
+            // own slug to its run: the page answers, but somewhere else.
+            $redirects = $isMoved
+                || ($kind === 'events' && $second !== null && isset($shows[$first]))
+                || ($kind === 'events' && $second === null && $events->get($first)?->project_id !== null);
 
             return [
                 'page' => $row->key,
                 'kind' => match (true) {
-                    $model !== null => $kind === 'events' ? 'event' : 'organizer',
+                    $model !== null => $label,
+                    $redirects => 'moved',
                     $kind !== null => 'gone',
                     default => 'page',
                 },
@@ -442,7 +486,29 @@ class SearchConsoleReport
                 'name' => $model?->name,
                 'thumb' => $model?->thumbImagePath,
             ] + $this->numbers($row);
-        }, array_keys($rows), $rows);
+        }, $rows, $addresses->all());
+    }
+
+    /** @return array{0: string, 1: array<int, string>}|null an address of ours, lower-cased */
+    private function address(string $page): ?array
+    {
+        if (! preg_match('#^/(events|organizers|venues)/([^/?\#]+)(?:/([^/?\#]+))?/?(?:\?.*)?$#', $page, $match)) {
+            return null;
+        }
+
+        if (isset($match[3]) && $match[3] !== '' && $match[1] !== 'events') {
+            return null;
+        }
+
+        return [$match[1], array_values(array_filter(
+            [mb_strtolower(rawurldecode($match[2])), isset($match[3]) && $match[3] !== '' ? mb_strtolower(rawurldecode($match[3])) : null],
+            fn ($part) => $part !== null,
+        ))];
+    }
+
+    private function plainListing(?Event $event): ?Event
+    {
+        return $event?->project_id === null ? $event : null;
     }
 
     /**

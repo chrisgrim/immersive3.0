@@ -29,7 +29,7 @@
                         }
                         $imagePath = ltrim($imagePath, '/');
                     @endphp
-                    <a href="{{ url("/events/{$event->slug}") }}" style="display: flex; align-items: center; gap: 1rem; text-decoration: none; color: inherit; padding: 0.75rem 0; border-bottom: 1px solid #e5e7eb;">
+                    <a href="{{ url($event->publicPath()) }}" style="display: flex; align-items: center; gap: 1rem; text-decoration: none; color: inherit; padding: 0.75rem 0; border-bottom: 1px solid #e5e7eb;">
                         <div style="width: 64px; height: 64px; border-radius: 0.5rem; overflow: hidden; flex-shrink: 0; background: #f3f4f6;">
                             @if ($imagePath)
                                 <img src="{{ rtrim(config('app.image_url'), '/') . '/' . $imagePath }}" alt="{{ $event->name }}" style="width: 100%; height: 100%; object-fit: cover;">

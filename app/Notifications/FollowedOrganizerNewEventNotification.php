@@ -70,6 +70,7 @@ class FollowedOrganizerNewEventNotification extends Notification implements Shou
             'type' => 'followed_organizer_new_event',
             'event_id' => $this->event->id,
             'event_slug' => $this->event->slug,
+            'event_url' => $this->event->publicPath(),
             'event_name' => $this->event->name,
             'event_image' => $this->event->largeImagePath,
             'organizer_id' => $this->event->organizer_id,

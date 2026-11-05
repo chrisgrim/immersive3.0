@@ -109,7 +109,8 @@ const hrefFor = (notification) => {
     if (notification.data.type === 'saved_search_new_events') {
         return notification.data.url || '/';
     }
-    return `/events/${notification.data.event_slug}`;
+    // Older notifications stored only the slug; it redirects.
+    return notification.data.event_url || `/events/${notification.data.event_slug}`;
 };
 
 const messageFor = (notification) => {

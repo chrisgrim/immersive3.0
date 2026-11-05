@@ -486,7 +486,7 @@
                                             // dd($debugInfo);
                                             
                                             // Get URL security attributes for event card
-                                            $eventCardUrl = $card->url ?? '/events/' . $card->event->slug;
+                                            $eventCardUrl = $card->url ?? $card->event->publicPath();
                                             $eventUrlAttrs = get_url_security_attributes($eventCardUrl);
                                         @endphp
 

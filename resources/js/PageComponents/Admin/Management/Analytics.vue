@@ -86,7 +86,7 @@
                             <img v-if="row.thumb" :src="`${imageUrl}${row.thumb}`" alt="" loading="lazy" class="w-full h-full object-cover" @error="(e) => (e.target.style.display = 'none')">
                         </div>
                         <div class="min-w-0">
-                            <a v-if="row.slug" :href="`/events/${row.slug}`" target="_blank" class="text-[1.4rem] font-semibold hover:underline block truncate">{{ row.name }}</a>
+                            <a v-if="row.slug" :href="row.public_url || `/events/${row.slug}`" target="_blank" class="text-[1.4rem] font-semibold hover:underline block truncate">{{ row.name }}</a>
                             <span v-else class="text-[1.4rem] font-semibold text-[#717171] block truncate">{{ row.name || `Event ${row.event_id}` }} (removed)</span>
                             <p class="text-[1.2rem] text-[#717171]">{{ row.city || (row.online ? 'Online' : '') }}</p>
                         </div>

@@ -64,7 +64,7 @@
             }
             // Card linked to event
             if ($element->event && $element->event->slug) {
-                return '/events/' . $element->event->slug;
+                return $element->event->publicPath();
             }
             // Card linked to post
             if ($element->post && $element->post->slug && $element->community) {

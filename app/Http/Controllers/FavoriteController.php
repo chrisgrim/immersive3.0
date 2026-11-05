@@ -113,6 +113,7 @@ class FavoriteController extends Controller
         return [
             'id' => $event->id,
             'slug' => $event->slug,
+            'public_url' => $event->publicPath(),
             'name' => $event->name,
             'category' => $event->category,
             'organizer' => $event->organizer ? [

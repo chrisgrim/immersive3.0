@@ -51,7 +51,7 @@
             if ($element->url) {
                 $url = $element->url;
             } elseif ($element->event && $element->event->slug) {
-                $url = "/events/{$element->event->slug}";
+                $url = $element->event->publicPath();
             } elseif ($element->post && $element->post->slug && $element->post->community) {
                 $url = "/communities/{$element->post->community->slug}/posts/{$element->post->slug}";
             }

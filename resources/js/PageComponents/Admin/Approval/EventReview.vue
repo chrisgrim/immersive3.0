@@ -14,7 +14,7 @@
                          :key="duplicate.id" 
                          class="flex items-center justify-between">
                         <span class="text-yellow-700">{{ duplicate.name }}</span>
-                        <a :href="`/events/${duplicate.slug}`" 
+                        <a :href="duplicate.public_url || `/events/${duplicate.slug}`" 
                            target="_blank"
                            class="text-blue-600 hover:text-blue-800 underline">
                             View Event

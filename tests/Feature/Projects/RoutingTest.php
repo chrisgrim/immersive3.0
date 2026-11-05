@@ -40,8 +40,7 @@ test('an unpublished plain listing 404s by slug, as today', function () {
 });
 
 test('a project with a published run answers at its address', function () {
-    // The project page comes in a later stage; until then the address leads to a run.
-    $this->get('/events/ha-ha-ha')->assertRedirect()->assertStatus(302);
+    $this->get('/events/ha-ha-ha')->assertOk()->assertViewIs('projects.show');
 });
 
 test('a project with no published run is a 404', function () {
@@ -53,7 +52,7 @@ test('a project with no published run is a 404', function () {
 test('a project is found before an event with the same slug', function () {
     expect($this->first->slug)->toBe('ha-ha-ha');
 
-    $this->get('/events/ha-ha-ha')->assertStatus(302);
+    expect($this->get('/events/ha-ha-ha')->viewData('project'))->toBeInstanceOf(Project::class);
 });
 
 test('a linked run reached by its own slug moves to its address under the show', function () {

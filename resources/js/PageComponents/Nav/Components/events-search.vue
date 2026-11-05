@@ -130,7 +130,7 @@ const generateSearchList = async () => {
 
 const onSelect = (item) => {
     if (item.index_name === 'organizers') window.location.href = `/organizers/${item.model.slug}`;
-    if (item.index_name === 'events') window.location.href = `/events/${item.model.slug}`;
+    if (item.index_name === 'events') window.location.href = item.model.public_url || `/events/${item.model.slug}`;
 };
 
 const debounce = () => {

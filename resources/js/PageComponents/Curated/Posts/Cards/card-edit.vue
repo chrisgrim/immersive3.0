@@ -518,7 +518,7 @@ const hasName = computed(() =>
 
 const hasUrl = computed(() => {
     if (card.value?.event && !card.value?.url) {
-        return `/events/${card.value.event.slug}`
+        return card.value.event.public_url || `/events/${card.value.event.slug}`
     }
     return card.value?.url || ''
 })

@@ -44,7 +44,7 @@
             </a>
             <div class="flex-1 min-w-0 pl-4">
                 <template v-if="['p', 'e'].includes(event.status)">
-                    <a :href="`/events/${event.slug}`" class="text-3xl md:text-5xl font-semibold truncate hover:underline block">{{ event.name || 'No name set' }}</a>
+                    <a :href="event.public_url || `/events/${event.slug}`" class="text-3xl md:text-5xl font-semibold truncate hover:underline block">{{ event.name || 'No name set' }}</a>
                 </template>
                 <template v-else>
                     <span class="text-3xl md:text-5xl font-semibold truncate block">{{ event.name || 'No name set' }}</span>

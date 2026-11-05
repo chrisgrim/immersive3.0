@@ -28,6 +28,9 @@ use Illuminate\Support\Facades\DB;
  */
 class SiteAnalyticsReport
 {
+    /** A listing's page: at its own address, or a run's under its show. */
+    private const EVENT_PAGES_SQL = "('events.show', 'events.instance')";
+
     /**
      * Prod logs ~15k notes a day, so a year is ~5M rows and minutes of
      * queries on a 2-CPU server. 90 days keeps a cold build to seconds;
@@ -180,11 +183,11 @@ class SiteAnalyticsReport
 
     /**
      * A view of an event page: an event_view row (before page views were
-     * recorded), or a page_view of events.show (since; RecordPageView).
+     * recorded), or a page_view of a listing's page (since; RecordPageView).
      */
     private function eventViewSql(): string
     {
-        return "(analytics_events.type = '".Analytics::EVENT_VIEW."' OR (analytics_events.type = '".Analytics::PAGE_VIEW."' AND analytics_events.page = 'events.show'))";
+        return "(analytics_events.type = '".Analytics::EVENT_VIEW."' OR (analytics_events.type = '".Analytics::PAGE_VIEW."' AND analytics_events.page IN ".self::EVENT_PAGES_SQL.'))';
     }
 
     /**
@@ -197,8 +200,8 @@ class SiteAnalyticsReport
     {
         $totals = $this->rows($since, null, $until)
             ->selectRaw("CASE WHEN analytics_events.type = ? AND analytics_events.source = 'map' THEN 'map_search'
-                    WHEN analytics_events.type = ? AND analytics_events.page = 'events.show' THEN ? ELSE analytics_events.type END AS kind,
-                COUNT(*) AS total, COUNT(DISTINCT analytics_events.visitor) AS visitors", [Analytics::SEARCH, Analytics::PAGE_VIEW, Analytics::EVENT_VIEW])
+                    WHEN analytics_events.type = ? AND analytics_events.page IN ".self::EVENT_PAGES_SQL.' THEN ? ELSE analytics_events.type END AS kind,
+                COUNT(*) AS total, COUNT(DISTINCT analytics_events.visitor) AS visitors', [Analytics::SEARCH, Analytics::PAGE_VIEW, Analytics::EVENT_VIEW])
             // People: visitors of rows the server saw (a late beacon is not
             // a visitor-day of its own).
             ->selectRaw("COUNT(DISTINCT IF(analytics_events.type IN ('".implode("', '", Analytics::SERVER_TYPES)."'), analytics_events.visitor, NULL)) AS people")
@@ -283,7 +286,7 @@ class SiteAnalyticsReport
         $counts = $this->rows($since)
             ->whereIn('type', [Analytics::EVENT_VIEW, Analytics::PAGE_VIEW, Analytics::SEARCH, Analytics::TICKET_CLICK])
             ->whereRaw("(type <> ? OR source = 'list')", [Analytics::SEARCH])
-            ->whereRaw("(type <> ? OR page = 'events.show')", [Analytics::PAGE_VIEW])
+            ->whereRaw('(type <> ? OR page IN '.self::EVENT_PAGES_SQL.')', [Analytics::PAGE_VIEW])
             ->selectRaw('DATE(occurred_at) AS day, IF(type = ?, ?, type) AS kind, COUNT(*) AS total', [Analytics::PAGE_VIEW, Analytics::EVENT_VIEW])
             ->groupBy('day', 'kind')
             ->get()
@@ -608,13 +611,14 @@ class SiteAnalyticsReport
         $events = Event::withoutGlobalScopes()->withTrashed()
             ->with('location:id,event_id,city,region,country')
             ->whereIn('id', $counts->pluck('event_id'))
-            ->get(['id', 'name', 'slug', 'thumbImagePath', 'hasLocation', 'deleted_at'])
+            ->get(['id', 'name', 'slug', 'project_id', 'instance_slug', 'thumbImagePath', 'hasLocation', 'deleted_at'])
             ->keyBy('id');
 
         return $counts->map(fn ($row) => [
             'event_id' => (int) $row->event_id,
             'name' => $events[$row->event_id]->name ?? null,
             'slug' => isset($events[$row->event_id]) && ! $events[$row->event_id]->trashed() ? $events[$row->event_id]->slug : null,
+            'public_url' => isset($events[$row->event_id]) && ! $events[$row->event_id]->trashed() ? $events[$row->event_id]->publicPath() : null,
             'thumb' => $events[$row->event_id]->thumbImagePath ?? null,
             'city' => $events[$row->event_id]->location->city ?? null,
             'online' => isset($events[$row->event_id]) && ! $events[$row->event_id]->hasLocation,

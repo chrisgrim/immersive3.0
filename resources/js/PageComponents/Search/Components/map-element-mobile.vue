@@ -3,7 +3,7 @@
         <!-- Padding on the link, so the thumbnail is inset like the text
              rather than flush with the card's edge — same as the desktop
              popup (map-element.vue). -->
-        <a :href="`/events/${data.slug}?name=${name}&lat=${lat}&lng=${lng}`" class="flex gap-4 p-6">
+        <a :href="`${data.public_url || `/events/${data.slug}`}?name=${name}&lat=${lat}&lng=${lng}`" class="flex gap-4 p-6">
             <!-- self-center, not the row's default stretch: a stretched flex
                  item gets an explicit height, and aspect-ratio yields to
                  that, so the thumbnail grew as tall as the text beside it

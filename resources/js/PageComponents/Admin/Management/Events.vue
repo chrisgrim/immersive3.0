@@ -88,7 +88,7 @@
                         </td>
                         <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto">
                             <a 
-                                :href="`/events/${event.slug}`"
+                                :href="event.public_url || `/events/${event.slug}`"
                                 class="text-blue-600 hover:text-blue-800 hover:underline"
                             >
                                 {{ event.name }}
@@ -314,7 +314,7 @@
                         Edit Event
                     </a>
                     <a 
-                        :href="`/events/${selectedEvent?.slug}`"
+                        :href="selectedEvent?.public_url || `/events/${selectedEvent?.slug}`"
                         class="block w-full text-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-600"
                     >
                         View Event

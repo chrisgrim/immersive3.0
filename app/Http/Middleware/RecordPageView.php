@@ -23,7 +23,7 @@ use Symfony\Component\HttpFoundation\Response;
 class RecordPageView
 {
     public const PAGES = [
-        'home', 'search', 'events.show', 'organizers.show',
+        'home', 'search', 'events.show', 'events.instance', 'organizers.show', 'venues.show',
         'communities.show', 'communities.posts.show', 'help', 'privacy', 'terms',
     ];
 
@@ -87,7 +87,8 @@ class RecordPageView
 
         Analytics::record(Analytics::PAGE_VIEW, [
             'view_id' => $viewId,
-            'page' => $request->route()->getName(),
+            // A show's address shares its route with a listing's (EventController).
+            'page' => $request->attributes->get('analytics.page') ?? $request->route()->getName(),
             'path' => self::path($request),
             'event_id' => $request->attributes->get('analytics.event_id'),
             'organizer_id' => $request->attributes->get('analytics.organizer_id')

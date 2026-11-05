@@ -414,7 +414,7 @@ const SectionCell = (cellProps) => {
     const { row, column } = cellProps
     if (column.type === 'event') {
         const name = row.slug
-            ? h('a', { href: `/events/${row.slug}`, target: '_blank', class: 'font-semibold hover:underline block truncate' }, row.name)
+            ? h('a', { href: row.public_url || `/events/${row.slug}`, target: '_blank', class: 'font-semibold hover:underline block truncate' }, row.name)
             : h('span', { class: 'font-semibold text-[#717171] block truncate' }, `${row.name || `Event ${row.event_id}`} (removed)`)
         return h('div', { class: 'flex items-center gap-[1.2rem] min-w-0 text-left' }, [
             h('div', { class: 'shrink-0 w-[4rem] h-[4rem] rounded-[0.8rem] bg-[#F7F7F7] overflow-hidden' },

@@ -129,7 +129,7 @@ class AdminEventController extends Controller
         // Find any events with the same name (case-insensitive)
         $duplicateEvents = Event::whereRaw('LOWER(name) = ?', [strtolower($event->name)])
             ->where('id', '!=', $event->id)
-            ->select('id', 'name', 'slug')
+            ->select('id', 'name', 'slug', 'project_id', 'instance_slug')
             ->get();
 
         $event->duplicateEvents = $duplicateEvents;

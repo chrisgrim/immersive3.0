@@ -85,6 +85,7 @@ class SavedEventNewDatesNotification extends Notification implements ShouldQueue
             'type' => 'saved_event_new_dates',
             'event_id' => $this->event->id,
             'event_slug' => $this->event->slug,
+            'event_url' => $this->event->publicPath(),
             'event_name' => $this->event->name,
             'event_image' => $this->event->largeImagePath,
         ];

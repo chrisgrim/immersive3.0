@@ -2,7 +2,7 @@
     <div class="mt-8">
         <!-- Event summary card, links out to the full event page -->
         <div class="bg-white rounded-3xl shadow-custom-1 overflow-hidden mb-6">
-            <a :href="`/events/${event.slug}`" class="flex gap-4 p-4 hover:bg-neutral-50 transition-colors">
+            <a :href="event.public_url || `/events/${event.slug}`" class="flex gap-4 p-4 hover:bg-neutral-50 transition-colors">
                 <div class="w-40 h-40 rounded-2xl overflow-hidden bg-neutral-100 flex-shrink-0">
                     <picture v-if="event.images?.length">
                         <source type="image/webp" :srcset="`${imageUrl}${event.images[0].large_image_path}`">
@@ -105,7 +105,7 @@ const toggleNotify = async () => {
 };
 
 const share = async () => {
-    const url = `${window.location.origin}/events/${props.event.slug}`;
+    const url = `${window.location.origin}${props.event.public_url || `/events/${props.event.slug}`}`;
 
     if (navigator.share) {
         try {

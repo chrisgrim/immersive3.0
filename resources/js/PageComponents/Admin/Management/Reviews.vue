@@ -53,7 +53,7 @@
                         </td>
                         <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto">
                             <a 
-                                :href="`/events/${review.event?.slug}`" 
+                                :href="review.event?.public_url || `/events/${review.event?.slug}`" 
                                 target="_blank"
                                 class="text-blue-600 hover:text-blue-800"
                             >

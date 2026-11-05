@@ -819,7 +819,7 @@ const eventStatusLabel = (status) => {
 // queue view so the admin can take action immediately.
 const isPublicEvent = (event) => event.status === 'p' || event.status === 'e'
 const eventLink = (event) => {
-    if (isPublicEvent(event)) return `/events/${event.slug}`
+    if (isPublicEvent(event)) return event.public_url || `/events/${event.slug}`
     if (event.status === 'r') return `/admin/dashboard?view=approve-events&eventSlug=${event.slug}`
     return `/admin/dashboard?eventSlug=${event.slug}`
 }

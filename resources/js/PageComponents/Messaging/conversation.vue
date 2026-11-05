@@ -199,7 +199,7 @@ const getConversableLink = computed(() => {
     
     switch(type) {
         case 'Event':
-            return `/events/${conversable.slug}`;
+            return conversable.public_url || `/events/${conversable.slug}`;
         case 'Organizer':
             return `/organizers/${conversable.slug}`;
         case 'Community':

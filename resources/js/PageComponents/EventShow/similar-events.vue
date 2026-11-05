@@ -53,7 +53,7 @@
             <div v-for="similarEvent in similarEvents"
                :key="similarEvent.id"
                class="ml-10 first:ml-0 snap-start snap-always w-[23rem]">
-                <a :href="`/events/${similarEvent.slug}`" class="block w-full pb-16">
+                <a :href="similarEvent.public_url || `/events/${similarEvent.slug}`" class="block w-full pb-16">
                 <div class="rounded-2xl overflow-hidden h-full border border-gray-300" style="width: 23rem;">
                     <div class="w-full relative" style="height:30.67rem">
                         <img 

@@ -38,7 +38,7 @@
     <!-- Upcoming events (and always-available ones) -->
     @foreach ($upcomingEvents as $event)
     <url>
-        <loc>{{ route('events.show', $event) }}</loc>
+        <loc>{{ url($event->publicPath()) }}</loc>
         <lastmod>{{ $event->updated_at->toIso8601String() }}</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.8</priority>
@@ -48,13 +48,33 @@
     <!-- Past events: still listed, so they stay findable, but below upcoming ones -->
     @foreach ($pastEvents as $event)
     <url>
-        <loc>{{ route('events.show', $event) }}</loc>
+        <loc>{{ url($event->publicPath()) }}</loc>
         <lastmod>{{ $event->updated_at->toIso8601String() }}</lastmod>
         <changefreq>yearly</changefreq>
         <priority>0.3</priority>
     </url>
     @endforeach
     
+    <!-- Shows -->
+    @foreach ($projects as $project)
+    <url>
+        <loc>{{ url($project->publicPath()) }}</loc>
+        <lastmod>{{ $project->updated_at->toIso8601String() }}</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.8</priority>
+    </url>
+    @endforeach
+
+    <!-- Venues -->
+    @foreach ($venues as $venue)
+    <url>
+        <loc>{{ url($venue->publicPath()) }}</loc>
+        <lastmod>{{ $venue->updated_at->toIso8601String() }}</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.6</priority>
+    </url>
+    @endforeach
+
     <!-- Organizers - Only include canonical plural URLs -->
     @foreach ($organizers as $organizer)
     <url>

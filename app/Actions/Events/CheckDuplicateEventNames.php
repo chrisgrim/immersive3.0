@@ -28,7 +28,7 @@ class CheckDuplicateEventNames
             // A held draft's name is staff's business until it is approved.
             ->visibleToTeam($viewer)
             ->with(['organizer.owner', 'organizer.users'])
-            ->select('id', 'name', 'slug', 'status', 'organizer_id')
+            ->select('id', 'name', 'slug', 'project_id', 'instance_slug', 'status', 'organizer_id')
             ->get();
 
         if ($duplicateEvents->isEmpty()) {
@@ -47,6 +47,7 @@ class CheckDuplicateEventNames
                 'id' => $event->id,
                 'name' => $event->name,
                 'slug' => $event->slug,
+                'public_url' => $event->publicPath(),
                 'status' => $event->status,
                 'organizer' => $organizer ? [
                     'id' => $organizer->id,

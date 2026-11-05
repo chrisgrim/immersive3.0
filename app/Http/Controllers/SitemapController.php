@@ -7,6 +7,8 @@ use App\Models\Curated\Community;
 use App\Models\Curated\Post;
 use App\Models\Event;
 use App\Models\Organizer;
+use App\Models\Project;
+use App\Models\Venue;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -39,7 +41,7 @@ class SitemapController extends Controller
         $events = Event::where('status', 'p')
             ->whereNotNull('slug')
             ->where('slug', '!=', '')
-            ->get(['id', 'slug', 'showtype', 'closingDate', 'timezone', 'updated_at']);
+            ->get(['id', 'slug', 'project_id', 'instance_slug', 'showtype', 'closingDate', 'timezone', 'updated_at']);
 
         // Still running where the event is, not by the server's clock.
         $now = Carbon::now();
@@ -47,8 +49,19 @@ class SitemapController extends Controller
             fn (Event $event) => $event->showtype === 'a' || $event->closingAt()?->gte($now)
         );
 
+        // Exactly the pages EventController::showProject opens.
+        $projects = Project::whereHas('runs', fn ($query) => $query->where('status', Event::STATUS_PUBLISHED))
+            ->get(['id', 'slug', 'updated_at']);
+
+        // Exactly the pages VenueController::show opens.
+        $venues = Venue::where('status', Venue::APPROVED)
+            ->whereNull('merged_into_id')
+            ->get(['id', 'slug', 'updated_at']);
+
         $organizers = Organizer::where('status', 'p')
-            ->whereHas('events', fn ($query) => $query->where('status', 'p'))
+            ->where(fn ($query) => $query
+                ->whereHas('events', fn ($query) => $query->where('status', 'p'))
+                ->orWhereIn('id', $projects->isEmpty() ? [] : Project::whereKey($projects->modelKeys())->select('organizer_id')))
             ->whereNotNull('slug')
             ->where('slug', '!=', '')
             ->get(['id', 'slug', 'updated_at']);
@@ -81,6 +94,8 @@ class SitemapController extends Controller
         return view('sitemaps.index', [
             'upcomingEvents' => $upcomingEvents,
             'pastEvents' => $pastEvents,
+            'projects' => $projects,
+            'venues' => $venues,
             'organizers' => $organizers,
             'communities' => $communities,
             'posts' => $posts,

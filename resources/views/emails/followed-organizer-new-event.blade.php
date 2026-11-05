@@ -40,7 +40,7 @@
                 </div>
             </div>
             <div style="text-align: center;margin: auto;">
-                <a href="{{ url("/events/{$event->slug}") }}">
+                <a href="{{ url($event->publicPath()) }}">
                     <button style="
                         border: 1px solid #ff385c;
                         padding: .8rem 1.5rem;

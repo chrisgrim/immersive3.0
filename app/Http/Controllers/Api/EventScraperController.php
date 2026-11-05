@@ -113,14 +113,14 @@ class EventScraperController extends Controller
         // Check for duplicate events by name
         if ($data->name) {
             $matchingEvents = Event::whereRaw('LOWER(name) = ?', [strtolower($data->name)])
-                ->select('id', 'name', 'slug', 'status')
+                ->select('id', 'name', 'slug', 'project_id', 'instance_slug', 'status')
                 ->withoutGlobalScopes()
                 ->get()
                 ->map(fn ($event) => [
                     'id' => $event->id,
                     'name' => $event->name,
                     'slug' => $event->slug,
-                    'url' => "/events/{$event->slug}",
+                    'url' => $event->publicPath(),
                     'status' => $event->status,
                 ]);
 

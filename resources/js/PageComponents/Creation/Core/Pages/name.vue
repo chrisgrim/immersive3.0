@@ -59,7 +59,7 @@
                                             Added by {{ duplicate.organizer.name }}
                                         </span>
                                     </div>
-                                    <a :href="`/events/${duplicate.slug}`"
+                                    <a :href="duplicate.public_url || `/events/${duplicate.slug}`"
                                        target="_blank"
                                        class="shrink-0 text-2xl text-blue-600 hover:text-blue-800 underline whitespace-nowrap">
                                         View event

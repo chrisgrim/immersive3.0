@@ -1,6 +1,6 @@
 <template>
     <div class="w-full">
-        <a :href="`/events/${data.slug}?name=${name}&lat=${lat}&lng=${lng}`" class="flex gap-4 p-6 items-stretch">
+        <a :href="`${data.public_url || `/events/${data.slug}`}?name=${name}&lat=${lat}&lng=${lng}`" class="flex gap-4 p-6 items-stretch">
             <div class="w-28 aspect-[3/4] flex-shrink-0 rounded-xl overflow-hidden">
                 <div 
                     class="w-full h-full bg-cover bg-center bg-no-repeat rounded-x-xl" 

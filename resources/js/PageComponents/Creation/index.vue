@@ -453,7 +453,7 @@ const isEventPublished = (event) => {
 };
 
 const viewEvent = (event) => {
-	window.location.href = `/events/${event.slug}`;
+	window.location.href = event.public_url || `/events/${event.slug}`;
 };
 
 const editEvent = (event) => {

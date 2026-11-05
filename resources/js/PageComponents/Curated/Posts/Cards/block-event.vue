@@ -146,7 +146,7 @@ const v$ = useVuelidate(rules, { card })
 
 // Computed
 const url = computed(() => 
-    selectedEvent.value ? `/events/${selectedEvent.value.slug}` : 'Url (Optional)'
+    selectedEvent.value ? (selectedEvent.value.public_url || `/events/${selectedEvent.value.slug}`) : 'Url (Optional)'
 )
 
 const name = computed(() => 
@@ -214,7 +214,7 @@ const selectEvent = (event) => {
     card.value.event_id = event.id
     card.value.name = event.name
     card.value.blurb = event.tag_line || ''
-    card.value.url = `/events/${event.slug}`
+    card.value.url = event.public_url || `/events/${event.slug}`
     card.value.thumbImagePath = event.thumbImagePath || null
 }
 

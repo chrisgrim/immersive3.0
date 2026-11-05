@@ -571,10 +571,12 @@ class Event extends Model
     /**
      * Everything a search-map marker and its popup need, and nothing else.
      * map.vue / map-mobile.vue read id, price_range and location_latlon for
-     * the marker; map-element(-mobile).vue read slug, name, tag_line,
-     * price_range and thumbImagePath for the popup.
+     * the marker; map-element(-mobile).vue read public_url, name, tag_line,
+     * price_range and thumbImagePath for the popup. project_id and
+     * instance_slug are here for public_url (pins are built by hand, so the
+     * accessor does not run).
      */
-    public const MAP_PIN_FIELDS = ['id', 'slug', 'name', 'tag_line', 'price_range', 'thumbImagePath', 'location_latlon'];
+    public const MAP_PIN_FIELDS = ['id', 'slug', 'project_id', 'instance_slug', 'name', 'tag_line', 'price_range', 'thumbImagePath', 'location_latlon'];
 
     /**
      * The map's pins for these ids: only MAP_PIN_FIELDS, as plain arrays.
@@ -597,6 +599,7 @@ class Event extends Model
             ->map(fn (Event $event) => [
                 'id' => $event->id,
                 'slug' => $event->slug,
+                'public_url' => $event->publicPath(),
                 'name' => $event->name,
                 'tag_line' => $event->tag_line,
                 'price_range' => $event->price_range,

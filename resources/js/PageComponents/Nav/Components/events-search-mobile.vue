@@ -250,7 +250,7 @@ const onSelect = (item, type) => {
         window.location.href = `/organizers/${item.model.slug}`;
     }
     if (type === 'event') {
-        window.location.href = `/events/${item.model.slug}`;
+        window.location.href = item.model.public_url || `/events/${item.model.slug}`;
     }
 };
 
