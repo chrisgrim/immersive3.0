@@ -88,6 +88,12 @@ class NameChangeRequestService
         // relocating images, or they'd be moved under a stale/empty-slug path.
         $newSlug = $model->slug;
 
+        // The old address redirects from now on. An organizer's rename does
+        // this in its own hook, whichever path renames it.
+        if ($model instanceof Event) {
+            $model->rememberOldAddress($oldSlug);
+        }
+
         // Handle image paths if slug changed
         if ($newSlug !== $oldSlug && $model->images()->exists()) {
             ImageHandler::moveImagesForNewSlug($model, $oldSlug, $newSlug, $type);

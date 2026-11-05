@@ -56,6 +56,16 @@ class EventPolicy
     }
 
     /**
+     * Whether the user may ask for this listing to join a show, or take back
+     * the request a duplicate made. Open to a listing past its edit lock; a
+     * held draft stays out of reach, as with manage.
+     */
+    public function requestLink(User $user, Event $event): bool
+    {
+        return ! $event->trashed() && $this->manage($user, $event);
+    }
+
+    /**
      * Determine if the user can moderate events.
      */
     public function moderate(User $user): bool

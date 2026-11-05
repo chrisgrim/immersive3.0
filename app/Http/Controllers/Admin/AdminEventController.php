@@ -324,8 +324,11 @@ class AdminEventController extends Controller
             $slug = Event::finalSlug($event);
 
             // Update event with slug first before finalizing images
+            $previousSlug = $event->slug;
             $event->slug = $slug;
             $event->save();
+            // A re-approval can move a listing that has been public.
+            $event->rememberOldAddress($previousSlug);
 
             // Finalize images with the new slug
             ImageHandler::finalize($event, $slug, 'event');

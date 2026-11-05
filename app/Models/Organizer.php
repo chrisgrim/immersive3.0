@@ -7,6 +7,7 @@ use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class Organizer extends Model
 {
@@ -20,6 +21,9 @@ class Organizer extends Model
      */
     public const STAFF_TYPES = ['a', 'm'];
 
+    /** Set by the updating hook while a rename moves this organizer's address. */
+    public ?string $renamedFromSlug = null;
+
     protected static function boot()
     {
         parent::boot();
@@ -31,6 +35,18 @@ class Organizer extends Model
         static::updating(function ($organizer) {
             if ($organizer->isDirty('name')) {
                 $organizer->slug = static::generateUniqueSlug($organizer->name, $organizer->id);
+                $organizer->renamedFromSlug = $organizer->isDirty('slug') ? $organizer->getOriginal('slug') : null;
+            }
+        });
+
+        // A rename keeps the old address as a redirect, and going back to an
+        // earlier name drops that alias. Only renames: the admin slug swap in
+        // moveEvents hands addresses over by its own rules.
+        static::updated(function ($organizer) {
+            if ($organizer->renamedFromSlug !== null) {
+                SlugRedirect::remember('organizers/'.$organizer->renamedFromSlug, $organizer);
+                SlugRedirect::forget('organizers/'.$organizer->slug, $organizer);
+                $organizer->renamedFromSlug = null;
             }
         });
 
@@ -83,9 +99,10 @@ class Organizer extends Model
     }
 
     /**
-     * Check if a slug already exists
+     * Check if a slug is taken: by another organizer, or as an old address
+     * of anything but this one.
      */
-    protected static function slugExists($slug, $excludeId = null)
+    public static function slugExists($slug, $excludeId = null)
     {
         $query = static::where('slug', $slug);
 
@@ -93,7 +110,8 @@ class Organizer extends Model
             $query->where('id', '!=', $excludeId);
         }
 
-        return $query->exists();
+        return $query->exists()
+            || SlugRedirect::pointsElsewhere('organizers/'.$slug, (new static)->getMorphClass(), $excludeId);
     }
 
     protected $fillable = [
@@ -103,6 +121,11 @@ class Organizer extends Model
     public function getRouteKeyName()
     {
         return 'slug';
+    }
+
+    public function publicPath(): string
+    {
+        return '/organizers/'.$this->slug;
     }
 
     public function toSearchableArray()
@@ -232,8 +255,26 @@ class Organizer extends Model
         return $result;
     }
 
+    /** Whether this organizer still makes or keeps a project. */
+    public function holdsProjects(): bool
+    {
+        return Project::where('organizer_id', $this->id)->orWhere('editor_organizer_id', $this->id)->exists();
+    }
+
+    /**
+     * Deletes the organizer and its own listings. Refused while it makes or
+     * keeps a project: a project is never left without a company, so a
+     * moderator reassigns those first. Another presenter's run of its show is
+     * that presenter's listing and is never touched.
+     */
     public function deleteOrganizer($organizer)
     {
+        if ($organizer->holdsProjects()) {
+            throw ValidationException::withMessages([
+                'organizer' => 'This organizer still makes or keeps a project. Reassign it first.',
+            ]);
+        }
+
         if ($organizer->users()->exists()) {
             $organizer->users()->detach();
         }

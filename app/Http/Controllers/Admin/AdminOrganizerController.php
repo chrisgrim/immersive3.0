@@ -8,6 +8,8 @@ use App\Mail\Comments;
 use App\Models\Event;
 use App\Models\Messaging\Message;
 use App\Models\Organizer;
+use App\Models\Project;
+use App\Models\SlugRedirect;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -167,11 +169,22 @@ class AdminOrganizerController extends Controller
                 ->where('organizer_id', $organizer->id)
                 ->update(['organizer_id' => $destination->id]);
 
+            // Its projects go with its listings: a project is never left
+            // without a company.
+            Project::withTrashed()->where('organizer_id', $organizer->id)->update(['organizer_id' => $destination->id]);
+            Project::withTrashed()->where('editor_organizer_id', $organizer->id)->update(['editor_organizer_id' => $destination->id]);
+
             if (! empty($validated['swap_slug'])) {
                 // Source becomes "{slug}-old" (or "-old-2", "-old-3", ... if taken).
                 // Then destination takes the source's original clean slug.
+                $destinationSlug = $destination->slug;
                 $organizer->update(['slug' => $this->generateOldSlug($sourceSlug)]);
                 $destination->update(['slug' => $sourceSlug]);
+
+                // The destination's old address follows it. The source's old
+                // one is the destination's live address now, so it has no row.
+                SlugRedirect::remember('organizers/'.$destinationSlug, $destination);
+                SlugRedirect::where('path', 'organizers/'.$sourceSlug)->delete();
             }
         });
 
@@ -209,7 +222,7 @@ class AdminOrganizerController extends Controller
     {
         $candidate = $cleanSlug.'-old';
         $i = 2;
-        while (Organizer::where('slug', $candidate)->exists()) {
+        while (Organizer::slugExists($candidate)) {
             $candidate = $cleanSlug.'-old-'.$i;
             $i++;
             if ($i > 100) {

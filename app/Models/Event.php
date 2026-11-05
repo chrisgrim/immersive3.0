@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\Projects\RequestLink;
 use App\Jobs\SyncEventSearchIndex;
 use App\Models\Admin\CuratedEventCheck;
 use App\Models\Admin\ReviewEvent;
@@ -21,6 +22,7 @@ use App\Models\Events\ShowChangeLog;
 use App\Models\Events\Ticket;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Services\ImageHandler;
+use App\Support\Projects\InstanceAddress;
 use App\Support\ShowHistory;
 use App\Support\Slug;
 use App\Traits\Favoritable;
@@ -76,12 +78,25 @@ class Event extends Model
     ];
 
     protected $fillable = [
-        'slug', 'user_id', 'timezone', 'category_id', 'attendance_type_id', 'interactive_level_id', 'organizer_id', 'description', 'name', 'largeImagePath', 'thumbImagePath', 'advisories_id', 'organizer_id', 'location_latlon', 'closingDate', 'websiteUrl', 'ticketUrl', 'show_times', 'price_range', 'status', 'tag_line', 'hasLocation', 'showtype', 'showtype_config', 'start_date', 'embargo_date', 'remote_description', 'published_at', 'call_to_action', 'age_limits_id', 'rank', 'archived',
+        'slug', 'user_id', 'timezone', 'category_id', 'attendance_type_id', 'interactive_level_id', 'organizer_id', 'description', 'name', 'largeImagePath', 'thumbImagePath', 'advisories_id', 'organizer_id', 'location_latlon', 'closingDate', 'websiteUrl', 'ticketUrl', 'show_times', 'price_range', 'status', 'tag_line', 'hasLocation', 'showtype', 'showtype_config', 'start_date', 'embargo_date', 'remote_description', 'published_at', 'call_to_action', 'age_limits_id', 'rank', 'archived', 'project_id', 'instance_slug', 'edition', 'run_type', 'festival', 'special_thanks',
     ];
 
-    protected $appends = ['isFavorited', 'isShowing', 'isEditLocked'];
+    protected $appends = ['isFavorited', 'isShowing', 'isEditLocked', 'public_url'];
 
-    protected $hidden = ['favorites', 'currentUserFavorite'];
+    // special_thanks has no public rendering this round, and this model is
+    // serialized onto public pages: the hosting screens makeVisible() it.
+    protected $hidden = ['favorites', 'currentUserFavorite', 'project', 'special_thanks'];
+
+    /**
+     * public_url is on every serialized event and needs the project's slug.
+     * Loaded with the query so a page of cards costs one query rather than
+     * one per linked card; a page of plain listings has no ids to look up and
+     * runs none.
+     */
+    protected $with = ['project'];
+
+    /** Set by the restoring hook when the project this run belonged to is gone. */
+    private ?int $restoredWithoutProject = null;
 
     protected static function booted()
     {
@@ -114,9 +129,52 @@ class Event extends Model
                 return;
             }
 
+            if ($event->project_id !== null) {
+                $project = Project::find($event->project_id);
+
+                if ($project) {
+                    $event->setRelation('project', $project);
+                    $event->instance_slug = InstanceAddress::allocate($event, $project, $event->releasedInstanceSlug());
+                } else {
+                    $event->restoredWithoutProject = $event->project_id;
+                    $event->forceFill(['project_id' => null, 'instance_slug' => null, 'edition' => null]);
+                    $event->setRelation('project', null);
+                }
+            }
+
             $event->slug = $event->published_at !== null
                 ? static::finalSlug($event)
                 : static::placeholderSlug();
+        });
+
+        static::restored(function (Event $event) {
+            SlugRedirect::forget($event->addressPath(), $event);
+
+            // Off a show that no longer exists, it is a plain listing again,
+            // and keeps the writers it had through that show.
+            if ($event->restoredWithoutProject !== null) {
+                Project::withTrashed()->find($event->restoredWithoutProject)
+                    ?->writers()->approved()->get()
+                    ->each(fn (Credit $credit) => $credit->copyOnto($event));
+
+                $event->restoredWithoutProject = null;
+            }
+        });
+
+        // The 72-hour clock on a link request starts when the listing is
+        // submitted, by whichever path (website, MCP, an admin status edit).
+        static::saved(function (Event $event) {
+            if (! $event->wasChanged('status')) {
+                return;
+            }
+
+            $pending = ProjectLinkRequest::pending()->where('event_id', $event->id)->whereNull('escalated_at');
+
+            if ($event->status === self::STATUS_IN_REVIEW) {
+                $pending->update(['submitted_at' => now()]);
+            } elseif (in_array($event->status, self::LIVE_STATUSES, true)) {
+                $pending->whereNull('submitted_at')->update(['submitted_at' => now()]);
+            }
         });
 
         // scopeStillRunning caches the timezones in use; a zone it has not
@@ -142,18 +200,108 @@ class Event extends Model
         return 'deleted--'.$id;
     }
 
-    /** Swap this (already soft-deleted) event's slug for its released one. */
+    /**
+     * Swap this (already soft-deleted) event's slug for its released one, and
+     * a run's address under its show too. The log keeps the run's old address
+     * so a restore can ask for it back.
+     */
     public function releaseSlug(): void
     {
         $slug = static::releasedSlug($this->id);
+        $instanceSlug = $this->instance_slug !== null ? $slug : null;
 
         // Only while it's still deleted, so a restore that lands first keeps its slug.
-        $released = static::withoutGlobalScopes()->whereKey($this->id)->whereNotNull('deleted_at')->update(['slug' => $slug]);
+        $released = static::withoutGlobalScopes()->whereKey($this->id)->whereNotNull('deleted_at')
+            ->update(['slug' => $slug, 'instance_slug' => $instanceSlug]);
 
         if ($released) {
+            if ($instanceSlug !== null) {
+                AuditLog::record($this, 'event.instance_released', auth()->user(), [
+                    'project_id' => $this->project_id,
+                    'instance_slug' => $this->instance_slug,
+                ]);
+            }
+
             $this->slug = $slug;
-            $this->syncOriginalAttribute('slug');
+            $this->instance_slug = $instanceSlug;
+            $this->syncOriginalAttributes(['slug', 'instance_slug']);
         }
+    }
+
+    /** The address this run gave up when it was deleted. */
+    private function releasedInstanceSlug(): ?string
+    {
+        $released = AuditLog::where('subject_type', $this->getMorphClass())
+            ->where('subject_id', $this->id)
+            ->where('action', 'event.instance_released')
+            ->latest('id')
+            ->first();
+
+        return $released?->details['project_id'] === $this->project_id
+            ? $released->details['instance_slug']
+            : null;
+    }
+
+    /** Whether this listing is a run of a show. */
+    public function isLinked(): bool
+    {
+        return $this->project_id !== null;
+    }
+
+    /**
+     * Where the public finds this listing: under its show when it is a run
+     * of one, otherwise at its own slug. events.slug stays the internal key
+     * for hosting, favorites, the MCP tools and image folders either way.
+     */
+    public function publicPath(): string
+    {
+        if ($this->project_id !== null && $this->instance_slug !== null && $this->project !== null) {
+            return "/events/{$this->project->slug}/{$this->instance_slug}";
+        }
+
+        return '/events/'.$this->slug;
+    }
+
+    /** publicPath() as a slug_redirects path. */
+    public function addressPath(): string
+    {
+        return ltrim($this->publicPath(), '/');
+    }
+
+    /** Serialized for the front end. Null on a query that did not select the slug. */
+    public function getPublicUrlAttribute(): ?string
+    {
+        return $this->slug === null ? null : $this->publicPath();
+    }
+
+    /**
+     * After a slug write that moved a listing off $oldSlug: the old address
+     * redirects here, and an old alias of the address it now has goes. Not
+     * for a listing that was never public, and never over an address someone
+     * else owns: a project's, above all the plain address it took over from
+     * this very listing.
+     */
+    public function rememberOldAddress(string $oldSlug): void
+    {
+        if ($oldSlug === $this->slug) {
+            return;
+        }
+
+        $oldPath = 'events/'.$oldSlug;
+
+        if ($this->published_at !== null
+            && ! Project::withTrashed()->where('slug', $oldSlug)->exists()
+            && ! SlugRedirect::pointsElsewhere($oldPath, $this->getMorphClass(), $this->id)) {
+            SlugRedirect::remember($oldPath, $this);
+        }
+
+        SlugRedirect::forget($this->addressPath(), $this);
+    }
+
+    /** The event's slug once it stops being a run: its own, if it can still have it. */
+    public function plainSlug(): string
+    {
+        return static::slugExists($this->slug, $this->id) ? static::finalSlug($this) : $this->slug;
     }
 
     /** The random slug an event holds until approval gives it one from its name. */
@@ -933,6 +1081,23 @@ class Event extends Model
         return $this->belongsTo(Organizer::class);
     }
 
+    /** The show this listing is a run of, once a link is approved. */
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    /** A run's own credits. Its full list also has its project's writers. */
+    public function credits()
+    {
+        return $this->morphMany(Credit::class, 'creditable');
+    }
+
+    public function linkRequests()
+    {
+        return $this->hasMany(ProjectLinkRequest::class);
+    }
+
     /**
      * Each Event has One Location
      *
@@ -1205,14 +1370,19 @@ class Event extends Model
     }
 
     /**
-     * Check if a slug exists for any other event
+     * Check if a slug is out of reach for this event: another event has it, a
+     * project goes by it (a run's own project included, so a first listing
+     * never gets the address it passed on), or an old address of anything but
+     * this event reserves it.
      */
     private static function slugExists(string $slug, ?int $excludeId = null): bool
     {
         return static::withTrashed()
             ->where('slug', $slug)
             ->when($excludeId, fn ($query) => $query->where('id', '!=', $excludeId))
-            ->exists();
+            ->exists()
+            || Project::withTrashed()->where('slug', $slug)->exists()
+            || SlugRedirect::pointsElsewhere('events/'.$slug, (new static)->getMorphClass(), $excludeId);
     }
 
     /**
@@ -1272,7 +1442,9 @@ class Event extends Model
     {
         return DB::transaction(function () {
             // Create new event with duplicated attributes (excluding location, ticket, and price data)
-            $newEvent = $this->replicate(['location_latlon', 'ticketUrl', 'price_range', 'closingDate', 'show_times', 'showtype', 'show_history']);
+            // A copy is its own run: it asks to join the show (below), and a
+            // copy of a world premiere at SXSW is neither. special_thanks copies.
+            $newEvent = $this->replicate(['location_latlon', 'ticketUrl', 'price_range', 'closingDate', 'show_times', 'showtype', 'show_history', 'project_id', 'instance_slug', 'edition', 'run_type', 'festival']);
             $newEvent->slug = static::placeholderSlug();
             // The copy is credited to whoever made it (the admin "Submitted by"
             // column), not to the author of the event it was copied from.
@@ -1340,6 +1512,12 @@ class Event extends Model
                 $newVideo->videoable_id = $newEvent->id;
                 $newVideo->save();
             }
+
+            // Every copy of a published listing asks to join the show of the
+            // listing it came from, whether or not that listing is part of a
+            // show yet. A moderator confirms it. No credit rows: those copy
+            // when the link is approved.
+            app(RequestLink::class)->forDuplicate($newEvent, $this, auth()->id() ?? $this->user_id);
 
             return $newEvent->fresh([
                 'location',
