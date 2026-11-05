@@ -35,7 +35,7 @@
     <title>{{$event->name}} {{$event->tag_line ? '- ' . \Illuminate\Support\Str::limit($event->tag_line, 80) : '- ' . \Illuminate\Support\Str::limit($event->description, 80)}} </title>
     @php
         // Generate a clean canonical URL without any query parameters
-        $url = url("/events/{$event->slug}");
+        $url = url($event->publicPath());
     @endphp
     <link rel="canonical" href="{{ $url }}">
     <meta name="description" content="{{$event->tag_line ? $event->tag_line : $event->description}}"/>

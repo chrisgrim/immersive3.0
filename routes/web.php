@@ -12,6 +12,8 @@ use App\Http\Controllers\SavedSearchController;
 use App\Http\Controllers\Search\ListingsController;
 use App\Http\Controllers\User\ConversationsController;
 use App\Http\Controllers\User\ProfilesController;
+use App\Models\SlugRedirect;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -32,7 +34,17 @@ Route::GET('/index/search/replay', [SavedSearchController::class, 'replay'])->mi
 
 // Primary canonical routes
 Route::GET('/events/{event}', [EventController::class, 'show'])->name('events.show');
-Route::GET('/organizers/{organizer}', [OrganizerController::class, 'show'])->name('organizers.show');
+Route::GET('/events/{project}/{instance}', [EventController::class, 'instance'])->name('events.instance');
+Route::GET('/organizers/{organizer}', [OrganizerController::class, 'show'])
+    ->missing(function (Request $request) {
+        // A renamed organizer's old address follows it.
+        $destination = SlugRedirect::where('path', ltrim($request->path(), '/'))->first()?->destination();
+
+        abort_unless($destination !== null, 404);
+
+        return redirect(...$destination);
+    })
+    ->name('organizers.show');
 
 // Redirect singular versions to plural with 301 redirects
 Route::GET('/event/{slug}', function ($slug) {

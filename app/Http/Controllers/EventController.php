@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Event;
 use App\Models\Events\Show;
 use App\Models\Organizer;
+use App\Models\Project;
+use App\Models\SlugRedirect;
 use App\Scopes\DateScope;
 use App\Support\Analytics\Analytics;
 use App\Support\ShowHistory;
@@ -15,22 +17,119 @@ use Illuminate\Support\Js;
 class EventController extends Controller
 {
     /**
-     * $event is the slug. A show page nobody can see (no event goes by the
-     * slug, or the event isn't published) is a real 404 with the site's
-     * navigation, not a redirect home: Google counted those redirects as
-     * soft 404s. A deleted event gives its slug up when it is deleted
-     * (Event::releaseSlug), so it is never found here, and nothing of a
-     * removed listing (name or image) is shown to anyone. Draft, in-review
-     * and embargoed events 404 the same way, so the slug confirms nothing.
+     * $event is the last segment of the address, in this order:
+     *  1. a live project goes by it (404 unless a run is published);
+     *  2. it is an old address, which leads where its record is now;
+     *  3. an event goes by it: a published run moves to its address under the
+     *     show, a published plain listing is shown here.
+     *
+     * Every other answer is a real 404 with the site's navigation, not a
+     * redirect home: Google counted those redirects as soft 404s. A deleted
+     * event gives its slug up when it is deleted (Event::releaseSlug), so it
+     * is never found here, and nothing of a removed listing (name or image)
+     * is shown to anyone. Draft, in-review and embargoed events 404 the same
+     * way, so the slug confirms nothing; that goes for an unpublished run too,
+     * which is not redirected to the address under its show.
      */
     public function show(string $event)
     {
-        $event = Event::where('slug', $event)->first();
+        $project = Project::where('slug', $event)->first();
 
-        if (! $event || $event->status !== 'p') {
+        if ($project) {
+            return $this->showProject($project);
+        }
+
+        if ($moved = $this->movedTo('events/'.$event)) {
+            return $moved;
+        }
+
+        $listing = Event::where('slug', $event)->first();
+
+        if (! $listing || $listing->status !== Event::STATUS_PUBLISHED) {
             abort(404);
         }
 
+        if ($listing->isLinked()) {
+            return $this->redirectTo($listing->publicPath(), 301);
+        }
+
+        return $this->showListing($listing);
+    }
+
+    /**
+     * A run under its show. Published, it is shown; taken down but not
+     * deleted, it 404s. Otherwise an old address leads on, then a mistyped
+     * one (or a deleted run's released one) goes to the show's page.
+     */
+    public function instance(string $project, string $instance)
+    {
+        $show = Project::where('slug', $project)->first();
+
+        $run = $show
+            ? Event::where('project_id', $show->id)->where('instance_slug', $instance)->first()
+            : null;
+
+        if ($run) {
+            abort_unless($run->status === Event::STATUS_PUBLISHED, 404);
+
+            return $this->showListing($run);
+        }
+
+        if ($moved = $this->movedTo("events/{$project}/{$instance}")) {
+            return $moved;
+        }
+
+        // The first segment may be an old address of the show: same run, new
+        // show address. If the show has since become a plain listing, that
+        // listing is where its runs' old addresses lead.
+        $redirect = SlugRedirect::where('path', 'events/'.$project)->first();
+
+        if ($redirect?->target() instanceof Project && ! $redirect->target()->trashed()) {
+            return $this->redirectTo($redirect->target()->publicPath().'/'.$instance, 301);
+        }
+
+        if ($moved = $this->movedTo('events/'.$project)) {
+            return $moved;
+        }
+
+        abort_unless($show !== null, 404);
+
+        return $this->redirectTo($show->publicPath(), 302);
+    }
+
+    /**
+     * The project page is not built yet (it comes with a later stage), so for
+     * now the show's address leads to a published run. Temporary (302), so
+     * nothing is remembered once the real page takes over here.
+     */
+    private function showProject(Project $project)
+    {
+        $run = $project->runs()->where('status', Event::STATUS_PUBLISHED)
+            ->orderByStillRunningFirst()
+            ->first();
+
+        abort_unless($run !== null, 404);
+
+        return $this->redirectTo($run->publicPath(), 302);
+    }
+
+    private function movedTo(string $path)
+    {
+        $destination = SlugRedirect::where('path', $path)->first()?->destination();
+
+        return $destination ? $this->redirectTo(...$destination) : null;
+    }
+
+    /** A redirect that keeps the query string, so campaign links survive a move. */
+    private function redirectTo(string $path, int $status)
+    {
+        $query = request()->getQueryString();
+
+        return redirect($query ? $path.'?'.$query : $path, $status);
+    }
+
+    private function showListing(Event $event)
+    {
         $this->recordView($event, request());
 
         $event->load([
