@@ -12,11 +12,11 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
 /**
- * A moderator corrects who made a show, hands its page to another company, or
- * gives it another address. The model's hook keeps the old address as a
+ * A moderator renames a show, corrects who made it, hands its page to another
+ * company, or gives it another address. A new name leaves the address alone. The model's hook keeps the old address as a
  * redirect. Refused if the new address is anybody else's.
  *
- * @param  array{organizer_id?: int, editor_organizer_id?: int|null, slug?: string}  $changes
+ * @param  array{name?: string, organizer_id?: int, editor_organizer_id?: int|null, slug?: string}  $changes
  */
 class UpdateProject
 {
@@ -24,7 +24,7 @@ class UpdateProject
     {
         Gate::forUser($actor)->authorize('update', $project);
 
-        $changes = Arr::only($changes, ['organizer_id', 'editor_organizer_id', 'slug']);
+        $changes = Arr::only($changes, ['name', 'organizer_id', 'editor_organizer_id', 'slug']);
 
         return DB::transaction(function () use ($project, $changes, $actor) {
             Project::whereKey($project->id)->lockForUpdate()->firstOrFail();

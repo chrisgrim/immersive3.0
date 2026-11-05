@@ -248,6 +248,21 @@ test('the same city twice counts once, several platforms read online', function 
     expect($this->get($run->publicPath())->viewData('projectLine')['also'])->toBe('Also in Rome and online.');
 });
 
+test('a platform that is not a place reads naturally', function () {
+    $run = runOf($this->project, 'Chicago');
+    zoomRun($this->project, ['Web browser'])->update(['closingDate' => now()->addDays(5)]);
+
+    expect($this->get($run->publicPath())->viewData('projectLine')['also'])->toBe('Also online.');
+});
+
+test('a phone line and a city read as one sentence', function () {
+    $run = runOf($this->project, 'Chicago');
+    runOf($this->project, 'Rome', ['closingDate' => now()->addDays(5)]);
+    zoomRun($this->project, ['Telephone'])->update(['closingDate' => now()->addDays(6)]);
+
+    expect($this->get($run->publicPath())->viewData('projectLine')['also'])->toBe('Also in Rome and by phone.');
+});
+
 test('past, embargoed and unpublished runs are not named', function () {
     $run = runOf($this->project, 'Chicago');
     runOf($this->project, 'Oldville', ['closingDate' => now()->subDays(10)]);

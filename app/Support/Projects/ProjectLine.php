@@ -15,6 +15,21 @@ class ProjectLine
 {
     public const ALSO_IN = 2;
 
+    /** Platforms that are not a place to be "on". Anything else reads "on Zoom". */
+    private const PLATFORM_PHRASES = [
+        'web browser' => 'online',
+        'web site' => 'online',
+        'website' => 'online',
+        'computer' => 'online',
+        'telephone' => 'by phone',
+        'physical mail' => 'by mail',
+        'email' => 'by email',
+        'sms/text message' => 'by text',
+        'podcast/mp3' => 'as a podcast',
+        'app' => 'in an app',
+        'video conferencing' => 'by video call',
+    ];
+
     /** @return array{project: Project, also: ?string}|null */
     public static function for(Event $event): ?array
     {
@@ -54,14 +69,14 @@ class ProjectLine
         }
 
         foreach ($places->where('kind', 'platform') as $place) {
-            $parts[] = 'on '.$place['name'];
+            $parts[] = self::PLATFORM_PHRASES[mb_strtolower($place['name'])] ?? 'on '.$place['name'];
         }
 
         if ($places->contains('kind', 'online')) {
             $parts[] = 'online';
         }
 
-        return 'Also '.implode(' and ', $parts).'.';
+        return 'Also '.implode(' and ', array_unique($parts)).'.';
     }
 
     /** @return array{kind: string, name: string}|null */

@@ -140,6 +140,15 @@ test('PATCH can hand the page back to the maker', function () {
     expect($project->fresh()->keeper()->id)->toBe($project->organizer_id);
 });
 
+test('PATCH renames a show and leaves its address', function () {
+    $project = twoRunShow();
+
+    $this->patchJson('/api/admin/projects/ha-ha-ha', ['name' => 'Ha Ha Ha!'])->assertOk()->assertJsonPath('project.name', 'Ha Ha Ha!');
+
+    expect($project->fresh()->slug)->toBe('ha-ha-ha');
+    $this->patchJson('/api/admin/projects/ha-ha-ha', ['name' => '...'])->assertStatus(422);
+});
+
 test('PATCH refuses a taken, reserved or released address', function () {
     Project::factory()->create(['slug' => 'a-show']);
     $listing = publishedListing('Taken', 'Rome');

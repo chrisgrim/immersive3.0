@@ -117,14 +117,12 @@ class LinkEventToProject
 
             AuditLog::record($fresh, 'link_request.rejected', $actor, ['event_id' => $fresh->event_id]);
 
-            if (! $actor->isModerator()) {
-                $name = $fresh->event?->name;
-                $show = $fresh->project?->name;
-                $body = "\"{$name}\" will not be listed as part of \"{$show}\"."
-                    .($note ? "\n\nReason: {$note}" : '');
+            // Keeper or moderator, the presenter hears why.
+            $show = $fresh->project?->name ?? $fresh->sourceEvent?->name;
+            $body = "\"{$fresh->event?->name}\" will not be listed as part of \"{$show}\"."
+                .($note ? "\n\nReason: {$note}" : '');
 
-                DB::afterCommit(fn () => $this->tell($fresh->event?->organizer, $body));
-            }
+            DB::afterCommit(fn () => $this->tell($fresh->event?->organizer, $body));
         });
 
         $request->refresh();

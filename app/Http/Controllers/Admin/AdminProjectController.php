@@ -17,7 +17,8 @@ class AdminProjectController extends Controller
     /** For the review screen's "change": shows by name. */
     public function index(Request $request)
     {
-        return Project::with('organizer:id,name')
+        return Project::with(['organizer:id,name', 'editor:id,name'])
+            ->withCount('runs')
             ->when($request->keywords, fn ($query, $keywords) => $query->where('name', 'like', '%'.addcslashes($keywords, '\\%_').'%'))
             ->orderBy('name')
             ->paginate(20)
@@ -26,7 +27,9 @@ class AdminProjectController extends Controller
                 'name' => $project->name,
                 'slug' => $project->slug,
                 'public_url' => $project->publicPath(),
+                'runs_count' => $project->runs_count,
                 'organizer' => $project->organizer?->only(['id', 'name']),
+                'editor' => $project->editor?->only(['id', 'name']),
             ]);
     }
 
@@ -55,6 +58,7 @@ class AdminProjectController extends Controller
     public function update(Request $request, Project $project, UpdateProject $update)
     {
         $validated = $request->validate([
+            'name' => ['sometimes', 'required', 'string', 'max:255', 'regex:/[\p{L}\p{N}]/u'],
             'organizer_id' => ['sometimes', 'required', 'integer', 'exists:organizers,id'],
             'editor_organizer_id' => ['sometimes', 'nullable', 'integer', 'exists:organizers,id'],
             'slug' => ['sometimes', 'required', 'string', 'max:255', 'regex:'.Project::SLUG_PATTERN],

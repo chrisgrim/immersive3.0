@@ -183,6 +183,16 @@ test('the presenter hears when a keeper approves', function () {
     Mail::assertQueued(App\Mail\Comments::class, fn ($mail) => $mail->hasTo($listing->organizer->owner->email));
 });
 
+test('a moderator\'s decline tells the presenter too', function () {
+    $listing = publishedListing('Ha Ha Ha', 'Rome');
+    $request = ProjectLinkRequest::create(['event_id' => $listing->id, 'project_id' => $this->project->id]);
+
+    $this->actingAs(staffModerator())->postJson("/api/admin/link-requests/{$request->id}/reject", ['note' => 'Different show'])->assertOk();
+
+    Mail::assertQueued(App\Mail\Comments::class, fn ($mail) => $mail->hasTo($listing->organizer->owner->email)
+        && str_contains($mail->attributes['body'], 'Reason: Different show'));
+});
+
 test('a keeper cannot approve a listing that is not live, nor publish one by approving', function () {
     $draft = publishedListing('Ha Ha Ha', 'Rome', ['status' => 'r']);
     $request = ProjectLinkRequest::create(['event_id' => $draft->id, 'project_id' => $this->project->id]);
