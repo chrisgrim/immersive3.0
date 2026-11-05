@@ -2,19 +2,33 @@
 
 use App\Mcp\Servers\EiServer;
 use App\Mcp\Tools\AttachEventImage;
+use App\Mcp\Tools\CopyCredits;
 use App\Mcp\Tools\CreateEventDraft;
 use App\Mcp\Tools\CreateOrganizer;
+use App\Mcp\Tools\DissolveProject;
 use App\Mcp\Tools\GetEvent;
+use App\Mcp\Tools\LinkEventToProject;
 use App\Mcp\Tools\ListAllEvents;
 use App\Mcp\Tools\ListMyEvents;
+use App\Mcp\Tools\MergeArtists;
+use App\Mcp\Tools\MergeVenues;
 use App\Mcp\Tools\RemoveEventImage;
+use App\Mcp\Tools\SetCredits;
+use App\Mcp\Tools\SetEventVenue;
 use App\Mcp\Tools\SubmitEventForReview;
+use App\Mcp\Tools\UnlinkEvent;
 use App\Mcp\Tools\UpdateEvent;
 use App\Mcp\Tools\UpdateOrganizer;
+use App\Mcp\Tools\UpdateProject;
 use App\Mcp\Tools\Whoami;
+use App\Models\Artist;
+use App\Models\Credit;
 use App\Models\Event;
 use App\Models\Organizer;
+use App\Models\Project;
+use App\Models\ProjectLinkRequest;
 use App\Models\User;
+use App\Models\Venue;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Passport\Passport;
@@ -163,4 +177,113 @@ test('a moderator\'s assistant is confined to their own organizers; a key with m
     viaToken($moderator, ['mcp:use', User::MODERATE_SCOPE])->tool(GetEvent::class, ['event_slug' => $draft->slug])->assertOk();
     viaToken($moderator, ['mcp:use', User::MODERATE_SCOPE])->tool(ListAllEvents::class, ['status' => 'draft'])->assertOk()->assertSee($draft->slug);
     viaToken($moderator, ['mcp:use', User::MODERATE_SCOPE])->tool(Whoami::class)->assertOk()->assertSee('NOT limited to the organizers');
+});
+
+// ----- shows, venues and credits -----
+
+function tenantRun(Project $project, Organizer $organizer, User $owner, string $instance): Event
+{
+    $event = tenantEvent($organizer, $owner, 'p');
+    $event->update(['project_id' => $project->id, 'instance_slug' => $instance, 'published_at' => now()]);
+
+    return $event->fresh();
+}
+
+test('every moderator tool refuses an organizer, and a moderator whose token lacks the scope', function () {
+    Mail::fake();
+    $owner = tenantUser();
+    $organizer = tenantOrganizer($owner);
+    $project = Project::factory()->create(['organizer_id' => $organizer->id, 'slug' => 'a-show', 'name' => 'A Show']);
+    $run = tenantRun($project, $organizer, $owner, 'rome-2026');
+    $other = tenantRun($project, $organizer, $owner, 'paris-2026');
+    $plain = tenantEvent($organizer, $owner, 'p');
+    $venue = Venue::factory()->create();
+    $spare = Venue::factory()->create();
+    $artist = Artist::factory()->create();
+    $spareArtist = Artist::factory()->create();
+
+    $calls = [
+        [LinkEventToProject::class, ['event_slug' => $plain->slug, 'project_slug' => 'a-show']],
+        [UnlinkEvent::class, ['event_slug' => $run->slug]],
+        [DissolveProject::class, ['project_slug' => 'a-show']],
+        [UpdateProject::class, ['project_slug' => 'a-show', 'name' => 'Hijacked']],
+        [CopyCredits::class, ['from_event_slug' => $run->slug, 'to_event_slug' => $other->slug]],
+        [SetEventVenue::class, ['event_slug' => $run->slug, 'venue_id' => $venue->id]],
+        [MergeVenues::class, ['venue_id' => $spare->id, 'into_venue_id' => $venue->id]],
+        [MergeArtists::class, ['artist_id' => $spareArtist->id, 'into_artist_id' => $artist->id]],
+    ];
+
+    // Its own organizer's owner has no moderator powers either.
+    foreach ([[$owner, ['mcp:use']], [tenantUser('m'), ['mcp:use']]] as [$user, $scopes]) {
+        foreach ($calls as [$tool, $arguments]) {
+            viaToken($user, $scopes)->tool($tool, $arguments)->assertHasErrors()->assertSee('Moderators only');
+        }
+    }
+
+    expect($project->fresh()->name)->toBe('A Show')
+        ->and($run->fresh()->isLinked())->toBeTrue()
+        ->and($plain->fresh()->isLinked())->toBeFalse()
+        ->and($spare->fresh()->merged_into_id)->toBeNull()
+        ->and($spareArtist->fresh()->merged_into_id)->toBeNull();
+});
+
+test('set-credits stays on your own side, and reads the same either way', function () {
+    $owner = tenantUser();
+    $organizer = tenantOrganizer($owner);
+    $project = Project::factory()->create(['organizer_id' => $organizer->id, 'slug' => 'a-show']);
+    $event = tenantEvent($organizer, $owner, '0');
+    $stranger = tenantUser();
+    tenantOrganizer($stranger);
+    $artist = Artist::factory()->create();
+    $row = ['credits' => [['artist_id' => $artist->id, 'department' => 'cast']]];
+
+    $denied = 'No event or show with that slug whose credits you can edit.';
+    viaToken($stranger)->tool(SetCredits::class, ['event_slug' => $event->slug] + $row)->assertHasErrors()->assertSee($denied);
+    viaToken($stranger)->tool(SetCredits::class, ['event_slug' => 'no-such-'.uniqid()] + $row)->assertHasErrors()->assertSee($denied);
+    viaToken($stranger)->tool(SetCredits::class, ['project_slug' => 'a-show', 'credits' => [['artist_id' => $artist->id, 'department' => 'writing']]])->assertHasErrors();
+
+    expect(Credit::count())->toBe(0);
+
+    viaToken($owner)->tool(SetCredits::class, ['event_slug' => $event->slug] + $row)->assertOk();
+    viaToken($owner)->tool(SetCredits::class, ['project_slug' => 'a-show', 'credits' => [['artist_id' => $artist->id, 'department' => 'writing']]])->assertOk();
+
+    expect($event->credits()->count())->toBe(1)->and($project->writers()->count())->toBe(1);
+});
+
+test('a curator or a moderator on a plain token cannot set another team\'s credits', function () {
+    $owner = tenantUser();
+    $event = tenantEvent(tenantOrganizer($owner), $owner, 'p');
+    $row = ['event_slug' => $event->slug, 'credits' => [['artist_id' => Artist::factory()->create()->id, 'department' => 'cast']]];
+
+    viaToken(tenantUser('c'))->tool(SetCredits::class, $row)->assertHasErrors();
+    viaToken(tenantUser('m'), ['mcp:use'])->tool(SetCredits::class, $row)->assertHasErrors();
+
+    expect(Credit::count())->toBe(0);
+});
+
+test('update-event cannot ask to join a show for someone else\'s draft', function () {
+    $owner = tenantUser();
+    $draft = tenantEvent(tenantOrganizer($owner), $owner, '0');
+    $stranger = tenantUser();
+    tenantOrganizer($stranger);
+
+    viaToken($stranger)->tool(UpdateEvent::class, ['event_slug' => $draft->slug, 'project_id' => Project::factory()->create()->id])->assertHasErrors();
+
+    expect(ProjectLinkRequest::count())->toBe(0);
+});
+
+test('a read-only key sees no credits or link request on a published listing', function () {
+    $owner = tenantUser();
+    $event = tenantEvent(tenantOrganizer($owner), $owner, 'p');
+    Credit::factory()->for($event, 'creditable')->for(Artist::factory()->state(['name' => 'Jo Unseen']))->create();
+
+    viaToken(tenantUser(), [User::READ_SCOPE])->tool(GetEvent::class, ['event_slug' => $event->slug])->assertOk()->assertDontSee('Jo Unseen');
+});
+
+test('a held draft\'s credits are out of reach for its own team', function () {
+    $owner = tenantUser();
+    $event = tenantEvent(tenantOrganizer($owner), $owner, '0');
+    DB::table('events')->where('id', $event->id)->update(['held_for_staff' => true]);
+
+    viaToken($owner)->tool(SetCredits::class, ['event_slug' => $event->slug, 'credits' => []])->assertHasErrors();
 });

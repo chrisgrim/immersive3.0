@@ -1741,6 +1741,21 @@ test('submit-event-for-review submits a complete draft and notifies admins', fun
     Mail::assertQueued(\App\Mail\EventSubmittedNotification::class);
 });
 
+test('submit-event-for-review asks a run joining a show to confirm its details first', function () {
+    Mail::fake();
+    $user = writeToolUser();
+    $event = completeDraft($user);
+    App\Models\ProjectLinkRequest::create(['event_id' => $event->id, 'project_id' => App\Models\Project::factory()->create()->id]);
+
+    EiServer::actingAs($user)->tool(SubmitEventForReview::class, ['event_slug' => $event->slug])
+        ->assertHasErrors()->assertSee('details_confirmed');
+    expect($event->fresh()->status)->not->toBe('r');
+
+    EiServer::actingAs($user)->tool(SubmitEventForReview::class, ['event_slug' => $event->slug, 'details_confirmed' => true])->assertOk();
+    expect($event->fresh()->status)->toBe('r')
+        ->and(App\Models\ProjectLinkRequest::sole()->details_confirmed_at)->not->toBeNull();
+});
+
 test('submit-event-for-review rejects an event whose only image is a gallery image', function () {
     $user = writeToolUser();
     $event = completeDraft($user);

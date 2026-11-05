@@ -4,11 +4,14 @@ namespace App\Mcp\Tools;
 
 use App\Actions\Events\CheckDuplicateEventNames;
 use App\Actions\Events\UpdateEventAction;
+use App\Actions\Projects\PrefillFromShow;
+use App\Actions\Projects\RequestLink;
 use App\Mcp\Tools\Concerns\BuildsSyntheticRequests;
 use App\Mcp\Tools\Concerns\FormatsEvents;
 use App\Models\Event;
 use App\Models\Events\Advisory;
 use App\Models\Events\Show;
+use App\Models\Project;
 use App\Models\User;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Support\Currency;
@@ -17,6 +20,7 @@ use App\Support\ShowHistory;
 use App\Support\Validation\EventUpdateRules;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -96,6 +100,10 @@ class UpdateEvent extends Tool
                 }
             }
         }
+
+        // Asking to join a show is not a field of the listing.
+        $join = collect($input)->only(['project_id', 'source_event_id'])->filter()->all();
+        unset($input['project_id'], $input['source_event_id']);
 
         $slugValidated = $request->validate(['event_slug' => 'required|string']);
 
@@ -223,7 +231,7 @@ class UpdateEvent extends Tool
 
         $validated = $validator->validated();
 
-        if (empty($validated)) {
+        if (empty($validated) && $join === []) {
             // Say which fields were dropped and what replaces them, rather than
             // implying nothing was sent — the caller did send something.
             if ($stripped !== []) {
@@ -549,7 +557,7 @@ class UpdateEvent extends Tool
 
         // Duplicate-name guard, same as the web flow.
         if (isset($validated['name']) && $validated['name'] !== $event->name && ! $request->get('acknowledge_duplicate')) {
-            $duplicates = app(CheckDuplicateEventNames::class)->handle($validated['name'], $event->id, $request->user());
+            $duplicates = app(CheckDuplicateEventNames::class)->handle($validated['name'], $event->id, $request->user(), $event->sameShowIds());
             if ($duplicates) {
                 return Response::json([
                     'error' => 'duplicate_name',
@@ -647,6 +655,12 @@ class UpdateEvent extends Tool
             );
         }
 
+        $joined = $join !== [] ? $this->askToJoin($event, $join, $user) : null;
+
+        if ($joined instanceof Response) {
+            return $joined;
+        }
+
         $readiness = $this->readiness($event->load([
             'shows', 'tickets', 'location', 'advisories', 'contentAdvisories', 'mobilityAdvisories',
             'contactLevels', 'interactive_level', 'category', 'genres', 'remotelocations', 'images', 'organizer',
@@ -658,6 +672,7 @@ class UpdateEvent extends Tool
 
         $payload = [
             'message' => 'Event updated.',
+            ...($joined ? ['joining' => $joined] : []),
             'event' => $this->eventSummary($event),
             'updated_fields' => array_keys($validated),
             // The rest of the call applied, but these were dropped — saying so
@@ -996,6 +1011,29 @@ class UpdateEvent extends Tool
     /**
      * @return array<string, \Illuminate\JsonSchema\Types\Type>
      */
+    /** @return array<string, mixed>|Response the request, or why it was refused */
+    private function askToJoin(Event $event, array $join, User $user): array|Response
+    {
+        if (in_array($event->status, [Event::STATUS_IN_REVIEW, ...Event::LIVE_STATUSES], true)) {
+            return Response::error('Only a draft asks to join a show from here. The other fields were saved. A moderator can link a live listing.');
+        }
+
+        $target = isset($join['project_id']) ? Project::find($join['project_id']) : Event::find($join['source_event_id']);
+
+        if ($target === null) {
+            return Response::error('No such show. The other fields were saved. Show ids come from list-projects.');
+        }
+
+        try {
+            $request = app(RequestLink::class)->handle($event, $target, $user);
+            $filled = app(PrefillFromShow::class)->handle($event, $target, $user);
+        } catch (ValidationException $e) {
+            return Response::error(collect($e->errors())->flatten()->first());
+        }
+
+        return ['link_request_id' => $request->id, 'filled' => $filled];
+    }
+
     public function schema(JsonSchema $schema): array
     {
         return [
@@ -1006,7 +1044,13 @@ class UpdateEvent extends Tool
             'attendance_type_id' => $schema->integer()->description('1 = In Person, 2 = Remote/online. Ask this FIRST — it decides whether the event needs a location or remote platforms, and which categories are valid.'),
             'category_id' => $schema->integer()->description('Category id from list-event-attributes (pass attendance_type_id there to see only compatible categories; an incompatible category gets dissociated).'),
             'genres' => $schema->array()->description('1-10 genre objects, at least 1 required before submission: [{"id": 1, "name": "Horror"}]. Ids from list-event-attributes; a new name without an id creates a user genre — prefer existing ones.'),
-            'location' => $schema->object()->description('For in-person events: {venue (display name, max 80 chars — longer is rejected), home (street number), street, city, region, region_long, country, country_long, postal_code, latitude, longitude, hiddenLocationToggle (bool), hiddenLocation}. Use geocode-address to resolve the exact fields from a human address and confirm the match with the user. If the location is a secret (hiddenLocationToggle=true), hiddenLocation must explain how attendees learn the address.'),
+            'edition' => $schema->string()->description('This run\'s own subtitle, such as "Holiday Edition". Optional.'),
+            'run_type' => $schema->string()->description('Optional: workshop, world_premiere, us_premiere or regional_premiere.'),
+            'festival' => $schema->string()->description('The festival this run is part of. Optional.'),
+            'special_thanks' => $schema->string()->description('Names to thank, one per line. Kept on the listing; not shown publicly yet.'),
+            'project_id' => $schema->integer()->description('Your own draft only: ask to join this show (from list-projects). Fills empty fields from the show and your earlier run.'),
+            'source_event_id' => $schema->integer()->description('Your own draft only: ask to join this standalone listing, which becomes a show when approved.'),
+            'location' => $schema->object()->description('Send venue_id (from search-venues) to use a known venue; its address is copied and the address fields here are ignored. A new address without venue_id takes the venue off. Never for a secret location. For in-person events: {venue (display name, max 80 chars — longer is rejected), home (street number), street, city, region, region_long, country, country_long, postal_code, latitude, longitude, hiddenLocationToggle (bool), hiddenLocation}. Use geocode-address to resolve the exact fields from a human address and confirm the match with the user. If the location is a secret (hiddenLocationToggle=true), hiddenLocation must explain how attendees learn the address.'),
             'remotelocations' => $schema->array()->description('For remote events, 1-10 platforms, at least 1 required before submission: [{"name": "Zoom"}].'),
             'remote_description' => $schema->string()->description('For remote events: how attendees join, max 3000 chars.'),
             'timezone' => $schema->string()->description('IANA timezone of the event, e.g. "America/New_York". geocode-address results include coordinates you can infer it from.'),

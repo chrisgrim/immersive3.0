@@ -3,9 +3,11 @@
 namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\FormatsEvents;
+use App\Models\Credit;
 use App\Models\Event;
 use App\Models\Events\Show;
 use App\Models\User;
+use App\Models\Venue;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Support\ShowHistory;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -70,7 +72,7 @@ class GetEvent extends Tool
         $missing = collect($readiness)->reject(fn ($ok) => $ok)->keys()->values();
 
         return Response::json([
-            'event' => $this->eventSummary($event) + [
+            'event' => $this->eventSummary($event) + $this->showFields($event, $canManage) + [
                 // True when update-event would refuse: the run ended more
                 // than Event::EDIT_WINDOW_DAYS ago and the caller is not
                 // staff. Tell the client before it tries.
@@ -202,6 +204,36 @@ class GetEvent extends Tool
             'first_day' => ShowHistory::firstDay($event->show_history),
             'last_day' => ShowHistory::lastDay($event->show_history),
             'runs' => $event->show_history['runs'] ?? [],
+        ];
+    }
+
+    /**
+     * The show and venue of a listing. A secret location never reads its
+     * venue. Credits are not public, so a read-only key sees none, and each
+     * row says whether it is the run's own or the show's.
+     *
+     * @return array<string, mixed>
+     */
+    private function showFields(Event $event, bool $canManage): array
+    {
+        $location = $event->location;
+        $venue = $location?->venue_id && ! $location->hiddenLocationToggle ? Venue::find($location->venue_id) : null;
+
+        $present = fn (Credit $credit, string $source) => [
+            'source' => $source,
+            'artist' => $credit->artist?->only(['id', 'name']),
+            ...$credit->only(['id', 'department', 'role', 'character', 'kind', 'covers', 'credited_as', 'note']),
+            'starts_on' => $credit->starts_on?->toDateString(),
+            'ends_on' => $credit->ends_on?->toDateString(),
+        ];
+
+        return [
+            'venue' => $venue?->only(['id', 'name', 'room', 'slug', 'status']),
+            'link_request' => $canManage ? $event->pendingLinkRequest()?->only(['id', 'project_id', 'source_event_id', 'details_confirmed_at']) : null,
+            'credits' => $canManage ? [
+                ...$event->project?->writers()->approved()->with('artist:id,name')->get()->map(fn (Credit $credit) => $present($credit, 'show'))->all() ?? [],
+                ...$event->credits()->approved()->with('artist:id,name')->get()->map(fn (Credit $credit) => $present($credit, 'run'))->all(),
+            ] : [],
         ];
     }
 

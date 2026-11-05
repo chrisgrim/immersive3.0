@@ -8,19 +8,33 @@ use App\Mcp\Tools\AnalyticsPaths;
 use App\Mcp\Tools\AnalyticsTop;
 use App\Mcp\Tools\AnalyticsTrend;
 use App\Mcp\Tools\AttachEventImage;
+use App\Mcp\Tools\CopyCredits;
 use App\Mcp\Tools\CreateEventDraft;
 use App\Mcp\Tools\CreateOrganizer;
+use App\Mcp\Tools\DissolveProject;
 use App\Mcp\Tools\GeocodeAddress;
 use App\Mcp\Tools\GetEvent;
 use App\Mcp\Tools\GetSiteAnalytics;
+use App\Mcp\Tools\LinkEventToProject;
 use App\Mcp\Tools\ListAllEvents;
 use App\Mcp\Tools\ListEventAttributes;
 use App\Mcp\Tools\ListMyEvents;
+use App\Mcp\Tools\ListProjects;
+use App\Mcp\Tools\MergeArtists;
+use App\Mcp\Tools\MergeVenues;
+use App\Mcp\Tools\ProposeArtist;
+use App\Mcp\Tools\ProposeVenue;
 use App\Mcp\Tools\RemoveEventImage;
+use App\Mcp\Tools\SearchArtists;
 use App\Mcp\Tools\SearchConsole;
+use App\Mcp\Tools\SearchVenues;
+use App\Mcp\Tools\SetCredits;
+use App\Mcp\Tools\SetEventVenue;
 use App\Mcp\Tools\SubmitEventForReview;
+use App\Mcp\Tools\UnlinkEvent;
 use App\Mcp\Tools\UpdateEvent;
 use App\Mcp\Tools\UpdateOrganizer;
+use App\Mcp\Tools\UpdateProject;
 use App\Mcp\Tools\Whoami;
 use Laravel\Mcp\Server;
 
@@ -96,6 +110,16 @@ class EiServer extends Server
     `remove_older_show_days`. `ongoing_config` regenerates the run from its
     recipe. Fields you do not send are left alone.
 
+    Shows: one show can have many listings, each a run of it. On the Name step,
+    use `list-projects` for a similar name and ask: "Is this a new run of one of
+    these? A new city, new dates, or a remount." If so, send `project_id` (or
+    `source_event_id` for a standalone listing) to `update-event`: that asks to
+    join, and fills empty fields from the show and the user's own earlier run.
+    Then confirm warnings, age range, accessibility, address and tickets with
+    the user before `submit-event-for-review` with `details_confirmed`. In person,
+    try `search-venues` first and send `location.venue_id`, never for a secret
+    location. `set-credits` keeps a run's credits or a show's writers.
+
     Moderators can read the site's own visitor analytics: `get-site-analytics`
     for the last 90 days of searches, searches that found nothing, event views
     and ticket clicks; `analytics-trend`, `analytics-top`, `analytics-paths`
@@ -136,5 +160,19 @@ class EiServer extends Server
         AnalyticsFor::class,
         AnalyticsLive::class,
         SearchConsole::class,
+        ListProjects::class,
+        SearchVenues::class,
+        SearchArtists::class,
+        ProposeVenue::class,
+        ProposeArtist::class,
+        SetCredits::class,
+        LinkEventToProject::class,
+        UnlinkEvent::class,
+        DissolveProject::class,
+        UpdateProject::class,
+        CopyCredits::class,
+        SetEventVenue::class,
+        MergeVenues::class,
+        MergeArtists::class,
     ];
 }

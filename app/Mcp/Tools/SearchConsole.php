@@ -98,12 +98,16 @@ class SearchConsole extends Tool
             // An event or organizer address that matches none now.
             'gone' => ['gone' => true],
             'organizer' => ['organizer' => ['id' => $row['id'], 'name' => $row['name']]],
+            'project' => ['show' => ['id' => $row['id'], 'name' => $row['name']]],
+            'venue' => ['venue' => ['id' => $row['id'], 'name' => $row['name']]],
+            // An old address of something that lives elsewhere now.
+            'moved' => ['moved' => true],
             default => [],
         };
 
-        // A current event or organizer path is ours; any other address
+        // A current event, organizer, show or venue path is ours; any other address
         // (gone ones, and anything with a query string) is wrapped.
-        $ours = in_array($row['kind'], ['event', 'organizer'], true) && str_starts_with($row['page'], '/') && ! str_contains($row['page'], '?');
+        $ours = in_array($row['kind'], ['event', 'organizer', 'project', 'venue'], true) && str_starts_with($row['page'], '/') && ! str_contains($row['page'], '?');
 
         return ['page' => $ours ? $row['page'] : $this->visitorText($row['page'], 191)] + $what + array_intersect_key($row, array_flip(['clicks', 'impressions', 'ctr', 'position']));
     }

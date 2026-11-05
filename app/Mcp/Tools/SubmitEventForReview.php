@@ -23,6 +23,7 @@ class SubmitEventForReview extends Tool
 
         $validated = $request->validate([
             'event_slug' => 'required|string',
+            'details_confirmed' => 'nullable|boolean',
         ]);
 
         $event = Event::withoutGlobalScope(LatestPublishedFirstScope::class)
@@ -49,6 +50,16 @@ class SubmitEventForReview extends Tool
             return Response::error('The event is missing: '.$missing->implode(', ').'. Fill these in with update-event (and attach-event-image for the primary image) before submitting.');
         }
 
+        // A run joining a show starts from an earlier one, so what differs
+        // by run is looked at again, as on the website's Review step.
+        if ($event->needsDetailsConfirmed()) {
+            if (empty($validated['details_confirmed'])) {
+                return Response::error(Event::CONFIRM_DETAILS_MESSAGE.' Check them with the user, then call this again with details_confirmed: true.');
+            }
+
+            $event->pendingLinkRequest()->update(['details_confirmed_at' => now()]);
+        }
+
         $event->status = 'r';
         $event->save();
 
@@ -68,6 +79,7 @@ class SubmitEventForReview extends Tool
     {
         return [
             'event_slug' => $schema->string()->description('The event slug.')->required(),
+            'details_confirmed' => $schema->boolean()->description('For a run asking to join a show: the user has confirmed its warnings, age range, accessibility, address and tickets.'),
         ];
     }
 }

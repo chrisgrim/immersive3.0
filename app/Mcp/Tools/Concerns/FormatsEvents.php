@@ -13,7 +13,7 @@ trait FormatsEvents
      * at the Duplicate button; there is no duplicate tool here, so it points
      * at the draft tool instead.
      */
-    protected const EDIT_LOCKED_MESSAGE = 'This event ended more than 90 days ago and is kept as a historical record, so its organizers can no longer edit it (moderators and admins can). To run it again, create a new listing with create-event-draft — e.g. "Event Name (2026)" or "Event Name (Fall 2026)". Need help? Contact support@everythingimmersive.com';
+    protected const EDIT_LOCKED_MESSAGE = 'This event ended more than 90 days ago and is kept as a historical record, so its organizers can no longer edit it (moderators and admins can). To run it again, start a new listing with create-event-draft under the show\'s title and ask to join the same show with update-event (project_id or source_event_id). Need help? Contact support@everythingimmersive.com';
 
     /**
      * Human-readable label for an event status char.
@@ -55,6 +55,8 @@ trait FormatsEvents
             'id' => $event->id,
             'name' => $event->name,
             'slug' => $event->slug,
+            'public_url' => $event->publicPath(),
+            'project' => $event->project?->only(['id', 'name', 'slug']),
             'status' => $event->status,
             'status_label' => $this->statusLabel($event->status),
             'organizer' => $event->organizer?->name,
