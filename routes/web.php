@@ -2,8 +2,11 @@
 
 use App\Http\Controllers\AccountSettingsController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Creation\EventCreditController;
+use App\Http\Controllers\Creation\EventLinkRequestController;
 use App\Http\Controllers\Creation\HostController;
 use App\Http\Controllers\Creation\HostEventController;
+use App\Http\Controllers\Creation\HostProjectController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\IndexController;
 use App\Http\Controllers\NotificationsController;
@@ -175,8 +178,30 @@ Route::middleware(['auth'])->group(function () {
                         Route::POST('/{event}/submit', [HostEventController::class, 'submit'])->name('submit');
                         Route::DELETE('/{event}', [HostEventController::class, 'destroy'])->name('destroy');
                         Route::POST('/{event}/name-change', [HostEventController::class, 'nameChange'])->name('name.change');
+                        Route::POST('/{event}/link-request', [EventLinkRequestController::class, 'store'])->name('link-request.store');
+                        Route::DELETE('/{event}/link-request', [EventLinkRequestController::class, 'destroy'])->name('link-request.destroy');
                     });
                 });
+
+                // Outside can:manage,event: keeping a show's page is not
+                // managing its runs (ProjectPolicy).
+                Route::prefix('projects')->name('projects.')->controller(HostProjectController::class)->group(function () {
+                    Route::GET('/{project}/edit', 'edit')->name('edit')->middleware('can:edit,project');
+                    Route::POST('/{project}', 'update')->name('update')->middleware('can:edit,project');
+                    Route::GET('/{project}/link-requests', 'linkRequests')->name('link-requests')->middleware('can:decideLink,project');
+                    Route::POST('/{project}/link-requests/{linkRequest}/approve', 'approveLink')->name('link-requests.approve')->middleware('can:decideLink,project');
+                    Route::POST('/{project}/link-requests/{linkRequest}/reject', 'rejectLink')->name('link-requests.reject')->middleware('can:decideLink,project');
+                    Route::DELETE('/{project}/instances/{event}', 'unlink')->name('instances.destroy')->middleware('can:decideLink,project');
+                });
+            });
+
+            // Outside can:host too: curators add cast to any run and are on
+            // no team. CreditPolicy decides each of these.
+            Route::prefix('event')->name('event.')->controller(EventCreditController::class)->group(function () {
+                Route::GET('/{event}/credits', 'index')->name('credits.index');
+                Route::POST('/{event}/credits', 'store')->name('credits.store');
+                Route::POST('/{event}/credits/copy', 'copy')->name('credits.copy');
+                Route::DELETE('/{event}/credits/{credit}', 'destroy')->name('credits.destroy');
             });
         });
 
