@@ -3,6 +3,8 @@
         <div class="flex flex-col w-full">
             <h2 class="text-2xl font-bold mb-6">Review Your Listing</h2>
 
+            <confirm-details />
+
             <!-- Main Content -->
             <div class="w-full md:w-[61rem] mx-auto pb-24 space-y-8">
                 <!-- Images Section -->
@@ -304,6 +306,7 @@
 </template>
 
 <script setup>
+import ConfirmDetails from '../Components/confirm-details.vue';
 import { wheelchairLevel } from '@/composables/wheelchairAccess';
 import { ref, computed, inject, onMounted } from 'vue';
 import moment from 'moment-timezone';

@@ -64,14 +64,15 @@ describe('editing an event that has left its 90-day window', () => {
         expect(wrapper.text()).toContain('support@everythingimmersive.com');
     });
 
-    it('suggests the naming convention with this year', async () => {
+    it('says the copy joins the show, and suggests no year in the name', async () => {
         const event = makeEvent();
         const wrapper = mountDashboard({ event });
 
         wrapper.vm.editEvent(event);
         await wrapper.vm.$nextTick();
 
-        expect(wrapper.text()).toContain(`“Event Name (${YEAR})”`);
+        expect(wrapper.text()).toContain('The copy asks to join the same show');
+        expect(wrapper.text()).not.toContain('Event Name (');
     });
 
     it('leads with when the run ended, and shows the event\'s poster', async () => {
@@ -160,7 +161,7 @@ describe('editing an event that has left its 90-day window', () => {
         await wrapper.vm.$nextTick();
 
         expect(wrapper.text()).toContain(LOCK_HEADING);
-        expect(wrapper.text()).toContain(`Event Name (${YEAR})`);
+        expect(wrapper.text()).toContain('The copy asks to join the same show');
         expect(wrapper.text()).toContain('Past event');
 
         await wrapper.vm.duplicateLockedEvent();

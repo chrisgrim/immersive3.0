@@ -28,6 +28,20 @@
 					</div>
 				</div>
 
+				<!-- The shows this company keeps the page of -->
+				<div v-if="organizer.kept_projects?.length" class="mb-8">
+					<h3 class="text-2xl font-bold mb-4">Your shows</h3>
+					<div class="flex gap-4 flex-wrap">
+						<a v-for="show in organizer.kept_projects"
+						   :key="show.id"
+						   :href="`/hosting/projects/${show.slug}/edit`"
+						   class="px-6 py-3 rounded-full border border-gray-300 text-lg font-medium hover:border-gray-400">
+							{{ show.name }}
+							<span v-if="show.pending_requests" class="ml-2 text-red-600">{{ show.pending_requests }} asking to join</span>
+						</a>
+					</div>
+				</div>
+
 				<!-- Filter Buttons -->
 				<div class="hidden md:flex gap-6 flex-wrap">
 					<div @click="createNewEvent" :aria-busy="creatingEvent" :class="creatingEvent ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'">
@@ -294,6 +308,12 @@
 							class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
 							{{ duplicatingEvent ? 'Duplicating…' : 'Duplicate Event' }}
 						</button>
+						<a
+							v-if="selectedEvent.status !== 'r'"
+							:href="`/hosting/event/${selectedEvent.slug}/credits`"
+							class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100 text-center">
+							Credits
+						</a>
 						<button 
 							@click="confirmRemoveEvent(selectedEvent)"
 							:disabled="deletingEvent || duplicatingEvent"
@@ -370,7 +390,7 @@
 						</h3>
 
 						<p class="mt-[1.6rem] text-[1.6rem] text-gray-500 leading-[1.5] max-w-[42rem] mx-auto">
-							If you wish to add new dates to your event, please duplicate the existing one and create a new listing, e.g. “Event Name ({{ suggestionYear }})”.
+							If you wish to add new dates to your event, please duplicate it. The copy asks to join the same show, so you only need the show's title.
 						</p>
 
 						<button
@@ -666,8 +686,6 @@ const selectFilter = (id) => {
 const lockedEvent = ref(null);
 const duplicatingLocked = ref(false);
 
-// The year in the suggested "Event Name (2026)" is always the current one.
-const suggestionYear = new Date().getFullYear();
 
 // The event's own poster is the hero, like the rows above use; the redirect
 // case may only know the slug, and then a placeholder stands in.

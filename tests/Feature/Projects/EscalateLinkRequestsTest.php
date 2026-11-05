@@ -84,6 +84,7 @@ test('the clock starts when the draft is submitted, and from there it escalates'
     $copy = $source->duplicate();
     $request = ProjectLinkRequest::sole();
 
+    $this->postJson("/hosting/event/{$copy->slug}/link-request/confirm")->assertOk();
     $this->postJson("/hosting/event/{$copy->slug}/submit")->assertOk();
 
     expect($request->fresh()->submitted_at)->not->toBeNull();

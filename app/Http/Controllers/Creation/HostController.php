@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Creation;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\Organizer;
+use App\Models\Project;
 
 class HostController extends Controller
 {
@@ -41,6 +42,15 @@ class HostController extends Controller
                 $event->is_deleted = $event->trashed();
             }
         }
+
+        // The shows this company keeps the page of, for the dashboard's link.
+        $organizer?->setAttribute('kept_projects', Project::where('editor_organizer_id', $organizer->id)
+            ->orWhere(fn ($query) => $query->where('organizer_id', $organizer->id)->whereNull('editor_organizer_id'))
+            ->withCount(['linkRequests as pending_requests' => fn ($query) => $query->pending()])
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug'])
+            ->map(fn (Project $project) => $project->only(['id', 'name', 'slug', 'pending_requests']))
+            ->values());
 
         return view('creation.index', compact('organizer'));
     }

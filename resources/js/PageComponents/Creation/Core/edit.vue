@@ -244,6 +244,7 @@
 </template>
 
 <script setup>
+import { wantsNewRun } from '@/composables/newRunNudge';
 import { ref, provide, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import NavSidebar from './Pages/navSidebar.vue';
 import EventType from './Pages/event-type.vue';
@@ -345,6 +346,9 @@ const showToast = (message) => {
     });
 };
 
+// event.location.city follows the form as it is typed; this is what is saved.
+const savedCity = ref(props.event?.location?.city ?? null);
+
 const saveChanges = async () => {
     try {
         errors.value = {};
@@ -353,13 +357,23 @@ const saveChanges = async () => {
 
         const submitData = await currentComponentRef.value.submitData();
         if (!submitData) return;
-        
+
+        // Old listings that keep getting new dates: a suggestion they can skip.
+        if (wantsNewRun(event, currentStep.value, submitData, savedCity.value)
+            && window.confirm('Want to start this as a new run? We will make a copy that asks to join the same show, and leave this listing as it is.')) {
+            isSubmitting.value = true;
+            const copy = await axios.post(`/api/events/${event.slug}/duplicate`);
+            window.location.href = `/hosting/event/${copy.data.event.slug}/edit`;
+            return;
+        }
+
         isSubmitting.value = true;
         
         const response = await axios.post(`/api/hosting/event/${event.slug}`, submitData);
         
         if (response.data.event) {
             Object.assign(event, response.data.event);
+            savedCity.value = event.location?.city;
             
             // For Images component, refresh state after submission
             if (currentStep.value === 'Images' && currentComponentRef.value) {

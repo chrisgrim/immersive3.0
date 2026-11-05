@@ -361,6 +361,7 @@ test('a draft\'s keeper hears when it is submitted, when the clock starts, not b
 
     Mail::assertNothingQueued();
 
+    $this->postJson("/hosting/event/{$copy->slug}/link-request/confirm")->assertOk();
     $this->postJson("/hosting/event/{$copy->slug}/submit")->assertOk();
 
     Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($project->organizer->owner->email));

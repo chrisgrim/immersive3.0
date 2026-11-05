@@ -15,7 +15,7 @@ class CheckDuplicateEventNames
     /**
      * @return Collection|null null when the name is unused; otherwise the duplicates.
      */
-    public function handle(?string $name, ?int $excludeId = null, ?User $viewer = null): ?Collection
+    public function handle(?string $name, ?int $excludeId = null, ?User $viewer = null, array $ignoring = []): ?Collection
     {
         if (empty($name)) {
             return null;
@@ -25,6 +25,9 @@ class CheckDuplicateEventNames
             ->when($excludeId, function ($query) use ($excludeId) {
                 return $query->where('id', '!=', $excludeId);
             })
+            // Runs of the show it asked to join, and the listing it asked to
+            // join, are meant to share its name (Event::sameShowIds).
+            ->when($ignoring !== [], fn ($query) => $query->whereKeyNot($ignoring))
             // A held draft's name is staff's business until it is approved.
             ->visibleToTeam($viewer)
             ->with(['organizer.owner', 'organizer.users'])

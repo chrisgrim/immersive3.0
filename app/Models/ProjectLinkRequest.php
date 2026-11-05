@@ -24,12 +24,13 @@ class ProjectLinkRequest extends Model
     /** A request the company leaves unanswered this long goes to the moderators. */
     public const ESCALATE_AFTER_HOURS = 72;
 
-    protected $fillable = ['event_id', 'project_id', 'source_event_id', 'requested_by', 'status', 'decided_by', 'decided_at', 'submitted_at', 'escalated_at', 'note'];
+    protected $fillable = ['event_id', 'project_id', 'source_event_id', 'requested_by', 'status', 'decided_by', 'decided_at', 'submitted_at', 'escalated_at', 'details_confirmed_at', 'note'];
 
     protected $casts = [
         'decided_at' => 'datetime',
         'submitted_at' => 'datetime',
         'escalated_at' => 'datetime',
+        'details_confirmed_at' => 'datetime',
     ];
 
     public function event(): BelongsTo

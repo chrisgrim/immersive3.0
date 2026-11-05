@@ -2,6 +2,7 @@
 
 namespace App\Actions\Events;
 
+use App\Actions\Projects\ApplyVenue;
 use App\Models\Event;
 use App\Models\Events\Advisory;
 use App\Models\Events\ContentAdvisory;
@@ -145,8 +146,14 @@ class UpdateEventAction
             $validatedData['attendance_type_id'] = $validatedData['hasLocation'] ? 1 : 2;
         }
 
+        // Going online takes the venue off, whichever way it was said.
+        if (($validatedData['hasLocation'] ?? null) === false || (int) ($validatedData['attendance_type_id'] ?? 0) === 2) {
+            $event->location?->update(['venue_id' => null]);
+        }
+
         // Handle location updates
         if (isset($validatedData['location'])) {
+            $validatedData['location'] = app(ApplyVenue::class)->handle($event, $validatedData['location']);
             $event->location->update($validatedData['location']);
 
             // Update the location_latlon in events table using the exact format

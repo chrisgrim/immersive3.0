@@ -152,6 +152,9 @@
                     <div class="p-8 shadow-custom-1 rounded-3xl">
                         <h3 class="text-5xl leading-tight font-semibold mb-3 break-words hyphens-auto">{{ props.event?.name }}</h3>
                         <p class="text-1xl mb-16 break-words hyphens-auto">{{ props.event?.tag_line }}</p>
+                        <p v-if="props.event?.edition || props.event?.run_type || props.event?.festival" class="text-1xl mb-8 text-gray-600">
+                            {{ [props.event.edition, runTypeLabel(props.event.run_type), props.event.festival].filter(Boolean).join(' · ') }}
+                        </p>
                         <p class="text-2.5xl font-normal whitespace-pre-line break-words hyphens-auto">{{ props.event?.description }}</p>
                     </div>
 
@@ -692,6 +695,13 @@ const isRejecting = ref(false);
 const isApproving = ref(false);
 const isDuplicating = ref(false);
 const linkPanel = ref(null);
+
+const runTypeLabel = (type) => ({
+    workshop: 'Workshop',
+    world_premiere: 'World premiere',
+    us_premiere: 'US premiere',
+    regional_premiere: 'Regional premiere',
+})[type] ?? null;
 
 const onReject = () => {
     showRejectModal.value = true;

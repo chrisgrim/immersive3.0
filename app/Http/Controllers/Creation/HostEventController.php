@@ -7,11 +7,11 @@ use App\Actions\Events\UpdateEventAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreEventRequest;
 use App\Models\Event;
-use Illuminate\Validation\ValidationException;
 use App\Models\Organizer;
 use App\Services\NameChangeRequestService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 
 class HostEventController extends Controller
 {
@@ -74,6 +74,14 @@ class HostEventController extends Controller
             },
         ]);
 
+        // What the Name and Review steps show.
+        $linkRequest = $event->pendingLinkRequest();
+        $event->setAttribute('link_request', $linkRequest ? [
+            'id' => $linkRequest->id,
+            'show' => $linkRequest->project?->name ?? $linkRequest->sourceEvent?->name,
+            'details_confirmed' => $linkRequest->details_confirmed_at !== null,
+        ] : null);
+
         return view('creation.edit', compact('event'));
     }
 
@@ -105,7 +113,7 @@ class HostEventController extends Controller
 
         // Check for duplicate event names if name is being updated (skip if user acknowledged)
         if (isset($validatedData['name']) && $validatedData['name'] !== $event->name && ! $request->boolean('acknowledge_duplicate')) {
-            $duplicates = app(CheckDuplicateEventNames::class)->handle($validatedData['name'], $event->id, auth()->user());
+            $duplicates = app(CheckDuplicateEventNames::class)->handle($validatedData['name'], $event->id, auth()->user(), $event->sameShowIds());
             if ($duplicates) {
                 return response()->json([
                     'message' => 'Duplicate event name detected',
@@ -160,6 +168,12 @@ class HostEventController extends Controller
             return response()->json([
                 'message' => 'Event is already submitted or published.',
             ], 422);
+        }
+
+        // A copy starts from an earlier run: the safety details are looked at
+        // again before it goes in, whoever submits it.
+        if ($event->needsDetailsConfirmed()) {
+            return response()->json(['message' => Event::CONFIRM_DETAILS_MESSAGE], 422);
         }
 
         // Update event status to 'r' (under review)
@@ -275,7 +289,7 @@ class HostEventController extends Controller
             // Refuse a name another listing on EI already goes by. The slug
             // isn't the test: it can carry a suffix, and it belongs to the URL,
             // which Event::finalSlug keeps unique when the change is applied.
-            if (Event::nameTakenOnSite((string) $request->requested_name, $event->id)) {
+            if (Event::nameTakenOnSite((string) $request->requested_name, $event->id, $event->sameShowIds())) {
                 return response()->json([
                     'message' => 'Validation failed',
                     'errors' => [

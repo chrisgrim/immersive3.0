@@ -251,6 +251,41 @@ class Event extends Model
             : null;
     }
 
+    public const CONFIRM_DETAILS_MESSAGE = 'Please confirm the warnings, age range, accessibility, address and tickets for this run before submitting.';
+
+    /** A listing joining a show carries details that may not be right for this run. */
+    public function needsDetailsConfirmed(): bool
+    {
+        $request = $this->pendingLinkRequest();
+
+        return $request !== null && $request->details_confirmed_at === null;
+    }
+
+    /** The listing's own open request to join a show, if it has one. */
+    public function pendingLinkRequest(): ?ProjectLinkRequest
+    {
+        return $this->linkRequests()->pending()->latest('id')->first();
+    }
+
+    /**
+     * Listings that may share this one's name: the runs of the show it is in
+     * or asked to join, and the standalone listing it asked to join. A run of
+     * a show is meant to go by the show's name.
+     *
+     * @return array<int, int>
+     */
+    public function sameShowIds(): array
+    {
+        $request = $this->id ? $this->pendingLinkRequest() : null;
+        $projectIds = array_filter([$this->project_id, $request?->project_id]);
+
+        $runs = $projectIds === []
+            ? []
+            : static::withoutGlobalScopes()->whereIn('project_id', $projectIds)->pluck('id')->all();
+
+        return array_values(array_filter([...$runs, $request?->source_event_id]));
+    }
+
     /** Whether this listing is a run of a show. */
     public function isLinked(): bool
     {
@@ -868,7 +903,7 @@ class Event extends Model
      * What an organizer is told wherever the lock is hit on the website. The
      * dashboard's modal (Creation/index.vue) carries the same words.
      */
-    public const EDIT_LOCKED_MESSAGE = 'Trying to edit an event that is over 90 days old? If you wish to add new dates to your event, please duplicate the existing one and create a new listing, e.g. "Event Name (2026)" or "Event Name (Fall 2026)". This helps us preserve the historical record of past events. Need help? Contact us at: support@everythingimmersive.com';
+    public const EDIT_LOCKED_MESSAGE = 'Trying to edit an event that is over 90 days old? If you wish to add new dates to your event, please duplicate it. The copy asks to join the same show, so you only need the show\'s title. This helps us preserve the historical record of past events. Need help? Contact us at: support@everythingimmersive.com';
 
     /**
      * Whether the event has left its edit window: published (or embargoed,
@@ -1321,7 +1356,7 @@ class Event extends Model
      * would, so case and punctuation don't make a different name; one that
      * slugs to nothing (all CJK / emoji) is compared as written instead.
      */
-    public static function nameTakenOnSite(string $name, ?int $exceptId = null): bool
+    public static function nameTakenOnSite(string $name, ?int $exceptId = null, array $ignoring = []): bool
     {
         $key = function (?string $n): string {
             $slug = Str::slug((string) $n);
@@ -1337,6 +1372,7 @@ class Event extends Model
         return static::withoutGlobalScope(LatestPublishedFirstScope::class)
             ->whereIn('status', self::LIVE_STATUSES)
             ->when($exceptId, fn ($query) => $query->where('id', '!=', $exceptId))
+            ->when($ignoring !== [], fn ($query) => $query->whereKeyNot($ignoring))
             ->pluck('name')
             ->contains(fn ($other) => $key($other) === $wanted);
     }

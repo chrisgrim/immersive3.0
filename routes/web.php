@@ -183,6 +183,7 @@ Route::middleware(['auth'])->group(function () {
                         Route::POST('/{event}/name-change', [HostEventController::class, 'nameChange'])->name('name.change');
                         Route::POST('/{event}/link-request', [EventLinkRequestController::class, 'store'])->name('link-request.store');
                         Route::DELETE('/{event}/link-request', [EventLinkRequestController::class, 'destroy'])->name('link-request.destroy');
+                        Route::POST('/{event}/link-request/confirm', [EventLinkRequestController::class, 'confirm'])->name('link-request.confirm');
                     });
                 });
 

@@ -35,6 +35,9 @@
                         </span>
                     </div>
 
+                    <!-- Is this a new run of a show already on EI? -->
+                    <show-match />
+
                     <!-- Dismissed state: a small re-openable chip on the left. "This isn't mine" collapses
                          the full alert to this; clicking it brings the alert back. -->
                     <button v-if="duplicateWarning && duplicateDismissed"
@@ -248,6 +251,7 @@ import { inject, computed, ref, reactive } from 'vue';
 import { required, maxLength } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 import axios from 'axios';
+import ShowMatch from '../Components/show-match.vue';
 
 // 1. Injected Dependencies
 const event = inject('event');
@@ -429,7 +433,13 @@ defineExpose({
         
         return {
             name: event.name,
-            tag_line: event.tag_line
+            tag_line: event.tag_line,
+            // A run's own details, beside its name (show-match.vue).
+            ...(event.link_request || event.project_id ? {
+                edition: event.edition || null,
+                run_type: event.run_type || null,
+                festival: event.festival || null,
+            } : {}),
         };
     },
     resetName,

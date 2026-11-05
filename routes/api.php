@@ -27,7 +27,9 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Api\ArtistController;
 use App\Http\Controllers\Api\EventScraperController;
 use App\Http\Controllers\Api\GeonamesController;
+use App\Http\Controllers\Api\ProjectSuggestController;
 use App\Http\Controllers\Api\SimilarEventsController;
+use App\Http\Controllers\Api\VenueController;
 use App\Http\Controllers\CachedDataController;
 use App\Http\Controllers\Creation\EventClickController;
 // Controller Imports - Other
@@ -110,6 +112,12 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     // The credits panels' artist picker
     Route::GET('/artists/search', [ArtistController::class, 'search']);
     Route::POST('/artists', [ArtistController::class, 'store']);
+
+    // The Name and Location steps
+    Route::GET('/projects/suggest', ProjectSuggestController::class);
+    Route::GET('/venues/search', [VenueController::class, 'search']);
+    Route::GET('/venues/match', [VenueController::class, 'match']);
+    Route::POST('/venues', [VenueController::class, 'store']);
 
     Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])
         ->middleware('can:manage,event')

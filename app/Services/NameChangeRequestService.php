@@ -60,7 +60,7 @@ class NameChangeRequestService
     {
         // Checked again here, not only when the request was filed: another
         // listing may have taken the name since.
-        if ($model instanceof Event && Event::nameTakenOnSite($newName, $model->id)) {
+        if ($model instanceof Event && Event::nameTakenOnSite($newName, $model->id, $model->sameShowIds())) {
             return [
                 'success' => false,
                 'message' => "Another listing on EI is already called \"{$newName}\".",

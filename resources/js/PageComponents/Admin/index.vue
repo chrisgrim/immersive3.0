@@ -99,6 +99,9 @@
                                 <li><a @click="handleNavigation('manage-users')" :class="['nav-link', currentView === 'manage-users' ? 'bg-blue-50 text-blue-600' : '']">Users</a></li>
                                 <li><a @click="handleNavigation('manage-organizers')" :class="['nav-link', currentView === 'manage-organizers' ? 'bg-blue-50 text-blue-600' : '']">Organizers</a></li>
                                 <li><a @click="handleNavigation('manage-reviews')" :class="['nav-link', currentView === 'manage-reviews' ? 'bg-blue-50 text-blue-600' : '']">Reviews</a></li>
+                                <li><a @click="handleNavigation('manage-projects')" :class="['nav-link', currentView === 'manage-projects' ? 'bg-blue-50 text-blue-600' : '']">Shows</a></li>
+                                <li><a @click="handleNavigation('manage-venues')" :class="['nav-link', currentView === 'manage-venues' ? 'bg-blue-50 text-blue-600' : '']">Venues</a></li>
+                                <li><a @click="handleNavigation('manage-artists')" :class="['nav-link', currentView === 'manage-artists' ? 'bg-blue-50 text-blue-600' : '']">Artists</a></li>
                                 <li><a @click="handleNavigation('manage-docks')" :class="['nav-link', currentView === 'manage-docks' ? 'bg-blue-50 text-blue-600' : '']">Docks</a></li>
                                 <li>
                                     <a @click="handleNavigation('manage-suggestions')"
@@ -208,6 +211,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import ApproveEvents from './Approval/Events.vue'
 import EventReview from './Approval/EventReview.vue'
+import ManageProjects from './Management/Projects.vue'
+import ManageVenues from './Management/Venues.vue'
+import ManageArtists from './Management/Artists.vue'
 import ApproveOrganizers from './Approval/Organizers.vue'
 import OrganizerReview from './Approval/OrganizerReview.vue'
 import ApproveCommunities from './Approval/Communities.vue'
@@ -454,6 +460,9 @@ const currentComponent = computed(() => {
         'manage-events': ManageEvents,
         'manage-reviews': ManageReviews,
         'manage-docks': ManageDocks,
+        'manage-projects': ManageProjects,
+        'manage-venues': ManageVenues,
+        'manage-artists': ManageArtists,
         'manage-suggestions': ManageSuggestions,
         // 'manage-analytics' is the old address of Local; links to it still work.
         'manage-analytics': ManageAnalytics,

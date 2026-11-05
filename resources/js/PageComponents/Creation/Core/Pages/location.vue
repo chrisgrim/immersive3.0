@@ -14,13 +14,7 @@
                     <div class="font-light">
                         <!-- Venue Input -->
                         <div class="px-8 py-6 border-black border border-b-0 rounded-t-3xl">
-                            <input 
-                                class="w-full focus:outline-none"
-                                :class="{ 'text-red-500': event.location.venue?.length === 80 }"
-                                placeholder="Add venue name (optional)" 
-                                v-model="event.location.venue"
-                                maxlength="80"
-                                type="text">
+                            <venue-picker @picked="onVenuePicked" />
                         </div>
                         <!-- Address Details (clickable) -->
                         <div 
@@ -42,6 +36,11 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- A known venue fills in the address, so it comes before the address search -->
+            <div v-if="locationSearch && !event.location.hiddenLocationToggle" class="w-full mb-8 px-8 py-6 border border-neutral-300 rounded-3xl">
+                <venue-picker @picked="onVenuePicked" />
             </div>
 
             <!-- Secret Location Controls - Moved here and always visible -->
@@ -161,6 +160,7 @@ import L from "leaflet";
 import 'leaflet/dist/leaflet.css'
 import { RiCheckboxBlankLine, RiCheckboxLine } from "@remixicon/vue";
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
+import VenuePicker from '../Components/venue-picker.vue';
 import { importMapsLibrary } from '@/composables/useGoogleMaps';
 import { localLanguageFor, browserSpeaks } from '@/composables/localLanguage';
 
@@ -359,7 +359,18 @@ const onMapReady = () => {
     }, 100);
 };
 
+// A picked venue is the address: leave the search for the filled-in form.
+const onVenuePicked = () => {
+    locationSearch.value = false;
+    userInput.value = '';
+    dropdown.value = false;
+    map.value.center = { lat: parseFloat(event.location.latitude), lng: parseFloat(event.location.longitude) };
+};
+
 const selectLocation = async (location) => {
+    // A different address takes the venue off (ApplyVenue says the same).
+    event.location.venue_id = null;
+
     try {
         // Use the new Place class via the shared bootstrap loader.
         const { Place } = await importMapsLibrary("places");
@@ -630,6 +641,7 @@ defineExpose({
             country: event.location.country,
             country_long: event.location.country_long,
             venue: event.location.venue,
+            venue_id: event.location.venue_id ?? null,
             hiddenLocationToggle: event.location.hiddenLocationToggle,
             hiddenLocation: event.location.hiddenLocation
         },
