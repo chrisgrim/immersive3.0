@@ -126,3 +126,38 @@ function mcpCall($test, string $token)
 
     return $test->postJson('/mcp', mcpInitializePayload(), ['Authorization' => "Bearer {$token}"]);
 }
+
+/**
+ * A published listing the way the site makes one: its slug comes from
+ * Event::finalSlug, after its location exists, so same-named listings get the
+ * real -city address. Rich enough to render the event page.
+ */
+function publishedListing(string $name, string $city = 'Chicago', array $overrides = [], ?App\Models\Organizer $organizer = null, string $firstShow = '2026-12-10 00:00:00'): App\Models\Event
+{
+    $organizer ??= App\Models\Organizer::factory()->create(['status' => 'p']);
+
+    $event = App\Models\Event::factory()->published()->create(array_merge([
+        'name' => $name,
+        'organizer_id' => $organizer->id,
+        'timezone' => 'America/Chicago',
+        'closingDate' => now()->addDays(60),
+        'hasLocation' => true,
+        'attendance_type_id' => 1,
+        'showtype' => 's',
+    ], $overrides));
+
+    App\Models\Events\Location::factory()->create(['event_id' => $event->id, 'city' => $city]);
+    App\Models\Events\Show::factory()->create(['event_id' => $event->id, 'date' => $firstShow]);
+    $event->priceranges()->create(['price' => '25']);
+    $event->advisories()->create(['wheelchairReady' => true]);
+
+    $event = $event->fresh();
+    $event->update(['slug' => App\Models\Event::finalSlug($event)]);
+
+    return $event->fresh();
+}
+
+function staffModerator(): User
+{
+    return User::factory()->create(['type' => 'm']);
+}
