@@ -2,6 +2,7 @@
 
 namespace App\Models\Events;
 
+use App\Models\Venue;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -16,7 +17,7 @@ class Location extends Model
      * @var array
      */
     protected $fillable = [
-        'hiddenLocation', 'home', 'street', 'city', 'region', 'region_long', 'country', 'country_long', 'postal_code', 'longitude', 'latitude', 'event_id', 'hiddenLocationToggle', 'venue',
+        'hiddenLocation', 'home', 'street', 'city', 'region', 'region_long', 'country', 'country_long', 'postal_code', 'longitude', 'latitude', 'event_id', 'hiddenLocationToggle', 'venue', 'venue_id',
     ];
 
     /**
@@ -25,6 +26,16 @@ class Location extends Model
     public function event()
     {
         return $this->belongsTo(Event::class);
+    }
+
+    /**
+     * The known venue, when one is attached. Not venue(): that name is the
+     * free-text column, and an attribute shadows a relation of the same name.
+     * Never load this while hiddenLocationToggle is on.
+     */
+    public function venueRecord()
+    {
+        return $this->belongsTo(Venue::class, 'venue_id');
     }
 
     /**

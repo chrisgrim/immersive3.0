@@ -2,10 +2,12 @@
 
 namespace App\Support\Validation;
 
+use App\Enums\RunType;
 use App\Rules\FutureEmbargoDateRule;
 use App\Rules\TicketUrlRule;
 use App\Rules\ZeroDecimalPriceRule;
 use App\Support\Currency;
+use Illuminate\Validation\Rule;
 
 /**
  * The canonical partial-update validation contract for events.
@@ -77,6 +79,12 @@ class EventUpdateRules
             'interactive_level_id' => 'nullable|exists:interactive_levels,id',
             'description' => 'sometimes|string|min:1|max:5000',
             'name' => 'sometimes|string|max:100|regex:/[\p{L}\p{N}]/u',
+            // A run's own optional labels. A run's address is set when it is
+            // linked, so changing edition later does not move it.
+            'edition' => 'sometimes|nullable|string|max:80',
+            'run_type' => ['sometimes', 'nullable', Rule::enum(RunType::class)],
+            'festival' => 'sometimes|nullable|string|max:120',
+            'special_thanks' => 'sometimes|nullable|string|max:10000',
             // closingDate is DERIVED from the schedule (Show::calculateLastDate),
             // never submitted. Accepting it let one field revive a finished
             // event: POST {"closingDate": "2030-01-01"} put it back in search

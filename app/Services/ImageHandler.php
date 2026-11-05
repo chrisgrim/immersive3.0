@@ -2,22 +2,20 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Intervention\Image\Laravel\Facades\Image;
-use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\Encoders\JpegEncoder;
-use Illuminate\Support\Facades\Log;
-
-
+use Intervention\Image\Encoders\WebpEncoder;
+use Intervention\Image\Laravel\Facades\Image;
 
 class ImageHandler
 {
     public static function saveImage($image, $model, $width, $height, $type, $rank = 0)
     {
         // Always ensure rank is an integer
-        $rank = (int)$rank;
-        
+        $rank = (int) $rank;
+
         // Validate image
         $mimeType = $image->getMimeType();
         if (strpos($mimeType, 'image/') !== 0) {
@@ -27,10 +25,10 @@ class ImageHandler
         // Get model ID and slug with fallbacks
         $modelId = uniqid();
         $modelSlug = $model->slug ?? Str::random(8);
-        
+
         // Create directory using slug (or random string if no slug)
         $directory = "$type/$modelSlug";
-        
+
         // Create filename using both ID and slug
         $fileName = "{$modelSlug}-{$modelId}";
 
@@ -54,7 +52,9 @@ class ImageHandler
             $path = "/public/$directory/$name";
             $encoded = (clone $image)->cover($w, $h)->encode($encoder);
             if (! $disk->put($path, (string) $encoded)) {
-                if ($written) $disk->delete($written);
+                if ($written) {
+                    $disk->delete($written);
+                }
                 Log::error("Image upload failed: $path did not upload", ['written' => $written]);
                 // A 422 on the upload's own field, so the form shows it beside the
                 // picture (the event editor names that field "images"). The storage
@@ -70,19 +70,19 @@ class ImageHandler
         $createdImage = $model->images()->create([
             'large_image_path' => "$directory/$fileName.webp",
             'thumb_image_path' => "$directory/{$fileName}-thumb.webp",
-            'rank' => $rank
+            'rank' => $rank,
         ]);
-        
+
         // Only update the main event image fields if this is the primary image (rank 0)
         $table = $model->getTable();
         $hasImageColumns = \Schema::hasColumns($table, ['largeImagePath', 'thumbImagePath']);
-        
+
         if ($hasImageColumns && $rank === 0) {
             $model->largeImagePath = "$directory/$fileName.webp";
             $model->thumbImagePath = "$directory/{$fileName}-thumb.webp";
             $model->save();
         }
-        
+
         return $createdImage;
     }
 
@@ -116,14 +116,14 @@ class ImageHandler
     {
         // Validate image path has proper subdirectory structure (type-images/slug/filename)
         $pathParts = explode('/', $image->large_image_path);
-        if (count($pathParts) < 3 || !str_ends_with($pathParts[0], '-images')) {
+        if (count($pathParts) < 3 || ! str_ends_with($pathParts[0], '-images')) {
             throw new \Exception('Invalid image path structure');
         }
 
         // Get the base path without extension
         $basePath = preg_replace('/\.(webp|jpg)$/', '', $image->large_image_path);
         $baseThumbPath = preg_replace('/\.(webp|jpg)$/', '', $image->thumb_image_path);
-        
+
         // Ensure we're not in a root directory
         $directory = dirname("/public/{$image->large_image_path}");
         if ($directory === '/public' || preg_match('|^/public/[^/]+-images$|', $directory)) {
@@ -134,9 +134,9 @@ class ImageHandler
         // point at the very same file (a duplicated or restored listing).
         // Then only this row goes; the files stay for the other owner.
         $sharedElsewhere = \App\Models\Image::where('id', '!=', $image->id)
-                ->where(fn ($q) => $q->where('large_image_path', $image->large_image_path)
-                    ->orWhere('thumb_image_path', $image->thumb_image_path))
-                ->exists()
+            ->where(fn ($q) => $q->where('large_image_path', $image->large_image_path)
+                ->orWhere('thumb_image_path', $image->thumb_image_path))
+            ->exists()
             || \App\Models\Event::withoutGlobalScopes()->withTrashed()
                 ->where(fn ($q) => $q->where('largeImagePath', $image->large_image_path)
                     ->orWhere('thumbImagePath', $image->thumb_image_path))
@@ -146,25 +146,37 @@ class ImageHandler
                 ->where(fn ($q) => $q->where('largeImagePath', $image->large_image_path)
                     ->orWhere('thumbImagePath', $image->thumb_image_path))
                 ->when($image->imageable_type === \App\Models\Organizer::class, fn ($q) => $q->where('id', '!=', $image->imageable_id))
+                ->exists()
+            || \App\Models\Project::withTrashed()
+                ->where(fn ($q) => $q->where('largeImagePath', $image->large_image_path)
+                    ->orWhere('thumbImagePath', $image->thumb_image_path))
+                ->when($image->imageable_type === \App\Models\Project::class, fn ($q) => $q->where('id', '!=', $image->imageable_id))
+                ->exists()
+            || \App\Models\Venue::query()
+                ->where(fn ($q) => $q->where('largeImagePath', $image->large_image_path)
+                    ->orWhere('thumbImagePath', $image->thumb_image_path))
+                ->when($image->imageable_type === \App\Models\Venue::class, fn ($q) => $q->where('id', '!=', $image->imageable_id))
                 ->exists();
 
         // Delete all image formats
-        if (! $sharedElsewhere) Storage::disk('digitalocean')->delete([
-            "/public/{$basePath}.webp",
-            "/public/{$basePath}.jpg",
-            "/public/{$baseThumbPath}.webp",
-            "/public/{$baseThumbPath}.jpg"
-        ]);
+        if (! $sharedElsewhere) {
+            Storage::disk('digitalocean')->delete([
+                "/public/{$basePath}.webp",
+                "/public/{$basePath}.jpg",
+                "/public/{$baseThumbPath}.webp",
+                "/public/{$baseThumbPath}.jpg",
+            ]);
+        }
 
         // Get directory path
         $directory = dirname("/public/{$image->large_image_path}");
-        
+
         // Get the parent model before deleting the image
         $parent = $image->imageable;
-        
+
         // Store the rank before deleting
         $imageRank = $image->rank;
-        
+
         // Delete the image record from database
         $image->delete();
 
@@ -174,7 +186,7 @@ class ImageHandler
             && $parent->largeImagePath === $image->large_image_path) {
             $parent->update([
                 'largeImagePath' => null,
-                'thumbImagePath' => null
+                'thumbImagePath' => null,
             ]);
         }
 
@@ -194,7 +206,7 @@ class ImageHandler
         if ($currentImages) {
             $existingImages = $model->images->pluck('large_image_path', 'id')->toArray();
             $currentImagePaths = array_column($currentImages, 'url');
-            
+
             $imagesToDelete = array_diff($existingImages, $currentImagePaths);
 
             foreach ($imagesToDelete as $id => $imagePath) {
@@ -218,33 +230,33 @@ class ImageHandler
     {
         $images = $model->images;
         $originalDirectories = [];
-        
+
         foreach ($images as $image) {
             $newDirectory = "$type-images/$slug-final";
             $currentPath = $image->large_image_path;
             $currentDirectory = dirname($currentPath);
             $originalDirectories[] = $currentDirectory;
-            
+
             // Extract the original filename part
             $originalFileName = basename($currentPath, '.webp');
             $modelId = uniqid();
             $newFileName = "$slug-$modelId";
-            
+
             // Ensure the directory exists
-            if (!Storage::disk('digitalocean')->exists("/public/$newDirectory")) {
+            if (! Storage::disk('digitalocean')->exists("/public/$newDirectory")) {
                 Storage::disk('digitalocean')->makeDirectory("/public/$newDirectory");
             }
-            
+
             // Copy all image files with proper paths
             try {
                 // Copy large webp
                 if (Storage::disk('digitalocean')->exists("/public/$currentPath")) {
                     Storage::disk('digitalocean')->copy(
-                        "/public/$currentPath", 
+                        "/public/$currentPath",
                         "/public/$newDirectory/$newFileName.webp"
                     );
                 }
-                
+
                 // Copy large jpg
                 $currentJpgPath = preg_replace('/\.webp$/', '.jpg', $currentPath);
                 if (Storage::disk('digitalocean')->exists("/public/$currentJpgPath")) {
@@ -253,7 +265,7 @@ class ImageHandler
                         "/public/$newDirectory/$newFileName.jpg"
                     );
                 }
-                
+
                 // Copy thumb webp
                 if (Storage::disk('digitalocean')->exists("/public/$image->thumb_image_path")) {
                     Storage::disk('digitalocean')->copy(
@@ -261,7 +273,7 @@ class ImageHandler
                         "/public/$newDirectory/$newFileName-thumb.webp"
                     );
                 }
-                
+
                 // Copy thumb jpg
                 $thumbJpgPath = preg_replace('/\.webp$/', '.jpg', $image->thumb_image_path);
                 if (Storage::disk('digitalocean')->exists("/public/$thumbJpgPath")) {
@@ -279,7 +291,7 @@ class ImageHandler
                     ["/public/$image->thumb_image_path", "/public/$newDirectory/$newFileName-thumb.webp"],
                     ["/public/$thumbJpgPath", "/public/$newDirectory/$newFileName-thumb.jpg"],
                 ], $image->id);
-                
+
                 // Update the image record with new paths
                 $image->update([
                     'large_image_path' => "$newDirectory/$newFileName.webp",
@@ -296,10 +308,10 @@ class ImageHandler
                 }
             } catch (\Exception $e) {
                 report($e);
-                \Log::error("Failed to copy image: " . $e->getMessage());
+                \Log::error('Failed to copy image: '.$e->getMessage());
             }
         }
-        
+
         // Clean up original directories after all files are copied
         $uniqueDirectories = array_unique($originalDirectories);
         foreach ($uniqueDirectories as $directory) {
@@ -333,7 +345,9 @@ class ImageHandler
         $inUse = $pointsHere(\App\Models\Image::query(), 'large_image_path')->exists()
             || $pointsHere(\App\Models\Image::query(), 'thumb_image_path')->exists()
             || $pointsHere(\App\Models\Event::withoutGlobalScopes()->withTrashed(), 'largeImagePath')->exists()
-            || $pointsHere(\App\Models\Organizer::withoutGlobalScopes(), 'largeImagePath')->exists();
+            || $pointsHere(\App\Models\Organizer::withoutGlobalScopes(), 'largeImagePath')->exists()
+            || $pointsHere(\App\Models\Project::withTrashed(), 'largeImagePath')->exists()
+            || $pointsHere(\App\Models\Venue::query(), 'largeImagePath')->exists();
 
         if ($inUse) {
             return;
@@ -473,10 +487,10 @@ class ImageHandler
 
                 $currentDirectory = dirname($image->large_image_path);
                 $newDirectory = str_replace($oldSlug, $newSlug, $currentDirectory);
-                
+
                 $modelId = uniqid();
                 $newFileName = "$newSlug-$modelId";
-                
+
                 try {
                     // Check if source files exist
                     $largeWebpExists = Storage::disk('digitalocean')->exists("/public/$image->large_image_path");
@@ -487,20 +501,20 @@ class ImageHandler
                     $thumbJpgExists = Storage::disk('digitalocean')->exists("/public/$thumbJpgPath");
 
                     // Log a warning if any source files are missing
-                    if (!$largeWebpExists || !$largeJpgExists || !$thumbWebpExists || !$thumbJpgExists) {
+                    if (! $largeWebpExists || ! $largeJpgExists || ! $thumbWebpExists || ! $thumbJpgExists) {
                         Log::warning("Some source files missing for image {$image->id}", [
                             'largeWebp' => $largeWebpExists,
-                            'largeJpg' => $largeJpgExists, 
+                            'largeJpg' => $largeJpgExists,
                             'thumbWebp' => $thumbWebpExists,
-                            'thumbJpg' => $thumbJpgExists
+                            'thumbJpg' => $thumbJpgExists,
                         ]);
                     }
 
                     // Ensure destination directory exists
-                    if (!Storage::disk('digitalocean')->exists("/public/$newDirectory")) {
+                    if (! Storage::disk('digitalocean')->exists("/public/$newDirectory")) {
                         Storage::disk('digitalocean')->makeDirectory("/public/$newDirectory");
                     }
-                    
+
                     // Copy files
                     if ($largeWebpExists) {
                         Storage::disk('digitalocean')->copy(
@@ -508,21 +522,21 @@ class ImageHandler
                             "/public/$newDirectory/$newFileName.webp"
                         );
                     }
-                    
+
                     if ($largeJpgExists) {
                         Storage::disk('digitalocean')->copy(
                             "/public/$largeJpgPath",
                             "/public/$newDirectory/$newFileName.jpg"
                         );
                     }
-                    
+
                     if ($thumbWebpExists) {
                         Storage::disk('digitalocean')->copy(
                             "/public/$image->thumb_image_path",
                             "/public/$newDirectory/$newFileName-thumb.webp"
                         );
                     }
-                    
+
                     if ($thumbJpgExists) {
                         Storage::disk('digitalocean')->copy(
                             "/public/$thumbJpgPath",
@@ -540,12 +554,12 @@ class ImageHandler
 
                     // Update image record
                     $oldLargePath = $image->large_image_path;
-                    
+
                     $image->update([
                         'large_image_path' => "$newDirectory/$newFileName.webp",
                         'thumb_image_path' => "$newDirectory/$newFileName-thumb.webp",
                     ]);
-                    
+
                     // Update model image columns if needed
                     $table = $model->getTable();
                     $hasImageColumns = \Schema::hasColumns($table, ['largeImagePath', 'thumbImagePath']);
@@ -559,18 +573,17 @@ class ImageHandler
                     Log::error("Error processing image {$image->id}: {$e->getMessage()}");
                 }
             }
-            
+
             // Only delete original directories after all images are processed
             $processedDirectories = [];
-            
+
             foreach ($model->images as $image) {
                 $originalDirectory = str_replace($newSlug, $oldSlug, dirname($image->large_image_path));
-                if (!in_array($originalDirectory, $processedDirectories)) {
+                if (! in_array($originalDirectory, $processedDirectories)) {
                     $processedDirectories[] = $originalDirectory;
                     static::deleteDirectoryIfUnused($originalDirectory);
                 }
             }
         }
     }
-
 }
