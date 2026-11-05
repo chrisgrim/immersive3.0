@@ -181,6 +181,8 @@ app.component('vue-api-tokens', defineAsyncComponent(() => import('./PageCompone
 
 app.component('vue-inbox', defineAsyncComponent(() => import('./PageComponents/Messaging/inbox.vue')));
 app.component('vue-admin', defineAsyncComponent(() => import('./PageComponents/Admin/index.vue')));
+app.component('vue-project-edit', defineAsyncComponent(() => import('./PageComponents/Projects/project-edit.vue')));
+app.component('vue-event-credits', defineAsyncComponent(() => import('./PageComponents/Projects/event-credits.vue')));
 app.component('vue-account-settings-index', defineAsyncComponent(() => import('./PageComponents/AccountSettings/index.vue')));
 app.component('vue-notifications-index', defineAsyncComponent(() => import('./PageComponents/Notifications/index.vue')));
 app.component('vue-profile-index', defineAsyncComponent(() => import('./PageComponents/Profile/index.vue')));

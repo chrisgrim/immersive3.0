@@ -28,6 +28,9 @@
         <div class="flex-1 overflow-auto">
             <div class="max-w-screen-xl mx-auto px-8 pt-8">
                 <div class="w-full md:w-[61rem] mx-auto pb-24 space-y-8">
+                    <!-- The link this listing asked for, or shows with a similar name -->
+                    <link-request-panel ref="linkPanel" :event="props.event" />
+
                     <!-- User Section: the account that created the event. Any
                          member of the organizer's team can, so it is not always
                          the organizer's owner. First, so who submitted is seen at a glance. -->
@@ -581,6 +584,7 @@ import {
 } from '@remixicon/vue';
 import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue';
 import { formatPrice } from '@/composables/useCurrency';
+import LinkRequestPanel from './LinkRequestPanel.vue';
 
 const props = defineProps({
     event: {
@@ -687,6 +691,7 @@ const processing = ref(false);
 const isRejecting = ref(false);
 const isApproving = ref(false);
 const isDuplicating = ref(false);
+const linkPanel = ref(null);
 
 const onReject = () => {
     showRejectModal.value = true;
@@ -721,10 +726,15 @@ const onApprove = async () => {
     try {
         processing.value = true;
         isApproving.value = true;
-        await axios.post(`/api/admin/approve/events/${props.event.slug}/approve`);
+        const link = linkPanel.value?.decision;
+        await axios.post(`/api/admin/approve/events/${props.event.slug}/approve`, link ? { link } : {});
         window.location.href = '/admin/dashboard?view=approve-events';
     } catch (error) {
         console.error('Error approving event:', error);
+        // A refused link undoes the approval: say why, so it can be changed.
+        if (error.response?.status === 422) {
+            alert(Object.values(error.response.data.errors ?? {}).flat()[0] ?? error.response.data.message);
+        }
     } finally {
         processing.value = false;
         isApproving.value = false;
