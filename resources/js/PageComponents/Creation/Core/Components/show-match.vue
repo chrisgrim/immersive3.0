@@ -98,6 +98,8 @@ const join = async (match) => {
         await axios.post(`/api/hosting/event/${event.slug}`, {
             name: event.name,
             ...(event.tag_line ? { tag_line: event.tag_line } : {}),
+            // They just said which show this is; a same-named one elsewhere is not a question.
+            acknowledge_duplicate: true,
         });
         window.location.reload();
     } catch (failure) {

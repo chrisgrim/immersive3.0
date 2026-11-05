@@ -138,7 +138,7 @@ test('the aggregate adds everyone up across runs, derived', function () {
 
 test('the keeper sees and approves a request, and the run takes its address', function () {
     $listing = publishedListing('Ha Ha Ha', 'Rome');
-    $request = ProjectLinkRequest::create(['event_id' => $listing->id, 'project_id' => $this->project->id]);
+    $request = ProjectLinkRequest::create(['event_id' => $listing->id, 'project_id' => $this->project->id, 'submitted_at' => now()]);
 
     $this->actingAs($this->keeper)->getJson('/hosting/projects/ha-ha-ha/link-requests')
         ->assertOk()->assertJsonPath('0.event.id', $listing->id);
@@ -147,6 +147,13 @@ test('the keeper sees and approves a request, and the run takes its address', fu
         ->assertOk()->assertJsonCount(0, 'link_requests')->assertJsonCount(2, 'runs');
 
     expect($listing->fresh()->publicPath())->toBe('/events/ha-ha-ha/rome-2026');
+});
+
+test('an unsubmitted draft is not on the keeper\'s list', function () {
+    $draft = publishedListing('Ha Ha Ha', 'Rome', ['status' => '1']);
+    ProjectLinkRequest::create(['event_id' => $draft->id, 'project_id' => $this->project->id]);
+
+    $this->actingAs($this->keeper)->getJson('/hosting/projects/ha-ha-ha/link-requests')->assertOk()->assertJsonCount(0);
 });
 
 test('the keeper declines a request', function () {

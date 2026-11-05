@@ -9,7 +9,8 @@ export function wantsNewRun(event, step, submitData, savedCity) {
     if (event.status !== 'p') return false;
 
     if (step === 'Location') {
-        const city = submitData?.location?.city;
+        // A picked venue sends no address: the form holds the city it brought.
+        const city = submitData?.location?.city ?? event.location?.city;
         return Boolean(city && savedCity && city.trim().toLowerCase() !== savedCity.trim().toLowerCase());
     }
 

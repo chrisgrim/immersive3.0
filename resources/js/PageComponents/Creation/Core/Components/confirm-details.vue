@@ -18,6 +18,15 @@ const event = inject('event');
 const busy = ref(false);
 const error = ref('');
 
+// The Review step's Submit asks this; a refusal stays on the page.
+const isConfirmed = () => {
+    const confirmed = !event.link_request || event.link_request.details_confirmed;
+    error.value = confirmed ? '' : 'Please confirm these details before submitting.';
+    return confirmed;
+};
+
+defineExpose({ isConfirmed });
+
 const confirm = async () => {
     busy.value = true;
     error.value = '';

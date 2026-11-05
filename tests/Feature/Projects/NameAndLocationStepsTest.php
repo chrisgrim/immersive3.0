@@ -345,7 +345,8 @@ test('the dashboard carries the shows this company keeps, with what is waiting',
     $this->owner->update(['current_team_id' => $this->organizer->id]);
     $kept = Project::factory()->create(['organizer_id' => $this->organizer->id, 'name' => 'Mine']);
     $handedOn = Project::factory()->create(['organizer_id' => $this->organizer->id, 'name' => 'Handed On', 'editor_organizer_id' => Organizer::factory()->create()->id]);
-    ProjectLinkRequest::create(['event_id' => publishedListing('A', 'Rome')->id, 'project_id' => $kept->id]);
+    ProjectLinkRequest::create(['event_id' => publishedListing('A', 'Rome')->id, 'project_id' => $kept->id, 'submitted_at' => now()]);
+    ProjectLinkRequest::create(['event_id' => publishedListing('B', 'Rome', ['status' => '1'])->id, 'project_id' => $kept->id]);
 
     $organizer = $this->get('/hosting/events')->assertOk()->viewData('organizer');
 

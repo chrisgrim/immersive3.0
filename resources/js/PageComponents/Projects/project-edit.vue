@@ -23,7 +23,7 @@
                     <button
                         type="button"
                         class="px-6 py-3 bg-black text-white rounded-2xl disabled:opacity-50"
-                        :disabled="busy || request.event?.status === 'r'"
+                        :disabled="busy || !['p', 'e'].includes(request.event?.status)"
                         @click="decide(request, 'approve')"
                     >
                         Approve
@@ -67,7 +67,7 @@
             <div v-for="run in page.runs" :key="run.id" class="flex items-center justify-between gap-4">
                 <div class="min-w-0">
                     <a :href="run.public_url" class="text-xl underline">{{ run.name }}</a>
-                    <span class="text-gray-600"> {{ run.organizer?.name }}</span>
+                    <span class="text-gray-600 ml-3">{{ run.organizer?.name }}</span>
                 </div>
                 <button
                     type="button"

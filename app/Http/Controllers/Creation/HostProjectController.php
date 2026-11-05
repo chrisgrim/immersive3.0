@@ -136,7 +136,8 @@ class HostProjectController extends Controller
 
     private function pendingRequests(Project $project): array
     {
-        return $this->review->withRelations($project->linkRequests()->pending())
+        // A draft is still its team's business: it waits on nobody yet.
+        return $this->review->withRelations($project->linkRequests()->pending()->whereNotNull('submitted_at'))
             ->orderBy('submitted_at')
             ->get()
             ->map(fn (ProjectLinkRequest $linkRequest) => $this->review->present($linkRequest))

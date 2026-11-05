@@ -46,7 +46,7 @@ class HostController extends Controller
         // The shows this company keeps the page of, for the dashboard's link.
         $organizer?->setAttribute('kept_projects', Project::where('editor_organizer_id', $organizer->id)
             ->orWhere(fn ($query) => $query->where('organizer_id', $organizer->id)->whereNull('editor_organizer_id'))
-            ->withCount(['linkRequests as pending_requests' => fn ($query) => $query->pending()])
+            ->withCount(['linkRequests as pending_requests' => fn ($query) => $query->pending()->whereNotNull('submitted_at')])
             ->orderBy('name')
             ->get(['id', 'name', 'slug'])
             ->map(fn (Project $project) => $project->only(['id', 'name', 'slug', 'pending_requests']))

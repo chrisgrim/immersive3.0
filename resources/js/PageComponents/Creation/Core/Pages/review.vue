@@ -3,7 +3,7 @@
         <div class="flex flex-col w-full">
             <h2 class="text-2xl font-bold mb-6">Review Your Listing</h2>
 
-            <confirm-details />
+            <confirm-details ref="confirmDetails" />
 
             <!-- Main Content -->
             <div class="w-full md:w-[61rem] mx-auto pb-24 space-y-8">
@@ -390,8 +390,11 @@ const onMapReady = () => {
 };
 
 // Component API
+const confirmDetails = ref(null);
+
 defineExpose({
-    isValid: async () => true, // Review page is always valid
+    // Nothing else stops here: a run joining a show confirms its details first.
+    isValid: async () => confirmDetails.value?.isConfirmed() ?? true,
     submitData: () => ({}) // No data to submit from review page
 });
 </script>

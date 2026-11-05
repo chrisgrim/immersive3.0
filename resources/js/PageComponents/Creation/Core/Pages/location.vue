@@ -365,6 +365,8 @@ const onVenuePicked = () => {
     userInput.value = '';
     dropdown.value = false;
     map.value.center = { lat: parseFloat(event.location.latitude), lng: parseFloat(event.location.longitude) };
+    // A venue is somewhere: its timezone comes with it, as an address's does.
+    setTimezoneFromCoordinates(event.location.latitude, event.location.longitude);
 };
 
 const selectLocation = async (location) => {
@@ -629,7 +631,12 @@ defineExpose({
         return isValid;
     },
             submitData: () => ({
-        location: {
+        // A picked venue is its own address: the server copies it.
+        location: event.location.venue_id ? {
+            venue_id: event.location.venue_id,
+            hiddenLocationToggle: event.location.hiddenLocationToggle,
+            hiddenLocation: event.location.hiddenLocation,
+        } : {
             latitude: event.location.latitude,
             longitude: event.location.longitude,
             home: event.location.home,
@@ -641,7 +648,7 @@ defineExpose({
             country: event.location.country,
             country_long: event.location.country_long,
             venue: event.location.venue,
-            venue_id: event.location.venue_id ?? null,
+            venue_id: null,
             hiddenLocationToggle: event.location.hiddenLocationToggle,
             hiddenLocation: event.location.hiddenLocation
         },
