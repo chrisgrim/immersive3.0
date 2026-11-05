@@ -186,6 +186,27 @@ test('user text cannot run as Vue on the page', function () {
     expect($body)->not->toContain('{{');
 });
 
+test('line breaks survive: Vue collapses them in the page, so they are real breaks', function () {
+    $this->project->update(['description' => "First line.\nSecond <b>line</b>."]);
+    runOf($this->project, 'Chicago');
+
+    $this->get('/events/ha-ha-ha')
+        ->assertSee('First line.<br>', false)
+        ->assertSee('&lt;b&gt;line&lt;/b&gt;', false);
+});
+
+test('a venue\'s directions keep their lines and cannot run as Vue, on its page and the listing', function () {
+    $venue = Venue::factory()->create(['directions' => "Park here.\n{{ constructor }}"]);
+    $listing = publishedListing('Plain', 'Chicago');
+    Location::where('event_id', $listing->id)->update(['venue_id' => $venue->id]);
+
+    foreach ([$venue->publicPath(), '/events/plain'] as $path) {
+        $body = preg_replace('#<script\b.*?</script>#s', '', Str::after($this->get($path)->assertOk()->getContent(), '<body id="app">'));
+
+        expect($body)->toContain('Park here.<br>')->not->toContain('{{');
+    }
+});
+
 test('analytics: a show is not an event view', function () {
     runOf($this->project, 'Chicago');
     $request = $this->get('/events/ha-ha-ha')->baseRequest;
@@ -362,6 +383,15 @@ function organizerPage(Organizer $organizer, int $page = 1, int $pageSize = 10)
 {
     return test()->getJson("/api/organizers/{$organizer->slug}/events?page={$page}&pageSize={$pageSize}")->assertOk();
 }
+
+test('a company with no shows keeps its first render too', function () {
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    publishedListing('Running', 'Chicago', [], $organizer);
+
+    $page = $this->get($organizer->publicPath())->viewData('organizer');
+
+    expect($page->events->first())->toBeInstanceOf(Event::class);
+});
 
 test('a company with no shows lists exactly what it always did', function () {
     $organizer = Organizer::factory()->create(['status' => 'p']);

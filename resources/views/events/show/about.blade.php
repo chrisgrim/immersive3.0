@@ -51,7 +51,8 @@
                             @if($venue->directions)
                                 <details class="mt-2">
                                     <summary class="text-xl font-medium text-neutral-500 hover:text-black cursor-pointer">How to get there</summary>
-                                    <p class="text-xl text-neutral-600 mt-2 whitespace-pre-line">{{ $venue->directions }}</p>
+                                    {{-- Vue compiles this page and collapses newlines, so they are breaks. --}}
+                    <p class="text-xl text-neutral-600 mt-2">{!! \App\Support\VueSafe::html(nl2br(e($venue->directions), false)) !!}</p>
                                 </details>
                             @endif
                         @else

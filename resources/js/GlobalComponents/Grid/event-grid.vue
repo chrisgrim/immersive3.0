@@ -25,8 +25,8 @@
                         v-for="layer in card.show.depth - 1"
                         :key="layer"
                         data-stack-layer
-                        class="absolute inset-0 rounded-2xl bg-neutral-200 border border-white"
-                        :style="{ transform: `translate(${layer * 6}px, ${layer * -6}px)`, zIndex: -layer + 5, opacity: 1 - layer * 0.25 }"
+                        class="absolute inset-0 rounded-2xl bg-neutral-400 border-2 border-white"
+                        :style="{ transform: `translate(${layer * 8}px, ${layer * -8}px)`, zIndex: -layer + 5, opacity: 1 - layer * 0.2 }"
                     ></div>
                 </template>
                 <!-- Event Image Container with 3:4 aspect ratio -->

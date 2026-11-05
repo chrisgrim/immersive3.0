@@ -76,13 +76,15 @@
                 @endif
 
                 @if($venue->description)
-                    <p class="text-2xl text-neutral-800 mt-8 whitespace-pre-line break-words">{{ $venue->description }}</p>
+                    {{-- Vue compiles this page and collapses newlines, so they are breaks. --}}
+                    <p class="text-2xl text-neutral-800 mt-8 break-words">{!! \App\Support\VueSafe::html(nl2br(e($venue->description), false)) !!}</p>
                 @endif
 
                 @if($venue->directions)
                     <section class="mt-10" id="how-to-get-there">
                         <h2 class="text-3xl font-medium text-black mb-2">How to get there</h2>
-                        <p class="text-2xl text-neutral-800 whitespace-pre-line break-words">{{ $venue->directions }}</p>
+                        {{-- Vue compiles this page and collapses newlines, so they are breaks. --}}
+                    <p class="text-2xl text-neutral-800 break-words">{!! \App\Support\VueSafe::html(nl2br(e($venue->directions), false)) !!}</p>
                     </section>
                 @endif
             </div>

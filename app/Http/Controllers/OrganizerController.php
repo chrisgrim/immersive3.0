@@ -33,7 +33,9 @@ class OrganizerController extends Controller
 
         // Its shows, each once. A company that made a show but presents no
         // run of it has none of its own events to start from.
-        $organizer->setRelation('events', OrganizerShows::paginate($organizer, 1, 10)->getCollection());
+        if (OrganizerShows::hasShows($organizer)) {
+            $organizer->setRelation('events', OrganizerShows::paginate($organizer, 1, 10)->getCollection());
+        }
 
         // Since 'show' is excepted from auth middleware, we need to check for user
         if ($organizer->status !== 'p' &&

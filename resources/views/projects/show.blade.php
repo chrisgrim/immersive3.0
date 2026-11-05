@@ -103,7 +103,8 @@
                 </dl>
 
                 @if($project->description)
-                    <p class="text-2xl text-neutral-800 mt-10 whitespace-pre-line break-words">{{ $project->description }}</p>
+                    {{-- Vue compiles this page and collapses newlines, so they are breaks. --}}
+                    <p class="text-2xl text-neutral-800 mt-10 break-words">{!! \App\Support\VueSafe::html(nl2br(e($project->description), false)) !!}</p>
                 @endif
             </div>
         </div>

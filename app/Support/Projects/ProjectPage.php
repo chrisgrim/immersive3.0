@@ -36,15 +36,17 @@ class ProjectPage
             'coming' => $coming,
             'past' => $past,
             'from' => self::fromPrices($runs),
-            'image' => $project->largeImagePath ?? self::firstImage($runs),
+            'image' => $project->largeImagePath ?? self::firstImage($runs, $rows),
         ];
     }
 
-    private static function firstImage(Collection $runs): ?string
+    /** Without a picture of its own, the earliest run's that has one. */
+    private static function firstImage(Collection $runs, Collection $rows): ?string
     {
-        $run = $runs->first(fn (Event $run) => $run->largeImagePath !== null);
-
-        return $run?->largeImagePath;
+        return $rows->sortBy('start')
+            ->map(fn (array $row) => $runs->firstWhere('id', $row['id'])?->largeImagePath)
+            ->filter()
+            ->first();
     }
 
     /**

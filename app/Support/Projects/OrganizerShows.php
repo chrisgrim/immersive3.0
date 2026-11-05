@@ -51,6 +51,12 @@ class OrganizerShows
         );
     }
 
+    /** Whether its page needs this class at all: most organizers have no shows. */
+    public static function hasShows(Organizer $organizer): bool
+    {
+        return self::projectIds($organizer)->isNotEmpty();
+    }
+
     /** @return Collection<int, int> */
     private static function projectIds(Organizer $organizer): Collection
     {
