@@ -3,6 +3,7 @@
 namespace App\Actions\Projects;
 
 use App\Models\Event;
+use App\Models\Events\Location;
 use App\Models\Venue;
 use App\Services\GeocodingService;
 use Illuminate\Support\Str;
@@ -21,6 +22,23 @@ class ApplyVenue
     private const ADDRESS_FIELDS = ['home', 'street', 'city', 'region', 'region_long', 'country', 'country_long', 'postal_code'];
 
     private const POINT_FIELDS = ['latitude', 'longitude'];
+
+    /**
+     * Places an address before any row is locked: geocoding is a slow outside
+     * call, and an edit of the same listing should not wait on it. handle()
+     * then finds the point in the fields and makes no call. Read unlocked, so
+     * nothing here decides anything: secrecy and the venue stay with handle().
+     *
+     * @return array<string, mixed> the fields, with a point if one will be needed
+     */
+    public function withPointIfNeeded(Event $event, array $location): array
+    {
+        $current = Location::where('event_id', $event->id)->first();
+
+        return $current && ($location['venue_id'] ?? null) === null && $this->needsPoint($current, $location)
+            ? $this->withGeocodedPoint($current, $location)
+            : $location;
+    }
 
     /** @return array<string, mixed> the location fields to save */
     public function handle(Event $event, array $location): array
@@ -65,7 +83,7 @@ class ApplyVenue
         }
 
         // Moving off a venue with no new point would leave its point behind.
-        if ($held !== null && ! $secret && $this->addressChanged($current, $location) && ! $this->hasPoint($location)) {
+        if ($this->needsPoint($current, $location)) {
             $location = $this->withGeocodedPoint($current, $location);
         }
 
@@ -95,6 +113,13 @@ class ApplyVenue
         }
 
         return false;
+    }
+
+    private function needsPoint($current, array $location): bool
+    {
+        $secret = (bool) ($location['hiddenLocationToggle'] ?? $current?->hiddenLocationToggle);
+
+        return $current?->venue_id !== null && ! $secret && $this->addressChanged($current, $location) && ! $this->hasPoint($location);
     }
 
     private function hasPoint(array $location): bool

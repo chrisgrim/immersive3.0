@@ -109,6 +109,8 @@ class UpdateEventAction
      */
     private function saveLocation(Event $event, array $fields): void
     {
+        $fields = app(ApplyVenue::class)->withPointIfNeeded($event, $fields);
+
         DB::transaction(function () use ($event, $fields) {
             $row = Event::withoutGlobalScopes()->whereKey($event->id)->lockForUpdate()->first();
             $location = Location::where('event_id', $event->id)->lockForUpdate()->firstOrFail();

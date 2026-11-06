@@ -10,6 +10,7 @@ use App\Models\ProjectLinkRequest;
 use App\Models\User;
 use App\Models\Venue;
 use App\Services\GeocodingService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\Support\FakeSearchEngine;
@@ -277,6 +278,64 @@ test('a partial address with no coordinates is geocoded, so the old point never 
 
     expect($draft->fresh()->location_latlon['lat'])->toBe(42.36)
         ->and((float) $draft->fresh()->location->longitude)->toBe(-71.05);
+});
+
+test('moving off a venue geocodes once, with no row locked', function () {
+    $venue = Venue::factory()->create(['city' => 'Chicago', 'latitude' => 41.88, 'longitude' => -87.63]);
+    $draft = draftOf($this->organizer);
+    saveLocation($draft, ['venue_id' => $venue->id])->assertOk();
+    $outside = DB::transactionLevel();
+    $levelDuringTheCall = null;
+
+    $this->mock(GeocodingService::class)->shouldReceive('search')->once()
+        ->andReturnUsing(function () use (&$levelDuringTheCall) {
+            $levelDuringTheCall = DB::transactionLevel();
+
+            return [['latitude' => 42.36, 'longitude' => -71.05]];
+        });
+
+    saveLocation($draft->fresh(), ['city' => 'Boston'])->assertOk();
+
+    expect($levelDuringTheCall)->toBe($outside)
+        ->and($draft->fresh()->location->venue_id)->toBeNull();
+});
+
+test('secrecy that lands during the geocode is still decided under the lock', function () {
+    $venue = Venue::factory()->create(['name' => 'The Goodman', 'city' => 'Chicago', 'latitude' => 41.88, 'longitude' => -87.63]);
+    $draft = draftOf($this->organizer);
+    saveLocation($draft, ['venue_id' => $venue->id])->assertOk();
+
+    $this->mock(GeocodingService::class)->shouldReceive('search')->once()
+        ->andReturnUsing(function () use ($draft) {
+            Location::where('event_id', $draft->id)->update(['hiddenLocationToggle' => true]);
+
+            return [['latitude' => 42.3611, 'longitude' => -71.0512]];
+        });
+
+    saveLocation($draft->fresh(), ['city' => 'Boston'])->assertOk();
+
+    expect($draft->fresh()->location->venue_id)->toBeNull()
+        ->and($draft->fresh()->location->venue)->toBeNull()
+        ->and($draft->fresh()->location_latlon)->toBe(['lat' => 42.365, 'lon' => -71.055]);
+});
+
+test('a secret location is not geocoded on the way to the lock', function () {
+    $venue = Venue::factory()->create(['city' => 'Chicago', 'latitude' => 41.88, 'longitude' => -87.63]);
+    $draft = draftOf($this->organizer);
+    saveLocation($draft, ['venue_id' => $venue->id])->assertOk();
+    $this->mock(GeocodingService::class)->shouldNotReceive('search');
+
+    saveLocation($draft->fresh(), ['city' => 'Boston', 'hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'])->assertOk();
+});
+
+test('picking a venue is not geocoded on the way to the lock', function () {
+    $held = Venue::factory()->create(['city' => 'Chicago', 'latitude' => 41.88, 'longitude' => -87.63]);
+    $next = Venue::factory()->create(['city' => 'Boston', 'latitude' => 42.36, 'longitude' => -71.05]);
+    $draft = draftOf($this->organizer);
+    saveLocation($draft, ['venue_id' => $held->id])->assertOk();
+    $this->mock(GeocodingService::class)->shouldNotReceive('search');
+
+    saveLocation($draft->fresh(), ['venue_id' => $next->id, 'city' => 'Boston'])->assertOk();
 });
 
 test('an address nobody can place is refused, and the former venue stays', function () {
