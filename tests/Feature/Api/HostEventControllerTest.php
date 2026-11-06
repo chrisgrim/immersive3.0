@@ -170,7 +170,7 @@ test('create returns 409 when a duplicate name exists without acknowledgement', 
     $organizer = Organizer::factory()->create();
     $user = memberOf($organizer);
 
-    Event::factory()->create(['name' => 'Spooky Dinner Theater']);
+    Event::factory()->create(['name' => 'Spooky Dinner Theater', 'status' => 'p']);
 
     $this->actingAs($user)
         ->postJson(route('hosting.event.create'), [
@@ -537,7 +537,7 @@ test('update with specific showtype clears showtype_config', function () {
 test('update returns 409 on duplicate name without acknowledgement', function () {
     $organizer = Organizer::factory()->create();
     $event = Event::factory()->create(['organizer_id' => $organizer->id, 'name' => 'Original']);
-    Event::factory()->create(['name' => 'Conflicting Name']);
+    Event::factory()->create(['name' => 'Conflicting Name', 'status' => 'p']);
     $user = memberOf($organizer);
 
     $this->actingAs($user)
@@ -570,7 +570,7 @@ test('update marks the duplicate organizer not claimable when externally owned',
     // A legitimately externally-owned event must never be claimable via a title collision.
     $external = User::factory()->create(['type' => 'u']);
     $externalOrg = Organizer::factory()->create(['user_id' => $external->id]);
-    Event::factory()->create(['organizer_id' => $externalOrg->id, 'name' => 'Blooming Wonders']);
+    Event::factory()->create(['organizer_id' => $externalOrg->id, 'name' => 'Blooming Wonders', 'status' => 'p']);
 
     $prOrg = Organizer::factory()->create();
     $event = Event::factory()->create(['organizer_id' => $prOrg->id, 'name' => 'Original']);
