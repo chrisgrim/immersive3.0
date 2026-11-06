@@ -81,9 +81,7 @@ class EventController extends Controller
         // hex-escaped (and / as \/), so user text can't break out of the script.
         // A secret location's exact point stays off the page: the map draws its
         // area around location_latlon, the public point.
-        if ($event->location?->hiddenLocationToggle) {
-            $event->location->makeHidden(['latitude', 'longitude']);
-        }
+        $event->location?->hideSecretPoint();
 
         // A secret location's street never reaches the page; the map only
         // draws an area for it (show-map.vue).

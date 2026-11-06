@@ -68,6 +68,14 @@ class Location extends Model
         return min($limit - 0.005, round((floor($degrees * 100) + 0.5) / 100, 3));
     }
 
+    /** Leaves a secret location's exact point out of what this row serializes. */
+    public function hideSecretPoint(): void
+    {
+        if ($this->hiddenLocationToggle) {
+            $this->makeHidden(['latitude', 'longitude']);
+        }
+    }
+
     /**
      * These fields as someone may read them: a secret location's exact point,
      * like its street, is only for those who can edit the event.
