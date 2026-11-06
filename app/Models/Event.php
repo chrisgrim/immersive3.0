@@ -96,6 +96,9 @@ class Event extends Model
      */
     protected $with = ['project'];
 
+    /** Set by InstanceAddress::primeFirstDays for a page of runs. */
+    public ?object $firstShowRows = null;
+
     /** Set by the restoring hook when the project this run belonged to is gone. */
     private ?int $restoredWithoutProject = null;
 

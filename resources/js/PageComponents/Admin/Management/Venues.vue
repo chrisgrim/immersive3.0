@@ -42,6 +42,10 @@
             <label class="block">Room <input v-model="form.room" class="block w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg"></label>
             <label class="block">About <textarea v-model="form.description" rows="3" class="block w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg"></textarea></label>
             <label class="block">How to get there <textarea v-model="form.directions" rows="4" class="block w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg"></textarea></label>
+            <label class="block">Picture
+                <span class="block text-gray-500">{{ editing.largeImagePath ? 'Replaces the current picture.' : 'No picture yet.' }}</span>
+                <input type="file" accept="image/*" class="block mt-1" data-venue-image @change="upload">
+            </label>
             <div class="flex gap-4">
                 <button class="px-4 py-2 bg-blue-500 text-white rounded-lg" @click="save">Save</button>
                 <button class="px-4 py-2" @click="editing = null">Close</button>
@@ -101,6 +105,15 @@ const open = (venue) => {
     mergeResults.value = [];
     mergeSearch.value = '';
     Object.assign(form, { name: venue.name, room: venue.room ?? '', description: venue.description ?? '', directions: venue.directions ?? '' });
+};
+
+const upload = (change) => {
+    const file = change.target.files[0];
+    if (!file) return;
+
+    const data = new FormData();
+    data.append('image', file);
+    act(() => axios.post(`/api/admin/venues/${editing.value.slug}/image`, data));
 };
 
 const approve = (venue) => act(() => axios.post(`/api/admin/venues/${venue.slug}/approve`));

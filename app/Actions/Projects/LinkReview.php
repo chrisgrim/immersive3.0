@@ -5,6 +5,7 @@ namespace App\Actions\Projects;
 use App\Models\Event;
 use App\Models\Project;
 use App\Models\ProjectLinkRequest;
+use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
@@ -16,8 +17,12 @@ class LinkReview
 {
     public function __construct(private SuggestShows $suggest) {}
 
-    /** Sets link_request and name_matches on each event, for its JSON. */
-    public function attachTo(Collection $events): void
+    /**
+     * Sets link_request on each event, for its JSON, and name_matches for the
+     * review screen. The queue's cards use neither, and a search per card is
+     * twenty searches a page.
+     */
+    public function attachTo(Collection $events, ?User $viewer = null, bool $withMatches = false): void
     {
         $requests = $this->withRelations(ProjectLinkRequest::pending()->whereIn('event_id', $events->pluck('id')))
             ->get()
@@ -25,7 +30,10 @@ class LinkReview
 
         foreach ($events as $event) {
             $event->setAttribute('link_request', isset($requests[$event->id]) ? $this->present($requests[$event->id]) : null);
-            $event->setAttribute('name_matches', $this->suggest->handle((string) $event->name, $event->id));
+
+            if ($withMatches) {
+                $event->setAttribute('name_matches', $this->suggest->handle((string) $event->name, $event->id, $viewer));
+            }
         }
     }
 

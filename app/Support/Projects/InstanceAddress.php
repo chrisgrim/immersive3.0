@@ -9,6 +9,7 @@ use App\Models\SlugRedirect;
 use App\Scopes\DateScope;
 use App\Support\ShowHistory;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
@@ -99,11 +100,27 @@ class InstanceAddress
         return $approved->setTimezone($timezone)->toDateString();
     }
 
+    /** One query for a page of runs, so startDay() runs none per run. */
+    public static function primeFirstDays(Collection $events): void
+    {
+        $rows = Show::withoutGlobalScope(DateScope::class)
+            ->whereIn('event_id', $events->pluck('id'))
+            ->groupBy('event_id')
+            ->selectRaw("event_id, MIN(date) as first_date, SUM(TIME(date) <> '00:00:00') as timed_shows_count")
+            ->toBase()
+            ->get()
+            ->keyBy('event_id');
+
+        foreach ($events as $event) {
+            $event->firstShowRows = $rows->get($event->id) ?? (object) ['first_date' => null, 'timed_shows_count' => 0];
+        }
+    }
+
     private static function firstShowDay(Event $event): ?string
     {
         // As EventController::loadShowsForPage: without the scope's ORDER BY,
         // which an aggregate has no use for.
-        $rows = $event->shows()
+        $rows = $event->firstShowRows ?? $event->shows()
             ->withoutGlobalScope(DateScope::class)
             ->reorder()
             ->selectRaw("MIN(date) as first_date, SUM(TIME(date) <> '00:00:00') as timed_shows_count")

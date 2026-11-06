@@ -68,17 +68,22 @@ class CreditLifecycle
 
     /**
      * Copies $rows onto $destination, skipping any it already holds an
-     * equivalent of. Adds, and never replaces.
+     * equivalent of (with $exact, the same line of a run's list). Adds, and
+     * never replaces.
      *
      * @return int how many rows were added
      */
-    public function addMissing(Collection $rows, Model $destination): int
+    public function addMissing(Collection $rows, Model $destination, bool $exact = false): int
     {
         $held = $destination->credits()->get();
         $added = 0;
 
         foreach ($rows as $row) {
-            if (! $this->holds($held, $row)) {
+            $known = $exact
+                ? $held->contains(fn (Credit $credit) => $credit->isSameLineAs($row))
+                : $this->holds($held, $row);
+
+            if (! $known) {
                 $held->push($row->copyOnto($destination));
                 $added++;
             }
@@ -95,6 +100,7 @@ class CreditLifecycle
     private function previousRun(Event $run, Project $project): ?Event
     {
         $others = $project->runs()->whereKeyNot($run->id)->get();
+        InstanceAddress::primeFirstDays($others);
         $own = $others->where('organizer_id', $run->organizer_id);
 
         return ($own->isNotEmpty() ? $own : $others)

@@ -6,6 +6,7 @@ use App\Actions\Projects\MergeVenues;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Venue;
+use App\Services\ImageHandler;
 use Illuminate\Http\Request;
 
 class AdminVenueController extends Controller
@@ -41,6 +42,20 @@ class AdminVenueController extends Controller
         AuditLog::record($venue, 'venue.updated', $request->user(), ['fields' => array_keys($validated)]);
 
         return response()->json(['venue' => $venue]);
+    }
+
+    /** The venue page's picture, replacing the one before. */
+    public function image(Request $request, Venue $venue)
+    {
+        $this->authorize('update', $venue);
+
+        $request->validate(['image' => ['required', 'image', 'max:10240']]);
+
+        ImageHandler::replaceImage($venue->images()->get(), $request->file('image'), $venue, 800, 600, 'venue-images');
+
+        AuditLog::record($venue, 'venue.image_updated', $request->user());
+
+        return response()->json(['venue' => $venue->refresh()]);
     }
 
     public function approve(Request $request, Venue $venue)

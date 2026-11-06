@@ -281,8 +281,9 @@ class LinkEventToProject
             'organizer_id' => $maker->id,
         ]);
 
-        // The project's own files, never shared by path.
-        ImageHandler::duplicateImages($first, $project, 'project');
+        // The project's own files, never shared by path. After the commit:
+        // a rollback would leave copies nothing points at.
+        DB::afterCommit(fn () => ImageHandler::duplicateImages($first, $project, 'project'));
 
         // The address is the project's now; an old alias of it would shadow nothing.
         SlugRedirect::where('path', 'events/'.$slug)->delete();

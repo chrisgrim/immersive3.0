@@ -511,6 +511,7 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
         Route::controller(AdminVenueController::class)->group(function () {
             Route::GET('/venues', 'index');
             Route::PATCH('/venues/{venue}', 'update');
+            Route::POST('/venues/{venue}/image', 'image');
             Route::POST('/venues/{venue}/approve', 'approve');
             Route::POST('/venues/{venue}/merge', 'merge');
         });

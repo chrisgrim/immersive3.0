@@ -53,7 +53,8 @@ class EventController extends Controller
             abort(404);
         }
 
-        if ($listing->isLinked()) {
+        // Linked to a show that is gone, its address is still this one.
+        if ($listing->isLinked() && $listing->publicPath() !== '/events/'.$listing->slug) {
             return $this->redirectTo($listing->publicPath(), 301);
         }
 
@@ -185,7 +186,7 @@ class EventController extends Controller
         // A secret location's street never reaches the page; the map only
         // draws an area for it (show-map.vue).
         if ($event->location?->hiddenLocationToggle) {
-            $event->location->makeHidden(['home', 'street', 'postal_code']);
+            $event->location->makeHidden(['home', 'street', 'postal_code', 'venue_id', ...($event->location->venue_id ? ['venue'] : [])]);
         }
 
         // A secret-location listing never reads its venue, however it got one.

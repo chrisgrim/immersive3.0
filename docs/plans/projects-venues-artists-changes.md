@@ -98,6 +98,8 @@ Each item names its source: a transcript line (L = line in call-transcript.txt),
 
 47. **Round 6 (Astra and Fable, 5 November; both agreed; each found the duplicate gap independently).** Every duplicate of a published listing now requests the source's show, linked or not, so Kathryn's 4 November note is closed. The request reaches the moderator's real review screen (`show`, not only `getPending`). The nudge is defined and applies only while a listing is editable. Run type, festival, Special Thanks and edition have entry points; run type and festival don't copy on duplicate. Bare organizers are staff-held and published, reusing `isClaimable`, because the schema requires an owner. Curators are cast-only, matching the page Noah and Kathryn read. The 72-hour clock starts at submission. The "price range" wording in items 10 and earlier is superseded by Kathryn's "from" price; the decisions stay recorded as they were made.
 
+48. **Review of the build: name matches live on the review screen only.** Item 3's "getPending and show both return matches" was about reaching the screen. The screen reloads through `show`, and the queue's cards use neither field, so `getPending` keeps the request and drops the matches: they were a search per card.
+
 ## Kept from Draft 3 (confirmed on the call)
 
 - The four things and their definitions (Noah L19–L23 "yep yep yep").

@@ -54,12 +54,14 @@ class HostProjectController extends Controller
                 $this->syncWriters($project, $validated['writers']);
             }
 
-            if ($request->hasFile('image')) {
-                ImageHandler::replaceImage($project->images()->get(), $request->file('image'), $project, 800, 1200, 'project-images');
-            }
-
             AuditLog::record($project, 'project.page_updated', $request->user(), ['fields' => array_keys($validated)]);
         });
+
+        // After the commit: it deletes the old files, and a rollback does not
+        // bring those back.
+        if ($request->hasFile('image')) {
+            ImageHandler::replaceImage($project->images()->get(), $request->file('image'), $project, 800, 1200, 'project-images');
+        }
 
         return response()->json($this->pageData($project->refresh()));
     }
@@ -148,6 +150,7 @@ class HostProjectController extends Controller
     private function pageData(Project $project): array
     {
         $runs = $project->runs()->with('organizer:id,name')->get();
+        InstanceAddress::primeFirstDays($runs);
 
         return [
             'id' => $project->id,

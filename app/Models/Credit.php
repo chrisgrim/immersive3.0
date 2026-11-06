@@ -80,6 +80,20 @@ class Credit extends Model
         return $copy;
     }
 
+    /**
+     * The same line of a run's list: for copying a list onto another, where a
+     * cast member and a crew member, two characters, or a regular and an
+     * understudy in one role are different credits.
+     */
+    public function isSameLineAs(self $other): bool
+    {
+        return $this->isEquivalentTo($other)
+            && $this->department === $other->department
+            && $this->character === $other->character
+            && $this->kind === $other->kind
+            && $this->covers === $other->covers;
+    }
+
     /** Same artist, role, billed name and dates: the test for dropping a merged writer. */
     public function isEquivalentTo(self $other): bool
     {

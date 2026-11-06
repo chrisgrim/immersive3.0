@@ -135,7 +135,7 @@ class AdminEventController extends Controller
         $event->duplicateEvents = $duplicateEvents;
 
         // The review screen reloads through here, so it never sees getPending's copy.
-        $this->linkReview->attachTo(collect([$event]));
+        $this->linkReview->attachTo(collect([$event]), request()->user(), withMatches: true);
 
         return response()->json($event);
     }
@@ -204,7 +204,6 @@ class AdminEventController extends Controller
         $perPage = 20;
         $page = LengthAwarePaginator::resolveCurrentPage();
 
-        // Only the page shown: name matches are a search per listing.
         $shown = $ordered->forPage($page, $perPage)->values();
         $this->linkReview->attachTo($shown);
 
@@ -373,12 +372,17 @@ class AdminEventController extends Controller
 
                 $this->applyLink($event, $link, $request->user());
 
-                // Last: moved files do not roll back, so nothing that can
-                // still refuse comes after them.
-                ImageHandler::finalize($event, $slug, 'event');
-
                 return $status;
             });
+
+            // After the commit: it deletes the old files, and a rollback does
+            // not bring those back. A failure leaves the pictures where they
+            // were, which still works.
+            try {
+                ImageHandler::finalize($event, $event->slug, 'event');
+            } catch (\Exception $e) {
+                report($e);
+            }
 
             // Clear caches since we're publishing a new event
             Cache::forget('active-categories');

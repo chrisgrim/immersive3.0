@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Event;
 use App\Models\SlugRedirect;
 use App\Models\Venue;
+use App\Support\Projects\InstanceAddress;
 use App\Support\Projects\RunRow;
 
 class VenueController extends Controller
@@ -39,10 +40,14 @@ class VenueController extends Controller
 
         $rows = Event::query()
             ->where('status', Event::STATUS_PUBLISHED)
+            ->where('hasLocation', true)
             ->whereHas('location', fn ($query) => $query->where('venue_id', $found->id)->where('hiddenLocationToggle', false))
             ->with(['organizer:id,name,slug,status', 'location', 'remotelocations', 'images'])
-            ->get()
-            ->map(fn (Event $run) => RunRow::for($run));
+            ->get();
+
+        InstanceAddress::primeFirstDays($rows);
+
+        $rows = $rows->map(fn (Event $run) => RunRow::for($run));
 
         return view('venues.show', [
             'venue' => $found,

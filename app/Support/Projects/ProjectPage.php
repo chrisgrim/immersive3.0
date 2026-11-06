@@ -22,6 +22,8 @@ class ProjectPage
             ->with(['organizer:id,name,slug,status', 'location', 'remotelocations', 'images'])
             ->get();
 
+        InstanceAddress::primeFirstDays($runs);
+
         $rows = $runs->map(fn (Event $run) => RunRow::for($run, $project->name));
 
         $now = $rows->where('bucket', RunRow::NOW)->sortBy('start')->values();

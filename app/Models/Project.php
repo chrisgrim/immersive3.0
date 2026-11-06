@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Enums\CreditDepartment;
+use App\Support\Projects\InstanceAddress;
 use App\Support\Slug;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,8 +42,37 @@ class Project extends Model
             if ($project->wasChanged('slug')) {
                 SlugRedirect::remember('events/'.$project->getOriginal('slug'), $project);
                 SlugRedirect::forget('events/'.$project->slug, $project);
+                $project->settleRunsAfterMoveFrom($project->getOriginal('slug'));
             }
         });
+    }
+
+    /**
+     * The new address can put a run on a path reserved for something else: a
+     * run merged in from a show that once went by this name. An explicit
+     * redirect always wins, so the run takes a free address, and its old one
+     * is written out, because the route's swap of a former show address would
+     * otherwise land on what the reservation points at.
+     */
+    public function settleRunsAfterMoveFrom(string $oldSlug): void
+    {
+        foreach ($this->runs()->get() as $run) {
+            $path = "events/{$this->slug}/{$run->instance_slug}";
+
+            if (! SlugRedirect::pointsElsewhere($path, $run->getMorphClass(), $run->id)) {
+                SlugRedirect::forget($path, $run);
+
+                continue;
+            }
+
+            SlugRedirect::remember("events/{$oldSlug}/{$run->instance_slug}", $run);
+
+            $run->setRelation('project', $this);
+            $run->instance_slug = InstanceAddress::allocate($run, $this);
+            $run->save();
+
+            SlugRedirect::forget($run->addressPath(), $run);
+        }
     }
 
     public function getRouteKeyName()
@@ -112,6 +143,24 @@ class Project extends Model
         return $this->hasMany(ProjectLinkRequest::class);
     }
 
+    /**
+     * A show someone may hear about: one with a published run, or one their
+     * company keeps or made. Anything else is unannounced.
+     */
+    public function scopeVisibleTo(Builder $query, ?User $viewer): Builder
+    {
+        if ($viewer?->isModerator()) {
+            return $query;
+        }
+
+        $own = $viewer ? [...$viewer->teams()->pluck('organizers.id'), ...$viewer->organizers()->pluck('id')] : [];
+
+        return $query->where(fn ($q) => $q
+            ->whereHas('runs', fn ($runs) => $runs->where('status', Event::STATUS_PUBLISHED))
+            ->orWhereIn('organizer_id', $own)
+            ->orWhereIn('editor_organizer_id', $own));
+    }
+
     /** The page is public only while a run is published. */
     public function isPublic(): bool
     {
@@ -120,17 +169,27 @@ class Project extends Model
 
     /**
      * Whether the address is out of reach for this project: another project
-     * has it, an event does (its own runs excepted, and $first, whose address
-     * it is taking over), or an old address of something else reserves it.
+     * has it, an event does ($first, whose address it is taking over, and a
+     * first listing still holding an address this project has gone by, are
+     * the exceptions), or an old address of something else reserves it.
      * Deleted projects count, though they all hold a released slug by then.
      */
     public static function slugTaken(string $slug, ?Event $first = null, ?int $projectId = null): bool
     {
+        // The one permitted collision: only on an address that is, or was, the project's.
+        $ownAddress = $projectId !== null && (
+            static::whereKey($projectId)->where('slug', $slug)->exists()
+            || SlugRedirect::where('path', 'events/'.$slug)
+                ->where('redirectable_type', (new self)->getMorphClass())
+                ->where('redirectable_id', $projectId)
+                ->exists()
+        );
+
         return static::withTrashed()->where('slug', $slug)->when($projectId, fn ($q) => $q->whereKeyNot($projectId))->exists()
             || Event::withTrashed()
                 ->where('slug', $slug)
                 ->when($first, fn ($q) => $q->whereKeyNot($first->id))
-                ->when($projectId, fn ($q) => $q->where(fn ($q) => $q->whereNull('project_id')->orWhere('project_id', '!=', $projectId)))
+                ->when($ownAddress, fn ($q) => $q->where(fn ($q) => $q->whereNull('project_id')->orWhere('project_id', '!=', $projectId)))
                 ->exists()
             || SlugRedirect::where('path', 'events/'.$slug)
                 ->where(fn ($q) => $q
