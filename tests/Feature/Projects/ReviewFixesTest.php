@@ -946,3 +946,21 @@ test('a merge still carries a moved run\'s former paths with it', function () {
 
     $this->get('/events/show-a/chicago-2026')->assertRedirect($run->fresh()->publicPath());
 });
+
+test('a stale save cannot put a venue on a location that has since gone secret', function () {
+    [$draft, $venue] = draftWithVenue();
+    $stale = Event::with('location')->find($draft->id);
+    $other = Venue::factory()->create(['name' => 'Another Hall', 'latitude' => 41.9, 'longitude' => -87.7]);
+    $this->postJson("/api/hosting/event/{$draft->slug}", ['location' => [
+        'hiddenLocationToggle' => true, 'hiddenLocation' => 'By email',
+    ]])->assertOk();
+
+    $request = new Illuminate\Http\Request;
+    $request->replace(['location' => ['venue_id' => $other->id]]);
+    $request->setUserResolver(fn () => $draft->organizer->owner);
+
+    expect(fn () => app(App\Actions\Events\UpdateEventAction::class)->handle($stale, ['location' => ['venue_id' => $other->id]], $request))
+        ->toThrow(ValidationException::class);
+
+    expect($draft->fresh()->location->venue_id)->toBeNull();
+});

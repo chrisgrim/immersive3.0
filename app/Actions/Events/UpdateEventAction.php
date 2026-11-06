@@ -6,6 +6,7 @@ use App\Actions\Projects\ApplyVenue;
 use App\Models\Event;
 use App\Models\Events\Advisory;
 use App\Models\Events\ContentAdvisory;
+use App\Models\Events\Location;
 use App\Models\Events\MobilityAdvisory;
 use App\Models\Events\RemoteLocation;
 use App\Models\Events\Show;
@@ -96,6 +97,28 @@ class UpdateEventAction
         return $saved;
     }
 
+    /**
+     * The location and the public point worked out from it, against the row as
+     * it is now: $event may have loaded it before another save turned secrecy
+     * on, and a stale flag here would store an exact point nothing repairs.
+     * Event row first, then location: the order the rest of a save locks in.
+     */
+    private function saveLocation(Event $event, array $fields): void
+    {
+        DB::transaction(function () use ($event, $fields) {
+            Event::withoutGlobalScopes()->whereKey($event->id)->lockForUpdate()->first();
+            $location = Location::where('event_id', $event->id)->lockForUpdate()->firstOrFail();
+            $event->setRelation('location', $location);
+
+            $oldPoint = $location->publicPoint();
+            $location->update(app(ApplyVenue::class)->handle($event, $fields));
+
+            // Follows secrecy on and off, and goes when the location no longer gives one
+            $event->update(['location_latlon' => $location->publicPoint()]);
+            $this->secretPointMoved = $location->hiddenLocationToggle && $location->publicPoint() != $oldPoint;
+        });
+    }
+
     private function apply(Event $event, array $validatedData, Request $request): Event
     {
         $wasPublished = in_array($event->status, Event::LIVE_STATUSES);
@@ -107,7 +130,6 @@ class UpdateEventAction
         $oldShowtype = $event->showtype;
         // Same for the timezone: the rows already stored were written for it.
         $oldTimezone = $event->timezone;
-        $oldPublicPoint = $event->location?->publicPoint();
 
         // Guard the showtype/shows invariant: switching INTO a specific/ongoing
         // type with no dates would flip showtype (mass-assigned below) while the
@@ -171,13 +193,7 @@ class UpdateEventAction
 
         // Handle location updates
         if (isset($validatedData['location'])) {
-            $validatedData['location'] = app(ApplyVenue::class)->handle($event, $validatedData['location']);
-            $event->location->update($validatedData['location']);
-
-            // The public point, which follows secrecy on and off, and goes
-            // when the location no longer gives one
-            $event->update(['location_latlon' => $event->location->publicPoint()]);
-            $this->secretPointMoved = $event->location->hiddenLocationToggle && $event->location->publicPoint() != $oldPublicPoint;
+            $this->saveLocation($event, $validatedData['location']);
 
             // Update the status if it's included in the request
             if (isset($validatedData['status'])) {
