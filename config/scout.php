@@ -69,7 +69,9 @@ return [
     */
 
     'chunk' => [
-        'searchable' => 500,
+        // A bulk has to finish inside the client's 10 second timeout, and what
+        // it costs is nested shows, not documents: 500 events can carry 60,000.
+        'searchable' => 100,
         'unsearchable' => 500,
     ],
 
