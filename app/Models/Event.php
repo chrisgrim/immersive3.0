@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Actions\Projects\RequestLink;
 use App\Actions\Projects\TellKeeper;
+use App\Jobs\RetryEventSearchIndex;
 use App\Jobs\SyncEventSearchIndex;
 use App\Models\Admin\CuratedEventCheck;
 use App\Models\Admin\ReviewEvent;
@@ -438,6 +439,16 @@ class Event extends Model
         $model = new static;
 
         SyncEventSearchIndex::dispatch($id)
+            ->onConnection($model->syncWithSearchUsing())
+            ->onQueue($model->syncWithSearchUsingQueue());
+    }
+
+    /** For a write that cannot be left to the ordinary job's three tries. */
+    public static function queueStubbornSearchIndexSync(int $id): void
+    {
+        $model = new static;
+
+        RetryEventSearchIndex::dispatch($id)
             ->onConnection($model->syncWithSearchUsing())
             ->onQueue($model->syncWithSearchUsingQueue());
     }
