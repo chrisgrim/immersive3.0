@@ -172,6 +172,16 @@ test('an open listing is indexed at its exact point', function () {
         ->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
 });
 
+test('an online listing is indexed with no point, whatever its old location row holds', function (bool $secret) {
+    $listing = savePoint(listingWithPoint(), $secret);
+    Event::withoutGlobalScopes()->whereKey($listing->id)->update(['hasLocation' => false, 'attendance_type_id' => 2]);
+
+    $document = $listing->fresh()->toSearchableArray();
+
+    expect($document['location_latlon'])->toBeNull()
+        ->and($document['hasLocation'])->toBeFalse();
+})->with([[true], [false]]);
+
 test('a secrecy change alone reaches the index', function () {
     $listing = savePoint(listingWithPoint(), false);
     $listing->update(['status' => 'p', 'published_at' => now()]);
