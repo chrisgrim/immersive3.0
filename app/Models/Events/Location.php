@@ -90,6 +90,15 @@ class Location extends Model
     }
 
     /**
+     * These fields as someone may read them: a secret location's exact point,
+     * like its street, is only for those who can edit the event.
+     */
+    public function onlyFor(bool $canEdit, array $fields): array
+    {
+        return $this->only($canEdit || ! $this->hiddenLocationToggle ? $fields : array_diff($fields, ['latitude', 'longitude']));
+    }
+
+    /**
         Store Event Physical Location to Database
      */
     public static function storeEventLocation($request, $event)

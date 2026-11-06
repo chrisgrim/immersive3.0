@@ -9,7 +9,7 @@ namespace App\Support;
  */
 class PublicLocation
 {
-    private const SECRET_FIELDS = ['home', 'street', 'postal_code'];
+    private const SECRET_FIELDS = ['home', 'street', 'postal_code', 'latitude', 'longitude'];
 
     /**
      * @param  array<string, mixed>|null  $event  a listing as it is about to go out;
