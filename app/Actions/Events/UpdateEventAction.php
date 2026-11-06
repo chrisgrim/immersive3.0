@@ -155,10 +155,9 @@ class UpdateEventAction
         if (isset($validatedData['location'])) {
             $event->location->update($validatedData['location']);
 
-            // The public point, which follows secrecy on and off
-            if ($event->location->latitude && $event->location->longitude) {
-                $event->update(['location_latlon' => $event->location->publicPoint()]);
-            }
+            // The public point, which follows secrecy on and off, and goes
+            // when the location no longer gives one
+            $event->update(['location_latlon' => $event->location->publicPoint()]);
 
             // Update the status if it's included in the request
             if (isset($validatedData['status'])) {

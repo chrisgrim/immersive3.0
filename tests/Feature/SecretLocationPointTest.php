@@ -149,6 +149,16 @@ test('turning secrecy on and off alone rewrites the stored point', function () {
     expect($listing->fresh()->location_latlon)->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
 });
 
+test('a location saved with no usable point takes the stored one away', function () {
+    $listing = savePoint(listingWithPoint(), false);
+
+    $this->actingAs($listing->organizer->owner)->postJson("/api/hosting/event/{$listing->slug}", ['location' => [
+        'latitude' => 0, 'hiddenLocationToggle' => true, 'hiddenLocation' => 'By email',
+    ]])->assertOk();
+
+    expect($listing->fresh()->location_latlon)->toBeNull();
+});
+
 test('storeEventLocation stores the public point too', function () {
     $listing = listingWithPoint();
     $listing->location->forceFill(['hiddenLocationToggle' => true])->save();
