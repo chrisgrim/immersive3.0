@@ -31,7 +31,8 @@ function ticketOn(Event $run, float $price, string $currency = 'USD'): void
 
 function zoomRun(Project $project, array $platforms = ['Zoom']): Event
 {
-    $run = runOf($project, 'Nowhere', ['hasLocation' => false, 'attendance_type_id' => 2]);
+    // Dated from today: a fixed date stops being "coming up" once it passes.
+    $run = runOf($project, 'Nowhere', ['hasLocation' => false, 'attendance_type_id' => 2], now()->addDays(20)->format('Y-m-d').' 00:00:00');
 
     foreach ($platforms as $name) {
         $run->remotelocations()->attach(RemoteLocation::firstOrCreate(['slug' => Str::slug($name)], ['name' => $name, 'user_id' => $run->user_id]));
