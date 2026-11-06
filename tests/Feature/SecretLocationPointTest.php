@@ -14,6 +14,7 @@ use App\Models\Events\Show;
 use App\Models\Organizer;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
 use Laravel\Passport\Passport;
 use Tests\Support\FakeSearchEngine;
@@ -204,6 +205,119 @@ test('a secrecy change alone reaches the index', function () {
     ]]);
 
     Queue::assertPushed(SyncEventSearchIndex::class);
+});
+
+/**
+ * Keeps each document handed to the index. The engine is what a save reaches
+ * inline; FakeSearchEngine answers searches with an empty _source, so nothing
+ * here proves what Elasticsearch itself stores or finds.
+ */
+function recordingIndex(bool $down = false): object
+{
+    $engine = new class extends Laravel\Scout\Engines\NullEngine
+    {
+        public array $documents = [];
+
+        public bool $down = false;
+
+        public function update($models)
+        {
+            throw_if($this->down, new RuntimeException('the cluster is down'));
+
+            foreach ($models as $model) {
+                $this->documents[] = $model->toSearchableArray()['location_latlon'];
+            }
+        }
+    };
+    $engine->down = $down;
+
+    $manager = resolve(Laravel\Scout\EngineManager::class);
+    $manager->forgetDrivers();
+    $manager->extend('null', fn () => $engine);
+
+    config(['scout.queue' => true]);
+    Queue::fake();
+
+    return $engine;
+}
+
+function publishedOpenListing(): Event
+{
+    $listing = savePoint(listingWithPoint(), false);
+    $listing->update(['status' => 'p', 'published_at' => now()]);
+
+    return $listing->fresh();
+}
+
+function saveLocationFields(Event $listing, array $fields)
+{
+    return test()->actingAs($listing->organizer->owner)->postJson("/api/hosting/event/{$listing->slug}", ['location' => $fields]);
+}
+
+test('turning secrecy on replaces the index document before the save returns', function () {
+    $listing = publishedOpenListing();
+    $index = recordingIndex();
+
+    saveLocationFields($listing, ['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'])->assertOk();
+
+    expect($index->documents)->toBe([CELL]);
+    Queue::assertPushed(SyncEventSearchIndex::class);
+});
+
+test('moving a secret point to another cell replaces the index document before the save returns', function () {
+    $listing = secretListing();
+    $index = recordingIndex();
+
+    saveLocationFields($listing, ['latitude' => 41.9012, 'longitude' => -87.6012])->assertOk();
+
+    expect($index->documents)->toBe([['lat' => 41.905, 'lon' => -87.605]]);
+});
+
+test('with the cluster down the secrecy save stands, is reported, and the queued job is the retry', function () {
+    $listing = publishedOpenListing();
+    recordingIndex(down: true);
+    Exceptions::fake();
+
+    saveLocationFields($listing, ['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'])->assertOk();
+
+    expect($listing->fresh()->location_latlon)->toBe(CELL)
+        ->and((bool) $listing->fresh()->location->hiddenLocationToggle)->toBeTrue();
+    Exceptions::assertReported(fn (RuntimeException $e) => $e->getMessage() === 'the cluster is down');
+    Queue::assertPushed(SyncEventSearchIndex::class);
+});
+
+test('other location saves leave the index to the queue', function (bool $secret, array $fields) {
+    $listing = $secret ? secretListing() : publishedOpenListing();
+    $index = recordingIndex();
+
+    saveLocationFields($listing, $fields)->assertOk();
+
+    expect($index->documents)->toBe([]);
+    Queue::assertPushed(SyncEventSearchIndex::class);
+})->with([
+    'turning secrecy off' => [true, ['hiddenLocationToggle' => false]],
+    'a secret save that moves nothing' => [true, ['hiddenLocation' => 'By text']],
+    'a secret move inside its cell' => [true, ['latitude' => 41.8842, 'longitude' => -87.6322]],
+    'an open move' => [false, ['latitude' => 41.9012, 'longitude' => -87.6012]],
+]);
+
+test('a save that does not touch the location leaves the index to the queue', function () {
+    $listing = secretListing();
+    $index = recordingIndex();
+
+    $this->actingAs($listing->organizer->owner)->postJson("/api/hosting/event/{$listing->slug}", ['tag_line' => 'Another line'])->assertOk();
+
+    expect($index->documents)->toBe([]);
+});
+
+test('with no queue the index is written once, by the save itself', function () {
+    $listing = publishedOpenListing();
+    $index = recordingIndex();
+    config(['scout.queue' => false]);
+
+    saveLocationFields($listing, ['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'])->assertOk();
+
+    expect($index->documents)->toBe([CELL]);
 });
 
 // ----- surfaces that read location_latlon -----

@@ -65,18 +65,35 @@ class UpdateEventAction
      */
     public bool $embargoRefused = false;
 
+    /** This save took an exact point out of what the public gets, or moved a secret one. */
+    private bool $secretPointMoved = false;
+
     public function handle(Event $event, array $validatedData, Request $request): Event
     {
         // One search-index update per save, dispatched after the last
         // transaction commits. Every save()/update() below and every
         // syncSearchIndex() inside Show/Ticket/Genre is collected instead of
         // hitting Elasticsearch (up to ten round trips per save before this).
-        return Event::deferringSearchSync(function () use ($event, $validatedData, $request) {
+        $saved = Event::deferringSearchSync(function () use ($event, $validatedData, $request) {
             $event = $this->apply($event, $validatedData, $request);
             $event->syncSearchIndex();
 
             return $event;
         });
+
+        // The point the index holds is one this save has just withdrawn, and a
+        // tight map box can find it for as long as it stays there, so this
+        // does not wait for the queue. The save stands if the cluster is
+        // down: the job queued above is the retry.
+        if ($this->secretPointMoved && config('scout.queue')) {
+            try {
+                Event::reconcileSearchIndex($saved->id);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        return $saved;
     }
 
     private function apply(Event $event, array $validatedData, Request $request): Event
@@ -90,6 +107,7 @@ class UpdateEventAction
         $oldShowtype = $event->showtype;
         // Same for the timezone: the rows already stored were written for it.
         $oldTimezone = $event->timezone;
+        $oldPublicPoint = $event->location?->publicPoint();
 
         // Guard the showtype/shows invariant: switching INTO a specific/ongoing
         // type with no dates would flip showtype (mass-assigned below) while the
@@ -159,6 +177,7 @@ class UpdateEventAction
             // The public point, which follows secrecy on and off, and goes
             // when the location no longer gives one
             $event->update(['location_latlon' => $event->location->publicPoint()]);
+            $this->secretPointMoved = $event->location->hiddenLocationToggle && $event->location->publicPoint() != $oldPublicPoint;
 
             // Update the status if it's included in the request
             if (isset($validatedData['status'])) {
