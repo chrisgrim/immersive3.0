@@ -27,6 +27,7 @@ use App\Traits\Favoritable;
 use Carbon\Carbon;
 use Elastic\ScoutDriverPlus\Searchable;
 use Elastic\ScoutDriverPlus\Support\Query;
+use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -184,6 +185,12 @@ class Event extends Model
     | job instead of up to ten.
     */
 
+    /** Outlasts the search client's 10 second timeout, plus building the document. */
+    public const SEARCH_SYNC_LOCK_SECONDS = 30;
+
+    /** Long enough for one write ahead in the line to finish. */
+    public const SEARCH_SYNC_LOCK_WAIT = 15;
+
     protected static bool $deferringSearchSync = false;
 
     /** @var array<int, true> */
@@ -245,20 +252,33 @@ class Event extends Model
      * current row (no scopes, so a trashed row is seen and removed) and
      * index or delete accordingly. Called by SyncEventSearchIndex at run
      * time, or inline when scout.queue is off.
+     *
+     * Locked per event from that read through the finished write: the index
+     * takes whichever write lands last, so a slower one that read earlier
+     * would otherwise put back what a newer one just replaced. Throws if the
+     * lock cannot be had, so a job retries rather than writing unordered.
      */
     public static function reconcileSearchIndex(int $id): void
     {
-        $fresh = static::withoutGlobalScopes()->find($id);
+        static::searchSyncLock($id)->block(self::SEARCH_SYNC_LOCK_WAIT, function () use ($id) {
+            $fresh = static::withoutGlobalScopes()->find($id);
 
-        if ($fresh && $fresh->shouldBeSearchable()) {
-            $fresh->syncMakeSearchable($fresh->newCollection([$fresh]));
+            if ($fresh && $fresh->shouldBeSearchable()) {
+                $fresh->syncMakeSearchable($fresh->newCollection([$fresh]));
 
-            return;
-        }
+                return;
+            }
 
-        // A key-only stub is all the engine needs to delete the document.
-        $stub = (new static)->setAttribute('id', $id);
-        $stub->syncRemoveFromSearch($stub->newCollection([$stub]));
+            // A key-only stub is all the engine needs to delete the document.
+            $stub = (new static)->setAttribute('id', $id);
+            $stub->syncRemoveFromSearch($stub->newCollection([$stub]));
+        });
+    }
+
+    /** One index write at a time per event. */
+    public static function searchSyncLock(int $id): Lock
+    {
+        return Cache::lock("event-search-sync:{$id}", self::SEARCH_SYNC_LOCK_SECONDS);
     }
 
     /**

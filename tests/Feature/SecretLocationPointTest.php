@@ -330,6 +330,80 @@ test('with no queue the index is written once, by the save itself', function () 
     expect($index->documents)->toBe([CELL]);
 });
 
+// ----- one index write at a time -----
+
+test('the lock is held from the read through the finished write', function () {
+    $listing = publishedOpenListing();
+    $held = null;
+    $engine = new class extends Laravel\Scout\Engines\NullEngine
+    {
+        public ?Closure $during = null;
+
+        public function update($models)
+        {
+            ($this->during)();
+        }
+    };
+    $engine->during = function () use (&$held, $listing) {
+        $held = ! Event::searchSyncLock($listing->id)->get();
+    };
+    $manager = resolve(Laravel\Scout\EngineManager::class);
+    $manager->forgetDrivers();
+    $manager->extend('null', fn () => $engine);
+
+    Event::reconcileSearchIndex($listing->id);
+
+    expect($held)->toBeTrue()
+        ->and(Event::searchSyncLock($listing->id)->get())->toBeTrue();
+});
+
+test('a reconcile that cannot have the lock throws and writes nothing', function () {
+    $listing = publishedOpenListing();
+    $index = recordingIndex();
+    Event::searchSyncLock($listing->id)->get();
+    Illuminate\Support\Sleep::fake(syncWithCarbon: true);
+
+    expect(fn () => Event::reconcileSearchIndex($listing->id))->toThrow(Illuminate\Contracts\Cache\LockTimeoutException::class)
+        ->and($index->documents)->toBe([]);
+});
+
+test('the queued job lets that failure through, so it retries', function () {
+    $listing = publishedOpenListing();
+    recordingIndex();
+    Event::searchSyncLock($listing->id)->get();
+    Illuminate\Support\Sleep::fake(syncWithCarbon: true);
+
+    expect(fn () => (new SyncEventSearchIndex($listing->id))->handle())->toThrow(Illuminate\Contracts\Cache\LockTimeoutException::class);
+});
+
+test('a failed write lets go of the lock', function () {
+    $listing = publishedOpenListing();
+    recordingIndex(down: true);
+
+    expect(fn () => Event::reconcileSearchIndex($listing->id))->toThrow(RuntimeException::class)
+        ->and(Event::searchSyncLock($listing->id)->get())->toBeTrue();
+});
+
+test('the lock outlasts the search client\'s timeout, and the wait is shorter than the lock', function () {
+    $timeout = config('elastic.client.connections.default.httpClientOptions.timeout');
+
+    expect(Event::SEARCH_SYNC_LOCK_SECONDS)->toBeGreaterThan($timeout)
+        ->and(Event::SEARCH_SYNC_LOCK_WAIT)->toBeLessThan(Event::SEARCH_SYNC_LOCK_SECONDS);
+});
+
+test('the inline write and the queued job take the same lock', function () {
+    $listing = publishedOpenListing();
+    $index = recordingIndex();
+    Exceptions::fake();
+    Event::searchSyncLock($listing->id)->get();
+    Illuminate\Support\Sleep::fake(syncWithCarbon: true);
+
+    saveLocationFields($listing, ['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'])->assertOk();
+
+    expect($index->documents)->toBe([]);
+    Exceptions::assertReported(Illuminate\Contracts\Cache\LockTimeoutException::class);
+});
+
 // ----- overlapping saves -----
 
 /** A save through the action that loaded the listing before something else changed it. */
