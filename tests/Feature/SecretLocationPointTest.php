@@ -439,3 +439,96 @@ test('a cached entry stays exact for a listing that is not secret', function () 
 
     expect(collect($response->json('events'))->firstWhere('id', $listing->id)['location_latlon'])->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
 });
+
+// ----- the backfill -----
+
+/** A secret listing as it stands before the backfill: the exact point stored. */
+function secretListingFromBefore(array $event = []): Event
+{
+    $listing = listingWithPoint(['status' => 'p', 'published_at' => now(), ...$event]);
+    $listing->location->forceFill(['latitude' => PRIVATE_LAT, 'longitude' => PRIVATE_LON, 'hiddenLocationToggle' => true])->save();
+    Event::withoutGlobalScopes()->whereKey($listing->id)->update([
+        'location_latlon' => json_encode(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]),
+        'updated_at' => now()->subYear(),
+    ]);
+
+    return $listing->fresh();
+}
+
+test('the backfill changes nothing and queues nothing unless told to apply', function () {
+    $listing = secretListingFromBefore();
+    config(['scout.queue' => true]);
+    Queue::fake();
+
+    $this->artisan('ei:secret-location-points')
+        ->expectsOutputToContain('Would rewrite 1 secret listing(s) and queue 1 for reindex')
+        ->assertSuccessful();
+
+    expect($listing->fresh()->location_latlon)->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
+    Queue::assertNothingPushed();
+});
+
+test('the backfill rewrites the point, queues the reindex and leaves updated_at', function () {
+    $listing = secretListingFromBefore();
+    $before = $listing->updated_at;
+    config(['scout.queue' => true]);
+    Queue::fake();
+
+    $this->artisan('ei:secret-location-points --apply')
+        ->expectsOutputToContain('Rewrote 1 secret listing(s), queued 1 for reindex')
+        ->assertSuccessful();
+
+    expect($listing->fresh()->location_latlon)->toBe(CELL)
+        ->and($listing->fresh()->updated_at->equalTo($before))->toBeTrue()
+        ->and((float) $listing->fresh()->location->latitude)->toBe(PRIVATE_LAT);
+    Queue::assertPushed(SyncEventSearchIndex::class, 1);
+});
+
+test('the backfill leaves open and online listings alone', function () {
+    $open = savePoint(listingWithPoint(), false);
+    $open->update(['status' => 'p', 'published_at' => now()]);
+    $online = secretListingFromBefore(['hasLocation' => false]);
+    config(['scout.queue' => true]);
+    Queue::fake();
+
+    $this->artisan('ei:secret-location-points --apply')->assertSuccessful();
+
+    expect($open->fresh()->location_latlon)->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON])
+        ->and($online->fresh()->location_latlon)->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
+    Queue::assertNothingPushed();
+});
+
+test('the backfill rewrites drafts and deleted listings, and indexes neither', function () {
+    $draft = secretListingFromBefore(['status' => '1']);
+    $deleted = secretListingFromBefore();
+    $deleted->delete();
+    config(['scout.queue' => true]);
+    Queue::fake();
+
+    $this->artisan('ei:secret-location-points --apply')->assertSuccessful();
+
+    expect($draft->fresh()->location_latlon)->toBe(CELL)
+        ->and(Event::withTrashed()->find($deleted->id)->location_latlon)->toBe(CELL);
+    Queue::assertNothingPushed();
+});
+
+test('running the backfill again rewrites nothing and still reindexes', function () {
+    secretListingFromBefore();
+    $this->artisan('ei:secret-location-points --apply')->assertSuccessful();
+    config(['scout.queue' => true]);
+    Queue::fake();
+
+    $this->artisan('ei:secret-location-points --apply')
+        ->expectsOutputToContain('Rewrote 0 secret listing(s), queued 1 for reindex')
+        ->assertSuccessful();
+
+    Queue::assertPushed(SyncEventSearchIndex::class, 1);
+});
+
+test('what the backfill queues puts the public point in the index', function () {
+    $listing = secretListingFromBefore();
+
+    $this->artisan('ei:secret-location-points --apply')->assertSuccessful();
+
+    expect($listing->fresh()->toSearchableArray()['location_latlon'])->toBe(CELL);
+});
