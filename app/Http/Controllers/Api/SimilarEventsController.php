@@ -25,14 +25,14 @@ class SimilarEventsController extends Controller
         // exists() fallback when the relation isn't loaded.
         $cacheKey = "similar_events_{$event->slug}";
 
-        // Check for cached results first
-        $cached = Cache::get($cacheKey);
-
-        if ($cached !== null) {
-            return $this->forPublic($this->withCurrentLocations($cached));
-        }
-
         try {
+            // Check for cached results first
+            $cached = Cache::get($cacheKey);
+
+            if ($cached !== null) {
+                return $this->forPublic($this->withCurrentLocations($cached));
+            }
+
             // Set a query timeout to avoid slow queries
             \DB::statement('SET SESSION MAX_EXECUTION_TIME=1000');
 
