@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Event;
 use App\Models\Project;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 /** A listing's team asks to join a show, or takes the request back. */
 class EventLinkRequestController extends Controller
@@ -16,14 +17,19 @@ class EventLinkRequestController extends Controller
     public function store(Request $request, Event $event, RequestLink $link, PrefillFromShow $prefill)
     {
         $validated = $request->validate([
-            'project_id' => ['nullable', 'integer', 'exists:projects,id', 'required_without:source_event_id'],
-            'source_event_id' => ['nullable', 'integer', 'exists:events,id'],
+            'project_id' => ['nullable', 'integer', 'required_without:source_event_id'],
+            'source_event_id' => ['nullable', 'integer'],
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
 
+        // No exists rule: a missing id and a hidden one answer alike.
         $target = ! empty($validated['project_id'])
-            ? Project::findOrFail($validated['project_id'])
-            : Event::findOrFail($validated['source_event_id']);
+            ? Project::find($validated['project_id'])
+            : Event::find($validated['source_event_id']);
+
+        if ($target === null) {
+            throw ValidationException::withMessages(['project' => RequestLink::UNAVAILABLE]);
+        }
 
         $linkRequest = $link->handle($event, $target, $request->user(), $validated['note'] ?? null);
         $filled = $prefill->handle($event, $target, $request->user());

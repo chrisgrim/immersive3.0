@@ -1021,7 +1021,7 @@ class UpdateEvent extends Tool
         $target = isset($join['project_id']) ? Project::find($join['project_id']) : Event::find($join['source_event_id']);
 
         if ($target === null) {
-            return Response::error('No such show. The other fields were saved. Show ids come from list-projects.');
+            return Response::error(RequestLink::UNAVAILABLE.' The other fields were saved. Show ids come from list-projects.');
         }
 
         try {

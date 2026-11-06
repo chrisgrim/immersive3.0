@@ -56,7 +56,7 @@
                                 </details>
                             @endif
                         @else
-                            <p class="text-xl font-medium text-neutral-500">{{ $event->location->venue ?: $event->location->placeLabel() }}</p>
+                            <p class="text-xl font-medium text-neutral-500">{{ $event->location->publicVenueName() ?: $event->location->placeLabel() }}</p>
                         @endif
                     @else
                         <p class="text-xl font-medium text-neutral-500">{{ ucfirst($event->remoteLocations->first()?->name ?? 'Remote Event') }}</p>

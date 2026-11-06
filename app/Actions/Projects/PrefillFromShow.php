@@ -95,9 +95,10 @@ class PrefillFromShow
             $filled[] = 'advisories';
         }
 
-        // A secret address stays with its own run.
+        // A secret address stays with its own run, and a secret run takes no
+        // venue or address from anywhere.
         if ($draft->hasLocation && $own->hasLocation && $own->location && ! $own->location->hiddenLocationToggle
-            && $draft->location && blank($draft->location->city)) {
+            && $draft->location && ! $draft->location->hiddenLocationToggle && blank($draft->location->city)) {
             $draft->location->update($own->location->only(self::ADDRESS_FIELDS));
             $draft->update(['location_latlon' => $own->location_latlon]);
             $filled[] = 'address';

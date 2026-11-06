@@ -220,7 +220,7 @@
         @if($event->hasLocation)
         "location": {
             "@type": "Place",
-            "name": @json($venue?->name ?: ($event->location->venue ? $event->location->venue : $event->name)),
+            "name": @json($venue?->name ?: ($event->location->publicVenueName() ?: $event->name)),
             "address": {
                 "@type": "PostalAddress",
                 @unless($event->location->hiddenLocationToggle)

@@ -9,6 +9,7 @@ use App\Models\Credit;
 use App\Models\Event;
 use App\Models\Project;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -39,6 +40,8 @@ class SetCredits
     /** @return array<int, array<string, mixed>> */
     public function handle(Project|Event $target, array $rows, User $actor): array
     {
+        // First, and whatever the list holds: an empty one still writes a log row.
+        $this->authorizeTarget($target, $actor);
         $this->assertRows($rows);
 
         return DB::transaction(function () use ($target, $rows, $actor) {
@@ -67,6 +70,19 @@ class SetCredits
 
             return $target->credits()->approved()->orderBy('rank')->get()->toArray();
         });
+    }
+
+    private function authorizeTarget(Project|Event $target, User $actor): void
+    {
+        $gate = Gate::forUser($actor);
+
+        $allowed = $target instanceof Project
+            ? $gate->allows('editOnProject', [Credit::class, $target])
+            : collect(CreditDepartment::values())->contains(fn (string $department) => $gate->allows('editOnRun', [Credit::class, $target, $department]));
+
+        if (! $allowed) {
+            throw new AuthorizationException;
+        }
     }
 
     private function assertRows(array $rows): void

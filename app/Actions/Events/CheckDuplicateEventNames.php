@@ -34,6 +34,15 @@ class CheckDuplicateEventNames
             ->select('id', 'name', 'slug', 'project_id', 'instance_slug', 'status', 'organizer_id')
             ->get();
 
+        // Someone else's embargoed listing is unannounced: approved, with a
+        // date to keep, so it does not surface at all. Their draft still warns,
+        // and still offers the ownership claim, but gives no address.
+        $mayOpen = fn (Event $event) => $event->status === Event::STATUS_PUBLISHED || (bool) $viewer?->can('manage', $event);
+
+        $duplicateEvents = $duplicateEvents
+            ->reject(fn (Event $event) => $event->status === Event::STATUS_EMBARGOED && ! $mayOpen($event))
+            ->values();
+
         if ($duplicateEvents->isEmpty()) {
             return null;
         }
@@ -43,14 +52,15 @@ class CheckDuplicateEventNames
         // "Artechouse NYC" never match, but the show title does). When that organizer was
         // entered by staff and isn't externally owned, the creator can claim it through the
         // existing organizer ownership-claim flow instead of filing a duplicate event.
-        return $duplicateEvents->map(function ($event) {
+        return $duplicateEvents->map(function ($event) use ($mayOpen) {
             $organizer = $event->organizer;
+            $open = $mayOpen($event);
 
             return [
                 'id' => $event->id,
                 'name' => $event->name,
-                'slug' => $event->slug,
-                'public_url' => $event->publicPath(),
+                'slug' => $open ? $event->slug : null,
+                'public_url' => $open ? $event->publicPath() : null,
                 'status' => $event->status,
                 'organizer' => $organizer ? [
                     'id' => $organizer->id,

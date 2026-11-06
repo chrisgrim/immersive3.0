@@ -101,7 +101,7 @@ class GetEvent extends Tool
                 // event, as on the public page (EventController::show).
                 'location' => $event->location?->only(array_values(array_diff([
                     'venue', 'home', 'street', 'city', 'region', 'country', 'postal_code', 'latitude', 'longitude', 'hiddenLocationToggle', 'hiddenLocation',
-                ], ! $canManage && $event->location->hiddenLocationToggle ? ['home', 'street', 'postal_code'] : []))),
+                ], ! $canManage && $event->location->hiddenLocationToggle ? ['home', 'street', 'postal_code', ...($event->location->venue_id ? ['venue'] : [])] : []))),
                 'remote_locations' => $event->remotelocations->pluck('name'),
                 'remote_description' => $event->remote_description,
                 'timezone' => $event->timezone,
@@ -217,7 +217,10 @@ class GetEvent extends Tool
     private function showFields(Event $event, bool $canManage): array
     {
         $location = $event->location;
-        $venue = $location?->venue_id && ! $location->hiddenLocationToggle ? Venue::find($location->venue_id) : null;
+        // A team sees the venue it picked; anyone else, what the public page shows.
+        $venue = $location?->venue_id && ! $location->hiddenLocationToggle
+            ? Venue::when(! $canManage, fn ($query) => $query->where('status', Venue::APPROVED)->whereNull('merged_into_id'))->find($location->venue_id)
+            : null;
 
         $present = fn (Credit $credit, string $source) => [
             'source' => $source,

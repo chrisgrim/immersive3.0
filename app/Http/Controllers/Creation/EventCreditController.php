@@ -156,7 +156,9 @@ class EventCreditController extends Controller
             'can_edit_thanks' => $canThanks,
             'can_copy' => $user->can('copyOnto', [Credit::class, $event]),
             'other_runs' => $event->project
-                ? $event->project->runs()->whereKeyNot($event->id)->get(['id', 'name', 'project_id', 'instance_slug', 'slug'])
+                ? $event->project->runs()->whereKeyNot($event->id)->get(['id', 'name', 'project_id', 'instance_slug', 'slug', 'status', 'organizer_id', 'held_for_staff'])
+                    // An unannounced run is its own team's to see.
+                    ->filter(fn (Event $run) => $run->status === Event::STATUS_PUBLISHED || $user->can('manage', $run))
                     ->map(fn (Event $run) => ['id' => $run->id, 'name' => $run->name, 'public_url' => $run->publicPath()])->values()
                 : [],
         ];

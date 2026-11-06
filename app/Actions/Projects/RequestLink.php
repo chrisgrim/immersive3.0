@@ -18,6 +18,8 @@ use Illuminate\Validation\ValidationException;
  */
 class RequestLink
 {
+    public const UNAVAILABLE = 'That show is not available.';
+
     public function handle(Event $event, Project|Event $target, User $actor, ?string $note = null): ProjectLinkRequest
     {
         Gate::forUser($actor)->authorize('requestLink', $event);
@@ -26,21 +28,28 @@ class RequestLink
             $this->refuse('This listing is already part of a show.');
         }
 
-        if ($target instanceof Event) {
-            if ($target->is($event)) {
-                $this->refuse('A listing cannot join itself.');
-            }
-
-            if ($target->trashed() || ! in_array($target->status, Event::LIVE_STATUSES, true)) {
-                $this->refuse('That listing is not live.');
-            }
+        if ($target instanceof Event && $target->is($event)) {
+            $this->refuse('A listing cannot join itself.');
         }
 
-        if ($target instanceof Project && $target->trashed()) {
-            $this->refuse('That show no longer exists.');
+        // One answer, so asking confirms nothing about an unannounced show.
+        if (! $this->mayKnowAbout($target, $actor)) {
+            $this->refuse(self::UNAVAILABLE);
         }
 
         return $this->open($event, $target, $actor->id, $note, $actor);
+    }
+
+    /** Published, or the actor's own: nothing else can be named by asking to join it. */
+    private function mayKnowAbout(Project|Event $target, User $actor): bool
+    {
+        if ($target->trashed()) {
+            return false;
+        }
+
+        return $target instanceof Project
+            ? Project::whereKey($target->id)->visibleTo($actor)->exists()
+            : $target->status === Event::STATUS_PUBLISHED || $actor->can('manage', $target);
     }
 
     /**

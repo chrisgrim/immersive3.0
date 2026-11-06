@@ -62,7 +62,8 @@
                                             Added by {{ duplicate.organizer.name }}
                                         </span>
                                     </div>
-                                    <a :href="duplicate.public_url || `/events/${duplicate.slug}`"
+                                    <a v-if="duplicate.public_url"
+                                       :href="duplicate.public_url"
                                        target="_blank"
                                        class="shrink-0 text-2xl text-blue-600 hover:text-blue-800 underline whitespace-nowrap">
                                         View event

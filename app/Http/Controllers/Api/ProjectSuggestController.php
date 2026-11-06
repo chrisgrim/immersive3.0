@@ -14,6 +14,6 @@ class ProjectSuggestController extends Controller
     {
         $this->authorize('host', Event::class);
 
-        return response()->json($suggest->handle((string) $request->query('keywords'), $request->integer('except') ?: null));
+        return response()->json($suggest->handle((string) $request->query('keywords'), $request->integer('except') ?: null, $request->user()));
     }
 }

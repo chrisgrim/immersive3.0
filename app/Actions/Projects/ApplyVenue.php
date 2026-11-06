@@ -34,6 +34,10 @@ class ApplyVenue
                 throw ValidationException::withMessages(['location.venue_id' => 'A secret location cannot be linked to a venue.']);
             }
 
+            if ($event->hasLocation === false || (int) $event->attendance_type_id === 2) {
+                throw ValidationException::withMessages(['location.venue_id' => 'An online listing cannot be linked to a venue.']);
+            }
+
             return $this->copyVenue(Venue::findOrFail($picked), $location);
         }
 
@@ -42,6 +46,11 @@ class ApplyVenue
 
         if ($secret || array_key_exists('venue_id', $location) || $touched !== []) {
             $location['venue_id'] = null;
+        }
+
+        // Going secret: the name came from the venue, and goes with it.
+        if ($secret && $held !== null) {
+            $location['venue'] = null;
         }
 
         // Moving off a venue with no new point would leave its point behind.

@@ -39,6 +39,16 @@ class Location extends Model
     }
 
     /**
+     * The venue name the public may read. A secret location that holds a
+     * linked venue names it nowhere. A free-text name on a secret listing is
+     * the organizer's own wording, and stays as it always has.
+     */
+    public function publicVenueName(): ?string
+    {
+        return $this->hiddenLocationToggle && $this->venue_id ? null : $this->venue;
+    }
+
+    /**
      * "Brooklyn, NY" in the US, "London, United Kingdom" elsewhere — the
      * same shape the event cards print (event-grid.vue).
      */

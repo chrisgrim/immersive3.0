@@ -5,13 +5,15 @@ namespace App\Actions\Projects;
 use App\Actions\Search\SearchActions;
 use App\Models\Event;
 use App\Models\Project;
+use App\Models\User;
 use App\Support\Search\SearchGuard;
 use Elastic\ScoutDriverPlus\Support\Query;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
 /**
- * Shows with a name like this one: projects by database match, and published
+ * Shows with a name like this one: projects the viewer may know about (one
+ * with a published run, or their own) by database match, and published
  * standalone listings through the nav search's fuzzy name query (no index of
  * its own; linked runs are filtered out after hydration). While Elasticsearch
  * is away it answers with projects only.
@@ -23,7 +25,7 @@ class SuggestShows
     public function __construct(private SearchActions $search) {}
 
     /** @return array<int, array<string, mixed>> */
-    public function handle(string $name, ?int $exceptEventId = null): array
+    public function handle(string $name, ?int $exceptEventId = null, ?User $viewer = null): array
     {
         $name = trim($name);
 
@@ -31,21 +33,22 @@ class SuggestShows
             return [];
         }
 
-        return $this->projects($name)
+        return $this->projects($name, $viewer)
             ->concat($this->listings($name, $exceptEventId))
             ->take(self::LIMIT)
             ->values()
             ->all();
     }
 
-    private function projects(string $name): Collection
+    private function projects(string $name, ?User $viewer): Collection
     {
         $like = '%'.addcslashes($name, '\\%_').'%';
 
         return Project::with('organizer:id,name')
-            ->where('name', 'like', $like)
-            // "Ha Ha Ha in Chicago" is a run of "Ha Ha Ha".
-            ->orWhereRaw("? LIKE CONCAT('%', name, '%')", [$name])
+            ->where(fn ($query) => $query->where('name', 'like', $like)
+                // "Ha Ha Ha in Chicago" is a run of "Ha Ha Ha".
+                ->orWhereRaw("? LIKE CONCAT('%', name, '%')", [$name]))
+            ->visibleTo($viewer)
             ->orderBy('name')
             ->limit(self::LIMIT)
             ->get()
