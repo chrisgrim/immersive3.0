@@ -130,6 +130,7 @@ class UpdateEventAction
         if (isset($validatedData['attendance_type_id']) && $event->category) {
             // Check if category is compatible with the attendance type
             if (! $event->category->supportsAttendanceType($validatedData['attendance_type_id'])) {
+                $this->refuseResetInReview($event);
                 $event->category()->dissociate();
                 $validatedData['status'] = '1';
             }
@@ -139,6 +140,7 @@ class UpdateEventAction
         // Legacy handling for hasLocation
         elseif (isset($validatedData['hasLocation']) && $event->category &&
             $event->category->remote === $validatedData['hasLocation']) {
+            $this->refuseResetInReview($event);
             $event->category()->dissociate();
             $validatedData['status'] = '1';
             // Set the corresponding attendance_type_id
@@ -521,5 +523,19 @@ class UpdateEventAction
             ->unique()
             ->values()
             ->all();
+    }
+
+    /**
+     * Losing the category sends an event back to the wizard, which would take
+     * one in review out of the queue without anyone deciding that. Refused
+     * before anything is written.
+     */
+    private function refuseResetInReview(Event $event): void
+    {
+        if ($event->status === Event::STATUS_IN_REVIEW) {
+            throw ValidationException::withMessages([
+                'attendance_type_id' => 'This event is in review and its category does not fit that attendance type. Reject it back to the organizer, or give it a category that fits both first.',
+            ]);
+        }
     }
 }

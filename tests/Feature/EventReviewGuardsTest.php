@@ -3,6 +3,7 @@
 use App\Mcp\Servers\EiServer;
 use App\Mcp\Tools\RemoveEventImage;
 use App\Mcp\Tools\UpdateEvent;
+use App\Models\Category;
 use App\Models\Event;
 use App\Models\Organizer;
 use App\Models\User;
@@ -137,4 +138,16 @@ test('the image tools follow the same lock on an ordinary connection', function 
     EiServer::actingAs(plainConnection($organizer))->tool(RemoveEventImage::class, ['event_slug' => $theirs->slug, 'image_id' => $other->id])
         ->assertHasErrors();
     expect($theirs->images()->count())->toBe(1);
+});
+
+test('an event in review stays in the queue when an attendance change would cost it its category', function () {
+    [$admin, $event] = guardedEvent('r', 'a');
+    $category = Category::factory()->create(['applicable_attendance_types' => [1]]);
+    $event->update(['category_id' => $category->id, 'attendance_type_id' => 1]);
+
+    EiServer::actingAs(plainConnection($admin))->tool(UpdateEvent::class, ['event_slug' => $event->slug, 'attendance_type_id' => 2])
+        ->assertSee('This event is in review');
+
+    expect($event->fresh()->status)->toBe('r');
+    expect($event->fresh()->category_id)->toBe($category->id);
 });

@@ -22,7 +22,7 @@
                         :columns="gridColumns"
                     />
                     <ShowMoreResults
-                        v-if="hasEvents"
+                        v-if="hasEvents || events.has_more"
                         class="mt-6"
                         :shown="events.data.length"
                         :total="events.total"
