@@ -964,3 +964,21 @@ test('a stale save cannot put a venue on a location that has since gone secret',
 
     expect($draft->fresh()->location->venue_id)->toBeNull();
 });
+
+test('a prefill that loaded the draft before it went secret copies no address onto it', function () {
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $earlier = publishedListing('Earlier', 'Chicago', [], $organizer);
+    Location::where('event_id', $earlier->id)->update(['street' => '1 Real Road', 'latitude' => 41.8841, 'longitude' => -87.6321]);
+    $earlier->update(['location_latlon' => ['lat' => 41.8841, 'lon' => -87.6321]]);
+    $draft = Event::factory()->create(['organizer_id' => $organizer->id, 'user_id' => $organizer->user_id, 'status' => '1', 'hasLocation' => true]);
+    $draft->location()->create([]);
+    $stale = Event::with('location')->find($draft->id);
+
+    Location::where('event_id', $draft->id)->update(['hiddenLocationToggle' => true]);
+
+    $filled = app(PrefillFromShow::class)->handle($stale, $earlier->fresh(), $organizer->owner);
+
+    expect($filled)->not->toContain('address')
+        ->and($draft->fresh()->location->street)->toBeNull()
+        ->and($draft->fresh()->location_latlon)->toBeNull();
+});

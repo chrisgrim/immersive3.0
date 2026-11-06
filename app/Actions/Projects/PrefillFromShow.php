@@ -4,11 +4,13 @@ namespace App\Actions\Projects;
 
 use App\Models\AuditLog;
 use App\Models\Event;
+use App\Models\Events\Location;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\ImageHandler;
 use App\Support\Projects\InstanceAddress;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Starting a new run fills the form from the show's page plus the organizer's
@@ -58,6 +60,25 @@ class PrefillFromShow
         return $filled;
     }
 
+    /** Against the draft's row as it is now: it may have gone secret since it was loaded. */
+    private function copyAddress(Event $draft, Event $own): bool
+    {
+        return DB::transaction(function () use ($draft, $own) {
+            Event::withoutGlobalScopes()->whereKey($draft->id)->lockForUpdate()->first();
+            $location = Location::where('event_id', $draft->id)->lockForUpdate()->first();
+
+            if (! $location || $location->hiddenLocationToggle || filled($location->city)) {
+                return false;
+            }
+
+            $location->update($own->location->only(self::ADDRESS_FIELDS));
+            $draft->setRelation('location', $location);
+            $draft->update(['location_latlon' => $location->publicPoint()]);
+
+            return true;
+        });
+    }
+
     private function ownPreviousListing(Event $draft, ?Project $project, Project|Event $target): ?Event
     {
         $candidates = $project
@@ -98,9 +119,7 @@ class PrefillFromShow
         // A secret address stays with its own run, and a secret run takes no
         // venue or address from anywhere.
         if ($draft->hasLocation && $own->hasLocation && $own->location && ! $own->location->hiddenLocationToggle
-            && $draft->location && ! $draft->location->hiddenLocationToggle && blank($draft->location->city)) {
-            $draft->location->update($own->location->only(self::ADDRESS_FIELDS));
-            $draft->update(['location_latlon' => $own->location_latlon]);
+            && $this->copyAddress($draft, $own)) {
             $filled[] = 'address';
         }
 
