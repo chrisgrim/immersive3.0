@@ -42,9 +42,6 @@ class MergeProjects
             }
 
             $address = $from->slug;
-            $formerPaths = SlugRedirect::where('redirectable_type', $from->getMorphClass())
-                ->where('redirectable_id', $from->id)
-                ->pluck('path');
 
             $runs = Event::withTrashed()
                 ->withoutGlobalScope(LatestPublishedFirstScope::class)
@@ -75,9 +72,7 @@ class MergeProjects
 
                 // The route reads a former slug's nested path by swapping the
                 // show's address, which only holds while the instance is unchanged.
-                foreach ($formerPaths as $path) {
-                    SlugRedirect::remember("{$path}/{$oldInstance}", $run);
-                }
+                $from->reserveFormerPaths($run, $oldInstance);
 
                 SlugRedirect::forget($run->addressPath(), $run);
 

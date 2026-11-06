@@ -885,3 +885,34 @@ test('update-event answers the same for a hidden show and one that does not exis
             ->assertSee($full);
     }
 });
+
+test('a merge leaves the old paths of a run unlinked earlier with that run', function () {
+    $project = Project::factory()->create(['slug' => 'show-a']);
+    runIn($project, 'Boston', 'boston-2026');
+    $r = runIn($project, 'Chicago', 'chicago-2026');
+    $update = app(UpdateProject::class);
+
+    $update->handle($project, ['slug' => 'show-b'], $this->moderator);
+    app(UnlinkEvent::class)->handle($r->fresh(), $this->moderator);
+    $plain = $r->fresh()->publicPath();
+
+    // A later Chicago run takes the same instance at the show's new address.
+    $update->handle($project->refresh(), ['slug' => 'show-c'], $this->moderator);
+    $s = runIn($project->refresh(), 'Chicago', 'chicago-2026', ['name' => 'Second Chicago']);
+
+    app(MergeProjects::class)->handle($project->refresh(), Project::factory()->create(['slug' => 'show-d']), $this->moderator);
+
+    $this->get('/events/show-a/chicago-2026')->assertRedirect($plain);
+    $this->get('/events/show-b/chicago-2026')->assertRedirect($plain);
+    $this->get('/events/show-c/chicago-2026')->assertRedirect($s->fresh()->publicPath());
+});
+
+test('a merge still carries a moved run\'s former paths with it', function () {
+    $from = Project::factory()->create(['slug' => 'show-a']);
+    $run = runIn($from, 'Chicago', 'chicago-2026');
+
+    app(UpdateProject::class)->handle($from, ['slug' => 'show-b'], $this->moderator);
+    app(MergeProjects::class)->handle($from->refresh(), Project::factory()->create(['slug' => 'show-d']), $this->moderator);
+
+    $this->get('/events/show-a/chicago-2026')->assertRedirect($run->fresh()->publicPath());
+});
