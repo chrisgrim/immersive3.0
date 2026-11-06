@@ -1,10 +1,13 @@
 <?php
 
 use App\Mcp\Servers\EiServer;
+use App\Mcp\Tools\RemoveEventImage;
 use App\Mcp\Tools\UpdateEvent;
 use App\Models\Event;
 use App\Models\Organizer;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
+use Laravel\Passport\Passport;
 
 /**
  * Two rules the wizard enforced only in the browser, now enforced on the
@@ -90,4 +93,48 @@ test('an organizer under review is refused by MCP update-event too', function ()
     EiServer::actingAs($user)->tool(UpdateEvent::class, ['event_slug' => $event->slug, 'tag_line' => 'Swapped'])
         ->assertHasErrors();
     expect($event->fresh()->tag_line)->not->toBe('Swapped');
+});
+
+/** An admin on an ordinary connection: the mcp:use scope, no moderator powers. */
+function plainConnection(User $user): User
+{
+    Passport::actingAs($user, ['mcp:use']);
+
+    return $user;
+}
+
+test('an admin on an ordinary connection can change their own event under review', function () {
+    [$admin, $event] = guardedEvent('r', 'a');
+
+    EiServer::actingAs(plainConnection($admin))->tool(UpdateEvent::class, ['event_slug' => $event->slug, 'tag_line' => 'Swapped']);
+
+    expect($admin->isModerator())->toBeFalse();
+    expect($event->fresh()->tag_line)->toBe('Swapped');
+});
+
+test('an ordinary connection still does not reach someone else\'s event under review', function () {
+    [, $event] = guardedEvent('r');
+    $admin = User::factory()->create(['type' => 'a', 'email_verified_at' => now()]);
+
+    EiServer::actingAs(plainConnection($admin))->tool(UpdateEvent::class, ['event_slug' => $event->slug, 'tag_line' => 'Swapped'])
+        ->assertHasErrors();
+
+    expect($event->fresh()->tag_line)->not->toBe('Swapped');
+});
+
+test('the image tools follow the same lock on an ordinary connection', function () {
+    Storage::fake('digitalocean');
+    [$admin, $event] = guardedEvent('r', 'a');
+    [$organizer, $theirs] = guardedEvent('r');
+    $image = fn (Event $e) => $e->images()->create(['rank' => 1, 'large_image_path' => "event-images/{$e->slug}/img-1.webp", 'thumb_image_path' => "event-images/{$e->slug}/img-1-thumb.webp"]);
+
+    $mine = $image($event);
+    EiServer::actingAs(plainConnection($admin))->tool(RemoveEventImage::class, ['event_slug' => $event->slug, 'image_id' => $mine->id])
+        ->assertOk();
+    expect($event->images()->count())->toBe(0);
+
+    $other = $image($theirs);
+    EiServer::actingAs(plainConnection($organizer))->tool(RemoveEventImage::class, ['event_slug' => $theirs->slug, 'image_id' => $other->id])
+        ->assertHasErrors();
+    expect($theirs->images()->count())->toBe(1);
 });
