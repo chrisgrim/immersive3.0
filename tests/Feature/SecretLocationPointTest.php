@@ -13,6 +13,7 @@ use App\Models\Events\Location;
 use App\Models\Events\Show;
 use App\Models\Organizer;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Laravel\Passport\Passport;
 use Tests\Support\FakeSearchEngine;
@@ -461,7 +462,7 @@ test('the backfill changes nothing and queues nothing unless told to apply', fun
     Queue::fake();
 
     $this->artisan('ei:secret-location-points')
-        ->expectsOutputToContain('Would rewrite 1 secret listing(s) and queue 1 for reindex')
+        ->expectsOutputToContain('Would rewrite 1 secret listing(s), fill 0 open listing(s) with no point, and reindex 1')
         ->assertSuccessful();
 
     expect($listing->fresh()->location_latlon)->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
@@ -475,7 +476,7 @@ test('the backfill rewrites the point, queues the reindex and leaves updated_at'
     Queue::fake();
 
     $this->artisan('ei:secret-location-points --apply')
-        ->expectsOutputToContain('Rewrote 1 secret listing(s), queued 1 for reindex')
+        ->expectsOutputToContain('Rewrote 1 secret listing(s), filled 0 open listing(s) with no point, queued 1 for reindex')
         ->assertSuccessful();
 
     expect($listing->fresh()->location_latlon)->toBe(CELL)
@@ -484,18 +485,114 @@ test('the backfill rewrites the point, queues the reindex and leaves updated_at'
     Queue::assertPushed(SyncEventSearchIndex::class, 1);
 });
 
-test('the backfill leaves open and online listings alone', function () {
+test('the backfill leaves open listings alone', function () {
     $open = savePoint(listingWithPoint(), false);
     $open->update(['status' => 'p', 'published_at' => now()]);
-    $online = secretListingFromBefore(['hasLocation' => false]);
     config(['scout.queue' => true]);
     Queue::fake();
 
     $this->artisan('ei:secret-location-points --apply')->assertSuccessful();
 
-    expect($open->fresh()->location_latlon)->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON])
-        ->and($online->fresh()->location_latlon)->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
+    expect($open->fresh()->location_latlon)->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
     Queue::assertNothingPushed();
+});
+
+test('the backfill repairs and reindexes a secret location kept on an online listing', function () {
+    $online = secretListingFromBefore(['hasLocation' => false, 'attendance_type_id' => 2]);
+    config(['scout.queue' => true]);
+    Queue::fake();
+
+    $this->artisan('ei:secret-location-points --apply')->assertSuccessful();
+
+    expect($online->fresh()->location_latlon)->toBe(CELL);
+    Queue::assertPushed(SyncEventSearchIndex::class, 1);
+});
+
+test('the backfill says it reindexed, not queued, when the index is written inline', function () {
+    secretListingFromBefore();
+    config(['scout.queue' => false]);
+
+    $this->artisan('ei:secret-location-points --apply')
+        ->expectsOutputToContain('Rewrote 1 secret listing(s), filled 0 open listing(s) with no point, reindexed 1.')
+        ->assertSuccessful();
+});
+
+test('an edit between the backfill\'s read and write keeps its secrecy', function () {
+    $listing = secretListingFromBefore();
+    $edited = false;
+    Location::retrieved(function (Location $location) use (&$edited) {
+        if (! $edited) {
+            $edited = true;
+            DB::table('locations')->where('id', $location->id)->update(['hiddenLocationToggle' => false]);
+        }
+    });
+
+    $this->artisan('ei:secret-location-points --apply')
+        ->expectsOutputToContain('Rewrote 0 secret listing(s)')
+        ->assertSuccessful();
+
+    expect($listing->fresh()->location_latlon)->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
+});
+
+test('an edit that moves a secret point between the backfill\'s read and write wins', function () {
+    $listing = secretListingFromBefore();
+    $edited = false;
+    Location::retrieved(function (Location $location) use (&$edited) {
+        if (! $edited) {
+            $edited = true;
+            DB::table('locations')->where('id', $location->id)->update(['latitude' => 41.9012, 'longitude' => -87.6012]);
+        }
+    });
+
+    $this->artisan('ei:secret-location-points --apply')->assertSuccessful();
+
+    expect($listing->fresh()->location_latlon)->toBe(['lat' => 41.905, 'lon' => -87.605]);
+});
+
+/** An open listing whose location has its point and whose events row never did. */
+function openListingWithNoStoredPoint(array $event = []): Event
+{
+    $listing = savePoint(listingWithPoint(), false);
+    Event::withoutGlobalScopes()->whereKey($listing->id)->update([
+        'location_latlon' => null, 'status' => 'p', 'published_at' => now(), ...$event,
+    ]);
+
+    return $listing->fresh();
+}
+
+test('the backfill counts missing open points on their own in a dry run', function () {
+    secretListingFromBefore();
+    $open = openListingWithNoStoredPoint();
+
+    $this->artisan('ei:secret-location-points')
+        ->expectsOutputToContain('Would rewrite 1 secret listing(s), fill 1 open listing(s) with no point, and reindex 1')
+        ->assertSuccessful();
+
+    expect($open->fresh()->location_latlon)->toBeNull();
+});
+
+test('the backfill fills a missing open point, so nearby similar events find it', function () {
+    $open = openListingWithNoStoredPoint();
+    config(['scout.queue' => true]);
+    Queue::fake();
+
+    $this->artisan('ei:secret-location-points --apply')
+        ->expectsOutputToContain('Rewrote 0 secret listing(s), filled 1 open listing(s) with no point')
+        ->assertSuccessful();
+
+    expect($open->fresh()->location_latlon)->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON])
+        ->and(nearbyIds(41.8701))->toContain($open->id);
+    Queue::assertNothingPushed();
+});
+
+test('the backfill fills no point for an online listing or a location without one', function () {
+    $online = openListingWithNoStoredPoint(['hasLocation' => false]);
+    $noPoint = listingWithPoint(['status' => 'p', 'published_at' => now()]);
+
+    $this->artisan('ei:secret-location-points --apply')->assertSuccessful();
+
+    expect($online->fresh()->location_latlon)->toBeNull()
+        ->and($noPoint->fresh()->location_latlon)->toBeNull();
 });
 
 test('the backfill rewrites drafts and deleted listings, and indexes neither', function () {
@@ -519,7 +616,7 @@ test('running the backfill again rewrites nothing and still reindexes', function
     Queue::fake();
 
     $this->artisan('ei:secret-location-points --apply')
-        ->expectsOutputToContain('Rewrote 0 secret listing(s), queued 1 for reindex')
+        ->expectsOutputToContain('Rewrote 0 secret listing(s), filled 0 open listing(s) with no point, queued 1 for reindex')
         ->assertSuccessful();
 
     Queue::assertPushed(SyncEventSearchIndex::class, 1);
