@@ -64,7 +64,7 @@ class PrefillFromShow
     private function copyAddress(Event $draft, Event $own): bool
     {
         return DB::transaction(function () use ($draft, $own) {
-            Event::withoutGlobalScopes()->whereKey($draft->id)->lockForUpdate()->first();
+            $row = Event::withoutGlobalScopes()->whereKey($draft->id)->lockForUpdate()->first();
             $location = Location::where('event_id', $draft->id)->lockForUpdate()->first();
 
             if (! $location || $location->hiddenLocationToggle || filled($location->city)) {
@@ -73,7 +73,9 @@ class PrefillFromShow
 
             $location->update($own->location->only(self::ADDRESS_FIELDS));
             $draft->setRelation('location', $location);
-            $draft->update(['location_latlon' => $location->publicPoint()]);
+            $row->update(['location_latlon' => $location->publicPoint()]);
+            $draft->location_latlon = $row->location_latlon;
+            $draft->syncOriginalAttribute('location_latlon');
 
             return true;
         });

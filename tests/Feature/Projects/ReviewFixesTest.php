@@ -982,3 +982,21 @@ test('a prefill that loaded the draft before it went secret copies no address on
         ->and($draft->fresh()->location->street)->toBeNull()
         ->and($draft->fresh()->location_latlon)->toBeNull();
 });
+
+test('a prefill whose point matches what the draft loaded still writes it to the row', function () {
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $earlier = publishedListing('Earlier', 'Chicago', [], $organizer);
+    $point = ['lat' => 41.8841, 'lon' => -87.6321];
+    Location::where('event_id', $earlier->id)->update(['latitude' => 41.8841, 'longitude' => -87.6321]);
+    $earlier->update(['location_latlon' => $point]);
+    $draft = Event::factory()->create(['organizer_id' => $organizer->id, 'user_id' => $organizer->user_id, 'status' => '1', 'hasLocation' => true, 'location_latlon' => $point]);
+    $draft->location()->create([]);
+    $stale = Event::with('location')->find($draft->id);
+
+    Event::withoutGlobalScopes()->whereKey($draft->id)->update(['location_latlon' => null]);
+
+    app(PrefillFromShow::class)->handle($stale, $earlier->fresh(), $organizer->owner);
+
+    expect($draft->fresh()->location_latlon)->toBe($point)
+        ->and($stale->location_latlon)->toBe($point);
+});
