@@ -29,6 +29,14 @@ class ApplyVenue
         $secret = (bool) ($location['hiddenLocationToggle'] ?? $current?->hiddenLocationToggle);
         $picked = $location['venue_id'] ?? null;
 
+        // The wizard re-sends the venue it holds: with secret on, that is
+        // taking it off, and refusing would leave the organizer stuck, with
+        // the picker hidden. A different venue is still refused below.
+        if ($secret && $picked !== null && (int) $picked === (int) $current?->venue_id) {
+            $picked = null;
+            $location['venue_id'] = null;
+        }
+
         if ($picked !== null) {
             if ($secret) {
                 throw ValidationException::withMessages(['location.venue_id' => 'A secret location cannot be linked to a venue.']);
@@ -48,8 +56,11 @@ class ApplyVenue
             $location['venue_id'] = null;
         }
 
-        // Going secret: the name came from the venue, and goes with it.
-        if ($secret && $held !== null) {
+        // Going secret: a venue's name goes with it, also when the link went
+        // first and the name stayed behind in the free-text field.
+        $goingSecret = $secret && ! $current?->hiddenLocationToggle;
+
+        if ($secret && ($held !== null || ($goingSecret && $this->isVenueName($location['venue'] ?? $current?->venue)))) {
             $location['venue'] = null;
         }
 
@@ -59,6 +70,12 @@ class ApplyVenue
         }
 
         return $location;
+    }
+
+    /** Copied names are cut to the free-text field's 80 characters (copyVenue). */
+    private function isVenueName(?string $name): bool
+    {
+        return filled($name) && Venue::whereRaw('LEFT(name, 80) = ?', [$name])->exists();
     }
 
     private function copyVenue(Venue $venue, array $location): array

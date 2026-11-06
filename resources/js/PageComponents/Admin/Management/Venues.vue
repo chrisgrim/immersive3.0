@@ -107,13 +107,21 @@ const open = (venue) => {
     Object.assign(form, { name: venue.name, room: venue.room ?? '', description: venue.description ?? '', directions: venue.directions ?? '' });
 };
 
-const upload = (change) => {
+// Not through act(): the editor stays open, and unsaved edits with it.
+const upload = async (change) => {
     const file = change.target.files[0];
     if (!file) return;
 
     const data = new FormData();
     data.append('image', file);
-    act(() => axios.post(`/api/admin/venues/${editing.value.slug}/image`, data));
+    message.value = '';
+    try {
+        const response = await axios.post(`/api/admin/venues/${editing.value.slug}/image`, data);
+        editing.value = { ...editing.value, largeImagePath: response.data.venue.largeImagePath };
+        await load(page.value);
+    } catch (failure) {
+        message.value = Object.values(failure.response?.data?.errors ?? {}).flat()[0] ?? failure.response?.data?.message ?? 'That did not work.';
+    }
 };
 
 const approve = (venue) => act(() => axios.post(`/api/admin/venues/${venue.slug}/approve`));

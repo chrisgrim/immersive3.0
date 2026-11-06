@@ -526,3 +526,132 @@ test('only a moderator, and only a picture', function () {
     $this->actingAs($this->stranger)->post('/api/admin/venues/the-hall/image', ['image' => UploadedFile::fake()->image('a.jpg')], ['Accept' => 'application/json'])->assertForbidden();
     $this->actingAs($this->moderator)->post('/api/admin/venues/the-hall/image', ['image' => 'nope'], ['Accept' => 'application/json'])->assertStatus(422);
 });
+
+// ----- the second look -----
+
+test('a team cannot ask to join its own draft, which approval would refuse anyway', function () {
+    $organizer = Organizer::where('user_id', $this->stranger->id)->first();
+    $listing = publishedListing('Mine', 'Rome', [], $organizer);
+
+    foreach (['d', '0', 'r', 'n'] as $status) {
+        $draft = publishedListing('Draft '.$status, 'Paris', ['status' => $status], $organizer);
+
+        expect(fn () => app(RequestLink::class)->handle($listing, $draft, $this->stranger))
+            ->toThrow(ValidationException::class, RequestLink::UNAVAILABLE);
+    }
+
+    expect(ProjectLinkRequest::count())->toBe(0);
+});
+
+test('a listing in review with an embargo ahead stays out of a stranger\'s duplicate check', function () {
+    publishedListing('Same Name', 'Paris', ['status' => 'r', 'embargo_date' => now()->addMonth()->format('Y-m-d H:i:s')]);
+
+    expect(app(CheckDuplicateEventNames::class)->handle('Same Name', null, $this->stranger))->toBeNull();
+});
+
+test('its own team still sees it, and a stranger gets no status for a plain draft', function () {
+    $pending = publishedListing('Same Name', 'Paris', ['status' => 'r', 'embargo_date' => now()->addMonth()->format('Y-m-d H:i:s')]);
+
+    expect(app(CheckDuplicateEventNames::class)->handle('Same Name', null, $pending->organizer->owner)->first()['status'])->toBe('r');
+
+    publishedListing('Other Name', 'Paris', ['status' => 'r']);
+
+    expect(app(CheckDuplicateEventNames::class)->handle('Other Name', null, $this->stranger)->first()['status'])->toBeNull();
+});
+
+test('every address a show has gone by leads a moved run to its new home', function () {
+    $a = Project::factory()->create(['slug' => 'show-a']);
+    $b = Project::factory()->create(['slug' => 'first-name']);
+    $fromA = runIn($a, 'Chicago', 'chicago-2026');
+    $own = runIn($b, 'Chicago', 'chicago-2026');
+
+    $b->update(['slug' => 'show-b']);
+    app(MergeProjects::class)->handle($a, $b->refresh(), $this->moderator);
+    app(UpdateProject::class)->handle($b->refresh(), ['slug' => 'show-a'], $this->moderator);
+
+    $this->get('/events/first-name/chicago-2026')->assertRedirect($own->fresh()->publicPath());
+    $this->get('/events/show-b/chicago-2026')->assertRedirect($own->fresh()->publicPath());
+    $this->get('/events/show-a/chicago-2026')->assertRedirect($fromA->fresh()->publicPath());
+});
+
+test('a former path reserved for something else keeps its reservation', function () {
+    $project = Project::factory()->create(['slug' => 'old-name']);
+    $project->update(['slug' => 'next-name']);
+    $run = runIn($project, 'Chicago', 'chicago-2026');
+    $reservedHere = publishedListing('Reserved Here', 'Rome');
+    $reservedThere = publishedListing('Reserved There', 'Rome');
+    SlugRedirect::remember('events/new-name/chicago-2026', $reservedHere);
+    SlugRedirect::remember('events/old-name/chicago-2026', $reservedThere);
+
+    $project->update(['slug' => 'new-name']);
+
+    expect($run->fresh()->instance_slug)->not->toBe('chicago-2026')
+        ->and(SlugRedirect::where('path', 'events/old-name/chicago-2026')->sole()->redirectable_id)->toBe($reservedThere->id)
+        ->and(SlugRedirect::where('path', 'events/next-name/chicago-2026')->sole()->redirectable_id)->toBe($run->id);
+});
+
+function draftWithVenue(array $venue = []): array
+{
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $draft = Event::factory()->create(['organizer_id' => $organizer->id, 'user_id' => $organizer->user_id, 'status' => '1', 'hasLocation' => true]);
+    $draft->location()->create([]);
+    $picked = Venue::factory()->create(['name' => 'The Goodman', 'latitude' => 41.8, 'longitude' => -87.6, ...$venue]);
+    test()->actingAs($organizer->owner);
+    test()->postJson("/api/hosting/event/{$draft->slug}", ['location' => ['venue_id' => $picked->id]])->assertOk();
+
+    return [$draft->fresh(), $picked];
+}
+
+test('going secret clears a name the venue left behind after the link had gone', function () {
+    [$draft] = draftWithVenue();
+    Location::where('event_id', $draft->id)->update(['venue_id' => null]);
+
+    $this->postJson("/api/hosting/event/{$draft->slug}", ['location' => ['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email']])->assertOk();
+
+    expect($draft->fresh()->location->venue)->toBeNull();
+});
+
+test('a typed name that is no venue survives going secret', function () {
+    [$draft] = draftWithVenue();
+    Location::where('event_id', $draft->id)->update(['venue_id' => null, 'venue' => 'Somewhere Downtown']);
+
+    $this->postJson("/api/hosting/event/{$draft->slug}", ['location' => ['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email']])->assertOk();
+
+    expect($draft->fresh()->location->venue)->toBe('Somewhere Downtown');
+});
+
+test('a listing already secret keeps its wording on a later save', function () {
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    Venue::factory()->create(['name' => 'The Goodman']);
+    $draft = Event::factory()->create(['organizer_id' => $organizer->id, 'user_id' => $organizer->user_id, 'status' => '1', 'hasLocation' => true]);
+    $draft->location()->create(['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email', 'venue' => 'The Goodman']);
+
+    $this->actingAs($organizer->owner)->postJson("/api/hosting/event/{$draft->slug}", ['location' => ['hiddenLocation' => 'By text']])->assertOk();
+
+    expect($draft->fresh()->location->venue)->toBe('The Goodman');
+});
+
+test('the wizard\'s own payload going secret takes the venue off instead of refusing', function () {
+    [$draft, $venue] = draftWithVenue();
+
+    $this->postJson("/api/hosting/event/{$draft->slug}", [
+        'location' => ['venue_id' => $venue->id, 'hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'],
+        'timezone' => 'America/Chicago',
+    ])->assertOk();
+
+    $location = $draft->fresh()->location;
+
+    expect($location->venue_id)->toBeNull()
+        ->and($location->venue)->toBeNull()
+        ->and($location->hiddenLocationToggle)->toBeTruthy()
+        ->and($location->hiddenLocation)->toBe('By email');
+});
+
+test('a different venue on a secret listing is still refused', function () {
+    [$draft] = draftWithVenue();
+    $other = Venue::factory()->create();
+
+    $this->postJson("/api/hosting/event/{$draft->slug}", [
+        'location' => ['venue_id' => $other->id, 'hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'],
+    ])->assertStatus(422);
+});

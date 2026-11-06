@@ -31,16 +31,17 @@ class CheckDuplicateEventNames
             // A held draft's name is staff's business until it is approved.
             ->visibleToTeam($viewer)
             ->with(['organizer.owner', 'organizer.users'])
-            ->select('id', 'name', 'slug', 'project_id', 'instance_slug', 'status', 'organizer_id')
+            ->select('id', 'name', 'slug', 'project_id', 'instance_slug', 'status', 'organizer_id', 'embargo_date', 'timezone')
             ->get();
 
-        // Someone else's embargoed listing is unannounced: approved, with a
-        // date to keep, so it does not surface at all. Their draft still warns,
-        // and still offers the ownership claim, but gives no address.
+        // Someone else's embargoed listing is unannounced, and so is one in
+        // review with an embargo date still ahead: it does not surface at all.
+        // Their draft still warns, and still offers the ownership claim, but
+        // gives no address and no status.
         $mayOpen = fn (Event $event) => $event->status === Event::STATUS_PUBLISHED || (bool) $viewer?->can('manage', $event);
 
         $duplicateEvents = $duplicateEvents
-            ->reject(fn (Event $event) => $event->status === Event::STATUS_EMBARGOED && ! $mayOpen($event))
+            ->reject(fn (Event $event) => ($event->status === Event::STATUS_EMBARGOED || $event->embargoIsPending()) && ! $mayOpen($event))
             ->values();
 
         if ($duplicateEvents->isEmpty()) {
@@ -61,7 +62,7 @@ class CheckDuplicateEventNames
                 'name' => $event->name,
                 'slug' => $open ? $event->slug : null,
                 'public_url' => $open ? $event->publicPath() : null,
-                'status' => $event->status,
+                'status' => $open ? $event->status : null,
                 'organizer' => $organizer ? [
                     'id' => $organizer->id,
                     'name' => $organizer->name,

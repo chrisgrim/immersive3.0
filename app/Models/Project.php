@@ -42,7 +42,7 @@ class Project extends Model
             if ($project->wasChanged('slug')) {
                 SlugRedirect::remember('events/'.$project->getOriginal('slug'), $project);
                 SlugRedirect::forget('events/'.$project->slug, $project);
-                $project->settleRunsAfterMoveFrom($project->getOriginal('slug'));
+                $project->settleRunsAfterMoveFrom();
             }
         });
     }
@@ -54,8 +54,13 @@ class Project extends Model
      * is written out, because the route's swap of a former show address would
      * otherwise land on what the reservation points at.
      */
-    public function settleRunsAfterMoveFrom(string $oldSlug): void
+    public function settleRunsAfterMoveFrom(): void
     {
+        $formerPaths = SlugRedirect::where('redirectable_type', $this->getMorphClass())
+            ->where('redirectable_id', $this->id)
+            ->pluck('path')
+            ->filter(fn (string $path) => substr_count($path, '/') === 1);
+
         foreach ($this->runs()->get() as $run) {
             $path = "events/{$this->slug}/{$run->instance_slug}";
 
@@ -65,7 +70,14 @@ class Project extends Model
                 continue;
             }
 
-            SlugRedirect::remember("events/{$oldSlug}/{$run->instance_slug}", $run);
+            // Every address the show has gone by, not only the last: the route
+            // would swap any of them onto the reserved path. Never over another
+            // record's reservation.
+            foreach ($formerPaths as $former) {
+                if (! SlugRedirect::pointsElsewhere("{$former}/{$run->instance_slug}", $run->getMorphClass(), $run->id)) {
+                    SlugRedirect::remember("{$former}/{$run->instance_slug}", $run);
+                }
+            }
 
             $run->setRelation('project', $this);
             $run->instance_slug = InstanceAddress::allocate($run, $this);

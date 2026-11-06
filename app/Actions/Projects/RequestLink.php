@@ -40,16 +40,20 @@ class RequestLink
         return $this->open($event, $target, $actor->id, $note, $actor);
     }
 
-    /** Published, or the actor's own: nothing else can be named by asking to join it. */
+    /** Published, or live and the actor's own: nothing else can be named by asking to join it. */
     private function mayKnowAbout(Project|Event $target, User $actor): bool
     {
         if ($target->trashed()) {
             return false;
         }
 
-        return $target instanceof Project
-            ? Project::whereKey($target->id)->visibleTo($actor)->exists()
-            : $target->status === Event::STATUS_PUBLISHED || $actor->can('manage', $target);
+        if ($target instanceof Project) {
+            return Project::whereKey($target->id)->visibleTo($actor)->exists();
+        }
+
+        // Live too, even for the actor's own: approving would refuse anything else.
+        return in_array($target->status, Event::LIVE_STATUSES, true)
+            && ($target->status === Event::STATUS_PUBLISHED || $actor->can('manage', $target));
     }
 
     /**
