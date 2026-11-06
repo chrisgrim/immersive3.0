@@ -156,14 +156,9 @@ class UpdateEventAction
             $validatedData['location'] = app(ApplyVenue::class)->handle($event, $validatedData['location']);
             $event->location->update($validatedData['location']);
 
-            // Update the location_latlon in events table using the exact format
+            // The public point, which follows secrecy on and off
             if ($event->location->latitude && $event->location->longitude) {
-                $event->update([
-                    'location_latlon' => [
-                        'lat' => (float) $event->location->latitude,
-                        'lon' => (float) $event->location->longitude,
-                    ],
-                ]);
+                $event->update(['location_latlon' => $event->location->publicPoint()]);
             }
 
             // Update the status if it's included in the request
