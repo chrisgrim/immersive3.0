@@ -169,3 +169,12 @@ function viaToken(User $user, array $scopes = ['mcp:use'])
 
     return App\Mcp\Servers\EiServer::actingAs($user, 'api');
 }
+
+/** A show the public can see: it has a published run. */
+function publicProject(array $attributes = []): App\Models\Project
+{
+    $project = App\Models\Project::factory()->create($attributes);
+    publishedListing('Public Run '.$project->id, 'Rome')->update(['project_id' => $project->id, 'instance_slug' => 'rome-2026']);
+
+    return $project;
+}

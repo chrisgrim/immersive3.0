@@ -165,7 +165,7 @@ test('a live listing asking to join changes nothing about itself', function () {
 // ----- confirming before submit -----
 
 test('a run joining a show cannot be submitted until its details are confirmed', function () {
-    $project = Project::factory()->create();
+    $project = publicProject();
     $draft = draftOf($this->organizer);
     app(RequestLink::class)->handle($draft, $project, $this->owner);
 
@@ -195,7 +195,7 @@ test('a listing with no request submits as ever', function () {
 
 test('the edit page carries the request for the Name and Review steps', function () {
     $draft = draftOf($this->organizer);
-    app(RequestLink::class)->handle($draft, Project::factory()->create(['name' => 'Ha Ha Ha']), $this->owner);
+    app(RequestLink::class)->handle($draft, publicProject(['name' => 'Ha Ha Ha']), $this->owner);
 
     $this->get("/hosting/event/{$draft->slug}/edit")->assertOk()->assertSee('Ha Ha Ha', false);
 });

@@ -74,7 +74,7 @@ test('search and propose venues and artists', function () {
 });
 
 test('update-event asks to join for an own draft, fills it in, and submit wants confirmation', function () {
-    $project = Project::factory()->create(['description' => 'About the show.']);
+    $project = publicProject(['description' => 'About the show.']);
     $draft = Event::factory()->create(['organizer_id' => $this->organizer->id, 'user_id' => $this->owner->id, 'status' => '1', 'description' => null, 'hasLocation' => false]);
     $draft->location()->create([]);
     $draft->advisories()->create([]);

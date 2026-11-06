@@ -424,7 +424,8 @@ test('keeping the page does not let a company copy onto someone else\'s run', fu
 
 test('a team member searches and proposes artists; merged ones are not offered', function () {
     Artist::factory()->create(['name' => 'Jo Doe']);
-    Artist::factory()->create(['name' => 'Jo Gone', 'merged_into_id' => Artist::factory()->create()->id]);
+    // Named: a random winner can be a Jordan or a Major, and "Jo" finds it.
+    Artist::factory()->create(['name' => 'Jo Gone', 'merged_into_id' => Artist::factory()->create(['name' => 'Someone Else'])->id]);
 
     $this->actingAs($this->presenter)->getJson('/api/artists/search?keywords=Jo')
         ->assertOk()->assertJsonCount(1)->assertJsonPath('0.name', 'Jo Doe');

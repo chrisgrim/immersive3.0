@@ -1,0 +1,528 @@
+<?php
+
+use App\Actions\Events\CheckDuplicateEventNames;
+use App\Actions\Projects\CopyCredits;
+use App\Actions\Projects\LinkEventToProject;
+use App\Actions\Projects\MergeProjects;
+use App\Actions\Projects\PrefillFromShow;
+use App\Actions\Projects\RequestLink;
+use App\Actions\Projects\SetCredits;
+use App\Actions\Projects\SuggestShows;
+use App\Actions\Projects\UnlinkEvent;
+use App\Actions\Projects\UpdateProject;
+use App\Mcp\Tools\GetEvent;
+use App\Models\Artist;
+use App\Models\AuditLog;
+use App\Models\Credit;
+use App\Models\Event;
+use App\Models\Events\Location;
+use App\Models\Events\Show;
+use App\Models\Image;
+use App\Models\Organizer;
+use App\Models\Project;
+use App\Models\ProjectLinkRequest;
+use App\Models\SlugRedirect;
+use App\Models\User;
+use App\Models\Venue;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+
+beforeEach(function () {
+    Storage::fake('digitalocean');
+    Mail::fake();
+    $this->moderator = staffModerator();
+    $this->stranger = Organizer::factory()->create(['status' => 'p'])->owner;
+});
+
+function runIn(Project $project, string $city, string $instance, array $overrides = []): Event
+{
+    $run = publishedListing($overrides['name'] ?? 'Run in '.$city, $city, $overrides);
+    $run->update(['project_id' => $project->id, 'instance_slug' => $instance]);
+
+    return $run->fresh();
+}
+
+function pictureFor($model, string $folder): Image
+{
+    Storage::disk('digitalocean')->put("/public/{$folder}/a.webp", 'large');
+    Storage::disk('digitalocean')->put("/public/{$folder}/a-thumb.webp", 'thumb');
+
+    return $model->images()->create(['large_image_path' => "{$folder}/a.webp", 'thumb_image_path' => "{$folder}/a-thumb.webp", 'rank' => 0]);
+}
+
+// ----- 1. embargoed discovery -----
+
+test('a show with no published run is not suggested to a stranger, but is to its own company', function () {
+    $hidden = Project::factory()->create(['name' => 'Unannounced Show']);
+    runIn($hidden, 'Paris', 'paris-2027', ['status' => 'e']);
+    publicProject(['name' => 'Unannounced Show Public']);
+
+    $names = fn (?User $viewer) => collect(app(SuggestShows::class)->handle('Unannounced Show', null, $viewer))->pluck('name')->all();
+
+    expect($names($this->stranger))->toBe(['Unannounced Show Public'])
+        ->and($names(null))->toBe(['Unannounced Show Public'])
+        ->and($names($hidden->organizer->owner))->toContain('Unannounced Show')
+        ->and($names($this->moderator))->toContain('Unannounced Show');
+});
+
+test('the suggest route reads as the signed-in person', function () {
+    Project::factory()->create(['name' => 'Unannounced Show']);
+
+    $this->actingAs($this->stranger)->getJson('/api/projects/suggest?keywords=Unannounced')->assertOk()->assertJsonCount(0);
+});
+
+test('someone else\'s embargoed listing does not surface in the duplicate check', function () {
+    $project = Project::factory()->create(['slug' => 'secret-show']);
+    runIn($project, 'Paris', 'paris-2027', ['name' => 'Same Name', 'status' => 'e']);
+
+    expect(app(CheckDuplicateEventNames::class)->handle('Same Name', null, $this->stranger))->toBeNull();
+});
+
+test('its own team and a moderator still see it, with its address', function () {
+    $run = runIn(Project::factory()->create(['slug' => 'secret-show']), 'Paris', 'paris-2027', ['name' => 'Same Name', 'status' => 'e']);
+
+    foreach ([$run->organizer->owner, $this->moderator] as $viewer) {
+        expect(app(CheckDuplicateEventNames::class)->handle('Same Name', null, $viewer)->first()['public_url'])->toBe('/events/secret-show/paris-2027');
+    }
+});
+
+test('someone else\'s draft still warns, for the claim, but gives no address', function () {
+    $draft = publishedListing('Same Name', 'Paris', ['status' => 'r']);
+
+    $row = app(CheckDuplicateEventNames::class)->handle('Same Name', null, $this->stranger)->first();
+
+    expect($row['slug'])->toBeNull()
+        ->and($row['public_url'])->toBeNull()
+        ->and($row['organizer']['id'])->toBe($draft->organizer_id);
+});
+
+test('a stranger cannot ask to join what they may not know about, and every refusal reads alike', function () {
+    $listing = publishedListing('Mine', 'Rome', [], Organizer::where('user_id', $this->stranger->id)->first());
+    $embargoed = publishedListing('Unannounced', 'Paris', ['status' => 'e']);
+    $hiddenShow = Project::factory()->create();
+
+    $this->actingAs($this->stranger);
+
+    foreach ([['source_event_id' => $embargoed->id], ['project_id' => $hiddenShow->id], ['source_event_id' => 99999999]] as $ask) {
+        $this->postJson("/hosting/event/{$listing->slug}/link-request", $ask)
+            ->assertStatus(422)
+            ->assertJsonPath('errors.project.0', RequestLink::UNAVAILABLE);
+    }
+
+    expect(ProjectLinkRequest::count())->toBe(0);
+});
+
+test('a team can still ask to join its own embargoed listing', function () {
+    $organizer = Organizer::where('user_id', $this->stranger->id)->first();
+    $listing = publishedListing('Mine', 'Rome', [], $organizer);
+    $own = publishedListing('Mine Too', 'Paris', ['status' => 'e'], $organizer);
+
+    expect(app(RequestLink::class)->handle($listing, $own, $this->stranger)->source_event_id)->toBe($own->id);
+});
+
+// ----- 2. the credits panel -----
+
+test('the credits panel lists only published runs and the caller\'s own', function () {
+    $project = publicProject();
+    $run = runIn($project, 'Lima', 'lima-2026');
+    $hidden = runIn($project, 'Secretville', 'secretville-2027', ['status' => 'e']);
+    $own = runIn($project, 'Ownville', 'ownville-2027', ['status' => 'e', 'organizer_id' => $run->organizer_id]);
+
+    $ids = fn (User $user) => collect($this->actingAs($user)->getJson("/hosting/event/{$run->slug}/credits")->assertOk()->json('other_runs'))->pluck('id');
+
+    expect($ids($run->organizer->owner))->toContain($own->id)->not->toContain($hidden->id)
+        ->and($ids(User::factory()->create(['type' => 'c'])))->not->toContain($hidden->id)->not->toContain($own->id)
+        ->and($ids($this->moderator))->toContain($hidden->id);
+});
+
+test('credits cannot be copied from a sibling\'s unannounced run', function () {
+    $project = publicProject();
+    $run = runIn($project, 'Lima', 'lima-2026');
+    $hidden = runIn($project, 'Secretville', 'secretville-2027', ['status' => 'e']);
+    Credit::factory()->for($hidden, 'creditable')->create();
+
+    expect(fn () => app(CopyCredits::class)->handle($hidden, $run, $run->organizer->owner))->toThrow(ValidationException::class);
+});
+
+// ----- 3. secret destinations -----
+
+test('a secret draft takes no venue or address from an earlier run', function () {
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $venue = Venue::factory()->create(['name' => 'The Goodman']);
+    $own = publishedListing('Mine', 'Boston', [], $organizer);
+    $own->location->update(['venue_id' => $venue->id, 'venue' => 'The Goodman', 'street' => '1 Own St']);
+    $draft = Event::factory()->create(['organizer_id' => $organizer->id, 'user_id' => $organizer->user_id, 'status' => '1', 'hasLocation' => true]);
+    $draft->location()->create(['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email']);
+
+    app(PrefillFromShow::class)->handle($draft->fresh(), $own->fresh(), $organizer->owner);
+
+    expect($draft->fresh()->location->venue_id)->toBeNull()
+        ->and($draft->fresh()->location->venue)->toBeNull()
+        ->and($draft->fresh()->location->street)->toBeNull();
+});
+
+test('going secret takes the venue\'s name off with its id', function () {
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $draft = Event::factory()->create(['organizer_id' => $organizer->id, 'user_id' => $organizer->user_id, 'status' => '1', 'hasLocation' => true]);
+    $draft->location()->create([]);
+    $venue = Venue::factory()->create(['name' => 'The Goodman', 'latitude' => 41.8, 'longitude' => -87.6]);
+    $this->actingAs($organizer->owner);
+
+    $this->postJson("/api/hosting/event/{$draft->slug}", ['location' => ['venue_id' => $venue->id]])->assertOk();
+    $this->postJson("/api/hosting/event/{$draft->slug}", ['location' => ['venue' => 'The Goodman', 'hiddenLocationToggle' => true, 'hiddenLocation' => 'By email']])->assertOk();
+
+    expect($draft->fresh()->location->venue)->toBeNull();
+});
+
+test('a secret listing still holding a venue names it nowhere on its page', function () {
+    $listing = publishedListing('Secret Show', 'Chicago');
+    $venue = Venue::factory()->create(['name' => 'Hidden Hall']);
+    Location::where('event_id', $listing->id)->update(['venue_id' => $venue->id, 'venue' => 'Hidden Hall', 'hiddenLocationToggle' => true]);
+
+    $response = $this->get('/events/secret-show')->assertOk()->assertDontSee('Hidden Hall');
+
+    expect($response->getContent())->not->toContain('venue_id');
+});
+
+test('a free-text name on a secret listing stays, as it always has', function () {
+    $listing = publishedListing('Secret Show', 'Chicago');
+    Location::where('event_id', $listing->id)->update(['venue' => 'Somewhere Downtown', 'hiddenLocationToggle' => true]);
+
+    $this->get('/events/secret-show')->assertOk()->assertSee('Somewhere Downtown');
+});
+
+// ----- 4. get-event -----
+
+test('a read-only key sees no pending venue; the team does', function () {
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $run = publishedListing('Run', 'Rome', [], $organizer);
+    $run->location->update(['venue_id' => Venue::factory()->create(['name' => 'Pending Hall', 'status' => Venue::PENDING])->id, 'venue' => 'typed']);
+
+    viaToken(User::factory()->create(['email_verified_at' => now()]), [User::READ_SCOPE])
+        ->tool(GetEvent::class, ['event_slug' => $run->slug])->assertOk()->assertDontSee('Pending Hall');
+
+    viaToken($organizer->owner)->tool(GetEvent::class, ['event_slug' => $run->slug])->assertOk()->assertSee('Pending Hall');
+});
+
+test('a read-only key sees an approved venue', function () {
+    $run = publishedListing('Run', 'Rome');
+    $run->location->update(['venue_id' => Venue::factory()->create(['name' => 'Approved Hall'])->id]);
+
+    viaToken(User::factory()->create(['email_verified_at' => now()]), [User::READ_SCOPE])
+        ->tool(GetEvent::class, ['event_slug' => $run->slug])->assertOk()->assertSee('Approved Hall');
+});
+
+// ----- 5. set-credits -----
+
+test('an empty list writes nothing for someone with no rights', function () {
+    $project = Project::factory()->create();
+    $run = publishedListing('Run', 'Rome');
+
+    foreach ([$project, $run] as $target) {
+        expect(fn () => app(SetCredits::class)->handle($target, [], $this->stranger))->toThrow(AuthorizationException::class);
+    }
+
+    expect(AuditLog::where('action', 'credits.set')->count())->toBe(0);
+});
+
+test('the team can still clear its own list', function () {
+    $run = publishedListing('Run', 'Rome');
+    Credit::factory()->for($run, 'creditable')->create();
+
+    app(SetCredits::class)->handle($run, [], $run->organizer->owner);
+
+    expect($run->credits()->count())->toBe(0);
+});
+
+// ----- 6. files and rollbacks -----
+
+test('approval moves its files after the commit, outside any transaction it opened', function () {
+    $listing = publishedListing('Pending', 'Rome', ['status' => 'r']);
+    pictureFor($listing, 'event-images/pending-temp');
+
+    $levels = [];
+    Image::updated(function () use (&$levels) {
+        $levels[] = DB::transactionLevel();
+    });
+    $resting = DB::transactionLevel();
+
+    $this->actingAs($this->moderator)->postJson("/api/admin/approve/events/{$listing->slug}/approve")->assertOk();
+
+    expect($levels)->not->toBeEmpty()->and(max($levels))->toBe($resting);
+    Storage::disk('digitalocean')->assertExists('/public/'.$listing->images()->first()->large_image_path);
+});
+
+test('a failed keeper save keeps the old picture on disk', function () {
+    $project = Project::factory()->create(['slug' => 'a-show']);
+    $image = pictureFor($project, 'project-images/a-show');
+    AuditLog::creating(fn () => throw new RuntimeException('database hiccup'));
+
+    $this->actingAs($project->organizer->owner)->post('/hosting/projects/a-show', [
+        'image' => UploadedFile::fake()->image('new.jpg', 900, 1300),
+    ], ['Accept' => 'application/json'])->assertStatus(500);
+
+    expect(Image::find($image->id))->not->toBeNull();
+    Storage::disk('digitalocean')->assertExists('/public/project-images/a-show/a.webp');
+    expect(Storage::disk('digitalocean')->allFiles('public/project-images/a-show'))->toHaveCount(2);
+});
+
+test('a rolled-back link leaves no copied files behind', function () {
+    $first = publishedListing('Ha Ha Ha', 'Chicago');
+    pictureFor($first, 'event-images/ha-ha-ha');
+    $second = publishedListing('Ha Ha Ha', 'Boston');
+    $this->actingAs($this->moderator);
+
+    // The last write of the link fails, after the project and its picture.
+    AuditLog::creating(function (AuditLog $log) {
+        if ($log->action === 'project.linked' && str_contains(json_encode($log->details), 'boston')) {
+            throw new RuntimeException('database hiccup');
+        }
+    });
+
+    expect(fn () => app(LinkEventToProject::class)->link($second, $first, $this->moderator))->toThrow(RuntimeException::class);
+
+    expect(Project::count())->toBe(0)
+        ->and(Storage::disk('digitalocean')->allFiles('public/project-images'))->toBe([]);
+});
+
+test('the project still gets its picture when the link commits', function () {
+    $first = publishedListing('Ha Ha Ha', 'Chicago');
+    pictureFor($first, 'event-images/ha-ha-ha');
+    $this->actingAs($this->moderator);
+
+    app(LinkEventToProject::class)->link(publishedListing('Ha Ha Ha', 'Boston'), $first, $this->moderator);
+
+    expect(Project::sole()->largeImagePath)->toStartWith('project-images/ha-ha-ha/');
+});
+
+// ----- 7. nested addresses on a rename -----
+
+/** Merge A into B, each with a Chicago run: A's takes chicago-2026-2 and reserves A's path. */
+function mergedShows(): array
+{
+    $a = Project::factory()->create(['slug' => 'show-a']);
+    $b = Project::factory()->create(['slug' => 'show-b']);
+    $fromA = runIn($a, 'Chicago', 'chicago-2026');
+    $own = runIn($b, 'Chicago', 'chicago-2026');
+
+    app(MergeProjects::class)->handle($a, $b, test()->moderator);
+
+    return [$b->refresh(), $fromA->fresh(), $own->fresh()];
+}
+
+test('renaming onto a merged show\'s address moves a run off the reserved path', function () {
+    [$b, $fromA, $own] = mergedShows();
+
+    expect($fromA->instance_slug)->toBe('chicago-2026-2');
+
+    app(UpdateProject::class)->handle($b, ['slug' => 'show-a'], $this->moderator);
+
+    $own->refresh();
+
+    expect($own->instance_slug)->not->toBe('chicago-2026')
+        ->and(SlugRedirect::where('path', 'events/show-a/chicago-2026')->sole()->redirectable_id)->toBe($fromA->id);
+
+    // The reserved path leads to the run it was reserved for.
+    $this->get('/events/show-a/chicago-2026')->assertRedirect($fromA->fresh()->publicPath());
+    // The moved run answers at its new address, and its old one leads to it.
+    $this->get($own->publicPath())->assertOk();
+    $this->get('/events/show-b/chicago-2026')->assertRedirect($own->publicPath());
+});
+
+test('rename, unlink and rename back leave every address leading the right way', function () {
+    [$b, $fromA, $own] = mergedShows();
+    $update = app(UpdateProject::class);
+
+    $update->handle($b, ['slug' => 'show-a'], $this->moderator);
+    $moved = $own->fresh()->publicPath();
+
+    app(UnlinkEvent::class)->handle($own->fresh(), $this->moderator);
+    $plain = $own->fresh()->publicPath();
+
+    $update->handle($b->refresh(), ['slug' => 'show-b'], $this->moderator);
+
+    $this->get($moved)->assertRedirect($plain);
+    $this->get('/events/show-b/chicago-2026')->assertRedirect($plain);
+    $this->get('/events/show-a/chicago-2026')->assertRedirect($fromA->fresh()->publicPath());
+    $this->get($fromA->fresh()->publicPath())->assertOk();
+    $this->get($plain)->assertOk();
+});
+
+test('a run that returns to one of its own old paths loses the alias', function () {
+    $project = Project::factory()->create(['slug' => 'a-show']);
+    $run = runIn($project, 'Chicago', 'chicago-2026');
+    SlugRedirect::remember('events/other-name/chicago-2026', $run);
+
+    $project->update(['slug' => 'other-name']);
+
+    expect($run->fresh()->instance_slug)->toBe('chicago-2026')
+        ->and(SlugRedirect::where('path', 'events/other-name/chicago-2026')->exists())->toBeFalse();
+});
+
+test('a project cannot take the slug of one of its own runs that it never went by', function () {
+    $project = Project::factory()->create(['slug' => 'a-show']);
+    runIn($project, 'Chicago', 'chicago-2026', ['name' => 'Second Run']);
+
+    expect(Project::slugTaken('second-run', null, $project->id))->toBeTrue();
+});
+
+test('it can go back to an address it held, though its first listing still has that slug', function () {
+    $first = publishedListing('Ha Ha Ha', 'Chicago');
+    $this->actingAs($this->moderator);
+    app(LinkEventToProject::class)->link(publishedListing('Ha Ha Ha', 'Boston'), $first, $this->moderator);
+    $project = Project::sole();
+
+    expect(Project::slugTaken('ha-ha-ha', null, $project->id))->toBeFalse();
+
+    $project->update(['slug' => 'laughter']);
+
+    expect(Project::slugTaken('ha-ha-ha', null, $project->id))->toBeFalse();
+});
+
+// ----- 8. no redirect to itself -----
+
+test('a listing linked to a show that is gone answers at its address, with no redirect loop', function () {
+    $listing = publishedListing('Orphan', 'Rome');
+    Event::whereKey($listing->id)->update(['project_id' => 99999999, 'instance_slug' => 'rome-2026']);
+
+    $this->get('/events/orphan')->assertOk();
+});
+
+// ----- 9. online listings and venues -----
+
+test('an online listing cannot take a venue', function () {
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $draft = Event::factory()->create(['organizer_id' => $organizer->id, 'user_id' => $organizer->user_id, 'status' => '1', 'hasLocation' => false, 'attendance_type_id' => 2]);
+    $draft->location()->create([]);
+
+    $this->actingAs($organizer->owner)
+        ->postJson("/api/hosting/event/{$draft->slug}", ['location' => ['venue_id' => Venue::factory()->create()->id]])
+        ->assertStatus(422);
+
+    expect($draft->fresh()->location->venue_id)->toBeNull();
+});
+
+test('a venue page lists no online run, whatever a stale row says', function () {
+    $venue = Venue::factory()->create();
+    $online = publishedListing('Online Now', 'Rome', ['hasLocation' => false]);
+    Location::where('event_id', $online->id)->update(['venue_id' => $venue->id]);
+
+    expect($this->get($venue->publicPath())->assertOk()->viewData('current'))->toHaveCount(0);
+});
+
+// ----- 10. copying a list -----
+
+test('copying keeps credits that differ by department, character or kind', function () {
+    $from = publishedListing('From', 'Rome');
+    $to = publishedListing('To', 'Paris');
+    $artist = Artist::factory()->create();
+    Credit::factory()->for($to, 'creditable')->create(['artist_id' => $artist->id, 'role' => 'Performer', 'department' => 'cast', 'character' => 'Hero', 'kind' => 'regular']);
+
+    foreach ([['department' => 'production'], ['character' => 'Villain'], ['kind' => 'understudy']] as $difference) {
+        Credit::factory()->for($from, 'creditable')->create(['artist_id' => $artist->id, 'role' => 'Performer', 'department' => 'cast', 'character' => 'Hero', 'kind' => 'regular', ...$difference]);
+    }
+
+    expect(app(CopyCredits::class)->handle($from, $to, $this->moderator))->toBe(3);
+});
+
+test('copying still skips the same line', function () {
+    $from = publishedListing('From', 'Rome');
+    $to = publishedListing('To', 'Paris');
+    $artist = Artist::factory()->create();
+    $line = ['artist_id' => $artist->id, 'role' => 'Performer', 'department' => 'cast', 'character' => 'Hero', 'kind' => 'regular'];
+    Credit::factory()->for($from, 'creditable')->create($line);
+    Credit::factory()->for($to, 'creditable')->create($line);
+
+    expect(app(CopyCredits::class)->handle($from, $to, $this->moderator))->toBe(0);
+});
+
+test('the writer merge keeps its own comparison', function () {
+    $a = Project::factory()->create();
+    $b = Project::factory()->create();
+    $artist = Artist::factory()->create();
+    Credit::factory()->writing()->for($a, 'creditable')->create(['artist_id' => $artist->id, 'role' => 'Book', 'character' => 'x']);
+    Credit::factory()->writing()->for($b, 'creditable')->create(['artist_id' => $artist->id, 'role' => 'Book', 'character' => 'y']);
+
+    app(MergeProjects::class)->handle($a, $b, $this->moderator);
+
+    expect($b->writers()->count())->toBe(1);
+});
+
+// ----- 11. one aggregate, however many runs -----
+
+test('project and venue pages read show days once, however many runs', function () {
+    $project = publicProject(['slug' => 'big-show']);
+    $venue = Venue::factory()->create();
+
+    foreach (['A', 'B', 'C', 'D', 'E'] as $city) {
+        $run = runIn($project, 'City '.$city, 'city-'.strtolower($city));
+        Location::where('event_id', $run->id)->update(['venue_id' => $venue->id]);
+    }
+
+    foreach (['/events/big-show', $venue->publicPath()] as $path) {
+        $queries = collect();
+        DB::listen(fn ($query) => $queries->push($query->sql));
+
+        $this->get($path)->assertOk();
+
+        expect($queries->filter(fn ($sql) => str_contains($sql, 'MIN(date)'))->count())->toBe(1);
+    }
+});
+
+test('a batched first day is the same as a run\'s own', function () {
+    $run = publishedListing('Run', 'Chicago', [], null, '2027-01-01 02:00:00');
+    Show::factory()->create(['event_id' => $run->id, 'date' => '2027-03-01 19:00:00']);
+    $empty = publishedListing('Always', 'Chicago', ['showtype' => 'a', 'published_at' => '2024-06-01 12:00:00']);
+
+    $events = Event::whereKey([$run->id, $empty->id])->get();
+    App\Support\Projects\InstanceAddress::primeFirstDays($events);
+
+    foreach ($events as $event) {
+        expect(App\Support\Projects\InstanceAddress::startDay($event))->toBe(App\Support\Projects\InstanceAddress::startDay(Event::find($event->id)));
+    }
+});
+
+// ----- 12. the queue -----
+
+test('the queue keeps the request and runs no name search; the review screen has the matches', function () {
+    Project::factory()->create(['name' => 'Ha Ha Ha']);
+    publicProject(['name' => 'Ha Ha Ha Too']);
+    $listing = publishedListing('Ha Ha Ha', 'Rome', ['status' => 'r']);
+    ProjectLinkRequest::create(['event_id' => $listing->id, 'project_id' => Project::first()->id]);
+    $this->actingAs($this->moderator);
+
+    $queue = $this->getJson('/api/admin/approve/events')->assertOk();
+
+    expect($queue->json('data.0.link_request.id'))->not->toBeNull()
+        ->and($queue->json('data.0'))->not->toHaveKey('name_matches');
+
+    expect($this->getJson("/api/admin/events/{$listing->slug}")->assertOk()->json('name_matches'))->not->toBeEmpty();
+});
+
+// ----- 13. venue pictures -----
+
+test('a moderator sets a venue\'s picture, and replacing it clears the old one', function () {
+    $venue = Venue::factory()->create(['name' => 'The Hall']);
+    $this->actingAs($this->moderator);
+
+    foreach (['first.jpg', 'second.jpg'] as $file) {
+        $this->post('/api/admin/venues/the-hall/image', ['image' => UploadedFile::fake()->image($file, 900, 700)], ['Accept' => 'application/json'])->assertOk();
+    }
+
+    expect($venue->fresh()->largeImagePath)->toStartWith('venue-images/the-hall/')
+        ->and($venue->images()->count())->toBe(1);
+
+    Storage::disk('digitalocean')->assertExists('/public/'.$venue->fresh()->largeImagePath);
+    $this->get('/venues/the-hall')->assertSee($venue->fresh()->largeImagePath);
+});
+
+test('only a moderator, and only a picture', function () {
+    Venue::factory()->create(['name' => 'The Hall']);
+
+    $this->actingAs($this->stranger)->post('/api/admin/venues/the-hall/image', ['image' => UploadedFile::fake()->image('a.jpg')], ['Accept' => 'application/json'])->assertForbidden();
+    $this->actingAs($this->moderator)->post('/api/admin/venues/the-hall/image', ['image' => 'nope'], ['Accept' => 'application/json'])->assertStatus(422);
+});

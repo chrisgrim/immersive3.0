@@ -210,6 +210,7 @@ test('asking again replaces the pending request', function () {
     $listing = publishedListing('Listing', 'Paris');
     $team = teamMember($listing->organizer);
     $action = app(RequestLink::class);
+    publishedListing('A Run', 'Lima')->update(['project_id' => $this->project->id, 'instance_slug' => 'lima-2026']);
 
     $first = $action->handle($listing, $this->project, $team);
     $second = $action->handle($listing, publishedListing('Other', 'Rome'), $team, 'This one');

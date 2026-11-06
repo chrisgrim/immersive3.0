@@ -327,7 +327,7 @@ test('the old exact-name duplicate warning is untouched', function () {
 
 test('the keeper is told when a live listing asks to join', function () {
     $maker = Organizer::factory()->create(['status' => 'p', 'name' => 'Pony Cam']);
-    $project = Project::factory()->create(['organizer_id' => $maker->id, 'name' => 'Burnout', 'slug' => 'burnout']);
+    $project = publicProject(['organizer_id' => $maker->id, 'name' => 'Burnout', 'slug' => 'burnout']);
     $listing = publishedListing('Burnout', 'Rome');
     $this->actingAs($listing->organizer->owner);
 
@@ -340,7 +340,7 @@ test('the keeper is told when a live listing asks to join', function () {
 
 test('a named editor is told, not the maker', function () {
     $keeper = Organizer::factory()->create(['status' => 'p']);
-    $project = Project::factory()->create(['editor_organizer_id' => $keeper->id]);
+    $project = publicProject(['editor_organizer_id' => $keeper->id]);
     $listing = publishedListing('Burnout', 'Rome');
     $this->actingAs($listing->organizer->owner);
 
@@ -402,7 +402,7 @@ test('a held draft tells nobody', function () {
 });
 
 test('a rollback tells nobody', function () {
-    $project = Project::factory()->create();
+    $project = publicProject();
     $listing = publishedListing('Burnout', 'Rome');
     $this->actingAs($listing->organizer->owner);
 

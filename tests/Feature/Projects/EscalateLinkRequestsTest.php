@@ -99,7 +99,7 @@ test('a request made on a live listing starts at once', function () {
     $listing = publishedListing('Listing', 'Paris');
     $team = $listing->organizer->owner;
 
-    $request = app(App\Actions\Projects\RequestLink::class)->handle($listing, Project::factory()->create(), $team);
+    $request = app(App\Actions\Projects\RequestLink::class)->handle($listing, publicProject(), $team);
 
     expect($request->submitted_at)->not->toBeNull();
 });
