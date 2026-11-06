@@ -655,3 +655,51 @@ test('a different venue on a secret listing is still refused', function () {
         'location' => ['venue_id' => $other->id, 'hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'],
     ])->assertStatus(422);
 });
+
+/** location.vue's payload once the picker has dropped the venue: every part, null or not. */
+function wizardAddressPayload(Event $draft, array $own): array
+{
+    return ['location' => [
+        ...$draft->location->only(['latitude', 'longitude', 'home', 'street', 'city', 'region', 'region_long', 'postal_code', 'country', 'country_long', 'venue']),
+        'venue_id' => null,
+        ...$own,
+    ], 'timezone' => 'America/Los_Angeles'];
+}
+
+test('going secret from the filled-in form saves when the picked venue has empty address parts', function () {
+    [$draft] = draftWithVenue(['city' => 'Las Vegas', 'home' => null, 'street' => null, 'region' => null, 'region_long' => null, 'country' => null, 'country_long' => null]);
+
+    $this->postJson("/api/hosting/event/{$draft->slug}", wizardAddressPayload($draft, [
+        'hiddenLocationToggle' => true,
+        'hiddenLocation' => 'By email',
+    ]))->assertOk();
+
+    $location = $draft->fresh()->location;
+
+    expect($location->hiddenLocationToggle)->toBeTruthy()
+        ->and($location->venue_id)->toBeNull()
+        ->and($location->venue)->toBeNull();
+});
+
+test('an empty address part clears what was there rather than keeping the last address', function () {
+    [$draft] = draftWithVenue(['city' => 'Las Vegas', 'region' => 'NV', 'postal_code' => '89102']);
+
+    $payload = wizardAddressPayload($draft, ['hiddenLocationToggle' => false, 'hiddenLocation' => null]);
+    $payload['location']['city'] = 'Singapore';
+    $payload['location']['region'] = '';
+    $payload['location']['postal_code'] = null;
+
+    $this->postJson("/api/hosting/event/{$draft->slug}", $payload)->assertOk();
+
+    expect($draft->fresh()->location->region)->toBeNull()
+        ->and($draft->fresh()->location->postal_code)->toBeNull();
+});
+
+test('a location still needs a city', function () {
+    [$draft] = draftWithVenue();
+
+    $payload = wizardAddressPayload($draft, ['hiddenLocationToggle' => false, 'hiddenLocation' => null]);
+    $payload['location']['city'] = null;
+
+    $this->postJson("/api/hosting/event/{$draft->slug}", $payload)->assertJsonValidationErrorFor('location.city');
+});
