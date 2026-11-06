@@ -36,6 +36,7 @@ use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Tests\Support\FakeSearchEngine;
 
 beforeEach(function () {
     Storage::fake('digitalocean');
@@ -777,13 +778,6 @@ test('Saved Events keeps the free-text name of a secret listing', function () {
     $this->getJson("/api/hub/events/{$listing->slug}")->assertJsonPath('event.location.venue', 'Somewhere Downtown');
 });
 
-test('a listing serialized whole, as search and similar events send it, keeps a secret venue back', function () {
-    $array = secretListingHoldingVenue()->load('location')->toArray();
-
-    expect($array['location']['venue'])->toBeNull()
-        ->and($array['location']['venue_id'])->toBeNull();
-});
-
 test('similar events do not name a secret listing\'s venue', function () {
     secretListingHoldingVenue();
     $beside = publishedListing('Next Door', 'Chicago');
@@ -793,14 +787,50 @@ test('similar events do not name a secret listing\'s venue', function () {
         ->assertDontSee('Hidden Hall');
 });
 
-test('a listing that is not secret still shows its venue when serialized', function () {
+test('search does not name a secret listing\'s venue', function () {
+    $listing = secretListingHoldingVenue();
+    FakeSearchEngine::install([$listing->id]);
+
+    $response = $this->getJson('/api/index/search?city=Chicago%2C+IL&lat=41.88&lng=-87.63&searchType=inPerson&live=false')->assertOk();
+
+    expect($response->json('data.0.location'))->not->toHaveKeys(['venue', 'venue_id'])
+        ->and($response->getContent())->not->toContain('Hidden Hall');
+});
+
+test('similar events keep an open listing\'s venue', function () {
     $listing = publishedListing('Open Show', 'Chicago');
     $venue = Venue::factory()->create(['name' => 'Open Hall']);
     Location::where('event_id', $listing->id)->update(['venue_id' => $venue->id, 'venue' => 'Open Hall']);
+    $beside = publishedListing('Next Door', 'Chicago');
 
-    expect($listing->fresh()->load('location')->toArray()['location'])
-        ->venue->toBe('Open Hall')
-        ->venue_id->toBe($venue->id);
+    $location = collect($this->getJson("/api/events/{$beside->slug}/similar")->json('events'))->firstWhere('id', $listing->id)['location'];
+
+    expect($location['venue'])->toBe('Open Hall')
+        ->and($location['venue_id'])->toBe($venue->id);
+});
+
+test('an owner who opens a secret listing, turns secrecy off and saves keeps the venue', function () {
+    [$draft, $venue] = draftWithVenue();
+    Location::where('event_id', $draft->id)->update(['hiddenLocationToggle' => true]);
+
+    // What the wizard was given, and what location.vue sends back from it.
+    $seen = $this->get("/hosting/event/{$draft->slug}/edit")->assertOk()->viewData('event')->toArray()['location'];
+    $own = ['hiddenLocationToggle' => false, 'hiddenLocation' => null];
+
+    $this->postJson("/api/hosting/event/{$draft->slug}", $seen['venue_id']
+        ? ['location' => ['venue_id' => $seen['venue_id'], ...$own]]
+        : wizardAddressPayload($draft->fresh(), [...$own, 'venue' => $seen['venue']]))->assertOk();
+
+    expect($draft->fresh()->location)
+        ->venue_id->toBe($venue->id)
+        ->venue->toBe('The Goodman');
+});
+
+test('the admin review of a secret listing still shows its venue', function () {
+    $listing = secretListingHoldingVenue();
+
+    $this->actingAs($this->moderator)->getJson("/api/admin/events/{$listing->slug}")->assertOk()
+        ->assertJsonPath('location.venue', 'Hidden Hall');
 });
 
 test('address parts sent empty are not geocoded from the old address', function () {

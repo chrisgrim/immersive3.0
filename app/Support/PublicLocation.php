@@ -18,7 +18,10 @@ class PublicLocation
     public static function redact(?array $event): ?array
     {
         if (! empty($event['location']['hiddenLocationToggle'])) {
-            $event['location'] = array_diff_key($event['location'], array_flip(self::SECRET_FIELDS));
+            // A linked venue's name is its address; free text is the organizer's own wording.
+            $linked = ! empty($event['location']['venue_id']) ? ['venue'] : [];
+
+            $event['location'] = array_diff_key($event['location'], array_flip([...self::SECRET_FIELDS, 'venue_id', ...$linked]));
         }
 
         return $event;
