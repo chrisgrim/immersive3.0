@@ -381,8 +381,8 @@ class Event extends Model
     | job instead of up to ten.
     */
 
-    /** Outlasts the search client's 10 second timeout, plus building the document. */
-    public const SEARCH_SYNC_LOCK_SECONDS = 30;
+    /** Outlasts the search client's worst case, two attempts of 12 seconds, plus building the document. */
+    public const SEARCH_SYNC_LOCK_SECONDS = 60;
 
     /** Long enough for one write ahead in the line to finish. */
     public const SEARCH_SYNC_LOCK_WAIT = 15;
