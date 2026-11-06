@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Event;
+use App\Support\PublicLocation;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
@@ -24,8 +26,10 @@ class SimilarEventsController extends Controller
         $cacheKey = "similar_events_{$event->slug}";
 
         // Check for cached results first
-        if (Cache::has($cacheKey)) {
-            return Cache::get($cacheKey);
+        $cached = Cache::get($cacheKey);
+
+        if ($cached !== null) {
+            return $this->forPublic($this->withCurrentLocations($cached));
         }
 
         try {
@@ -71,7 +75,7 @@ class SimilarEventsController extends Controller
             // Store results in cache for 24 hours
             Cache::put($cacheKey, $result, 60 * 60 * 24);
 
-            return $result;
+            return $this->forPublic($result);
         } catch (\Exception $e) {
             report($e);
             \Log::error("Error fetching similar events for {$event->id}: ".$e->getMessage());
@@ -81,6 +85,29 @@ class SimilarEventsController extends Controller
                 'isSameCity' => false,
             ];
         }
+    }
+
+    /**
+     * The cache holds whole models for a day, and a listing can go secret in
+     * that time: the location is read again rather than trusted from the entry.
+     */
+    private function withCurrentLocations(array $result): array
+    {
+        $located = $result['events']->filter(fn (Event $event) => $event->relationLoaded('location'));
+
+        (new EloquentCollection($located->all()))->load('location');
+
+        return $result;
+    }
+
+    private function forPublic(array $result): array
+    {
+        return ['events' => $this->publicEvents($result['events'])] + $result;
+    }
+
+    private function publicEvents($events)
+    {
+        return $events->map(fn (Event $event) => PublicLocation::redact($event->toArray()));
     }
 
     /**
@@ -199,7 +226,7 @@ class SimilarEventsController extends Controller
                 // If we found events nearby, return them
                 if ($nearbyEvents->count() > 0) {
                     return [
-                        'events' => $nearbyEvents,
+                        'events' => $this->publicEvents($nearbyEvents),
                         'title' => 'Similar Events Near You',
                         'isRemote' => false,
                     ];

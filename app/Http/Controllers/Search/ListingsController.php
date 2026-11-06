@@ -9,6 +9,7 @@ use App\Models\Event;
 use App\Models\Events\RemoteLocation;
 use App\Models\Genre;
 use App\Support\Analytics\Analytics;
+use App\Support\PublicLocation;
 use App\Support\Search\SearchGuard;
 use Elastic\ScoutDriverPlus\Support\Query;
 use Illuminate\Http\Request;
@@ -468,7 +469,7 @@ class ListingsController extends Controller
         }
 
         $content = $results->toArray();
-        $content['data'] = Arr::pluck($content['data'], 'model');
+        $content['data'] = array_map(PublicLocation::redact(...), Arr::pluck($content['data'], 'model'));
 
         if ($window) {
             return $this->asPageWindow($content, $window);
