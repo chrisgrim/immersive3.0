@@ -502,8 +502,9 @@ class Event extends Model
     public function toSearchableArray()
     {
         // The public point: closing a map box on an indexed private point
-        // would find it, whatever the responses leave out.
-        $location = $this->location?->publicPoint();
+        // would find it, whatever the responses leave out. An online listing
+        // has no place on the map, whatever its old location row still holds.
+        $location = $this->hasLocation ? $this->location?->publicPoint() : null;
         $hasValidLocation = $location !== null;
 
         // Explicitly reload JUST the shows relationship (not the whole model
