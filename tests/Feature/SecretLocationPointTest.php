@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\RetryEventSearchIndex;
 use App\Jobs\SyncEventSearchIndex;
 use App\Mcp\Servers\EiServer;
 use App\Mcp\Tools\GetEvent;
@@ -402,6 +403,85 @@ test('the inline write and the queued job take the same lock', function () {
 
     expect($index->documents)->toBe([]);
     Exceptions::assertReported(Illuminate\Contracts\Cache\LockTimeoutException::class);
+});
+
+// ----- when the inline write fails -----
+
+test('a failed inline write leaves the save standing and queues the stubborn retry', function () {
+    $listing = publishedOpenListing();
+    recordingIndex(down: true);
+    Exceptions::fake();
+
+    saveLocationFields($listing, ['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'])->assertOk();
+
+    expect($listing->fresh()->location_latlon)->toBe(CELL);
+    Queue::assertPushed(RetryEventSearchIndex::class, fn (RetryEventSearchIndex $job) => $job->eventId === $listing->id);
+});
+
+test('a lock that cannot be had queues the stubborn retry too', function () {
+    $listing = publishedOpenListing();
+    recordingIndex();
+    Exceptions::fake();
+    Event::searchSyncLock($listing->id)->get();
+    Illuminate\Support\Sleep::fake(syncWithCarbon: true);
+
+    saveLocationFields($listing, ['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'])->assertOk();
+
+    Queue::assertPushed(RetryEventSearchIndex::class);
+});
+
+test('a good inline write queues no stubborn retry', function () {
+    $listing = publishedOpenListing();
+    recordingIndex();
+
+    saveLocationFields($listing, ['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'])->assertOk();
+
+    Queue::assertNotPushed(RetryEventSearchIndex::class);
+});
+
+test('ordinary jobs keep their three tries', function () {
+    expect((new SyncEventSearchIndex(1))->tries)->toBe(3)
+        ->and(method_exists(SyncEventSearchIndex::class, 'retryUntil'))->toBeFalse();
+});
+
+test('the stubborn retry goes through the reconcile', function () {
+    $listing = secretListing();
+    $index = recordingIndex();
+
+    (new RetryEventSearchIndex($listing->id))->handle();
+
+    expect($index->documents)->toBe([CELL]);
+});
+
+test('a real worker keeps the stubborn retry going past three tries, then ends it in failed_jobs', function () {
+    $listing = secretListing();
+    $engine = recordingIndex(down: true);
+    Exceptions::fake();
+    Queue::swap(new Illuminate\Queue\QueueManager(app()));
+    Queue::addConnector('database', fn () => new Illuminate\Queue\Connectors\DatabaseConnector(app('db')));
+    config(['queue.default' => 'database']);
+    app()->forgetInstance('queue');
+
+    Illuminate\Support\Facades\Bus::dispatch((new RetryEventSearchIndex($listing->id))->onConnection('database')->onQueue('default'));
+
+    $work = function () {
+        DB::table('jobs')->update(['available_at' => now()->getTimestamp(), 'reserved_at' => null]);
+        Artisan::call('queue:work', ['connection' => 'database', '--once' => true, '--tries' => 3, '--sleep' => 0]);
+    };
+
+    foreach (range(1, 5) as $attempt) {
+        $work();
+    }
+
+    expect(DB::table('jobs')->count())->toBe(1)
+        ->and(DB::table('jobs')->value('attempts'))->toBe(5)
+        ->and(DB::table('failed_jobs')->count())->toBe(0);
+
+    $this->travel(25)->hours();
+    $work();
+
+    expect(DB::table('jobs')->count())->toBe(0)
+        ->and(DB::table('failed_jobs')->count())->toBe(1);
 });
 
 // ----- overlapping saves -----

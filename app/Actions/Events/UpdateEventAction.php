@@ -84,13 +84,14 @@ class UpdateEventAction
 
         // The point the index holds is one this save has just withdrawn, and a
         // tight map box can find it for as long as it stays there, so this
-        // does not wait for the queue. The save stands if the cluster is
-        // down: the job queued above is the retry.
+        // does not wait for the queue. The save stands if the write fails,
+        // and a retry that keeps at it for a day takes over.
         if ($this->secretPointMoved && config('scout.queue')) {
             try {
                 Event::reconcileSearchIndex($saved->id);
             } catch (\Throwable $e) {
                 report($e);
+                Event::queueStubbornSearchIndexSync($saved->id);
             }
         }
 
