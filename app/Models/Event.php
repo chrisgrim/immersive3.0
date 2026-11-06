@@ -308,8 +308,11 @@ class Event extends Model
     {
         // The public point: closing a map box on an indexed private point
         // would find it, whatever the responses leave out. An online listing
-        // has no place on the map, whatever its old location row still holds.
-        $location = $this->hasLocation ? $this->location?->publicPoint() : null;
+        // has no place on the map, whatever its old location row still holds;
+        // an in-person one keeps its place even if hasLocation is wrong.
+        $location = $this->hasLocation || (int) $this->attendance_type_id === 1
+            ? $this->location?->publicPoint()
+            : null;
         $hasValidLocation = $location !== null;
 
         // Explicitly reload JUST the shows relationship (not the whole model

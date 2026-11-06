@@ -193,6 +193,16 @@ test('an online listing is indexed with no point, whatever its old location row 
         ->and($document['hasLocation'])->toBeFalse();
 })->with([[true], [false]]);
 
+test('an in-person listing with hasLocation wrongly unset keeps its place in the index', function () {
+    $listing = savePoint(listingWithPoint(), true);
+    Event::withoutGlobalScopes()->whereKey($listing->id)->update(['hasLocation' => false, 'attendance_type_id' => 1]);
+
+    $document = $listing->fresh()->toSearchableArray();
+
+    expect($document['location_latlon'])->toBe(CELL)
+        ->and($document['hasLocation'])->toBeTrue();
+});
+
 test('a secrecy change alone reaches the index', function () {
     $listing = savePoint(listingWithPoint(), false);
     $listing->update(['status' => 'p', 'published_at' => now()]);
