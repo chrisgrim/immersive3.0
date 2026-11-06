@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Event;
+use App\Models\Events\Location;
 use App\Support\PublicLocation;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
@@ -90,16 +90,21 @@ class SimilarEventsController extends Controller
     /**
      * The cache holds whole models for a day, and a listing can go secret in
      * that time: the location is read again rather than trusted from the entry,
-     * and the point worked out from it, since the entry holds its own copy.
+     * and the point worked out from it, since the entry holds its own copy. For
+     * every event in it: what the entry says about attendance is as old as the
+     * point, and an online listing's entry holds the point with no location.
      */
     private function withCurrentLocations(array $result): array
     {
-        $located = $result['events']->filter(fn (Event $event) => $event->relationLoaded('location'));
+        $locations = Location::whereIn('event_id', $result['events']->pluck('id'))->get()->keyBy('event_id');
 
-        (new EloquentCollection($located->all()))->load('location');
+        foreach ($result['events'] as $event) {
+            $location = $locations->get($event->id);
+            $event->location_latlon = $location?->publicPoint();
 
-        foreach ($located->filter->hasLocation as $event) {
-            $event->location_latlon = $event->location?->publicPoint();
+            if ($event->relationLoaded('location')) {
+                $event->setRelation('location', $location);
+            }
         }
 
         return $result;
@@ -282,8 +287,8 @@ class SimilarEventsController extends Controller
             ->where('hasLocation', true)
             // The public point, not the location's columns: a small radius
             // moved around would otherwise feel out a private one.
-            ->whereRaw("CAST(location_latlon->>'$.lat' AS DECIMAL(10,6)) BETWEEN ? AND ?", [$minLat, $maxLat])
-            ->whereRaw("CAST(location_latlon->>'$.lon' AS DECIMAL(10,6)) BETWEEN ? AND ?", [$minLng, $maxLng])
+            ->whereRaw("CAST(JSON_UNQUOTE(JSON_EXTRACT(location_latlon, '$.lat')) AS DECIMAL(10,8)) BETWEEN ? AND ?", [$minLat, $maxLat])
+            ->whereRaw("CAST(JSON_UNQUOTE(JSON_EXTRACT(location_latlon, '$.lon')) AS DECIMAL(11,8)) BETWEEN ? AND ?", [$minLng, $maxLng])
             ->with(['location', 'currentUserFavorite'])
             ->take(12)
             ->get();

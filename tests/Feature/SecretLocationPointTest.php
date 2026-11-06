@@ -417,7 +417,54 @@ test('a listing with no point at all is simply not nearby', function () {
     expect(nearbyIds(41.8701))->not->toContain($listing->id);
 });
 
+test('the radius keeps the location columns\' eight decimals', function () {
+    $listing = savePoint(listingWithPoint(), false);
+    $listing->update(['status' => 'p', 'published_at' => now(), 'location_latlon' => ['lat' => 41.88410049, 'lon' => PRIVATE_LON]]);
+
+    // The box tops out just under the point, and over that point cut to six decimals.
+    expect(nearbyIds(41.8841003 - 1 / 69))->not->toContain($listing->id);
+});
+
 // ----- what similar events cached -----
+
+test('a cached online listing that has since gone secret in person shows only the public point', function () {
+    $listing = savePoint(listingWithPoint(), false);
+    Location::where('event_id', $listing->id)->update(['city' => 'Denver']);
+    Event::withoutGlobalScopes()->whereKey($listing->id)->update([
+        'status' => 'p', 'published_at' => now(), 'hasLocation' => false, 'attendance_type_id' => 2,
+    ]);
+    $beside = listingWithPoint(['status' => 'p', 'published_at' => now()]);
+
+    $this->getJson("/api/events/{$beside->slug}/similar")->assertOk()->assertSee('41.8841');
+
+    // As a shared store hands it back: online, with no location loaded.
+    $key = "similar_events_{$beside->slug}";
+    Cache::put($key, unserialize(serialize(Cache::get($key))), 60);
+
+    Event::withoutGlobalScopes()->whereKey($listing->id)->update(['hasLocation' => true, 'attendance_type_id' => 1]);
+    Location::where('event_id', $listing->id)->update(['hiddenLocationToggle' => true]);
+
+    $response = $this->getJson("/api/events/{$beside->slug}/similar")->assertOk();
+    $row = collect($response->json('events'))->firstWhere('id', $listing->id);
+
+    expect($row['location_latlon'])->toBe(CELL)
+        ->and($row)->not->toHaveKey('location');
+    holdsNoPrivatePoint($response->getContent());
+});
+
+test('a cached event whose location has gone keeps no point', function () {
+    $listing = savePoint(listingWithPoint(), false);
+    $listing->update(['status' => 'p', 'published_at' => now()]);
+    $beside = listingWithPoint(['status' => 'p', 'published_at' => now()]);
+
+    $this->getJson("/api/events/{$beside->slug}/similar")->assertOk();
+
+    Location::where('event_id', $listing->id)->delete();
+
+    $response = $this->getJson("/api/events/{$beside->slug}/similar")->assertOk();
+
+    expect(collect($response->json('events'))->firstWhere('id', $listing->id)['location_latlon'])->toBeNull();
+});
 
 test('a cached entry\'s stored point is worked out again from the location', function () {
     $listing = savePoint(listingWithPoint(), false);
