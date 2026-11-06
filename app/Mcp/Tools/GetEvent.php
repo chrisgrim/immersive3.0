@@ -97,7 +97,7 @@ class GetEvent extends Tool
                 // remote_description (visible below) instead.
                 // A secret location's street is only for those who can edit the
                 // event, as on the public page (EventController::show).
-                'location' => $event->location?->only(array_values(array_diff([
+                'location' => $event->location?->onlyFor($canManage, array_values(array_diff([
                     'venue', 'home', 'street', 'city', 'region', 'country', 'postal_code', 'latitude', 'longitude', 'hiddenLocationToggle', 'hiddenLocation',
                 ], ! $canManage && $event->location->hiddenLocationToggle ? ['home', 'street', 'postal_code'] : []))),
                 'remote_locations' => $event->remotelocations->pluck('name'),

@@ -1,6 +1,8 @@
 <?php
 
 use App\Jobs\SyncEventSearchIndex;
+use App\Mcp\Servers\EiServer;
+use App\Mcp\Tools\GetEvent;
 use App\Models\Admin\Dock;
 use App\Models\Curated\Card;
 use App\Models\Curated\Community;
@@ -8,9 +10,11 @@ use App\Models\Curated\Post;
 use App\Models\Curated\Shelf;
 use App\Models\Event;
 use App\Models\Events\Location;
+use App\Models\Events\Show;
 use App\Models\Organizer;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
+use Laravel\Passport\Passport;
 use Tests\Support\FakeSearchEngine;
 
 /*
@@ -232,3 +236,133 @@ test('a curated card on the home page carries only the public point', function (
     holdsNoPrivatePoint($docks);
     holdsNoPrivatePoint($response->getContent());
 });
+
+// ----- surfaces that send the location itself -----
+
+function hasNoPointOfItsOwn(array $location): void
+{
+    expect($location)->not->toHaveKeys(['latitude', 'longitude']);
+}
+
+test('similar events carry only the public point', function () {
+    $listing = secretListing();
+    $beside = listingWithPoint(['status' => 'p', 'published_at' => now()]);
+
+    $response = $this->getJson("/api/events/{$beside->slug}/similar")->assertOk();
+    $row = collect($response->json('events'))->firstWhere('id', $listing->id);
+
+    hasNoPointOfItsOwn($row['location']);
+    expect($row['location_latlon'])->toBe(CELL);
+    holdsNoPrivatePoint($response->getContent());
+});
+
+test('similar events by location carry only the public point', function () {
+    $listing = secretListing();
+
+    $response = $this->getJson('/api/events/similar-by-location?lat=41.88&lng=-87.63')->assertOk();
+    $row = collect($response->json('events'))->firstWhere('id', $listing->id);
+
+    hasNoPointOfItsOwn($row['location']);
+    expect($row['location_latlon'])->toBe(CELL);
+    holdsNoPrivatePoint($response->getContent());
+});
+
+test('the search API carries only the public point', function () {
+    $listing = secretListing();
+    FakeSearchEngine::install([$listing->id]);
+
+    $response = $this->getJson('/api/index/search?'.chicagoSearch())->assertOk();
+
+    hasNoPointOfItsOwn($response->json('data.0.location'));
+    expect($response->json('data.0.location_latlon'))->toBe(CELL);
+    holdsNoPrivatePoint($response->getContent());
+});
+
+test('the search page carries only the public point', function () {
+    $listing = secretListing();
+    FakeSearchEngine::install([$listing->id]);
+
+    $response = $this->withoutVite()->get('/index/search?'.chicagoSearch())->assertOk();
+
+    hasNoPointOfItsOwn($response->viewData('searchedEvents')['data'][0]['location']);
+    holdsNoPrivatePoint($response->getContent());
+});
+
+/** The rest of what the event page needs to render. */
+function readyForItsPage(Event $listing): Event
+{
+    Show::factory()->create(['event_id' => $listing->id]);
+    $listing->priceranges()->create(['price' => '25']);
+    $listing->advisories()->create(['wheelchairReady' => true]);
+
+    return $listing->fresh();
+}
+
+test('the event page carries only the public point, for the map and the city link', function () {
+    $listing = readyForItsPage(secretListing());
+
+    $response = $this->withoutVite()->get("/events/{$listing->slug}")->assertOk();
+
+    holdsNoPrivatePoint($response->getContent());
+    expect($response->getContent())->toContain('lat=41.885&amp;lng=-87.635');
+});
+
+test('an open listing\'s city link keeps its exact point', function () {
+    $listing = savePoint(listingWithPoint(), false);
+    $listing->update(['status' => 'p', 'published_at' => now()]);
+
+    $this->withoutVite()->get('/events/'.readyForItsPage($listing)->slug)->assertOk()->assertSee('lat=41.8841&amp;lng=-87.6321', false);
+});
+
+test('get-event keeps a secret point from those who cannot edit the event', function () {
+    $listing = secretListing();
+    $reader = User::factory()->create(['email_verified_at' => now()]);
+    Passport::actingAs($reader, [User::READ_SCOPE]);
+
+    EiServer::actingAs($reader, 'api')->tool(GetEvent::class, ['event_slug' => $listing->slug])
+        ->assertOk()
+        ->assertDontSee('41.8841')
+        ->assertDontSee('87.6321');
+});
+
+test('get-event still answers for a published listing with no location row', function () {
+    $listing = listingWithPoint(['status' => 'p', 'published_at' => now()]);
+    $listing->location->delete();
+    $reader = User::factory()->create(['email_verified_at' => now()]);
+    Passport::actingAs($reader, [User::READ_SCOPE]);
+
+    EiServer::actingAs($reader, 'api')->tool(GetEvent::class, ['event_slug' => $listing->slug])->assertOk();
+});
+
+// ----- those who edit the listing keep the exact point -----
+
+test('get-event gives the team the exact point', function () {
+    $listing = secretListing();
+    $owner = $listing->organizer->owner;
+    Passport::actingAs($owner, ['mcp:use']);
+
+    EiServer::actingAs($owner, 'api')->tool(GetEvent::class, ['event_slug' => $listing->slug])
+        ->assertOk()
+        ->assertSee('41.8841');
+});
+
+test('the wizard gives the team the exact point', function () {
+    $listing = saveEditable();
+
+    $this->actingAs($listing->organizer->owner)->withoutVite()->get("/hosting/event/{$listing->slug}/edit")
+        ->assertOk()
+        ->assertSee('41.8841');
+});
+
+test('the admin review gives moderators the exact point', function () {
+    $listing = secretListing();
+
+    $this->actingAs(User::factory()->create(['type' => 'm']))->getJson("/api/admin/events/{$listing->slug}")
+        ->assertOk()
+        ->assertSee('41.8841');
+});
+
+function saveEditable(): Event
+{
+    return savePoint(listingWithPoint(), true);
+}

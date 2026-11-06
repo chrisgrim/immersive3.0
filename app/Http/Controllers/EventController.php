@@ -79,6 +79,12 @@ class EventController extends Controller
         // page was 2.5 MB (desktop) / 4.1 MB (mobile) of HTML before any
         // asset. Js::from emits a JSON.parse('…') with <, >, & and quotes
         // hex-escaped (and / as \/), so user text can't break out of the script.
+        // A secret location's exact point stays off the page: the map draws its
+        // area around location_latlon, the public point.
+        if ($event->location?->hiddenLocationToggle) {
+            $event->location->makeHidden(['latitude', 'longitude']);
+        }
+
         // A secret location's street never reaches the page; the map only
         // draws an area for it (show-map.vue).
         if ($event->location?->hiddenLocationToggle) {

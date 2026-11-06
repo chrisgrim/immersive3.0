@@ -15,9 +15,10 @@
             ? '/index/search?remoteLocation=' . $remoteLocation->slug . '&searchType=atHome'
             : null;
     } elseif ($event->location) {
+        $publicPoint = $event->location->publicPoint();
         $locationSearchUrl = '/index/search?city=' . urlencode($event->location->city . ', ' . ($event->location->region ?: $event->location->country))
-            . '&lat=' . $event->location->latitude
-            . '&lng=' . $event->location->longitude
+            . '&lat=' . ($publicPoint['lat'] ?? '')
+            . '&lng=' . ($publicPoint['lon'] ?? '')
             . '&searchType=inPerson&live=false';
     } else {
         $locationSearchUrl = null;
