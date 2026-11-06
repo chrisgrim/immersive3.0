@@ -151,3 +151,25 @@ test('an event in review stays in the queue when an attendance change would cost
     expect($event->fresh()->status)->toBe('r');
     expect($event->fresh()->category_id)->toBe($category->id);
 });
+
+test('an event in review can change attendance when the same save brings a category that fits', function () {
+    [$admin, $event] = guardedEvent('r', 'a');
+    $inPerson = Category::factory()->create(['applicable_attendance_types' => [1]]);
+    $online = Category::factory()->create(['applicable_attendance_types' => [2]]);
+    $event->update(['category_id' => $inPerson->id, 'attendance_type_id' => 1]);
+
+    EiServer::actingAs(plainConnection($admin))->tool(UpdateEvent::class, ['event_slug' => $event->slug, 'attendance_type_id' => 2, 'category_id' => $online->id]);
+
+    expect($event->fresh()->status)->toBe('r');
+    expect($event->fresh()->category_id)->toBe($online->id);
+    expect($event->fresh()->attendance_type_id)->toBe(2);
+});
+
+test('a moderator opening an event in review gets the editor that can save it', function (string $type) {
+    [, $event] = guardedEvent('r');
+    $moderator = User::factory()->create(['type' => $type, 'email_verified_at' => now()]);
+
+    $this->actingAs($moderator)->get("/hosting/event/{$event->slug}/edit")
+        ->assertOk()
+        ->assertSee('vue-hosting-event-edit', false);
+})->with(['moderator' => 'm', 'admin' => 'a']);
