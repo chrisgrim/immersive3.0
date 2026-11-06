@@ -469,7 +469,10 @@ class ListingsController extends Controller
         }
 
         $content = $results->toArray();
-        $content['data'] = array_map(PublicLocation::redact(...), Arr::pluck($content['data'], 'model'));
+        // A hit the table has lost has no model, and the grid cannot draw a
+        // null row. `total` is the index's count and keeps it: the other pages'
+        // lost hits are unknown here, and the page goes by hasEvents, not total.
+        $content['data'] = array_values(array_filter(array_map(PublicLocation::redact(...), Arr::pluck($content['data'], 'model'))));
 
         if ($window) {
             return $this->asPageWindow($content, $window);

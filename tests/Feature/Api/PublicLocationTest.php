@@ -107,9 +107,33 @@ test('the search API keeps a secret listing\'s street back, and an open listing\
 
 test('a search hit the table has lost still answers', function () {
     $secret = listingAt('Chicago', ['hiddenLocationToggle' => true]);
-    FakeSearchEngine::install([$secret->id, 999999]);
+    FakeSearchEngine::install([999999, $secret->id]);
 
-    $this->getJson('/api/index/search?'.searchQueryForChicago())->assertOk()->assertDontSee('999 Hidden Lane');
+    $response = $this->getJson('/api/index/search?'.searchQueryForChicago())->assertOk()->assertDontSee('999 Hidden Lane');
+
+    // A list with no null row, or the grid throws on it; the keys matter as
+    // much, since a gap would send `data` as an object.
+    expect(array_is_list($response->json('data')))->toBeTrue()
+        ->and($response->json('data'))->toHaveCount(1)
+        ->and($response->json('data.0.id'))->toBe($secret->id);
+});
+
+test('a window of results with a lost hit is a list too, and still says what the index counted', function () {
+    $secret = listingAt('Chicago', ['hiddenLocationToggle' => true]);
+    FakeSearchEngine::install([999999, $secret->id]);
+
+    $response = $this->getJson('/api/index/search?'.searchQueryForChicago().'&pages=2')->assertOk();
+
+    expect(array_is_list($response->json('data')))->toBeTrue()
+        ->and($response->json('data'))->toHaveCount(1)
+        ->and($response->json('to'))->toBe(1)
+        ->and($response->json('total'))->toBe(2);
+});
+
+test('a page of nothing but lost hits is an empty list', function () {
+    FakeSearchEngine::install([999998, 999999]);
+
+    expect($this->getJson('/api/index/search?'.searchQueryForChicago())->assertOk()->json('data'))->toBe([]);
 });
 
 test('the search page keeps a secret listing\'s street out of what it embeds', function () {
