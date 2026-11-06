@@ -1,0 +1,234 @@
+<?php
+
+use App\Jobs\SyncEventSearchIndex;
+use App\Models\Admin\Dock;
+use App\Models\Curated\Card;
+use App\Models\Curated\Community;
+use App\Models\Curated\Post;
+use App\Models\Curated\Shelf;
+use App\Models\Event;
+use App\Models\Events\Location;
+use App\Models\Organizer;
+use App\Models\User;
+use Illuminate\Support\Facades\Queue;
+use Tests\Support\FakeSearchEngine;
+
+/*
+ * A secret location's exact point stays on its own row, for the team. All the
+ * public ever gets is the centre of its 0.01 degree cell.
+ */
+const PRIVATE_LAT = 41.8841;
+const PRIVATE_LON = -87.6321;
+const CELL = ['lat' => 41.885, 'lon' => -87.635];
+
+function listingWithPoint(array $event = []): Event
+{
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $listing = Event::factory()->create([
+        'organizer_id' => $organizer->id,
+        'user_id' => $organizer->user_id,
+        'status' => '1',
+        'hasLocation' => true,
+        'attendance_type_id' => 1,
+        'closingDate' => now()->addDays(30),
+        ...$event,
+    ]);
+
+    Location::factory()->create(['event_id' => $listing->id, 'city' => 'Chicago', 'latitude' => null, 'longitude' => null]);
+
+    return $listing;
+}
+
+/** Saved through the wizard, as the listing would be, then published. */
+function savePoint(Event $listing, bool $secret): Event
+{
+    test()->actingAs($listing->organizer->owner)->postJson("/api/hosting/event/{$listing->slug}", ['location' => [
+        'latitude' => PRIVATE_LAT,
+        'longitude' => PRIVATE_LON,
+        'city' => 'Chicago',
+        'hiddenLocationToggle' => $secret,
+        'hiddenLocation' => $secret ? 'By email' : null,
+    ]])->assertOk();
+
+    auth()->forgetGuards();
+
+    return $listing->fresh();
+}
+
+function secretListing(): Event
+{
+    $listing = savePoint(listingWithPoint(), true);
+    $listing->update(['status' => 'p', 'published_at' => now()]);
+
+    return $listing->fresh();
+}
+
+function holdsNoPrivatePoint(string $body): void
+{
+    expect($body)->not->toContain('41.8841')
+        ->and($body)->not->toContain('87.6321');
+}
+
+function chicagoSearch(): string
+{
+    return 'city=Chicago%2C+IL&lat=41.88&lng=-87.63&searchType=inPerson&live=false';
+}
+
+// ----- the point -----
+
+test('a secret location gives the centre of its cell, an open one its exact point', function () {
+    $location = new Location(['latitude' => PRIVATE_LAT, 'longitude' => PRIVATE_LON]);
+
+    expect($location->publicPoint())->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
+
+    $location->hiddenLocationToggle = true;
+
+    expect($location->publicPoint())->toBe(CELL);
+});
+
+test('every location in a cell gives the same point', function () {
+    $point = fn (float $lat, float $lon) => (new Location(['latitude' => $lat, 'longitude' => $lon]))
+        ->forceFill(['hiddenLocationToggle' => true])->publicPoint();
+
+    expect($point(41.8801, -87.6301))->toBe(CELL)
+        ->and($point(41.8899, -87.6399))->toBe(CELL);
+});
+
+test('no point for a location without coordinates', function (mixed $lat, mixed $lon) {
+    expect((new Location(['latitude' => $lat, 'longitude' => $lon]))->publicPoint())->toBeNull();
+})->with([[null, null], [0, 0], [41.88, null]]);
+
+test('the point stays on the map at its very edge', function () {
+    $location = (new Location(['latitude' => 90, 'longitude' => 180]))->forceFill(['hiddenLocationToggle' => true]);
+
+    expect($location->publicPoint())->toBe(['lat' => 89.995, 'lon' => 179.995]);
+});
+
+test('the event page\'s 800 metre circle holds a cell\'s far corner anywhere on earth', function () {
+    $metres = function (float $lat, float $lon, array $to) {
+        $radians = fn (float $degrees) => deg2rad($degrees);
+        $a = sin($radians($to['lat'] - $lat) / 2) ** 2
+            + cos($radians($lat)) * cos($radians($to['lat'])) * sin($radians($to['lon'] - $lon) / 2) ** 2;
+
+        return 2 * 6371000 * asin(sqrt($a));
+    };
+
+    foreach ([0.0049, 41.8849, -33.8649, 64.1449] as $lat) {
+        $lon = 10.0001;
+        $location = (new Location(['latitude' => $lat, 'longitude' => $lon]))->forceFill(['hiddenLocationToggle' => true]);
+
+        expect($metres($lat, $lon, $location->publicPoint()))->toBeLessThan(800);
+    }
+});
+
+// ----- what events.location_latlon holds -----
+
+test('going secret through the wizard stores the public point, and the exact one stays on the location', function () {
+    $listing = savePoint(listingWithPoint(), true);
+
+    expect($listing->location_latlon)->toBe(CELL)
+        ->and((float) $listing->location->latitude)->toBe(PRIVATE_LAT)
+        ->and((float) $listing->location->longitude)->toBe(PRIVATE_LON);
+});
+
+test('turning secrecy on and off alone rewrites the stored point', function () {
+    $listing = savePoint(listingWithPoint(), false);
+    expect($listing->location_latlon)->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
+
+    $this->actingAs($listing->organizer->owner)->postJson("/api/hosting/event/{$listing->slug}", ['location' => [
+        'hiddenLocationToggle' => true, 'hiddenLocation' => 'By email',
+    ]])->assertOk();
+    expect($listing->fresh()->location_latlon)->toBe(CELL);
+
+    $this->postJson("/api/hosting/event/{$listing->slug}", ['location' => ['hiddenLocationToggle' => false]])->assertOk();
+    expect($listing->fresh()->location_latlon)->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
+});
+
+test('storeEventLocation stores the public point too', function () {
+    $listing = listingWithPoint();
+    $listing->location->forceFill(['hiddenLocationToggle' => true])->save();
+
+    Location::storeEventLocation(new Illuminate\Http\Request(['latitude' => PRIVATE_LAT, 'longitude' => PRIVATE_LON]), $listing);
+
+    expect($listing->fresh()->location_latlon)->toBe(CELL);
+});
+
+// ----- the index -----
+
+test('the index holds the public point, and the listing still counts as located', function () {
+    $document = secretListing()->toSearchableArray();
+
+    expect($document['location_latlon'])->toBe(CELL)
+        ->and($document['hasLocation'])->toBeTrue();
+});
+
+test('an open listing is indexed at its exact point', function () {
+    expect(savePoint(listingWithPoint(), false)->toSearchableArray()['location_latlon'])
+        ->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
+});
+
+test('a secrecy change alone reaches the index', function () {
+    $listing = savePoint(listingWithPoint(), false);
+    $listing->update(['status' => 'p', 'published_at' => now()]);
+
+    config(['scout.queue' => true]);
+    Queue::fake();
+
+    $this->actingAs($listing->organizer->owner)->postJson("/api/hosting/event/{$listing->slug}", ['location' => [
+        'hiddenLocationToggle' => true, 'hiddenLocation' => 'By email',
+    ]]);
+
+    Queue::assertPushed(SyncEventSearchIndex::class);
+});
+
+// ----- surfaces that read location_latlon -----
+
+test('map pins show a secret listing at its public point', function () {
+    $listing = secretListing();
+    FakeSearchEngine::install([$listing->id]);
+
+    $response = $this->getJson('/api/index/search?'.chicagoSearch())->assertOk();
+
+    expect($response->json('pins.0.location_latlon'))->toBe(CELL);
+    holdsNoPrivatePoint(json_encode($response->json('pins')));
+});
+
+test('Saved Events show a secret listing at its public point, in the list and alone', function () {
+    $listing = secretListing();
+    $this->actingAs(User::factory()->create());
+    $listing->favorite();
+
+    foreach (['/api/hub/events', "/api/hub/events/{$listing->slug}"] as $url) {
+        $response = $this->getJson($url)->assertOk();
+
+        expect($response->getContent())->toContain('41.885');
+        holdsNoPrivatePoint($response->getContent());
+    }
+});
+
+test('nav search carries only the public point', function () {
+    $listing = secretListing();
+    FakeSearchEngine::install([$listing->id]);
+
+    $response = $this->getJson('/api/search/nav/events?keywords=anything')->assertOk();
+
+    expect($response->getContent())->toContain('41.885');
+    holdsNoPrivatePoint($response->getContent());
+});
+
+test('a curated card on the home page carries only the public point', function () {
+    $listing = secretListing();
+    $community = Community::factory()->create(['status' => 'p']);
+    $shelf = Shelf::factory()->create(['community_id' => $community->id]);
+    $post = Post::factory()->create(['community_id' => $community->id, 'shelf_id' => $shelf->id, 'status' => 'p', 'is_hidden' => false]);
+    Card::factory()->create(['post_id' => $post->id, 'event_id' => $listing->id]);
+    $dock = Dock::factory()->create(['location' => 'home', 'order' => 0]);
+    $dock->shelves()->attach($shelf);
+
+    $response = $this->get('/')->assertOk();
+    $docks = $response->viewData('docks')->toJson();
+
+    expect($docks)->toContain('41.885');
+    holdsNoPrivatePoint($docks);
+    holdsNoPrivatePoint($response->getContent());
+});

@@ -41,16 +41,41 @@ class Location extends Model
     }
 
     /**
+     * Where the public may put this location on a map, and what
+     * events.location_latlon and the search index hold. A secret location
+     * gives the centre of its grid cell, so the private point goes nowhere and
+     * every surface says the same. The exact point stays here, for the team.
+     *
+     * @return array{lat: float, lon: float}|null
+     */
+    public function publicPoint(): ?array
+    {
+        $lat = (float) $this->latitude;
+        $lon = (float) $this->longitude;
+
+        if ($lat == 0 || $lon == 0) {
+            return null;
+        }
+
+        return $this->hiddenLocationToggle
+            ? ['lat' => self::cellCentre($lat, 90), 'lon' => self::cellCentre($lon, 180)]
+            : ['lat' => $lat, 'lon' => $lon];
+    }
+
+    /** The centre of the 0.01 degree cell, kept on the map at its very edge. */
+    private static function cellCentre(float $degrees, int $limit): float
+    {
+        return min($limit - 0.005, round((floor($degrees * 100) + 0.5) / 100, 3));
+    }
+
+    /**
         Store Event Physical Location to Database
      */
     public static function storeEventLocation($request, $event)
     {
         $event->location->update($request->all());
         $event->update([
-            'location_latlon' => [
-                'lat' => $request->latitude,
-                'lon' => $request->longitude,
-            ],
+            'location_latlon' => $event->location->publicPoint(),
             'hasLocation' => true,
         ]);
     }

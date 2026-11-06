@@ -306,22 +306,10 @@ class Event extends Model
 
     public function toSearchableArray()
     {
-        // Get the location data
-        $location = null;
-        $hasValidLocation = false;
-
-        if ($this->location &&
-            $this->location->latitude &&
-            $this->location->longitude &&
-            $this->location->latitude != 0 &&
-            $this->location->longitude != 0) {
-
-            $location = [
-                'lat' => (float) $this->location->latitude,
-                'lon' => (float) $this->location->longitude,
-            ];
-            $hasValidLocation = true;
-        }
+        // The public point: closing a map box on an indexed private point
+        // would find it, whatever the responses leave out.
+        $location = $this->location?->publicPoint();
+        $hasValidLocation = $location !== null;
 
         // Explicitly reload JUST the shows relationship (not the whole model
         // via refresh() — see searchableWith() below for why that would
