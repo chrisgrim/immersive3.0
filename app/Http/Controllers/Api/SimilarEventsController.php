@@ -89,13 +89,18 @@ class SimilarEventsController extends Controller
 
     /**
      * The cache holds whole models for a day, and a listing can go secret in
-     * that time: the location is read again rather than trusted from the entry.
+     * that time: the location is read again rather than trusted from the entry,
+     * and the point worked out from it, since the entry holds its own copy.
      */
     private function withCurrentLocations(array $result): array
     {
         $located = $result['events']->filter(fn (Event $event) => $event->relationLoaded('location'));
 
         (new EloquentCollection($located->all()))->load('location');
+
+        foreach ($located->filter->hasLocation as $event) {
+            $event->location_latlon = $event->location?->publicPoint();
+        }
 
         return $result;
     }
@@ -275,14 +280,10 @@ class SimilarEventsController extends Controller
         return Event::where('status', 'p')
             ->stillRunning()
             ->where('hasLocation', true)
-            ->whereHas('location', function ($query) use ($minLat, $maxLat, $minLng, $maxLng) {
-                $query->whereNotNull('latitude')
-                    ->whereNotNull('longitude')
-                    ->where('latitude', '>=', $minLat)
-                    ->where('latitude', '<=', $maxLat)
-                    ->where('longitude', '>=', $minLng)
-                    ->where('longitude', '<=', $maxLng);
-            })
+            // The public point, not the location's columns: a small radius
+            // moved around would otherwise feel out a private one.
+            ->whereRaw("CAST(location_latlon->>'$.lat' AS DECIMAL(10,6)) BETWEEN ? AND ?", [$minLat, $maxLat])
+            ->whereRaw("CAST(location_latlon->>'$.lon' AS DECIMAL(10,6)) BETWEEN ? AND ?", [$minLng, $maxLng])
             ->with(['location', 'currentUserFavorite'])
             ->take(12)
             ->get();
