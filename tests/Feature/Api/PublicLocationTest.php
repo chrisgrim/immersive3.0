@@ -22,6 +22,8 @@ function listingAt(string $city, array $location = [], array $event = []): Event
         ...$location,
     ]);
 
+    $listing->update(['location_latlon' => $listing->fresh()->location->publicPoint()]);
+
     return $listing;
 }
 

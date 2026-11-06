@@ -366,3 +366,76 @@ function saveEditable(): Event
 {
     return savePoint(listingWithPoint(), true);
 }
+
+// ----- the radius of similar events -----
+
+function nearbyIds(float $lat): array
+{
+    return collect(test()->getJson("/api/events/similar-by-location?lat={$lat}&lng=-87.63&radius=1")->assertOk()->json('events'))
+        ->pluck('id')->all();
+}
+
+test('a small radius that holds a private point but not the public one finds nothing', function () {
+    $listing = secretListing();
+
+    // One mile is 0.0145 degrees: this box tops out between the two points.
+    expect(nearbyIds(41.8701))->not->toContain($listing->id);
+});
+
+test('a small radius that holds the public point finds the listing', function () {
+    $listing = secretListing();
+
+    // And this one starts between them.
+    expect(nearbyIds(41.8990))->toContain($listing->id);
+});
+
+test('an open listing is found at its exact point, and at one stored as text', function () {
+    $listing = savePoint(listingWithPoint(), false);
+    $listing->update(['status' => 'p', 'published_at' => now()]);
+
+    expect(nearbyIds(41.8701))->toContain($listing->id);
+
+    $listing->update(['location_latlon' => ['lat' => '41.8841', 'lon' => '-87.6321']]);
+
+    expect(nearbyIds(41.8701))->toContain($listing->id);
+});
+
+test('a listing with no point at all is simply not nearby', function () {
+    $listing = listingWithPoint(['status' => 'p', 'published_at' => now()]);
+
+    expect(nearbyIds(41.8701))->not->toContain($listing->id);
+});
+
+// ----- what similar events cached -----
+
+test('a cached entry\'s stored point is worked out again from the location', function () {
+    $listing = savePoint(listingWithPoint(), false);
+    $listing->update(['status' => 'p', 'published_at' => now()]);
+    $beside = listingWithPoint(['status' => 'p', 'published_at' => now()]);
+
+    $this->getJson("/api/events/{$beside->slug}/similar")->assertOk()->assertSee('41.8841');
+
+    // A shared store hands back a copy from before the change.
+    $key = "similar_events_{$beside->slug}";
+    Cache::put($key, unserialize(serialize(Cache::get($key))), 60);
+
+    // The row alone, so nothing but the cache hit can have dealt with it.
+    Location::where('event_id', $listing->id)->update(['hiddenLocationToggle' => true]);
+
+    $response = $this->getJson("/api/events/{$beside->slug}/similar")->assertOk();
+
+    expect(collect($response->json('events'))->firstWhere('id', $listing->id)['location_latlon'])->toBe(CELL);
+    holdsNoPrivatePoint($response->getContent());
+});
+
+test('a cached entry stays exact for a listing that is not secret', function () {
+    $listing = savePoint(listingWithPoint(), false);
+    $listing->update(['status' => 'p', 'published_at' => now()]);
+    $beside = listingWithPoint(['status' => 'p', 'published_at' => now()]);
+
+    $this->getJson("/api/events/{$beside->slug}/similar")->assertOk();
+
+    $response = $this->getJson("/api/events/{$beside->slug}/similar")->assertOk();
+
+    expect(collect($response->json('events'))->firstWhere('id', $listing->id)['location_latlon'])->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
+});
