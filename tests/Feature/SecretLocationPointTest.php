@@ -385,11 +385,13 @@ test('a failed write lets go of the lock', function () {
         ->and(Event::searchSyncLock($listing->id)->get())->toBeTrue();
 });
 
-test('the lock outlasts the search client\'s timeout, and the wait is shorter than the lock', function () {
-    $timeout = config('elastic.client.connections.default.httpClientOptions.timeout');
+test('the lock outlasts the search client\'s worst case, and waiters give up long before it', function () {
+    $http = config('elastic.client.connections.default.httpClientOptions');
+    $attempts = 2;
 
-    expect(Event::SEARCH_SYNC_LOCK_SECONDS)->toBeGreaterThan($timeout)
-        ->and(Event::SEARCH_SYNC_LOCK_WAIT)->toBeLessThan(Event::SEARCH_SYNC_LOCK_SECONDS);
+    expect(Event::SEARCH_SYNC_LOCK_SECONDS)->toBeGreaterThan($attempts * ($http['connect_timeout'] + $http['timeout']))
+        ->and(Event::SEARCH_SYNC_LOCK_SECONDS)->toBe(60)
+        ->and(Event::SEARCH_SYNC_LOCK_WAIT)->toBe(15);
 });
 
 test('the inline write and the queued job take the same lock', function () {
