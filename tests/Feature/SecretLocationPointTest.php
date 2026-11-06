@@ -522,6 +522,35 @@ test('a save that loaded the location before secrecy went off stores the exact p
     expect($listing->fresh()->location_latlon)->toBe(['lat' => 41.9012, 'lon' => -87.6012]);
 });
 
+test('a stale save whose new point matches what it loaded still writes it to the row', function () {
+    $listing = secretListing();
+    $stale = Event::with('location')->find($listing->id);
+
+    // Another request turns secrecy off, so the row now holds the exact point.
+    saveLocationFields($listing->fresh(), ['hiddenLocationToggle' => false])->assertOk();
+    expect($listing->fresh()->location_latlon)->toBe(['lat' => PRIVATE_LAT, 'lon' => PRIVATE_LON]);
+
+    // This one, loaded when the point was the grid centre, turns it back on.
+    saveThroughTheAction($stale, ['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email']);
+
+    expect($listing->fresh()->location_latlon)->toBe(CELL)
+        ->and($stale->location_latlon)->toBe(CELL);
+});
+
+test('a location save leaves the caller\'s other pending changes on the model', function () {
+    $listing = publishedOpenListing();
+    $stale = Event::with('location')->find($listing->id);
+    $stale->tag_line = 'Not saved yet';
+
+    saveLocationFields($listing->fresh(), ['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'])->assertOk();
+
+    (fn () => $this->saveLocation($stale, ['latitude' => 41.9012, 'longitude' => -87.6012]))->call(app(App\Actions\Events\UpdateEventAction::class));
+
+    expect($stale->isDirty('tag_line'))->toBeTrue()
+        ->and($stale->isDirty('location_latlon'))->toBeFalse()
+        ->and($stale->location_latlon)->toBe(['lat' => 41.905, 'lon' => -87.605]);
+});
+
 test('a stale save still clears the index inline, going by the row and not by what it loaded', function () {
     $listing = publishedOpenListing();
     $stale = Event::with('location')->find($listing->id);

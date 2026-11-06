@@ -102,12 +102,15 @@ class UpdateEventAction
      * The location and the public point worked out from it, against the row as
      * it is now: $event may have loaded it before another save turned secrecy
      * on, and a stale flag here would store an exact point nothing repairs.
-     * Event row first, then location: the order the rest of a save locks in.
+     * The same goes for the point itself: through $event, a value equal to what
+     * it loaded is no change and never reaches the row, so it goes through the
+     * locked model, and $event only takes the result. Event row first, then
+     * location: the order the rest of a save locks in.
      */
     private function saveLocation(Event $event, array $fields): void
     {
         DB::transaction(function () use ($event, $fields) {
-            Event::withoutGlobalScopes()->whereKey($event->id)->lockForUpdate()->first();
+            $row = Event::withoutGlobalScopes()->whereKey($event->id)->lockForUpdate()->first();
             $location = Location::where('event_id', $event->id)->lockForUpdate()->firstOrFail();
             $event->setRelation('location', $location);
 
@@ -115,7 +118,9 @@ class UpdateEventAction
             $location->update($fields);
 
             // Follows secrecy on and off, and goes when the location no longer gives one
-            $event->update(['location_latlon' => $location->publicPoint()]);
+            $row->update(['location_latlon' => $location->publicPoint()]);
+            $event->location_latlon = $row->location_latlon;
+            $event->syncOriginalAttribute('location_latlon');
             $this->secretPointMoved = $location->hiddenLocationToggle && $location->publicPoint() != $oldPoint;
         });
     }
