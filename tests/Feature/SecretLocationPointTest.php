@@ -330,6 +330,69 @@ test('with no queue the index is written once, by the save itself', function () 
     expect($index->documents)->toBe([CELL]);
 });
 
+// ----- overlapping saves -----
+
+/** A save through the action that loaded the listing before something else changed it. */
+function saveThroughTheAction(Event $stale, array $location): void
+{
+    $owner = $stale->organizer->owner;
+    $request = new Illuminate\Http\Request;
+    $request->replace(['location' => $location]);
+    $request->setUserResolver(fn () => $owner);
+
+    app(App\Actions\Events\UpdateEventAction::class)->handle($stale, ['location' => $location], $request);
+}
+
+test('a save that loaded the location before secrecy went on keeps the parent point on the grid', function () {
+    $listing = publishedOpenListing();
+    $stale = Event::with('location')->find($listing->id);
+
+    // Another request turns secrecy on, while this one is still working.
+    saveLocationFields($listing->fresh(), ['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'])->assertOk();
+
+    saveThroughTheAction($stale, ['latitude' => 41.9012, 'longitude' => -87.6012]);
+
+    expect($listing->fresh()->location_latlon)->toBe(['lat' => 41.905, 'lon' => -87.605])
+        ->and((bool) $listing->fresh()->location->hiddenLocationToggle)->toBeTrue()
+        ->and((float) $listing->fresh()->location->latitude)->toBe(41.9012);
+});
+
+test('a save that loaded the location before secrecy went off stores the exact point', function () {
+    $listing = secretListing();
+    $stale = Event::with('location')->find($listing->id);
+
+    saveLocationFields($listing->fresh(), ['hiddenLocationToggle' => false])->assertOk();
+
+    saveThroughTheAction($stale, ['latitude' => 41.9012, 'longitude' => -87.6012]);
+
+    expect($listing->fresh()->location_latlon)->toBe(['lat' => 41.9012, 'lon' => -87.6012]);
+});
+
+test('a stale save still clears the index inline, going by the row and not by what it loaded', function () {
+    $listing = publishedOpenListing();
+    $stale = Event::with('location')->find($listing->id);
+    saveLocationFields($listing->fresh(), ['hiddenLocationToggle' => true, 'hiddenLocation' => 'By email'])->assertOk();
+    $index = recordingIndex();
+
+    saveThroughTheAction($stale, ['latitude' => 41.9012, 'longitude' => -87.6012]);
+
+    expect($index->documents)->toBe([['lat' => 41.905, 'lon' => -87.605]]);
+});
+
+test('a location save holds the row for the whole of its write', function () {
+    $listing = publishedOpenListing();
+    $queries = [];
+    DB::listen(function ($query) use (&$queries) {
+        $queries[] = $query->sql;
+    });
+
+    saveLocationFields($listing, ['latitude' => 41.9012, 'longitude' => -87.6012])->assertOk();
+
+    $locks = collect($queries)->filter(fn (string $sql) => str_contains($sql, 'for update') && str_contains($sql, '`locations`'));
+
+    expect($locks)->not->toBeEmpty();
+});
+
 // ----- surfaces that read location_latlon -----
 
 test('map pins show a secret listing at its public point', function () {
