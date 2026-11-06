@@ -56,11 +56,6 @@ class Project extends Model
      */
     public function settleRunsAfterMoveFrom(): void
     {
-        $formerPaths = SlugRedirect::where('redirectable_type', $this->getMorphClass())
-            ->where('redirectable_id', $this->id)
-            ->pluck('path')
-            ->filter(fn (string $path) => substr_count($path, '/') === 1);
-
         foreach ($this->runs()->get() as $run) {
             $path = "events/{$this->slug}/{$run->instance_slug}";
 
@@ -73,17 +68,33 @@ class Project extends Model
             // Every address the show has gone by, not only the last: the route
             // would swap any of them onto the reserved path. Never over another
             // record's reservation.
-            foreach ($formerPaths as $former) {
-                if (! SlugRedirect::pointsElsewhere("{$former}/{$run->instance_slug}", $run->getMorphClass(), $run->id)) {
-                    SlugRedirect::remember("{$former}/{$run->instance_slug}", $run);
-                }
-            }
+            $this->reserveFormerPaths($run, $run->instance_slug);
 
             $run->setRelation('project', $this);
             $run->instance_slug = InstanceAddress::allocate($run, $this);
             $run->save();
 
             SlugRedirect::forget($run->addressPath(), $run);
+        }
+    }
+
+    /**
+     * Writes out $instance under every address this show has gone by, for
+     * $run, never over another record's reservation. A former show address is
+     * only an alias, and going back to it drops the alias: without these rows
+     * its nested paths would answer for the show, then for the next run there.
+     */
+    public function reserveFormerPaths(Event $run, string $instance): void
+    {
+        $former = SlugRedirect::where('redirectable_type', $this->getMorphClass())
+            ->where('redirectable_id', $this->id)
+            ->pluck('path')
+            ->filter(fn (string $path) => substr_count($path, '/') === 1);
+
+        foreach ($former as $path) {
+            if (! SlugRedirect::pointsElsewhere("{$path}/{$instance}", $run->getMorphClass(), $run->id)) {
+                SlugRedirect::remember("{$path}/{$instance}", $run);
+            }
         }
     }
 

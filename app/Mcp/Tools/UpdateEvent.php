@@ -1018,17 +1018,22 @@ class UpdateEvent extends Tool
             return Response::error('Only a draft asks to join a show from here. The other fields were saved. A moderator can link a live listing.');
         }
 
+        // One answer for nothing there and for something hidden.
+        $unavailable = RequestLink::UNAVAILABLE.' The other fields were saved. Show ids come from list-projects.';
+
         $target = isset($join['project_id']) ? Project::find($join['project_id']) : Event::find($join['source_event_id']);
 
         if ($target === null) {
-            return Response::error(RequestLink::UNAVAILABLE.' The other fields were saved. Show ids come from list-projects.');
+            return Response::error($unavailable);
         }
 
         try {
             $request = app(RequestLink::class)->handle($event, $target, $user);
             $filled = app(PrefillFromShow::class)->handle($event, $target, $user);
         } catch (ValidationException $e) {
-            return Response::error(collect($e->errors())->flatten()->first());
+            $reason = collect($e->errors())->flatten()->first();
+
+            return Response::error($reason === RequestLink::UNAVAILABLE ? $unavailable : $reason);
         }
 
         return ['link_request_id' => $request->id, 'filled' => $filled];

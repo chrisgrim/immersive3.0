@@ -49,6 +49,22 @@ class Location extends Model
     }
 
     /**
+     * Listings reach visitors as JSON whole (search, similar events, some of
+     * it cached), so the rule holds here rather than at each endpoint. The
+     * keys stay, as on any listing without a venue.
+     */
+    public function toArray(): array
+    {
+        $array = parent::toArray();
+
+        if ($this->hiddenLocationToggle && $this->venue_id) {
+            return array_replace($array, array_fill_keys(array_intersect(['venue', 'venue_id'], array_keys($array)), null));
+        }
+
+        return $array;
+    }
+
+    /**
      * "Brooklyn, NY" in the US, "London, United Kingdom" elsewhere — the
      * same shape the event cards print (event-grid.vue).
      */

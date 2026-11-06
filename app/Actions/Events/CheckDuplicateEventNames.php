@@ -36,12 +36,17 @@ class CheckDuplicateEventNames
 
         // Someone else's embargoed listing is unannounced, and so is one in
         // review with an embargo date still ahead: it does not surface at all.
-        // Their draft still warns, and still offers the ownership claim, but
-        // gives no address and no status.
+        // Their other unlisted work surfaces only for the ownership claim,
+        // with no address and no status: a company that can't be claimed gives
+        // nothing to act on, so its draft stays its own.
         $mayOpen = fn (Event $event) => $event->status === Event::STATUS_PUBLISHED || (bool) $viewer?->can('manage', $event);
 
         $duplicateEvents = $duplicateEvents
-            ->reject(fn (Event $event) => ($event->status === Event::STATUS_EMBARGOED || $event->embargoIsPending()) && ! $mayOpen($event))
+            ->reject(fn (Event $event) => ! $mayOpen($event) && (
+                $event->status === Event::STATUS_EMBARGOED
+                || $event->embargoIsPending()
+                || ! $event->organizer?->isClaimable()
+            ))
             ->values();
 
         if ($duplicateEvents->isEmpty()) {

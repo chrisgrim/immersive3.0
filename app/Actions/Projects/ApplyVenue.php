@@ -106,7 +106,7 @@ class ApplyVenue
     {
         $parts = collect(self::ADDRESS_FIELDS)
             ->reject(fn (string $field) => in_array($field, ['region_long', 'country_long'], true))
-            ->map(fn (string $field) => $location[$field] ?? $current->{$field})
+            ->map(fn (string $field) => array_key_exists($field, $location) ? $location[$field] : $current->{$field})
             ->filter();
 
         try {

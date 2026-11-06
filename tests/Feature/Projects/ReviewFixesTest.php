@@ -10,7 +10,9 @@ use App\Actions\Projects\SetCredits;
 use App\Actions\Projects\SuggestShows;
 use App\Actions\Projects\UnlinkEvent;
 use App\Actions\Projects\UpdateProject;
+use App\Mcp\Servers\EiServer;
 use App\Mcp\Tools\GetEvent;
+use App\Mcp\Tools\UpdateEvent;
 use App\Models\Artist;
 use App\Models\AuditLog;
 use App\Models\Credit;
@@ -24,9 +26,13 @@ use App\Models\ProjectLinkRequest;
 use App\Models\SlugRedirect;
 use App\Models\User;
 use App\Models\Venue;
+use App\Services\EventNotificationDispatcher;
+use App\Services\GeocodingService;
+use App\Support\Projects\InstanceAddress;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -90,8 +96,10 @@ test('its own team and a moderator still see it, with its address', function () 
     }
 });
 
-test('someone else\'s draft still warns, for the claim, but gives no address', function () {
-    $draft = publishedListing('Same Name', 'Paris', ['status' => 'r']);
+test('someone else\'s draft warns for the claim when its company can be claimed, and gives no address', function () {
+    $staff = User::factory()->create(['type' => 'm']);
+    $unclaimed = Organizer::factory()->create(['user_id' => $staff->id, 'status' => 'p']);
+    $draft = publishedListing('Same Name', 'Paris', ['status' => 'r'], $unclaimed);
 
     $row = app(CheckDuplicateEventNames::class)->handle('Same Name', null, $this->stranger)->first();
 
@@ -554,7 +562,8 @@ test('its own team still sees it, and a stranger gets no status for a plain draf
 
     expect(app(CheckDuplicateEventNames::class)->handle('Same Name', null, $pending->organizer->owner)->first()['status'])->toBe('r');
 
-    publishedListing('Other Name', 'Paris', ['status' => 'r']);
+    $unclaimed = Organizer::factory()->create(['user_id' => User::factory()->create(['type' => 'm'])->id, 'status' => 'p']);
+    publishedListing('Other Name', 'Paris', ['status' => 'r'], $unclaimed);
 
     expect(app(CheckDuplicateEventNames::class)->handle('Other Name', null, $this->stranger)->first()['status'])->toBeNull();
 });
@@ -702,4 +711,177 @@ test('a location still needs a city', function () {
     $payload['location']['city'] = null;
 
     $this->postJson("/api/hosting/event/{$draft->slug}", $payload)->assertJsonValidationErrorFor('location.city');
+});
+
+// ----- third look -----
+
+test('a run unlinked after a plain rename keeps its old path when the show goes back', function () {
+    $project = Project::factory()->create(['slug' => 'show-a']);
+    runIn($project, 'Boston', 'boston-2026');
+    $chicago = runIn($project, 'Chicago', 'chicago-2026');
+    $update = app(UpdateProject::class);
+
+    $update->handle($project, ['slug' => 'show-b'], $this->moderator);
+    app(UnlinkEvent::class)->handle($chicago->fresh(), $this->moderator);
+    $plain = $chicago->fresh()->publicPath();
+
+    $update->handle($project->refresh(), ['slug' => 'show-a'], $this->moderator);
+
+    $this->get('/events/show-a/chicago-2026')->assertRedirect($plain);
+
+    // The next Chicago run cannot take the address over.
+    $next = publishedListing('Next Chicago', 'Chicago');
+
+    expect(InstanceAddress::allocate($next, $project->refresh(), 'chicago-2026'))->not->toBe('chicago-2026');
+});
+
+test('unlinking leaves another record\'s reservation under a former address alone', function () {
+    $project = Project::factory()->create(['slug' => 'show-a']);
+    $chicago = runIn($project, 'Chicago', 'chicago-2026');
+    $other = publishedListing('Someone Else', 'Rome');
+
+    app(UpdateProject::class)->handle($project, ['slug' => 'show-b'], $this->moderator);
+    SlugRedirect::remember('events/show-a/chicago-2026', $other);
+
+    app(UnlinkEvent::class)->handle($chicago->fresh(), $this->moderator);
+
+    expect(SlugRedirect::where('path', 'events/show-a/chicago-2026')->sole()->redirectable_id)->toBe($other->id);
+});
+
+/** A published secret listing still holding its venue, the state the rule guards against. */
+function secretListingHoldingVenue(): Event
+{
+    $listing = publishedListing('Secret Show', 'Chicago');
+    $venue = Venue::factory()->create(['name' => 'Hidden Hall']);
+    Location::where('event_id', $listing->id)->update(['venue_id' => $venue->id, 'venue' => 'Hidden Hall', 'hiddenLocationToggle' => true]);
+
+    return $listing->fresh();
+}
+
+test('Saved Events does not name a secret listing\'s venue', function () {
+    $listing = secretListingHoldingVenue();
+    $this->actingAs($this->stranger);
+    $listing->favorite();
+
+    $this->getJson("/api/hub/events/{$listing->slug}")->assertOk()
+        ->assertJsonPath('event.location.venue', null)
+        ->assertDontSee('Hidden Hall');
+});
+
+test('Saved Events keeps the free-text name of a secret listing', function () {
+    $listing = publishedListing('Secret Show', 'Chicago');
+    Location::where('event_id', $listing->id)->update(['venue' => 'Somewhere Downtown', 'hiddenLocationToggle' => true]);
+    $this->actingAs($this->stranger);
+    $listing->favorite();
+
+    $this->getJson("/api/hub/events/{$listing->slug}")->assertJsonPath('event.location.venue', 'Somewhere Downtown');
+});
+
+test('a listing serialized whole, as search and similar events send it, keeps a secret venue back', function () {
+    $array = secretListingHoldingVenue()->load('location')->toArray();
+
+    expect($array['location']['venue'])->toBeNull()
+        ->and($array['location']['venue_id'])->toBeNull();
+});
+
+test('similar events do not name a secret listing\'s venue', function () {
+    secretListingHoldingVenue();
+    $beside = publishedListing('Next Door', 'Chicago');
+
+    $this->getJson("/api/events/{$beside->slug}/similar")->assertOk()
+        ->assertSee('Secret Show')
+        ->assertDontSee('Hidden Hall');
+});
+
+test('a listing that is not secret still shows its venue when serialized', function () {
+    $listing = publishedListing('Open Show', 'Chicago');
+    $venue = Venue::factory()->create(['name' => 'Open Hall']);
+    Location::where('event_id', $listing->id)->update(['venue_id' => $venue->id, 'venue' => 'Open Hall']);
+
+    expect($listing->fresh()->load('location')->toArray()['location'])
+        ->venue->toBe('Open Hall')
+        ->venue_id->toBe($venue->id);
+});
+
+test('address parts sent empty are not geocoded from the old address', function () {
+    [$draft] = draftWithVenue(['home' => '170', 'street' => 'N Dearborn St', 'postal_code' => '60601', 'city' => 'Chicago', 'region' => 'IL', 'country' => 'US']);
+
+    $this->mock(GeocodingService::class)->shouldReceive('search')->once()
+        ->withArgs(fn (string $query) => $query === 'Chicago IL US')
+        ->andReturn([['latitude' => 41.9, 'longitude' => -87.7]]);
+
+    $this->postJson("/api/hosting/event/{$draft->slug}", ['location' => [
+        'venue_id' => null, 'home' => null, 'street' => null, 'postal_code' => null, 'city' => 'Chicago',
+    ]])->assertOk();
+
+    expect($draft->fresh()->location)
+        ->street->toBeNull()
+        ->venue_id->toBeNull()
+        ->latitude->toEqual(41.9);
+});
+
+test('address parts left out are still read from the old address', function () {
+    [$draft] = draftWithVenue(['home' => '170', 'street' => 'N Dearborn St', 'postal_code' => '60601', 'city' => 'Chicago', 'region' => 'IL', 'country' => 'US']);
+
+    $this->mock(GeocodingService::class)->shouldReceive('search')->once()
+        ->withArgs(fn (string $query) => str_contains($query, 'N Dearborn St') && str_contains($query, 'Evanston'))
+        ->andReturn([['latitude' => 42.0, 'longitude' => -87.7]]);
+
+    $this->postJson("/api/hosting/event/{$draft->slug}", ['location' => ['venue_id' => null, 'city' => 'Evanston']])->assertOk();
+});
+
+test('a project picture that fails after the commit does not fail the approval', function () {
+    $source = publishedListing('Ha Ha Ha', 'Chicago');
+    $picture = pictureFor($source, 'event-images/ha-ha-ha');
+    $copy = publishedListing('Ha Ha Ha', 'Boston', ['status' => 'r']);
+    ProjectLinkRequest::create(['event_id' => $copy->id, 'source_event_id' => $source->id]);
+
+    Exceptions::fake();
+    $dispatcher = $this->spy(EventNotificationDispatcher::class);
+    Image::retrieved(function (Image $image) use ($picture) {
+        if ($image->id === $picture->id) {
+            throw new RuntimeException('database hiccup');
+        }
+    });
+
+    $this->actingAs($this->moderator)
+        ->postJson("/api/admin/approve/events/{$copy->slug}/approve", ['link' => ['action' => 'confirm']])
+        ->assertOk();
+
+    expect($copy->fresh()->status)->toBe('p')
+        ->and(Project::count())->toBe(1);
+
+    $dispatcher->shouldHaveReceived('newEventFromFollowedOrganizer')->once();
+    Exceptions::assertReported(fn (RuntimeException $e) => $e->getMessage() === 'database hiccup');
+});
+
+test('a stranger\'s duplicate check says nothing of a draft under a company that cannot be claimed', function () {
+    publishedListing('Same Name', 'Paris', ['status' => 'r']);
+    publishedListing('Same Name', 'Rome', ['status' => '1']);
+
+    expect(app(CheckDuplicateEventNames::class)->handle('Same Name', null, $this->stranger))->toBeNull();
+});
+
+test('a draft\'s own company and a published listing still warn', function () {
+    $draft = publishedListing('Same Name', 'Paris', ['status' => 'r']);
+
+    expect(app(CheckDuplicateEventNames::class)->handle('Same Name', null, $draft->organizer->owner)->first()['id'])->toBe($draft->id);
+
+    $live = publishedListing('Other Name', 'Rome');
+
+    expect(app(CheckDuplicateEventNames::class)->handle('Other Name', null, $this->stranger)->first()['id'])->toBe($live->id);
+});
+
+test('update-event answers the same for a hidden show and one that does not exist', function () {
+    $organizer = Organizer::where('user_id', $this->stranger->id)->first();
+    $draft = Event::factory()->create(['organizer_id' => $organizer->id, 'user_id' => $this->stranger->id, 'status' => '1', 'hasLocation' => true]);
+    $hidden = Project::factory()->create();
+    $full = 'That show is not available. The other fields were saved. Show ids come from list-projects.';
+
+    foreach ([$hidden->id, $hidden->id + 1000] as $id) {
+        EiServer::actingAs($this->stranger)
+            ->tool(UpdateEvent::class, ['event_slug' => $draft->slug, 'project_id' => $id])
+            ->assertHasErrors()
+            ->assertSee($full);
+    }
 });

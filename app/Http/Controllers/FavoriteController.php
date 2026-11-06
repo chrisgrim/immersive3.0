@@ -135,7 +135,7 @@ class FavoriteController extends Controller
             'hasLocation' => $event->hasLocation,
             'location_latlon' => $event->location_latlon,
             'location' => $event->location ? [
-                'venue' => $event->location->venue,
+                'venue' => $event->location->publicVenueName(),
                 'city' => $event->location->city,
             ] : null,
             'remotelocations' => $event->remotelocations->map(fn ($r) => ['id' => $r->id, 'name' => $r->name]),

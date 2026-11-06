@@ -46,6 +46,7 @@ class UnlinkEvent
             }
 
             $from = $run->addressPath();
+            $instance = $run->instance_slug;
 
             $run->forceFill(['project_id' => null, 'instance_slug' => null, 'edition' => null]);
             $run->setRelation('project', null);
@@ -58,6 +59,7 @@ class UnlinkEvent
             $this->credits->copyWritersDown($project, $run);
 
             SlugRedirect::remember($from, $run);
+            $project->reserveFormerPaths($run, $instance);
             SlugRedirect::forget($run->addressPath(), $run);
 
             AuditLog::record($run, 'project.unlinked', $actor, [

@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * The one way a listing becomes a run of a show, shared by web, admin and MCP.
@@ -282,8 +283,15 @@ class LinkEventToProject
         ]);
 
         // The project's own files, never shared by path. After the commit:
-        // a rollback would leave copies nothing points at.
-        DB::afterCommit(fn () => ImageHandler::duplicateImages($first, $project, 'project'));
+        // a rollback would leave copies nothing points at. By then the link
+        // has committed, so a failure here is reported and fails nothing else.
+        DB::afterCommit(function () use ($first, $project) {
+            try {
+                ImageHandler::duplicateImages($first, $project, 'project');
+            } catch (Throwable $e) {
+                report($e);
+            }
+        });
 
         // The address is the project's now; an old alias of it would shadow nothing.
         SlugRedirect::where('path', 'events/'.$slug)->delete();
