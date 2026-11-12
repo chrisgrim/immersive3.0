@@ -241,6 +241,35 @@ test('a team member proposes a venue, which waits for a moderator', function () 
         ->postJson('/api/venues', ['name' => 'X', 'street' => '1', 'city' => 'C', 'latitude' => 1, 'longitude' => 1])->assertForbidden();
 });
 
+test('a pending venue is seen and picked only by its proposer\'s team, and moderators', function () {
+    $this->postJson('/api/venues', ['name' => 'Back Room', 'street' => '9 Hidden Ln', 'city' => 'Chicago', 'latitude' => 41.8, 'longitude' => -87.6])->assertCreated();
+    $pending = Venue::where('name', 'Back Room')->first();
+
+    // The proposer and a teammate see it.
+    $this->getJson('/api/venues/search?keywords=Back%20Room')->assertJsonCount(1);
+    $teammate = User::factory()->create();
+    $this->organizer->users()->attach($teammate->id, ['role' => 'member']);
+    $this->actingAs($teammate)->getJson('/api/venues/search?keywords=Hidden')->assertJsonCount(1);
+
+    // Another team does not: not by name, not by its address, not by picking its id.
+    $other = Organizer::factory()->create(['status' => 'p']);
+    $this->actingAs($other->owner);
+    $this->getJson('/api/venues/search?keywords=Back%20Room')->assertJsonCount(0);
+    $this->getJson('/api/venues/match?street=9%20Hidden%20Ln&city=Chicago')->assertJsonPath('venue', null);
+    $theirs = draftOf($other);
+    saveLocation($theirs, ['venue_id' => $pending->id])->assertUnprocessable()->assertJsonValidationErrors('location.venue_id');
+    expect($theirs->fresh()->location->street)->not->toBe('9 Hidden Ln');
+
+    // Approved, everyone may.
+    $pending->update(['status' => Venue::APPROVED]);
+    $this->getJson('/api/venues/search?keywords=Back%20Room')->assertJsonCount(1);
+    saveLocation($theirs, ['venue_id' => $pending->id])->assertOk();
+
+    // A moderator always sees pending ones.
+    $pending->update(['status' => Venue::PENDING]);
+    $this->actingAs(User::factory()->create(['type' => 'm']))->getJson('/api/venues/search?keywords=Back%20Room')->assertJsonCount(1);
+});
+
 test('picking a venue copies its address and point onto the listing', function () {
     $venue = Venue::factory()->create(['name' => 'The Goodman', 'street' => 'N Dearborn St', 'city' => 'Chicago', 'latitude' => 41.88, 'longitude' => -87.63]);
     $draft = draftOf($this->organizer);

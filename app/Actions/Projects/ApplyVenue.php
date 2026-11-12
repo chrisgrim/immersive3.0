@@ -64,7 +64,17 @@ class ApplyVenue
                 throw ValidationException::withMessages(['location.venue_id' => 'An online listing cannot be linked to a venue.']);
             }
 
-            return $this->copyVenue(Venue::findOrFail($picked), $location);
+            // Approved, already this listing's, or proposed by its own team: a
+            // pending venue's address isn't anyone else's to copy.
+            $venue = (int) $picked === (int) $current?->venue_id || auth()->user()?->isModerator()
+                ? Venue::find($picked)
+                : Venue::visibleToOrganizer($event->organizer_id)->find($picked);
+
+            if (! $venue) {
+                throw ValidationException::withMessages(['location.venue_id' => 'That venue is not available. Search for it again, or add the address.']);
+            }
+
+            return $this->copyVenue($venue, $location);
         }
 
         $held = $current?->venue_id;

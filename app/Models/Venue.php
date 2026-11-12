@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Events\Location;
 use App\Support\Slug;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -87,6 +88,40 @@ class Venue extends Model
     {
         return static::where('slug', $slug)->when($exceptId, fn ($q) => $q->whereKeyNot($exceptId))->exists()
             || SlugRedirect::pointsElsewhere('venues/'.$slug, (new self)->getMorphClass(), $exceptId);
+    }
+
+    /**
+     * What a person may see or pick: approved venues, and pending ones proposed
+     * by someone on a team they are on. A pending venue's address is its
+     * proposer's to share until a moderator approves it. Moderators see all.
+     */
+    public function scopeVisibleTo(Builder $query, ?User $user): Builder
+    {
+        if ($user?->isModerator()) {
+            return $query;
+        }
+
+        $teams = fn ($sub) => $sub->select('organizer_id')->from('organizer_user')->where('user_id', $user?->id);
+
+        return $this->approvedOrProposedBy($query, $teams);
+    }
+
+    /** The same for a listing: approved, or proposed by someone on its organizer's team. */
+    public function scopeVisibleToOrganizer(Builder $query, ?int $organizerId): Builder
+    {
+        return $this->approvedOrProposedBy($query, fn ($sub) => $sub->selectRaw('?', [$organizerId ?? 0]));
+    }
+
+    /** $organizers: a subquery selecting organizer ids. */
+    private function approvedOrProposedBy(Builder $query, \Closure $organizers): Builder
+    {
+        return $query->where(fn ($q) => $q->where('venues.status', self::APPROVED)
+            ->orWhereExists(fn ($proposed) => $proposed->selectRaw('1')->from('audit_logs')
+                ->where('audit_logs.subject_type', $this->getMorphClass())
+                ->whereColumn('audit_logs.subject_id', 'venues.id')
+                ->where('audit_logs.action', 'venue.proposed')
+                ->whereIn('audit_logs.user_id', fn ($members) => $members->select('user_id')->from('organizer_user')
+                    ->whereIn('organizer_id', $organizers))));
     }
 
     public function images(): MorphMany

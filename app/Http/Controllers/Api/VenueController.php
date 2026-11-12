@@ -17,7 +17,7 @@ class VenueController extends Controller
 
         $keywords = trim((string) $request->query('keywords'));
 
-        return response()->json(mb_strlen($keywords) < 2 ? [] : $venues->handle($keywords)->values());
+        return response()->json(mb_strlen($keywords) < 2 ? [] : $venues->handle($keywords, $request->user())->values());
     }
 
     /** The other way round: an address EI already knows as a venue. */
@@ -25,7 +25,7 @@ class VenueController extends Controller
     {
         $this->authorize('propose', Venue::class);
 
-        return response()->json(['venue' => $venues->atAddress($request->query('home'), $request->query('street'), $request->query('city'))]);
+        return response()->json(['venue' => $venues->atAddress($request->query('home'), $request->query('street'), $request->query('city'), $request->user())]);
     }
 
     public function store(Request $request, ProposeVenue $propose, FindVenues $venues)

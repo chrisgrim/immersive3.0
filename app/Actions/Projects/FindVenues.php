@@ -2,20 +2,22 @@
 
 namespace App\Actions\Projects;
 
+use App\Models\User;
 use App\Models\Venue;
 use Illuminate\Support\Collection;
 
-/** Venues by name or address, each with its address, for the Location step and MCP. */
+/** Venues by name or address, each with its address, for the Location step and MCP: only those $user may see. */
 class FindVenues
 {
     public const LIMIT = 8;
 
     /** @return Collection<int, array<string, mixed>> */
-    public function handle(string $keywords): Collection
+    public function handle(string $keywords, ?User $user): Collection
     {
         $like = '%'.addcslashes(trim($keywords), '\\%_').'%';
 
-        return Venue::whereNull('merged_into_id')
+        return Venue::visibleTo($user)
+            ->whereNull('merged_into_id')
             ->where(fn ($query) => $query->where('name', 'like', $like)
                 ->orWhere('street', 'like', $like)
                 ->orWhereRaw("CONCAT_WS(' ', home, street, city) LIKE ?", [$like]))
@@ -27,13 +29,14 @@ class FindVenues
     }
 
     /** The venue already known at this address: the other way round. */
-    public function atAddress(?string $home, ?string $street, ?string $city): ?array
+    public function atAddress(?string $home, ?string $street, ?string $city, ?User $user): ?array
     {
         if (blank($street) || blank($city)) {
             return null;
         }
 
-        $venue = Venue::whereNull('merged_into_id')
+        $venue = Venue::visibleTo($user)
+            ->whereNull('merged_into_id')
             ->where('street', $street)
             ->where('city', $city)
             ->when(filled($home), fn ($query) => $query->where(fn ($q) => $q->where('home', $home)->orWhereNull('home')))

@@ -23,7 +23,7 @@ class SearchVenues extends Tool
 
         $validated = $request->validate(['keywords' => 'required|string|min:2|max:255']);
 
-        return Response::json(['venues' => app(FindVenues::class)->handle($validated['keywords'])]);
+        return Response::json(['venues' => app(FindVenues::class)->handle($validated['keywords'], $request->user())]);
     }
 
     public function schema(JsonSchema $schema): array
