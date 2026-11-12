@@ -53,7 +53,9 @@ class EiServer extends Server
     the optional ones (email, website, social handles, Patreon, logo) BEFORE
     creating: it is submitted for review immediately and cannot be edited again
     until an admin approves or rejects it. The same lock applies to submitted
-    events: anything with status "in review" is read-only until reviewed.
+    events: anything with status "in review" is read-only until reviewed,
+    except to a moderator or admin account (`moderator_account` in `whoami`),
+    which can still edit it.
     Then `create-event-draft`.
 
     Filling in an event mirrors the website's step-by-step wizard — walk the user

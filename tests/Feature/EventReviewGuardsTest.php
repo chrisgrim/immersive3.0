@@ -1,10 +1,14 @@
 <?php
 
 use App\Mcp\Servers\EiServer;
+use App\Mcp\Tools\RemoveEventImage;
 use App\Mcp\Tools\UpdateEvent;
+use App\Models\Category;
 use App\Models\Event;
 use App\Models\Organizer;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
+use Laravel\Passport\Passport;
 
 /**
  * Two rules the wizard enforced only in the browser, now enforced on the
@@ -91,3 +95,81 @@ test('an organizer under review is refused by MCP update-event too', function ()
         ->assertHasErrors();
     expect($event->fresh()->tag_line)->not->toBe('Swapped');
 });
+
+/** An admin on an ordinary connection: the mcp:use scope, no moderator powers. */
+function plainConnection(User $user): User
+{
+    Passport::actingAs($user, ['mcp:use']);
+
+    return $user;
+}
+
+test('an admin on an ordinary connection can change their own event under review', function () {
+    [$admin, $event] = guardedEvent('r', 'a');
+
+    EiServer::actingAs(plainConnection($admin))->tool(UpdateEvent::class, ['event_slug' => $event->slug, 'tag_line' => 'Swapped']);
+
+    expect($admin->isModerator())->toBeFalse();
+    expect($event->fresh()->tag_line)->toBe('Swapped');
+});
+
+test('an ordinary connection still does not reach someone else\'s event under review', function () {
+    [, $event] = guardedEvent('r');
+    $admin = User::factory()->create(['type' => 'a', 'email_verified_at' => now()]);
+
+    EiServer::actingAs(plainConnection($admin))->tool(UpdateEvent::class, ['event_slug' => $event->slug, 'tag_line' => 'Swapped'])
+        ->assertHasErrors();
+
+    expect($event->fresh()->tag_line)->not->toBe('Swapped');
+});
+
+test('the image tools follow the same lock on an ordinary connection', function () {
+    Storage::fake('digitalocean');
+    [$admin, $event] = guardedEvent('r', 'a');
+    [$organizer, $theirs] = guardedEvent('r');
+    $image = fn (Event $e) => $e->images()->create(['rank' => 1, 'large_image_path' => "event-images/{$e->slug}/img-1.webp", 'thumb_image_path' => "event-images/{$e->slug}/img-1-thumb.webp"]);
+
+    $mine = $image($event);
+    EiServer::actingAs(plainConnection($admin))->tool(RemoveEventImage::class, ['event_slug' => $event->slug, 'image_id' => $mine->id])
+        ->assertOk();
+    expect($event->images()->count())->toBe(0);
+
+    $other = $image($theirs);
+    EiServer::actingAs(plainConnection($organizer))->tool(RemoveEventImage::class, ['event_slug' => $theirs->slug, 'image_id' => $other->id])
+        ->assertHasErrors();
+    expect($theirs->images()->count())->toBe(1);
+});
+
+test('an event in review stays in the queue when an attendance change would cost it its category', function () {
+    [$admin, $event] = guardedEvent('r', 'a');
+    $category = Category::factory()->create(['applicable_attendance_types' => [1]]);
+    $event->update(['category_id' => $category->id, 'attendance_type_id' => 1]);
+
+    EiServer::actingAs(plainConnection($admin))->tool(UpdateEvent::class, ['event_slug' => $event->slug, 'attendance_type_id' => 2])
+        ->assertSee('This event is in review');
+
+    expect($event->fresh()->status)->toBe('r');
+    expect($event->fresh()->category_id)->toBe($category->id);
+});
+
+test('an event in review can change attendance when the same save brings a category that fits', function () {
+    [$admin, $event] = guardedEvent('r', 'a');
+    $inPerson = Category::factory()->create(['applicable_attendance_types' => [1]]);
+    $online = Category::factory()->create(['applicable_attendance_types' => [2]]);
+    $event->update(['category_id' => $inPerson->id, 'attendance_type_id' => 1]);
+
+    EiServer::actingAs(plainConnection($admin))->tool(UpdateEvent::class, ['event_slug' => $event->slug, 'attendance_type_id' => 2, 'category_id' => $online->id]);
+
+    expect($event->fresh()->status)->toBe('r');
+    expect($event->fresh()->category_id)->toBe($online->id);
+    expect($event->fresh()->attendance_type_id)->toBe(2);
+});
+
+test('a moderator opening an event in review gets the editor that can save it', function (string $type) {
+    [, $event] = guardedEvent('r');
+    $moderator = User::factory()->create(['type' => $type, 'email_verified_at' => now()]);
+
+    $this->actingAs($moderator)->get("/hosting/event/{$event->slug}/edit")
+        ->assertOk()
+        ->assertSee('vue-hosting-event-edit', false);
+})->with(['moderator' => 'm', 'admin' => 'a']);

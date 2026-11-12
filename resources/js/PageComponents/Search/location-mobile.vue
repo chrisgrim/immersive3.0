@@ -47,7 +47,7 @@
                             :columns="2"
                         />
                         <ShowMoreResults
-                            v-if="hasEvents"
+                            v-if="hasEvents || events.has_more"
                             class="mt-6 mb-8"
                             :shown="events.data.length"
                             :total="events.total"

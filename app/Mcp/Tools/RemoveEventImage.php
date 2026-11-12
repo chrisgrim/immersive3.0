@@ -45,8 +45,8 @@ class RemoveEventImage extends Tool
 
         // Site rule: once submitted, an event is locked until an admin
         // approves or rejects it (moderators can still edit).
-        if ($event->status === 'r' && ! $user->isModerator()) {
-            return Response::error('This event is under review and cannot be edited until an admin approves or rejects it.');
+        if ($event->isInReviewFor($user)) {
+            return Response::error(Event::IN_REVIEW_MESSAGE);
         }
 
         // Address the row by id, scoped to this event. A rank would be unsafe

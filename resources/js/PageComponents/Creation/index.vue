@@ -478,7 +478,7 @@ const viewEvent = (event) => {
 
 const editEvent = (event) => {
 
-	if (event.status === 'r') {
+	if (event.status === 'r' && !props.user?.isModerator) {
 		alert('This event is under review and cannot be edited.');
 		return;
 	}

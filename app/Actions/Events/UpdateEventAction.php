@@ -3,6 +3,7 @@
 namespace App\Actions\Events;
 
 use App\Actions\Projects\ApplyVenue;
+use App\Models\Category;
 use App\Models\Event;
 use App\Models\Events\Advisory;
 use App\Models\Events\ContentAdvisory;
@@ -178,7 +179,8 @@ class UpdateEventAction
         // Handle attendance type changes (using either hasLocation or attendance_type_id)
         if (isset($validatedData['attendance_type_id']) && $event->category) {
             // Check if category is compatible with the attendance type
-            if (! $event->category->supportsAttendanceType($validatedData['attendance_type_id'])) {
+            if (! $event->category->supportsAttendanceType($validatedData['attendance_type_id'])
+                && ! $this->staysInReview($event, $validatedData, (int) $validatedData['attendance_type_id'])) {
                 $event->category()->dissociate();
                 $validatedData['status'] = '1';
             }
@@ -188,10 +190,14 @@ class UpdateEventAction
         // Legacy handling for hasLocation
         elseif (isset($validatedData['hasLocation']) && $event->category &&
             $event->category->remote === $validatedData['hasLocation']) {
-            $event->category()->dissociate();
-            $validatedData['status'] = '1';
+            $attendanceTypeId = $validatedData['hasLocation'] ? 1 : 2;
+
+            if (! $this->staysInReview($event, $validatedData, $attendanceTypeId)) {
+                $event->category()->dissociate();
+                $validatedData['status'] = '1';
+            }
             // Set the corresponding attendance_type_id
-            $validatedData['attendance_type_id'] = $validatedData['hasLocation'] ? 1 : 2;
+            $validatedData['attendance_type_id'] = $attendanceTypeId;
         }
 
         // Going online takes the venue off, whichever way it was said.
@@ -565,5 +571,26 @@ class UpdateEventAction
             ->unique()
             ->values()
             ->all();
+    }
+
+    /**
+     * Losing the category sends an event back to the wizard, which would take
+     * one in review out of the queue without anyone deciding that. True when
+     * this save brings a category that fits, so nothing is lost; a save that
+     * doesn't is refused before anything is written.
+     */
+    private function staysInReview(Event $event, array $validatedData, int $attendanceTypeId): bool
+    {
+        if ($event->status !== Event::STATUS_IN_REVIEW) {
+            return false;
+        }
+
+        if (Category::find($validatedData['category_id'] ?? null)?->supportsAttendanceType($attendanceTypeId)) {
+            return true;
+        }
+
+        throw ValidationException::withMessages([
+            'attendance_type_id' => 'This event is in review and its category does not fit that attendance type. Send a category that fits with this change, or reject it back to the organizer.',
+        ]);
     }
 }

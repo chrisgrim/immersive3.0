@@ -975,13 +975,15 @@ class Event extends Model
 
     /**
      * Submitted and waiting for an admin: frozen for its organizer, so what
-     * gets approved is what was submitted. Moderators can still edit. Every
-     * write path (hosting controller, MCP tools) asks this, as with
+     * gets approved is what was submitted. A moderator or admin account can
+     * still edit, on any connection: the lock protects the review, and they
+     * are the review. Which events they reach is still EventPolicy's call.
+     * Every write path (hosting controller, MCP tools) asks this, as with
      * isEditLockedFor.
      */
     public function isInReviewFor(?User $user): bool
     {
-        return $this->status === 'r' && ! $user?->isModerator();
+        return $this->status === 'r' && ! $user?->hasModeratorAccount();
     }
 
     /**

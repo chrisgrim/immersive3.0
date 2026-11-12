@@ -8,7 +8,7 @@
 @section('nav')
     @if (Browser::isMobile())
     @else
-        @if (in_array($event->status, ['p', 'e', 'n']) || (auth()->user()->isAdmin() && $event->status === 'r'))
+        @if (in_array($event->status, ['p', 'e', 'n']) || (auth()->user()->isModerator() && $event->status === 'r'))
             @include('nav.nav-full')
         @endif
     @endif
@@ -16,7 +16,7 @@
 
 
 @section('content')
-    @if (in_array($event->status, ['p', 'e', 'n']) || (auth()->user()->isAdmin() && $event->status === 'r'))
+    @if (in_array($event->status, ['p', 'e', 'n']) || (auth()->user()->isModerator() && $event->status === 'r'))
     <div>
         <vue-hosting-event-edit :event="{{ $event }}" :user="user" />
     </div>

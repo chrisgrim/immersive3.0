@@ -376,7 +376,18 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function isModerator()
     {
-        return ($this->type === 'm' || $this->type === 'a') && $this->credentialAllowsModeration();
+        return $this->hasModeratorAccount() && $this->credentialAllowsModeration();
+    }
+
+    /**
+     * Whether the account is a moderator or admin, whatever credential this
+     * request came in on. Reaches no further than the review lock: on an
+     * ordinary connection the account still acts only on its own organizers,
+     * because reaching anyone else's events takes isModerator().
+     */
+    public function hasModeratorAccount(): bool
+    {
+        return $this->type === 'm' || $this->type === 'a';
     }
 
     /**
