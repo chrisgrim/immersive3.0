@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -14,6 +15,13 @@ return new class extends Migration
 {
     public function up(): void
     {
+        DB::statement('SET SESSION lock_wait_timeout = 10');
+
+        // Run again after stopping partway: what is already there stays.
+        if (Schema::hasTable('credits')) {
+            return;
+        }
+
         Schema::create('credits', function (Blueprint $table) {
             $table->id();
             $table->string('creditable_type');
