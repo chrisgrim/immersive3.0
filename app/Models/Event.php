@@ -167,23 +167,21 @@ class Event extends Model
             }
         });
 
-        // The 72-hour clock on a link request starts when the listing is
-        // submitted, by whichever path (website, MCP, an admin status edit).
+        // The 72-hour clock on a link request, and the show's keeper hearing
+        // of it, start when the listing goes live, by whichever path (approval,
+        // MCP, an admin status edit): before that the keeper can't approve it,
+        // and the request sits in the moderators' own review of the listing.
+        // Going live afresh (a rejected listing resubmitted and approved too)
+        // starts the clock again; moving between published and embargoed doesn't.
         static::saved(function (Event $event) {
-            if (! $event->wasChanged('status')) {
+            if (! $event->wasChanged('status')
+                || ! in_array($event->status, self::LIVE_STATUSES, true)
+                || in_array($event->getOriginal('status'), self::LIVE_STATUSES, true)) {
                 return;
             }
 
             $pending = ProjectLinkRequest::pending()->where('event_id', $event->id)->whereNull('escalated_at');
-
-            if ($event->status === self::STATUS_IN_REVIEW) {
-                $started = (clone $pending)->get();
-            } elseif (in_array($event->status, self::LIVE_STATUSES, true)) {
-                $pending->whereNull('submitted_at');
-                $started = (clone $pending)->get();
-            } else {
-                return;
-            }
+            $started = (clone $pending)->get();
 
             $pending->update(['submitted_at' => now()]);
 

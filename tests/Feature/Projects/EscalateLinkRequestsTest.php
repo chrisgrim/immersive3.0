@@ -78,7 +78,7 @@ test('an unsubmitted duplicate never escalates, however old', function () {
         ->and(ProjectLinkRequest::sole()->escalated_at)->toBeNull();
 });
 
-test('the clock starts when the draft is submitted, and from there it escalates', function () {
+test('the clock starts when the draft goes live, not at submission, and from there it escalates', function () {
     $source = publishedListing('Source', 'Paris');
     $this->actingAs($source->organizer->owner);
     $copy = $source->duplicate();
@@ -86,6 +86,10 @@ test('the clock starts when the draft is submitted, and from there it escalates'
 
     $this->postJson("/hosting/event/{$copy->slug}/link-request/confirm")->assertOk();
     $this->postJson("/hosting/event/{$copy->slug}/submit")->assertOk();
+
+    expect($request->fresh()->submitted_at)->toBeNull();
+
+    $copy->fresh()->update(['status' => 'p', 'published_at' => now()]);
 
     expect($request->fresh()->submitted_at)->not->toBeNull();
 
@@ -116,22 +120,19 @@ test('a request on a listing sent back to its organizer, or deleted, waits on no
     Mail::assertNothingQueued();
 });
 
-test('resubmitting restarts the clock', function () {
+test('a rejected listing that goes live again restarts the clock, and moving to embargoed doesn\'t', function () {
     $listing = publishedListing('Back', 'Paris', ['status' => 'n']);
     $request = linkRequestOn($listing, ['submitted_at' => now()->subDays(9)]);
 
     $listing->update(['status' => 'r']);
+    expect($request->fresh()->submitted_at->lt(now()->subDays(8)))->toBeTrue();
 
+    $listing->update(['status' => 'p', 'published_at' => now()]);
     expect($request->fresh()->submitted_at->gt(now()->subMinute()))->toBeTrue();
-});
 
-test('going live does not restart a running clock', function () {
-    $listing = publishedListing('Queue', 'Paris', ['status' => 'r']);
-    $request = linkRequestOn($listing, ['submitted_at' => now()->subHours(10)]);
-
-    $listing->update(['status' => 'p']);
-
-    expect($request->fresh()->submitted_at->lt(now()->subHours(9)))->toBeTrue();
+    $this->travel(2)->days();
+    $listing->update(['status' => 'e']);
+    expect($request->fresh()->submitted_at->lt(now()->subDay()))->toBeTrue();
 });
 
 test('a decided request is left alone', function () {

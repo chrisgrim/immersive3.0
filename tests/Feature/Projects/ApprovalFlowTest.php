@@ -350,7 +350,7 @@ test('a named editor is told, not the maker', function () {
     Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($keeper->owner->email));
 });
 
-test('a draft\'s keeper hears when it is submitted, when the clock starts, not before', function () {
+test('a draft\'s keeper hears when it goes live, when the clock starts, not before', function () {
     $source = publishedListing('Ha Ha Ha', 'Chicago');
     $project = Project::factory()->create();
     $source->update(['project_id' => $project->id, 'instance_slug' => 'chicago-2026']);
@@ -363,6 +363,11 @@ test('a draft\'s keeper hears when it is submitted, when the clock starts, not b
 
     $this->postJson("/hosting/event/{$copy->slug}/link-request/confirm")->assertOk();
     $this->postJson("/hosting/event/{$copy->slug}/submit")->assertOk();
+
+    // In review, the keeper couldn't approve it yet.
+    Mail::assertNothingQueued();
+
+    $copy->fresh()->update(['status' => 'p', 'published_at' => now()]);
 
     Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($project->organizer->owner->email));
 });
@@ -398,7 +403,7 @@ test('a held draft tells nobody', function () {
     $held->fresh()->update(['status' => 'r']);
 
     Mail::assertNothingQueued();
-    expect(ProjectLinkRequest::sole()->submitted_at)->not->toBeNull();
+    expect(ProjectLinkRequest::sole()->submitted_at)->toBeNull();
 });
 
 test('a rollback tells nobody', function () {

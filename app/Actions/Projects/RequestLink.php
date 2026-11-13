@@ -103,8 +103,8 @@ class RequestLink
                 'source_event_id' => $project ? null : $target->id,
                 'requested_by' => $requestedBy,
                 'status' => ProjectLinkRequest::PENDING,
-                // A draft's clock starts when it is submitted (Event's saved hook).
-                'submitted_at' => $this->isSubmitted($event) ? now() : null,
+                // Not live yet: the clock starts when it goes live (Event's saved hook).
+                'submitted_at' => $this->isLive($event) ? now() : null,
                 'note' => $note,
             ]);
 
@@ -114,7 +114,7 @@ class RequestLink
                 'source_event_id' => $request->source_event_id,
             ]);
 
-            // A draft's keeper hears when it is submitted (Event's saved hook).
+            // Not live yet: the keeper hears when it goes live (Event's saved hook).
             if ($request->submitted_at !== null) {
                 app(TellKeeper::class)->requestWaiting($request);
             }
@@ -123,9 +123,9 @@ class RequestLink
         });
     }
 
-    private function isSubmitted(Event $event): bool
+    private function isLive(Event $event): bool
     {
-        return in_array($event->status, [Event::STATUS_IN_REVIEW, ...Event::LIVE_STATUSES], true);
+        return in_array($event->status, Event::LIVE_STATUSES, true);
     }
 
     private function refuse(string $message): never

@@ -531,12 +531,13 @@ test('a duplicate of a one-off asks to join it, survives a rename, and approval 
     $copy->update(['name' => 'Flushment Day Returns', 'status' => 'r']);
     App\Models\Events\Location::where('event_id', $copy->id)->update(['city' => 'Boston']);
     App\Models\Events\Show::factory()->create(['event_id' => $copy->id, 'date' => '2027-02-01 00:00:00']);
-    expect($request->fresh()->submitted_at)->not->toBeNull();
+    expect($request->fresh()->submitted_at)->toBeNull();
 
-    // The listing goes live, as the queue does it.
+    // The listing goes live, as the queue does it: the clock starts.
     $this->actingAs($this->moderator);
     $copy->refresh();
     $copy->update(['slug' => Event::finalSlug($copy), 'status' => 'p', 'published_at' => now()]);
+    expect($request->fresh()->submitted_at)->not->toBeNull();
 
     $this->link->approve($request->fresh(), $this->moderator);
 
