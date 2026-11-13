@@ -48,7 +48,7 @@ The test is **who made it**, not who presents it.
 
 A show gets its project page with its second run: the project is made when a moderator approves a second instance. A show with one listing has its event page, as today.
 
-When an organizer types a name, EI looks for shows with a similar name and asks "Is this a new run of one of these? A new city, new dates, or a remount." (Kathryn's wording). Pick one and the form starts filled in from it; pick none and it is a new listing. In the queue the moderator sees the listing asked to join "Ha Ha Ha", checks the show and who made it, and approves listing and link together, or the listing alone; there is no separate review. At that approval the project page is made from the first listing, which becomes an instance. The maker starts as the first listing's organizer; the moderator corrects it if need be (St. Ann's Warehouse presented Burnout Paradise first, but Pony Cam made it). A presenter who lists a show under their own organizer stays the presenter of that run; only the maker is corrected. If the company that made it has no organizer page on EI yet, the moderator creates a bare one for it (name only, nobody's team) so the project has a maker to point at. It is held by EI staff and is public straight away, and the company can claim it later.
+When an organizer types a name, EI looks for shows with a similar name and asks "Is this a new run of one of these? A new city, new dates, or a remount." (Kathryn's wording). Pick one and the form starts filled in from it; pick none and it is a new listing. In the queue the moderator sees the listing asked to join "Ha Ha Ha", checks the show and who made it, and approves listing and link together, or the listing alone; there is no separate review. At that approval the project page is made from the first listing, which becomes an instance. The maker starts as the first listing's organizer; the moderator corrects it if need be (St. Ann's Warehouse presented Burnout Paradise first, but Pony Cam made it). A presenter who lists a show under their own organizer stays the presenter of that run; only the maker is corrected. If the company that made it has no organizer on EI yet, the moderator creates it (a real organizer with its name, owned by that moderator) so the project has a maker to point at; every show's maker is a real organizer (Chris, 2026-11-12). It is public straight away, and the company can claim it later.
 
 **Old listings that keep getting new dates.** While a listing can still be edited, moving it to a new city or adding dates more than 90 days after its last ones makes the form ask "Want to start this as a new run?" It's a suggestion they can skip; nothing is blocked (Kathryn's note). Yes makes a duplicate, as below, and leaves the old listing alone.
 
@@ -115,7 +115,6 @@ Anything visitors see about artists; credit details for later (who went on at a 
 
 ## Still to decide
 
-One thing for Kathryn: whether the bare organizer page for a maker not yet on EI is what she meant. It was our reading of her note, not her words.
 
 ---
 
