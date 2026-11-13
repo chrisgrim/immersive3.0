@@ -125,6 +125,18 @@ test('no redirect row chain can loop: each row ends at a live page after one hop
 
 // ----- organizers -----
 
+test('an unpublished organizer\'s old address gives nothing away', function () {
+    $organizer = Organizer::factory()->create(['name' => 'Quiet Company', 'status' => 'r']);
+    $old = $organizer->slug;
+
+    $organizer->update(['name' => 'Quieter Company']);
+
+    $this->get('/organizers/'.$old)->assertNotFound();
+
+    $organizer->update(['status' => 'p']);
+    $this->get('/organizers/'.$old)->assertRedirect('/organizers/quieter-company');
+});
+
 test('a renamed organizer\'s old address redirects, and an unknown one still 404s', function () {
     $organizer = Organizer::factory()->create(['name' => 'Old Company', 'status' => 'p']);
     $old = $organizer->slug;

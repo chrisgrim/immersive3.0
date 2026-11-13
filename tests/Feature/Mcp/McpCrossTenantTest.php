@@ -231,7 +231,8 @@ test('set-credits stays on your own side, and reads the same either way', functi
     $denied = 'No event or show with that slug whose credits you can edit.';
     viaToken($stranger)->tool(SetCredits::class, ['event_slug' => $event->slug] + $row)->assertHasErrors()->assertSee($denied);
     viaToken($stranger)->tool(SetCredits::class, ['event_slug' => 'no-such-'.uniqid()] + $row)->assertHasErrors()->assertSee($denied);
-    viaToken($stranger)->tool(SetCredits::class, ['project_slug' => 'a-show', 'credits' => [['artist_id' => $artist->id, 'department' => 'writing']]])->assertHasErrors();
+    viaToken($stranger)->tool(SetCredits::class, ['project_slug' => 'a-show', 'credits' => [['artist_id' => $artist->id, 'department' => 'writing']]])->assertHasErrors()->assertSee($denied);
+    viaToken($stranger)->tool(SetCredits::class, ['project_slug' => 'no-such-'.uniqid(), 'credits' => [['artist_id' => $artist->id, 'department' => 'writing']]])->assertHasErrors()->assertSee($denied);
 
     expect(Credit::count())->toBe(0);
 

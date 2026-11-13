@@ -85,6 +85,13 @@ class SlugRedirect extends Model
             return null;
         }
 
+        // Like an event: an organizer or venue nobody may visit yet answers
+        // null, so its old address doesn't give away its new one.
+        if (($record instanceof Organizer && $record->status !== 'p')
+            || ($record instanceof Venue && $record->status !== Venue::APPROVED)) {
+            return null;
+        }
+
         return [$record->publicPath(), 301];
     }
 

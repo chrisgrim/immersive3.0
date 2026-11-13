@@ -34,7 +34,9 @@ class SetCredits extends Tool
             : Project::where('slug', $validated['project_slug'])->first();
 
         // One message whether it does not exist or is someone else's.
-        if ($target === null || ($target instanceof Event && ! $user->can('viewOnRun', [\App\Models\Credit::class, $target]))) {
+        if ($target === null
+            || ($target instanceof Event && ! $user->can('viewOnRun', [\App\Models\Credit::class, $target]))
+            || ($target instanceof Project && ! $user->can('editOnProject', [\App\Models\Credit::class, $target]))) {
             return Response::error(self::NOT_YOURS);
         }
 
