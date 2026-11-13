@@ -355,11 +355,14 @@ class LinkEventToProject
             ->whereIn('event_id', array_filter([$run->id, $source?->id]))
             ->update(['status' => ProjectLinkRequest::WITHDRAWN]);
 
-        // Anyone else who asked to join the first listing now asks to join
-        // its show, and that show has a company to tell.
-        if ($source !== null) {
-            $waiting = ProjectLinkRequest::pending()->where('source_event_id', $source->id)->get();
+        // Anyone else who asked to join either listing while it stood alone
+        // now asks to join its show, and that show has a company to tell. The
+        // run counts too: it can join a show by another route (a moderator's
+        // link) while a request to join it still waits.
+        $standalone = array_filter([$source?->id, $run->id]);
+        $waiting = ProjectLinkRequest::pending()->whereIn('source_event_id', $standalone)->get();
 
+        if ($waiting->isNotEmpty()) {
             ProjectLinkRequest::whereKey($waiting->modelKeys())
                 ->update(['project_id' => $project->id, 'source_event_id' => null]);
 

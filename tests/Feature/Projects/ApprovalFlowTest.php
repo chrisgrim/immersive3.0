@@ -423,3 +423,19 @@ test('a rollback tells nobody', function () {
     Mail::assertNothingQueued();
     expect(ProjectLinkRequest::count())->toBe(0);
 });
+
+test('a request to join a lone listing follows it when a moderator files it under a show', function () {
+    $project = Project::factory()->create();
+    publishedListing('Ha Ha Ha', 'Chicago')->update(['project_id' => $project->id, 'instance_slug' => 'chicago-2026']);
+    $lone = publishedListing('Ha Ha Ha', 'Boston');
+    $asking = publishedListing('Ha Ha Ha', 'Denver');
+    $request = ProjectLinkRequest::create(['event_id' => $asking->id, 'source_event_id' => $lone->id, 'status' => ProjectLinkRequest::PENDING, 'submitted_at' => now()]);
+    $this->actingAs($this->moderator);
+
+    app(LinkEventToProject::class)->link($lone, $project, $this->moderator);
+
+    expect($request->fresh()->project_id)->toBe($project->id)
+        ->and($request->fresh()->source_event_id)->toBeNull()
+        ->and($request->fresh()->status)->toBe(ProjectLinkRequest::PENDING);
+    Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($project->organizer->owner->email) && str_contains($mail->attributes['body'], 'has asked to join'));
+});
