@@ -16,9 +16,17 @@ return new class extends Migration
     {
         DB::statement('SET SESSION lock_wait_timeout = 10');
 
-        // Run again after stopping partway: what is already there stays.
+        // Laravel adds a new table's keys and indexes in statements after the
+        // CREATE, so a run stopped partway can leave it without them. Nothing
+        // writes here before this migration is recorded (the deploy migrates
+        // before the code lands), so an empty table is made again; one holding
+        // rows is a finished run whose record went missing.
         if (Schema::hasTable('projects')) {
-            return;
+            if (DB::table('projects')->exists()) {
+                return;
+            }
+
+            Schema::drop('projects');
         }
 
         Schema::create('projects', function (Blueprint $table) {

@@ -17,6 +17,12 @@ return new class extends Migration
 
         // Each step checks first: MySQL DDL is not transactional, so a run
         // that stopped partway (e.g. at the lock timeout) can simply run again.
+        // A venues table stopped before its keys and indexes is made again
+        // while empty (see the note in create_projects_table).
+        if (Schema::hasTable('venues') && ! DB::table('venues')->exists()) {
+            Schema::drop('venues');
+        }
+
         if (! Schema::hasTable('venues')) {
             Schema::create('venues', function (Blueprint $table) {
                 $table->id();

@@ -53,17 +53,14 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo 'SSH works!'"
 
-      - name: Clear server views folder (fix case sensitivity)
-        run: |
-          DEPLOY_PATH="${{ steps.deploy-env.outputs.path }}"
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "rm -rf $DEPLOY_PATH/resources/views"
-
       # Database first, then code. New code can read tables and columns the
       # moment it lands, and until they exist those pages fail. Migrations only
       # add, so the code still running reads the new schema fine. This runs the
       # new migrations with the code already there: a migration must not need
       # an app class or a package that arrives with this deploy. The migrate in
       # the post-deploy step stays, and finds nothing left to do.
+      # Before the views are cleared: a failed migration then stops the deploy
+      # with the site still whole.
       - name: Migrate before the code lands
         run: |
           DEPLOY_PATH="${{ steps.deploy-env.outputs.path }}"
@@ -71,6 +68,11 @@ jobs:
             -e "ssh -o StrictHostKeyChecking=no" \
             ./database/migrations/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$DEPLOY_PATH/database/migrations/
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd $DEPLOY_PATH && php artisan migrate --force"
+
+      - name: Clear server views folder (fix case sensitivity)
+        run: |
+          DEPLOY_PATH="${{ steps.deploy-env.outputs.path }}"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "rm -rf $DEPLOY_PATH/resources/views"
 
       - name: Deploy to server
         run: |
