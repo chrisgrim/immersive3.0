@@ -64,11 +64,14 @@ class ApplyVenue
                 throw ValidationException::withMessages(['location.venue_id' => 'An online listing cannot be linked to a venue.']);
             }
 
-            // Approved, already this listing's, or proposed by its own team: a
-            // pending venue's address isn't anyone else's to copy.
-            $venue = (int) $picked === (int) $current?->venue_id || auth()->user()?->isModerator()
-                ? Venue::find($picked)
-                : Venue::visibleToOrganizer($event->organizer_id)->find($picked);
+            // A venue merged away stands for the one it went into. Then:
+            // approved, already this listing's, or proposed by its own team, as
+            // a pending venue's address isn't anyone else's to copy.
+            $venue = Venue::find($picked)?->winner();
+
+            if ($venue && (int) $venue->id !== (int) $current?->venue_id && ! auth()->user()?->isModerator()) {
+                $venue = Venue::visibleToOrganizer($event->organizer_id)->find($venue->id);
+            }
 
             if (! $venue) {
                 throw ValidationException::withMessages(['location.venue_id' => 'That venue is not available. Search for it again, or add the address.']);

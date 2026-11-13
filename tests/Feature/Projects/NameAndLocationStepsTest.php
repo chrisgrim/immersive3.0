@@ -270,6 +270,18 @@ test('a pending venue is seen and picked only by its proposer\'s team, and moder
     $this->actingAs(User::factory()->create(['type' => 'm']))->getJson('/api/venues/search?keywords=Back%20Room')->assertJsonCount(1);
 });
 
+test('picking a venue that was merged away gives the venue it went into', function () {
+    $winner = Venue::factory()->create(['name' => 'The Goodman', 'street' => 'N Dearborn St', 'city' => 'Chicago', 'latitude' => 41.88, 'longitude' => -87.63]);
+    $loser = Venue::factory()->create(['name' => 'Goodman Theatre', 'street' => 'Dearborn', 'city' => 'Chicago', 'latitude' => 41.8, 'longitude' => -87.6, 'merged_into_id' => $winner->id]);
+    $draft = draftOf($this->organizer);
+
+    $this->actingAs(User::factory()->create(['type' => 'm']));
+    app(App\Actions\Events\UpdateEventAction::class)->handle($draft, ['location' => ['venue_id' => $loser->id]], Illuminate\Http\Request::create('/', 'POST'));
+
+    expect($draft->fresh()->location->venue_id)->toBe($winner->id)
+        ->and($draft->fresh()->location->street)->toBe('N Dearborn St');
+});
+
 test('picking a venue copies its address and point onto the listing', function () {
     $venue = Venue::factory()->create(['name' => 'The Goodman', 'street' => 'N Dearborn St', 'city' => 'Chicago', 'latitude' => 41.88, 'longitude' => -87.63]);
     $draft = draftOf($this->organizer);
