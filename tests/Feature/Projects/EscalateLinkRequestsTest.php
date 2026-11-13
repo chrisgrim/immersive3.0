@@ -148,3 +148,19 @@ test('the mail renders', function () {
 
     (new LinkRequestEscalated($request))->assertSeeInHtml('Run')->assertSeeInHtml($request->project->name);
 });
+
+test('a request on a listing back in review waits: no escalation until it is live again', function () {
+    $listing = publishedListing('Back', 'Paris', ['status' => 'r']);
+    $request = linkRequestOn($listing, ['submitted_at' => now()->subDays(9)]);
+
+    Artisan::call('ei:escalate-link-requests');
+    expect($request->fresh()->escalated_at)->toBeNull();
+
+    $listing->update(['status' => 'p', 'published_at' => now()]);
+    Artisan::call('ei:escalate-link-requests');
+    expect($request->fresh()->escalated_at)->toBeNull();
+
+    $this->travel(73)->hours();
+    Artisan::call('ei:escalate-link-requests');
+    expect($request->fresh()->escalated_at)->not->toBeNull();
+});

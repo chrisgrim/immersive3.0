@@ -23,6 +23,15 @@ class TellKeeper
 
     private function send(ProjectLinkRequest $request): void
     {
+        // Read again after commit: the same save may have decided it (a
+        // moderator approving the listing into a show, or turning the link
+        // down), and a settled request asks nobody anything.
+        $request = $request->fresh();
+
+        if ($request === null || ! $request->isPending()) {
+            return;
+        }
+
         $event = Event::find($request->event_id);
         $project = $request->project;
         $keeper = $project?->keeper();

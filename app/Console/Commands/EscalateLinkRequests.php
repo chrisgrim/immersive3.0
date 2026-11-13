@@ -25,7 +25,9 @@ class EscalateLinkRequests extends Command
         ProjectLinkRequest::pending()
             ->whereNull('escalated_at')
             ->where('submitted_at', '<=', now()->subHours(ProjectLinkRequest::ESCALATE_AFTER_HOURS))
-            ->whereHas('event', fn ($q) => $q->whereIn('status', [Event::STATUS_IN_REVIEW, ...Event::LIVE_STATUSES]))
+            // Live listings only: one in review is in the moderators' own queue,
+            // and its clock starts again when it goes live.
+            ->whereHas('event', fn ($q) => $q->whereIn('status', Event::LIVE_STATUSES))
             ->with(['event.organizer', 'project', 'sourceEvent'])
             ->chunkById(100, function ($requests) use ($notifier, &$escalated) {
                 foreach ($requests as $request) {

@@ -439,3 +439,15 @@ test('a request to join a lone listing follows it when a moderator files it unde
         ->and($request->fresh()->status)->toBe(ProjectLinkRequest::PENDING);
     Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($project->organizer->owner->email) && str_contains($mail->attributes['body'], 'has asked to join'));
 });
+
+test('a request settled in the same approval asks the show\'s keeper nothing', function () {
+    $source = publishedListing('Ha Ha Ha', 'Chicago');
+    $project = Project::factory()->create();
+    $source->update(['project_id' => $project->id, 'instance_slug' => 'chicago-2026']);
+    $copy = copyInQueue($source->fresh(), 'Boston', 'Ha Ha Ha');
+
+    approveInQueue($copy, ['action' => 'reject', 'note' => 'Not the same show'])->assertOk();
+
+    expect(ProjectLinkRequest::sole()->status)->toBe(ProjectLinkRequest::REJECTED);
+    Mail::assertNotQueued(Comments::class, fn ($mail) => str_contains($mail->attributes['body'], 'has asked to join'));
+});
