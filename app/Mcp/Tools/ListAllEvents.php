@@ -145,6 +145,8 @@ class ListAllEvents extends Tool
 
         $events = $query->orderBy('id')->offset($offset)->limit($limit)->get();
 
+        $this->loadVenuesAndCredits($events);
+
         return Response::json([
             'total_matching' => $total,
             'returned' => $events->count(),
@@ -154,6 +156,8 @@ class ListAllEvents extends Tool
                 ? 'All events on the platform, every status. You can edit any of these with update-event — you are not limited to your own organizers.'
                 : 'Published events only. Sign-in role limits this search to the public catalog; use list-my-events for your own drafts.',
             'events' => $events->map(fn (Event $event) => $this->eventSummary($event) + [
+                'venue' => $this->publicVenue($event),
+                'credits' => $this->creditRows($event, false),
                 'category' => $event->category?->name,
                 'category_id' => $event->category_id,
                 'genres' => $event->genres->pluck('name')->all(),

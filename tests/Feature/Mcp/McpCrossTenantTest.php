@@ -264,12 +264,14 @@ test('update-event cannot ask to join a show for someone else\'s draft', functio
     expect(ProjectLinkRequest::count())->toBe(0);
 });
 
-test('a read-only key sees no credits or link request on a published listing', function () {
+test('anyone who can read a listing sees its credits, but only its team sees each note', function () {
     $owner = tenantUser();
     $event = tenantEvent(tenantOrganizer($owner), $owner, 'p');
-    Credit::factory()->for($event, 'creditable')->for(Artist::factory()->state(['name' => 'Jo Unseen']))->create();
+    Credit::factory()->for($event, 'creditable')->for(Artist::factory()->state(['name' => 'Jo Seen']))->create(['note' => 'Team-only aside']);
 
-    viaToken(tenantUser(), [User::READ_SCOPE])->tool(GetEvent::class, ['event_slug' => $event->slug])->assertOk()->assertDontSee('Jo Unseen');
+    viaToken(tenantUser(), [User::READ_SCOPE])->tool(GetEvent::class, ['event_slug' => $event->slug])->assertOk()->assertSee('Jo Seen')->assertDontSee('Team-only aside')->assertDontSee('link_request":{');
+    viaToken($owner)->tool(GetEvent::class, ['event_slug' => $event->slug])->assertOk()->assertSee('Team-only aside');
+    viaToken(tenantUser())->tool(App\Mcp\Tools\ListAllEvents::class, ['search' => $event->name])->assertOk()->assertSee('Jo Seen')->assertDontSee('Team-only aside');
 });
 
 test('a held draft\'s credits are out of reach for its own team', function () {

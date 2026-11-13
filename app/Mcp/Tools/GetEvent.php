@@ -3,7 +3,6 @@
 namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\FormatsEvents;
-use App\Models\Credit;
 use App\Models\Event;
 use App\Models\Events\Show;
 use App\Models\User;
@@ -209,8 +208,7 @@ class GetEvent extends Tool
 
     /**
      * The show and venue of a listing. A secret location never reads its
-     * venue. Credits are not public, so a read-only key sees none, and each
-     * row says whether it is the run's own or the show's.
+     * venue. Credits go to anyone who can read the listing (creditRows).
      *
      * @return array<string, mixed>
      */
@@ -222,21 +220,10 @@ class GetEvent extends Tool
             ? Venue::when(! $canManage, fn ($query) => $query->where('status', Venue::APPROVED)->whereNull('merged_into_id'))->find($location->venue_id)
             : null;
 
-        $present = fn (Credit $credit, string $source) => [
-            'source' => $source,
-            'artist' => $credit->artist?->only(['id', 'name']),
-            ...$credit->only(['id', 'department', 'role', 'character', 'kind', 'covers', 'credited_as', 'note']),
-            'starts_on' => $credit->starts_on?->toDateString(),
-            'ends_on' => $credit->ends_on?->toDateString(),
-        ];
-
         return [
             'venue' => $venue?->only(['id', 'name', 'room', 'slug', 'status']),
             'link_request' => $canManage ? $event->pendingLinkRequest()?->only(['id', 'project_id', 'source_event_id', 'details_confirmed_at']) : null,
-            'credits' => $canManage ? [
-                ...$event->project?->writers()->approved()->with('artist:id,name')->get()->map(fn (Credit $credit) => $present($credit, 'show'))->all() ?? [],
-                ...$event->credits()->approved()->with('artist:id,name')->get()->map(fn (Credit $credit) => $present($credit, 'run'))->all(),
-            ] : [],
+            'credits' => $this->creditRows($event, $canManage),
         ];
     }
 

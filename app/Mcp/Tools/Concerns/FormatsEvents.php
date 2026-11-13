@@ -2,8 +2,10 @@
 
 namespace App\Mcp\Tools\Concerns;
 
+use App\Models\Credit;
 use App\Models\Event;
 use App\Models\Events\Advisory;
+use App\Models\Venue;
 
 trait FormatsEvents
 {
@@ -47,6 +49,54 @@ trait FormatsEvents
             'l' => 'limited (retired type — set an explicit showtype to edit the schedule)',
             default => 'not set',
         };
+    }
+
+    /**
+     * A listing's cast and crew: the show's writers, then the run's own rows,
+     * each saying which. Readable by anyone who can read the listing (Chris,
+     * 2026-11-12: open now, so nothing has to be switched on when the site
+     * shows credits). The free-text note goes to the listing's team only.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected function creditRows(Event $event, bool $withNote): array
+    {
+        $present = fn (Credit $credit, string $source) => [
+            'source' => $source,
+            'artist' => $credit->artist?->only(['id', 'name']),
+            ...$credit->only(['id', 'department', 'role', 'character', 'kind', 'covers', 'credited_as', ...($withNote ? ['note'] : [])]),
+            'starts_on' => $credit->starts_on?->toDateString(),
+            'ends_on' => $credit->ends_on?->toDateString(),
+        ];
+
+        $writers = $event->project
+            ? ($event->project->relationLoaded('writers') ? $event->project->writers : $event->project->writers()->approved()->with('artist:id,name')->get())
+            : collect();
+        $own = $event->relationLoaded('credits') ? $event->credits : $event->credits()->approved()->with('artist:id,name')->get();
+
+        return [
+            ...$writers->map(fn (Credit $credit) => $present($credit, 'show'))->all(),
+            ...$own->map(fn (Credit $credit) => $present($credit, 'run'))->all(),
+        ];
+    }
+
+    /** What a list needs to give each row its venue and credits in a few queries. */
+    protected function loadVenuesAndCredits($events): void
+    {
+        $credits = fn ($query) => $query->approved()->with('artist:id,name');
+
+        $events->loadMissing(['location.venueRecord', 'credits' => $credits, 'project.writers' => $credits]);
+    }
+
+    /** The venue as the public page shows it: none for a secret location, approved ones only. */
+    protected function publicVenue(Event $event): ?array
+    {
+        $location = $event->location;
+        $venue = $location && ! $location->hiddenLocationToggle ? $location->venueRecord : null;
+
+        return $venue && $venue->status === Venue::APPROVED && $venue->merged_into_id === null
+            ? $venue->only(['id', 'name', 'room', 'slug'])
+            : null;
     }
 
     protected function eventSummary(Event $event): array

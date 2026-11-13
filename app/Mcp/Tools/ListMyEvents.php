@@ -49,8 +49,12 @@ class ListMyEvents extends Tool
             ->limit(100)
             ->get();
 
+        $this->loadVenuesAndCredits($events);
+
         return Response::json([
             'events' => $events->map(fn (Event $event) => $this->eventSummary($event) + [
+                'venue' => $this->publicVenue($event),
+                'credits' => $this->creditRows($event, false),
                 'updated_at' => $event->updated_at?->toIso8601String(),
                 'archived' => (bool) $event->archived,
                 // See GetEvent: a long-finished published event is read-only
