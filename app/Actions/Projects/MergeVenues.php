@@ -7,6 +7,7 @@ use App\Models\Events\Location;
 use App\Models\SlugRedirect;
 use App\Models\User;
 use App\Models\Venue;
+use App\Models\VenueClaim;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -43,6 +44,13 @@ class MergeVenues
 
             AuditLog::record($loser, 'venue.merged', $actor, ['into_venue_id' => $winner->id, 'location_ids' => $locationIds]);
         });
+
+        // Claims still waiting on the merged-away venue can never be approved
+        // (it is no longer claimable): turn them down, telling each person
+        // where the venue went, rather than leave them in the queue.
+        foreach (VenueClaim::where('venue_id', $loser->id)->where('status', VenueClaim::PENDING)->get() as $claim) {
+            app(VenueClaims::class)->reject($claim, $actor, "This venue was merged into {$winner->name}. You can claim that one.");
+        }
 
         return $winner->refresh();
     }

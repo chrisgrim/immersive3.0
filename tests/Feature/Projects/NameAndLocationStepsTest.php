@@ -455,5 +455,5 @@ test('the dashboard carries the shows this company keeps, with what is waiting',
 });
 
 test('the lock wording drops the year advice and says the copy joins the show', function () {
-    expect(Event::EDIT_LOCKED_MESSAGE)->toContain('asks to join the same show')->not->toContain('(2026)');
+    expect(Event::EDIT_LOCKED_MESSAGE)->toContain('asks to join the same project')->not->toContain('(2026)');
 });

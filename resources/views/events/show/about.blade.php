@@ -11,7 +11,8 @@
         {{-- Facts grid — matches TodayTix's About-section pattern: icon, bold
              label, value below (linked where the value has somewhere to go). --}}
         <div class="grid grid-cols-2 gap-x-8 md:gap-x-16 gap-y-12 py-12 md:pt-0 md:pb-16">
-            <div class="flex items-start gap-4">
+            {{-- The whole block links: logo, label and name. --}}
+            <a href="{{ route('organizers.show', $event->organizer->slug) }}" class="flex items-start gap-4 group">
                 @if($event->organizer->thumbImagePath)
                     <div class="w-16 h-16 rounded-full overflow-hidden flex-shrink-0">
                         <picture>
@@ -32,34 +33,48 @@
                 @endif
                 <div>
                     <p class="text-2xl md:text-1xl leading-tight font-semibold">Organizer</p>
-                    <a href="{{ route('organizers.show', $event->organizer->slug) }}" class="text-xl font-medium text-neutral-500 hover:text-black">
-                        {{ $event->organizer->name }}
-                    </a>
+                    <p class="text-xl font-medium text-neutral-500 group-hover:text-black">{{ $event->organizer->name }}</p>
                 </div>
-            </div>
+            </a>
 
+            {{-- A known venue looks and links like the organizer: its photo in a circle
+                 and its name both go to its page. "How to get there" folds out below. --}}
+            @php($venuePhoto = ($venue ?? null) ? ($venue->thumbImagePath ?: $venue->images()->orderBy('rank')->value('thumb_image_path')) : null)
             <div class="flex items-start gap-4">
-                <svg class="w-8 h-8 flex-shrink-0 mt-1" xmlns="http://www.w3.org/2000/svg">
-                    <use xlink:href="/storage/website-files/icons.svg#ri-map-pin-line" />
-                </svg>
-                <div>
-                    <p class="text-2xl md:text-1xl leading-tight font-semibold">Venue</p>
-                    @if($event->hasLocation && $event->location)
-                        {{-- The venue name is optional; without one, say where it is rather than calling it remote. --}}
-                        @if($venue ?? null)
-                            <a href="{{ $venue->publicPath() }}" class="text-xl font-medium text-neutral-500 hover:text-black">{{ $venue->displayName() }}</a>
-                            @if($venue->directions)
-                                <details class="mt-2">
-                                    <summary class="text-xl font-medium text-neutral-500 hover:text-black cursor-pointer">How to get there</summary>
-                                    {{-- Vue compiles this page and collapses newlines, so they are breaks. --}}
-                    <p class="text-xl text-neutral-600 mt-2">{!! \App\Support\VueSafe::html(nl2br(e($venue->directions), false)) !!}</p>
-                                </details>
-                            @endif
+                @if($venue ?? null)
+                    <a href="{{ $venue->publicPath() }}" aria-label="{{ $venue->displayName() }}" class="w-16 h-16 rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+                        @if($venuePhoto)
+                            <img class="w-full h-full object-cover" src="{{ config('app.image_url') }}{{ $venuePhoto }}" alt="Photo of {{ $venue->displayName() }}">
                         @else
-                            <p class="text-xl font-medium text-neutral-500">{{ $event->location->publicVenueName() ?: $event->location->placeLabel() }}</p>
+                            <svg class="w-8 h-8 text-gray-500" xmlns="http://www.w3.org/2000/svg"><use xlink:href="/storage/website-files/icons.svg#ri-map-pin-line" /></svg>
+                        @endif
+                    </a>
+                @else
+                    <svg class="w-8 h-8 flex-shrink-0 mt-1" xmlns="http://www.w3.org/2000/svg">
+                        <use xlink:href="/storage/website-files/icons.svg#ri-map-pin-line" />
+                    </svg>
+                @endif
+                <div>
+                    @if($venue ?? null)
+                        <a href="{{ $venue->publicPath() }}" class="group block">
+                            <p class="text-2xl md:text-1xl leading-tight font-semibold">Venue</p>
+                            <p class="text-xl font-medium text-neutral-500 group-hover:text-black">{{ $venue->displayName() }}</p>
+                        </a>
+                        @if($venue->directions)
+                            <details class="mt-2">
+                                <summary class="text-xl font-medium text-neutral-500 hover:text-black cursor-pointer">How to get there</summary>
+                                {{-- Vue compiles this page and collapses newlines, so they are breaks. --}}
+                                <p class="text-xl text-neutral-600 mt-2">{!! \App\Support\VueSafe::html(nl2br(e($venue->directions), false)) !!}</p>
+                            </details>
                         @endif
                     @else
-                        <p class="text-xl font-medium text-neutral-500">{{ ucfirst($event->remoteLocations->first()?->name ?? 'Remote Event') }}</p>
+                        <p class="text-2xl md:text-1xl leading-tight font-semibold">Venue</p>
+                        @if($event->hasLocation && $event->location)
+                            {{-- The venue name is optional; without one, say where it is rather than calling it remote. --}}
+                            <p class="text-xl font-medium text-neutral-500">{{ $event->location->publicVenueName() ?: $event->location->placeLabel() }}</p>
+                        @else
+                            <p class="text-xl font-medium text-neutral-500">{{ ucfirst($event->remoteLocations->first()?->name ?? 'Remote Event') }}</p>
+                        @endif
                     @endif
                 </div>
             </div>
@@ -116,6 +131,9 @@
                 </div>
             @endif
         </div>
+
+        {{-- The show this listing belongs to, and its other runs on now or coming up. --}}
+        @include('events.show.project-line')
     </div>
 
     @if($event->video === 'page' && $event->videos && count($event->videos) > 0)

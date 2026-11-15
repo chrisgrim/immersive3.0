@@ -20,7 +20,7 @@
                 </svg>
             </button>
             <a 
-                href="/hosting/events" 
+                :href="`/hosting/events?organizer=${organizer.slug}`" 
                 class="cursor-pointer"
             >
                 <div class="rounded-full bg-neutral-100 w-16 h-16 flex items-center justify-center hover:bg-neutral-200">

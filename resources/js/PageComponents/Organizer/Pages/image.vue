@@ -197,9 +197,12 @@ const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const organizer = inject('organizer');
 
 onMounted(() => {
-    if (organizer?.images?.[0]) {
+    // Older organizers keep their picture only on the organizer row (no images
+    // row), so fall back to that, as the sidebar card already does.
+    const path = organizer?.images?.[0]?.large_image_path ?? organizer?.largeImagePath ?? organizer?.thumbImagePath;
+    if (path) {
         profileImage.value = {
-            url: `${imageUrl}${organizer.images[0].large_image_path}`,
+            url: `${imageUrl}${path}`,
             isExisting: true
         };
     }

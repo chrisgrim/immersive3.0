@@ -66,7 +66,7 @@ class LinkEventToProject
      */
     public function decide(Event $event, ?ProjectLinkRequest $request, Project|Event|null $target, User $actor, ?Organizer $maker = null, ?string $slug = null): Event
     {
-        $resolved = $target ?? ($request ? $this->requestedTarget($request) : $this->refuse('Choose a show to link this listing to.'));
+        $resolved = $target ?? ($request ? $this->requestedTarget($request) : $this->refuse('Choose a project to link this listing to.'));
         $project = $resolved instanceof Event ? $resolved->project : $resolved;
 
         return DB::transaction(function () use ($event, $request, $target, $resolved, $project, $actor, $maker, $slug) {
@@ -143,7 +143,7 @@ class LinkEventToProject
         $this->authorizeDecision($target, $actor);
 
         if ($options !== [] && ! $actor->isModerator()) {
-            $this->refuse('Only a moderator can set who made a show or its address.');
+            $this->refuse('Only a moderator can set who made a project or its address.');
         }
 
         $outcome = Event::deferringSearchSync(fn () => DB::transaction(
@@ -189,7 +189,7 @@ class LinkEventToProject
             }
 
             if (isset($options['maker']) || isset($options['slug'])) {
-                $this->refuse('That show already exists; who made it and its address are changed on the show.');
+                $this->refuse('That project already exists; who made it and its address are changed on the project.');
             }
         } else {
             $this->assertCanBeFirst($source, $run);
@@ -238,11 +238,11 @@ class LinkEventToProject
 
         // Approving a link never publishes a draft.
         if (! in_array($run->status, Event::LIVE_STATUSES, true)) {
-            $this->refuse('A listing joins a show once it is approved.');
+            $this->refuse('A listing joins a project once it is approved.');
         }
 
         if ($run->isLinked()) {
-            $this->refuse('This listing is already part of a show. Take it off that show first.');
+            $this->refuse('This listing is already part of a project. Take it off that project first.');
         }
     }
 

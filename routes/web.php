@@ -7,6 +7,7 @@ use App\Http\Controllers\Creation\EventLinkRequestController;
 use App\Http\Controllers\Creation\HostController;
 use App\Http\Controllers\Creation\HostEventController;
 use App\Http\Controllers\Creation\HostProjectController;
+use App\Http\Controllers\Creation\HostVenueController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\IndexController;
 use App\Http\Controllers\NotificationsController;
@@ -155,6 +156,14 @@ Route::middleware(['auth'])->group(function () {
             Route::POST('/{organizer}/submit', [OrganizerController::class, 'submit'])->name('submit');
         });
 
+        // Venue Management: the same addresses as an organizer's (/venues/{venue}/edit),
+        // for the team that keeps the venue, and admins and moderators (VenuePolicy).
+        Route::prefix('venues')->name('venues.')->middleware('can:update,venue')->controller(HostVenueController::class)->group(function () {
+            Route::GET('/{venue}/edit', 'edit')->name('edit');
+            Route::POST('/{venue}', 'update')->name('update');
+            Route::POST('/{venue}/photos', 'photos')->name('photos');
+        });
+
         // Keep store outside since anyone can create
         Route::POST('/organizers', [OrganizerController::class, 'store'])->name('organizers.store');
 
@@ -169,6 +178,7 @@ Route::middleware(['auth'])->group(function () {
             // Routes that don't require hosting permissions
             Route::GET('/getting-started', [HostController::class, 'intro'])->name('intro');
             Route::GET('/events', [HostController::class, 'show'])->name('dashboard');
+            Route::GET('/venues', [HostVenueController::class, 'index'])->name('venues');
 
             // Routes that require hosting permissions (user must have teams)
             Route::middleware('can:host,App\Models\Event')->group(function () {
@@ -192,6 +202,7 @@ Route::middleware(['auth'])->group(function () {
                 Route::prefix('projects')->name('projects.')->controller(HostProjectController::class)->group(function () {
                     Route::GET('/{project}/edit', 'edit')->name('edit')->middleware('can:edit,project');
                     Route::POST('/{project}', 'update')->name('update')->middleware('can:edit,project');
+                    Route::POST('/{project}/photos', 'photos')->name('photos')->middleware('can:edit,project');
                     Route::GET('/{project}/link-requests', 'linkRequests')->name('link-requests')->middleware('can:decideLink,project');
                     Route::POST('/{project}/link-requests/{linkRequest}/approve', 'approveLink')->name('link-requests.approve')->middleware('can:decideLink,project');
                     Route::POST('/{project}/link-requests/{linkRequest}/reject', 'rejectLink')->name('link-requests.reject')->middleware('can:decideLink,project');

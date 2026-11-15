@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Actions\Projects\MergeVenues;
+use App\Actions\Projects\UpdateVenue;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\Messaging\Message;
 use App\Models\Venue;
-use App\Services\ImageHandler;
+use App\Support\PhotoGallery;
 use Illuminate\Http\Request;
 
 class AdminVenueController extends Controller
@@ -22,40 +24,54 @@ class AdminVenueController extends Controller
     }
 
     /** A new name moves the address, and the model keeps the old one as a redirect. */
-    public function update(Request $request, Venue $venue)
+    public function update(Request $request, Venue $venue, UpdateVenue $update)
     {
         $this->authorize('update', $venue);
 
-        $validated = $request->validate([
-            'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'room' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
-            'directions' => ['sometimes', 'nullable', 'string', 'max:5000'],
-        ]);
-
-        if (isset($validated['name']) && $validated['name'] !== $venue->name) {
-            $validated['slug'] = Venue::uniqueSlug($validated['name'], $venue->id);
-        }
-
-        $venue->update($validated);
-
-        AuditLog::record($venue, 'venue.updated', $request->user(), ['fields' => array_keys($validated)]);
-
-        return response()->json(['venue' => $venue]);
+        return response()->json(['venue' => $update->handle($venue, $request->validate(UpdateVenue::RULES, UpdateVenue::MESSAGES), $request->user())]);
     }
 
     /** The venue page's picture, replacing the one before. */
-    public function image(Request $request, Venue $venue)
+    public function image(Request $request, Venue $venue, UpdateVenue $update)
     {
         $this->authorize('update', $venue);
 
-        $request->validate(['image' => ['required', 'image', 'max:10240']]);
+        $request->validate(UpdateVenue::IMAGE_RULES);
 
-        ImageHandler::replaceImage($venue->images()->get(), $request->file('image'), $venue, 800, 600, 'venue-images');
+        return response()->json(['venue' => $update->image($venue, $request->file('image'), $request->user())]);
+    }
 
-        AuditLog::record($venue, 'venue.image_updated', $request->user());
+    /** One venue for the review screen: what an organizer review shows, and who added it. */
+    public function show(Venue $venue)
+    {
+        $venue->load(['owner.owner', 'ownerUser']);
 
-        return response()->json(['venue' => $venue->refresh()]);
+        return response()->json([
+            ...$venue->toArray(),
+            'photos' => PhotoGallery::present($venue),
+            'added_by' => $venue->owner ? [
+                'organizer' => $venue->owner->only(['name', 'slug']),
+                'user' => $venue->owner->owner?->only(['name', 'email']),
+            ] : null,
+            'claimed_by' => $venue->ownerUser?->only(['name', 'email']),
+        ]);
+    }
+
+    /**
+     * "Ask a question", as on an organizer review: the question goes to the inbox
+     * of whoever runs the team that added the venue. The venue stays waiting.
+     */
+    public function question(Request $request, Venue $venue)
+    {
+        $validated = $request->validate(['question' => ['required', 'string', 'max:1000']]);
+
+        $team = $venue->owner;
+        abort_unless($team && $team->user_id, 422, 'Nobody to ask: no team added this venue.');
+
+        Message::notification($team, 'About the venue '.$venue->name.': '.$validated['question'], $team->slug);
+        AuditLog::record($venue, 'venue.question', $request->user());
+
+        return response()->json(['message' => 'Question sent.']);
     }
 
     public function approve(Request $request, Venue $venue)

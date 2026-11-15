@@ -45,7 +45,6 @@
                                         @if($event->tag_line)
                                             <p class="text-3xl mt-8 text-neutral-700 font-medium">{{ $event->tag_line }}</p>
                                         @endif
-                                        @include('events.show.project-line')
                                         
                                         @if(auth()->check() && (auth()->user()->isAdmin || auth()->user()->isModerator || (auth()->user()->organizer && auth()->user()->organizer->id === $event->organizer_id)))
                                             <div class="mt-8">
@@ -68,7 +67,6 @@
                                     @if($event->tag_line)
                                         <p class="text-3xl mt-4 text-neutral-700 font-medium">{{ $event->tag_line }}</p>
                                     @endif
-                                    @include('events.show.project-line')
                                     
                                     {{-- Edit Button --}}
                                     @if(auth()->check() && (auth()->user()->isAdmin || auth()->user()->isModerator || (auth()->user()->organizer && auth()->user()->organizer->id === $event->organizer_id)))

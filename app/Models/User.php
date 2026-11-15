@@ -102,6 +102,8 @@ class User extends Authenticatable implements PasskeyUser
             'isCommunityMember' => $this->isCommunityMember,
             'unread' => $this->unread,
             'hasCreatedOrganizers' => $this->hasCreatedOrganizers,
+            // For the menu's "Your venue(s)": 0, 1, or 2 for "more than one".
+            'venues' => $this->venuesForMenu(),
             'organizer' => $organizer ? [
                 'id' => $organizer->id,
                 'name' => $organizer->name,
@@ -167,6 +169,16 @@ class User extends Authenticatable implements PasskeyUser
     public function getImageAttribute()
     {
         return $this->images()->first();
+    }
+
+    /**
+     * For the menu's "Your venue" / "Your venues": 0 (no item), 1, or 2 meaning
+     * "more than one". One small query (at most two ids), since it runs on
+     * every page for a signed-in person; the venues page itself counts properly.
+     */
+    public function venuesForMenu(): int
+    {
+        return Venue::keptBy($this)->limit(2)->pluck('id')->count();
     }
 
     public function organizers()

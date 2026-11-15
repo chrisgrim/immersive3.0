@@ -11,11 +11,15 @@ use Intervention\Image\Laravel\Facades\Image;
 
 class ImageHandler
 {
-    public static function saveImage($image, $model, $width, $height, $type, $rank = 0)
+    /**
+     * Upload the four files of one picture (jpg and webp, full and thumb) and
+     * return their paths, without making an images row. A gallery uploads
+     * everything this way first, then writes its rows in one locked step.
+     *
+     * @return array{large_image_path: string, thumb_image_path: string}
+     */
+    public static function storeFiles($image, $model, $width, $height, $type): array
     {
-        // Always ensure rank is an integer
-        $rank = (int) $rank;
-
         // Validate image
         $mimeType = $image->getMimeType();
         if (strpos($mimeType, 'image/') !== 0) {
@@ -66,10 +70,39 @@ class ImageHandler
             $written[] = $path;
         }
 
-        // Create the image with specified rank
-        $createdImage = $model->images()->create([
+        return [
             'large_image_path' => "$directory/$fileName.webp",
             'thumb_image_path' => "$directory/{$fileName}-thumb.webp",
+        ];
+    }
+
+    /** Remove the files storeFiles() wrote, for an upload that will not be kept. */
+    public static function deleteStoredFiles(array $paths): void
+    {
+        $files = [];
+        foreach (['large_image_path', 'thumb_image_path'] as $key) {
+            if (! empty($paths[$key])) {
+                $base = preg_replace('/\.(webp|jpg)$/', '', $paths[$key]);
+                $files[] = "/public/{$base}.webp";
+                $files[] = "/public/{$base}.jpg";
+            }
+        }
+        if ($files) {
+            Storage::disk('digitalocean')->delete($files);
+        }
+    }
+
+    public static function saveImage($image, $model, $width, $height, $type, $rank = 0)
+    {
+        // Always ensure rank is an integer
+        $rank = (int) $rank;
+
+        ['large_image_path' => $large, 'thumb_image_path' => $thumb] = static::storeFiles($image, $model, $width, $height, $type);
+
+        // Create the image with specified rank
+        $createdImage = $model->images()->create([
+            'large_image_path' => $large,
+            'thumb_image_path' => $thumb,
             'rank' => $rank,
         ]);
 
@@ -78,8 +111,8 @@ class ImageHandler
         $hasImageColumns = \Schema::hasColumns($table, ['largeImagePath', 'thumbImagePath']);
 
         if ($hasImageColumns && $rank === 0) {
-            $model->largeImagePath = "$directory/$fileName.webp";
-            $model->thumbImagePath = "$directory/{$fileName}-thumb.webp";
+            $model->largeImagePath = $large;
+            $model->thumbImagePath = $thumb;
             $model->save();
         }
 
@@ -168,9 +201,6 @@ class ImageHandler
             ]);
         }
 
-        // Get directory path
-        $directory = dirname("/public/{$image->large_image_path}");
-
         // Get the parent model before deleting the image
         $parent = $image->imageable;
 
@@ -190,15 +220,9 @@ class ImageHandler
             ]);
         }
 
-        // Check if directory is empty and delete it if it is
-        try {
-            $files = Storage::disk('digitalocean')->files($directory);
-            if (empty($files)) {
-                Storage::disk('digitalocean')->deleteDirectory($directory);
-            }
-        } catch (\Exception $e) {
-            // Silently fail on directory cleanup errors
-        }
+        // No folder clean-up: Spaces has no real folders (an empty prefix simply
+        // is not there), and listing then deleting one could remove files another
+        // save was writing into the same folder at that moment.
     }
 
     public static function updateImages($model, $currentImages)

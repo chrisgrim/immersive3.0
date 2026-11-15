@@ -39,6 +39,21 @@
                             </div>
                         </template>
 
+                        <!-- Venue claim body: which venue, and who looks after it now -->
+                        <template v-else-if="request.kind === 'venue_claim'">
+                            <div class="flex items-center gap-3">
+                                <a v-if="request.venue" :href="request.venue.url" target="_blank" class="text-lg font-medium text-blue-600 hover:text-blue-800 underline">
+                                    {{ request.venue.name }}
+                                </a>
+                                <span v-else class="text-lg font-medium text-gray-400">[venue removed]</span>
+                                <span v-if="request.venue?.city" class="text-gray-500">{{ request.venue.city }}</span>
+                            </div>
+                            <div class="text-sm text-gray-500">Looked after now by {{ request.venue?.kept_by ?? 'nobody' }}</div>
+                            <div v-if="request.message" class="text-gray-600">
+                                “{{ request.message }}”
+                            </div>
+                        </template>
+
                         <!-- Ownership claim request body -->
                         <template v-else>
                             <div class="flex items-center gap-3">
@@ -165,11 +180,17 @@ const emit = defineEmits(['update-counts'])
 
 const requestKey = (request) => `${request.kind}-${request.id}`
 
-const requestLabel = (request) => request.kind === 'ownership_claim'
-    ? 'Ownership Claim'
-    : `Name Change${request.type ? ' · ' + request.type : ''}`
+const requestLabel = (request) => ({
+    ownership_claim: 'Ownership Claim',
+    venue_claim: 'Venue Claim',
+}[request.kind] ?? `Name Change${request.type ? ' · ' + request.type : ''}`)
 
-const endpoints = (request) => request.kind === 'ownership_claim'
+const endpoints = (request) => request.kind === 'venue_claim'
+    ? {
+        approve: `/api/admin/approve/venue-claims/${request.id}/approve`,
+        reject: `/api/admin/approve/venue-claims/${request.id}/reject`,
+    }
+    : request.kind === 'ownership_claim'
     ? {
         approve: `/api/admin/approve/claims/${request.id}/approve`,
         reject: `/api/admin/approve/claims/${request.id}/reject`,
@@ -198,13 +219,15 @@ const formatDate = (date) => {
 const fetchRequests = async () => {
     try {
         loading.value = true
-        const [nameChangeRes, claimRes] = await Promise.all([
+        const [nameChangeRes, claimRes, venueClaimRes] = await Promise.all([
             axios.get('/api/admin/approve/requests'),
             axios.get('/api/admin/approve/claims'),
+            axios.get('/api/admin/approve/venue-claims'),
         ])
         const nameChanges = (nameChangeRes.data.requests || []).map(r => ({ ...r, kind: 'name_change' }))
         const claims = (claimRes.data.claims || []).map(c => ({ ...c, kind: 'ownership_claim' }))
-        requests.value = [...nameChanges, ...claims]
+        const venueClaims = (venueClaimRes.data.claims || []).map(c => ({ ...c, kind: 'venue_claim' }))
+        requests.value = [...nameChanges, ...claims, ...venueClaims]
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     } catch (error) {
         console.error('Error fetching requests:', error)
@@ -223,7 +246,7 @@ const handleApprove = async (request) => {
         emit('update-counts')
         // Approving an ownership claim auto-rejects sibling claims for the same org server-side,
         // so resync the whole queue rather than only dropping the clicked row.
-        if (request.kind === 'ownership_claim') {
+        if (request.kind === 'ownership_claim' || request.kind === 'venue_claim') {
             await fetchRequests()
         } else {
             requests.value = requests.value.filter(r => requestKey(r) !== requestKey(request))

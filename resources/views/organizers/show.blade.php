@@ -74,7 +74,7 @@
                         </p>
                     </div>
                     <div class="flex-shrink-0">
-                        <a href="/hosting/events" 
+                        <a href="/hosting/events?organizer={{ $organizer->slug }}" 
                            class="text-lg font-medium text-amber-800 hover:text-amber-600">
                             View Dashboard
                             <span aria-hidden="true"> &rarr;</span>
@@ -96,7 +96,7 @@
                         </p>
                     </div>
                     <div class="flex-shrink-0">
-                        <a href="/hosting/events" 
+                        <a href="/hosting/events?organizer={{ $organizer->slug }}" 
                            class="text-lg font-medium text-blue-800 hover:text-blue-600">
                             View Dashboard
                             <span aria-hidden="true"> &rarr;</span>

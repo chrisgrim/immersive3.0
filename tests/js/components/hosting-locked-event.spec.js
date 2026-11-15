@@ -71,7 +71,7 @@ describe('editing an event that has left its 90-day window', () => {
         wrapper.vm.editEvent(event);
         await wrapper.vm.$nextTick();
 
-        expect(wrapper.text()).toContain('The copy asks to join the same show');
+        expect(wrapper.text()).toContain('The copy asks to join the same project');
         expect(wrapper.text()).not.toContain('Event Name (');
     });
 
@@ -161,7 +161,7 @@ describe('editing an event that has left its 90-day window', () => {
         await wrapper.vm.$nextTick();
 
         expect(wrapper.text()).toContain(LOCK_HEADING);
-        expect(wrapper.text()).toContain('The copy asks to join the same show');
+        expect(wrapper.text()).toContain('The copy asks to join the same project');
         expect(wrapper.text()).toContain('Past event');
 
         await wrapper.vm.duplicateLockedEvent();

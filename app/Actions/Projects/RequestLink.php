@@ -25,7 +25,7 @@ class RequestLink
         Gate::forUser($actor)->authorize('requestLink', $event);
 
         if ($event->isLinked()) {
-            $this->refuse('This listing is already part of a show.');
+            $this->refuse('This listing is already part of a project.');
         }
 
         if ($target instanceof Event && $target->is($event)) {

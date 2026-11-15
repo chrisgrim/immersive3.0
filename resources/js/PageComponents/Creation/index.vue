@@ -4,8 +4,10 @@
 			<!-- Header Section -->
 			<div class="w-full flex flex-col">
 				<!-- Organizer Name and Create Button -->
-				<div class="w-full flex items-center justify-between mb-20 md:py-8 md:p-0 rounded-2xl">
-					<div class="flex flex-col">
+				<!-- One row: the organization, the pill tabs in the middle, New event on the right. -->
+				<div class="w-full flex flex-col lg:flex-row lg:items-center gap-8 mb-16 md:py-8 md:p-0 rounded-2xl">
+					<!-- On desktop the organization lives in the top bar instead. -->
+					<div v-if="!orgInNav" class="flex flex-col lg:flex-1 min-w-0">
 						<a :href="`/organizers/${organizer.slug}`" class="group flex flex-row items-center gap-8">
 							<div class="flex gap-4">
 								<a :href="`/organizers/${organizer.slug}/edit`" class="cursor-pointer">
@@ -26,33 +28,73 @@
 						   Switch Organization
 						</a>
 					</div>
+				<!-- Airbnb's pill tabs: Events, then Show Runs when there are some. -->
+				<div class="contents">
+					<!-- Only events: a plain title, no single lonely pill. -->
+					<h2 v-if="tabs.length === 1" class="self-start text-4xl md:text-5xl font-semibold text-[#222222]">Events</h2>
+					<nav v-else class="flex self-start bg-[#f7f7f7] rounded-full p-[0.4rem] overflow-x-auto max-w-full [scrollbar-width:none]">
+						<button
+							v-for="item in tabs"
+							:key="item.id"
+							type="button"
+							@click="setTab(item.id)"
+							class="px-8 py-3 rounded-full text-xl font-medium whitespace-nowrap transition-all"
+							:class="tab === item.id ? 'bg-white text-black shadow-[0_2px_8px_rgba(0,0,0,0.12)]' : 'text-neutral-500 hover:text-black'"
+						>
+							{{ item.name }}
+						</button>
+					</nav>
 				</div>
 
-				<!-- The shows this company keeps the page of -->
-				<div v-if="organizer.kept_projects?.length" class="mb-8">
-					<h3 class="text-2xl font-bold mb-4">Your shows</h3>
-					<div class="flex gap-4 flex-wrap">
-						<a v-for="show in organizer.kept_projects"
-						   :key="show.id"
-						   :href="`/hosting/projects/${show.slug}/edit`"
-						   class="px-6 py-3 rounded-full border border-gray-300 text-lg font-medium hover:border-gray-400">
-							{{ show.name }}
-							<span v-if="show.pending_requests" class="ml-2 text-red-600">{{ show.pending_requests }} asking to join</span>
-						</a>
+				</div>
+
+				<!-- Show runs: long rows, laid out like the events list below. -->
+				<div v-if="tab === 'shows'" class="w-full mb-20">
+					<div class="hidden md:grid gap-8 py-4 h-36 items-center md:grid-cols-[16rem_30%_auto_auto_auto]">
+						<h5 class="font-medium">Show runs</h5>
+						<div></div>
+						<h5 class="font-medium">Status</h5>
+						<h5 class="font-medium text-center">Runs</h5>
 					</div>
-				</div>
-
-				<!-- Filter Buttons -->
-				<div class="hidden md:flex gap-6 flex-wrap">
-					<div @click="createNewEvent" :aria-busy="creatingEvent" :class="creatingEvent ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'">
-						<div class="rounded-full bg-gray-100 h-20 flex items-center justify-center text-5xl font-light hover:bg-gray-200">
-							<div class="px-6 py-3 text-lg font-medium flex flex-row items-center gap-2"><span class="text-5xl">+</span> {{ creatingEvent ? 'Creating…' : 'Add Event' }}</div>
+					<a
+						v-for="item in showCards"
+						:key="item.key"
+						:href="item.href"
+						class="group relative grid gap-8 px-0 md:px-4 p-4 items-center hover:bg-gray-100 rounded-2xl grid-cols-[4rem_auto] md:grid-cols-[16rem_30%_auto_auto_auto]"
+					>
+						<div class="h-24 overflow-hidden rounded-2xl bg-gray-300" :class="item.shape">
+							<img v-if="item.image" :src="`${imageUrl}${item.image}`" :alt="item.name" class="h-full w-full object-cover" />
 						</div>
-					</div>
+						<div>
+							<p class="text-3xl md:text-2xl font-medium break-words hyphens-auto">{{ item.name }}</p>
+							<p v-if="item.note" class="text-lg md:text-md leading-4 text-gray-500">{{ item.note }}</p>
+							<div class="flex md:hidden flex-row items-center mt-2">
+								<div :class="item.statusColor" class="w-4 h-4 rounded-full"></div>
+								<p class="text-lg font-medium text-gray-500 ml-4">{{ item.status }}</p>
+							</div>
+						</div>
+						<div class="hidden md:flex flex-row items-center">
+							<div :class="item.statusColor" class="w-4 h-4 rounded-full"></div>
+							<p class="text-lg font-medium text-gray-500 ml-4">{{ item.status }}</p>
+						</div>
+						<div class="hidden md:flex justify-center items-center">
+							<div v-if="item.count" class="bg-gray-100 px-4 py-2 rounded-full font-medium">{{ item.count }}</div>
+							<div v-else class="text-gray-400">-</div>
+						</div>
+						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+							 class="hidden md:block md:absolute right-6 top-1/2 transform -translate-y-1/2 w-8 h-8 opacity-0 group-hover:opacity-100"
+							 stroke-width="3">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+						</svg>
+					</a>
+				</div>
+
+				<!-- Events: the list as before, with its filters -->
+				<div v-if="tab === 'events'" class="hidden md:flex gap-4 flex-wrap mb-4">
 					<button 
 						v-for="filter in filters" 
 						:key="filter.id"
-						@click="currentFilter = filter.id"
+						@click="selectFilter(filter.id)"
 						:class="[
 							'px-6 py-3 rounded-full border text-lg font-medium transition-all',
 							currentFilter === filter.id 
@@ -62,10 +104,24 @@
 					>
 						{{ filter.name }} ({{ getFilteredEvents(filter.id).length }})
 					</button>
+					<!-- New event: a grey round plus after the filters; hovering opens it to show its words. -->
+					<button
+						type="button"
+						@click="createNewEvent"
+						:disabled="creatingEvent"
+						aria-label="New event"
+						class="group inline-flex items-center h-[4.4rem] min-w-[4.4rem] px-[1.1rem] rounded-full bg-[#f2f2f2] text-[#222222] hover:bg-[#ebebeb] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						<svg class="w-[2.2rem] h-[2.2rem] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="1.6" d="M12 4v16M4 12h16"/></svg>
+						<span
+							class="overflow-hidden whitespace-nowrap text-lg font-medium transition-all duration-200 max-w-0 group-hover:max-w-[14rem] group-hover:pl-3 group-hover:pr-2 group-focus-visible:max-w-[14rem] group-focus-visible:pl-3 group-focus-visible:pr-2"
+							:class="creatingEvent ? '!max-w-[14rem] pl-3 pr-2' : ''"
+						>{{ creatingEvent ? 'Creating…' : 'New event' }}</span>
+					</button>
 				</div>
 
 				<!-- Mobile dropdown -->
-				<div class="flex justify-between items-center md:hidden mb-16">
+				<div v-if="tab === 'events'" class="flex justify-between items-center md:hidden mb-16">
 					<h3 class="text-4xl md:text-5xl font-black leading-tight">Your Listings</h3>
 					<div class="flex gap-4">
 						<div @click="createNewEvent" :aria-busy="creatingEvent" class="flex" :class="creatingEvent ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'">
@@ -132,7 +188,7 @@
 			</div>
 
 			<!-- Event List Headers -->
-			<div class="w-full hidden md:block">
+			<div v-if="tab === 'events'" class="w-full hidden md:block">
 				<div class="grid gap-8 py-4 h-36 items-center grid-cols-[8rem_auto] md:grid-cols-[16rem_30%_auto_auto_auto]">
 					<h5 class="font-medium">Events</h5>
 					<div class="hidden md:block"></div>
@@ -141,14 +197,13 @@
 				</div>
 			</div>
 
-			<!-- Event List -->
-			<div class="w-full" v-if="organizer && filteredEvents.length">
-				<div v-for="event in filteredEvents"
-					 :key="event.id"
-					 @click="openModal(event)"
-					 class="block cursor-pointer">
-					<div class="group relative grid grid-cols-2 md:grid-cols-4 gap-8 px-0 md:px-4 p-4 items-center hover:bg-gray-100 rounded-2xl grid-cols-[4rem_auto] md:grid-cols-[16rem_30%_auto_auto_auto]">
-						<div class="aspect-[3/4] h-24 overflow-hidden">
+			<!-- Event List: each part of a row opens its own step (picture, name, dates);
+			     the dots open the old pop-up (duplicate, delete), the arrow the live page.
+			     A deleted event only opens the pop-up, where it can be restored. -->
+			<div class="w-full" v-if="tab === 'events' && organizer && filteredEvents.length">
+				<div v-for="event in filteredEvents" :key="event.id">
+					<div class="relative grid gap-8 px-0 md:px-4 p-4 items-center rounded-2xl grid-cols-[4rem_auto_auto] md:grid-cols-[16rem_30%_auto_auto_auto]">
+						<button type="button" class="aspect-[3/4] h-24 overflow-hidden rounded-2xl hover:opacity-80 transition-opacity" :aria-label="`Edit the picture of ${event.name || 'this event'}`" @click="rowAction(event, 'Images')">
 							<template v-if="event.images?.length > 0">
 								<picture>
 									<source :srcset="`${imageUrl}${event.images[0].large_image_path}`" type="image/webp">
@@ -168,12 +223,12 @@
 							<template v-else>
 								<div class="h-full w-full rounded-2xl bg-gray-300"></div>
 							</template>
-						</div>
-						<div class="">
-							<div class="flex items-center gap-2">
-								<p class="text-3xl md:text-2xl font-medium break-words hyphens-auto">{{ event.name }}</p>
+						</button>
+						<div class="min-w-0">
+							<button type="button" class="flex items-center gap-2 text-left hover:underline" @click="rowAction(event, 'Name')">
+								<span class="text-3xl md:text-2xl font-medium break-words hyphens-auto">{{ event.name || 'No name yet' }}</span>
 								<svg v-if="event.status === 'r'" 
-									 class="h-5 w-5 text-gray-500" 
+									 class="h-5 w-5 text-gray-500 flex-shrink-0" 
 									 fill="none" 
 									 viewBox="0 0 24 24" 
 									 stroke="currentColor">
@@ -182,17 +237,17 @@
 										  stroke-width="2" 
 										  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
 								</svg>
-							</div>
+							</button>
 							<p class="text-lg md:text-md leading-4 text-gray-500">last edited: {{ cleanDate(event.updated_at) }}</p>
-							<div class="flex md:hidden flex-row items-center mt-2">
+							<button type="button" class="flex md:hidden flex-row items-center mt-2 hover:underline" @click="rowAction(event, 'status')">
 								<div :class="getStatusInfo(event, cleanDate).color" class="w-4 h-4 rounded-full"></div>
 								<p class="text-lg font-medium text-gray-500 ml-4">{{ getStatusInfo(event, cleanDate).progress }}</p>
-							</div>
+							</button>
 						</div>
-						<div class="hidden md:flex flex-row items-center">
+						<button type="button" class="hidden md:flex flex-row items-center justify-self-start hover:underline" @click="rowAction(event, 'status')">
 							<div :class="getStatusInfo(event, cleanDate).color" class="w-4 h-4 rounded-full"></div>
 							<p class="text-lg font-medium text-gray-500 ml-4">{{ getStatusInfo(event, cleanDate).progress }}</p>
-						</div>
+						</button>
 						<div class="hidden md:flex justify-center items-center">
 							<div v-if="event.total_clicks" class="flex items-center justify-center">
 								<div class="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-full">
@@ -201,28 +256,21 @@
 							</div>
 							<div v-else class="text-gray-400">-</div>
 						</div>
-						<!-- SVG Icon, visible only on hover -->
-						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-							 class="hidden md:absolute right-6 top-1/2 transform -translate-y-1/2 w-8 h-8 opacity-0 group-hover:opacity-100"
-							 stroke-width="3">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
-						</svg>
+						<div class="flex items-center justify-end gap-2">
+							<button type="button" aria-label="More: duplicate or delete" class="w-12 h-12 rounded-full flex items-center justify-center hover:bg-gray-100" @click="openModal(event)">
+								<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+							</button>
+							<a v-if="isEventPublished(event) && !event.is_deleted" :href="event.public_url || `/events/${event.slug}`" aria-label="See it on the site" class="w-12 h-12 rounded-full flex items-center justify-center hover:bg-gray-100">
+								<svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+							</a>
+							<span v-else class="w-12 h-12" aria-hidden="true"></span>
+						</div>
 					</div>
 				</div>
 			</div>
 
-			<div v-else-if="organizer && organizer.events && !filteredEvents.length" 
-				 class="py-12">
-				<button 
-					@click="createNewEvent"
-					:disabled="creatingEvent"
-					class="inline-flex items-center px-8 py-4 border border-black rounded-full hover:bg-gray-800 hover:text-white gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-				>
-					<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-					</svg>
-					{{ creatingEvent ? 'Creating…' : 'Create New Event' }}
-				</button>
+			<div v-else-if="tab === 'events' && organizer && organizer.events && !filteredEvents.length" class="py-12">
+				<p class="text-xl text-neutral-500">No events here yet.</p>
 			</div>
 		</div>
 
@@ -308,12 +356,6 @@
 							class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
 							{{ duplicatingEvent ? 'Duplicating…' : 'Duplicate Event' }}
 						</button>
-						<a
-							v-if="selectedEvent.status !== 'r'"
-							:href="`/hosting/event/${selectedEvent.slug}/credits`"
-							class="w-full text-lg px-6 py-3 border border-black rounded-xl hover:bg-gray-100 text-center">
-							Credits
-						</a>
 						<button 
 							@click="confirmRemoveEvent(selectedEvent)"
 							:disabled="deletingEvent || duplicatingEvent"
@@ -390,7 +432,7 @@
 						</h3>
 
 						<p class="mt-[1.6rem] text-[1.6rem] text-gray-500 leading-[1.5] max-w-[42rem] mx-auto">
-							If you wish to add new dates to your event, please duplicate it. The copy asks to join the same show, so you only need the show's title.
+							If you wish to add new dates to your event, please duplicate it. The copy asks to join the same project, so you only need the project's title.
 						</p>
 
 						<button
@@ -412,13 +454,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import dayjs from 'dayjs';
 import { RiCloseCircleFill } from "@remixicon/vue";
 import axios from 'axios';
 
 const props = defineProps({
 	organizer: Object,
+	orgInNav: { type: Boolean, default: false },
 	user: Object,
 });
 
@@ -431,7 +474,16 @@ const imageUrl = import.meta.env.VITE_IMAGE_URL;
 const selectedEvent = ref(null);
 const showSubmissionModal = ref(false);
 const submittedEventName = ref('');
-const currentFilter = ref('active');
+// Active / Past / Deleted is remembered in this browser, so coming back lands on the same list.
+const FILTER_KEY = 'hosting.eventFilter';
+const savedFilter = (() => {
+	try {
+		return localStorage.getItem(FILTER_KEY);
+	} catch {
+		return null;
+	}
+})();
+const currentFilter = ref(['active', 'past', 'archived'].includes(savedFilter) ? savedFilter : 'active');
 const filters = [
 	{ id: 'active', name: 'Active Events' },
 	{ id: 'past', name: 'Past Events' },
@@ -494,6 +546,30 @@ const editEvent = (event) => {
 	const editUrl = statusInfo.url || `/hosting/event/${event.slug}/edit`;
 	
 	window.location.href = editUrl;
+};
+
+// A row's parts each open their own step. Deleted events only open the pop-up
+// (to restore); the same guards as Edit apply (under review, 90-day lock).
+const rowAction = (event, view) => {
+	if (event.is_deleted) {
+		openModal(event);
+		return;
+	}
+	if (event.status === 'r' && !props.user?.isModerator) {
+		alert('This event is under review and cannot be edited.');
+		return;
+	}
+	if (event.isEditLocked) {
+		openLockedModal(event);
+		return;
+	}
+	if (view === 'status') {
+		// The status says what is next (a missing step, or new dates): go there.
+		const info = getStatusInfo(event, cleanDate);
+		window.location.href = info.url || `/hosting/event/${event.slug}/edit?view=${info.view || 'Dates'}`;
+		return;
+	}
+	window.location.href = `/hosting/event/${event.slug}/edit?view=${view}`;
 };
 
 const confirmRemoveEvent = async (event) => {
@@ -619,6 +695,10 @@ const createNewEvent = async () => {
 	}
 };
 
+// The top bar menu's "Create new event" card asks this page to do it.
+window.addEventListener('hosting-create-event', createNewEvent);
+onUnmounted(() => window.removeEventListener('hosting-create-event', createNewEvent));
+
 // Helper function to check if an event is past
 const isPastEvent = (event) => {
 	// Don't show deleted events in past
@@ -675,8 +755,45 @@ const filteredEvents = computed(() => {
 
 const selectFilter = (id) => {
 	currentFilter.value = id;
+	try {
+		localStorage.setItem(FILTER_KEY, id);
+	} catch {
+		// Private windows can refuse; the list still switches.
+	}
 	isOpen.value = false;
 };
+
+// Airbnb-style pill tabs. Show runs only appear when there are some; venues live under the menu's Your venues.
+const shows = computed(() => props.organizer?.kept_projects ?? []);
+const tabs = computed(() => [
+	{ id: 'events', name: 'Events' },
+	...(shows.value.length ? [{ id: 'shows', name: 'Show Runs' }] : []),
+]);
+
+// The tab is kept in the address, so going back or reloading lands on it.
+const tabFromUrl = new URLSearchParams(window.location.search).get('tab');
+const tab = ref(tabs.value.some((item) => item.id === tabFromUrl) ? tabFromUrl : 'events');
+
+const setTab = (id) => {
+	tab.value = id;
+	const url = new URL(window.location);
+	url.searchParams.set('tab', id);
+	window.history.replaceState({}, '', url);
+};
+
+
+const showCards = computed(() => shows.value.map((show) => ({
+	key: `show-${show.id}`,
+	name: show.name,
+	note: show.pending_requests ? `${show.pending_requests} asking to join` : null,
+	image: show.largeImagePath,
+	shape: 'aspect-[3/4]',
+	status: show.pending_requests ? 'Needs your answer' : 'Live',
+	statusColor: show.pending_requests ? 'bg-yellow-300' : 'bg-green-500',
+	count: show.runs_count,
+	href: `/hosting/projects/${show.slug}/edit`,
+})));
+
 
 // The event an organizer just tried to edit or delete after its run ended
 // more than 90 days ago. isEditLocked is the SERVER's answer, appended to

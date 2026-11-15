@@ -50,7 +50,7 @@ class Credit extends Model
         }
 
         if ($creditable instanceof Event && $writing && $creditable->project_id !== null) {
-            throw new LogicException('A linked run holds no writers; they belong to its show.');
+            throw new LogicException('A linked run holds no writers; they belong to its project.');
         }
     }
 

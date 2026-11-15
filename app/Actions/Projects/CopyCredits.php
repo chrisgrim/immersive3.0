@@ -34,7 +34,7 @@ class CopyCredits
         $readable = $from->status === Event::STATUS_PUBLISHED || $actor->can('manage', $from);
 
         if (! $actor->isModerator() && ($to->project_id === null || $from->project_id !== $to->project_id || ! $readable)) {
-            throw ValidationException::withMessages(['from_event_id' => 'Credits can be copied only from another run of the same show.']);
+            throw ValidationException::withMessages(['from_event_id' => 'Credits can be copied only from another run of the same project.']);
         }
 
         return DB::transaction(function () use ($from, $to, $actor) {

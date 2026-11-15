@@ -10,12 +10,32 @@
     @if (Browser::isMobile())
         <vue-nav-bar-mobile :user="user"></vue-nav-bar-mobile>
     @else
-        @include('nav.nav-limited')
+        @include('nav.nav-limited', ['hosting' => ['name' => $organizer->name, 'slug' => $organizer->slug, 'thumbImagePath' => $organizer->thumbImagePath]])
     @endif
     
 @endsection
 
 @section('content')
+    @if(($viewingAs ?? null) === 'staff')
+        {{-- A moderator looking at another organization's listings: nothing about their own account changed. --}}
+        <div class="bg-neutral-900 text-white">
+            <div class="max-w-screen-5xl mx-auto py-3 px-8 lg-air:px-16 2xl-air:px-32 flex items-center justify-between gap-4">
+                <p class="text-lg font-medium text-white transform-none">Viewing {{ $organizer->name }} as staff. You are not added to it, and your own organization stays active.</p>
+                <a href="{{ route('hosting.dashboard') }}" class="text-lg font-medium underline whitespace-nowrap">Back to yours</a>
+            </div>
+        </div>
+    @elseif(($viewingAs ?? null) === 'member')
+        {{-- One of the person's own organizations, but not the active one: say so, and offer the switch (a POST). --}}
+        <div class="bg-neutral-100 border-b border-neutral-200">
+            <div class="max-w-screen-5xl mx-auto py-3 px-8 lg-air:px-16 2xl-air:px-32 flex items-center justify-between gap-4">
+                <p class="text-lg font-medium text-[#222222] transform-none">You are looking at {{ $organizer->name }}. It is not your active organization.</p>
+                <form method="POST" action="{{ route('teams.switch', $organizer) }}">
+                    @csrf
+                    <button type="submit" class="text-lg font-medium underline whitespace-nowrap">Make it active</button>
+                </form>
+            </div>
+        </div>
+    @endif
     @if($organizer->status === 'r')
         <div class="bg-amber-50 border-b border-amber-200">
             <div class="max-w-screen-xl mx-auto py-3 px-8">
@@ -48,7 +68,7 @@
         </div>
     @endif
     
-    <vue-hosting :organizer="{{$organizer}}" :user="user" />
+    <vue-hosting :organizer="{{$organizer}}" :user="user" :org-in-nav="{{ Browser::isMobile() ? 'false' : 'true' }}" />
 
 @endsection
 

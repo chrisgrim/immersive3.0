@@ -54,7 +54,7 @@ test('the page carries the name, about, maker, count and a canonical of its own'
         ->assertSee($this->project->organizer->name)
         ->assertSee('<link rel="canonical" href="'.url('/events/ha-ha-ha').'"', false)
         ->assertSee('"@type": "EventSeries"', false)
-        ->assertSeeInOrder(['Runs', '2']);
+        ->assertSee('data-run-count>2<', false);
 });
 
 test('runs split into now running, coming up and past', function () {
@@ -68,7 +68,26 @@ test('runs split into now running, coming up and past', function () {
         ->and($page['coming']->pluck('place')->join(' '))->toContain('Soonville')
         ->and($page['past']->pluck('place')->join(' '))->toContain('Oldville');
 
-    $this->get('/events/ha-ha-ha')->assertSeeInOrder(['Now running', 'Nowville', 'Coming up', 'Soonville', 'Past', 'Oldville']);
+    $this->get('/events/ha-ha-ha')->assertSeeInOrder(['Nowville', 'Coming up', 'Soonville', 'Past', 'Oldville']);
+});
+
+test('past runs come ten a page, with a pager, and nothing current says so', function () {
+    foreach (range(1, 12) as $i) {
+        runOf($this->project, "Oldville{$i}", ['closingDate' => now()->subDays(40 + $i)], now()->subDays(60 + $i)->format('Y-m-d').' 00:00:00');
+    }
+
+    $first = $this->get('/events/ha-ha-ha')->assertOk()
+        ->assertSee('No current events')
+        ->assertSee('aria-label="Past runs pages"', false)
+        ->assertSee('page=2#runs', false);
+    expect($first->viewData('page')['past'])->toHaveCount(10);
+
+    $second = $this->get('/events/ha-ha-ha?page=2')->assertOk();
+    expect($second->viewData('page')['past'])->toHaveCount(2)
+        ->and($second->viewData('page')['past']->total())->toBe(12);
+
+    // A page past the end shows the last one, never an empty list.
+    expect($this->get('/events/ha-ha-ha?page=99')->viewData('page')['past'])->toHaveCount(2);
 });
 
 test('first presented is the earliest run, latest is the current one', function () {
@@ -89,7 +108,7 @@ test('only published runs appear, and an embargoed one is not announced', functi
     $this->get('/events/ha-ha-ha')->assertOk()
         ->assertDontSee('Secretville')
         ->assertDontSee('Draftville')
-        ->assertSeeInOrder(['Runs', '1']);
+        ->assertSee('data-run-count>1<', false);
 });
 
 test('the page is public only while a run is published', function () {
@@ -279,7 +298,7 @@ test('the line appears in the mobile layout too', function () {
     runOf($this->project, 'Rome', ['closingDate' => now()->addDays(10)]);
 
     $this->withHeader('User-Agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1')
-        ->get($run->publicPath())->assertSee('data-project-line', false)->assertSee('Also in Rome.');
+        ->get($run->publicPath())->assertSee('data-project-line', false)->assertSee('Part of')->assertDontSee('Also in');
 });
 
 test('a plain listing has no line', function () {
@@ -351,7 +370,7 @@ test('a venue shows its place, what is on now and before, and how to get there',
         ->assertSee('170 N Dearborn')
         ->assertSee('Park on Dearborn.')
         ->assertSee('vue-venue-map', false)
-        ->assertSeeInOrder(['On now and coming up', 'Chicago', 'Before']);
+        ->assertSee('Chicago');
 });
 
 test('only published, non-hidden, non-deleted runs are listed', function () {

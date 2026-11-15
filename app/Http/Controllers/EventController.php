@@ -115,6 +115,18 @@ class EventController extends Controller
         $request->attributes->set('analytics.path', $project->publicPath());
         $request->attributes->set('analytics.organizer_id', $project->organizer_id);
 
+        // A long-running show can have dozens of past runs: ten a page.
+        $past = $page['past'];
+        $perPage = 10;
+        $current = max(1, min((int) $request->query('page', 1), max(1, (int) ceil($past->count() / $perPage))));
+        $page['past'] = new \Illuminate\Pagination\LengthAwarePaginator(
+            $past->forPage($current, $perPage)->values(),
+            $past->count(),
+            $perPage,
+            $current,
+            ['path' => $request->url(), 'fragment' => 'runs'],
+        );
+
         return view('projects.show', ['project' => $project, 'page' => $page]);
     }
 

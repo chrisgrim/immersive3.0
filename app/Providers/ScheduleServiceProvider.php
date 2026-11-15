@@ -73,6 +73,13 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->then(fn () => \Illuminate\Support\Facades\Artisan::call('ei:analytics-warm'))
                 ->when(fn () => \App\Support\Google\SearchConsole::configured());
 
+            // Drafts made by "New event" and never filled in at all, after 3 days.
+            // Every removed id goes to the log.
+            $schedule->command('ei:prune-blank-drafts')
+                ->dailyAt('03:35')
+                ->withoutOverlapping()
+                ->appendOutputTo(storage_path('logs/prune-blank-drafts.log'));
+
             $schedule->command('ei:archive-clicks')
                 ->dailyAt('03:30')
                 ->withoutOverlapping()

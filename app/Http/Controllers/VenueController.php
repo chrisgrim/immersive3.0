@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Event;
 use App\Models\SlugRedirect;
 use App\Models\Venue;
+use App\Models\VenueClaim;
 use App\Support\Projects\InstanceAddress;
 use App\Support\Projects\RunRow;
 
@@ -42,7 +43,7 @@ class VenueController extends Controller
             ->where('status', Event::STATUS_PUBLISHED)
             ->where('hasLocation', true)
             ->whereHas('location', fn ($query) => $query->where('venue_id', $found->id)->where('hiddenLocationToggle', false))
-            ->with(['organizer:id,name,slug,status', 'location', 'remotelocations', 'images'])
+            ->with(['organizer:id,name,slug,status,thumbImagePath', 'location', 'remotelocations', 'images'])
             ->get();
 
         InstanceAddress::primeFirstDays($rows);
@@ -51,8 +52,32 @@ class VenueController extends Controller
 
         return view('venues.show', [
             'venue' => $found,
+            'claim' => $this->claimOffer($found),
             'current' => $rows->where('bucket', '!=', RunRow::PAST)->sortBy('start')->values(),
             'before' => $rows->where('bucket', RunRow::PAST)->sortByDesc('start')->values(),
         ]);
+    }
+
+    /**
+     * What the "Claim this venue" button needs, or null when it should not show:
+     * a venue already claimed, or someone who can already edit it.
+     */
+    private function claimOffer(Venue $venue): ?array
+    {
+        if (! $venue->isClaimable()) {
+            return null;
+        }
+
+        $user = auth()->user();
+        if ($user?->can('update', $venue)) {
+            return null;
+        }
+
+        return [
+            'slug' => $venue->slug,
+            'name' => $venue->name,
+            'signed_in' => (bool) $user,
+            'pending' => $user ? $venue->claims()->where('user_id', $user->id)->where('status', VenueClaim::PENDING)->exists() : false,
+        ];
     }
 }

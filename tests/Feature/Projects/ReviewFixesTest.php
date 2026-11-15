@@ -529,6 +529,19 @@ test('a moderator sets a venue\'s picture, and replacing it clears the old one',
     $this->get('/venues/the-hall')->assertSee($venue->fresh()->largeImagePath);
 });
 
+test('setting the main picture leaves the rest of the venue\'s photos alone', function () {
+    $venue = Venue::factory()->create(['name' => 'The Hall']);
+    foreach ([1, 2, 3] as $rank) {
+        $venue->images()->create(['large_image_path' => "venue-images/the-hall/extra-{$rank}.webp", 'thumb_image_path' => "venue-images/the-hall/extra-{$rank}-thumb.webp", 'rank' => $rank]);
+    }
+
+    $this->actingAs($this->moderator)
+        ->post('/api/admin/venues/the-hall/image', ['image' => UploadedFile::fake()->image('main.jpg', 1200, 800)], ['Accept' => 'application/json'])->assertOk();
+
+    expect($venue->images()->where('rank', '>', 0)->count())->toBe(3)
+        ->and($venue->images()->where('rank', 0)->count())->toBe(1);
+});
+
 test('only a moderator, and only a picture', function () {
     Venue::factory()->create(['name' => 'The Hall']);
 

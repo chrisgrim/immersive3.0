@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\NameChangeRequest;
-use Illuminate\Http\Request;
-use App\Services\NameChangeRequestService;
-use Illuminate\Support\Facades\Mail;
 use App\Mail\NameChangeNotification;
+use App\Models\NameChangeRequest;
+use App\Services\NameChangeRequestService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class AdminRequestsController extends Controller
 {
@@ -41,48 +41,49 @@ class AdminRequestsController extends Controller
                         'email' => $request->user->email,
                     ],
                 ];
-            })
+            }),
         ]);
     }
 
     public function approve(NameChangeRequest $request)
     {
         $result = $this->nameChangeService->processAdminDirectChange(
-            $request->requestable, 
+            $request->requestable,
             $request->requested_name
         );
 
         if ($result['success']) {
             $request->update(['status' => 'approved']);
+
             return response()->json([
                 'message' => 'Name change request approved successfully',
-                'requiresRefresh' => $result['requiresRefresh']
+                'requiresRefresh' => $result['requiresRefresh'],
             ]);
         }
 
         return response()->json([
-            'message' => $result['message'] ?? 'Failed to approve name change request'
+            'message' => $result['message'] ?? 'Failed to approve name change request',
         ], 422);
     }
 
     public function reject(Request $httpRequest, NameChangeRequest $request)
-    {        
+    {
         $request->update([
             'status' => 'rejected',
-            'reason' => $httpRequest->reason
+            'reason' => $httpRequest->reason,
         ]);
-        
+
         try {
             Mail::to($request->user)->queue(new NameChangeNotification($request, false));
         } catch (\Exception $e) {
             report($e);
             \Log::error('Failed to send rejection notification:', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
-        
+
         return response()->json([
-            'message' => 'Name change request rejected successfully'
+            'message' => 'Name change request rejected successfully',
         ]);
     }
 }

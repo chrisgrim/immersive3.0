@@ -72,8 +72,8 @@ test('the keeper edits the page, but not its maker or address', function () {
 });
 
 test('a new main image lands in the project\'s own folder', function () {
-    $this->actingAs($this->keeper)->post('/hosting/projects/ha-ha-ha', [
-        'image' => UploadedFile::fake()->image('show.jpg', 900, 1300),
+    $this->actingAs($this->keeper)->post('/hosting/projects/ha-ha-ha/photos', [
+        'images' => [UploadedFile::fake()->image('show.jpg', 900, 1300)], 'ranks' => [0],
     ], ['Accept' => 'application/json'])->assertOk();
 
     expect($this->project->fresh()->largeImagePath)->toStartWith('project-images/ha-ha-ha/')
@@ -437,4 +437,75 @@ test('someone on no team cannot, a curator can', function () {
     $this->actingAs(User::factory()->create(['type' => 'u']))->getJson('/api/artists/search?keywords=Jo')->assertForbidden();
     $this->actingAs(User::factory()->create(['type' => 'u']))->postJson('/api/artists', ['name' => 'X'])->assertForbidden();
     $this->actingAs(User::factory()->create(['type' => 'c']))->postJson('/api/artists', ['name' => 'X'])->assertCreated();
+});
+
+test('the keeper sees the edit button on the show page, others do not', function () {
+    $this->actingAs($this->keeper)->get('/events/ha-ha-ha')->assertSee('Edit this project');
+    $this->actingAs($this->stranger)->get('/events/ha-ha-ha')->assertDontSee('Edit this project');
+    auth()->logout();
+    $this->get('/events/ha-ha-ha')->assertDontSee('Edit this project');
+});
+
+test('the keeper keeps one photo, which leads the page', function () {
+    $file = fn () => UploadedFile::fake()->image('show.jpg', 900, 1200);
+
+    $this->actingAs($this->keeper)->post('/hosting/projects/ha-ha-ha/photos', [
+        'images' => [$file()], 'ranks' => [0],
+    ], ['Accept' => 'application/json'])->assertOk()->assertJsonCount(1, 'photos');
+
+    $photo = $this->project->images()->sole();
+    expect($this->project->fresh()->largeImagePath)->toBe($photo->large_image_path);
+
+    // A second one is refused while the first is kept.
+    $this->actingAs($this->keeper)->post('/hosting/projects/ha-ha-ha/photos', [
+        'images' => [$file()], 'ranks' => [0], 'currentImages' => json_encode([['id' => $photo->id, 'rank' => 0]]),
+    ], ['Accept' => 'application/json'])->assertUnprocessable();
+
+    $this->actingAs($this->stranger)->post('/hosting/projects/ha-ha-ha/photos', ['deletedImages' => '[]'], ['Accept' => 'application/json'])->assertForbidden();
+});
+
+test('an organizer page opens its own listings: a member looks and may switch by POST, staff look without joining', function () {
+    $other = \App\Models\Organizer::factory()->create(['status' => 'p', 'name' => 'Other Co']);
+    $member = User::factory()->create(['type' => 'u']);
+    $home = \App\Models\Organizer::factory()->create(['status' => 'p']);
+    $home->users()->attach($member->id, ['role' => 'member']);
+    $other->users()->attach($member->id, ['role' => 'member']);
+    $member->forceFill(['current_team_id' => $home->id])->save();
+
+    // Looking changes nothing; the switch is its own POST.
+    $this->actingAs($member)->get("/hosting/events?organizer={$other->slug}")->assertOk()
+        ->assertSee('It is not your active organization')
+        ->assertViewHas('organizer', fn ($organizer) => $organizer->id === $other->id);
+    expect($member->fresh()->current_team_id)->toBe($home->id);
+    $this->actingAs($member)->get("/hosting/events?organizer={$home->slug}")->assertRedirect(route('hosting.dashboard'));
+    $this->actingAs($member)->post("/teams/switch/{$other->slug}")->assertRedirect();
+    expect($member->fresh()->current_team_id)->toBe($other->id);
+
+    $moderator = User::factory()->create(['type' => 'm']);
+    $this->actingAs($moderator)->get("/hosting/events?organizer={$other->slug}")->assertOk()
+        ->assertSee('Viewing Other Co as staff')
+        ->assertViewHas('organizer', fn ($organizer) => $organizer->id === $other->id);
+    expect($moderator->fresh()->current_team_id)->toBeNull()
+        ->and($other->users()->whereKey($moderator->id)->exists())->toBeFalse();
+
+    $stranger = User::factory()->create(['type' => 'u']);
+    $home->users()->attach($stranger->id, ['role' => 'member']);
+    $this->actingAs($stranger)->get("/hosting/events?organizer={$other->slug}")->assertForbidden();
+});
+
+test('an older event with only its picture path gets that picture as its main image when edited', function () {
+    $event = \App\Models\Event::factory()->create(['largeImagePath' => 'event-images/old/old.webp', 'thumbImagePath' => 'event-images/old/old-thumb.webp']);
+    $moderator = User::factory()->create(['type' => 'm']);
+
+    $this->actingAs($moderator)->get("/hosting/event/{$event->slug}/edit")->assertOk();
+    $this->actingAs($moderator)->get("/hosting/event/{$event->slug}/edit")->assertOk();
+
+    $image = $event->images()->sole();
+    expect($image->large_image_path)->toBe('event-images/old/old.webp')
+        ->and($image->rank)->toBe(0);
+
+    // An old event with no thumb borrows the large picture rather than failing.
+    $thumbless = \App\Models\Event::factory()->create(['largeImagePath' => 'event-images/older/older.webp', 'thumbImagePath' => null]);
+    $this->actingAs($moderator)->get("/hosting/event/{$thumbless->slug}/edit")->assertOk();
+    expect($thumbless->images()->sole()->thumb_image_path)->toBe('event-images/older/older.webp');
 });

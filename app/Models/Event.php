@@ -927,7 +927,7 @@ class Event extends Model
      * What an organizer is told wherever the lock is hit on the website. The
      * dashboard's modal (Creation/index.vue) carries the same words.
      */
-    public const EDIT_LOCKED_MESSAGE = 'Trying to edit an event that is over 90 days old? If you wish to add new dates to your event, please duplicate it. The copy asks to join the same show, so you only need the show\'s title. This helps us preserve the historical record of past events. Need help? Contact us at: support@everythingimmersive.com';
+    public const EDIT_LOCKED_MESSAGE = 'Trying to edit an event that is over 90 days old? If you wish to add new dates to your event, please duplicate it. The copy asks to join the same project, so you only need the project\'s title. This helps us preserve the historical record of past events. Need help? Contact us at: support@everythingimmersive.com';
 
     /**
      * Whether the event has left its edit window: published (or embargoed,

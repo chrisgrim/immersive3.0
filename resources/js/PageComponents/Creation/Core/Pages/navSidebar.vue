@@ -20,8 +20,9 @@
                     <path d="M12 19l-7-7 7-7"/>
                 </svg>
             </button>
+            <!-- Back to this event's own organization's listings, not whichever one is active. -->
             <a 
-            href="/hosting/events" 
+            :href="event.organizer?.slug ? `/hosting/events?organizer=${event.organizer.slug}` : '/hosting/events'" 
             class="cursor-pointer flex-shrink-0">
                 <div class="rounded-full bg-neutral-100 w-16 h-16 flex items-center justify-center hover:bg-neutral-200">
                     <svg 

@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\AdminGenreController;
 use App\Http\Controllers\Admin\AdminLinkRequestController;
 use App\Http\Controllers\Admin\AdminOrganizerController;
 use App\Http\Controllers\Admin\AdminOwnershipClaimController;
+use App\Http\Controllers\Admin\AdminVenueClaimController;
 use App\Http\Controllers\Admin\AdminProjectController;
 use App\Http\Controllers\Admin\AdminRequestsController;
 use App\Http\Controllers\Admin\AdminReviewController;
@@ -41,6 +42,7 @@ use App\Http\Controllers\NotificationFeedController;
 use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\OrganizerController;
 use App\Http\Controllers\OwnershipClaimController;
+use App\Http\Controllers\Api\VenueClaimController;
 use App\Http\Controllers\Profile\ProfileExtrasController;
 use App\Http\Controllers\SavedSearchController;
 use App\Http\Controllers\Search\EventAttributesController;
@@ -118,6 +120,8 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     Route::GET('/venues/search', [VenueController::class, 'search']);
     Route::GET('/venues/match', [VenueController::class, 'match']);
     Route::POST('/venues', [VenueController::class, 'store']);
+    // The real venue asks for its page (VenueClaims)
+    Route::POST('/venues/{venue}/claim', [VenueClaimController::class, 'store'])->middleware('throttle:10,60');
 
     Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])
         ->middleware('can:manage,event')
@@ -410,6 +414,13 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
                 Route::POST('/claims/{claim}/reject', 'reject');
             });
 
+            // Venue claims, in the same Requests queue
+            Route::controller(AdminVenueClaimController::class)->group(function () {
+                Route::GET('/venue-claims', 'index');
+                Route::POST('/venue-claims/{claim}/approve', 'approve');
+                Route::POST('/venue-claims/{claim}/reject', 'reject');
+            });
+
             // Event suggestions from the public footer form
             Route::controller(AdminEventSuggestionController::class)->group(function () {
                 Route::GET('/suggestions', 'index');
@@ -512,7 +523,9 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
             Route::GET('/venues', 'index');
             Route::PATCH('/venues/{venue}', 'update');
             Route::POST('/venues/{venue}/image', 'image');
+            Route::GET('/venues/{venue}', 'show');
             Route::POST('/venues/{venue}/approve', 'approve');
+            Route::POST('/venues/{venue}/question', 'question');
             Route::POST('/venues/{venue}/merge', 'merge');
         });
 

@@ -38,6 +38,8 @@ class RunRow
             'run_type' => RunType::tryFrom((string) $run->run_type)?->label(),
             'festival' => $run->festival,
             'image' => $run->images->firstWhere('rank', 0)?->thumb_image_path ?? $run->thumbImagePath,
+            // The card grids show the full picture; the thumb is too small for them.
+            'large_image' => $run->images->firstWhere('rank', 0)?->large_image_path ?? $run->largeImagePath,
         ];
     }
 

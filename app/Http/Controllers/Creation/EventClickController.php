@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Creation;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Event;
 use App\Models\TrackClick;
 use App\Support\Analytics\Analytics;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
 class EventClickController extends Controller
@@ -14,7 +14,6 @@ class EventClickController extends Controller
     /**
      * Track a click on an event
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $eventId
      * @return \Illuminate\Http\Response
      */
@@ -71,24 +70,23 @@ class EventClickController extends Controller
      * Get click statistics for an event
      *
      * @param  int  $eventId
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
     public function getStats($eventId, Request $request)
     {
         // Ensure the user has permission to view these stats (event owner, organizer, or admin)
         $event = Event::findOrFail($eventId);
-        
+
         $this->authorize('viewClickStats', $event);
-        
+
         // Determine if detailed stats should be included (admin users or explicit request)
-        $includeDetailed = $request->has('detailed') || 
+        $includeDetailed = $request->has('detailed') ||
                          (auth()->check() && (auth()->user()->isAdmin() || auth()->user()->isModerator()));
-        
+
         $stats = [
             'total' => TrackClick::where('event_id', $eventId)->count(),
         ];
-        
+
         // Include detailed stats for admins or when explicitly requested
         if ($includeDetailed) {
             $stats = array_merge($stats, [
@@ -98,7 +96,7 @@ class EventClickController extends Controller
                     ->count('user_id'),
             ]);
         }
-        
+
         // Always include daily stats
         $stats['daily'] = TrackClick::where('event_id', $eventId)
             ->where('created_at', '>=', now()->subDays(30))
@@ -106,7 +104,7 @@ class EventClickController extends Controller
             ->groupBy('date')
             ->orderBy('date')
             ->get();
-        
+
         return response()->json($stats);
     }
 }

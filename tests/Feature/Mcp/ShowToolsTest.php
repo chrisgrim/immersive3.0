@@ -142,7 +142,7 @@ test('a refusal reads as an error, not a crash', function () {
     $first = publishedListing('First', 'Rome');
 
     asMod($this)->tool(LinkEventToProject::class, ['event_slug' => $draft->slug, 'source_event_slug' => $first->slug])
-        ->assertHasErrors()->assertSee('joins a show once it is approved');
+        ->assertHasErrors()->assertSee('joins a project once it is approved');
 });
 
 test('copy-credits adds and never replaces', function () {

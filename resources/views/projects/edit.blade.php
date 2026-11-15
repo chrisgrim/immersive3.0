@@ -15,7 +15,7 @@
 
 @section('content')
     <div>
-        <vue-project-edit :project="pageData.project"></vue-project-edit>
+        <vue-project-edit :project="pageData.project" :user="user"></vue-project-edit>
     </div>
 @endsection
 

@@ -118,8 +118,9 @@
                             </div>
                         </a>
                         <!-- New button with three lines and dots -->
+                        <!-- This organization's listings: a member switches to it, staff look without joining. -->
                         <a 
-                            href="/hosting/events" 
+                            :href="`/hosting/events?organizer=${organizer.slug}`" 
                             class="cursor-pointer"
                         >
                             <div class="rounded-full bg-gray-100 w-20 h-20 flex items-center justify-center hover:bg-gray-200">

@@ -5,6 +5,7 @@ namespace App\Support\Projects;
 use App\Models\Event;
 use App\Models\Project;
 use App\Scopes\LatestPublishedFirstScope;
+use Carbon\Carbon;
 
 /**
  * The listing page's "Part of Ha Ha Ha. Also in New York and on Zoom." "Also
@@ -30,7 +31,7 @@ class ProjectLine
         'video conferencing' => 'by video call',
     ];
 
-    /** @return array{project: Project, also: ?string}|null */
+    /** @return array{project: Project, also: ?string, runs: \Illuminate\Support\Collection}|null */
     public static function for(Event $event): ?array
     {
         $project = $event->project;
@@ -44,13 +45,50 @@ class ProjectLine
             ->whereKeyNot($event->id)
             ->where('status', Event::STATUS_PUBLISHED)
             ->stillRunning()
-            ->with(['location', 'remotelocations'])
+            ->with(['organizer:id,name,slug,status', 'location', 'remotelocations', 'images'])
             ->orderBy('closingDate')
             ->orderBy('id')
             ->limit(20)
             ->get();
 
-        return ['project' => $project, 'also' => self::phrase($others)];
+        InstanceAddress::primeFirstDays($others);
+        $runs = $others->map(fn (Event $run) => RunRow::for($run, $project->name))->values();
+
+        // The whole show at a glance: this run with the others still on.
+        $all = $event->status === Event::STATUS_PUBLISHED ? $others->concat([$event]) : $others;
+
+        return [
+            'project' => $project,
+            'also' => self::phrase($others),
+            // The other runs on now or coming up, as cards under the listing's facts.
+            'runs' => $runs,
+            'range' => self::range($event, $others, $runs),
+            'from' => ProjectPage::fromPrices($all),
+        ];
+    }
+
+    /** "Sep 2024 to Sep 2027": first day to last across this run and the others still on. */
+    private static function range(Event $event, $others, $runs): ?string
+    {
+        $starts = $runs->pluck('start');
+        $ends = $others->pluck('closingDate');
+
+        if ($event->closingDate) {
+            $starts->push(InstanceAddress::startDay($event));
+            $ends->push($event->closingDate);
+        }
+
+        $first = $starts->filter()->min();
+        $last = $ends->filter()->max();
+
+        if (! $first || ! $last) {
+            return null;
+        }
+
+        $first = Carbon::parse($first)->format('M Y');
+        $last = Carbon::parse($last)->format('M Y');
+
+        return $first === $last ? $first : $first.' to '.$last;
     }
 
     private static function phrase($runs): ?string

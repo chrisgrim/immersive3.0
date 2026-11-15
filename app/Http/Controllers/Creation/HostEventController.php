@@ -10,6 +10,7 @@ use App\Models\Event;
 use App\Models\Organizer;
 use App\Services\NameChangeRequestService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 
@@ -52,6 +53,25 @@ class HostEventController extends Controller
             return redirect()->route('hosting.dashboard', ['locked' => $event->slug]);
         }
 
+        // Older events keep their picture only on the event row (largeImagePath),
+        // from before pictures had their own rows. The image step reads the rows,
+        // so it showed an empty box. Give that picture its row once, as the main one.
+        // Locked on the event row, so two tabs opening at once make one row, not two.
+        if ($event->largeImagePath && ! $event->images()->exists()) {
+            DB::transaction(function () use ($event) {
+                Event::whereKey($event->id)->lockForUpdate()->first();
+
+                if (! $event->images()->exists()) {
+                    $event->images()->create([
+                        'large_image_path' => $event->largeImagePath,
+                        // The column is required; an old row without a thumb uses the large picture.
+                        'thumb_image_path' => $event->thumbImagePath ?: $event->largeImagePath,
+                        'rank' => 0,
+                    ]);
+                }
+            });
+        }
+
         $event->load([
             'shows',
             'tickets',
@@ -69,6 +89,8 @@ class HostEventController extends Controller
             'category',
             'genres',
             'videos',
+            // Its organizer's slug: the list button goes back to that organization's listings.
+            'organizer',
             'nameChangeRequests' => function ($query) {  // Add this relationship
                 $query->where('status', 'pending')->latest();
             },

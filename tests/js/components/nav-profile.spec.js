@@ -66,9 +66,9 @@ describe('nav-profile.vue', () => {
         it('opens a menu with a Login / Sign Up entry when toggled', async () => {
             // toggle dropdown open by clicking the avatar circle
             await wrapper.find('.cursor-pointer').trigger('click');
-            const menu = wrapper.find('ul');
+            const menu = wrapper.find('aside');
             expect(menu.exists()).toBe(true);
-            expect(menu.text()).toContain('Login / Sign Up');
+            expect(menu.text()).toContain('Log in or sign up');
             // guest menu has no Logout / Communities entries
             expect(menu.text()).not.toContain('Logout');
             expect(menu.text()).not.toContain('Communities');
@@ -100,9 +100,9 @@ describe('nav-profile.vue', () => {
 
         it('menu shows Profile linked to the user id and a "List Your Event" option', async () => {
             await wrapper.find('.cursor-pointer').trigger('click');
-            const menu = wrapper.find('ul');
+            const menu = wrapper.find('aside');
             expect(menu.find('a[href="/users/42"]').exists()).toBe(true);
-            expect(menu.text()).toContain('List Your Event');
+            expect(menu.text()).toContain('List your event');
             // not an organizer -> no Organizations link
             expect(menu.find('a[href="/teams"]').exists()).toBe(false);
             expect(menu.text()).toContain('Log out');
@@ -143,11 +143,11 @@ describe('nav-profile.vue', () => {
 
         it('menu shows Inbox, Organizations, and Admin Dashboard', async () => {
             await wrapper.find('.cursor-pointer').trigger('click');
-            const menu = wrapper.find('ul');
+            const menu = wrapper.find('aside');
             expect(menu.find('a[href="/inbox"]').exists()).toBe(true);
             expect(menu.find('a[href="/teams"]').exists()).toBe(true);
             expect(menu.find('a[href="/admin/dashboard"]').exists()).toBe(true);
-            // organizer -> NOT "List Your Event"
+            // organizer -> NOT "List your event"
             expect(menu.find('a[href="/hosting/getting-started"]').exists()).toBe(false);
         });
     });
@@ -179,11 +179,11 @@ describe('nav-profile.vue', () => {
             const wrapper = makeWrapper(baseUser);
             const avatar = wrapper.find('.cursor-pointer');
 
-            expect(wrapper.find('ul').exists()).toBe(false);
+            expect(wrapper.find('aside').exists()).toBe(false);
             await avatar.trigger('click');
-            expect(wrapper.find('ul').exists()).toBe(true);
+            expect(wrapper.find('aside').exists()).toBe(true);
             await avatar.trigger('click');
-            expect(wrapper.find('ul').exists()).toBe(false);
+            expect(wrapper.find('aside').exists()).toBe(false);
         });
     });
     describe('logout separation', () => {
@@ -191,7 +191,7 @@ describe('nav-profile.vue', () => {
             const wrapper = makeWrapper(baseUser);
             await wrapper.find('.cursor-pointer').trigger('click');
 
-            const items = Array.from(wrapper.find('ul').element.children);
+            const items = Array.from(wrapper.find('aside .overflow-y-auto').element.children);
             const logoutIndex = items.findIndex((el) => el.textContent.trim() === 'Log out');
             expect(logoutIndex).toBeGreaterThan(0);
 
@@ -204,7 +204,7 @@ describe('nav-profile.vue', () => {
             const wrapper = makeWrapper(null);
             await wrapper.find('.cursor-pointer').trigger('click');
 
-            expect(wrapper.find('ul').element.querySelector('.border-t')).toBeNull();
+            expect(wrapper.find('aside .overflow-y-auto').element.querySelector('.border-t')).toBeNull();
         });
     });
 });

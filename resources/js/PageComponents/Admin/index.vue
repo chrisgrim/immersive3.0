@@ -56,6 +56,19 @@
                                     </a>
                                 </li>
                                 <li>
+                                    <a @click="handleNavigation('approve-venues')"
+                                       :class="['nav-link', currentView === 'approve-venues' ? 'bg-blue-50 text-blue-600' : '']"
+                                    >
+                                        <div class="flex items-center justify-between">
+                                            <span>Venues</span>
+                                            <span v-if="counts.venues > 0"
+                                                  class="bg-red-500 text-white text-sm px-2 py-1 rounded-full">
+                                                {{ counts.venues }}
+                                            </span>
+                                        </div>
+                                    </a>
+                                </li>
+                                <li>
                                     <a @click="handleNavigation('approve-requests')"
                                        :class="['nav-link', currentView === 'approve-requests' ? 'bg-blue-50 text-blue-600' : '']"
                                     >
@@ -99,7 +112,7 @@
                                 <li><a @click="handleNavigation('manage-users')" :class="['nav-link', currentView === 'manage-users' ? 'bg-blue-50 text-blue-600' : '']">Users</a></li>
                                 <li><a @click="handleNavigation('manage-organizers')" :class="['nav-link', currentView === 'manage-organizers' ? 'bg-blue-50 text-blue-600' : '']">Organizers</a></li>
                                 <li><a @click="handleNavigation('manage-reviews')" :class="['nav-link', currentView === 'manage-reviews' ? 'bg-blue-50 text-blue-600' : '']">Reviews</a></li>
-                                <li><a @click="handleNavigation('manage-projects')" :class="['nav-link', currentView === 'manage-projects' ? 'bg-blue-50 text-blue-600' : '']">Shows</a></li>
+                                <li><a @click="handleNavigation('manage-projects')" :class="['nav-link', currentView === 'manage-projects' ? 'bg-blue-50 text-blue-600' : '']">Projects</a></li>
                                 <li><a @click="handleNavigation('manage-venues')" :class="['nav-link', currentView === 'manage-venues' ? 'bg-blue-50 text-blue-600' : '']">Venues</a></li>
                                 <li><a @click="handleNavigation('manage-artists')" :class="['nav-link', currentView === 'manage-artists' ? 'bg-blue-50 text-blue-600' : '']">Artists</a></li>
                                 <li><a @click="handleNavigation('manage-docks')" :class="['nav-link', currentView === 'manage-docks' ? 'bg-blue-50 text-blue-600' : '']">Docks</a></li>
@@ -188,9 +201,11 @@
                                 :event="selectedEvent"
                                 :organizer="selectedOrganizer"
                                 :community="selectedCommunity"
+                                :venue="selectedVenue"
                                 @select-event="handleEventSelect"
                                 @select-organizer="handleOrganizerSelect"
                                 @select-community="handleCommunitySelect"
+                                @select-venue="handleVenueSelect"
                                 @approved="clearSelectedEvent"
                                 @rejected="clearSelectedEvent"
                                 @organizer-approved="clearSelectedOrganizer"
@@ -227,6 +242,8 @@ import SettingsCategories from './Settings/Categories.vue'
 import SettingsTags from './Settings/Tags.vue'
 import SettingsAdvisories from './Settings/Advisories.vue'
 import ApproveRequests from './Approval/Requests.vue'
+import ApproveVenues from './Approval/Venues.vue'
+import VenueReview from './Approval/VenueReview.vue'
 import ManageSuggestions from './Management/Suggestions.vue'
 import ManageAnalytics from './Management/Analytics.vue'
 import AnalyticsSearch from './Management/AnalyticsSearch.vue'
@@ -239,11 +256,13 @@ const currentView = ref(null)
 const remount = ref(0)
 const selectedEvent = ref(null)
 const selectedOrganizer = ref(null)
+const selectedVenue = ref(null)
 const selectedCommunity = ref(null)
 const counts = ref({
     events: 0,
     organizers: 0,
     communities: 0,
+    venues: 0,
     requests: 0,
     suggestions: 0,
     crawler: 0
@@ -257,12 +276,14 @@ const handleNavigation = (view) => {
     selectedEvent.value = null
     selectedOrganizer.value = null
     selectedCommunity.value = null
+    selectedVenue.value = null
     if (view) {
         const url = new URL(window.location)
         url.searchParams.set('view', view)
         url.searchParams.delete('eventSlug')
         url.searchParams.delete('organizerSlug')
         url.searchParams.delete('communitySlug')
+        url.searchParams.delete('venueSlug')
         url.searchParams.delete('section')
         // A linked-in Users search (?search=, see Users.vue) belongs to that
         // tab only: drop it when leaving, keep it when re-clicking the same
@@ -277,6 +298,7 @@ const handleNavigation = (view) => {
         url.searchParams.delete('eventSlug')
         url.searchParams.delete('organizerSlug')
         url.searchParams.delete('communitySlug')
+        url.searchParams.delete('venueSlug')
         url.searchParams.delete('section')
         window.history.pushState({}, '', url)
     }
@@ -301,10 +323,13 @@ const handlePopState = () => {
         fetchOrganizer(organizerSlug)
     } else if (communitySlug) {
         fetchCommunity(communitySlug)
+    } else if (urlParams.get('venueSlug')) {
+        fetchVenue(urlParams.get('venueSlug'))
     } else {
         selectedEvent.value = null
         selectedOrganizer.value = null
         selectedCommunity.value = null
+        selectedVenue.value = null
     }
 }
 
@@ -331,6 +356,26 @@ const handleOrganizerSelect = (organizer) => {
     const url = new URL(window.location)
     url.searchParams.set('organizerSlug', organizer.slug)
     window.history.pushState({}, '', url)
+}
+
+const handleVenueSelect = (venue) => {
+    if (!venue?.slug) {
+        console.error('Cannot select venue without a slug', venue)
+        return
+    }
+    selectedVenue.value = venue
+    const url = new URL(window.location)
+    url.searchParams.set('venueSlug', venue.slug)
+    window.history.pushState({}, '', url)
+}
+
+const fetchVenue = async (venueSlug) => {
+    try {
+        const response = await axios.get(`/api/admin/venues/${venueSlug}`)
+        selectedVenue.value = response.data
+    } catch (error) {
+        console.error('Error fetching venue:', error)
+    }
 }
 
 const handleCommunitySelect = (community) => {
@@ -425,6 +470,8 @@ onMounted(() => {
         fetchOrganizer(organizerSlug)
     } else if (communitySlug) {
         fetchCommunity(communitySlug)
+    } else if (urlParams.get('venueSlug')) {
+        fetchVenue(urlParams.get('venueSlug'))
     }
 
     fetchCounts()
@@ -449,12 +496,16 @@ const currentComponent = computed(() => {
     if (selectedCommunity.value) {
         return CommunityReview
     }
+    if (selectedVenue.value) {
+        return VenueReview
+    }
 
     const components = {
         'approve-events': ApproveEvents,
         'approve-organizers': ApproveOrganizers,
         'approve-communities': ApproveCommunities,
         'approve-requests': ApproveRequests,
+        'approve-venues': ApproveVenues,
         'manage-users': ManageUsers,
         'manage-organizers': ManageOrganizers,
         'manage-events': ManageEvents,

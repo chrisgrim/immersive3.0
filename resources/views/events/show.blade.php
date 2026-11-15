@@ -477,7 +477,6 @@
                                                     @endif
                                                 @endif
                                             </a>
-                                            @include('events.show.project-line')
                                         </div>
 
                                         {{-- Event Title --}}
@@ -569,7 +568,6 @@
                                                         @endif
                                                     @endif
                                                 </a>
-                                                @include('events.show.project-line')
                                             </div>
 
                                             {{-- Event Title --}}
@@ -722,7 +720,6 @@
                                                     @endif
                                                 @endif
                                             </a>
-                                            @include('events.show.project-line')
                                         </div>
 
                                         {{-- Event Title --}}

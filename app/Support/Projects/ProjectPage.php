@@ -57,7 +57,7 @@ class ProjectPage
      *
      * @return array<int, string>
      */
-    private static function fromPrices(Collection $runs): array
+    public static function fromPrices(Collection $runs): array
     {
         $current = Event::withoutGlobalScope(LatestPublishedFirstScope::class)
             ->whereKey($runs->modelKeys())

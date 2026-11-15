@@ -1,6 +1,6 @@
 <template>
     <div v-if="request || matches.length" class="p-8 shadow-custom-1 rounded-3xl">
-        <h3 class="text-xl font-semibold mb-4">{{ request ? 'Asked to join a show' : 'Looks like a run of' }}</h3>
+        <h3 class="text-xl font-semibold mb-4">{{ request ? 'Asked to join a project' : 'Looks like a run of' }}</h3>
 
         <div v-if="request" class="mb-6">
             <p class="text-2xl font-medium">{{ requestedName }}</p>
@@ -54,7 +54,7 @@
         <div v-if="joining" class="mt-6 space-y-4">
             <p class="text-gray-600">
                 {{ targetName }}. Made by {{ maker?.name ?? targetMaker ?? 'nobody yet' }}.
-                <span v-if="makesProject">Approving makes the show's page from that listing.</span>
+                <span v-if="makesProject">Approving makes the project's page from that listing.</span>
             </p>
 
             <input
@@ -103,7 +103,7 @@ const props = defineProps({
 });
 
 const requestOptions = [
-    { value: 'confirm', label: 'Join this show' },
+    { value: 'confirm', label: 'Join this project' },
     { value: 'change', label: 'A different show' },
     { value: 'reject', label: 'The listing alone' },
 ];

@@ -5,7 +5,7 @@
         <!-- <div class="flex-none h-24"> -->
             <div class="mx-auto p-8 md:p-16 h-full flex justify-between items-center">
                 <!-- Left: EI Logo/Link -->
-                <a href="/hosting/events" class="flex flex-col items-center gap-1" :class="isHome ? 'text-primary font-medium' : 'text-neutral-600'">
+                <a :href="listingsUrl" class="flex flex-col items-center gap-1" :class="isHome ? 'text-primary font-medium' : 'text-neutral-600'">
                     <img src="/storage/website-files/Everything_Immersive_logo_Short.png" alt="EI" class="w-12 h-12" />
                 </a>
 
@@ -18,7 +18,7 @@
                         Questions
                     </a>
                     <a 
-                        href="/hosting/events" 
+                        :href="listingsUrl" 
                         class="px-6 py-3 border border-black hover:bg-gray-100 rounded-lg"
                     >
                         Exit
@@ -135,6 +135,10 @@ const props = defineProps({
         required: true
     }
 });
+
+// The listings of this event's own organization (a member switches to it, staff just look).
+const listingsUrl = computed(() => (props.event?.organizer?.slug ? `/hosting/events?organizer=${props.event.organizer.slug}` : '/hosting/events'));
+
 
 const event = reactive(props.event);
 const user = reactive(props.user);

@@ -441,7 +441,7 @@ class AdminEventController extends Controller
             : null;
 
         if ($link['action'] === 'change' && $target === null) {
-            throw ValidationException::withMessages(['link.project_id' => 'Choose the show to link this listing to.']);
+            throw ValidationException::withMessages(['link.project_id' => 'Choose the project to link this listing to.']);
         }
 
         return [

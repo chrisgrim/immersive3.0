@@ -20,7 +20,9 @@ class Venue extends Model
 
     public const APPROVED = 'approved';
 
-    protected $fillable = ['slug', 'name', 'room', 'home', 'street', 'city', 'region', 'region_long', 'country', 'country_long', 'postal_code', 'longitude', 'latitude', 'description', 'directions', 'largeImagePath', 'thumbImagePath', 'status', 'merged_into_id'];
+    protected $casts = ['claimed_at' => 'datetime'];
+
+    protected $fillable = ['slug', 'name', 'room', 'home', 'street', 'city', 'region', 'region_long', 'country', 'country_long', 'postal_code', 'longitude', 'latitude', 'description', 'directions', 'largeImagePath', 'thumbImagePath', 'status', 'merged_into_id', 'website', 'email', 'phone', 'instagramHandle', 'facebookHandle', 'twitterHandle', 'tiktokHandle'];
 
     protected static function booted(): void
     {
@@ -95,6 +97,20 @@ class Venue extends Model
      * by someone on a team they are on. A pending venue's address is its
      * proposer's to share until a moderator approves it. Moderators see all.
      */
+    /**
+     * The venues a person keeps, as VenuePolicy lets them edit: the ones they own,
+     * and the unclaimed ones a team of theirs added. Merged venues are gone.
+     */
+    public function scopeKeptBy(Builder $query, User $user): Builder
+    {
+        // Subqueries, so this stays one statement (it runs for the menu on every page).
+        return $query->whereNull('merged_into_id')
+            ->where(fn ($kept) => $kept->where('user_id', $user->id)
+                ->orWhere(fn ($added) => $added->whereNull('user_id')->where(fn ($team) => $team
+                    ->whereIn('organizer_id', fn ($member) => $member->select('organizer_id')->from('organizer_user')->where('user_id', $user->id))
+                    ->orWhereIn('organizer_id', fn ($owner) => $owner->select('id')->from('organizers')->where('user_id', $user->id)))));
+    }
+
     public function scopeVisibleTo(Builder $query, ?User $user): Builder
     {
         if ($user?->isModerator()) {
@@ -122,6 +138,52 @@ class Venue extends Model
                 ->where('audit_logs.action', 'venue.proposed')
                 ->whereIn('audit_logs.user_id', fn ($members) => $members->select('user_id')->from('organizer_user')
                     ->whereIn('organizer_id', $organizers))));
+    }
+
+    /**
+     * The venue page's contact rows: [sprite icon, label, link], only the ones set.
+     *
+     * @return array<int, array{0: string, 1: string, 2: string}>
+     */
+    public function contactLinks(): array
+    {
+        $handle = fn (?string $value) => ltrim((string) $value, '@');
+
+        return array_values(array_filter([
+            $this->website ? ['ri-global-line', preg_replace('#^https?://(www\.)?#', '', rtrim($this->website, '/')), $this->website] : null,
+            $this->email ? ['ri-mail-line', $this->email, 'mailto:'.$this->email] : null,
+            $this->phone ? ['ri-chat-2-line', $this->phone, 'tel:'.preg_replace('/[^0-9+]/', '', $this->phone)] : null,
+            $this->instagramHandle ? ['ri-instagram-line', '@'.$handle($this->instagramHandle), 'https://instagram.com/'.rawurlencode($handle($this->instagramHandle))] : null,
+            $this->facebookHandle ? ['ri-facebook-line', $this->facebookHandle, 'https://facebook.com/'.rawurlencode($this->facebookHandle)] : null,
+            $this->tiktokHandle ? ['ri-global-line', 'TikTok @'.$handle($this->tiktokHandle), 'https://www.tiktok.com/@'.rawurlencode($handle($this->tiktokHandle))] : null,
+            $this->twitterHandle ? ['ri-twitter-line', '@'.$handle($this->twitterHandle), 'https://x.com/'.rawurlencode($handle($this->twitterHandle))] : null,
+        ]));
+    }
+
+    /** Open to a claim until one is approved; a pending or merged venue is not. */
+    public function isClaimable(): bool
+    {
+        // Never claimed, or claimed by someone whose account is gone since
+        // (user_id nulls on delete): either way the real venue can ask again.
+        return $this->status === self::APPROVED && $this->merged_into_id === null
+            && ($this->claimed_at === null || $this->user_id === null);
+    }
+
+    /** The person who owns the venue once a claim is approved. */
+    public function ownerUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function claims(): HasMany
+    {
+        return $this->hasMany(VenueClaim::class);
+    }
+
+    /** The team that keeps this venue's page: whoever added it, until the venue claims it. */
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(Organizer::class, 'organizer_id');
     }
 
     public function images(): MorphMany

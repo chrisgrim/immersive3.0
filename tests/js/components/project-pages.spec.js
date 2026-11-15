@@ -18,6 +18,9 @@ const project = (overrides = {}) => ({
     writers: [],
     aggregate: [],
     link_requests: [],
+    photos: [],
+    max_photos: 5,
+    public_url: '/projects/ha-ha-ha',
     ...overrides,
 });
 
@@ -64,10 +67,43 @@ describe('project-edit.vue', () => {
         axios.post.mockRejectedValueOnce({ response: { data: { errors: { name: ['The name is required.'] } } } });
         const wrapper = mount(ProjectEdit, { props: { project: project() } });
 
-        await button(wrapper, 'Save').trigger('click');
+        await button(wrapper, 'Update').trigger('click');
         await flushPromises();
 
         expect(wrapper.text()).toContain('The name is required.');
+    });
+});
+
+describe('project-edit.vue, a rename then a failed photo save', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    // The photo box, reduced to what the page asks of it: a pending change.
+    const galleryStub = {
+        name: 'PhotoGalleryEdit',
+        template: '<div />',
+        setup(_, { expose }) {
+            expose({ changed: true, formData: () => new FormData(), reset: vi.fn() });
+        },
+    };
+
+    it('follows the new address at once, so the retry goes to it', async () => {
+        axios.post
+            .mockResolvedValueOnce({ data: project({ name: 'Ha Ha Ha Too', slug: 'ha-ha-ha-too' }) })
+            .mockRejectedValueOnce({ response: { data: { message: 'The picture could not be saved.' } } })
+            .mockResolvedValueOnce({ data: project({ name: 'Ha Ha Ha Too', slug: 'ha-ha-ha-too' }) });
+        const wrapper = mount(ProjectEdit, { props: { project: project() }, global: { stubs: { PhotoGalleryEdit: galleryStub } } });
+
+        await button(wrapper, 'Update').trigger('click');
+        await flushPromises();
+
+        expect(axios.post.mock.calls[0][0]).toBe('/hosting/projects/ha-ha-ha');
+        expect(axios.post.mock.calls[1][0]).toBe('/hosting/projects/ha-ha-ha-too/photos');
+        expect(wrapper.text()).toContain('The picture could not be saved.');
+
+        await button(wrapper, 'Update').trigger('click');
+        await flushPromises();
+
+        expect(axios.post.mock.calls[2][0]).toBe('/hosting/projects/ha-ha-ha-too');
     });
 });
 

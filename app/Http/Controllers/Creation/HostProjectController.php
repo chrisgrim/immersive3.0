@@ -12,7 +12,7 @@ use App\Models\Credit;
 use App\Models\Event;
 use App\Models\Project;
 use App\Models\ProjectLinkRequest;
-use App\Services\ImageHandler;
+use App\Support\PhotoGallery;
 use App\Support\Projects\InstanceAddress;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -27,6 +27,9 @@ use Illuminate\Validation\ValidationException;
  */
 class HostProjectController extends Controller
 {
+    /** One photo: the project page shows only its tall main picture. */
+    public const MAX_PHOTOS = 1;
+
     public function __construct(private LinkEventToProject $links, private LinkReview $review) {}
 
     public function edit(Project $project)
@@ -39,7 +42,6 @@ class HostProjectController extends Controller
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255', 'regex:/[\p{L}\p{N}]/u'],
             'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
-            'image' => ['sometimes', 'image', 'max:10240'],
             'writers' => ['sometimes', 'array'],
             'writers.*.id' => ['nullable', 'integer'],
             'writers.*.artist_id' => ['required', 'integer', Rule::exists('artists', 'id')->whereNull('merged_into_id')],
@@ -57,11 +59,17 @@ class HostProjectController extends Controller
             AuditLog::record($project, 'project.page_updated', $request->user(), ['fields' => array_keys($validated)]);
         });
 
-        // After the commit: it deletes the old files, and a rollback does not
-        // bring those back.
-        if ($request->hasFile('image')) {
-            ImageHandler::replaceImage($project->images()->get(), $request->file('image'), $project, 800, 1200, 'project-images');
-        }
+        return response()->json($this->pageData($project->refresh()));
+    }
+
+    /** Its one photo, tall (900 by 1200), saved the event way (PhotoGallery). */
+    public function photos(Request $request, Project $project)
+    {
+        $request->validate(PhotoGallery::rules(self::MAX_PHOTOS));
+
+        PhotoGallery::sync($project, $request, 'project-images', fn () => [900, 1200], self::MAX_PHOTOS);
+
+        AuditLog::record($project, 'project.photos_updated', $request->user());
 
         return response()->json($this->pageData($project->refresh()));
     }
@@ -73,7 +81,7 @@ class HostProjectController extends Controller
         $sentIds = collect($writers)->pluck('id')->filter()->map(fn ($id) => (int) $id);
 
         if ($sentIds->diff($held->keys())->isNotEmpty()) {
-            throw ValidationException::withMessages(['writers' => 'That writer is not on this show.']);
+            throw ValidationException::withMessages(['writers' => 'That writer is not on this project.']);
         }
 
         $held->except($sentIds->all())->each->delete();
@@ -158,6 +166,8 @@ class HostProjectController extends Controller
             'slug' => $project->slug,
             'description' => $project->description,
             'largeImagePath' => $project->largeImagePath,
+            'photos' => PhotoGallery::present($project),
+            'max_photos' => self::MAX_PHOTOS,
             'public_url' => $project->publicPath(),
             'organizer' => $project->organizer?->only(['id', 'name']),
             'keeper' => $project->keeper()?->only(['id', 'name']),

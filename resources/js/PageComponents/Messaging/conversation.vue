@@ -204,6 +204,8 @@ const getConversableLink = computed(() => {
             return `/organizers/${conversable.slug}`;
         case 'Community':
             return `/communities/${conversable.slug}`;
+        case 'Venue':
+            return `/venues/${conversable.slug}`;
         default:
             return '#';
     }

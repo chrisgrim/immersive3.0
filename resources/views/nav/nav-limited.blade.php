@@ -13,7 +13,7 @@
                     <img src="{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}" alt="EI" style="width: 3.5rem; height: 3.5rem;" class="block lg:hidden">
                 </a>
             </div>
-            <vue-nav-profile class="col-span-1" :user="user"></vue-nav-profile>
+            <vue-nav-profile class="col-span-1" :user="user" @isset($hosting) :hosting="{{ json_encode($hosting) }}" @endisset></vue-nav-profile>
         </div>
     </div>
 </nav>

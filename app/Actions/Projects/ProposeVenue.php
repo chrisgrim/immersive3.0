@@ -28,6 +28,14 @@ class ProposeVenue
     {
         $venue = Venue::create([...$validated, 'status' => Venue::PENDING]);
 
+        // The team adding it keeps it until the venue itself claims it. Set by
+        // hand, never from the request, so nobody can hand a venue to a team.
+        $team = $actor->getCurrentOrganizer();
+        if ($team && $actor->belongsToOrganization($team)) {
+            $venue->organizer_id = $team->id;
+            $venue->save();
+        }
+
         AuditLog::record($venue, 'venue.proposed', $actor);
 
         return $venue;
