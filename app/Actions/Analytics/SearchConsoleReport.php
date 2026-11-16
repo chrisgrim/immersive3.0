@@ -35,6 +35,9 @@ class SearchConsoleReport
     /** Bump when an answer's shape changes, so a cached older one is not served. */
     private const VERSION = 5;
 
+    /** The cap on a ranked read while warming in the background (ms). */
+    public const WARM_CAP_MS = 60000;
+
     private ?array $lastPeriod = null;
 
     /** While true (warm()), answers are rebuilt and cached instead of read from cache. */
@@ -277,8 +280,12 @@ class SearchConsoleReport
                 [$dim, $period['from'], $period['to'], ...$bindLike],
             ];
 
+        // A page waits on this read, so it is capped at 5 s; the hourly warm
+        // has nobody waiting, and a year of searches can take longer.
+        $cap = $this->refreshing ? self::WARM_CAP_MS : 5000;
+
         return DB::select('
-            SELECT /*+ MAX_EXECUTION_TIME(5000) */ '.self::SPELLING.' AS `key`, SUM(clicks) AS clicks, SUM(impressions) AS impressions, SUM(position_sum) AS position_sum
+            SELECT /*+ MAX_EXECUTION_TIME('.$cap.') */ '.self::SPELLING.' AS `key`, SUM(clicks) AS clicks, SUM(impressions) AS impressions, SUM(position_sum) AS position_sum
             FROM ('.$parts.') AS rows_in_period
             GROUP BY `key` ORDER BY '.$order.", `key` LIMIT {$limit}", $bindings);
     }

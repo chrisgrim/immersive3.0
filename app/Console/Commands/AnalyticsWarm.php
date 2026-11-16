@@ -6,6 +6,7 @@ use App\Actions\Analytics\SearchConsoleReport;
 use App\Actions\Analytics\SiteAnalyticsReport;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Database\QueryException;
 
 /**
  * Rebuilds the admin Analytics pages' numbers in the background (hourly),
@@ -38,7 +39,13 @@ class AnalyticsWarm extends Command
 
         if ($google->configured()) {
             foreach (self::SEARCH_DAYS as $days) {
-                $google->warm($days);
+                try {
+                    $google->warm($days);
+                } catch (QueryException $e) {
+                    // One slow range must not leave the ranges after it cold.
+                    report($e);
+                    $this->warn("Search {$days} days: the read failed; skipped.");
+                }
             }
         }
 

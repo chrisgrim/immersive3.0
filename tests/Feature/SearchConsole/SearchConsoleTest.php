@@ -569,3 +569,37 @@ test('the hourly warm caches the From Google block for each range the Search pag
     expect($answer['totals']['clicks'])->toBe(5)
         ->and(collect(DB::getQueryLog())->pluck('query')->filter(fn ($q) => ! str_contains($q, 'MIN(day) AS first'))->all())->toBeEmpty();
 });
+
+test('the warm gives the ranked reads a longer cap than a page gets', function () {
+    scConfigure();
+    scRow(['day' => now()->subDays(3)->toDateString(), 'clicks' => 5, 'impressions' => 50]);
+    $ranked = fn () => collect(DB::getQueryLog())->pluck('query')->filter(fn ($q) => str_contains($q, 'rows_in_period'));
+
+    DB::enableQueryLog();
+    app(SearchConsoleReport::class)->warm(28);
+    expect($ranked()->all())->not->toBeEmpty()
+        ->each->toContain('MAX_EXECUTION_TIME('.SearchConsoleReport::WARM_CAP_MS.')');
+
+    DB::flushQueryLog();
+    app(SearchConsoleReport::class)->section('google_queries', 7);
+    expect($ranked()->all())->not->toBeEmpty()
+        ->each->toContain('MAX_EXECUTION_TIME(5000)');
+});
+
+test('a range that is too slow to warm does not stop the ranges after it', function () {
+    $slow = new Illuminate\Database\QueryException('mysql', 'SELECT 1', [], new PDOException('3024 Query execution was interrupted'));
+    $warmed = [];
+    $this->mock(SearchConsoleReport::class, function ($mock) use ($slow, &$warmed) {
+        $mock->shouldReceive('configured')->andReturn(true);
+        $mock->shouldReceive('warm')->andReturnUsing(function (int $days) use ($slow, &$warmed) {
+            $warmed[] = $days;
+            if ($days === 365) {
+                throw $slow;
+            }
+        });
+    });
+
+    $this->artisan('ei:analytics-warm')->assertSuccessful();
+
+    expect($warmed)->toBe(App\Console\Commands\AnalyticsWarm::SEARCH_DAYS);
+});
