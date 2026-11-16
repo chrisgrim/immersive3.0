@@ -10,6 +10,7 @@ import {
     embargoTimeOf,
     formatEmbargoTime,
     embargoZoneOf,
+    formatEmbargoShort,
     parseDateString,
     addMonths,
     endOfDay,
@@ -133,6 +134,7 @@ describe('dateUtils', () => {
             expect(formatEmbargoTime('12:00')).toBe('12:00 PM');
             expect(embargoZoneOf('2026-11-26 09:30:00', 'America/Los_Angeles')).toBe('PST');
             expect(embargoZoneOf('2026-07-15 09:30:00', 'America/Los_Angeles')).toBe('PDT');
+            expect(formatEmbargoShort('2026-11-22 08:00:00', 'America/Los_Angeles')).toBe('Sun, Nov 22, 08:00 AM (PST)'.replace('08:00', '8:00'));
         });
 
         it('keeps the picked day where the event is, whatever the UTC date of the instant', () => {

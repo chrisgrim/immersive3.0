@@ -75,7 +75,7 @@
                 <div v-if="isDesktop" ref="monthBar" class="sticky top-0 z-[1000] bg-white pt-2 border-b border-[#ebebeb] flex-none" data-month-bar>
                     <div class="grid gap-x-[var(--month-gap,0px)]" :class="barColumns === 2 ? 'grid-cols-2' : 'grid-cols-1'" :style="{ '--month-gap': `${monthGap}px` }">
                         <div v-for="label in barLabels" :key="label">
-                            <p class="font-semibold text-[#222222] pr-24" :class="calendarColumns === 2 ? 'text-[2.4rem] leading-[3.2rem]' : 'text-[3.2rem] leading-[4rem]'">{{ label }}</p>
+                            <p class="font-semibold text-[#222222] pr-24" :class="barColumns === 2 ? 'text-[2.4rem] leading-[3.2rem]' : 'text-[3.2rem] leading-[4rem]'">{{ label }}</p>
                             <div class="mt-6 grid grid-cols-7 pb-4 text-center text-[1.4rem] text-[#6a6a6a]">
                                 <span v-for="weekday in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="weekday">{{ weekday }}</span>
                             </div>
