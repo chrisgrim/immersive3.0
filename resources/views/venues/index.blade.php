@@ -8,50 +8,52 @@
     @endif
 @endsection
 
+@php
+    // What venues-list.vue shows, with each row's addresses; a delete address only on a draft.
+    $venueRows = collect($venues->items())->map(fn ($venue) => [
+        'name' => $venue['name'],
+        'slug' => $venue['slug'],
+        'image' => $venue['image'],
+        'owned' => (bool) $venue['owned'],
+        'draft' => (bool) $venue['draft'],
+        'pending' => (bool) $venue['pending'],
+        'place' => $venue['place'],
+        'open_url' => $venue['draft'] ? route('venues.setup', $venue['slug'], false) : route('venues.edit', $venue['slug'], false),
+        'show_url' => route('venues.show', $venue['slug'], false),
+        'delete_url' => $venue['draft'] ? route('venues.destroy', $venue['slug'], false) : null,
+    ])->values();
+@endphp
+@push('after-laravel')
+    <script>
+        {{-- @json escapes < > & ' " so a venue's name cannot end this script. --}}
+        window.Laravel.page = { venues: @json($venueRows) };
+    </script>
+@endpush
+
 @section('content')
-    {{-- Your venues: the same long rows as the hosting list. Each row opens the venue's edit page. --}}
+    {{-- Your venues: the same rows as the hosting events list (venues-list.vue). --}}
     <div class="flex justify-center md:justify-end">
-        <div id="venues" class="px-8 lg-air:px-16 2xl-air:px-32 w-full max-w-screen-5xl mt-8 md:mt-20 pb-40">
-            <h2 class="text-4xl md:text-5xl font-semibold text-[#222222] mb-12">{{ $venues->total() === 1 ? 'Your venue' : 'Your venues' }}</h2>
+        <div id="venues" class="px-8 md:px-16 2xl-air:px-32 transition-[padding] duration-200 w-full max-w-screen-5xl mt-8 md:mt-20 pb-40">
+            <div class="flex items-center justify-between gap-6 mb-12">
+                <h2 class="text-4xl md:text-5xl font-semibold text-[#222222]">{{ $venues->total() === 1 ? 'Your venue' : 'Your venues' }}</h2>
+                @can('propose', \App\Models\Venue::class)
+                    <a href="{{ route('hosting.venues.create') }}" class="inline-flex items-center gap-2 h-[4.4rem] px-[1.8rem] rounded-full bg-[#222222] text-white text-[1.4rem] font-semibold hover:bg-black" data-add-venue>
+                        <svg width="18" height="18" class="w-[1.8rem] h-[1.8rem]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+                        Add a venue
+                    </a>
+                @endcan
+            </div>
+            @if(request()->boolean('added'))
+                {{-- Just added through the steps: it waits for EI before it shows on the site.
+                     A fixed message: nothing from the address bar is shown. --}}
+                <p class="mb-10 px-6 py-4 rounded-[1.2rem] bg-[#f7f7f7] text-[1.5rem] text-[#222222] transform-none">Your venue was sent to EI. It shows on the site once it is approved.</p>
+            @endif
 
             @if($venues->isEmpty())
-                <p class="text-xl text-neutral-500 transform-none">No venues yet. A venue you add with an event, or claim, shows up here.</p>
+                <p class="text-xl text-neutral-500 transform-none">No venues yet. Add one, or claim yours from its page.</p>
             @else
-                <div class="hidden md:grid gap-8 py-4 h-36 items-center md:grid-cols-[16rem_30%_auto_auto_auto]">
-                    <h5 class="font-medium">Venues</h5>
-                    <div></div>
-                    <h5 class="font-medium">Status</h5>
-                    <h5 class="font-medium text-center">City</h5>
-                </div>
-                @foreach($venues as $venue)
-                    <a href="{{ route('venues.edit', $venue['slug']) }}" class="group relative grid gap-8 px-0 md:px-4 p-4 items-center hover:bg-gray-100 rounded-2xl grid-cols-[6rem_auto] md:grid-cols-[16rem_30%_auto_auto_auto]">
-                        <div class="h-24 aspect-[3/2] overflow-hidden rounded-2xl bg-gray-300">
-                            @if($venue['image'])
-                                <img src="{{ config('app.image_url').$venue['image'] }}" alt="{{ $venue['name'] }}" class="h-full w-full object-cover" loading="lazy">
-                            @endif
-                        </div>
-                        <div>
-                            <p class="text-3xl md:text-2xl font-medium text-black break-words hyphens-auto transform-none">{{ $venue['name'] }}</p>
-                            @if($venue['owned'])
-                                <p class="text-lg md:text-md leading-4 text-gray-500 transform-none">Yours</p>
-                            @endif
-                        </div>
-                        <div class="hidden md:flex flex-row items-center">
-                            <div class="w-4 h-4 rounded-full {{ $venue['pending'] ? 'bg-yellow-300' : 'bg-green-500' }}"></div>
-                            <p class="text-lg font-medium text-gray-500 ml-4 transform-none">{{ $venue['pending'] ? 'Waiting for EI' : 'Live' }}</p>
-                        </div>
-                        <div class="hidden md:flex justify-center items-center">
-                            @if($venue['place'])
-                                <div class="bg-gray-100 px-4 py-2 rounded-full font-medium">{{ $venue['place'] }}</div>
-                            @else
-                                <div class="text-gray-400">-</div>
-                            @endif
-                        </div>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="hidden md:block md:absolute right-6 top-1/2 -translate-y-1/2 w-8 h-8 opacity-0 group-hover:opacity-100" stroke-width="3">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
-                        </svg>
-                    </a>
-                @endforeach
+                {{-- The rows, the picking boxes, the side panel and the delete pop-up (venues-list.vue). --}}
+                <vue-venues-list :venues="pageData.venues"></vue-venues-list>
                 @if($venues->hasPages())
                     @include('projects.partials.pager', ['paginator' => $venues, 'label' => 'Venue pages'])
                 @endif

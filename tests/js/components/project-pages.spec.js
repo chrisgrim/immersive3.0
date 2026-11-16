@@ -51,7 +51,7 @@ describe('project-edit.vue', () => {
         await button(wrapper, 'Approve').trigger('click');
         await flushPromises();
 
-        expect(axios.post).toHaveBeenCalledWith('/hosting/projects/ha-ha-ha/link-requests/7/approve');
+        expect(axios.post).toHaveBeenCalledWith('/hosting/show-runs/ha-ha-ha/link-requests/7/approve');
         expect(wrapper.text()).not.toContain('Rome');
     });
 
@@ -96,14 +96,14 @@ describe('project-edit.vue, a rename then a failed photo save', () => {
         await button(wrapper, 'Update').trigger('click');
         await flushPromises();
 
-        expect(axios.post.mock.calls[0][0]).toBe('/hosting/projects/ha-ha-ha');
-        expect(axios.post.mock.calls[1][0]).toBe('/hosting/projects/ha-ha-ha-too/photos');
+        expect(axios.post.mock.calls[0][0]).toBe('/hosting/show-runs/ha-ha-ha');
+        expect(axios.post.mock.calls[1][0]).toBe('/hosting/show-runs/ha-ha-ha-too/photos');
         expect(wrapper.text()).toContain('The picture could not be saved.');
 
         await button(wrapper, 'Update').trigger('click');
         await flushPromises();
 
-        expect(axios.post.mock.calls[2][0]).toBe('/hosting/projects/ha-ha-ha-too');
+        expect(axios.post.mock.calls[2][0]).toBe('/hosting/show-runs/ha-ha-ha-too');
     });
 });
 

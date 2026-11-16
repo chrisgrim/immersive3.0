@@ -3,7 +3,9 @@
         <div class="flex flex-col w-full">
             <div>
                 <h2 class="text-black">What's your event called?</h2>
-                <p class="text-neutral-500 font-normal mt-4">Enter a unique name for your event</p>
+                <!-- A run of a show run: say whose run it is, and how a run is usually named. -->
+                <p v-if="runOf" class="text-neutral-500 font-normal mt-4">This is a run of <span class="font-semibold text-neutral-700">{{ runOf }}</span>. Name it so people can tell it apart, for example "{{ runOf }} (Texas or {{ nextYear }})".</p>
+                <p v-else class="text-neutral-500 font-normal mt-4">Enter a unique name for your event</p>
                 <div class="mt-6">
                     <!-- Event Name Input -->
                     <textarea 
@@ -248,6 +250,8 @@
 </template>
 
 <script setup>
+// The example name for a new run: next year's, so it never looks out of date.
+const nextYear = new Date().getFullYear() + 1;
 import { inject, computed, ref, reactive } from 'vue';
 import { required, maxLength } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
@@ -256,6 +260,9 @@ import ShowMatch from '../Components/show-match.vue';
 
 // 1. Injected Dependencies
 const event = inject('event');
+
+// The show run this draft is joining (bottom bar picker), for the line under the title.
+const runOf = computed(() => event.link_request?.show ?? null);
 const errors = inject('errors');
 const isSubmitting = inject('isSubmitting');
 // Greys out the wizard's Next button while an unresolved duplicate warning is showing.
@@ -411,16 +418,10 @@ const requestOwnership = async (org) => {
 // 6. Component API
 defineExpose({
     isValid: async () => {
+        // Each box marks only its own problem (a missing tag line reds the
+        // tag line box, not the name too).
         await $v.value.$validate();
-        const isValid = !$v.value.$error;
-        
-        if (!isValid) {
-            errors.value = { 
-                name: ['Please provide valid event name and tag line'] 
-            };
-        }
-        
-        return isValid;
+        return !$v.value.$error;
     },
     submitData: async () => {
         // Check if this is a name change for a published/embargoed event

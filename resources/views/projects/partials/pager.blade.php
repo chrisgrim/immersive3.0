@@ -2,11 +2,11 @@
 <nav aria-label="{{ $label ?? 'Past runs pages' }}" class="mt-10 flex items-center justify-center gap-2">
     @if($paginator->onFirstPage())
         <span class="w-14 h-14 rounded-full flex items-center justify-center text-neutral-300" aria-hidden="true">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+            <svg width="15" height="15" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
         </span>
     @else
         <a href="{{ $paginator->previousPageUrl() }}" aria-label="Previous page" class="w-14 h-14 rounded-full flex items-center justify-center text-[#222222] hover:bg-[#f7f7f7]">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+            <svg width="15" height="15" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
         </a>
     @endif
 
@@ -22,11 +22,11 @@
 
     @if($paginator->hasMorePages())
         <a href="{{ $paginator->nextPageUrl() }}" aria-label="Next page" class="w-14 h-14 rounded-full flex items-center justify-center text-[#222222] hover:bg-[#f7f7f7]">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+            <svg width="15" height="15" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
         </a>
     @else
         <span class="w-14 h-14 rounded-full flex items-center justify-center text-neutral-300" aria-hidden="true">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+            <svg width="15" height="15" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
         </span>
     @endif
 </nav>

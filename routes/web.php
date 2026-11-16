@@ -32,10 +32,10 @@ Route::GET('/', [IndexController::class, 'index'])->name('home');
 // results in one request (ListingsController::MAX_INITIAL_PAGES) and the
 // API route already has a per-IP limit; a crawler must not get an
 // unmetered way to the same work.
-Route::GET('/index/search', [ListingsController::class, 'index'])->middleware('throttle:120,1')->name('search');
+Route::GET('/index/search', [ListingsController::class, 'index'])->middleware('throttle:120,1,web35:')->name('search');
 // A guest's recent search from the nav dropdown (kept in their browser, see
 // SavedSearchController::replay), turned into the results URL.
-Route::GET('/index/search/replay', [SavedSearchController::class, 'replay'])->middleware('throttle:60,1')->name('search.replay');
+Route::GET('/index/search/replay', [SavedSearchController::class, 'replay'])->middleware('throttle:60,1,web38:')->name('search.replay');
 
 // Primary canonical routes
 Route::GET('/events/{event}', [EventController::class, 'show'])->name('events.show');
@@ -142,7 +142,7 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('settings')->middleware('mcp.tokens')->group(function () {
             Route::get('/api-tokens', [\App\Http\Controllers\User\ApiTokenController::class, 'index'])->name('api-tokens.index');
             Route::get('/api-tokens/list', [\App\Http\Controllers\User\ApiTokenController::class, 'list'])->name('api-tokens.list');
-            Route::post('/api-tokens', [\App\Http\Controllers\User\ApiTokenController::class, 'store'])->middleware('throttle:10,1')->name('api-tokens.store');
+            Route::post('/api-tokens', [\App\Http\Controllers\User\ApiTokenController::class, 'store'])->middleware('throttle:10,1,web145:')->name('api-tokens.store');
             Route::delete('/api-tokens/{tokenId}', [\App\Http\Controllers\User\ApiTokenController::class, 'destroy'])->name('api-tokens.destroy');
         });
 
@@ -151,7 +151,7 @@ Route::middleware(['auth'])->group(function () {
             Route::GET('/{organizer}/edit', [OrganizerController::class, 'edit'])->name('edit');
             Route::POST('/{organizer}', [OrganizerController::class, 'update'])->name('update');
             Route::POST('/{organizer}/name-change', [OrganizerController::class, 'requestNameChange'])
-                ->middleware('throttle:5,60')
+                ->middleware('throttle:5,60,web154:')
                 ->name('name.change');
             Route::POST('/{organizer}/submit', [OrganizerController::class, 'submit'])->name('submit');
         });
@@ -160,6 +160,9 @@ Route::middleware(['auth'])->group(function () {
         // for the team that keeps the venue, and admins and moderators (VenuePolicy).
         Route::prefix('venues')->name('venues.')->middleware('can:update,venue')->controller(HostVenueController::class)->group(function () {
             Route::GET('/{venue}/edit', 'edit')->name('edit');
+            Route::GET('/{venue}/setup', 'setup')->name('setup');
+            Route::POST('/{venue}/submit', 'submit')->name('submit');
+            Route::DELETE('/{venue}', 'destroy')->name('destroy');
             Route::POST('/{venue}', 'update')->name('update');
             Route::POST('/{venue}/photos', 'photos')->name('photos');
         });
@@ -179,6 +182,8 @@ Route::middleware(['auth'])->group(function () {
             Route::GET('/getting-started', [HostController::class, 'intro'])->name('intro');
             Route::GET('/events', [HostController::class, 'show'])->name('dashboard');
             Route::GET('/venues', [HostVenueController::class, 'index'])->name('venues');
+            Route::GET('/venues/new', [HostVenueController::class, 'create'])->name('venues.create');
+            Route::POST('/venues', [HostVenueController::class, 'store'])->name('venues.store')->middleware('throttle:20,60,web186:');
 
             // Routes that require hosting permissions (user must have teams)
             Route::middleware('can:host,App\Models\Event')->group(function () {
@@ -191,6 +196,7 @@ Route::middleware(['auth'])->group(function () {
                         Route::POST('/{event}/submit', [HostEventController::class, 'submit'])->name('submit');
                         Route::DELETE('/{event}', [HostEventController::class, 'destroy'])->name('destroy');
                         Route::POST('/{event}/name-change', [HostEventController::class, 'nameChange'])->name('name.change');
+                        Route::GET('/{event}/show-runs', [EventLinkRequestController::class, 'choices'])->name('show-runs');
                         Route::POST('/{event}/link-request', [EventLinkRequestController::class, 'store'])->name('link-request.store');
                         Route::DELETE('/{event}/link-request', [EventLinkRequestController::class, 'destroy'])->name('link-request.destroy');
                         Route::POST('/{event}/link-request/confirm', [EventLinkRequestController::class, 'confirm'])->name('link-request.confirm');
@@ -199,7 +205,8 @@ Route::middleware(['auth'])->group(function () {
 
                 // Outside can:manage,event: keeping a show's page is not
                 // managing its runs (ProjectPolicy).
-                Route::prefix('projects')->name('projects.')->controller(HostProjectController::class)->group(function () {
+                // Called a show run everywhere people see it (the code says project).
+                Route::prefix('show-runs')->name('projects.')->controller(HostProjectController::class)->group(function () {
                     Route::GET('/{project}/edit', 'edit')->name('edit')->middleware('can:edit,project');
                     Route::POST('/{project}', 'update')->name('update')->middleware('can:edit,project');
                     Route::POST('/{project}/photos', 'photos')->name('photos')->middleware('can:edit,project');
@@ -208,6 +215,8 @@ Route::middleware(['auth'])->group(function () {
                     Route::POST('/{project}/link-requests/{linkRequest}/reject', 'rejectLink')->name('link-requests.reject')->middleware('can:decideLink,project');
                     Route::DELETE('/{project}/instances/{event}', 'unlink')->name('instances.destroy')->middleware('can:decideLink,project');
                 });
+                // The old address, from emails sent before the rename.
+                Route::redirect('/projects/{slug}/edit', '/hosting/show-runs/{slug}/edit', 301)->name('projects.old-edit');
             });
 
             // Outside can:host too: curators add cast to any run and are on

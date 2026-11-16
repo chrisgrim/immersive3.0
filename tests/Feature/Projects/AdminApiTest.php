@@ -255,7 +255,7 @@ test('a run off the merged show gets a fresh slug, never the address the winner 
 
     $this->postJson('/api/admin/projects/hahaha/merge', ['into_project_id' => $winner->id])->assertOk();
 
-    $this->deleteJson("/hosting/projects/ha-ha-ha/instances/{$first->slug}")->assertOk();
+    $this->deleteJson("/hosting/show-runs/ha-ha-ha/instances/{$first->slug}")->assertOk();
 
     expect($first->fresh()->slug)->toBe('hahaha-chicago')
         ->and(SlugRedirect::where('path', 'events/hahaha')->sole()->redirectable_id)->toBe($winner->id);
@@ -280,7 +280,7 @@ test('dissolve over the API, and refused while two runs are left', function () {
 
     $this->postJson('/api/admin/projects/ha-ha-ha/dissolve')->assertStatus(422);
 
-    $this->deleteJson('/hosting/projects/ha-ha-ha/instances/ha-ha-ha-new-york')->assertOk();
+    $this->deleteJson('/hosting/show-runs/ha-ha-ha/instances/ha-ha-ha-new-york')->assertOk();
 
     $this->postJson('/api/admin/projects/ha-ha-ha/dissolve')->assertOk()->assertJsonPath('event.public_url', '/events/ha-ha-ha');
     expect(Project::find($project->id))->toBeNull();
@@ -519,4 +519,15 @@ test('a bare organizer can be the maker straight away', function () {
     $this->postJson("/api/admin/events/{$listing->slug}/project", ['source_event_id' => $first->id, 'organizer_id' => $id])->assertOk();
 
     expect(Project::sole()->organizer->name)->toBe('Pony Cam');
+});
+
+test('a draft venue is not in the review list and cannot be approved or merged', function () {
+    $draft = Venue::factory()->create(['name' => 'Half Added', 'slug' => 'half-added', 'status' => Venue::DRAFT]);
+    $live = Venue::factory()->create(['name' => 'Whole', 'slug' => 'whole']);
+
+    expect(collect($this->getJson('/api/admin/venues')->assertOk()->json('data'))->pluck('id'))->not->toContain($draft->id);
+    $this->postJson('/api/admin/venues/half-added/approve')->assertStatus(422);
+    $this->postJson('/api/admin/venues/half-added/merge', ['into_venue_id' => $live->id])->assertUnprocessable();
+
+    expect($draft->fresh()->status)->toBe(Venue::DRAFT);
 });

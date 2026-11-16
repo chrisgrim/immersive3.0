@@ -152,16 +152,27 @@ test('a free current ticket reads free', function () {
     expect($this->get('/events/ha-ha-ha')->viewData('page')['from'])->toBe(['Free']);
 });
 
-test('run type and festival show on the run\'s row', function () {
+test('run type and festival are no longer shown: tags cover them', function () {
     runOf($this->project, 'Austin', ['run_type' => 'world_premiere', 'festival' => 'SXSW']);
 
-    $this->get('/events/ha-ha-ha')->assertSee('World premiere')->assertSee('SXSW');
+    $this->get('/events/ha-ha-ha')->assertOk()->assertDontSee('World premiere')->assertDontSee('SXSW');
 });
 
-test('a run with its own name shows it', function () {
+test('a run with its own name shows it exactly as typed', function () {
     runOf($this->project, 'Boston', ['name' => 'Ha Ha Ha: Holiday Edition']);
 
     $this->get('/events/ha-ha-ha')->assertSee('Ha Ha Ha: Holiday Edition');
+});
+
+test('"Presented by" shows only for a company other than the show\'s maker', function () {
+    runOf($this->project, 'Boston')->update(['organizer_id' => $this->project->organizer_id]);
+    runOf($this->project, 'Chicago')->update(['organizer_id' => App\Models\Organizer::factory()->create(['name' => 'Guest Co', 'status' => 'p'])->id]);
+
+    $html = $this->get('/events/ha-ha-ha')->assertOk()->getContent();
+
+    // The maker's own run says nothing; the guest's run names its presenter.
+    expect(substr_count($html, 'Presented by'))->toBe(1)
+        ->and($html)->toContain('Guest Co');
 });
 
 test('a secret-location run shows its city and never its street', function () {

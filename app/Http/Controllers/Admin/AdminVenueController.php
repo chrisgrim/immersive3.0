@@ -17,7 +17,7 @@ class AdminVenueController extends Controller
     {
         return Venue::query()
             ->whereNull('merged_into_id')
-            ->when($request->status, fn ($query, $status) => $query->where('status', $status))
+            ->when($request->status, fn ($query, $status) => $query->where('status', $status), fn ($query) => $query->where('status', '!=', Venue::DRAFT))
             ->when($request->keywords, fn ($query, $keywords) => $query->where('name', 'like', '%'.addcslashes($keywords, '\\%_').'%'))
             ->orderBy('name')
             ->paginate(20);
@@ -27,6 +27,8 @@ class AdminVenueController extends Controller
     public function update(Request $request, Venue $venue, UpdateVenue $update)
     {
         $this->authorize('update', $venue);
+
+        UpdateVenue::prepare($request);
 
         return response()->json(['venue' => $update->handle($venue, $request->validate(UpdateVenue::RULES, UpdateVenue::MESSAGES), $request->user())]);
     }
@@ -65,20 +67,81 @@ class AdminVenueController extends Controller
     {
         $validated = $request->validate(['question' => ['required', 'string', 'max:1000']]);
 
-        $team = $venue->owner;
-        abort_unless($team && $team->user_id, 422, 'Nobody to ask: no team added this venue.');
-
-        Message::notification($team, 'About the venue '.$venue->name.': '.$validated['question'], $team->slug);
+        $text = 'About the venue '.$venue->name.': '.$validated['question'];
+        // Owned by a person (an approved claim, or added by someone with no
+        // organization): ask them. Otherwise whoever runs the team that added it.
+        if ($venue->user_id) {
+            Message::notification($venue, $text, $venue->slug);
+        } else {
+            $team = $venue->owner;
+            abort_unless($team && $team->user_id, 422, 'Nobody to ask: nobody owns or added this venue.');
+            Message::notification($team, $text, $team->slug);
+        }
         AuditLog::record($venue, 'venue.question', $request->user());
 
         return response()->json(['message' => 'Question sent.']);
     }
 
+    /**
+     * Remove a venue that was sent in but should not be on EI (junk, a test,
+     * not a real place). Only one still waiting: a live venue is merged into
+     * the right one instead. Events that picked it keep their address as a
+     * plain one, and whoever added it is told why.
+     */
+    public function remove(Request $request, Venue $venue)
+    {
+        $this->authorize('approve', $venue);
+        $validated = $request->validate(['reason' => ['required', 'string', 'max:1000']]);
+
+        $team = $venue->owner;
+        $name = $venue->name;
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($request, $venue, $validated) {
+            // Checked under a lock on the row: an approval or merge crossing
+            // this one wins, and a live venue is never removed.
+            $locked = Venue::whereKey($venue->id)->lockForUpdate()->first();
+            abort_unless($locked?->status === Venue::PENDING && $locked->merged_into_id === null, 422, 'Only a venue waiting for approval can be removed. Merge a live one into the right venue instead.');
+            abort_if(Venue::where('merged_into_id', $venue->id)->exists(), 422, 'Other venues were merged into this one. Merge it into the right venue instead.');
+            // Back to a plain address (kind NULL), as ApplyVenue leaves one.
+            $venue->locations()->update(['venue_id' => null, 'kind' => null]);
+            $venue->nameChangeRequests()->where('status', 'pending')->update(['status' => 'withdrawn']);
+            AuditLog::record($venue, 'venue.removed', $request->user(), ['reason' => $validated['reason']]);
+            // Picture files last, once nothing below can roll the delete back.
+            foreach ($venue->images as $image) {
+                try {
+                    \App\Services\ImageHandler::deleteImage($image);
+                } catch (\Throwable $e) {
+                    report($e);
+                    $image->delete();
+                }
+            }
+            $venue->delete();
+        });
+
+        $text = 'The venue '.$name.' was not added to Everything Immersive: '.$validated['reason'];
+        // Its owner (a person, from a claim or added with no organization), else the team that added it.
+        // (The thread is on the venue's row as it was: as "Ask a question" does.)
+        if ($venue->user_id) {
+            Message::notification($venue, $text, $venue->slug);
+        } elseif ($team && $team->user_id) {
+            Message::notification($team, $text, $team->slug);
+        }
+
+        return response()->json(['message' => 'Venue removed.']);
+    }
+
     public function approve(Request $request, Venue $venue)
     {
         $this->authorize('approve', $venue);
-
-        $venue->update(['status' => Venue::APPROVED]);
+        // A draft is still being added by its owner (it may have no address
+        // yet). Under the same lock as Remove, so the two never cross.
+        \Illuminate\Support\Facades\DB::transaction(function () use ($venue) {
+            $locked = Venue::whereKey($venue->id)->lockForUpdate()->first();
+            abort_if(! $locked, 404);
+            abort_if($locked->status === Venue::DRAFT, 422, 'This venue is still a draft: its owner has not sent it yet.');
+            $locked->update(['status' => Venue::APPROVED]);
+        });
+        $venue->refresh();
 
         AuditLog::record($venue, 'venue.approved', $request->user());
 

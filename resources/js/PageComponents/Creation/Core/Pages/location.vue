@@ -1,90 +1,96 @@
 <template>
     <div class="w-full">
         <div class="relative w-full">
-            <div class="w-full mb-12">
-                <h2 v-if="locationSearch" class="text-black">Where is your event located?</h2>
-                <h2 v-else class="text-black">Does this look right?</h2>
-                <p v-else class="text-gray-500 font-normal mt-4">Make sure to double check your location and address.</p>
+            <!-- First: at a venue, or somewhere else. The map waits until there is a place to show. -->
+            <div class="w-full mb-10">
+                <h2 class="text-black">{{ heading }}</h2>
+                <!-- One link in this line back to the two choices: no extra row above the map. -->
+                <p v-if="subheading || mode" class="text-[1.6rem] leading-[2.2rem] text-[#6a6a6a] font-normal mt-3">
+                    {{ subheading }}
+                    <button v-if="mode" type="button" class="text-[#222222] font-medium underline" data-change-mode @click="changeMode">{{ mode === 'venue' ? 'Not at a venue?' : 'At a venue?' }}</button>
+                </p>
             </div>
-            
-            <div 
-                v-if="!locationSearch"
-                class="relative h-full overflow-auto flex items-center justify-center mb-8">
-                <div class="w-full bg-white rounded-3xl">
-                    <div class="font-light">
-                        <!-- Venue Input -->
-                        <div class="px-8 py-6 border-black border border-b-0 rounded-t-3xl">
-                            <venue-picker @picked="onVenuePicked" />
-                        </div>
-                        <!-- Address Details (clickable) -->
-                        <div 
-                            class="cursor-pointer" 
-                            @click="locationSearch=true">
-                            <div class="px-8 py-6 border-black border border-b-0">
-                                <p class="font-semibold">{{event.location.home}}</p>
-                            </div>
-                            <div class="px-8 py-6 border-black border-b-0 border">
-                                <p class="font-semibold">{{event.location.city}}</p>
-                            </div>
-                            <div class="border-black border border-b-0 grid grid-cols-2 divide-x divide-solid items-center">
-                                <p class="px-8 py-6 font-semibold">{{event.location.region}}</p>
-                                <p class="px-8 py-6 border-black border-l-1 font-semibold">{{event.location.postal_code}}</p>
-                            </div>
-                            <div class="px-8 py-6 border-black border rounded-b-3xl">
-                                <p class="font-semibold">{{event.location.country}}</p>
-                            </div>
+
+            <!-- Airbnb's choice list: one card a row, words on the left, the picture on the right -->
+            <div v-if="!mode" class="space-y-4" data-location-choice>
+                <button v-for="option in MODES" :key="option.id" type="button"
+                    class="w-full flex items-center justify-between gap-6 text-left px-[2.4rem] py-[2.2rem] rounded-[1.2rem] border border-[#dddddd] hover:border-[#222222] hover:shadow-[0_0_0_1px_#222222] transition"
+                    :data-choose-venue="option.id === 'venue' ? '' : null"
+                    :data-choose-place="option.id === 'place' ? '' : null"
+                    @click="choose(option.id)">
+                    <span class="min-w-0">
+                        <span class="block text-[1.8rem] leading-[2.4rem] font-medium text-[#222222]">{{ option.title }}</span>
+                        <span class="block mt-1 text-[1.4rem] leading-[2rem] font-normal text-[#6a6a6a]">{{ option.text }}</span>
+                    </span>
+                    <svg class="w-[3.6rem] h-[3.6rem] flex-shrink-0 text-[#222222]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.3"><path stroke-linecap="round" stroke-linejoin="round" :d="option.icon"/></svg>
+                </button>
+            </div>
+
+            <p v-if="locationError" class="mb-6 text-red-500 text-[1.4rem]" role="alert" data-location-error>{{ locationError }}</p>
+
+            <!-- At a venue -->
+            <template v-if="mode === 'venue'">
+                <!-- Adding a new one: one card with its name, the check against venues EI
+                     already has at its address, and its address. Added on Next. -->
+                <div v-if="addingVenue" class="mb-8 px-[2.4rem] py-[2rem] rounded-[1.2rem] border border-[#dddddd]" data-venue-new>
+                    <div class="flex items-center justify-between gap-4">
+                        <p class="text-[1.2rem] font-medium uppercase tracking-wide text-[#6a6a6a]">New venue</p>
+                        <button type="button" class="text-[1.4rem] font-medium underline" @click="addingVenue = false">Cancel</button>
+                    </div>
+                    <input v-model="newVenueName" type="text" maxlength="80" class="mt-2 w-full text-[1.8rem] leading-[2.4rem] font-medium text-[#222222] bg-transparent focus:outline-none" data-venue-new-name>
+
+                    <p class="mt-2 text-[1.4rem] leading-[2rem] font-normal" :class="event.location.latitude ? 'text-[#6a6a6a]' : 'text-[#b0b0b0]'">
+                        {{ event.location.latitude ? addressLine : 'Search its address on the map below.' }}
+                        <button v-if="event.location.latitude && !locationSearch" type="button" class="ml-2 text-[#222222] font-medium underline" @click="locationSearch = true">Change address</button>
+                    </p>
+
+                    <div v-if="!locationSearch && knownAtAddress && !differentSpace" class="mt-6 pt-6 border-t border-[#ebebeb]" data-venue-known>
+                        <p class="text-[1.5rem] leading-[2.2rem] text-[#222222]">We already know a venue at this address: <span class="font-medium">{{ knownAtAddress.name }}<span v-if="knownAtAddress.room">, {{ knownAtAddress.room }}</span></span>. Is it the same place?</p>
+                        <div class="mt-4 flex flex-wrap gap-3">
+                            <button type="button" class="px-6 py-3 rounded-[0.8rem] bg-[#222222] text-white text-[1.4rem] font-medium" @click="pickVenue(knownAtAddress)">Yes, use {{ knownAtAddress.name }}</button>
+                            <button type="button" class="px-6 py-3 rounded-[0.8rem] border border-[#222222] text-[1.4rem] font-medium" @click="differentSpace = true">No, a different space here</button>
                         </div>
                     </div>
+                    <div v-if="differentSpace" class="mt-6 pt-6 border-t border-[#ebebeb]">
+                        <p class="text-[1.4rem] text-[#6a6a6a] mb-2">Name of this space, so people can tell it from {{ knownAtAddress?.name }}</p>
+                        <input v-model="roomName" type="text" maxlength="255" placeholder="Studio 2, Rooftop, Back room" class="w-full p-4 text-[1.5rem] rounded-[0.8rem] border border-[#dddddd] focus:border-[#222222] focus:outline-none" data-venue-room>
+                    </div>
                 </div>
-            </div>
 
-            <!-- A known venue fills in the address, so it comes before the address search -->
-            <div v-if="locationSearch && !event.location.hiddenLocationToggle" class="w-full mb-8 px-8 py-6 border border-neutral-300 rounded-3xl">
-                <venue-picker @picked="onVenuePicked" />
-            </div>
-
-            <!-- Secret Location Controls - Moved here and always visible -->
-            <div class="w-full mb-8">
-                <div class="w-full flex justify-between items-center">
-                    <p class="text-xl font-medium">Is your location a secret?</p>
-                    <ToggleSwitch 
-                        v-model="event.location.hiddenLocationToggle" 
-                        leftLabel="No" 
-                        rightLabel="Yes" 
-                    />
+                <!-- Picked: the venue, its address, and the map below -->
+                <div v-else-if="event.location.venue_id" class="mb-8 px-[2.4rem] py-[2rem] rounded-[1.2rem] border border-[#dddddd] flex items-start justify-between gap-4" data-venue-picked>
+                    <div class="min-w-0">
+                        <p class="text-[1.8rem] leading-[2.4rem] font-medium text-[#222222]">{{ event.location.venue }}</p>
+                        <p class="mt-1 text-[1.4rem] leading-[2rem] font-normal text-[#6a6a6a]">{{ addressLine }}</p>
+                    </div>
+                    <button type="button" class="flex-shrink-0 text-[1.4rem] font-medium underline" @click="changeVenue">Change venue</button>
                 </div>
-                
-                <!-- Conditional textarea for location notification instructions -->
-                <div v-if="event.location.hiddenLocationToggle" class="mt-6 relative">
-                    <textarea 
-                        v-model="event.location.hiddenLocation"
-                        :class="[
-                            'text-2.5xl font-normal border rounded-2xl p-4 w-full transition-all duration-200',
-                            {
-                                'border-red-500 focus:border-red-500 focus:shadow-focus-error': hiddenLocationError,
-                                'border-neutral-300 hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !hiddenLocationError
-                            }
-                        ]"
-                        placeholder="Please enter how participants will be notified of the location."
-                        rows="3"
-                        @input="hiddenLocationError = false"
-                    ></textarea>
-                    <p v-if="hiddenLocationError" 
-                       class="text-red-500 text-1xl mt-2 px-4">
-                        Please explain how participants will be notified of the location
-                    </p>
-                </div>
-            </div>
-            
-            <!-- Note about secret locations -->
-            <div v-if="event.location.hiddenLocationToggle && locationSearch" class="w-full mb-8 p-4 bg-yellow-50 border border-yellow-200 rounded-2xl">
-                <p class="text-gray-700">Please enter address or zipcode and we will hide the details. Multiple events with same zip code will overlap on map.</p>
-            </div>
 
+                <!-- Looking for it -->
+                <venue-search v-else :initial="newVenueName" @picked="pickVenue" @add="startAdding" />
+            </template>
+
+            <!-- Somewhere else: a name for the place, then the address -->
+            <template v-if="mode === 'place'">
+                <input
+                    v-model="event.location.venue"
+                    type="text"
+                    maxlength="80"
+                    class="w-full mb-8 h-[5.6rem] px-6 rounded-full border border-[#dddddd] hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black focus:outline-none text-[1.6rem] font-normal transition"
+                    placeholder="Name of the place (optional), e.g. Prospect Park, by the boathouse"
+                    data-place-name
+                >
+
+                <!-- The address, once picked: tap to search again -->
+                <div v-if="!locationSearch" class="mb-8 px-[2.4rem] py-[2rem] rounded-[1.2rem] border border-[#dddddd] flex items-start justify-between gap-4">
+                    <p class="min-w-0 text-[1.5rem] leading-[2.2rem] font-normal text-[#222222]">{{ addressLine }}</p>
+                    <button type="button" class="flex-shrink-0 text-[1.4rem] font-medium underline" @click="locationSearch = true">Change address</button>
+                </div>
+            </template>
 
             <!-- z-0 creates a stacking context so leaflet panes/controls stay under the fixed header/footer -->
-            <div class="w-full overflow-hidden rounded-3xl relative z-0"
-                :class="{ 'h-[45rem]': locationSearch, 'h-[30rem]': !locationSearch }">
+            <div v-if="showMap" class="w-full overflow-hidden rounded-3xl relative z-0"
+                :class="locationSearch ? 'h-[45rem]' : (mode === 'place' ? 'h-[46rem]' : 'h-[30rem]')">
                 <div 
                     v-if="locationSearch"
                     class="absolute w-full top-12 z-[10000]">
@@ -139,14 +145,52 @@
                     :center="map.center" 
                     style="height:100%; width:100%;"
                     @ready="onMapReady"
+                    @dragstart="onMapDragStart"
+                    @move="onMapMove"
+                    @moveend="onMapMoveEnd"
                     :class="{ 'initial-search': locationSearch }"
-                    :options="{ scrollWheelZoom: false, zoomControl: true }">
+                    :options="{ scrollWheelZoom: false, zoomControl: true, inertia: false }">
                     <l-tile-layer :url="map.url" />
                     <l-marker 
-                        :lat-lng="map.center"
+                        :lat-lng="pin"
                         :icon="markerIcon">
                     </l-marker>
                 </l-map> 
+
+                <!-- At the bottom of the map, stacked so they never overlap at any width:
+                     Airbnb's hint (the pin stays put, the map moves under it), then the
+                     Hidden location card (Airbnb's "Show precise location"). -->
+                <div class="absolute left-[1.6rem] right-[1.6rem] bottom-[1.6rem] z-[1000] flex flex-col items-center gap-[1.2rem] pointer-events-none">
+                    <p v-if="canReposition" class="px-[1.6rem] py-[0.8rem] rounded-full bg-[#222222] text-white text-[1.4rem] font-medium whitespace-nowrap" data-drag-hint>
+                        Drag the map to reposition the pin
+                    </p>
+                    <div v-if="mode === 'place' && !locationSearch" class="pointer-events-auto w-full flex items-center justify-between gap-6 px-[2.4rem] py-[2rem] rounded-[1.6rem] bg-white shadow-[0_6px_20px_rgba(0,0,0,0.2)]" data-hidden-location>
+                        <div class="min-w-0">
+                            <p class="text-[1.6rem] leading-[2rem] font-medium text-[#222222]">Hidden location</p>
+                            <p class="mt-1 text-[1.4rem] leading-[1.8rem] font-normal text-[#6a6a6a]">Only the general area shows on the map. You tell guests the address yourself.</p>
+                        </div>
+                        <ToggleSwitch v-model="event.location.hiddenLocationToggle" leftLabel="No" rightLabel="Yes" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- A hidden location: how guests learn where to go -->
+            <div v-if="mode === 'place' && event.location.hiddenLocationToggle" class="mt-6">
+                <p class="text-[1.4rem] text-[#6a6a6a] mb-2">How will guests learn the address?</p>
+                <textarea 
+                    v-model="event.location.hiddenLocation"
+                    :class="[
+                        'text-[1.6rem] font-normal border rounded-[1.2rem] p-4 w-full transition-all duration-200',
+                        {
+                            'border-red-500 focus:border-red-500 focus:shadow-focus-error': hiddenLocationError,
+                            'border-[#dddddd] hover:border-[#222222] focus:border-[#222222] focus:shadow-focus-black': !hiddenLocationError
+                        }
+                    ]"
+                    placeholder="For example: we email the address the day before."
+                    rows="3"
+                    @input="hiddenLocationError = false"
+                ></textarea>
+                <p v-if="hiddenLocationError" class="text-red-500 text-[1.4rem] mt-2">Please explain how guests will learn the address</p>
             </div>
         </div>
     </div>
@@ -160,7 +204,8 @@ import L from "leaflet";
 import 'leaflet/dist/leaflet.css'
 import { RiCheckboxBlankLine, RiCheckboxLine } from "@remixicon/vue";
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
-import VenuePicker from '../Components/venue-picker.vue';
+import VenueSearch from '../Components/venue-search.vue';
+import axios from 'axios';
 import { importMapsLibrary } from '@/composables/useGoogleMaps';
 import { localLanguageFor, browserSpeaks } from '@/composables/localLanguage';
 
@@ -353,21 +398,262 @@ const mapRef = ref(null);
 const onMapReady = () => {
     setTimeout(() => {
         if (mapRef.value) {
-            mapRef.value.leafletObject.invalidateSize();
-            mapRef.value.leafletObject.setView(map.value.center, map.value.zoom);
+            settleView(map.value.center.lat, map.value.center.lng);
         }
     }, 100);
 };
 
-// A picked venue is the address: leave the search for the filled-in form.
-const onVenuePicked = () => {
+// ---- At a venue, or somewhere else ----
+// What was saved decides where the step opens: a venue, or "somewhere else"
+// (kind "place", or hidden, which is never a venue). A listing from before this
+// question was asked opens on the choice, its address kept, so the answer is
+// always the organizer's own and never a guess.
+// Editing a live listing from before the question, though, opens straight on
+// "Somewhere else" with its address, since it already has one. That is only a
+// starting point: unless the organizer picks a way themselves, the kind is not
+// sent, and the listing stays "not said" (see submitData).
+const editingLiveListing = inject('editingLiveListing', false);
+const legacyAddress = !event.location.venue_id && !event.location.kind && !event.location.hiddenLocationToggle && Boolean(event.location.latitude);
+const mode = ref(event.location.venue_id ? 'venue'
+    : ((event.location.kind === 'place' || event.location.hiddenLocationToggle || (editingLiveListing && legacyAddress)) ? 'place' : null));
+// True once the organizer has chosen a way on this step (or one was saved before).
+const wayChosen = ref(Boolean(event.location.venue_id || event.location.kind || event.location.hiddenLocationToggle));
+const addingVenue = ref(false);
+const newVenueName = ref('');
+const roomName = ref('');
+const knownAtAddress = ref(null);
+const differentSpace = ref(false);
+const proposing = ref(false);
+const venueError = ref('');
+// What stops this step, shown once above the choice's details.
+const locationError = computed(() => venueError.value || errors.value?.location?.[0] || '');
+
+const MODES = [
+    { id: 'venue', title: 'At a venue', text: 'A theatre, bar, hotel, gallery or other space with a name.', icon: 'M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6' },
+    { id: 'place', title: 'Somewhere else', text: "A park, a forest, the streets, someone's home, or a hidden place.", icon: 'M12 3l-6 9h4l-4 6h12l-4-6h4zM12 18v3' },
+];
+
+// One line of address: the place's own name (when it is not the street), street, city, country.
+const addressLine = computed(() => [
+    event.location.home && event.location.home !== event.location.street ? event.location.home : null,
+    event.location.street,
+    event.location.city,
+    event.location.country,
+].filter(Boolean).join(', '));
+
+// ---- The pin: it stays in the middle and the map moves under it (Airbnb's
+// "Drag the map to reposition the pin"), for an address someone picked: a
+// place, or a new venue. A known venue's pin is the venue's own.
+const pin = ref({ ...map.value.center });
+const canReposition = computed(() => !locationSearch.value && Boolean(event.location.latitude)
+    && (mode.value === 'place' || (mode.value === 'venue' && addingVenue.value)));
+
+// Where the pin sits, as a share of the map's height from the top. Somewhere
+// else has the Hidden location card over the bottom of the map, so its pin sits
+// in the middle of what is left above it.
+const pinHeight = computed(() => (mode.value === 'place' && !locationSearch.value ? 0.38 : 0.5));
+
+// The spot on the map under the pin.
+const pointUnderPin = (leaflet) => {
+    if (!leaflet?.getSize) return null;
+    const size = leaflet.getSize();
+    return leaflet.containerPointToLatLng([size.x / 2, size.y * pinHeight.value]);
+};
+
+// Put a point under the pin: centre on it, then slide it up to the pin's height.
+const settleView = (lat, lng) => {
+    const leaflet = mapRef.value?.leafletObject;
+    if (!leaflet || !lat || !lng) return;
+    leaflet.invalidateSize();
+    leaflet.setView([lat, lng], map.value.zoom, { animate: false });
+    const offset = (0.5 - pinHeight.value) * leaflet.getSize().y;
+    if (offset) leaflet.panBy([0, offset], { animate: false });
+    pin.value = { lat: Number(lat), lng: Number(lng) };
+};
+
+// Only a drag by hand moves the saved point, never the map settling itself.
+let dragging = false;
+const onMapDragStart = () => { dragging = true; };
+
+const onMapMove = (e) => {
+    if (!canReposition.value || !dragging) return;
+    const point = pointUnderPin(e?.target ?? mapRef.value?.leafletObject);
+    if (point) pin.value = { lat: point.lat, lng: point.lng };
+};
+
+const onMapMoveEnd = (e) => {
+    if (!canReposition.value || !dragging) return;
+    dragging = false;
+    const point = pointUnderPin(e?.target ?? mapRef.value?.leafletObject);
+    if (!point) return;
+    event.location.latitude = Number(point.lat.toFixed(8));
+    event.location.longitude = Number(point.lng.toFixed(8));
+    pin.value = { lat: point.lat, lng: point.lng };
+};
+
+// The step's own title once a place is set (a venue picked, or an address
+// for somewhere else): coming back to it reads as this step, not a question.
+const heading = computed(() => {
+    if (mode.value === 'venue' && addingVenue.value) return 'Add a new venue';
+    if (mode.value === 'venue' && !event.location.venue_id) return 'Which venue?';
+    if (mode.value === 'place' && locationSearch.value) return 'Where is it?';
+    return 'Where does it happen?';
+});
+const subheading = computed(() => {
+    if (mode.value === 'venue' && !event.location.venue_id && !addingVenue.value) return 'Find it in the list. If it is not there yet, add it.';
+    if (mode.value === 'venue' && addingVenue.value) return 'Its name and address. We check it is not a venue we already know.';
+    if (mode.value === 'place' && !locationSearch.value) return 'Check the address, and drag the map if the pin is not quite right.';
+    return '';
+});
+
+// The map shows once there is a place to put on it (or an address to search on it).
+const showMap = computed(() => mode.value === 'place' || (mode.value === 'venue' && (Boolean(event.location.venue_id) || addingVenue.value)));
+
+const ADDRESS_FIELDS = ['home', 'street', 'city', 'region', 'region_long', 'country', 'country_long', 'postal_code', 'latitude', 'longitude'];
+const blankAddress = () => Object.fromEntries(ADDRESS_FIELDS.map((field) => [field, '']));
+
+// Each way keeps its own details while the organizer goes back and forth:
+// leaving "At a venue" remembers the venue, leaving "Somewhere else" its
+// address, and choosing one again brings back what it had. A way never
+// borrows the other's: "Somewhere else" never starts with the venue's address.
+const KEPT_FIELDS = [...ADDRESS_FIELDS, 'venue', 'venue_id', 'hiddenLocationToggle', 'hiddenLocation'];
+// Each way keeps its own address with its own timezone, so switching back
+// never pairs one city's address with another's time.
+const snapshot = () => ({
+    fields: Object.fromEntries(KEPT_FIELDS.map((field) => [field, event.location[field] ?? null])),
+    timezone: event.timezone ?? null,
+});
+const kept = {
+    venue: mode.value === 'venue' ? snapshot() : null,
+    // A listing from before the question: its address is offered to "Somewhere else".
+    place: mode.value === 'place' || (mode.value === null && event.location.latitude && !event.location.venue_id) ? snapshot() : null,
+};
+
+const choose = (chosen) => {
+    mode.value = chosen;
+    wayChosen.value = true;
+    errors.value = {};
+    addingVenue.value = false;
+    const restored = kept[chosen];
+    if (restored) {
+        Object.assign(event.location, restored.fields);
+        // None kept: looked up again from the point before saving (isValid).
+        event.timezone = restored.timezone;
+    } else {
+        Object.assign(event.location, blankAddress(), { venue: '', venue_id: null, hiddenLocationToggle: false, hiddenLocation: '' });
+        event.timezone = null;
+    }
+    if (chosen === 'venue') {
+        // A venue is never secret: a venue page would give the place away.
+        event.location.hiddenLocationToggle = false;
+        event.location.hiddenLocation = '';
+        locationSearch.value = !event.location.venue_id;
+    } else {
+        event.location.venue_id = null;
+        locationSearch.value = !event.location.latitude;
+    }
+    if (event.location.latitude && !locationSearch.value) centerOnLocation();
+};
+
+const changeMode = () => {
+    // Remember this way's details before going back to the two choices.
+    if (mode.value) kept[mode.value] = snapshot();
+    mode.value = null;
+    addingVenue.value = false;
+    differentSpace.value = false;
+    knownAtAddress.value = null;
+    venueError.value = '';
+    userInput.value = '';
+};
+
+const centerOnLocation = () => {
+    map.value.center = { lat: parseFloat(event.location.latitude), lng: parseFloat(event.location.longitude) };
+    pin.value = { ...map.value.center };
+    setTimeout(() => settleView(map.value.center.lat, map.value.center.lng), 300);
+};
+
+// A venue picked (from the list, or the one already known at the new address):
+// its address is the event's, and its timezone comes with it.
+const pickVenue = (venue) => {
+    ADDRESS_FIELDS.forEach((field) => { event.location[field] = venue[field]; });
+    event.location.venue = venue.name;
+    event.location.venue_id = venue.id;
+    addingVenue.value = false;
+    differentSpace.value = false;
+    knownAtAddress.value = null;
+    venueError.value = '';
+    errors.value = {};
     locationSearch.value = false;
     userInput.value = '';
     dropdown.value = false;
-    map.value.center = { lat: parseFloat(event.location.latitude), lng: parseFloat(event.location.longitude) };
-    // A venue is somewhere: its timezone comes with it, as an address's does.
+    centerOnLocation();
     setTimezoneFromCoordinates(event.location.latitude, event.location.longitude);
 };
+
+const changeVenue = () => {
+    newVenueName.value = event.location.venue || '';
+    event.location.venue_id = null;
+    Object.assign(event.location, blankAddress());
+    event.location.venue = '';
+    locationSearch.value = true;
+};
+
+const startAdding = (name) => {
+    newVenueName.value = name;
+    addingVenue.value = true;
+    differentSpace.value = false;
+    knownAtAddress.value = null;
+    roomName.value = '';
+    venueError.value = '';
+    Object.assign(event.location, blankAddress());
+    event.location.venue = name;
+    event.location.venue_id = null;
+    locationSearch.value = true;
+    userInput.value = '';
+};
+
+// The new venue's address is picked: is there already a venue there?
+const checkKnownVenue = async () => {
+    knownAtAddress.value = null;
+    differentSpace.value = false;
+    const { home, street, city } = event.location;
+    if (!street || !city) return;
+    try {
+        const response = await axios.get('/api/venues/match', { params: { home, street, city } });
+        knownAtAddress.value = response.data.venue;
+    } catch {
+        knownAtAddress.value = null;
+    }
+};
+
+// Made when Next is pressed: the new venue becomes the event's, and the screen
+// stays as it is while the step moves on (no flash of the picked-venue view).
+const addVenue = async () => {
+    proposing.value = true;
+    venueError.value = '';
+    try {
+        const response = await axios.post('/api/venues', {
+            name: newVenueName.value.trim(),
+            room: differentSpace.value ? roomName.value.trim() : null,
+            ...Object.fromEntries(ADDRESS_FIELDS.map((field) => [field, event.location[field]])),
+        });
+        const venue = response.data.venue;
+        ADDRESS_FIELDS.forEach((field) => { event.location[field] = venue[field]; });
+        event.location.venue = venue.name;
+        event.location.venue_id = venue.id;
+        venueAddFailed.value = false;
+    } catch (failure) {
+        venueError.value = failure.response?.status === 429
+            ? 'Too many tries just now. Please wait a minute and try again.'
+            : (Object.values(failure.response?.data?.errors ?? {}).flat()[0] ?? failure.response?.data?.message ?? 'That venue could not be added.');
+        venueAddFailed.value = true;
+    } finally {
+        proposing.value = false;
+    }
+};
+// Adding the new venue was refused or failed: Save & exit stays, so what was
+// typed is not lost (see Core/index.vue).
+const venueAddFailed = ref(false);
 
 const selectLocation = async (location) => {
     // A different address takes the venue off (ApplyVenue says the same).
@@ -400,6 +686,10 @@ const selectLocation = async (location) => {
         userInput.value = location.description;
         dropdown.value = false;
         locationSearch.value = false;
+        if (mode.value === 'venue' && addingVenue.value) {
+            event.location.venue = newVenueName.value;
+            checkKnownVenue();
+        }
         
         // Wait to ensure the map is available
         setTimeout(() => {
@@ -420,7 +710,7 @@ const selectLocation = async (location) => {
                         }
                     }
                     
-                    mapRef.value.leafletObject.setView([lat, lng], map.value.zoom);
+                    settleView(lat, lng);
                 }
             } catch (error) {
                 console.error('Error updating map view:', error);
@@ -541,6 +831,7 @@ const setPlace = (place) => {
     // Update map center
     if (lat && lng) {
         map.value.center = { lat, lng };
+        pin.value = { lat, lng };
         
         // Set timezone based on coordinates
         setTimezoneFromCoordinates(lat, lng);
@@ -590,10 +881,36 @@ onUnmounted(() => {
 });
 
 defineExpose({
+    keepsOnExit: () => (venueAddFailed.value ? venueError.value || 'That venue could not be added.' : null),
     isValid: async () => {
         // Reset error states
         hiddenLocationError.value = false;
         addressInputError.value = false;
+        venueError.value = '';
+
+        if (!mode.value) {
+            errors.value = { location: ['Choose: at a venue, or somewhere else'] };
+            return false;
+        }
+        // At a venue means a venue: picked from the list, or the new one, added
+        // here on Next once it has a name and an address (and, at an address EI
+        // already knows, the answer to "is it the same place?").
+        if (mode.value === 'venue' && !event.location.venue_id && addingVenue.value) {
+            const stop = !newVenueName.value.trim() ? 'Give the new venue a name.'
+                : (!event.location.latitude || locationSearch.value) ? 'Search the new venue\'s address on the map.'
+                : (knownAtAddress.value && !differentSpace.value) ? `Is it the same place as ${knownAtAddress.value.name}? Choose one.`
+                : (differentSpace.value && !roomName.value.trim()) ? 'Name this space, so people can tell it apart.'
+                : null;
+            if (stop) {
+                venueError.value = stop;
+                return false;
+            }
+            await addVenue();
+        }
+        if (mode.value === 'venue' && !event.location.venue_id) {
+            if (!venueError.value) venueError.value = 'Pick the venue from the list, or add it as a new one.';
+            return false;
+        }
         
         // If in search mode and no address entered
         if (locationSearch.value && !userInput.value) {
@@ -602,8 +919,9 @@ defineExpose({
             return false;
         }
         
-        // Validate venue length
-        if (event.location.venue?.length > 80) {
+        // A typed place name is capped at 80; a picked venue keeps its own
+        // (longer) name, sent by venue_id.
+        if (!event.location.venue_id && event.location.venue?.length > 80) {
             errors.value = { location: ['Venue name cannot exceed 80 characters'] };
             return false;
         }
@@ -615,10 +933,10 @@ defineExpose({
             return false;
         }
 
-        const isValid = event.location && 
+        const isValid = Boolean(event.location && 
                        event.location.latitude && 
                        event.location.longitude && 
-                       event.location.city;
+                       event.location.city);
         
         if (!isValid) {
             errors.value = { location: ['Please select a valid location'] };
@@ -627,12 +945,20 @@ defineExpose({
                 addressInputError.value = true;
             }
         }
+
+        // An address that arrived without its timezone (copied from an earlier
+        // run, say): look it up from the map point before saving, or the save is refused.
+        if (isValid && !event.timezone) {
+            await setTimezoneFromCoordinates(event.location.latitude, event.location.longitude);
+        }
         
         return isValid;
     },
             submitData: () => ({
-        // A picked venue is its own address: the server copies it.
+        // A picked venue is its own address: the server copies it. The kind is
+        // said every time: "place" means a typed name is a label, never a venue.
         location: event.location.venue_id ? {
+            kind: 'venue',
             venue_id: event.location.venue_id,
             hiddenLocationToggle: event.location.hiddenLocationToggle,
             hiddenLocation: event.location.hiddenLocation,
@@ -649,6 +975,10 @@ defineExpose({
             country_long: event.location.country_long,
             venue: event.location.venue,
             venue_id: null,
+            // Only when it was said: an older listing opened on "Somewhere else"
+            // for editing keeps its kind unsaid, so its typed name stays a
+            // candidate for a venue later.
+            ...(wayChosen.value ? { kind: 'place' } : {}),
             hiddenLocationToggle: event.location.hiddenLocationToggle,
             hiddenLocation: event.location.hiddenLocation
         },

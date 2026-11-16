@@ -18,11 +18,11 @@ use App\Http\Controllers\Admin\AdminGenreController;
 use App\Http\Controllers\Admin\AdminLinkRequestController;
 use App\Http\Controllers\Admin\AdminOrganizerController;
 use App\Http\Controllers\Admin\AdminOwnershipClaimController;
-use App\Http\Controllers\Admin\AdminVenueClaimController;
 use App\Http\Controllers\Admin\AdminProjectController;
 use App\Http\Controllers\Admin\AdminRequestsController;
 use App\Http\Controllers\Admin\AdminReviewController;
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AdminVenueClaimController;
 use App\Http\Controllers\Admin\AdminVenueController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Api\ArtistController;
@@ -30,10 +30,11 @@ use App\Http\Controllers\Api\EventScraperController;
 use App\Http\Controllers\Api\GeonamesController;
 use App\Http\Controllers\Api\ProjectSuggestController;
 use App\Http\Controllers\Api\SimilarEventsController;
+use App\Http\Controllers\Api\VenueClaimController;
 use App\Http\Controllers\Api\VenueController;
 use App\Http\Controllers\CachedDataController;
-use App\Http\Controllers\Creation\EventClickController;
 // Controller Imports - Other
+use App\Http\Controllers\Creation\EventClickController;
 use App\Http\Controllers\Creation\HostEventController;
 use App\Http\Controllers\EventSuggestionController;
 use App\Http\Controllers\FavoriteController;
@@ -42,7 +43,6 @@ use App\Http\Controllers\NotificationFeedController;
 use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\OrganizerController;
 use App\Http\Controllers\OwnershipClaimController;
-use App\Http\Controllers\Api\VenueClaimController;
 use App\Http\Controllers\Profile\ProfileExtrasController;
 use App\Http\Controllers\SavedSearchController;
 use App\Http\Controllers\Search\EventAttributesController;
@@ -58,7 +58,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 // Critical: Click tracking - Generous but prevents spam (30 clicks/min per IP)
-Route::middleware(['throttle:30,1'])->group(function () {
+Route::middleware(['throttle:30,1,api61:'])->group(function () {
     Route::POST('/events/{eventId}/track-click', [EventClickController::class, 'trackClick'])
         ->name('event.track.click');
 });
@@ -86,7 +86,7 @@ Route::POST('/analytics/page-ping', App\Http\Controllers\Analytics\PagePingContr
     ->name('analytics.page-ping');
 
 // Resource-intensive: Search & recommendations - Very generous (180/min = 3/sec)
-Route::middleware(['throttle:180,1'])->group(function () {
+Route::middleware(['throttle:180,1,api89:'])->group(function () {
     Route::GET('/index/search', [ListingsController::class, 'apiIndex']);
     Route::GET('/events/{event}/similar', [SimilarEventsController::class, 'getSimilar'])
         ->name('events.similar');
@@ -98,19 +98,19 @@ Route::middleware(['throttle:180,1'])->group(function () {
 });
 
 // Validation endpoints - Generous for real-time typing (60/min = 1/sec)
-Route::middleware(['throttle:60,1'])->group(function () {
+Route::middleware(['throttle:60,1,api101:'])->group(function () {
     Route::POST('/organizers/check-name', [OrganizerController::class, 'checkNameAvailability'])
         ->name('organizers.check-name');
 });
 
 // Standard public endpoints - Very generous
-Route::middleware(['throttle:180,1'])->group(function () {
+Route::middleware(['throttle:180,1,api107:'])->group(function () {
     Route::GET('/organizers/{organizer}/events', [App\Http\Controllers\EventController::class, 'getOrganizerPaginatedEvents'])
         ->name('organizers.events.paginated');
 });
 
 // Authenticated user operations - Very high limits (300/min = 5/sec)
-Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:300,1,api113:'])->group(function () {
     // The credits panels' artist picker
     Route::GET('/artists/search', [ArtistController::class, 'search']);
     Route::POST('/artists', [ArtistController::class, 'store']);
@@ -119,9 +119,10 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     Route::GET('/projects/suggest', ProjectSuggestController::class);
     Route::GET('/venues/search', [VenueController::class, 'search']);
     Route::GET('/venues/match', [VenueController::class, 'match']);
+    Route::GET('/venues/known', [VenueController::class, 'known']);
     Route::POST('/venues', [VenueController::class, 'store']);
     // The real venue asks for its page (VenueClaims)
-    Route::POST('/venues/{venue}/claim', [VenueClaimController::class, 'store'])->middleware('throttle:10,60');
+    Route::POST('/venues/{venue}/claim', [VenueClaimController::class, 'store'])->middleware('throttle:10,60,api125:');
 
     Route::POST('/hosting/event/{event}', [HostEventController::class, 'update'])
         ->middleware('can:manage,event')
@@ -132,7 +133,7 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     // per-event authorization are enforced in the controller. Tight throttle —
     // each call fans out to the Claude API.
     Route::POST('/hosting/event/{slug}/schedule-assistant', \App\Http\Controllers\Admin\ScheduleAssistantController::class)
-        ->middleware('throttle:20,1')
+        ->middleware('throttle:20,1,api136:')
         ->name('event.schedule-assistant');
 
     Route::GET('/events/{eventId}/click-stats', [EventClickController::class, 'getStats'])
@@ -155,13 +156,13 @@ Route::middleware(['throttle:event-suggestion-send'])->group(function () {
 // Geonames timezone proxy — keeps the GeoNames username out of the JS bundle.
 // Auth-gated because only logged-in event creators hit this; tight throttle
 // since GeoNames itself rate-limits per username.
-Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:60,1,api159:'])->group(function () {
     Route::GET('/geonames/timezone', [GeonamesController::class, 'timezone'])
         ->name('geonames.timezone');
 });
 
 // Event duplication - Generous for legitimate use (20/min)
-Route::middleware(['auth:sanctum', 'throttle:20,1'])->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:20,1,api165:'])->group(function () {
     Route::POST('/events/{event}/duplicate', [HostEventController::class, 'duplicate'])
         ->middleware('can:duplicate,event')
         ->name('event.duplicate');
@@ -174,7 +175,7 @@ Route::middleware(['auth:sanctum', 'throttle:20,1'])->group(function () {
 
 // Favoriting — lightweight, frequently-clicked toggle; generous like other real-time
 // interaction endpoints (60/min = 1/sec). No policy needed — self-scoped to auth()->id().
-Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:60,1,api178:'])->group(function () {
     Route::POST('/events/{event}/favorite', [FavoriteController::class, 'store'])
         ->name('event.favorite');
     Route::DELETE('/events/{event}/favorite', [FavoriteController::class, 'destroy'])
@@ -182,7 +183,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 });
 
 // Following an organizer — same lightweight-toggle tier as favoriting.
-Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:60,1,api186:'])->group(function () {
     Route::POST('/organizers/{organizer}/follow', [FollowController::class, 'store'])
         ->name('organizer.follow');
     Route::DELETE('/organizers/{organizer}/follow', [FollowController::class, 'destroy'])
@@ -194,7 +195,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 // search bar and Account Settings' Notifications tab. Kept the /hub/*
 // namespace despite the page itself moving to Profile, to avoid churning an
 // API contract for no user-facing benefit.
-Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:60,1,api198:'])->group(function () {
     Route::GET('/hub/events', [FavoriteController::class, 'index'])
         ->name('hub.events');
     // Backs deep-linking a single saved event (/users/{id}/events/{slug}) —
@@ -238,7 +239,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 });
 
 // Account Settings — Personal Information rows, each saved independently.
-Route::middleware(['auth:sanctum', 'throttle:60,1'])->prefix('account-settings')->name('account-settings.')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:60,1,api242:'])->prefix('account-settings')->name('account-settings.')->group(function () {
     Route::GET('/personal-info', [PersonalInformationController::class, 'show'])
         ->name('personal-info.show');
     Route::PATCH('/personal-info/legal-name', [PersonalInformationController::class, 'updateLegalName'])
@@ -260,7 +261,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->prefix('account-settings')
     // Sends a pair of emails (user + legal) per call — tighter than the
     // group's default 60/min so it can't be used to spam either inbox.
     Route::POST('/privacy/data-request', [PrivacyController::class, 'requestData'])
-        ->middleware('throttle:5,60')
+        ->middleware('throttle:5,60,api264:')
         ->name('privacy.data-request');
 
     Route::DELETE('/', [AccountDeletionController::class, 'destroy'])
@@ -269,7 +270,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->prefix('account-settings')
 
 // Profile page extras. stats/followed-organizers/bio are scoped to the
 // authenticated viewer's own profile, so those stay behind auth:sanctum.
-Route::middleware(['auth:sanctum', 'throttle:60,1'])->prefix('profile')->name('profile.')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:60,1,api273:'])->prefix('profile')->name('profile.')->group(function () {
     Route::GET('/stats', [ProfileExtrasController::class, 'stats'])
         ->name('stats');
     Route::GET('/followed-organizers', [ProfileExtrasController::class, 'followedOrganizers'])
@@ -283,7 +284,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->prefix('profile')->name('p
 // auth requirement either), gated by that user's own Privacy toggles (see
 // User::showsPublicly()), not the viewer's. Requiring auth:sanctum here
 // would 401 for exactly the logged-out visitors a public profile is for.
-Route::middleware('throttle:60,1')->prefix('profile')->name('profile.')->group(function () {
+Route::middleware('throttle:60,1,api287:')->prefix('profile')->name('profile.')->group(function () {
     Route::GET('/{user}/public-extras', [ProfileExtrasController::class, 'publicExtras'])
         ->name('public-extras');
 });
@@ -295,7 +296,7 @@ Route::middleware('throttle:60,1')->prefix('profile')->name('profile.')->group(f
 // route in web.php already claims that name — a duplicate route name is
 // silently last-registration-wins in Laravel, so route('notifications.index')
 // would resolve to whichever of the two happened to load last.
-Route::middleware(['auth:sanctum', 'throttle:60,1'])->prefix('notifications')->name('api.notifications.')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:60,1,api299:'])->prefix('notifications')->name('api.notifications.')->group(function () {
     Route::GET('/', [NotificationFeedController::class, 'index'])
         ->name('index');
     Route::POST('/read-all', [NotificationFeedController::class, 'markAllRead'])
@@ -305,7 +306,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->prefix('notifications')->n
 });
 
 // Navigation Search Routes - Autocomplete (fired on keystroke, very generous 120/min = 2/sec)
-Route::middleware(['throttle:120,1'])->group(function () {
+Route::middleware(['throttle:120,1,api309:'])->group(function () {
     Route::controller(SearchController::class)->group(function () {
         Route::GET('search/nav/events', 'navEvents');
         Route::GET('search/nav/organizers', 'navOrganizers');
@@ -314,7 +315,7 @@ Route::middleware(['throttle:120,1'])->group(function () {
 });
 
 // Event Attributes Routes - Reference data (very high limits, typically cached)
-Route::middleware(['throttle:300,1'])->group(function () {
+Route::middleware(['throttle:300,1,api318:'])->group(function () {
     Route::controller(EventAttributesController::class)->group(function () {
         Route::GET('/categories', 'categories');
         Route::GET('/genres', 'genres');
@@ -340,14 +341,14 @@ Route::middleware(['throttle:300,1'])->group(function () {
 */
 
 // Authenticated user routes - Very generous for logged-in users (300/min = 5/sec)
-Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:300,1,api344:'])->group(function () {
     Route::GET('/teams/search', [OrganizerController::class, 'searchTeams'])
         ->name('api.teams.search')
         ->middleware('can:viewAny,App\Models\Organizer');
 });
 
 // Admin/Moderator routes - High limits for trusted users (600/min = 10/sec)
-Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(function () {
+Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1,api351:'])->group(function () {
     Route::GET('/user', fn (Request $request) => $request->user());
 
     /*
@@ -527,6 +528,7 @@ Route::middleware(['auth:sanctum', 'moderator', 'throttle:600,1'])->group(functi
             Route::POST('/venues/{venue}/approve', 'approve');
             Route::POST('/venues/{venue}/question', 'question');
             Route::POST('/venues/{venue}/merge', 'merge');
+            Route::POST('/venues/{venue}/remove', 'remove');
         });
 
         Route::controller(AdminArtistController::class)->group(function () {

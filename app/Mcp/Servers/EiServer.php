@@ -66,9 +66,14 @@ class EiServer extends Server
        confirm with the user)
     3. Category (fetch valid ones for the attendance type via
        list-event-attributes), then 1-10 genres
-    4. In person: resolve the address with `geocode-address` and confirm the
-       match with the user — never guess coordinates. Ask if the exact location
-       is a secret; if so it needs an explanation of how attendees learn it.
+    4. In person: first ask "is it at a venue, or somewhere else?" (a park,
+       the streets, a home, a hidden place). At a venue: `search-venues`, then
+       location.venue_id with kind "venue" (propose-venue if it is new).
+       Somewhere else: resolve the address with `geocode-address`, confirm the
+       match with the user (never guess coordinates) and send it with kind
+       "place"; any name is just a label. Ask if the exact location is a
+       secret (hidden, always "place"); if so it needs an explanation of how
+       attendees learn it.
        Online: which platforms (remotelocations) + how to join.
     5. Description (up to 5000 chars)
     6. Schedule: specific dates, ongoing/recurring, or always available —
@@ -119,8 +124,8 @@ class EiServer extends Server
     join, and fills empty fields from the show and the user's own earlier run.
     Then confirm warnings, age range, accessibility, address and tickets with
     the user before `submit-event-for-review` with `details_confirmed`. In person,
-    try `search-venues` first and send `location.venue_id`, never for a secret
-    location. `set-credits` keeps a run's credits or a show's writers.
+    ask venue or somewhere else (step 4) and say it in `location.kind`; a venue
+    is never a secret location. `set-credits` keeps a run's credits or a show's writers.
 
     Moderators can read the site's own visitor analytics: `get-site-analytics`
     for the last 90 days of searches, searches that found nothing, event views

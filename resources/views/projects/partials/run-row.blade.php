@@ -14,15 +14,5 @@
         @if($run['presenter'])
             <p class="text-xl text-neutral-600 break-words">Presented by {{ $run['presenter']->name }}</p>
         @endif
-        @if($run['run_type'] || $run['festival'])
-            <p class="text-lg text-neutral-600 mt-2 flex flex-wrap gap-2">
-                @if($run['run_type'])
-                    <span class="px-3 py-1 rounded-full border border-neutral-300">{{ $run['run_type'] }}</span>
-                @endif
-                @if($run['festival'])
-                    <span class="px-3 py-1 rounded-full border border-neutral-300">{{ $run['festival'] }}</span>
-                @endif
-            </p>
-        @endif
     </div>
 </a>

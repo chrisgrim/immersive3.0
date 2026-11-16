@@ -40,6 +40,10 @@ class UpdateProject
             $before = $project->only(array_keys($changes));
             $project->update($changes);
 
+            if ($project->wasChanged('name')) {
+                \App\Services\NameChangeRequestService::settleAfterDirectRename($project, $project->name);
+            }
+
             if ($project->wasChanged()) {
                 AuditLog::record($project, 'project.updated', $actor, ['before' => $before, 'after' => $project->only(array_keys($changes))]);
             }

@@ -78,14 +78,16 @@ test('a guest cannot claim', function () {
     $this->postJson("/api/venues/{$this->venue->slug}/claim")->assertUnauthorized();
 });
 
-test('a pending or merged venue cannot be claimed through the endpoint', function () {
-    $pending = Venue::factory()->create(['status' => Venue::PENDING]);
+test('a draft or merged venue cannot be claimed through the endpoint; one in review can', function () {
+    $draft = Venue::factory()->create(['status' => Venue::DRAFT]);
     $merged = Venue::factory()->create(['merged_into_id' => $this->venue->id]);
+    $inReview = Venue::factory()->create(['status' => Venue::PENDING]);
 
-    $this->actingAs($this->claimant)->postJson("/api/venues/{$pending->slug}/claim")->assertUnprocessable();
+    $this->actingAs($this->claimant)->postJson("/api/venues/{$draft->slug}/claim")->assertUnprocessable();
     $this->actingAs($this->claimant)->postJson("/api/venues/{$merged->slug}/claim")->assertUnprocessable();
+    $this->actingAs($this->claimant)->postJson("/api/venues/{$inReview->slug}/claim")->assertCreated();
 
-    expect(VenueClaim::count())->toBe(0);
+    expect(VenueClaim::sole()->venue_id)->toBe($inReview->id);
 });
 
 test('approving one claim turns down every other waiting one, and tells them', function () {
@@ -135,4 +137,67 @@ test('staff open a waiting venue for review and can ask its adder a question', f
     expect(App\Models\Messaging\Message::where('message', 'like', '%Is the address right?%')->exists())->toBeTrue();
 
     $this->actingAs($this->claimant)->getJson("/api/admin/venues/{$waiting->slug}")->assertForbidden();
+});
+
+test('adding a place EI already has: found by name or address, and its in-review page opens from the link with Claim', function () {
+    $this->venue->update(['status' => Venue::PENDING, 'street' => '600 E D St', 'city' => 'Petaluma']);
+    $adder = Organizer::factory()->create(['status' => 'p']);
+    $member = claimTeamMember($adder);
+
+    // The draft this person is adding for the same place.
+    $draft = $this->actingAs($member)->postJson('/hosting/venues', ['name' => 'Albert'])->assertCreated()->json();
+
+    $byName = $this->actingAs($member)->getJson("/api/venues/known?name=Albert&except={$draft['slug']}")->assertOk()->json();
+    expect(collect($byName)->pluck('name')->all())->toBe(['Albert Theatre'])
+        // In review and someone else's: its name and city only, no address, map point or page link.
+        ->and($byName[0])->not->toHaveKeys(['street', 'home', 'latitude', 'longitude', 'postal_code'])
+        ->and($byName[0]['claim_url'])->toBeNull()
+        ->and($byName[0]['address'])->not->toContain('600 E D St');
+
+    $byAddress = $this->actingAs($member)->getJson('/api/venues/known?street=600+E+D+St&city=Petaluma')->assertOk()->json();
+    expect($byAddress[0]['at_address'])->toBeTrue();
+
+    // In review: not public, but the link opens it, with a Claim button.
+    $this->actingAs($member)->get($this->venue->publicPath())->assertNotFound();
+    $this->actingAs($member)->get($byAddress[0]['claim_url'])
+        ->assertOk()->assertSee('In review')->assertSee('vue-venue-claim', false);
+
+    // Claiming leaves the draft being added alone (Back still finds it); the nightly cleanup clears an empty one.
+    $this->actingAs($member)->postJson("/api/venues/{$this->venue->slug}/claim")->assertCreated();
+    expect(Venue::find($draft['id']))->not->toBeNull()
+        ->and(VenueClaim::sole()->venue_id)->toBe($this->venue->id);
+});
+
+test('staff see Claim on a venue they do not keep, though they can edit every venue', function () {
+    $this->actingAs($this->staff)->get($this->venue->publicPath())->assertSee('vue-venue-claim', false);
+});
+
+test('a claimed venue in review shows its owner to staff, and questions go to them', function () {
+    $this->venue->update(['status' => Venue::PENDING]);
+    $this->actingAs($this->claimant)->postJson("/api/venues/{$this->venue->slug}/claim")->assertCreated();
+    $this->actingAs($this->staff)->postJson('/api/admin/approve/venue-claims/'.VenueClaim::sole()->id.'/approve')->assertOk();
+
+    $this->actingAs($this->staff)->getJson("/api/admin/venues/{$this->venue->slug}")
+        ->assertJsonPath('claimed_by.name', $this->claimant->name)->assertJsonPath('added_by', null);
+
+    $this->actingAs($this->staff)->postJson("/api/admin/venues/{$this->venue->slug}/question", ['question' => 'Is the address right?'])->assertOk();
+    expect(App\Models\Messaging\Conversation::where('user_two', $this->claimant->id)->exists())->toBeTrue();
+});
+
+test('staff remove a junk venue waiting for approval; events keep their address and the adder hears why', function () {
+    $this->venue->update(['status' => Venue::PENDING]);
+    $event = App\Models\Event::factory()->create();
+    $location = $event->location()->create(['venue_id' => $this->venue->id, 'venue' => $this->venue->name, 'street' => '1 Main St', 'city' => 'Chicago']);
+
+    $this->actingAs($this->claimant)->postJson("/api/admin/venues/{$this->venue->slug}/remove", ['reason' => 'Junk'])->assertForbidden();
+    $this->actingAs($this->staff)->postJson("/api/admin/venues/{$this->venue->slug}/remove", ['reason' => 'Not a real place'])->assertOk();
+
+    expect(Venue::find($this->venue->id))->toBeNull()
+        ->and($location->fresh()->venue_id)->toBeNull()
+        ->and($location->fresh()->street)->toBe('1 Main St');
+});
+
+test('a live venue cannot be removed, only merged', function () {
+    $this->actingAs($this->staff)->postJson("/api/admin/venues/{$this->venue->slug}/remove", ['reason' => 'x'])->assertStatus(422);
+    expect(Venue::find($this->venue->id))->not->toBeNull();
 });

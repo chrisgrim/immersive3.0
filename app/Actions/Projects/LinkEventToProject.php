@@ -66,7 +66,7 @@ class LinkEventToProject
      */
     public function decide(Event $event, ?ProjectLinkRequest $request, Project|Event|null $target, User $actor, ?Organizer $maker = null, ?string $slug = null): Event
     {
-        $resolved = $target ?? ($request ? $this->requestedTarget($request) : $this->refuse('Choose a project to link this listing to.'));
+        $resolved = $target ?? ($request ? $this->requestedTarget($request) : $this->refuse('Choose a show run to link this listing to.'));
         $project = $resolved instanceof Event ? $resolved->project : $resolved;
 
         return DB::transaction(function () use ($event, $request, $target, $resolved, $project, $actor, $maker, $slug) {
@@ -81,6 +81,40 @@ class LinkEventToProject
                 ? $this->approve($request, $actor, $options, $target)
                 : $this->link($event, $resolved, $actor, $options);
         });
+    }
+
+    /**
+     * A show run started by its own company, from a live listing of theirs
+     * that is in none yet (Duplicate: "a new run of the same show"). The
+     * project is made at once with this listing as its first run, kept by the
+     * company that made it; the copy then asks to join it, and EI's review of
+     * the copy confirms that with it. Nothing is published here.
+     */
+    public function startFrom(Event $source, User $actor): Project
+    {
+        Gate::forUser($actor)->authorize('manage', $source);
+
+        return Event::deferringSearchSync(fn () => DB::transaction(function () use ($source, $actor) {
+            $locked = $this->lockEvents([$source->id])[$source->id] ?? $this->refuse('That listing no longer exists.');
+
+            if ($locked->isHeldFrom($actor) || $locked->trashed() || ! in_array($locked->status, Event::LIVE_STATUSES, true)) {
+                $this->refuse('A show run starts from a live listing.');
+            }
+
+            if ($locked->isLinked()) {
+                $this->refuse('This listing is already part of a show run.');
+            }
+
+            $project = $this->createProject($locked, $actor, []);
+            $this->attach($locked, $project, $actor);
+            // As every link does: its own requests to join a show are withdrawn,
+            // and anyone asking to join it now asks to join its show run.
+            $this->closeRequests($locked, $project, null, $actor, null);
+            // So it can be undone if the copy never joins (DissolveProject::undoUnusedStart).
+            AuditLog::record($project, DissolveProject::STARTED, $actor, ['event_id' => $locked->id]);
+
+            return $project;
+        }));
     }
 
     /**
@@ -127,6 +161,14 @@ class LinkEventToProject
         });
 
         $request->refresh();
+
+        // A show run started by duplicating, whose copy was just turned down,
+        // is undone if its first listing is now alone in it (as deleting the copy does).
+        // After the commit: an event review declines inside its own transaction.
+        if ($request->project_id) {
+            $projectId = $request->project_id;
+            DB::afterCommit(fn () => app(DissolveProject::class)->afterRequestEnded($projectId, $actor));
+        }
     }
 
     private function requestedTarget(ProjectLinkRequest $request): Project|Event
@@ -143,7 +185,7 @@ class LinkEventToProject
         $this->authorizeDecision($target, $actor);
 
         if ($options !== [] && ! $actor->isModerator()) {
-            $this->refuse('Only a moderator can set who made a project or its address.');
+            $this->refuse('Only a moderator can set who made a show run or its address.');
         }
 
         $outcome = Event::deferringSearchSync(fn () => DB::transaction(
@@ -189,7 +231,7 @@ class LinkEventToProject
             }
 
             if (isset($options['maker']) || isset($options['slug'])) {
-                $this->refuse('That project already exists; who made it and its address are changed on the project.');
+                $this->refuse('That show run already exists; who made it and its address are changed on the show run.');
             }
         } else {
             $this->assertCanBeFirst($source, $run);
@@ -238,11 +280,11 @@ class LinkEventToProject
 
         // Approving a link never publishes a draft.
         if (! in_array($run->status, Event::LIVE_STATUSES, true)) {
-            $this->refuse('A listing joins a project once it is approved.');
+            $this->refuse('A listing joins a show run once it is approved.');
         }
 
         if ($run->isLinked()) {
-            $this->refuse('This listing is already part of a project. Take it off that project first.');
+            $this->refuse('This listing is already part of a show run. Remove it from that show run first.');
         }
     }
 

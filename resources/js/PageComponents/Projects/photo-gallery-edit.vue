@@ -5,10 +5,10 @@
     <div>
         <div class="w-full max-w-[64rem] mx-auto mb-16">
             <template v-if="!items.length || max === 1">
-                <h2 class="text-black text-center">Add an image for your {{ noun }}</h2>
-                <p class="text-neutral-500 font-normal mt-4 text-center">Ideal resolution: {{ portrait ? '900 by 1200 pixels (vertical)' : '1200 by 800 pixels (horizontal)' }}</p>
+                <h2 class="text-black text-center">{{ max === 1 ? `Add an image for your ${noun}` : `Add photos of your ${noun}` }}</h2>
+                <p class="text-neutral-500 font-normal mt-4 text-center">{{ max === 1 ? '' : `Up to ${max}. ` }}Ideal resolution: {{ portrait ? '900 by 1200 pixels (vertical)' : '1200 by 800 pixels (horizontal)' }}</p>
             </template>
-            <h2 v-else class="text-black">Add additional images</h2>
+            <h2 v-else class="text-black">Add more photos <span class="text-neutral-500 font-normal">({{ items.length }} of {{ max }})</span></h2>
         </div>
 
         <!-- One photo only: it fills the big slot; the cross clears it for another. -->

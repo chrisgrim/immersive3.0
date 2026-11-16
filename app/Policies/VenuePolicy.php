@@ -10,7 +10,8 @@ class VenuePolicy
     /** Anyone on a team can propose a venue. */
     public function propose(User $user): bool
     {
-        return $user->isModerator() || $user->teams()->exists();
+        // Staff, a member of an organization, or someone who already keeps a venue.
+        return $user->isModerator() || $user->teams()->exists() || \App\Models\Venue::where('user_id', $user->id)->exists();
     }
 
     public function approve(User $user, Venue $venue): bool

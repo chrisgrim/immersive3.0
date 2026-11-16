@@ -20,7 +20,10 @@
 	                        class="text-red-500 hover:text-red-600 transition-colors dropdown-delete-icon"
 	                    />
 	                </div>
-	                <span class="mt-auto">{{ item.name }}</span>
+	                <span class="mt-auto flex items-center gap-3">
+	                    <component :is="item.icon" v-if="item.icon" class="w-[2rem] h-[2rem] flex-shrink-0 text-[#222222]" />
+	                    {{ item.name }}
+	                </span>
 	            </li>
 	        </ul>
 	    </div>

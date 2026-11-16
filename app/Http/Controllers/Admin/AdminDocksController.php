@@ -109,7 +109,6 @@ class AdminDocksController extends Controller
     /**
      * Add a shelf to the specified dock.
      *
-     * @param  \App\Models\Curated\Shelf  $shelf
      * @return \Illuminate\Http\JsonResponse
      */
     public function addShelf(Dock $dock, Shelf $shelf)
@@ -122,7 +121,6 @@ class AdminDocksController extends Controller
     /**
      * Add a community to the specified dock.
      *
-     * @param  \App\Models\Curated\Community  $community
      * @return \Illuminate\Http\JsonResponse
      */
     public function addCommunity(Dock $dock, Community $community)

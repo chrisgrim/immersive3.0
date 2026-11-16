@@ -75,7 +75,8 @@
                          so the fixed bottom tab bar is never on-screen while this footer (shown only when
                          currentSection is set) is visible — there's no bar to clear here, unlike the settings
                          page whose blade renders the bar unconditionally. Do not lift this to bottom-36. -->
-                    <div class="fixed md:relative bottom-0 left-0 right-0 w-full flex border-t border-gray-200 bg-white h-32 justify-end items-center z-[400]">
+                    <!-- Settings save themselves, so no Update there. -->
+                    <div v-if="currentStep !== 'Settings'" class="fixed md:relative bottom-0 left-0 right-0 w-full flex border-t border-gray-200 bg-white h-32 justify-end items-center z-[400]">
                         <div class="px-8 py-6 flex gap-4 w-full justify-end">
 
                             <!-- Update button -->
@@ -235,6 +236,27 @@
             :user="user"
         />
 
+        <!-- A new run? Airbnb's pop-up, not the browser's box: a copy for the
+             new run keeps this listing as the record of the old one. -->
+        <Teleport to="body">
+            <div v-if="newRunAsk" class="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-[1003]" @click="answerNewRun(null)">
+                <div class="bg-white w-full md:w-[50rem] md:mx-4 rounded-t-[3.2rem] md:rounded-[3.2rem] shadow-2xl relative max-h-[90vh] overflow-y-auto px-[2.4rem] pt-[2.4rem] pb-[3.2rem]" role="dialog" aria-modal="true" aria-labelledby="new-run-title" data-new-run-ask @click.stop>
+                    <button type="button" aria-label="Close" class="w-[4rem] h-[4rem] -ml-[0.8rem] rounded-full flex items-center justify-center hover:bg-[#f7f7f7]" @click="answerNewRun(null)">
+                        <svg class="w-[1.8rem] h-[1.8rem]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18" /></svg>
+                    </button>
+                    <div class="flex flex-col items-center text-center mt-2">
+                        <div class="w-[18.5rem] aspect-square rounded-[1.6rem] overflow-hidden bg-[#ebebeb]">
+                            <img v-if="newRunPicture" :src="newRunPicture" :alt="event.name || ''" class="w-full h-full object-cover">
+                        </div>
+                        <h2 id="new-run-title" class="mt-[2rem] text-[1.8rem] leading-[2.4rem] font-semibold text-[#222222]">Is this a new run?</h2>
+                        <p class="mt-2 text-[1.5rem] leading-[2.2rem] text-[#6a6a6a] font-normal">{{ newRunAsk === 'Location' ? 'It is moving to a new city.' : 'These dates are a while after the last ones.' }} Make a copy for the new run, and this listing stays as the record of the old one.</p>
+                    </div>
+                    <button type="button" class="mt-[3.2rem] w-full h-[5.2rem] rounded-[1.2rem] bg-[#222222] hover:bg-black text-white text-[1.6rem] font-semibold" data-new-run-yes @click="answerNewRun('copy')">Make a new run</button>
+                    <button type="button" class="mt-[1.6rem] w-full h-[4.8rem] rounded-[1.2rem] text-[1.6rem] font-semibold text-[#222222] hover:bg-[#f7f7f7]" data-new-run-no @click="answerNewRun('save')">No, just save the changes</button>
+                </div>
+            </div>
+        </Teleport>
+
         <ToastNotifications
             v-model:show="toastVisible"
             :message="toastMessage"
@@ -261,6 +283,7 @@ import Advisories from './Pages/advisories.vue';
 import Content from './Pages/Advisories/content.vue';
 import Mobility from './Pages/Advisories/mobility.vue';
 import Review from './Pages/review.vue';
+import Settings from './Pages/settings.vue';
 import NavBarMobile from '../../Nav/nav-bar-mobile.vue';
 import ToastNotifications from '@/GlobalComponents/toast-notifications.vue';
 
@@ -310,7 +333,8 @@ const components = {
     Advisories,
     Content,
     Mobility,
-    Review
+    Review,
+    Settings
 };
 
 const currentComponent = computed(() => components[currentStep.value]);
@@ -321,7 +345,8 @@ const isComponentReady = ref(true);
 const setStep = (step) => {
     // Capitalize first letter to match component names
     const formattedStep = step.charAt(0).toUpperCase() + step.slice(1).toLowerCase();
-    if (steps.value.includes(formattedStep)) {
+    // Settings (from the card above Name) is not a step, but opens the same way.
+    if (steps.value.includes(formattedStep) || formattedStep === 'Settings') {
         currentStep.value = formattedStep;
     }
 };
@@ -346,6 +371,23 @@ const showToast = (message) => {
     });
 };
 
+// "Is this a new run?" asked in a pop-up: answers 'copy', 'save' or null (closed).
+const newRunAsk = ref(null);
+let newRunAnswer = null;
+const askNewRun = (step) => new Promise((resolve) => {
+    newRunAnswer = resolve;
+    newRunAsk.value = step;
+});
+const answerNewRun = (answer) => {
+    newRunAsk.value = null;
+    newRunAnswer?.(answer);
+    newRunAnswer = null;
+};
+const newRunPicture = computed(() => {
+    const path = event.images?.[0]?.large_image_path ?? event.thumbImagePath ?? null;
+    return path ? `${import.meta.env.VITE_IMAGE_URL}${path}` : null;
+});
+
 // event.location.city follows the form as it is typed; this is what is saved.
 const savedCity = ref(props.event?.location?.city ?? null);
 
@@ -359,12 +401,24 @@ const saveChanges = async () => {
         if (!submitData) return;
 
         // Old listings that keep getting new dates: a suggestion they can skip.
-        if (wantsNewRun(event, currentStep.value, submitData, savedCity.value)
-            && window.confirm('Want to start this as a new run? We will make a copy that asks to join the same show, and leave this listing as it is.')) {
-            isSubmitting.value = true;
-            const copy = await axios.post(`/api/events/${event.slug}/duplicate`);
-            window.location.href = `/hosting/event/${copy.data.event.slug}/edit`;
-            return;
+        if (wantsNewRun(event, currentStep.value, submitData, savedCity.value)) {
+            const answer = await askNewRun(currentStep.value);
+            if (!answer) return;
+            if (answer === 'copy') {
+                isSubmitting.value = true;
+                // The copy joins this show's run, or starts one with this listing.
+                try {
+                    const copy = await axios.post(`/api/events/${event.slug}/duplicate`, { as_run: true });
+                    window.location.href = `/hosting/event/${copy.data.event.slug}/edit`;
+                } catch (failure) {
+                    // Refused (too many drafts, too many tries): say why; nothing was saved.
+                    showToast(failure.response?.status === 429
+                        ? 'Too many tries just now. Please wait a minute and try again.'
+                        : (Object.values(failure.response?.data?.errors ?? {}).flat()[0] ?? failure.response?.data?.message ?? 'Could not make a copy. Please try again.'));
+                    isSubmitting.value = false;
+                }
+                return;
+            }
         }
 
         isSubmitting.value = true;
@@ -429,6 +483,8 @@ provide('event', event);
 provide('user', user);
 provide('isSubmitting', isSubmitting);
 provide('errors', errors);
+// The Location step opens an older listing on "Somewhere else" here, not on the question.
+provide('editingLiveListing', true);
 provide('setComponentReady', (ready) => {
     isComponentReady.value = ready;
 });

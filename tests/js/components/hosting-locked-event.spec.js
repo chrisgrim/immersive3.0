@@ -64,15 +64,32 @@ describe('editing an event that has left its 90-day window', () => {
         expect(wrapper.text()).toContain('support@everythingimmersive.com');
     });
 
-    it('says the copy joins the show, and suggests no year in the name', async () => {
-        const event = makeEvent();
+    it('offers the same show run switch as Duplicate, and suggests no year in the name', async () => {
+        axios.post.mockResolvedValue({ data: { event: { slug: 'the-locked-vault-copy' } } });
+        const event = makeEvent({ status: 'p' });
         const wrapper = mountDashboard({ event });
 
         wrapper.vm.editEvent(event);
         await wrapper.vm.$nextTick();
 
-        expect(wrapper.text()).toContain('The copy asks to join the same project');
+        expect(wrapper.text()).toContain('Same show, new run?');
         expect(wrapper.text()).not.toContain('Event Name (');
+        await wrapper.find('[data-duplicate-run]').trigger('click');
+        await wrapper.vm.duplicateLockedEvent();
+        expect(axios.post).toHaveBeenCalledWith('/api/events/the-locked-vault/duplicate', { as_run: true });
+    });
+
+    it('an event in a show run: Add to it, on to begin with', async () => {
+        axios.post.mockResolvedValue({ data: { event: { slug: 'the-locked-vault-copy' } } });
+        const event = makeEvent({ status: 'p', project_id: 4, run_of: { id: 4, name: 'The Vault Show', slug: 'the-vault-show', kept: true } });
+        const wrapper = mountDashboard({ event });
+
+        wrapper.vm.editEvent(event);
+        await wrapper.vm.$nextTick();
+
+        expect(wrapper.text()).toContain('Add to The Vault Show');
+        await wrapper.vm.duplicateLockedEvent();
+        expect(axios.post).toHaveBeenCalledWith('/api/events/the-locked-vault/duplicate', { as_run: true });
     });
 
     it('leads with when the run ended, and shows the event\'s poster', async () => {
@@ -95,7 +112,7 @@ describe('editing an event that has left its 90-day window', () => {
         await wrapper.vm.$nextTick();
         await wrapper.vm.duplicateLockedEvent();
 
-        expect(axios.post).toHaveBeenCalledWith('/api/events/the-locked-vault/duplicate');
+        expect(axios.post).toHaveBeenCalledWith('/api/events/the-locked-vault/duplicate', { as_run: false });
         expect(window.location.href).toBe('/hosting/event/the-locked-vault-copy/edit');
     });
 
@@ -161,12 +178,11 @@ describe('editing an event that has left its 90-day window', () => {
         await wrapper.vm.$nextTick();
 
         expect(wrapper.text()).toContain(LOCK_HEADING);
-        expect(wrapper.text()).toContain('The copy asks to join the same project');
         expect(wrapper.text()).toContain('Past event');
 
         await wrapper.vm.duplicateLockedEvent();
 
-        expect(axios.post).toHaveBeenCalledWith('/api/events/someone-elses-run/duplicate');
+        expect(axios.post).toHaveBeenCalledWith('/api/events/someone-elses-run/duplicate', {});
         expect(window.location.href).toBe('/hosting/event/someone-elses-run-copy/edit');
     });
 
@@ -208,6 +224,6 @@ describe('editing an event that has left its 90-day window', () => {
 
         await wrapper.vm.duplicateLockedEvent();
 
-        expect(axios.post).toHaveBeenCalledWith('/api/events/odd%20slug%2F..%2Fx%3Fy/duplicate');
+        expect(axios.post).toHaveBeenCalledWith('/api/events/odd%20slug%2F..%2Fx%3Fy/duplicate', {});
     });
 });

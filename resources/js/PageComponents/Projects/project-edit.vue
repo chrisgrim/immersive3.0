@@ -21,7 +21,7 @@
                                         <path d="M12 19l-7-7 7-7"/>
                                     </svg>
                                 </button>
-                                <a :href="page.public_url" class="ml-4 text-3xl md:text-5xl font-semibold truncate hover:underline">Project</a>
+                                <a :href="page.public_url" class="ml-4 text-3xl md:text-5xl font-semibold truncate hover:underline">Show run</a>
                             </div>
 
                             <div class="w-full flex flex-col md:items-center overflow-y-auto max-h-[calc(100vh-11rem)] md:max-h-[calc(100vh-20rem)]">
@@ -33,7 +33,7 @@
                                     </button>
 
                                     <button @click="handleNavigation('Name')" :class="cardClass('Name')">
-                                        <h3 class="text-xl font-semibold mb-4 text-black">Name</h3>
+                                        <h3 class="text-xl font-semibold mb-4 text-black">Name<span v-if="page.pending_name" class="ml-[0.6rem] font-normal text-neutral-500" data-renaming-tag>(pending change)</span></h3>
                                         <p class="text-4xl text-neutral-600 mb-4 break-words hyphens-auto overflow-hidden">{{ page.name || 'No name set' }}</p>
                                         <p class="text-neutral-500 text-2xl line-clamp-3 leading-tight break-words hyphens-auto overflow-hidden">{{ page.description || 'No description set' }}</p>
                                     </button>
@@ -55,7 +55,7 @@
                                     <button @click="handleNavigation('Runs')" :class="cardClass('Runs')">
                                         <h3 class="text-xl font-semibold mb-4 text-black">Runs</h3>
                                         <p class="text-4xl text-neutral-600">{{ page.runs.length }}</p>
-                                        <p class="text-neutral-500 text-2xl">{{ page.runs.length === 1 ? 'listing' : 'listings' }} on this project</p>
+                                        <p class="text-neutral-500 text-2xl">{{ page.runs.length === 1 ? 'listing' : 'listings' }} in this show run</p>
                                     </button>
                                 </div>
                             </div>
@@ -85,12 +85,12 @@
                             <div class="p-8">
                                 <!-- Kept mounted so unsaved photo changes survive switching sections. -->
                                 <main v-show="currentStep === 'Photos'" class="w-full min-h-fit">
-                                    <PhotoGalleryEdit ref="gallery" :photos="page.photos" :max="page.max_photos" shape="portrait" noun="project" />
+                                    <PhotoGalleryEdit ref="gallery" :photos="page.photos" :max="page.max_photos" shape="portrait" noun="show run" />
                                 </main>
 
                                 <main v-if="currentStep === 'Requests'" class="w-full min-h-fit">
                                     <h2>Asking to join</h2>
-                                    <p class="text-gray-500 mt-4">Listings that want to be a run of this project.</p>
+                                    <p class="text-gray-500 mt-4">Listings that want to join this show run.</p>
                                     <div class="mt-8 space-y-6">
                                         <div v-for="request in page.link_requests" :key="request.id" class="p-8 border border-neutral-200 rounded-3xl flex items-center justify-between gap-4">
                                             <div class="min-w-0">
@@ -107,20 +107,21 @@
                                 </main>
 
                                 <main v-else-if="currentStep === 'Name'" class="w-full min-h-fit">
-                                    <h2>What's the project called?</h2>
+                                    <h2>What's the show run called?</h2>
                                     <textarea
                                         v-model="form.name"
                                         rows="2"
                                         maxlength="255"
-                                        placeholder="Enter the project's name"
+                                        placeholder="Enter the show's name"
                                         class="text-4xl p-4 border rounded-2xl mt-6 block w-full border-[#222222] focus:border-black focus:shadow-focus-black"
                                     />
-                                    <p class="text-black font-medium mt-10 mb-4">About the project</p>
+                                    <p v-if="page.pending_name && !page.renames_directly" class="mt-3 text-[1.4rem] text-[#6a6a6a]" data-pending-name>Waiting for EI to approve this name. Until then the show run is still called "{{ page.name }}".</p>
+                                    <p class="text-black font-medium mt-10 mb-4">About the show</p>
                                     <textarea
                                         v-model="form.description"
                                         rows="9"
                                         maxlength="5000"
-                                        placeholder="What the project is, wherever it plays"
+                                        placeholder="What the show is, wherever it plays"
                                         class="p-4 border rounded-2xl block w-full border-[#222222] focus:border-black focus:shadow-focus-black"
                                     />
                                     <div class="flex justify-end mt-1 text-gray-500">{{ form.description.length }}/5000</div>
@@ -128,7 +129,7 @@
 
                                 <main v-else-if="currentStep === 'Writers'" class="w-full min-h-fit">
                                     <h2>Who wrote it?</h2>
-                                    <p class="text-gray-500 mt-4">The project keeps its writers; each run lists its own cast and crew.</p>
+                                    <p class="text-gray-500 mt-4">The show run keeps its writers; each run lists its own cast and crew.</p>
                                     <div class="mt-8 space-y-4">
                                         <div v-for="(writer, index) in form.writers" :key="writer.id ?? `new-${index}`" class="flex items-center gap-4 p-4 border border-neutral-200 rounded-2xl">
                                             <span class="text-2xl flex-1 min-w-0 truncate">{{ writer.artist }}</span>
@@ -142,14 +143,14 @@
                                 </main>
 
                                 <main v-else-if="currentStep === 'Runs'" class="w-full min-h-fit">
-                                    <h2>Runs of this project</h2>
+                                    <h2>Runs in this show run</h2>
                                     <div class="mt-8 space-y-4">
                                         <div v-for="run in page.runs" :key="run.id" class="p-6 border border-neutral-200 rounded-2xl flex items-center justify-between gap-4">
                                             <div class="min-w-0">
                                                 <a :href="run.public_url" class="text-2xl text-black hover:underline">{{ run.name }}</a>
                                                 <p class="text-neutral-500">{{ run.organizer?.name }}</p>
                                             </div>
-                                            <button type="button" class="px-6 py-3 rounded-lg border border-black hover:bg-gray-100 flex-shrink-0 disabled:opacity-50" :disabled="busy" @click="unlink(run)">Take off this project</button>
+                                            <button type="button" class="px-6 py-3 rounded-lg border border-black hover:bg-gray-100 flex-shrink-0 disabled:opacity-50" :disabled="busy" @click="unlink(run)">Remove from this show run</button>
                                         </div>
                                     </div>
                                 </main>
@@ -208,7 +209,8 @@ const currentSection = ref(null);
 const isMobile = computed(() => window?.Laravel?.isMobile ?? false);
 
 const formFrom = (project) => ({
-    name: project.name,
+    // A new name waiting for EI shows as typed, with a note under it.
+    name: (project.renames_directly ? null : project.pending_name) ?? project.name,
     description: project.description ?? '',
     writers: project.writers.map((writer) => ({ ...writer })),
 });
@@ -255,26 +257,29 @@ const run = async (call, done) => {
     }
 };
 
-const base = () => `/hosting/projects/${page.value.slug}`;
+const base = () => `/hosting/show-runs/${page.value.slug}`;
 
 // Update saves the words and writers, then the photos if they changed.
 const save = () => run(async () => {
-    let response = await axios.post(base(), form);
+    // Writers are not shown yet (their card is hidden), so they are not sent:
+    // a save never drops writers waiting for approval.
+    const { writers, ...words } = form;
+    let response = await axios.post(base(), words);
     // The words are saved: take them now (a rename moves the address), so a
     // failed photo save below leaves the page right, its photo change still waiting.
     page.value = response.data;
     if (gallery.value?.changed) {
-        response = await axios.post(`/hosting/projects/${response.data.slug}/photos`, gallery.value.formData());
+        response = await axios.post(`/hosting/show-runs/${response.data.slug}/photos`, gallery.value.formData());
         gallery.value.reset(response.data.photos);
     }
     return response;
-}, 'Project updated successfully');
+}, 'Show run updated');
 
-const decide = (request, verdict) => run(() => axios.post(`${base()}/link-requests/${request.id}/${verdict}`), verdict === 'approve' ? 'Joined the project' : 'Declined');
+const decide = (request, verdict) => run(() => axios.post(`${base()}/link-requests/${request.id}/${verdict}`), verdict === 'approve' ? 'Joined the show run' : 'Declined');
 
 const unlink = (listing) => {
-    if (confirm(`Take "${listing.name}" off this project? It becomes a plain listing at its own address.`)) {
-        run(() => axios.delete(`${base()}/instances/${listing.slug}`), 'Taken off the project');
+    if (confirm(`Take "${listing.name}" out of this show run? It becomes a plain listing at its own address.`)) {
+        run(() => axios.delete(`${base()}/instances/${listing.slug}`), 'Removed from the show run');
     }
 };
 </script>

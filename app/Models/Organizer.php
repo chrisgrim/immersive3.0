@@ -271,7 +271,7 @@ class Organizer extends Model
     {
         if ($organizer->holdsProjects()) {
             throw ValidationException::withMessages([
-                'organizer' => 'This organizer still makes or keeps a project. Reassign it first.',
+                'organizer' => 'This organizer still makes or keeps a show run. Reassign it first.',
             ]);
         }
 
@@ -281,6 +281,8 @@ class Organizer extends Model
         $organizer->followers()->detach();
         foreach ($organizer->events as $event) {
             $event->delete();
+            // As any deleted listing: its requests withdrawn, an empty show run gone.
+            app(\App\Actions\Projects\DissolveProject::class)->afterEventDeleted($event, auth()->user());
         }
         $organizer->delete();
     }

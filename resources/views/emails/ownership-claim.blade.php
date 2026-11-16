@@ -45,7 +45,7 @@
                     <span style="font-family: 'Sen', sans-serif;color: #374151;">
                         <p style="margin-bottom: 0rem;">Please review this claim and reach out to the requester to verify them before approving.</p>
                     </span>
-                    <a href="{{ config('app.url') }}/admin?view=approve-requests"
+                    <a href="{{ config('app.url') }}/admin/dashboard?view=approve-requests"
                     style="
                         display: inline-block;
                         font-family: 'Sen', sans-serif;

@@ -146,6 +146,16 @@ test('nothing typed is overwritten', function () {
     expect($draft->fresh()->tag_line)->toBe('Typed by me')->and($draft->fresh()->description)->toBe('Mine too');
 });
 
+test('a copied address brings its timezone, so the location step can be saved', function () {
+    $own = publishedListing('Mine', 'Boston', ['timezone' => 'America/New_York'], $this->organizer);
+    $draft = draftOf($this->organizer, ['timezone' => null]);
+
+    app(PrefillFromShow::class)->handle($draft, $own->fresh(), $this->owner);
+
+    expect($draft->fresh()->timezone)->toBe('America/New_York')
+        ->and($draft->fresh()->location->city)->not->toBeNull();
+});
+
 test('a secret address stays with its own run', function () {
     $own = publishedListing('Mine', 'Boston', [], $this->organizer);
     Location::where('event_id', $own->id)->update(['hiddenLocationToggle' => true, 'street' => '1 Hidden Way']);
@@ -235,7 +245,9 @@ test('a team member proposes a venue, which waits for a moderator', function () 
     $this->postJson('/api/venues', ['name' => 'New Hall', 'street' => '1 Main St', 'city' => 'Chicago', 'latitude' => 41.8, 'longitude' => -87.6])
         ->assertCreated()->assertJsonPath('venue.status', Venue::PENDING);
 
-    $this->get('/venues/new-hall')->assertNotFound();
+    // Its team sees a preview while it waits; the public does not.
+    $this->get('/venues/new-hall')->assertOk()->assertSee('Waiting for EI to approve it');
+    $this->actingAs(User::factory()->create(['type' => 'u']))->get('/venues/new-hall')->assertNotFound();
 
     $this->actingAs(User::factory()->create(['type' => 'u']))
         ->postJson('/api/venues', ['name' => 'X', 'street' => '1', 'city' => 'C', 'latitude' => 1, 'longitude' => 1])->assertForbidden();
@@ -280,6 +292,63 @@ test('picking a venue that was merged away gives the venue it went into', functi
 
     expect($draft->fresh()->location->venue_id)->toBe($winner->id)
         ->and($draft->fresh()->location->street)->toBe('N Dearborn St');
+});
+
+test('the location says which kind it is: a venue, somewhere else, or not said yet', function () {
+    $venue = Venue::factory()->create(['name' => 'The Goodman', 'street' => 'N Dearborn St', 'city' => 'Chicago', 'latitude' => 41.88, 'longitude' => -87.63]);
+    $draft = draftOf($this->organizer);
+    $address = ['street' => '1 Park Rd', 'city' => 'Brooklyn', 'latitude' => 40.6, 'longitude' => -73.9];
+
+    // At a venue.
+    saveLocation($draft, ['venue_id' => $venue->id, 'kind' => 'venue'])->assertOk();
+    expect($draft->fresh()->location->kind)->toBe('venue');
+
+    // Somewhere else, with a name typed: only a label, never a venue.
+    saveLocation($draft, [...$address, 'venue' => 'Prospect Park', 'venue_id' => null, 'kind' => 'place'])->assertOk();
+    expect($draft->fresh()->location)->kind->toBe('place')->venue_id->toBeNull()->venue->toBe('Prospect Park');
+
+    // "Venue" with no venue linked says nothing.
+    saveLocation($draft, [...$address, 'venue_id' => null, 'kind' => 'venue'])->assertOk();
+    expect($draft->fresh()->location->kind)->toBeNull();
+
+    // A hidden location is always somewhere else.
+    saveLocation($draft, [...$address, 'hiddenLocationToggle' => true, 'hiddenLocation' => 'By email.', 'kind' => 'venue'])->assertOk();
+    expect($draft->fresh()->location->kind)->toBe('place');
+
+    // Nothing else is allowed.
+    saveLocation($draft, [...$address, 'kind' => 'forest'])->assertUnprocessable();
+});
+
+test('taken off its venue without saying "somewhere else", a listing is not said again', function () {
+    $venue = Venue::factory()->create(['name' => 'The Goodman', 'street' => 'N Dearborn St', 'city' => 'Chicago', 'latitude' => 41.88, 'longitude' => -87.63]);
+    $draft = draftOf($this->organizer);
+    saveLocation($draft, ['venue_id' => $venue->id, 'kind' => 'venue'])->assertOk();
+
+    // As an older client or the assistant would: a new address, no kind.
+    saveLocation($draft, ['street' => '1 Park Rd', 'city' => 'Brooklyn', 'latitude' => 40.6, 'longitude' => -73.9, 'venue_id' => null])->assertOk();
+
+    expect($draft->fresh()->location)->venue_id->toBeNull()->kind->toBeNull();
+});
+
+test('saying the kind alone: "venue" keeps the venue it has, "place" takes it off', function () {
+    $venue = Venue::factory()->create(['name' => 'The Goodman', 'street' => 'N Dearborn St', 'city' => 'Chicago', 'latitude' => 41.88, 'longitude' => -87.63]);
+    $draft = draftOf($this->organizer);
+    saveLocation($draft, ['venue_id' => $venue->id, 'kind' => 'venue'])->assertOk();
+
+    // As the assistant might: just the kind, the venue already linked.
+    saveLocation($draft, ['kind' => 'venue'])->assertOk();
+    expect($draft->fresh()->location)->venue_id->toBe($venue->id)->kind->toBe('venue');
+
+    saveLocation($draft, ['kind' => 'place'])->assertOk();
+    expect($draft->fresh()->location)->venue_id->toBeNull()->kind->toBe('place');
+});
+
+test('a draft venue is never linked to a listing, not even by staff', function () {
+    $draftVenue = Venue::factory()->create(['name' => 'Half Added', 'status' => Venue::DRAFT, 'street' => null, 'city' => null, 'latitude' => null, 'longitude' => null]);
+    $draft = draftOf($this->organizer);
+
+    saveLocation($draft, ['venue_id' => $draftVenue->id, 'kind' => 'venue'])->assertUnprocessable();
+    expect($draft->fresh()->location?->venue_id)->toBeNull();
 });
 
 test('picking a venue copies its address and point onto the listing', function () {
@@ -455,5 +524,87 @@ test('the dashboard carries the shows this company keeps, with what is waiting',
 });
 
 test('the lock wording drops the year advice and says the copy joins the show', function () {
-    expect(Event::EDIT_LOCKED_MESSAGE)->toContain('asks to join the same project')->not->toContain('(2026)');
+    expect(Event::EDIT_LOCKED_MESSAGE)->toContain('make a copy')->not->toContain('(2026)');
+});
+
+test('the dashboard tells a draft that is asking to join which show run it joins', function () {
+    $this->owner->update(['current_team_id' => $this->organizer->id]);
+    $show = Project::factory()->create(['organizer_id' => $this->organizer->id, 'name' => 'Mine']);
+    $draft = draftOf($this->organizer);
+    ProjectLinkRequest::create(['event_id' => $draft->id, 'project_id' => $show->id]);
+
+    $events = $this->get('/hosting/events')->assertOk()->viewData('organizer')->events;
+
+    expect($events->firstWhere('id', $draft->id)->joining)->toBe(['id' => $show->id, 'name' => 'Mine', 'slug' => $show->slug]);
+});
+
+test('"Add a run": one call makes the run and its request, filled with what carries over, never the name, place or dates', function () {
+    $this->owner->update(['current_team_id' => $this->organizer->id]);
+    $show = Project::factory()->create(['organizer_id' => $this->organizer->id, 'name' => 'Mine', 'description' => 'What the show is.']);
+    $earlier = publishedListing('Mine', 'Rome', ['timezone' => 'Europe/Rome', 'description' => 'Our Rome run.'], $this->organizer);
+    $earlier->update(['project_id' => $show->id]);
+    $earlier->tickets()->create(['name' => 'GA', 'ticket_price' => 40, 'currency' => 'EUR']);
+
+    $slug = $this->postJson('/hosting/event/create', ['organizer_id' => $this->organizer->id, 'project_id' => $show->id])->assertCreated()->json('event.slug');
+
+    $draft = Event::where('slug', $slug)->first();
+    expect(ProjectLinkRequest::where('event_id', $draft->id)->value('project_id'))->toBe($show->id)
+        ->and($draft->name)->toBeNull()
+        ->and($draft->closingDate)->toBeNull()
+        ->and($draft->shows()->count())->toBe(0)
+        // From this company's earlier run first (then the show page): the words and the tickets.
+        ->and($draft->description)->toBe('Our Rome run.')
+        ->and($draft->tickets()->pluck('name')->all())->toContain('GA')
+        // Not the place: a new event has not said it is in person yet, so its address is its own to pick.
+        ->and($draft->location->city)->toBeNull();
+});
+
+test('"Add a run" for a show the company may not join makes no draft at all', function () {
+    $this->owner->update(['current_team_id' => $this->organizer->id]);
+    $hidden = Project::factory()->create(['organizer_id' => Organizer::factory()->create()->id]);
+    $before = Event::withTrashed()->count();
+
+    $this->postJson('/hosting/event/create', ['organizer_id' => $this->organizer->id, 'project_id' => $hidden->id])->assertUnprocessable();
+    $this->postJson('/hosting/event/create', ['organizer_id' => $this->organizer->id, 'project_id' => 999999])->assertUnprocessable();
+
+    expect(Event::withTrashed()->count())->toBe($before);
+});
+
+test('the bottom bar offers the show runs this company made, keeps or has runs of, never another company\'s', function () {
+    $made = Project::factory()->create(['organizer_id' => $this->organizer->id, 'name' => 'Made Here']);
+    $other = Organizer::factory()->create();
+    $runOfTheirs = Project::factory()->create(['organizer_id' => $other->id, 'name' => 'Presented Here']);
+    publishedListing('Presented Here', 'Rome')->update(['project_id' => $runOfTheirs->id, 'organizer_id' => $this->organizer->id]);
+    Project::factory()->create(['organizer_id' => $other->id, 'name' => 'Not Ours']);
+    $draft = draftOf($this->organizer);
+
+    $names = collect($this->getJson("/hosting/event/{$draft->slug}/show-runs")->assertOk()->json('choices'))->pluck('name')->all();
+
+    expect($names)->toBe(['Made Here', 'Presented Here']);
+
+    $stranger = App\Models\User::factory()->create(['type' => 'u']);
+    $this->actingAs($stranger)->getJson("/hosting/event/{$draft->slug}/show-runs")->assertForbidden();
+});
+
+test('show suggestions are only names that really are this show', function () {
+    $core = fn ($name) => App\Actions\Projects\SuggestShows::core($name);
+    $same = fn ($typed, $name) => App\Actions\Projects\SuggestShows::sameShow($core($typed), $core($name));
+
+    expect($same("Uncle Barry's Birthday Party", "Uncle Barry's Birthday Party (Edinburgh 2025)"))->toBeTrue()
+        ->and($same("Uncle Barry's", "Uncle Barry's Birthday Party"))->toBeTrue()
+        ->and($same('Ha Ha Ha in Chicago', 'Ha Ha Ha'))->toBeTrue()
+        ->and($same("Uncle Barry's Birthday Party", 'The Birthday Party'))->toBeFalse()
+        ->and($same("Uncle Barry's Birthday Party", 'Birthday Show Party (Round 2!)'))->toBeFalse()
+        ->and($same("Uncle Barry's Birthday Party", 'UNKLE'))->toBeFalse();
+});
+
+test('the show run switch also lists the other company show run this draft is named after', function () {
+    $theirs = publishedListing('Nona Supper', 'Rome');
+    $project = app(App\Actions\Projects\LinkEventToProject::class)->startFrom($theirs, $theirs->organizer->owner);
+
+    $mine = App\Models\Organizer::factory()->create(['status' => 'p']);
+    $draft = App\Models\Event::factory()->create(['organizer_id' => $mine->id, 'status' => '1', 'name' => 'Nona Supper (Texas)']);
+
+    $this->actingAs($mine->owner)->getJson("/hosting/event/{$draft->slug}/show-runs")
+        ->assertOk()->assertJsonPath('choices.0.id', $project->id);
 });

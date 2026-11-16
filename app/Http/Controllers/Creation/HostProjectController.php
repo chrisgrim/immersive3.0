@@ -12,6 +12,7 @@ use App\Models\Credit;
 use App\Models\Event;
 use App\Models\Project;
 use App\Models\ProjectLinkRequest;
+use App\Services\NameChangeRequestService;
 use App\Support\PhotoGallery;
 use App\Support\Projects\InstanceAddress;
 use Illuminate\Http\Request;
@@ -49,8 +50,28 @@ class HostProjectController extends Controller
             'writers.*.credited_as' => ['nullable', 'string', 'max:255'],
         ]);
 
-        DB::transaction(function () use ($request, $project, $validated) {
-            $project->update(Arr::only($validated, ['name', 'description']));
+        // A new name from the show run's company waits for EI, as an event's
+        // does; EI's own staff rename it straight away.
+        $newName = isset($validated['name']) && trim($validated['name']) !== $project->name ? trim($validated['name']) : null;
+        $staff = $request->user()->isModerator();
+        $asks = $newName !== null && ! $staff;
+
+        DB::transaction(function () use ($request, $project, $validated, $asks, $newName, $staff) {
+            $project->update(Arr::only($validated, $asks ? ['description'] : ['name', 'description']));
+
+            // The company typed the name it has back: nothing left to ask.
+            // Staff really renaming it settle a waiting request (approved if
+            // it is that name); staff saving other fields leave it waiting.
+            if (isset($validated['name']) && ($staff ? $newName !== null : $newName === null)) {
+                NameChangeRequestService::settleAfterDirectRename($project, $newName ?? $project->name);
+            }
+
+            if ($asks) {
+                $pending = $project->nameChangeRequests()->where('status', 'pending')->first();
+                $pending
+                    ? $pending->update(['requested_name' => $newName])
+                    : app(NameChangeRequestService::class)->handleNameChange($project, $newName);
+            }
 
             if (array_key_exists('writers', $validated)) {
                 $this->syncWriters($project, $validated['writers']);
@@ -81,7 +102,7 @@ class HostProjectController extends Controller
         $sentIds = collect($writers)->pluck('id')->filter()->map(fn ($id) => (int) $id);
 
         if ($sentIds->diff($held->keys())->isNotEmpty()) {
-            throw ValidationException::withMessages(['writers' => 'That writer is not on this project.']);
+            throw ValidationException::withMessages(['writers' => 'That writer is not on this show run.']);
         }
 
         $held->except($sentIds->all())->each->delete();
@@ -99,7 +120,7 @@ class HostProjectController extends Controller
                 'rank' => $rank,
             ];
 
-            isset($writer['id'])
+            ! empty($writer['id'])
                 ? $held[$writer['id']]->update($fields)
                 : $project->credits()->create($fields);
         }
@@ -163,6 +184,10 @@ class HostProjectController extends Controller
         return [
             'id' => $project->id,
             'name' => $project->name,
+            // A new name waiting for EI's approval.
+            'pending_name' => $project->nameChangeRequests()->where('status', 'pending')->value('requested_name'),
+            // EI's staff rename straight away, so their form starts from the real name.
+            'renames_directly' => (bool) auth()->user()?->isModerator(),
             'slug' => $project->slug,
             'description' => $project->description,
             'largeImagePath' => $project->largeImagePath,

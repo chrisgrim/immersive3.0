@@ -73,7 +73,9 @@ class ApplyVenue
                 $venue = Venue::visibleToOrganizer($event->organizer_id)->find($venue->id);
             }
 
-            if (! $venue) {
+            // A draft is never linked, by anyone: it has no checked address yet,
+            // and it can still be deleted or cleared away.
+            if (! $venue || $venue->status === Venue::DRAFT) {
                 throw ValidationException::withMessages(['location.venue_id' => 'That venue is not available. Search for it again, or add the address.']);
             }
 
@@ -82,9 +84,26 @@ class ApplyVenue
 
         $held = $current?->venue_id;
         $touched = array_intersect_key($location, array_flip([...self::ADDRESS_FIELDS, ...self::POINT_FIELDS]));
+        $kind = $location['kind'] ?? null;
 
-        if ($secret || array_key_exists('venue_id', $location) || $touched !== []) {
+        // "Somewhere else", said plainly, takes the listing off its venue.
+        if ($secret || array_key_exists('venue_id', $location) || $touched !== [] || $kind === Location::KIND_PLACE) {
             $location['venue_id'] = null;
+        }
+
+        // The kind follows what is true: a hidden location is always somewhere
+        // else; "venue" with no venue linked says nothing; and a listing taken
+        // off its venue without saying "somewhere else" is unknown again, so a
+        // typed name is never mistaken for a decision.
+        if ($secret) {
+            $location['kind'] = Location::KIND_PLACE;
+        } elseif ($kind === Location::KIND_VENUE) {
+            // "At a venue" is kept only while one stays linked (the one it
+            // already has, untouched); with none it says nothing.
+            $keepsVenue = $held !== null && ! array_key_exists('venue_id', $location) && $touched === [];
+            $location['kind'] = $keepsVenue ? Location::KIND_VENUE : null;
+        } elseif (! array_key_exists('kind', $location) && $held !== null && array_key_exists('venue_id', $location) && $location['venue_id'] === null) {
+            $location['kind'] = null;
         }
 
         // Going secret: a venue's name goes with it, also when the link went
@@ -114,6 +133,7 @@ class ApplyVenue
         return array_merge($location, $venue->only([...self::ADDRESS_FIELDS, ...self::POINT_FIELDS]), [
             'venue_id' => $venue->id,
             'venue' => Str::limit($venue->name, 80, ''),
+            'kind' => Location::KIND_VENUE,
         ]);
     }
 

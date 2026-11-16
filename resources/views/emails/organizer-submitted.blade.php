@@ -27,7 +27,7 @@
             </div>
 
             <div>
-                <a href="{{ config('app.url') }}/admin?view=approve-organizers"
+                <a href="{{ config('app.url') }}/admin/dashboard?view=approve-organizers"
                 style="
                     display: inline-block;
                     font-family: 'Sen', sans-serif;

@@ -26,7 +26,7 @@ use Laravel\Passport\Http\Controllers\DenyAuthorizationController;
 Route::prefix('oauth')->name('passport.')->group(function () {
     // deny-framing: the consent screen must never render inside another
     // site's frame (clickjacking of Approve / the moderator checkbox).
-    Route::middleware(['auth', 'mcp.consent', 'throttle:30,1', 'deny-framing'])->group(function () {
+    Route::middleware(['auth', 'mcp.consent', 'throttle:30,1,oauth29:', 'deny-framing'])->group(function () {
         Route::get('/authorize', [AuthorizationController::class, 'authorize'])->name('authorizations.authorize');
         Route::post('/authorize', [ApproveAuthorizationController::class, 'approve'])->name('authorizations.approve');
         Route::delete('/authorize', [DenyAuthorizationController::class, 'deny'])->name('authorizations.deny');
@@ -35,7 +35,7 @@ Route::prefix('oauth')->name('passport.')->group(function () {
     // The signed-in user's own grants: what the "Connected apps" list reads
     // and what its Disconnect button calls. Ours, not Passport's /oauth/tokens:
     // that one hides tokens of unowned clients, which every assistant is.
-    Route::middleware(['auth', 'throttle:60,1'])->group(function () {
+    Route::middleware(['auth', 'throttle:60,1,oauth38:'])->group(function () {
         Route::get('/connections', [ConnectedAppController::class, 'index'])->name('connections.index');
         Route::delete('/connections/{tokenId}', [ConnectedAppController::class, 'destroy'])->name('connections.destroy');
     });

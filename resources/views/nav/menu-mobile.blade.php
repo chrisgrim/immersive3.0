@@ -63,6 +63,17 @@
             </a>
         @endif
 
+        {{-- Your venue(s), as in the desktop dropdown: always the venues page. --}}
+        @php($venueCount = auth()->user()->venuesForMenu())
+        @if($venueCount)
+            <a href="/hosting/venues" class="flex items-center justify-between text-2xl py-4" data-menu-venues>
+                {{ $venueCount === 1 ? 'Your venue' : 'Your venues' }}
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </a>
+        @endif
+
         <a href="/communities" class="flex items-center justify-between text-2xl py-4">
             Communities
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

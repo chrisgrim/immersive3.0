@@ -25,7 +25,7 @@ class RequestLink
         Gate::forUser($actor)->authorize('requestLink', $event);
 
         if ($event->isLinked()) {
-            $this->refuse('This listing is already part of a project.');
+            $this->refuse('This listing is already part of a show run.');
         }
 
         if ($target instanceof Event && $target->is($event)) {
@@ -91,11 +91,17 @@ class RequestLink
             // Serialises a double click: the second replaces the first.
             Event::withTrashed()->whereKey($event->id)->reorder()->lockForUpdate()->first();
 
-            ProjectLinkRequest::pending()->where('event_id', $event->id)
-                ->update(['status' => ProjectLinkRequest::WITHDRAWN]);
-
             // A linked source means its show.
             $project = $target instanceof Project ? $target : $target->project;
+
+            $previous = ProjectLinkRequest::pending()->where('event_id', $event->id);
+            $leaving = (clone $previous)->whereNotNull('project_id')->where('project_id', '!=', $project?->id ?? 0)->pluck('project_id');
+            $previous->update(['status' => ProjectLinkRequest::WITHDRAWN]);
+
+            // Switched to another show: the one it leaves may be a start nothing came of.
+            foreach ($leaving->unique() as $projectId) {
+                DB::afterCommit(fn () => app(DissolveProject::class)->afterRequestEnded($projectId, $actor ?? auth()->user()));
+            }
 
             $request = ProjectLinkRequest::create([
                 'event_id' => $event->id,

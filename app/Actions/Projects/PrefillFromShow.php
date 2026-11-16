@@ -73,9 +73,15 @@ class PrefillFromShow
 
             $location->update($own->location->only(self::ADDRESS_FIELDS));
             $draft->setRelation('location', $location);
-            $row->update(['location_latlon' => $location->publicPoint()]);
+            // The timezone goes with the address: without it the form cannot
+            // save its location step (the timezone is required with an address).
+            $row->update([
+                'location_latlon' => $location->publicPoint(),
+                ...(blank($row->timezone) && filled($own->timezone) ? ['timezone' => $own->timezone] : []),
+            ]);
             $draft->location_latlon = $row->location_latlon;
-            $draft->syncOriginalAttribute('location_latlon');
+            $draft->timezone = $row->timezone;
+            $draft->syncOriginalAttributes(['location_latlon', 'timezone']);
 
             return true;
         });

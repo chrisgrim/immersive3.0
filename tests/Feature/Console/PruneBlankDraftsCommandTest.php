@@ -92,3 +92,19 @@ test('it removes at most --limit a run', function () {
 
     expect(Event::withTrashed()->whereKey([$first->id, $second->id])->count())->toBe(1);
 });
+
+test('a venue draft with only a name goes after three untouched days; anything more keeps it', function () {
+    $old = fn (array $attributes = []) => tap(App\Models\Venue::factory()->create(['status' => 'draft', 'street' => null, 'city' => null, 'latitude' => null, 'longitude' => null, 'description' => null, 'directions' => null, ...$attributes]), fn ($venue) => DB::table('venues')->where('id', $venue->id)->update(['updated_at' => now()->subDays(5)]));
+
+    $nameOnly = $old();
+    $withAddress = $old(['street' => '1 Main St', 'city' => 'Chicago', 'latitude' => 41.8, 'longitude' => -87.6]);
+    $withWords = $old(['description' => 'A room.']);
+    $withRoom = $old(['room' => 'Studio 2']);
+    $sent = $old(['status' => 'pending']);
+    $fresh = App\Models\Venue::factory()->create(['status' => 'draft', 'street' => null, 'city' => null, 'latitude' => null, 'longitude' => null]);
+
+    $this->artisan('ei:prune-blank-drafts')->expectsOutputToContain('1 blank venue drafts removed')->assertSuccessful();
+
+    expect(App\Models\Venue::find($nameOnly->id))->toBeNull()
+        ->and(App\Models\Venue::whereKey([$withAddress->id, $withWords->id, $withRoom->id, $sent->id, $fresh->id])->count())->toBe(5);
+});

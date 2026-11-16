@@ -77,15 +77,21 @@
             <div class="w-full lg:w-[40.6rem] flex-shrink-0 lg:pt-16 lg:pb-8 lg:px-4 lg:-mx-4 lg:sticky lg:top-[var(--nav-bar-height,8rem)] lg:h-[calc(100vh-var(--nav-bar-height,8rem))] lg:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {{-- Picture: edge to edge on a phone, a small tall card on a computer. --}}
                 <div class="relative -mx-[2.4rem] lg:mx-0">
-                    <div class="h-[20rem] w-full overflow-hidden bg-neutral-100 lg:h-auto lg:w-[20rem] lg:mx-auto lg:aspect-[3/4] lg:rounded-3xl">
+                    <div class="relative h-[20rem] w-full overflow-hidden bg-neutral-100 lg:h-auto lg:w-[20rem] lg:mx-auto lg:aspect-[3/4] lg:rounded-3xl">
                         @if($image)
                             <img src="{{ $image }}" alt="{{ $project->name }}" class="w-full h-full object-cover" fetchpriority="high">
                         @endif
+                        {{-- Edit, for whoever keeps the page and staff: a small round button on the picture, out of the title's way. --}}
+                        @can('edit', $project)
+                            <a href="{{ route('hosting.projects.edit', $project) }}" aria-label="Edit this show run" class="absolute top-[1.2rem] right-[1.2rem] w-[3.6rem] h-[3.6rem] rounded-full bg-white/90 backdrop-blur shadow-[0_2px_8px_rgba(0,0,0,0.18)] flex items-center justify-center hover:bg-white hover:scale-105 transition">
+                                <svg width="18" height="18" class="w-[1.8rem] h-[1.8rem]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </a>
+                        @endcan
                     </div>
                     <button type="button" aria-label="Go back"
                         onclick="if (window.history.length > 1) { window.history.back(); } else { window.location.href = '/'; }"
                         class="lg:hidden absolute top-[1.6rem] left-[1.6rem] w-[3.2rem] h-[3.2rem] rounded-full bg-white/80 backdrop-blur flex items-center justify-center">
-                        <svg class="w-[1.6rem] h-[1.6rem]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                        <svg width="16" height="16" class="w-[1.6rem] h-[1.6rem]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                     </button>
                 </div>
 
@@ -104,12 +110,6 @@
                     <div class="text-center mt-[1.2rem]">
                         <h1 class="text-[2.6rem] font-semibold text-[#222222] leading-[3rem] tracking-[-0.052rem] break-words">{{ $project->name }}</h1>
 
-                        {{-- The organizer page's round edit button: whoever keeps the page, and staff. --}}
-                        @can('edit', $project)
-                            <a href="{{ route('hosting.projects.edit', $project) }}" aria-label="Edit this project" class="inline-flex mt-[1.6rem] rounded-full bg-gray-100 w-20 h-20 items-center justify-center hover:bg-gray-200">
-                                <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                            </a>
-                        @endcan
 
                         @if($maker)
                             <p class="text-[1.4rem] leading-[2rem] text-[#222222] mt-3">
@@ -167,7 +167,7 @@
                 @if($page['now']->isEmpty() && $page['coming']->isEmpty())
                     <div class="mb-16 rounded-[2.4rem] bg-[#f7f7f7] px-10 py-8">
                         <p class="text-[2.2rem] leading-[2.6rem] font-semibold text-[#222222] transform-none">No current events</p>
-                        <p class="mt-2 text-[1.6rem] leading-[2rem] text-[#6a6a6a] transform-none">This project is not running right now. Its past runs are below.</p>
+                        <p class="mt-2 text-[1.6rem] leading-[2rem] text-[#6a6a6a] transform-none">This show is not running right now. Its past runs are below.</p>
                     </div>
                 @endif
                 @foreach($sections as $heading => $runs)
@@ -178,9 +178,9 @@
                                 <h2 class="text-[2.2rem] leading-[2.6rem] font-semibold text-[#222222] mb-6">{{ $heading }}</h2>
                             @endif
                             {{-- Past runs are faded, each one coming back to full on its own hover. --}}
-                            <div class="flex flex-col gap-6 {{ $heading === 'Past' ? '[&>*]:opacity-60 [&>*:hover]:opacity-100 [&>*]:transition-opacity' : '' }}">
+                            <div class="flex flex-col gap-4 {{ $heading === 'Past' ? '[&>*]:opacity-60 [&>*:hover]:opacity-100 [&>*]:transition-opacity' : '' }}">
                                 @foreach($runs as $run)
-                                    @include('projects.partials.run-tile')
+                                    @include('projects.partials.run-tile', ['makerId' => $maker?->id])
                                 @endforeach
                             </div>
                             @if($runs instanceof \Illuminate\Pagination\LengthAwarePaginator && $runs->hasPages())

@@ -11,13 +11,19 @@ class Location extends Model
 {
     use HasFactory;
 
+    /** At a venue page (venue_id is set). */
+    public const KIND_VENUE = 'venue';
+
+    /** Somewhere else: a park, the streets, a home, a hidden location. Its name is a label, never a venue. */
+    public const KIND_PLACE = 'place';
+
     /**
      * What protected variables are allowed to be passed to the database
      *
      * @var array
      */
     protected $fillable = [
-        'hiddenLocation', 'home', 'street', 'city', 'region', 'region_long', 'country', 'country_long', 'postal_code', 'longitude', 'latitude', 'event_id', 'hiddenLocationToggle', 'venue', 'venue_id',
+        'hiddenLocation', 'home', 'street', 'city', 'region', 'region_long', 'country', 'country_long', 'postal_code', 'longitude', 'latitude', 'event_id', 'hiddenLocationToggle', 'venue', 'venue_id', 'kind',
     ];
 
     /**

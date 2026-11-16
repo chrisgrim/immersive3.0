@@ -334,7 +334,7 @@ test('the keeper is told when a live listing asks to join', function () {
     app(RequestLink::class)->handle($listing, $project, $listing->organizer->owner);
 
     Mail::assertQueued(Comments::class, fn ($mail) => $mail->hasTo($maker->owner->email)
-        && str_contains($mail->attributes['body'], url('/hosting/projects/burnout/edit')));
+        && str_contains($mail->attributes['body'], url('/hosting/show-runs/burnout/edit')));
     expect(Message::where('message', 'like', '%asked to join "Burnout"%')->count())->toBe(1);
 });
 

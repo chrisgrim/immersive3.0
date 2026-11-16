@@ -24,7 +24,9 @@ class MergeVenues
     {
         Gate::forUser($actor)->authorize('merge', Venue::class);
 
-        if ($loser->is($winner) || $loser->merged_into_id !== null || $winner->merged_into_id !== null) {
+        // Never a draft on either side: it is still being added by its owner.
+        if ($loser->is($winner) || $loser->merged_into_id !== null || $winner->merged_into_id !== null
+            || $loser->status === Venue::DRAFT || $winner->status === Venue::DRAFT) {
             throw ValidationException::withMessages(['venue' => 'Those two venues cannot be merged.']);
         }
 
@@ -41,6 +43,8 @@ class MergeVenues
             SlugRedirect::forget('venues/'.$winner->slug, $winner);
 
             $loser->update(['merged_into_id' => $winner->id]);
+            // Merged away: a new name waiting for EI has nothing left to rename.
+            $loser->nameChangeRequests()->where('status', 'pending')->update(['status' => 'withdrawn']);
 
             AuditLog::record($loser, 'venue.merged', $actor, ['into_venue_id' => $winner->id, 'location_ids' => $locationIds]);
         });

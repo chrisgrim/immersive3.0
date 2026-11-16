@@ -2,7 +2,7 @@
     <!-- Main Navigation -->
     <nav class="relative flex flex-col items-center flex-shrink-0 w-full mx-auto pt-12">
         <!-- Fixed Header -->
-        <div class="w-full flex items-center gap-4 z-50 bg-white p-8 lg-air:max-w-[40rem] overflow-hidden">
+        <div class="w-full flex items-center gap-4 z-50 bg-white px-10 py-8 lg-air:max-w-[40rem] overflow-hidden">
             <button 
                 @click="goBack"
                 class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"
@@ -43,14 +43,31 @@
                     </svg>
                 </div>
             </a>
-            <div class="flex-1 min-w-0 pl-4">
-                <template v-if="['p', 'e'].includes(event.status)">
-                    <a :href="event.public_url || `/events/${event.slug}`" class="text-3xl md:text-5xl font-semibold truncate hover:underline block">{{ event.name || 'No name set' }}</a>
-                </template>
-                <template v-else>
-                    <span class="text-3xl md:text-5xl font-semibold truncate block">{{ event.name || 'No name set' }}</span>
-                </template>
-            </div>
+            <!-- Its page on the site, once it is live (the title used to be this link). -->
+            <a
+                v-if="['p', 'e'].includes(event.status)"
+                :href="event.public_url || `/events/${event.slug}`"
+                aria-label="See it on the site"
+                title="See it on the site"
+                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"
+                data-nav-view
+            >
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            </a>
+            <!-- Settings (duplicate, its show run, delete), opening on the right like a step.
+                 The event's name is in the Name card just below, so no title up here. -->
+            <button
+                type="button"
+                aria-label="Settings"
+                title="Settings"
+                class="ml-auto inline-flex items-center justify-center w-16 h-16 rounded-full transition-colors flex-shrink-0"
+                :class="currentStep === 'Settings' ? 'bg-[#222222] text-white' : 'bg-neutral-100 hover:bg-neutral-200'"
+                :aria-pressed="currentStep === 'Settings'"
+                data-nav-settings
+                @click="$emit('navigate', 'Settings')"
+            >
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.3 4.3c.4-1.7 2.9-1.7 3.4 0a1.7 1.7 0 002.6 1.1c1.5-.9 3.3.8 2.4 2.4a1.7 1.7 0 001 2.5c1.8.4 1.8 2.9 0 3.4a1.7 1.7 0 00-1 2.6c.9 1.5-.9 3.3-2.4 2.4a1.7 1.7 0 00-2.6 1c-.4 1.8-2.9 1.8-3.4 0a1.7 1.7 0 00-2.5-1c-1.6.9-3.3-.9-2.4-2.4a1.7 1.7 0 00-1.1-2.6c-1.7-.4-1.7-2.9 0-3.4a1.7 1.7 0 001.1-2.5c-.9-1.6.8-3.3 2.4-2.4a1.7 1.7 0 002.5-1.1z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
         </div>
 
         <!-- Scrollable Content -->
@@ -68,10 +85,11 @@
                     ]"
                 >
                     <h3 class="text-xl font-semibold mb-4 text-black">Name</h3>
-                    <p class="text-4xl text-neutral-600 mb-4 break-words hyphens-auto overflow-hidden">
+                    <!-- The event's name, big: there is no title above the cards any more. -->
+                    <p class="text-[3.2rem] leading-[3.8rem] font-semibold text-[#222222] mb-4 break-words hyphens-auto overflow-hidden">
                         {{ event.name || 'No name set' }}
                     </p>
-                    <p class="text-neutral-500 text-2xl line-clamp-3 leading-tight break-words hyphens-auto overflow-hidden">
+                    <p class="text-neutral-500 text-[1.3rem] leading-[1.8rem] font-normal line-clamp-3 break-words hyphens-auto overflow-hidden">
                         {{ event.tag_line || 'No tagline set' }}
                     </p>
                 </button>

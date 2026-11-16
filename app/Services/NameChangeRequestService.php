@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Mail\NameChangeNotification;
 use App\Models\Event;
+use App\Models\Project;
 use App\Models\User;
+use App\Models\Venue;
 use App\Support\Slug;
 use Illuminate\Support\Facades\Mail;
 
@@ -56,7 +58,7 @@ class NameChangeRequestService
         ];
     }
 
-    public function processAdminDirectChange($model, $newName)
+    public function processAdminDirectChange($model, $newName, ?User $requester = null)
     {
         // Checked again here, not only when the request was filed: another
         // listing may have taken the name since.
@@ -78,10 +80,13 @@ class NameChangeRequestService
         // ones included (older deletions may still hold theirs), so it gets
         // the same collision-safe slug approval gives it.
         $model->name = $newName;
-        $model->update([
-            'name' => $newName,
-            'slug' => $model instanceof Event ? Event::finalSlug($model) : Slug::base($newName, $type),
-        ]);
+        // A show run keeps its address: its runs' pages all live under it.
+        $model->update(match (true) {
+            $model instanceof Project => ['name' => $newName],
+            // A venue's old address redirects (its own updated hook).
+            $model instanceof Venue => ['name' => $newName, 'slug' => Venue::uniqueSlug($newName, $model->id)],
+            default => ['name' => $newName, 'slug' => $model instanceof Event ? Event::finalSlug($model) : Slug::base($newName, $type)],
+        });
 
         // Organizer/Community regenerate the slug in their own `updating` hook, so
         // read the actually-persisted slug — not the value we passed in — before
@@ -95,7 +100,8 @@ class NameChangeRequestService
         }
 
         // Handle image paths if slug changed
-        if ($newSlug !== $oldSlug && $model->images()->exists()) {
+        // A venue's picture folders keep their name: rows store the paths.
+        if ($newSlug !== $oldSlug && ! $model instanceof Venue && $model->images()->exists()) {
             ImageHandler::moveImagesForNewSlug($model, $oldSlug, $newSlug, $type);
         }
 
@@ -103,7 +109,8 @@ class NameChangeRequestService
         // Community) rather than $model->user, since Community has no user() relation —
         // Mail::to($model->user) would be Mail::to(null) and throw (silently swallowed).
         try {
-            $owner = User::find($model->user_id);
+            // A show run has no owner column: the person who asked hears back.
+            $owner = ($model instanceof Project || $model instanceof Venue) ? $requester : User::find($model->user_id);
             if ($owner) {
                 $changeData = (object) [
                     'name' => $newName,
@@ -125,6 +132,18 @@ class NameChangeRequestService
             'message' => 'Name updated successfully',
             'requiresRefresh' => $newSlug !== $oldSlug,
         ];
+    }
+
+    /**
+     * Staff renamed it directly (an admin screen, Claude's tools, the page
+     * itself): a request waiting for EI is settled, approved if it asked for
+     * that very name, otherwise withdrawn, so it never overwrites the new name.
+     */
+    public static function settleAfterDirectRename($model, string $newName): void
+    {
+        $model->nameChangeRequests()->where('status', 'pending')->get()->each(fn ($pending) => $pending->update([
+            'status' => $pending->requested_name === $newName ? 'approved' : 'withdrawn',
+        ]));
     }
 
     private function getModelType($model)

@@ -441,7 +441,7 @@ class AdminEventController extends Controller
             : null;
 
         if ($link['action'] === 'change' && $target === null) {
-            throw ValidationException::withMessages(['link.project_id' => 'Choose the project to link this listing to.']);
+            throw ValidationException::withMessages(['link.project_id' => 'Choose the show run to link this listing to.']);
         }
 
         return [
@@ -487,9 +487,10 @@ class AdminEventController extends Controller
         ]);
     }
 
-    public function destroy(Event $event)
+    public function destroy(Request $request, Event $event)
     {
         $event->delete();
+        app(\App\Actions\Projects\DissolveProject::class)->afterEventDeleted($event, $request->user());
 
         return response()->json(['message' => 'Event deleted successfully']);
     }

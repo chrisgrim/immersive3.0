@@ -25,7 +25,10 @@ class ProjectPolicy
         return $this->edit($user, $project);
     }
 
-    /** A project is made when a moderator approves a second run. */
+    /**
+     * Making one by hand is staff's. A company also starts its own from a live
+     * listing with Duplicate's "Same show, new run?" (LinkEventToProject::startFrom).
+     */
     public function create(User $user): bool
     {
         return $user->isModerator();

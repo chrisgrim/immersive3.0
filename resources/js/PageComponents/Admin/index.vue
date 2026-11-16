@@ -112,7 +112,7 @@
                                 <li><a @click="handleNavigation('manage-users')" :class="['nav-link', currentView === 'manage-users' ? 'bg-blue-50 text-blue-600' : '']">Users</a></li>
                                 <li><a @click="handleNavigation('manage-organizers')" :class="['nav-link', currentView === 'manage-organizers' ? 'bg-blue-50 text-blue-600' : '']">Organizers</a></li>
                                 <li><a @click="handleNavigation('manage-reviews')" :class="['nav-link', currentView === 'manage-reviews' ? 'bg-blue-50 text-blue-600' : '']">Reviews</a></li>
-                                <li><a @click="handleNavigation('manage-projects')" :class="['nav-link', currentView === 'manage-projects' ? 'bg-blue-50 text-blue-600' : '']">Projects</a></li>
+                                <li><a @click="handleNavigation('manage-projects')" :class="['nav-link', currentView === 'manage-projects' ? 'bg-blue-50 text-blue-600' : '']">Show runs</a></li>
                                 <li><a @click="handleNavigation('manage-venues')" :class="['nav-link', currentView === 'manage-venues' ? 'bg-blue-50 text-blue-600' : '']">Venues</a></li>
                                 <li><a @click="handleNavigation('manage-artists')" :class="['nav-link', currentView === 'manage-artists' ? 'bg-blue-50 text-blue-600' : '']">Artists</a></li>
                                 <li><a @click="handleNavigation('manage-docks')" :class="['nav-link', currentView === 'manage-docks' ? 'bg-blue-50 text-blue-600' : '']">Docks</a></li>

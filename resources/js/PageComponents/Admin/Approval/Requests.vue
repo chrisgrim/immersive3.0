@@ -39,6 +39,29 @@
                             </div>
                         </template>
 
+                        <!-- Show run join request nobody answered within 72 hours: EI decides. -->
+                        <template v-else-if="request.kind === 'link_request'">
+                            <dl class="grid grid-cols-[11rem_1fr] gap-x-4 gap-y-2 text-base">
+                                <dt class="text-gray-500">Event asking</dt>
+                                <dd>
+                                    <a v-if="request.event" :href="request.event.public_url" target="_blank" class="font-medium text-blue-600 hover:text-blue-800 underline">{{ request.event.name }}</a>
+                                    <span v-if="request.event?.organizer" class="text-gray-500"> by <a :href="`/organizers/${request.event.organizer.slug}`" target="_blank" class="underline">{{ request.event.organizer.name }}</a></span>
+                                </dd>
+                                <dt class="text-gray-500">Show run</dt>
+                                <dd>
+                                    <a v-if="request.project" :href="request.project.public_url" target="_blank" class="font-medium text-blue-600 hover:text-blue-800 underline">{{ request.project.name }}</a>
+                                </dd>
+                                <dt class="text-gray-500">Show run owner</dt>
+                                <dd>
+                                    <a v-if="request.project?.keeper" :href="`/organizers/${request.project.keeper.slug}`" target="_blank" class="underline">{{ request.project.keeper.name }}</a>
+                                    <span v-else class="text-gray-400">nobody</span>
+                                    <span v-if="request.project?.organizer && request.project.organizer.id !== request.project.keeper?.id" class="text-gray-500"> (the show is by <a :href="`/organizers/${request.project.organizer.slug}`" target="_blank" class="underline">{{ request.project.organizer.name }}</a>)</span>
+                                </dd>
+                                <dt class="text-gray-500">Waiting</dt>
+                                <dd class="text-gray-700">Asked {{ formatDate(request.submitted_at) }}; the owner did not answer within 72 hours.</dd>
+                            </dl>
+                        </template>
+
                         <!-- Venue claim body: which venue, and who looks after it now -->
                         <template v-else-if="request.kind === 'venue_claim'">
                             <div class="flex items-center gap-3">
@@ -74,9 +97,10 @@
                         </template>
 
                         <!-- Requester (both types) -->
-                        <div class="text-sm text-gray-500">
-                            Requested by {{ request.user?.name }} ({{ request.user?.email }})
+                        <div v-if="request.user" class="text-sm text-gray-500">
+                            Requested by {{ request.user.name }} ({{ request.user.email }})
                         </div>
+
                     </div>
 
                     <!-- Action Buttons -->
@@ -183,9 +207,15 @@ const requestKey = (request) => `${request.kind}-${request.id}`
 const requestLabel = (request) => ({
     ownership_claim: 'Ownership Claim',
     venue_claim: 'Venue Claim',
-}[request.kind] ?? `Name Change${request.type ? ' · ' + request.type : ''}`)
+    link_request: 'Show run · Asking to join',
+}[request.kind] ?? `Name Change${request.type ? ' · ' + (request.type === 'Project' ? 'Show run' : request.type) : ''}`)
 
-const endpoints = (request) => request.kind === 'venue_claim'
+const endpoints = (request) => request.kind === 'link_request'
+    ? {
+        approve: `/api/admin/link-requests/${request.id}/approve`,
+        reject: `/api/admin/link-requests/${request.id}/reject`,
+    }
+    : request.kind === 'venue_claim'
     ? {
         approve: `/api/admin/approve/venue-claims/${request.id}/approve`,
         reject: `/api/admin/approve/venue-claims/${request.id}/reject`,
@@ -219,15 +249,17 @@ const formatDate = (date) => {
 const fetchRequests = async () => {
     try {
         loading.value = true
-        const [nameChangeRes, claimRes, venueClaimRes] = await Promise.all([
+        const [nameChangeRes, claimRes, venueClaimRes, linkRes] = await Promise.all([
             axios.get('/api/admin/approve/requests'),
             axios.get('/api/admin/approve/claims'),
             axios.get('/api/admin/approve/venue-claims'),
+            axios.get('/api/admin/link-requests', { params: { escalated: 1 } }).catch(() => ({ data: { data: [] } })),
         ])
+        const linkRequests = (linkRes.data.data || []).map(r => ({ ...r, kind: 'link_request', created_at: r.escalated_at ?? r.submitted_at }))
         const nameChanges = (nameChangeRes.data.requests || []).map(r => ({ ...r, kind: 'name_change' }))
         const claims = (claimRes.data.claims || []).map(c => ({ ...c, kind: 'ownership_claim' }))
         const venueClaims = (venueClaimRes.data.claims || []).map(c => ({ ...c, kind: 'venue_claim' }))
-        requests.value = [...nameChanges, ...claims, ...venueClaims]
+        requests.value = [...nameChanges, ...claims, ...venueClaims, ...linkRequests]
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     } catch (error) {
         console.error('Error fetching requests:', error)
@@ -280,7 +312,7 @@ const confirmReject = async () => {
     try {
         processing.value = requestKey(request)
         processingAction.value = 'reject'
-        await axios.post(endpoints(request).reject, { reason: rejectionReason.value })
+        await axios.post(endpoints(request).reject, request.kind === 'link_request' ? { note: rejectionReason.value } : { reason: rejectionReason.value })
         showToastMessage('Request rejected successfully')
         requests.value = requests.value.filter(r => requestKey(r) !== requestKey(request))
         emit('update-counts')

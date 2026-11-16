@@ -21,12 +21,122 @@ use Illuminate\Validation\ValidationException;
  */
 class DissolveProject
 {
+    /** Recorded by LinkEventToProject::startFrom. */
+    public const STARTED = 'project.started_from_duplicate';
+
     public function __construct(private CreditLifecycle $credits) {}
 
     public function handle(Project $project, User $actor): Event
     {
         Gate::forUser($actor)->authorize('dissolve', $project);
 
+        return $this->dissolve($project, $actor);
+    }
+
+    /**
+     * A show run a company started by duplicating (LinkEventToProject::startFrom)
+     * whose copy never joined: deleted, or taken back while it was still
+     * asking. With its first listing alone in it and nobody else asking, it
+     * was never really a show run, so it is undone and that listing is a
+     * plain one again. Any other show run is left as it is.
+     */
+    public function undoUnusedStart(int $projectId, ?User $actor): void
+    {
+        $project = Project::find($projectId);
+
+        if (! $project || ! AuditLog::where('subject_type', $project->getMorphClass())->where('subject_id', $project->id)->where('action', self::STARTED)->exists()) {
+            return;
+        }
+
+        $runs = Event::withoutGlobalScope(LatestPublishedFirstScope::class)->where('project_id', $project->id)->count();
+        $asking = ProjectLinkRequest::pending()->where('project_id', $project->id)
+            ->whereHas('event', fn ($query) => $query->withoutGlobalScope(LatestPublishedFirstScope::class))
+            ->exists();
+        // Only a start nothing ever came of: once any listing has joined it (the
+        // copy, or anyone since), or a run of it was deleted, it is a real show
+        // run, and nobody else's request ending undoes it.
+        $first = Event::withoutGlobalScope(LatestPublishedFirstScope::class)->where('project_id', $project->id)->value('id');
+        $used = ProjectLinkRequest::where('project_id', $project->id)->where('status', ProjectLinkRequest::APPROVED)->exists()
+            || Event::onlyTrashed()->withoutGlobalScope(LatestPublishedFirstScope::class)->where('project_id', $project->id)->exists()
+            // Linked by staff directly (no approved request): any other listing ever linked to it.
+            || AuditLog::where('subject_type', (new Event)->getMorphClass())->where('action', 'project.linked')
+                ->where('details->project_id', $project->id)->where('subject_id', '!=', $first)->exists();
+
+        if ($runs !== 1 || $asking || $used) {
+            return;
+        }
+
+        try {
+            $this->dissolve($project, $actor);
+        } catch (ValidationException) {
+            // Something changed meanwhile (a second run joined): it stays.
+        }
+    }
+
+    /**
+     * After a listing is deleted (by its team or by staff): what it was asking
+     * to join is withdrawn, a show run started by duplicating it that nothing
+     * came of is undone, and a show run with nothing left goes.
+     */
+    public function afterEventDeleted(Event $event, ?User $actor): void
+    {
+        $pending = ProjectLinkRequest::pending()->where('event_id', $event->id);
+        $askedTo = (clone $pending)->whereNotNull('project_id')->pluck('project_id');
+        $pending->update(['status' => ProjectLinkRequest::WITHDRAWN]);
+        // Others asking to join this listing itself (not a show run yet) have nothing left to join.
+        ProjectLinkRequest::pending()->where('source_event_id', $event->id)->update(['status' => ProjectLinkRequest::WITHDRAWN]);
+
+        foreach ($askedTo->unique() as $projectId) {
+            $this->afterRequestEnded($projectId, $actor);
+        }
+
+        if ($event->project_id) {
+            $this->removeIfEmpty($event->project_id, $actor);
+        }
+    }
+
+    /**
+     * A request to join this show run ended without joining (withdrawn,
+     * turned down, switched to another show, or its listing deleted): a start
+     * nothing came of is undone, and a show run with nothing left goes.
+     */
+    public function afterRequestEnded(int $projectId, ?User $actor): void
+    {
+        $this->undoUnusedStart($projectId, $actor);
+        $this->removeIfEmpty($projectId, $actor);
+    }
+
+    /**
+     * A show run with nothing left: its listings all deleted and nobody asking
+     * to join. Its page would be empty, so it goes (soft-deleted, its address
+     * released). One with a copy still waiting stays: the copy joins it and the
+     * show carries on. A deleted run restored later comes back as a plain listing.
+     */
+    public function removeIfEmpty(int $projectId, ?User $actor): void
+    {
+        DB::transaction(function () use ($projectId, $actor) {
+            $project = Project::whereKey($projectId)->lockForUpdate()->first();
+
+            if (! $project) {
+                return;
+            }
+
+            $runs = Event::withoutGlobalScope(LatestPublishedFirstScope::class)->where('project_id', $project->id)->exists();
+            $asking = ProjectLinkRequest::pending()->where('project_id', $project->id)
+                ->whereHas('event', fn ($query) => $query->withoutGlobalScope(LatestPublishedFirstScope::class))
+                ->exists();
+
+            if ($runs || $asking) {
+                return;
+            }
+
+            AuditLog::record($project, 'project.emptied', $actor);
+            $project->delete();
+        });
+    }
+
+    private function dissolve(Project $project, ?User $actor): Event
+    {
         return Event::deferringSearchSync(fn () => DB::transaction(function () use ($project, $actor) {
             $locked = Project::whereKey($project->id)->lockForUpdate()->first();
 

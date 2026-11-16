@@ -102,8 +102,12 @@ class CreditLifecycle
         $others = $project->runs()->whereKeyNot($run->id)->get();
         InstanceAddress::primeFirstDays($others);
         $own = $others->where('organizer_id', $run->organizer_id);
+        // Another company's run is a source only once it is published: an
+        // unannounced one's credits (notes, dates) are not theirs to read yet,
+        // as CopyCredits says.
+        $published = $others->where('status', Event::STATUS_PUBLISHED);
 
-        return ($own->isNotEmpty() ? $own : $others)
+        return ($own->isNotEmpty() ? $own : $published)
             ->sortByDesc(fn (Event $other) => InstanceAddress::startDay($other).sprintf('-%012d', $other->id))
             ->first();
     }

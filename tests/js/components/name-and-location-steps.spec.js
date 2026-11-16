@@ -6,7 +6,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { reactive } from 'vue';
 import axios from 'axios';
 import ShowMatch from '@/PageComponents/Creation/Core/Components/show-match.vue';
-import VenuePicker from '@/PageComponents/Creation/Core/Components/venue-picker.vue';
+import VenueSearch from '@/PageComponents/Creation/Core/Components/venue-search.vue';
 import ConfirmDetails from '@/PageComponents/Creation/Core/Components/confirm-details.vue';
 
 vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }));
@@ -50,18 +50,12 @@ describe('show-match.vue', () => {
         expect(axios.get).toHaveBeenCalledTimes(1);
     });
 
-    it('with a request, says what it will join and offers remove', async () => {
-        axios.delete.mockResolvedValue({});
+    it('with a request, leaves the joining to the bottom bar picker and asks nothing', () => {
         const wrapper = withEvent(ShowMatch, { slug: 'x', name: 'Ha', status: '1', link_request: { show: 'Ha Ha Ha' } });
 
-        expect(wrapper.text()).toContain('This will join Ha Ha Ha');
-        expect(wrapper.find('[data-run-fields]').exists()).toBe(true);
-
-        await wrapper.find('[data-joining] button').trigger('click');
-        await flushPromises();
-
-        expect(axios.delete).toHaveBeenCalledWith('/hosting/event/x/link-request');
         expect(wrapper.text()).not.toContain('This will join');
+        expect(wrapper.find('[data-match-question]').exists()).toBe(false);
+        expect(wrapper.find('[data-run-fields]').exists()).toBe(false);
     });
 
     it('keeps a run\'s fields away from a plain listing', () => {
@@ -69,55 +63,43 @@ describe('show-match.vue', () => {
     });
 });
 
-describe('venue-picker.vue', () => {
+describe('venue-search.vue', () => {
     beforeEach(() => vi.clearAllMocks());
 
-    it('offers suggestions with their address, and picking fills the address in', async () => {
-        vi.useFakeTimers();
-        axios.get.mockImplementation((url) => Promise.resolve({ data: url.includes('match') ? { venue: null } : [venue] }));
-        const event = { location: { venue: '', venue_id: null } };
+    it('lists venues with their address and hands back the one picked', async () => {
+        axios.get.mockResolvedValue({ data: [{ id: 7, name: 'The Goodman', room: null, address: '170 N Dearborn St, Chicago' }] });
         const onPicked = vi.fn();
-        const wrapper = mount(VenuePicker, { props: { onPicked }, global: { provide: { event: reactive(event) } } });
+        const wrapper = mount(VenueSearch, { props: { onPicked } });
 
-        await wrapper.find('[data-venue-input]').setValue('Good');
-        await vi.advanceTimersByTimeAsync(400);
+        await wrapper.find('[data-venue-search]').setValue('Good');
+        await wrapper.find('[data-venue-search]').trigger('input');
+        await new Promise((resolve) => setTimeout(resolve, 350));
         await flushPromises();
 
+        expect(axios.get).toHaveBeenCalledWith('/api/venues/search', { params: { keywords: 'Good' } });
         expect(wrapper.text()).toContain('170 N Dearborn St, Chicago');
-
-        await wrapper.find('[data-venue-suggestions] button').trigger('click');
-        vi.useRealTimers();
-
-        expect(onPicked).toHaveBeenCalled();
-        expect(wrapper.find('[data-venue-linked]').exists()).toBe(true);
+        await wrapper.find('[data-venue-results] button').trigger('click');
+        expect(onPicked).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
     });
 
-    it('typing over a picked venue takes it off', async () => {
-        axios.get.mockResolvedValue({ data: { venue: null } });
-        const wrapper = withEvent(VenuePicker, { location: { venue: 'The Goodman', venue_id: 7, street: 'A', city: 'B' } });
+    it('offers to add a venue it does not know, by the name typed', async () => {
+        axios.get.mockResolvedValue({ data: [] });
+        const onAdd = vi.fn();
+        const wrapper = mount(VenueSearch, { props: { onAdd, initial: 'The Lowry' } });
         await flushPromises();
 
-        await wrapper.find('[data-venue-input]').setValue('The Other');
-
-        expect(wrapper.find('[data-venue-linked]').exists()).toBe(false);
+        await wrapper.find('[data-venue-add]').trigger('click');
+        expect(onAdd).toHaveBeenCalledWith('The Lowry');
     });
 
-    it('matches a known address the other way round', async () => {
-        axios.get.mockResolvedValue({ data: { venue } });
-        const wrapper = withEvent(VenuePicker, { location: { venue: '', venue_id: null, street: 'N Dearborn St', city: 'Chicago', home: '170' } });
+    it('a name EI already has can still be added as a different venue (another city, another space)', async () => {
+        axios.get.mockResolvedValue({ data: [{ id: 7, name: 'The Lowry', address: 'Salford' }] });
+        const wrapper = mount(VenueSearch, { props: { initial: 'the lowry' } });
         await flushPromises();
 
-        expect(wrapper.find('[data-venue-known]').text()).toContain('Is this The Goodman?');
-    });
-
-    it('offers nothing for a secret location', async () => {
-        const wrapper = withEvent(VenuePicker, { location: { venue: 'Good', venue_id: null, hiddenLocationToggle: true, street: 'A', city: 'B' } });
-        await flushPromises();
-
-        await wrapper.find('[data-venue-input]').setValue('Goodman');
-
-        expect(axios.get).not.toHaveBeenCalled();
-        expect(wrapper.find('[data-venue-suggestions]').exists()).toBe(false);
+        expect(wrapper.find('[data-venue-add]').text()).toContain('A different');
+        await wrapper.find('[data-venue-add]').trigger('click');
+        expect(wrapper.emitted('add')[0]).toEqual(['the lowry']);
     });
 });
 
@@ -132,5 +114,16 @@ describe('confirm-details.vue', () => {
 
         expect(axios.post).toHaveBeenCalledWith('/hosting/event/x/link-request/confirm');
         expect(wrapper.find('input').element.disabled).toBe(true);
+    });
+});
+
+describe('name.vue, a run of a show run', () => {
+    it('says whose run it is instead of asking for a unique name', async () => {
+        const { default: Name } = await import('@/PageComponents/Creation/Core/Pages/name.vue');
+        const wrapper = withEvent(Name, { slug: 'x', name: '', status: '1', link_request: { show: '7 Paintings' } });
+
+        expect(wrapper.text()).toContain('This is a run of 7 Paintings');
+        expect(wrapper.text()).toContain(`7 Paintings (Texas or ${new Date().getFullYear() + 1})`);
+        expect(wrapper.text()).not.toContain('Enter a unique name');
     });
 });

@@ -33,11 +33,43 @@ class SuggestShows
             return [];
         }
 
+        $typed = self::core($name);
+
+        if (mb_strlen($typed) < 2) {
+            return [];
+        }
+
+        // Only names that really are this show: the same name, give or take
+        // a "(Texas)" or "(2025)", or one that starts with the other
+        // ("Ha Ha Ha in Chicago" is a run of "Ha Ha Ha"). The searches below
+        // are loose (any shared word), so this decides.
         return $this->projects($name, $viewer)
             ->concat($this->listings($name, $exceptEventId))
+            ->filter(fn (array $show) => self::sameShow($typed, self::core($show['name'])))
             ->take(self::LIMIT)
             ->values()
             ->all();
+    }
+
+    /** A name reduced to the words that make it: no brackets, case, punctuation or leading "The". */
+    public static function core(string $name): string
+    {
+        $name = preg_replace('/\s*\([^)]*\)/u', ' ', $name);
+        $name = str_replace(["'", '’'], '', mb_strtolower(\Illuminate\Support\Str::ascii($name)));
+        $name = trim(preg_replace('/[^a-z0-9]+/', ' ', $name));
+
+        return preg_replace('/^the /', '', $name);
+    }
+
+    public static function sameShow(string $typed, string $other): bool
+    {
+        if ($other === '') {
+            return false;
+        }
+
+        return $typed === $other
+            || str_starts_with($typed.' ', $other.' ')
+            || str_starts_with($other.' ', $typed.' ');
     }
 
     private function projects(string $name, ?User $viewer): Collection

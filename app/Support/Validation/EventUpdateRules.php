@@ -121,6 +121,8 @@ class EventUpdateRules
             // server accepted but the form could not was a Next button that did
             // nothing. The longest venue on record is 65 characters.
             'location.venue' => 'nullable|string|max:80',
+            // At a venue, or somewhere else (Location::KIND_*), as chosen on the Location step.
+            'location.kind' => 'sometimes|nullable|in:venue,place',
             // Add validation for remotelocations
             'remotelocations' => 'nullable|array',
             'remotelocations.*.name' => 'required_with:remotelocations|string|max:255',

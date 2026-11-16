@@ -1,6 +1,6 @@
 <template>
     <div class="flex flex-col">
-        <h1 class="text-2xl font-bold mb-6">Projects</h1>
+        <h1 class="text-2xl font-bold mb-6">Show runs</h1>
         <input v-model="keywords" name="project_search" autocomplete="off" placeholder="Search by name..." class="w-auto max-w-[25rem] mb-6 px-4 py-2 border border-gray-300 rounded-lg" @input="load(1)">
 
         <p v-if="message" class="mb-4 text-red-600">{{ message }}</p>
@@ -9,7 +9,7 @@
             <table class="w-full">
                 <thead class="bg-neutral-100">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500">Project</th>
+                        <th class="px-6 py-3 text-left text-xl font-medium text-gray-500">Show run</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500">Made by</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500">Keeps the page</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500">Runs</th>
@@ -54,14 +54,14 @@
             </div>
             <div class="flex gap-4">
                 <button class="px-4 py-2 bg-blue-500 text-white rounded-lg" :disabled="busy" @click="save">Save</button>
-                <a :href="`/hosting/projects/${editing.slug}/edit`" target="_blank" class="px-4 py-2 border border-gray-300 rounded-lg">Page, writers and runs</a>
+                <a :href="`/hosting/show-runs/${editing.slug}/edit`" target="_blank" class="px-4 py-2 border border-gray-300 rounded-lg">Page, writers and runs</a>
                 <button class="px-4 py-2 border border-gray-300 rounded-lg" :disabled="busy" @click="dissolve">Dissolve</button>
                 <button class="px-4 py-2" @click="editing = null">Close</button>
             </div>
 
             <div>
-                Merge this project into
-                <input v-model="mergeSearch" placeholder="Find the project to keep" class="block w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg" @input="findShows">
+                Merge this show run into
+                <input v-model="mergeSearch" placeholder="Find the show run to keep" class="block w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg" @input="findShows">
                 <div class="flex flex-wrap gap-2 mt-2">
                     <button v-for="show in mergeResults" :key="show.id" class="px-3 py-1 border border-gray-300 rounded-lg" :disabled="busy" @click="merge(show)">{{ show.name }}</button>
                 </div>

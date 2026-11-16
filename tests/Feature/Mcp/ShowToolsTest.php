@@ -79,11 +79,10 @@ test('update-event asks to join for an own draft, fills it in, and submit wants 
     $draft->location()->create([]);
     $draft->advisories()->create([]);
 
-    viaToken($this->owner)->tool(UpdateEvent::class, ['event_slug' => $draft->slug, 'project_id' => $project->id, 'edition' => 'Holiday', 'run_type' => 'workshop'])
+    viaToken($this->owner)->tool(UpdateEvent::class, ['event_slug' => $draft->slug, 'project_id' => $project->id])
         ->assertOk()->assertSee('joining');
 
     expect($draft->fresh()->description)->toBe('About the show.')
-        ->and($draft->fresh()->edition)->toBe('Holiday')
         ->and(ProjectLinkRequest::sole()->project_id)->toBe($project->id);
 });
 
@@ -120,7 +119,21 @@ test('update-event picks a venue', function () {
 
     viaToken($this->owner)->tool(UpdateEvent::class, ['event_slug' => $draft->slug, 'location' => ['venue_id' => $venue->id]])->assertOk();
 
-    expect($draft->fresh()->location->venue_id)->toBe($venue->id)->and($draft->fresh()->location->city)->toBe('Chicago');
+    expect($draft->fresh()->location->venue_id)->toBe($venue->id)->and($draft->fresh()->location->city)->toBe('Chicago')
+        // A venue picked is "at a venue", said or not.
+        ->and($draft->fresh()->location->kind)->toBe('venue');
+});
+
+test('update-event says "somewhere else": the name is a label, the kind is saved, and get-event shows it', function () {
+    $draft = Event::factory()->create(['organizer_id' => $this->organizer->id, 'user_id' => $this->owner->id, 'status' => '1', 'hasLocation' => true]);
+    $draft->location()->create([]);
+
+    viaToken($this->owner)->tool(UpdateEvent::class, ['event_slug' => $draft->slug, 'location' => [
+        'kind' => 'place', 'venue' => 'Prospect Park, by the boathouse', 'street' => 'Prospect Park', 'city' => 'Brooklyn', 'latitude' => 40.66, 'longitude' => -73.97,
+    ]])->assertOk();
+
+    expect($draft->fresh()->location)->kind->toBe('place')->venue_id->toBeNull()->venue->toBe('Prospect Park, by the boathouse');
+    viaToken($this->owner)->tool(GetEvent::class, ['event_slug' => $draft->fresh()->slug])->assertSee('"kind":"place"', false);
 });
 
 test('a moderator links, and the rest of the lifecycle runs through the tools', function () {
@@ -142,7 +155,7 @@ test('a refusal reads as an error, not a crash', function () {
     $first = publishedListing('First', 'Rome');
 
     asMod($this)->tool(LinkEventToProject::class, ['event_slug' => $draft->slug, 'source_event_slug' => $first->slug])
-        ->assertHasErrors()->assertSee('joins a project once it is approved');
+        ->assertHasErrors()->assertSee('joins a show run once it is approved');
 });
 
 test('copy-credits adds and never replaces', function () {
@@ -165,7 +178,8 @@ test('set-event-venue attaches past the lock and refuses a secret location', fun
     asMod($this)->tool(SetEventVenue::class, ['event_slug' => $old->slug, 'venue_id' => $venue->id])->assertOk();
     asMod($this)->tool(SetEventVenue::class, ['event_slug' => $secret->slug, 'venue_id' => $venue->id])->assertHasErrors();
 
-    expect($old->fresh()->location->venue_id)->toBe($venue->id)->and($secret->fresh()->location->venue_id)->toBeNull();
+    expect($old->fresh()->location->venue_id)->toBe($venue->id)->and($secret->fresh()->location->venue_id)->toBeNull()
+        ->and($old->fresh()->location->kind)->toBe('venue');
 });
 
 test('merge tools', function () {
@@ -207,4 +221,13 @@ test('search-console names shows, venues and moved addresses', function () {
     expect($page->invoke($tool, $row('project', '/events/x')))->toMatchArray(['page' => '/events/x', 'show' => ['id' => 1, 'name' => 'X']])
         ->and($page->invoke($tool, $row('venue', '/venues/x')))->toMatchArray(['page' => '/venues/x', 'venue' => ['id' => 1, 'name' => 'X']])
         ->and($page->invoke($tool, $row('moved', '/events/old'))['moved'])->toBeTrue();
+});
+
+test('update-event no longer takes a run name, run type or festival, and says what to do instead', function () {
+    $draft = Event::factory()->create(['organizer_id' => $this->organizer->id, 'status' => '1', 'user_id' => $this->owner->id]);
+
+    viaToken($this->owner)->tool(UpdateEvent::class, ['event_slug' => $draft->slug, 'edition' => 'Holiday', 'run_type' => 'workshop', 'festival' => 'SXSW'])
+        ->assertSee('event name')->assertSee('genres');
+
+    expect($draft->fresh())->edition->toBeNull()->run_type->toBeNull()->festival->toBeNull();
 });

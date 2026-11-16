@@ -43,7 +43,7 @@ class TellKeeper
         }
 
         $presenter = $event->organizer?->name;
-        $url = url("/hosting/projects/{$project->slug}/edit");
+        $url = url("/hosting/show-runs/{$project->slug}/edit");
         $body = "\"{$event->name}\"".($presenter ? " from {$presenter}" : '')
             ." has asked to join \"{$project->name}\". Approve or decline it here: {$url}\n\n"
             .'If it has no answer within '.ProjectLinkRequest::ESCALATE_AFTER_HOURS.' hours it goes to the Everything Immersive moderators.';

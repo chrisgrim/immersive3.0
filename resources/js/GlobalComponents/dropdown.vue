@@ -35,6 +35,7 @@
                         :key="item.id"
                         @click="selectItem(item)"
                         @mousedown.stop.prevent>
+                        <component :is="item.icon" v-if="item.icon" class="w-[2.4rem] h-[2.4rem] flex-shrink-0 text-[#222222]" />
                         {{ item.name }}
                     </li>
                     <li 

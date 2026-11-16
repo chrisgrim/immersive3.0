@@ -36,19 +36,19 @@ beforeEach(function () {
 // ----- project page -----
 
 test('the keeper opens the page, and strangers and presenters do not', function () {
-    $this->actingAs($this->keeper)->get('/hosting/projects/ha-ha-ha/edit')
+    $this->actingAs($this->keeper)->get('/hosting/show-runs/ha-ha-ha/edit')
         ->assertOk()
         ->assertViewIs('projects.edit');
 
-    $this->actingAs($this->stranger)->get('/hosting/projects/ha-ha-ha/edit')->assertForbidden();
-    $this->actingAs($this->presenter)->get('/hosting/projects/ha-ha-ha/edit')->assertForbidden();
-    $this->actingAs(staffModerator())->get('/hosting/projects/ha-ha-ha/edit')->assertOk();
+    $this->actingAs($this->stranger)->get('/hosting/show-runs/ha-ha-ha/edit')->assertForbidden();
+    $this->actingAs($this->presenter)->get('/hosting/show-runs/ha-ha-ha/edit')->assertForbidden();
+    $this->actingAs(staffModerator())->get('/hosting/show-runs/ha-ha-ha/edit')->assertOk();
 });
 
 test('a show\'s text cannot reach Vue as a template', function () {
     $this->project->update(['name' => '{{ constructor.constructor("alert(1)")() }}']);
 
-    $html = $this->actingAs($this->keeper)->get('/hosting/projects/ha-ha-ha/edit')->getContent();
+    $html = $this->actingAs($this->keeper)->get('/hosting/show-runs/ha-ha-ha/edit')->getContent();
     $body = preg_replace('#<script\b.*?</script>#s', '', Str::after($html, '<body id="app">'));
 
     expect($body)->not->toContain('constructor.constructor');
@@ -57,12 +57,12 @@ test('a show\'s text cannot reach Vue as a template', function () {
 test('the keeper edits the page, but not its maker or address', function () {
     $other = Organizer::factory()->create();
 
-    $this->actingAs($this->keeper)->postJson('/hosting/projects/ha-ha-ha', [
+    $this->actingAs($this->keeper)->postJson('/hosting/show-runs/ha-ha-ha', [
         'name' => 'Ha Ha Ha!',
         'description' => 'About the show',
         'organizer_id' => $other->id,
         'slug' => 'stolen',
-    ])->assertOk()->assertJsonPath('name', 'Ha Ha Ha!');
+    ])->assertOk()->assertJsonPath('name', 'Ha Ha Ha')->assertJsonPath('pending_name', 'Ha Ha Ha!');
 
     $project = $this->project->fresh();
 
@@ -72,7 +72,7 @@ test('the keeper edits the page, but not its maker or address', function () {
 });
 
 test('a new main image lands in the project\'s own folder', function () {
-    $this->actingAs($this->keeper)->post('/hosting/projects/ha-ha-ha/photos', [
+    $this->actingAs($this->keeper)->post('/hosting/show-runs/ha-ha-ha/photos', [
         'images' => [UploadedFile::fake()->image('show.jpg', 900, 1300)], 'ranks' => [0],
     ], ['Accept' => 'application/json'])->assertOk();
 
@@ -85,7 +85,7 @@ test('the keeper sets the writers: added, edited, removed', function () {
     $going = Credit::factory()->writing()->for($this->project, 'creditable')->create();
     $new = Artist::factory()->create();
 
-    $this->actingAs($this->keeper)->postJson('/hosting/projects/ha-ha-ha', [
+    $this->actingAs($this->keeper)->postJson('/hosting/show-runs/ha-ha-ha', [
         'writers' => [
             ['artist_id' => $new->id, 'role' => 'Lyrics'],
             ['id' => $staying->id, 'artist_id' => $staying->artist_id, 'role' => 'Book and Lyrics'],
@@ -100,7 +100,7 @@ test('the keeper sets the writers: added, edited, removed', function () {
 test('a writer row from somewhere else cannot be pulled in', function () {
     $elsewhere = Credit::factory()->for($this->run, 'creditable')->create();
 
-    $this->actingAs($this->keeper)->postJson('/hosting/projects/ha-ha-ha', [
+    $this->actingAs($this->keeper)->postJson('/hosting/show-runs/ha-ha-ha', [
         'writers' => [['id' => $elsewhere->id, 'artist_id' => $elsewhere->artist_id]],
     ])->assertStatus(422);
 
@@ -110,7 +110,7 @@ test('a writer row from somewhere else cannot be pulled in', function () {
 test('leaving writers out of a save leaves them alone', function () {
     $writer = Credit::factory()->writing()->for($this->project, 'creditable')->create();
 
-    $this->actingAs($this->keeper)->postJson('/hosting/projects/ha-ha-ha', ['description' => 'x'])->assertOk();
+    $this->actingAs($this->keeper)->postJson('/hosting/show-runs/ha-ha-ha', ['description' => 'x'])->assertOk();
 
     expect($writer->fresh())->not->toBeNull();
 });
@@ -118,7 +118,7 @@ test('leaving writers out of a save leaves them alone', function () {
 test('a merged artist cannot be credited', function () {
     $merged = Artist::factory()->create(['merged_into_id' => Artist::factory()->create()->id]);
 
-    $this->actingAs($this->keeper)->postJson('/hosting/projects/ha-ha-ha', ['writers' => [['artist_id' => $merged->id]]])->assertStatus(422);
+    $this->actingAs($this->keeper)->postJson('/hosting/show-runs/ha-ha-ha', ['writers' => [['artist_id' => $merged->id]]])->assertStatus(422);
 });
 
 test('the aggregate adds everyone up across runs, derived', function () {
@@ -129,7 +129,7 @@ test('the aggregate adds everyone up across runs, derived', function () {
     $later->update(['project_id' => $this->project->id, 'instance_slug' => 'boston-2028']);
     Credit::factory()->for($later, 'creditable')->create(['artist_id' => $artist->id]);
 
-    $page = $this->actingAs($this->keeper)->postJson('/hosting/projects/ha-ha-ha', [])->assertOk();
+    $page = $this->actingAs($this->keeper)->postJson('/hosting/show-runs/ha-ha-ha', [])->assertOk();
 
     expect($page->json('aggregate.0'))->toMatchArray(['artist' => 'Jo Doe', 'runs' => 2, 'first_year' => '2026', 'last_year' => '2028']);
 });
@@ -140,10 +140,10 @@ test('the keeper sees and approves a request, and the run takes its address', fu
     $listing = publishedListing('Ha Ha Ha', 'Rome');
     $request = ProjectLinkRequest::create(['event_id' => $listing->id, 'project_id' => $this->project->id, 'submitted_at' => now()]);
 
-    $this->actingAs($this->keeper)->getJson('/hosting/projects/ha-ha-ha/link-requests')
+    $this->actingAs($this->keeper)->getJson('/hosting/show-runs/ha-ha-ha/link-requests')
         ->assertOk()->assertJsonPath('0.event.id', $listing->id);
 
-    $this->postJson("/hosting/projects/ha-ha-ha/link-requests/{$request->id}/approve")
+    $this->postJson("/hosting/show-runs/ha-ha-ha/link-requests/{$request->id}/approve")
         ->assertOk()->assertJsonCount(0, 'link_requests')->assertJsonCount(2, 'runs');
 
     expect($listing->fresh()->publicPath())->toBe('/events/ha-ha-ha/rome-2026');
@@ -153,14 +153,14 @@ test('an unsubmitted draft is not on the keeper\'s list', function () {
     $draft = publishedListing('Ha Ha Ha', 'Rome', ['status' => '1']);
     ProjectLinkRequest::create(['event_id' => $draft->id, 'project_id' => $this->project->id]);
 
-    $this->actingAs($this->keeper)->getJson('/hosting/projects/ha-ha-ha/link-requests')->assertOk()->assertJsonCount(0);
+    $this->actingAs($this->keeper)->getJson('/hosting/show-runs/ha-ha-ha/link-requests')->assertOk()->assertJsonCount(0);
 });
 
 test('the keeper declines a request', function () {
     $listing = publishedListing('Ha Ha Ha', 'Rome');
     $request = ProjectLinkRequest::create(['event_id' => $listing->id, 'project_id' => $this->project->id]);
 
-    $this->actingAs($this->keeper)->postJson("/hosting/projects/ha-ha-ha/link-requests/{$request->id}/reject", ['note' => 'Not ours'])->assertOk();
+    $this->actingAs($this->keeper)->postJson("/hosting/show-runs/ha-ha-ha/link-requests/{$request->id}/reject", ['note' => 'Not ours'])->assertOk();
 
     expect($request->fresh()->status)->toBe(ProjectLinkRequest::REJECTED)
         ->and($request->fresh()->decided_by)->toBe($this->keeper->id)
@@ -171,7 +171,7 @@ test('the presenter hears when a keeper declines, with the reason', function () 
     $listing = publishedListing('Ha Ha Ha', 'Rome');
     $request = ProjectLinkRequest::create(['event_id' => $listing->id, 'project_id' => $this->project->id]);
 
-    $this->actingAs($this->keeper)->postJson("/hosting/projects/ha-ha-ha/link-requests/{$request->id}/reject", ['note' => 'Not ours'])->assertOk();
+    $this->actingAs($this->keeper)->postJson("/hosting/show-runs/ha-ha-ha/link-requests/{$request->id}/reject", ['note' => 'Not ours'])->assertOk();
 
     Mail::assertQueued(App\Mail\Comments::class, 1);
     Mail::assertQueued(App\Mail\Comments::class, fn ($mail) => $mail->hasTo($listing->organizer->owner->email)
@@ -184,7 +184,7 @@ test('the presenter hears when a keeper approves', function () {
     $listing = publishedListing('Ha Ha Ha', 'Rome');
     $request = ProjectLinkRequest::create(['event_id' => $listing->id, 'project_id' => $this->project->id]);
 
-    $this->actingAs($this->keeper)->postJson("/hosting/projects/ha-ha-ha/link-requests/{$request->id}/approve")->assertOk();
+    $this->actingAs($this->keeper)->postJson("/hosting/show-runs/ha-ha-ha/link-requests/{$request->id}/approve")->assertOk();
 
     Mail::assertQueued(App\Mail\Comments::class, 1);
     Mail::assertQueued(App\Mail\Comments::class, fn ($mail) => $mail->hasTo($listing->organizer->owner->email));
@@ -204,7 +204,7 @@ test('a keeper cannot approve a listing that is not live, nor publish one by app
     $draft = publishedListing('Ha Ha Ha', 'Rome', ['status' => 'r']);
     $request = ProjectLinkRequest::create(['event_id' => $draft->id, 'project_id' => $this->project->id]);
 
-    $this->actingAs($this->keeper)->postJson("/hosting/projects/ha-ha-ha/link-requests/{$request->id}/approve")->assertStatus(422);
+    $this->actingAs($this->keeper)->postJson("/hosting/show-runs/ha-ha-ha/link-requests/{$request->id}/approve")->assertStatus(422);
 
     expect($draft->fresh()->status)->toBe('r')->and($request->fresh()->isPending())->toBeTrue();
 });
@@ -213,9 +213,9 @@ test('a keeper cannot reach another show\'s request, or anything of a stranger\'
     $other = Project::factory()->create(['slug' => 'other-show']);
     $request = ProjectLinkRequest::create(['event_id' => publishedListing('X', 'Rome')->id, 'project_id' => $other->id]);
 
-    $this->actingAs($this->keeper)->postJson("/hosting/projects/ha-ha-ha/link-requests/{$request->id}/approve")->assertNotFound();
-    $this->actingAs($this->keeper)->postJson("/hosting/projects/other-show/link-requests/{$request->id}/approve")->assertForbidden();
-    $this->actingAs($this->stranger)->getJson('/hosting/projects/ha-ha-ha/link-requests')->assertForbidden();
+    $this->actingAs($this->keeper)->postJson("/hosting/show-runs/ha-ha-ha/link-requests/{$request->id}/approve")->assertNotFound();
+    $this->actingAs($this->keeper)->postJson("/hosting/show-runs/other-show/link-requests/{$request->id}/approve")->assertForbidden();
+    $this->actingAs($this->stranger)->getJson('/hosting/show-runs/ha-ha-ha/link-requests')->assertForbidden();
 });
 
 test('a request for a standalone listing is the moderators\', never a team\'s', function () {
@@ -232,7 +232,7 @@ test('a request for a standalone listing is the moderators\', never a team\'s', 
 // ----- unlink -----
 
 test('the keeper takes a run off the show', function () {
-    $this->actingAs($this->keeper)->deleteJson("/hosting/projects/ha-ha-ha/instances/{$this->run->slug}")
+    $this->actingAs($this->keeper)->deleteJson("/hosting/show-runs/ha-ha-ha/instances/{$this->run->slug}")
         ->assertOk()->assertJsonCount(0, 'runs');
 
     expect($this->run->fresh()->isLinked())->toBeFalse();
@@ -241,8 +241,8 @@ test('the keeper takes a run off the show', function () {
 test('a run of another show answers 404, and a presenter cannot do it', function () {
     $other = publishedListing('Other', 'Rome');
 
-    $this->actingAs($this->keeper)->deleteJson("/hosting/projects/ha-ha-ha/instances/{$other->slug}")->assertNotFound();
-    $this->actingAs($this->presenter)->deleteJson("/hosting/projects/ha-ha-ha/instances/{$this->run->slug}")->assertForbidden();
+    $this->actingAs($this->keeper)->deleteJson("/hosting/show-runs/ha-ha-ha/instances/{$other->slug}")->assertNotFound();
+    $this->actingAs($this->presenter)->deleteJson("/hosting/show-runs/ha-ha-ha/instances/{$this->run->slug}")->assertForbidden();
 });
 
 // ----- a listing's own link request -----
@@ -440,16 +440,16 @@ test('someone on no team cannot, a curator can', function () {
 });
 
 test('the keeper sees the edit button on the show page, others do not', function () {
-    $this->actingAs($this->keeper)->get('/events/ha-ha-ha')->assertSee('Edit this project');
-    $this->actingAs($this->stranger)->get('/events/ha-ha-ha')->assertDontSee('Edit this project');
+    $this->actingAs($this->keeper)->get('/events/ha-ha-ha')->assertSee('Edit this show run');
+    $this->actingAs($this->stranger)->get('/events/ha-ha-ha')->assertDontSee('Edit this show run');
     auth()->logout();
-    $this->get('/events/ha-ha-ha')->assertDontSee('Edit this project');
+    $this->get('/events/ha-ha-ha')->assertDontSee('Edit this show run');
 });
 
 test('the keeper keeps one photo, which leads the page', function () {
     $file = fn () => UploadedFile::fake()->image('show.jpg', 900, 1200);
 
-    $this->actingAs($this->keeper)->post('/hosting/projects/ha-ha-ha/photos', [
+    $this->actingAs($this->keeper)->post('/hosting/show-runs/ha-ha-ha/photos', [
         'images' => [$file()], 'ranks' => [0],
     ], ['Accept' => 'application/json'])->assertOk()->assertJsonCount(1, 'photos');
 
@@ -457,11 +457,11 @@ test('the keeper keeps one photo, which leads the page', function () {
     expect($this->project->fresh()->largeImagePath)->toBe($photo->large_image_path);
 
     // A second one is refused while the first is kept.
-    $this->actingAs($this->keeper)->post('/hosting/projects/ha-ha-ha/photos', [
+    $this->actingAs($this->keeper)->post('/hosting/show-runs/ha-ha-ha/photos', [
         'images' => [$file()], 'ranks' => [0], 'currentImages' => json_encode([['id' => $photo->id, 'rank' => 0]]),
     ], ['Accept' => 'application/json'])->assertUnprocessable();
 
-    $this->actingAs($this->stranger)->post('/hosting/projects/ha-ha-ha/photos', ['deletedImages' => '[]'], ['Accept' => 'application/json'])->assertForbidden();
+    $this->actingAs($this->stranger)->post('/hosting/show-runs/ha-ha-ha/photos', ['deletedImages' => '[]'], ['Accept' => 'application/json'])->assertForbidden();
 });
 
 test('an organizer page opens its own listings: a member looks and may switch by POST, staff look without joining', function () {
@@ -508,4 +508,51 @@ test('an older event with only its picture path gets that picture as its main im
     $thumbless = \App\Models\Event::factory()->create(['largeImagePath' => 'event-images/older/older.webp', 'thumbImagePath' => null]);
     $this->actingAs($moderator)->get("/hosting/event/{$thumbless->slug}/edit")->assertOk();
     expect($thumbless->images()->sole()->thumb_image_path)->toBe('event-images/older/older.webp');
+});
+
+test('the event editor knows its show run, and whether this user may take it out (Settings)', function () {
+    $runOf = fn (User $user) => $this->actingAs($user)->get("/hosting/event/{$this->run->slug}/edit")->assertOk()->viewData('event')->run_of;
+
+    // The run's own company: part of it, but the show is someone else's to change.
+    expect($runOf($this->presenter))->toMatchArray(['id' => $this->project->id, 'name' => 'Ha Ha Ha', 'slug' => 'ha-ha-ha', 'kept' => false]);
+
+    // Staff may take it out.
+    expect($runOf(staffModerator())['kept'])->toBeTrue();
+
+    // Not in a show run: nothing.
+    $this->run->update(['project_id' => null]);
+    expect($runOf($this->presenter))->toBeNull();
+});
+
+it('the old show run address still opens the page', function () {
+    $this->actingAs($this->keeper)->get('/hosting/projects/ha-ha-ha/edit')->assertRedirect('/hosting/show-runs/ha-ha-ha/edit');
+});
+
+test('a new name from the keeper waits for EI; approved, it keeps its address', function () {
+    Illuminate\Support\Facades\Mail::fake();
+    $this->actingAs($this->keeper)->postJson('/hosting/show-runs/ha-ha-ha', ['name' => 'Spam Spam'])->assertOk();
+    // Changed again before EI looks: still one request, with the newest name.
+    $this->postJson('/hosting/show-runs/ha-ha-ha', ['name' => 'Ha Ha Ha Again'])->assertOk()->assertJsonPath('pending_name', 'Ha Ha Ha Again');
+
+    expect($this->project->fresh()->name)->toBe('Ha Ha Ha');
+    $request = App\Models\NameChangeRequest::sole();
+    expect($request->requested_name)->toBe('Ha Ha Ha Again');
+
+    $this->actingAs(staffModerator())->postJson("/api/admin/approve/requests/{$request->id}/approve");
+    $project = $this->project->fresh();
+    expect($project->name)->toBe('Ha Ha Ha Again')->and($project->slug)->toBe('ha-ha-ha');
+});
+
+test('EI staff rename a show run straight away', function () {
+    $this->actingAs(staffModerator())->postJson('/hosting/show-runs/ha-ha-ha', ['name' => 'Staff Name'])->assertOk()->assertJsonPath('name', 'Staff Name');
+    expect(App\Models\NameChangeRequest::count())->toBe(0);
+});
+
+test('staff saving other fields leave a company rename waiting', function () {
+    Illuminate\Support\Facades\Mail::fake();
+    $this->actingAs($this->keeper)->postJson('/hosting/show-runs/ha-ha-ha', ['name' => 'Ha Ha Ha 2027'])->assertOk();
+
+    $this->actingAs(staffModerator())->postJson('/hosting/show-runs/ha-ha-ha', ['name' => 'Ha Ha Ha', 'description' => 'Typo fixed'])->assertOk();
+
+    expect(App\Models\NameChangeRequest::sole()->status)->toBe('pending');
 });

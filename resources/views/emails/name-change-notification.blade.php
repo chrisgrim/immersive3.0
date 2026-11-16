@@ -46,7 +46,7 @@
                     <span style="font-family: 'Sen', sans-serif;color: #374151;">
                         <p style="margin-bottom: 0rem;">Please review this request at your earliest convenience.</p>
                     </span>
-                    <a href="{{ config('app.url') }}/admin?view=approve-requests" 
+                    <a href="{{ config('app.url') }}/admin/dashboard?view=approve-requests" 
                     style="
                         display: inline-block;
                         font-family: 'Sen', sans-serif;

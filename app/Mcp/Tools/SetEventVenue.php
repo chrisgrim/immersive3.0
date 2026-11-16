@@ -38,10 +38,11 @@ class SetEventVenue extends Tool
         }
 
         return $this->attempt(function () use ($event, $validated, $user) {
-            $data = ['location' => ['venue_id' => $validated['venue_id'] ?? null]];
+            // Attaching says "at a venue"; taking it off leaves the kind unsaid (ApplyVenue).
+            $data = ['location' => ['venue_id' => $validated['venue_id'] ?? null, ...(($validated['venue_id'] ?? null) ? ['kind' => 'venue'] : [])]];
             $event = app(UpdateEventAction::class)->handle($event, $data, $this->syntheticRequest($data, $user));
 
-            return ['event' => $event->only(['id', 'slug']), 'location' => $event->location?->only(['venue', 'venue_id', 'street', 'city'])];
+            return ['event' => $event->only(['id', 'slug']), 'location' => $event->location?->only(['kind', 'venue', 'venue_id', 'street', 'city'])];
         });
     }
 

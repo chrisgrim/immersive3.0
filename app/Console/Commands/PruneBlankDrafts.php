@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Event;
+use App\Models\Venue;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +30,7 @@ class PruneBlankDrafts extends Command
         {--limit=500 : At most this many per run}
         {--dry-run : List them, delete nothing}';
 
-    protected $description = 'Remove event drafts nobody filled in at all, after a few untouched days.';
+    protected $description = 'Remove event drafts nobody filled in at all, and venue drafts with only a name, after a few untouched days.';
 
     public function handle(): int
     {
@@ -52,6 +53,7 @@ class PruneBlankDrafts extends Command
 
         if ($this->option('dry-run')) {
             $this->info($ids->count().' blank drafts would be removed'.($ids->isEmpty() ? '.' : ': '.$ids->implode(', ')));
+            $this->pruneVenueDrafts($cutoff, $limit);
 
             return self::SUCCESS;
         }
@@ -76,7 +78,58 @@ class PruneBlankDrafts extends Command
 
         $this->info(count($removed).' blank drafts removed'.($removed ? ': '.implode(', ', $removed) : '.'));
 
+        $this->pruneVenueDrafts($cutoff, $limit);
+
         return self::SUCCESS;
+    }
+
+    /**
+     * Venue drafts too (Add a venue): one with nothing but a name, never sent to
+     * EI and untouched since $cutoff, goes, as an empty event draft does. Left
+     * behind when someone found they already have that venue, or stopped at the
+     * first step. Anything more than a name (a room, an address, words, a link,
+     * a tile, a photo) keeps it.
+     */
+    private function pruneVenueDrafts(\DateTimeInterface $cutoff, int $limit): void
+    {
+        $ids = $this->blankVenue(Venue::query(), $cutoff)->orderBy('id')->limit($limit)->pluck('id');
+
+        if ($this->option('dry-run')) {
+            $this->info($ids->count().' blank venue drafts would be removed'.($ids->isEmpty() ? '.' : ': '.$ids->implode(', ')));
+
+            return;
+        }
+
+        $removed = [];
+        foreach ($ids as $id) {
+            try {
+                $gone = DB::transaction(function () use ($id, $cutoff) {
+                    $venue = $this->blankVenue(Venue::whereKey($id), $cutoff)->lockForUpdate()->first();
+
+                    return $venue ? $venue->delete() : false;
+                });
+                if ($gone) {
+                    $removed[] = $id;
+                }
+            } catch (\Throwable $e) {
+                report($e);
+                $this->warn("Could not remove venue draft {$id}: {$e->getMessage()}");
+            }
+        }
+
+        $this->info(count($removed).' blank venue drafts removed'.($removed ? ': '.implode(', ', $removed) : '.'));
+    }
+
+    private function blankVenue(Builder $query, \DateTimeInterface $cutoff): Builder
+    {
+        $empty = fn (string $column) => fn (Builder $q) => $q->whereNull($column)->orWhere($column, '');
+        $query->where('status', Venue::DRAFT)->where('updated_at', '<', $cutoff)->whereNull('latitude')->whereNull('amenities');
+        foreach (['room', 'home', 'street', 'city', 'description', 'directions', 'website', 'email', 'phone', 'instagramHandle', 'facebookHandle', 'twitterHandle', 'tiktokHandle'] as $column) {
+            $query->where($empty($column));
+        }
+
+        // Never one an event points at, or that has claims against it.
+        return $query->whereDoesntHave('images')->whereDoesntHave('locations')->whereDoesntHave('claims');
     }
 
     /** A brand-new draft nobody typed anything into, untouched since $cutoff. */

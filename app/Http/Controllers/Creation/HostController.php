@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\Organizer;
 use App\Models\Project;
+use App\Models\ProjectLinkRequest;
 
 class HostController extends Controller
 {
@@ -56,16 +57,27 @@ class HostController extends Controller
 
         $organizer = Organizer::withUserRole()
             ->with(['images', 'events' => function ($query) use ($user) {
-                $query->withTrashed()->visibleToTeam($user)->with(['images', 'clicks', 'currentUserFavorite']);
+                $query->withTrashed()->visibleToTeam($user)->with(['images', 'clicks', 'currentUserFavorite', 'location:id,event_id,city']);
             }])
             ->find($currentOrganizer->id);
+
+        // Drafts asking to join a show run (a copy made with "Add a run", say):
+        // they belong in that show run's group, marked as waiting, though they
+        // join it only once approved. One query for the whole list.
+        $joining = $organizer && $organizer->events->isNotEmpty()
+            ? ProjectLinkRequest::pending()->whereIn('event_id', $organizer->events->pluck('id'))->whereNotNull('project_id')
+                ->with('project:id,name,slug')->get()->keyBy('event_id')
+            : collect();
 
         // Add total clicks calculation for each event
         if ($organizer && $organizer->events) {
             foreach ($organizer->events as $event) {
+                $event->joining = $joining->get($event->id)?->project?->only(['id', 'name', 'slug']);
                 $event->total_clicks = $event->clicks->count();
                 // Add a flag to identify deleted events
                 $event->is_deleted = $event->trashed();
+                // The show run it is part of, so the list can group its runs together.
+                $event->run_of = $event->project ? $event->project->only(['id', 'name', 'slug']) : null;
             }
         }
 
@@ -78,15 +90,19 @@ class HostController extends Controller
             // (a subquery, so no extra query per show).
             ->addSelect(['first_run_image' => Event::select('largeImagePath')
                 ->whereColumn('events.project_id', 'projects.id')
+                ->where('status', Event::STATUS_PUBLISHED) // never an unannounced run's picture
                 ->whereNotNull('largeImagePath')
                 ->reorder('id')
                 ->limit(1)])
             ->withCount(['linkRequests as pending_requests' => fn ($query) => $query->pending()->whereNotNull('submitted_at')])
+            // A new name waiting for EI's approval.
+            ->withCount(['nameChangeRequests as renaming' => fn ($query) => $query->where('status', 'pending')])
             ->orderBy('name')
             ->withCount('runs')
             ->get()
             ->map(fn (Project $project) => [
                 ...$project->only(['id', 'name', 'slug', 'pending_requests', 'runs_count']),
+                'renaming' => $project->renaming > 0,
                 'largeImagePath' => $project->largeImagePath ?? $project->first_run_image,
             ])
             ->values());

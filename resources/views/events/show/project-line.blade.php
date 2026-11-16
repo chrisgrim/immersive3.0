@@ -22,12 +22,12 @@
                     <button type="button" aria-label="Scroll left"
                         onclick="var r=this.closest('[data-project-line]').querySelector('[data-runs-row]');r.scrollBy({left:-r.clientWidth,behavior:'smooth'})"
                         class="w-12 h-12 rounded-full border border-neutral-300 bg-white flex items-center justify-center hover:shadow-custom-3">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+                        <svg width="15" height="15" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
                     </button>
                     <button type="button" aria-label="Scroll right"
                         onclick="var r=this.closest('[data-project-line]').querySelector('[data-runs-row]');r.scrollBy({left:r.clientWidth,behavior:'smooth'})"
                         class="w-12 h-12 rounded-full border border-neutral-300 bg-white flex items-center justify-center hover:shadow-custom-3">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+                        <svg width="15" height="15" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
                     </button>
                 </div>
             @endif

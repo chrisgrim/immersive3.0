@@ -26,7 +26,7 @@ class UnlinkEvent
         $project = $event->project_id ? Project::find($event->project_id) : null;
 
         if ($project === null) {
-            throw ValidationException::withMessages(['project' => 'This listing is not part of a project.']);
+            throw ValidationException::withMessages(['project' => 'This listing is not part of a show run.']);
         }
 
         Gate::forUser($actor)->authorize('decideLink', $project);
@@ -42,7 +42,7 @@ class UnlinkEvent
             Project::whereKey($project->id)->lockForUpdate()->firstOrFail();
 
             if ($run->project_id !== $project->id || $run->trashed() || $run->isHeldFrom($actor)) {
-                throw ValidationException::withMessages(['project' => 'This listing is not part of that project.']);
+                throw ValidationException::withMessages(['project' => 'This listing is not part of that show run.']);
             }
 
             $from = $run->addressPath();

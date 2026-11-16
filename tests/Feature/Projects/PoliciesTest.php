@@ -266,3 +266,14 @@ test('the duplicate route makes the request for an organizer, end to end', funct
     expect(ProjectLinkRequest::sole()->source_event_id)->toBe($source->id)
         ->and(ProjectLinkRequest::sole()->requested_by)->toBe($owner->id);
 });
+
+test('a copy that is its own event, not a new run, asks to join nothing', function () {
+    $source = publishedListing('Source', 'Rome');
+    $owner = $source->organizer->owner;
+
+    $copy = $this->actingAs($owner)->postJson("/api/events/{$source->slug}/duplicate", ['as_run' => false])
+        ->assertCreated()->json('event');
+
+    expect($copy['name'])->toBe('Source (Copy)')
+        ->and(ProjectLinkRequest::count())->toBe(0);
+});

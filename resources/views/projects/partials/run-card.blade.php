@@ -16,16 +16,6 @@
                 >
             </picture>
         @endif
-        @if($run['run_type'] || $run['festival'])
-            <div class="absolute top-3 left-3 right-3 z-10 flex flex-wrap gap-2">
-                @if($run['run_type'])
-                    <span class="px-3 py-1 rounded-full bg-white text-black text-md font-medium">{{ $run['run_type'] }}</span>
-                @endif
-                @if($run['festival'])
-                    <span class="px-3 py-1 rounded-full bg-white text-black text-md font-medium">{{ $run['festival'] }}</span>
-                @endif
-            </div>
-        @endif
     </div>
 
     <p class="{{ $small ? 'mt-4' : 'mt-6' }} uppercase text-md font-medium break-words">{{ $run['place'] }}</p>

@@ -270,7 +270,7 @@ test('a failed keeper save keeps the old picture on disk', function () {
     $image = pictureFor($project, 'project-images/a-show');
     AuditLog::creating(fn () => throw new RuntimeException('database hiccup'));
 
-    $this->actingAs($project->organizer->owner)->post('/hosting/projects/a-show', [
+    $this->actingAs($project->organizer->owner)->post('/hosting/show-runs/a-show', [
         'image' => UploadedFile::fake()->image('new.jpg', 900, 1300),
     ], ['Accept' => 'application/json'])->assertStatus(500);
 

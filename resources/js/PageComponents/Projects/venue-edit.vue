@@ -27,7 +27,7 @@
                             <div class="w-full flex flex-col md:items-center overflow-y-auto max-h-[calc(100vh-11rem)] md:max-h-[calc(100vh-20rem)]">
                                 <div class="w-full space-y-10 lg-air:max-w-[40rem] p-10 mb-20">
                                     <button @click="handleNavigation('Name')" :class="cardClass('Name')">
-                                        <h3 class="text-xl font-semibold mb-4 text-black">Name</h3>
+                                        <h3 class="text-xl font-semibold mb-4 text-black">Name<span v-if="venue.pending_name" class="ml-[0.6rem] font-normal text-neutral-500" data-renaming-tag>(pending change)</span></h3>
                                         <p class="text-4xl text-neutral-600 mb-4 break-words hyphens-auto overflow-hidden">{{ venue.name || 'No name set' }}</p>
                                         <p class="text-neutral-500 text-2xl line-clamp-3 leading-tight break-words hyphens-auto overflow-hidden">{{ venue.description || 'No description set' }}</p>
                                     </button>
@@ -44,11 +44,12 @@
                                         <h3 class="text-xl font-semibold mb-4 text-black">Location</h3>
                                         <p class="text-4xl text-neutral-600 mb-4 break-words">{{ venue.street || venue.home || 'No address set' }}</p>
                                         <p class="text-neutral-500 text-2xl leading-tight">{{ locality(venue) }}</p>
+                                        <p v-if="venue.directions" class="mt-2 text-neutral-500 line-clamp-1">How to get there: {{ venue.directions }}</p>
                                     </button>
 
-                                    <button @click="handleNavigation('Directions')" :class="cardClass('Directions')">
-                                        <h3 class="text-xl font-semibold mb-4 text-black">How to get there</h3>
-                                        <p class="text-neutral-500 text-2xl line-clamp-3 leading-tight break-words">{{ venue.directions || 'No directions set' }}</p>
+                                    <button @click="handleNavigation('Amenities')" :class="cardClass('Amenities')">
+                                        <h3 class="text-xl font-semibold mb-4 text-black">What's there</h3>
+                                        <p class="text-neutral-500 text-2xl line-clamp-3 leading-tight break-words">{{ amenitySummary || 'Nothing picked yet' }}</p>
                                     </button>
 
                                     <button @click="handleNavigation('Contact')" :class="cardClass('Contact')">
@@ -92,14 +93,17 @@
                                     <h2>What's this venue called?</h2>
                                     <textarea
                                         v-model="form.name"
+                                        autocomplete="off"
                                         rows="2"
                                         maxlength="255"
                                         placeholder="Enter the venue's name"
                                         class="text-4xl p-4 border rounded-2xl mt-6 block w-full border-[#222222] focus:border-black focus:shadow-focus-black"
                                     />
+                                    <p v-if="venue.pending_name && !venue.renames_directly" class="mt-3 text-[1.4rem] text-[#6a6a6a]" data-pending-name>Waiting for EI to approve this name. Until then the venue is still called "{{ venue.name }}".</p>
                                     <p class="text-black font-medium mt-10 mb-4">Room or space (optional)</p>
                                     <input
                                         v-model="form.room"
+                                        autocomplete="off"
                                         type="text"
                                         maxlength="255"
                                         placeholder="Upstairs studio, Hall B..."
@@ -119,29 +123,24 @@
 
                                 <main v-else-if="currentStep === 'Location'" class="w-full min-h-fit">
                                     <h2>Where is the venue?</h2>
-                                    <p class="text-gray-500 mt-4">Search for the address and pick it from the list. Listings already at this venue keep their own address.</p>
-                                    <div class="relative mt-6">
-                                        <input
-                                            v-model="search"
-                                            type="text"
-                                            autocomplete="off"
-                                            placeholder="Search for the address"
-                                            class="text-2xl p-4 border rounded-2xl block w-full border-[#222222] focus:border-black focus:shadow-focus-black"
-                                            @input="predict"
-                                        />
-                                        <ul v-if="predictions.length" class="absolute z-10 mt-2 w-full bg-white rounded-2xl shadow-custom-1 overflow-hidden">
-                                            <li v-for="place in predictions" :key="place.place_id">
-                                                <button type="button" class="w-full text-left px-6 py-4 hover:bg-neutral-50" @click="pick(place)">{{ place.description }}</button>
-                                            </li>
-                                        </ul>
-                                    </div>
-                                    <div class="mt-10 p-8 border border-neutral-200 rounded-3xl">
-                                        <p class="text-2xl text-black">{{ form.street || form.home || 'No address yet' }}</p>
-                                        <p class="text-neutral-500">{{ locality(form) }}</p>
-                                    </div>
-                                    <div v-if="form.latitude && form.longitude" class="mt-6">
-                                        <VenueMap :key="`${form.latitude},${form.longitude}`" :venue="form" box-class="h-[28rem] rounded-3xl" />
-                                    </div>
+                                    <p class="text-[1.6rem] leading-[2.2rem] text-[#6a6a6a] font-normal mt-3 mb-8">Search the address, then drag the map if the pin is not quite right. Listings already here keep their own address.</p>
+                                    <!-- The same map as the event Location step -->
+                                    <AddressMap v-model="address" />
+                                    <!-- How to get there belongs with where it is -->
+                                    <h3 class="mt-12 text-[1.8rem] font-medium text-[#222222]">How to get there <span class="text-[#6a6a6a] font-normal text-[1.4rem]">(optional)</span></h3>
+                                    <textarea
+                                        v-model="form.directions"
+                                        rows="4"
+                                        maxlength="5000"
+                                        placeholder="Parking, transit, which door to use."
+                                        class="p-4 border rounded-2xl mt-3 block w-full border-[#dddddd] focus:border-black focus:shadow-focus-black"
+                                    />
+                                </main>
+
+                                <main v-else-if="currentStep === 'Amenities'" class="w-full min-h-fit">
+                                    <h2>What does this venue offer?</h2>
+                                    <p class="text-[1.6rem] text-[#6a6a6a] font-normal mt-3 mb-10">Pick any that apply, or add your own. All optional.</p>
+                                    <AmenityTiles v-model="form.amenities" />
                                 </main>
 
                                 <main v-else-if="currentStep === 'Contact'" class="w-full min-h-fit">
@@ -150,25 +149,16 @@
                                     <div class="mt-6 space-y-8">
                                         <label v-for="field in contactFields" :key="field.key" class="block">
                                             <span class="text-black font-medium">{{ field.label }}</span>
-                                            <div class="mt-2 flex items-center border rounded-2xl border-[#222222] focus-within:shadow-focus-black overflow-hidden">
+                                            <!-- Refused by the server: the box goes red with the reason under it. -->
+                                            <div class="mt-2 flex items-center border rounded-2xl overflow-hidden" :class="fieldErrors[field.key] ? 'border-red-500 focus-within:shadow-focus-error' : 'border-[#222222] focus-within:shadow-focus-black'">
                                                 <span v-if="field.prefix" class="pl-4 text-neutral-500 flex-shrink-0">{{ field.prefix }}</span>
-                                                <input v-model="form[field.key]" :type="field.type" :placeholder="field.placeholder" :maxlength="field.max" class="flex-1 min-w-0 p-4 border-0 focus:ring-0" />
+                                                <input v-model="form[field.key]" :type="field.type" :placeholder="field.placeholder" :maxlength="field.max" class="flex-1 min-w-0 p-4 border-0 focus:ring-0" :aria-invalid="Boolean(fieldErrors[field.key])" @input="onContactInput(field.key)" />
                                             </div>
+                                            <span v-if="fieldErrors[field.key]" class="block mt-2 text-1xl text-red-500 leading-tight" :data-field-error="field.key">{{ fieldErrors[field.key] }}</span>
                                         </label>
                                     </div>
                                 </main>
 
-                                <main v-else-if="currentStep === 'Directions'" class="w-full min-h-fit">
-                                    <h2>How do people get there?</h2>
-                                    <p class="text-gray-500 mt-4">Parking, transit, which door to use.</p>
-                                    <textarea
-                                        v-model="form.directions"
-                                        rows="9"
-                                        maxlength="5000"
-                                        class="p-4 border rounded-2xl mt-6 block w-full border-[#222222] focus:border-black focus:shadow-focus-black"
-                                    />
-                                    <div class="flex justify-end mt-1 text-gray-500">{{ form.directions.length }}/5000</div>
-                                </main>
                             </div>
                         </div>
                     </div>
@@ -206,10 +196,11 @@
 import { computed, reactive, ref } from 'vue';
 import axios from 'axios';
 import NavBarMobile from '../Nav/nav-bar-mobile.vue';
-import VenueMap from '../EventShow/venue-map.vue';
 import PhotoGalleryEdit from './photo-gallery-edit.vue';
-import { importMapsLibrary } from '@/composables/useGoogleMaps';
-import { localLanguageFor, browserSpeaks } from '@/composables/localLanguage';
+import AddressMap from '@/GlobalComponents/address-map.vue';
+import AmenityTiles from '../Venues/amenity-tiles.vue';
+import { amenityLabel } from '../Venues/amenity-icons.js';
+import { phoneDashes } from '@/composables/phoneDashes';
 
 const props = defineProps({
     venue: { type: Object, required: true },
@@ -221,6 +212,12 @@ const venue = reactive({ ...props.venue });
 const currentStep = ref('Name');
 const currentSection = ref(null);
 const busy = ref(false);
+// The server's reasons for a contact box, shown under that box.
+const fieldErrors = ref({});
+const onContactInput = (key) => {
+    if (key === 'phone') form.phone = phoneDashes(form.phone);
+    if (fieldErrors.value[key]) fieldErrors.value = { ...fieldErrors.value, [key]: null };
+};
 const toast = ref(null);
 const isMobile = computed(() => window?.Laravel?.isMobile ?? false);
 
@@ -228,10 +225,12 @@ const ADDRESS = ['home', 'street', 'city', 'region', 'region_long', 'country', '
 const CONTACT = ['website', 'email', 'phone', 'instagramHandle', 'facebookHandle', 'twitterHandle', 'tiktokHandle'];
 
 const formFrom = (from) => ({
-    name: from.name ?? '',
+    // A new name waiting for EI shows as typed, with a note under it.
+    name: (from.renames_directly ? null : from.pending_name) ?? from.name ?? '',
     room: from.room ?? '',
     description: from.description ?? '',
     directions: from.directions ?? '',
+    amenities: [...(from.amenities ?? [])],
     ...Object.fromEntries(ADDRESS.map((key) => [key, from[key] ?? ''])),
     ...Object.fromEntries(CONTACT.map((key) => [key, from[key] ?? ''])),
 });
@@ -246,79 +245,20 @@ const contactFields = [
     { key: 'twitterHandle', label: 'X (Twitter)', type: 'text', prefix: '@', max: 15 },
 ];
 
+const amenitySummary = computed(() => (venue.amenities ?? []).map(amenityLabel).filter(Boolean).join(' · '));
+
 const contactSummary = computed(() => contactFields.filter((field) => venue[field.key]).map((field) => field.label));
 
 const locality = (from) => [from.city, [from.region, from.postal_code].filter(Boolean).join(' ')].filter(Boolean).join(', ');
 
 // Address search, as the event's Location step does it.
-const search = ref('');
-const predictions = ref([]);
-let places = null;
-
-const predict = async () => {
-    if (search.value.trim().length < 3) {
-        predictions.value = [];
-        return;
-    }
-    try {
-        if (!places) {
-            const { AutocompleteService } = await importMapsLibrary('places');
-            places = new AutocompleteService();
-        }
-        const result = await places.getPlacePredictions({ input: search.value });
-        predictions.value = result?.predictions ?? [];
-    } catch {
-        predictions.value = [];
-    }
-};
-
-const pick = async (prediction) => {
-    try {
-        const { Place } = await importMapsLibrary('places');
-        const fields = ['formattedAddress', 'addressComponents', 'displayName', 'location'];
-        let place = new Place({ id: prediction.place_id });
-        await place.fetchFields({ fields });
-
-        // Saved in the country's own language, like a listing's address.
-        const language = localLanguageFor(place.addressComponents?.find((component) => component.types?.includes('country'))?.shortText);
-        if (language && !browserSpeaks(language)) {
-            try {
-                const local = new Place({ id: prediction.place_id, requestedLanguage: language });
-                await local.fetchFields({ fields });
-                place = local;
-            } catch {
-                // Keep the first answer rather than lose the address.
-            }
-        }
-
-        const part = (type, long = false) => {
-            const found = place.addressComponents?.find((component) => component.types?.includes(type));
-            return (long ? found?.longText : found?.shortText) ?? found?.longText ?? '';
-        };
-        const lat = typeof place.location?.lat === 'function' ? place.location.lat() : place.location?.lat;
-        const lng = typeof place.location?.lng === 'function' ? place.location.lng() : place.location?.lng;
-        const street = place.formattedAddress?.split(', ')[0] ?? '';
-
-        Object.assign(form, {
-            home: place.displayName?.text || street,
-            street,
-            city: part('locality') || part('sublocality') || part('postal_town') || part('administrative_area_level_2', true) || part('administrative_area_level_1', true),
-            region: part('administrative_area_level_1'),
-            region_long: part('administrative_area_level_1', true),
-            postal_code: part('postal_code'),
-            country: part('country'),
-            country_long: part('country', true),
-            latitude: lat,
-            longitude: lng,
-        });
-        // The box below shows the picked address; the search starts empty again.
-        search.value = '';
-        predictions.value = [];
-    } catch {
-        show(false, 'Could not read that address. Please try another.');
-    }
-};
 const form = reactive(formFrom(props.venue));
+
+// The address part of the form, for the map: read and written as one.
+const address = computed({
+    get: () => Object.fromEntries(ADDRESS.map((key) => [key, form[key]])),
+    set: (value) => ADDRESS.forEach((key) => { form[key] = value[key] ?? ''; }),
+});
 
 const cardClass = (step) => [
     'flex flex-col w-full p-8 text-left rounded-3xl cursor-pointer hover:bg-neutral-50 transition-all duration-200',
@@ -355,8 +295,11 @@ const run = async (call, done) => {
     busy.value = true;
     try {
         adopt(await call());
+        fieldErrors.value = {};
         show(true, done);
     } catch (failure) {
+        const errors = failure.response?.data?.errors ?? {};
+        fieldErrors.value = Object.fromEntries(Object.entries(errors).filter(([key]) => CONTACT.includes(key)).map(([key, list]) => [key, [list].flat()[0]]));
         show(false, Object.values(failure.response?.data?.errors ?? {}).flat()[0]
             ?? failure.response?.data?.message
             ?? 'Failed to update the venue. Please try again.');

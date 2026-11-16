@@ -86,9 +86,9 @@ Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
 
 // Email verification routes
 Route::post('/users/email/verify', [EmailVerificationController::class, 'sendVerificationCode'])
-    ->middleware(['auth', 'throttle:6,1'])
+    ->middleware(['auth', 'throttle:6,1,auth89:'])
     ->name('verification.send');
 
 Route::post('/users/email/confirm', [EmailVerificationController::class, 'verifyCode'])
-    ->middleware(['auth', 'throttle:6,1'])
+    ->middleware(['auth', 'throttle:6,1,auth93:'])
     ->name('verification.verify');

@@ -4,14 +4,20 @@ namespace App\Http\Controllers\Creation;
 
 use App\Actions\Events\CheckDuplicateEventNames;
 use App\Actions\Events\UpdateEventAction;
+use App\Actions\Projects\DissolveProject;
+use App\Actions\Projects\LinkEventToProject;
+use App\Actions\Projects\PrefillFromShow;
+use App\Actions\Projects\RequestLink;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreEventRequest;
 use App\Models\Event;
 use App\Models\Organizer;
+use App\Models\Project;
 use App\Services\NameChangeRequestService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class HostEventController extends Controller
@@ -102,6 +108,21 @@ class HostEventController extends Controller
             'id' => $linkRequest->id,
             'show' => $linkRequest->project?->name ?? $linkRequest->sourceEvent?->name,
             'details_confirmed' => $linkRequest->details_confirmed_at !== null,
+            // For the bottom bar's show run picker.
+            'project_id' => $linkRequest->project_id,
+            'image' => $linkRequest->project?->largeImagePath
+                ?? $linkRequest->project?->runs()->where('status', Event::STATUS_PUBLISHED)->whereNotNull('largeImagePath')->reorder('id')->value('largeImagePath')
+                ?? $linkRequest->sourceEvent?->largeImagePath,
+        ] : null);
+
+        // For the Settings panel: the show run it is already part of, and whether
+        // this user may take it out (they keep that show run: ProjectPolicy::decideLink).
+        $project = $event->project_id ? Project::find($event->project_id) : null;
+        $event->setAttribute('run_of', $project ? [
+            'id' => $project->id,
+            'name' => $project->name,
+            'slug' => $project->slug,
+            'kept' => auth()->user()->can('decideLink', $project),
         ] : null);
 
         return view('creation.edit', compact('event'));
@@ -216,8 +237,8 @@ class HostEventController extends Controller
         $this->assertEditable($event);
 
         $wasPublished = in_array($event->status, Event::LIVE_STATUSES);
-
         $event->delete();
+        app(DissolveProject::class)->afterEventDeleted($event, request()->user());
 
         if ($wasPublished) {
             Cache::forget('active-categories');
@@ -233,6 +254,8 @@ class HostEventController extends Controller
     {
         $validated = $request->validate([
             'organizer_id' => 'required|integer|exists:organizers,id',
+            // "Add a run" on the dashboard: the new event asks to join this show run.
+            'project_id' => 'nullable|integer',
         ]);
 
         // The route's can:host only asks "does this user belong to any
@@ -263,7 +286,32 @@ class HostEventController extends Controller
             }
         }
 
-        $event = Event::newEvent($organizerId);
+        if (empty($validated['project_id'])) {
+            $event = Event::newEvent($organizerId);
+        } else {
+            // "Add a run": the event and its request to join are made together,
+            // so a refused request leaves no empty draft behind (a missing and a
+            // hidden show answer alike, as RequestLink does).
+            $project = Project::find($validated['project_id']);
+            if ($project === null) {
+                throw ValidationException::withMessages(['project' => RequestLink::UNAVAILABLE]);
+            }
+
+            $event = DB::transaction(function () use ($organizerId, $project, $request) {
+                $event = Event::newEvent($organizerId);
+                app(RequestLink::class)->handle($event, $project, $request->user());
+
+                return $event;
+            });
+
+            // Then what carries over from the show and this company's earlier run.
+            // Only a nicety: a failure here never undoes the new run.
+            try {
+                app(PrefillFromShow::class)->handle($event, $project, $request->user());
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
 
         return response()->json([
             'message' => 'Event created successfully.',
@@ -371,8 +419,11 @@ class HostEventController extends Controller
         ]);
     }
 
-    public function duplicate(Event $event)
+    public function duplicate(Request $request, Event $event)
     {
+        // A new run of the same show (asks to join it), or an event of its own. Left out, a run, as before.
+        $asRun = $request->boolean('as_run', true);
+
         // Check unpublished events count (bypass for admins)
         $unpublishedCount = Event::countUnpublishedEvents($event->organizer_id);
 
@@ -382,11 +433,28 @@ class HostEventController extends Controller
             ], 422);
         }
 
+        // A new run of a live listing in no show run yet: the show run is made
+        // now, from this listing, so the copy has one to join (EI's review of
+        // the copy confirms it). A refusal says why and copies nothing.
+        // Only when the Duplicate pop-up says so (as_run sent): other callers keep asking the listing itself.
+        $starts = $request->has('as_run') && $asRun && ! $event->project_id && in_array($event->status, Event::LIVE_STATUSES, true);
+        $started = null;
+
         try {
-            $newEvent = $event->duplicate();
+            // One transaction: a copy that fails leaves no show run behind.
+            $newEvent = DB::transaction(function () use ($event, $asRun, $starts, $request, &$started) {
+                if ($starts) {
+                    $started = app(LinkEventToProject::class)->startFrom($event, $request->user());
+                    $event->refresh();
+                }
+
+                return $event->duplicate($asRun);
+            });
 
             return response()->json([
                 'message' => 'Event duplicated successfully.',
+                // The show run this just started, whose page opens next.
+                'project' => $started?->only(['id', 'name', 'slug']),
                 'event' => $newEvent->load([
                     // 'shows.tickets',
                     'location',
@@ -400,6 +468,8 @@ class HostEventController extends Controller
                     'genres',
                 ]),
             ], 201);
+        } catch (ValidationException|AuthorizationException $e) {
+            throw $e;
         } catch (\Exception $e) {
             report($e);
             \Log::error('Failed to duplicate event: '.$e->getMessage());

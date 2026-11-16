@@ -39,7 +39,7 @@ class LinkReview
 
     public function withRelations($query)
     {
-        return $query->with(['project.organizer:id,name', 'project.editor:id,name', 'sourceEvent.organizer:id,name', 'requester:id,name', 'event.organizer:id,name']);
+        return $query->with(['project.organizer:id,name,slug', 'project.editor:id,name,slug', 'sourceEvent.organizer:id,name,slug', 'requester:id,name', 'event.organizer:id,name,slug']);
     }
 
     /** @return array<string, mixed> */
@@ -69,8 +69,8 @@ class LinkReview
             'name' => $project->name,
             'slug' => $project->slug,
             'public_url' => $project->publicPath(),
-            'organizer' => $project->organizer?->only(['id', 'name']),
-            'keeper' => $project->keeper()?->only(['id', 'name']),
+            'organizer' => $project->organizer?->only(['id', 'name', 'slug']),
+            'keeper' => $project->keeper()?->only(['id', 'name', 'slug']),
         ];
     }
 
@@ -86,7 +86,7 @@ class LinkReview
             'slug' => $event->slug,
             'status' => $event->status,
             'public_url' => $event->publicPath(),
-            'organizer' => $event->organizer?->only(['id', 'name']),
+            'organizer' => $event->organizer?->only(['id', 'name', 'slug']),
         ];
     }
 }

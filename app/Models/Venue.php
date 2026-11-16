@@ -16,13 +16,16 @@ class Venue extends Model
 {
     use HasFactory;
 
+    /** Being added through Add a venue and not sent yet: only its keeper (and staff) see it. */
+    public const DRAFT = 'draft';
+
     public const PENDING = 'pending';
 
     public const APPROVED = 'approved';
 
-    protected $casts = ['claimed_at' => 'datetime'];
+    protected $casts = ['claimed_at' => 'datetime', 'amenities' => 'array'];
 
-    protected $fillable = ['slug', 'name', 'room', 'home', 'street', 'city', 'region', 'region_long', 'country', 'country_long', 'postal_code', 'longitude', 'latitude', 'description', 'directions', 'largeImagePath', 'thumbImagePath', 'status', 'merged_into_id', 'website', 'email', 'phone', 'instagramHandle', 'facebookHandle', 'twitterHandle', 'tiktokHandle'];
+    protected $fillable = ['slug', 'name', 'room', 'home', 'street', 'city', 'region', 'region_long', 'country', 'country_long', 'postal_code', 'longitude', 'latitude', 'description', 'directions', 'largeImagePath', 'thumbImagePath', 'status', 'merged_into_id', 'website', 'email', 'phone', 'instagramHandle', 'facebookHandle', 'twitterHandle', 'tiktokHandle', 'amenities'];
 
     protected static function booted(): void
     {
@@ -161,11 +164,26 @@ class Venue extends Model
     }
 
     /** Open to a claim until one is approved; a pending or merged venue is not. */
+    /** Who looks after it day to day: its owner, or (unowned) a member of the team that added it. Not staff. */
+    public function isKeptBy(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+        if ($this->user_id !== null) {
+            return (int) $this->user_id === (int) $user->id;
+        }
+
+        return $this->owner !== null && $user->belongsToOrganization($this->owner);
+    }
+
     public function isClaimable(): bool
     {
         // Never claimed, or claimed by someone whose account is gone since
         // (user_id nulls on delete): either way the real venue can ask again.
-        return $this->status === self::APPROVED && $this->merged_into_id === null
+        // Live, or still in review (someone adding the same place can claim it
+        // rather than add it twice); never a draft or a merged one.
+        return in_array($this->status, [self::APPROVED, self::PENDING], true) && $this->merged_into_id === null
             && ($this->claimed_at === null || $this->user_id === null);
     }
 
@@ -199,5 +217,11 @@ class Venue extends Model
     public function mergedInto(): BelongsTo
     {
         return $this->belongsTo(self::class, 'merged_into_id');
+    }
+
+    /** A live venue's new name waits for EI (NameChangeRequestService). */
+    public function nameChangeRequests()
+    {
+        return $this->morphMany(NameChangeRequest::class, 'requestable');
     }
 }

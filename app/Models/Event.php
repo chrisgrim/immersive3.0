@@ -927,7 +927,7 @@ class Event extends Model
      * What an organizer is told wherever the lock is hit on the website. The
      * dashboard's modal (Creation/index.vue) carries the same words.
      */
-    public const EDIT_LOCKED_MESSAGE = 'Trying to edit an event that is over 90 days old? If you wish to add new dates to your event, please duplicate it. The copy asks to join the same project, so you only need the project\'s title. This helps us preserve the historical record of past events. Need help? Contact us at: support@everythingimmersive.com';
+    public const EDIT_LOCKED_MESSAGE = 'Trying to edit an event that is over 90 days old? To add new dates, make a copy. This one stays as the record of its past run. This helps us preserve the historical record of past events. Need help? Contact us at: support@everythingimmersive.com';
 
     /**
      * Whether the event has left its edit window: published (or embargoed,
@@ -1508,13 +1508,15 @@ class Event extends Model
     }
 
     /**
-     * Create a duplicate of the event
+     * Create a duplicate of the event. $asRun: the copy is a new run of the
+     * same show, so it asks to join it (the hosting pop-up asks the user);
+     * false makes a copy that is its own event.
      *
      * @return \App\Models\Event
      */
-    public function duplicate()
+    public function duplicate(bool $asRun = true)
     {
-        return DB::transaction(function () {
+        return DB::transaction(function () use ($asRun) {
             // Create new event with duplicated attributes (excluding location, ticket, and price data)
             // A copy is its own run: it asks to join the show (below), and a
             // copy of a world premiere at SXSW is neither. special_thanks copies.
@@ -1587,11 +1589,13 @@ class Event extends Model
                 $newVideo->save();
             }
 
-            // Every copy of a published listing asks to join the show of the
-            // listing it came from, whether or not that listing is part of a
-            // show yet. A moderator confirms it. No credit rows: those copy
-            // when the link is approved.
-            app(RequestLink::class)->forDuplicate($newEvent, $this, auth()->id() ?? $this->user_id);
+            // A copy that is a new run of a published listing asks to join the
+            // show of the listing it came from, whether or not that listing is
+            // part of a show yet. A moderator confirms it. No credit rows: those
+            // copy when the link is approved.
+            if ($asRun) {
+                app(RequestLink::class)->forDuplicate($newEvent, $this, auth()->id() ?? $this->user_id);
+            }
 
             return $newEvent->fresh([
                 'location',

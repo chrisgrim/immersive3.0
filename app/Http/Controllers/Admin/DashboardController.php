@@ -9,6 +9,7 @@ use App\Models\EventSuggestion;
 use App\Models\NameChangeRequest;
 use App\Models\Organizer;
 use App\Models\OwnershipClaim;
+use App\Models\ProjectLinkRequest;
 use App\Models\Venue;
 use App\Models\VenueClaim;
 
@@ -36,7 +37,9 @@ class DashboardController extends Controller
             // "Requests" is a catch-all queue: name-change requests, ownership claims and venue claims.
             'requests' => NameChangeRequest::where('status', 'pending')->count()
                 + OwnershipClaim::where('status', 'pending')->count()
-                + VenueClaim::where('status', VenueClaim::PENDING)->count(),
+                + VenueClaim::where('status', VenueClaim::PENDING)->count()
+                // Show run join requests nobody answered within 72 hours.
+                + ProjectLinkRequest::pending()->whereNotNull('escalated_at')->count(),
             // Venues added by teams, waiting for a look.
             'venues' => Venue::where('status', Venue::PENDING)->whereNull('merged_into_id')->count(),
             'suggestions' => EventSuggestion::where('status', 'pending')->count(),

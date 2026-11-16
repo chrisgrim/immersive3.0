@@ -37,7 +37,12 @@ class VenueController extends Controller
             return redirect(...$destination);
         }
 
-        abort_unless($found->status === Venue::APPROVED, 404);
+        // Not approved yet (waiting for EI, or a draft): only its keeper and
+        // staff see it, as a preview; to everyone else it does not exist.
+        // A signed link from Add a venue ("we already know a venue here") lets
+        // someone see one still in review, to claim it rather than add it twice.
+        abort_unless($found->status === Venue::APPROVED || auth()->user()?->can('update', $found)
+            || ($found->status === Venue::PENDING && request()->hasValidRelativeSignature()), 404);
 
         $rows = Event::query()
             ->where('status', Event::STATUS_PUBLISHED)
@@ -68,8 +73,9 @@ class VenueController extends Controller
             return null;
         }
 
+        // Its own keeper has nothing to claim; staff may still claim one as their own.
         $user = auth()->user();
-        if ($user?->can('update', $venue)) {
+        if ($venue->isKeptBy($user)) {
             return null;
         }
 

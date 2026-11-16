@@ -1,34 +1,46 @@
 <template>
     <div class="relative text-1xl font-medium w-full h-screen flex flex-col">
         <!-- Top Navigation Bar -->
-        <div class="h-24 fixed md:relative top-0 left-0 right-0 w-full flex-none bg-white z-[1000]">
-        <!-- <div class="flex-none h-24"> -->
-            <div class="mx-auto p-8 md:p-16 h-full flex justify-between items-center">
+        <div class="h-24 md:h-[8.8rem] fixed md:relative top-0 left-0 right-0 w-full flex-none bg-white z-[1000]">
+            <div class="mx-auto px-8 md:px-[2.6rem] h-full flex justify-between items-center">
                 <!-- Left: EI Logo/Link -->
                 <a :href="listingsUrl" class="flex flex-col items-center gap-1" :class="isHome ? 'text-primary font-medium' : 'text-neutral-600'">
                     <img src="/storage/website-files/Everything_Immersive_logo_Short.png" alt="EI" class="w-12 h-12" />
                 </a>
 
-                <!-- Right: Questions & Exit -->
-                <div class="flex items-center gap-6">
+                <!-- Right: Questions? and Save & exit, Airbnb's outlined pills -->
+                <div class="flex items-center gap-3">
+
                     <a 
                         href="mailto:support@everythingimmersive.com?subject=Event Creation Question"
-                        class="px-6 py-3 text-black hover:bg-gray-100 rounded-lg"
+                        class="inline-flex items-center h-[3.6rem] md:h-[4rem] px-[1.3rem] md:px-[1.7rem] rounded-full border border-[#dddddd] hover:border-[#222222] bg-white text-[1.3rem] md:text-[1.4rem] font-semibold text-[#222222] transition-colors"
                     >
-                        Questions
+                        Questions?
                     </a>
-                    <a 
-                        :href="listingsUrl" 
-                        class="px-6 py-3 border border-black hover:bg-gray-100 rounded-lg"
+                    <button
+                        type="button"
+                        :disabled="isSubmitting"
+                        class="inline-flex items-center h-[3.6rem] md:h-[4rem] px-[1.3rem] md:px-[1.7rem] rounded-full border border-[#dddddd] hover:border-[#222222] bg-white text-[1.3rem] md:text-[1.4rem] font-semibold text-[#222222] transition-colors disabled:opacity-50"
+                        @click="saveAndExit"
                     >
-                        Exit
-                    </a>
+                        {{ exiting ? 'Saving…' : 'Save & exit' }}
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- Main Content Area (with proper scrolling) -->
-        <div class="md:flex-1 md:overflow-y-auto pt-24 md:pt-0 pb-40 md:pb-0">
+        <!-- Why Save & exit (or the show run picker) could not save: under the top bar, on every screen. -->
+        <div v-if="exitError" class="fixed md:absolute top-24 md:top-[8.8rem] left-0 right-0 z-[1001] flex justify-center px-4 pointer-events-none">
+            <p class="pointer-events-auto mt-2 px-5 py-3 rounded-full bg-[#222222] text-white text-[1.3rem] shadow-[0_4px_16px_rgba(0,0,0,0.2)]" role="alert">
+                {{ exitError }}
+                <button type="button" class="ml-3 underline" data-exit-error-ok @click="dismissExit">OK</button>
+            </p>
+        </div>
+
+        <!-- Main Content Area (with proper scrolling). Typing anywhere clears the message above. -->
+        <!-- Hidden while Save & exit checks the step, so an unfinished step's red
+             hints never flash on the way out; back again if it has to stay. -->
+        <div class="md:flex-1 md:overflow-y-auto pt-24 md:pt-0 pb-40 md:pb-0" :class="{ 'opacity-0': exiting }" @input="dismissExit">
             <div 
                 class="mx-auto md:min-h-full md:flex"
                 :class="currentStep !== 'Dates' ? 'max-w-screen-xl' : ''"
@@ -41,67 +53,46 @@
             </div>
         </div>
 
-        <!-- Bottom Navigation (fixed at bottom) -->
+        <!-- Bottom Navigation (fixed at bottom), Airbnb's: a progress bar in three
+             parts, Back as plain text, the show run picker beside it, Next. -->
         <div class="fixed md:relative bottom-0 left-0 right-0 w-full flex-none bg-white z-[1000]">
-            <!-- Progress Bar -->
-            <div class="w-full h-[5px] bg-gray-200">
-                <div 
-                    class="h-full bg-black transition-all duration-300" 
-                    :style="{ width: `${progress}%` }"
-                />
+            <div class="w-full flex gap-[0.6rem]">
+                <div v-for="(part, index) in progressParts" :key="index" class="flex-1 h-[0.6rem] bg-[#ebebeb] overflow-hidden">
+                    <div class="h-full bg-[#222222] transition-all duration-300" :style="{ width: `${part}%` }" />
+                </div>
             </div>
 
-            <!-- Navigation Controls -->
-            <div class="flex justify-between items-center gap-4 px-6 py-6 md:px-16 md:py-8 mx-auto">
-                <button
-                    v-if="!isFirstStep && currentStep !== 'EventType'"
-                    @click="goToPrevious"
-                    class="flex-shrink-0 px-6 py-3 text-black hover:bg-gray-100 rounded-lg"
-                >
-                    Back
-                </button>
-                <div v-else class="hidden md:block w-[88px]"></div> <!-- Spacer -->
-
-                <!-- Organization & Event Name (centered) -->
-                <div class="flex-1 min-w-0 text-center">
-                    <p class="font-medium text-gray-500 truncate md:whitespace-normal">
-                        {{ event?.organizer?.name || 'My Organization' }}
-                        <span v-if="event.name" class="mr-4">:</span>
-                        <span v-if="event.name" class="font-bold text-gray-700">{{ event.name }}</span>
-                    </p>
+            <div class="flex justify-between items-center gap-4 px-6 py-6 md:px-[2.6rem] md:py-[1.6rem] mx-auto">
+                <div class="flex items-center gap-[2.4rem] min-w-0">
+                    <button
+                        v-if="!isFirstStep && currentStep !== 'EventType'"
+                        @click="goToPrevious"
+                        class="flex-shrink-0 px-[1rem] py-[1rem] -ml-[1rem] rounded-lg text-[1.6rem] font-semibold text-[#222222] hover:underline hover:bg-[#f7f7f7]"
+                    >
+                        Back
+                    </button>
+                    <ShowRunPicker />
                 </div>
 
                 <button
                     @click="goToNext"
                     :disabled="isSubmitting || !isComponentReady"
-                    :class="{
-                        'flex-shrink-0 px-6 py-3 rounded-lg transition-colors flex items-center gap-2': true,
-                        'bg-black text-white hover:bg-gray-800': !isSubmitting && isComponentReady,
-                        'bg-gray-300 text-gray-500 cursor-not-allowed': isSubmitting || !isComponentReady
-                    }"
+                    :class="[
+                        'flex-shrink-0 h-[4.8rem] px-[3.8rem] rounded-[0.8rem] text-[1.6rem] font-semibold transition-colors flex items-center gap-2',
+                        !isSubmitting && isComponentReady ? 'bg-[#222222] text-white hover:bg-black' : 'bg-[#dddddd] text-white cursor-not-allowed'
+                    ]"
                 >
                     <svg 
-                        v-if="isSubmitting"
+                        v-if="isSubmitting && !exiting"
                         class="animate-spin h-5 w-5" 
                         xmlns="http://www.w3.org/2000/svg" 
                         fill="none" 
                         viewBox="0 0 24 24"
                     >
-                        <circle 
-                            class="opacity-25" 
-                            cx="12" 
-                            cy="12" 
-                            r="10" 
-                            stroke="currentColor" 
-                            stroke-width="4"
-                        />
-                        <path 
-                            class="opacity-75" 
-                            fill="currentColor" 
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    {{ isSubmitting ? (isLastStep ? 'Finishing...' : 'Saving...') : (isLastStep ? 'Submit' : 'Next') }}
+                    {{ isSubmitting && !exiting ? (isLastStep ? 'Finishing...' : 'Saving...') : (isLastStep ? 'Submit' : 'Next') }}
                 </button>
             </div>
         </div>
@@ -124,6 +115,7 @@ import Advisories from './Pages/advisories.vue';
 import Content from './Pages/Advisories/content.vue';
 import Mobility from './Pages/Advisories/mobility.vue';
 import Review from './Pages/review.vue';
+import ShowRunPicker from './Components/show-run-picker.vue';
 
 const props = defineProps({
     event: {
@@ -176,6 +168,18 @@ const currentStepIndex = computed(() => steps.value.indexOf(currentStep.value));
 const isFirstStep = computed(() => currentStepIndex.value === 0);
 const isLastStep = computed(() => currentStepIndex.value === steps.value.length - 1);
 const progress = computed(() => ((currentStepIndex.value + 1) / steps.value.length) * 100);
+
+// Airbnb's bar in three parts: the basics, dates to pictures, then advisories and review.
+const PHASES = [
+    ['EventType', 'Name', 'Category', 'Genres', 'Location', 'Remote', 'Description'],
+    ['Dates', 'Tickets', 'Images'],
+    ['Advisories', 'Content', 'Mobility', 'Review'],
+];
+const progressParts = computed(() => PHASES.map((phase) => {
+    const inPhase = phase.filter((step) => steps.value.includes(step));
+    const done = inPhase.filter((step) => steps.value.indexOf(step) <= currentStepIndex.value).length;
+    return inPhase.length ? (done / inPhase.length) * 100 : 0;
+}));
 const isComponentReady = ref(true); // Default to true
 
 const containerWidthClass = computed(() => {
@@ -233,8 +237,80 @@ const submitEvent = async () => {
     }
 };
 
+// Save what is on the current step without moving on: for Save & exit, and
+// for the show run picker before it reloads the page. Answers 'saved',
+// 'invalid' (the step shows its own message), 'duplicate' (the Name step shows
+// its warning; saving again goes through) or 'refused' (exitError says why).
+// The message under the top bar: goes by itself after a few seconds, on OK,
+// on typing, and on any step change.
+const exitError = ref('');
+let exitTimer = null;
+const showExit = (text) => {
+    exitError.value = text;
+    clearTimeout(exitTimer);
+    exitTimer = setTimeout(() => { exitError.value = ''; }, 6000);
+};
+const dismissExit = () => {
+    clearTimeout(exitTimer);
+    exitError.value = '';
+};
+const saveCurrentStep = async () => {
+    dismissExit();
+    if (isLastStep.value || !currentComponentRef.value) return 'saved';
+    try {
+        // Inside the try: on the Location step checking can itself call the server.
+        if (!(await currentComponentRef.value.isValid?.())) return 'invalid';
+        const submitData = await currentComponentRef.value.submitData();
+        if (currentStep.value === 'Name' && currentComponentRef.value.duplicateAcknowledged) {
+            submitData instanceof FormData ? submitData.append('acknowledge_duplicate', '1') : (submitData.acknowledge_duplicate = true);
+        }
+        const response = await axios.post(`/api/hosting/event/${event.slug}`, submitData);
+        if (response.data.event) Object.assign(event, response.data.event);
+        return 'saved';
+    } catch (error) {
+        if (currentStep.value === 'Name' && error.response?.status === 409 && currentComponentRef.value.handleDuplicateError?.(error)) {
+            return 'duplicate';
+        }
+        errors.value = error.response?.data?.errors ?? (error.response?.data?.message ? { general: [error.response.data.message] } : {});
+        showExit(`Could not save: ${Object.values(error.response?.data?.errors ?? {}).flat()[0] ?? error.response?.data?.message ?? 'please try again.'}`);
+        return 'refused';
+    }
+};
+provide('saveCurrentStep', saveCurrentStep);
+
+// Save & exit: the draft already exists, so this step is saved when it is
+// filled in, and left for later when it is not (as Add a venue does). Only a
+// duplicate name to confirm, or a save the server refuses, keeps you here,
+// with the reason showing.
+const exiting = ref(false);
+const saveAndExit = async () => {
+    if (isSubmitting.value) return;
+    exiting.value = true;
+    isSubmitting.value = true;
+    let leaving = false;
+    try {
+        const result = await saveCurrentStep();
+        // Unfinished is fine to leave; a step that tried to save something and
+        // failed (adding a new venue) keeps you here with the reason.
+        const kept = result === 'invalid' ? currentComponentRef.value?.keepsOnExit?.() : null;
+        if (kept) {
+            showExit(`Could not save: ${kept}`);
+        } else if (result === 'saved' || result === 'invalid') {
+            leaving = true;
+            window.location.href = listingsUrl.value;
+        }
+    } finally {
+        // Never stuck: whatever went wrong, the buttons work again.
+        if (!leaving) {
+            exiting.value = false;
+            isSubmitting.value = false;
+        }
+    }
+};
+
 const goToNext = async () => {
     if (isSubmitting.value) return;
+    dismissExit();
     isSubmitting.value = true;
     // Stays true once the submit redirect starts, so the button stays busy while the next page loads
     let redirecting = false;
@@ -321,6 +397,7 @@ const updateUrl = (step) => {
 };
 
 const setStep = (step) => {
+    dismissExit();
     if (steps.value.includes(step)) {
         // Each step starts with Next enabled; the step itself re-gates (duplicate warning,
         // image upload, …) so a greyed-out Next can't leak across steps on Back/Next.

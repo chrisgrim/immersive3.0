@@ -38,6 +38,8 @@ class UpdateEvent extends Tool
      */
     protected const STRIPPED_KEYS = [
         'status', 'images', 'ranks', 'currentImages', 'deletedImages', 'archived', 'closingDate', 'published_at', 'rank', 'slug',
+        // A run's own name, run type and festival left the website's form: genres (tags) cover them.
+        'edition', 'run_type', 'festival',
     ];
 
     /**
@@ -57,6 +59,9 @@ class UpdateEvent extends Tool
         'published_at' => 'publishing is not available from here — use submit-event-for-review',
         'rank' => 'rank is set by admins on the website',
         'slug' => 'the slug is fixed once the event is created',
+        'edition' => 'a run has no separate subtitle any more: put what tells it apart in the event name, e.g. "7 Paintings (Texas)"',
+        'run_type' => 'run types (premiere, workshop) are no longer kept: say it in the description, or pick genres that fit',
+        'festival' => 'festivals are no longer a separate field: say it in the description, or pick genres that fit',
     ];
 
     /**
@@ -979,7 +984,7 @@ class UpdateEvent extends Tool
         $event->loadMissing(['location', 'shows', 'tickets', 'genres', 'contentAdvisories', 'mobilityAdvisories', 'advisories', 'contactLevels', 'interactive_level', 'age_limits', 'remotelocations', 'videos']);
 
         $current = fn (string $key) => match ($key) {
-            'location' => $event->location?->only(['venue', 'home', 'street', 'city', 'region', 'country', 'postal_code', 'latitude', 'longitude', 'hiddenLocationToggle', 'hiddenLocation']),
+            'location' => $event->location?->only(['kind', 'venue', 'venue_id', 'home', 'street', 'city', 'region', 'country', 'postal_code', 'latitude', 'longitude', 'hiddenLocationToggle', 'hiddenLocation']),
             'showtype' => $event->showtype,
             // Days older than a year live in the compact show history, not
             // the rows; name them so a diff never looks like they vanished.
@@ -1049,13 +1054,10 @@ class UpdateEvent extends Tool
             'attendance_type_id' => $schema->integer()->description('1 = In Person, 2 = Remote/online. Ask this FIRST — it decides whether the event needs a location or remote platforms, and which categories are valid.'),
             'category_id' => $schema->integer()->description('Category id from list-event-attributes (pass attendance_type_id there to see only compatible categories; an incompatible category gets dissociated).'),
             'genres' => $schema->array()->description('1-10 genre objects, at least 1 required before submission: [{"id": 1, "name": "Horror"}]. Ids from list-event-attributes; a new name without an id creates a user genre — prefer existing ones.'),
-            'edition' => $schema->string()->description('This run\'s own subtitle, such as "Holiday Edition". Optional.'),
-            'run_type' => $schema->string()->description('Optional: workshop, world_premiere, us_premiere or regional_premiere.'),
-            'festival' => $schema->string()->description('The festival this run is part of. Optional.'),
             'special_thanks' => $schema->string()->description('Names to thank, one per line. Kept on the listing; not shown publicly yet.'),
             'project_id' => $schema->integer()->description('Your own draft only: ask to join this show (from list-projects). Fills empty fields from the show and your earlier run.'),
             'source_event_id' => $schema->integer()->description('Your own draft only: ask to join this standalone listing, which becomes a show when approved.'),
-            'location' => $schema->object()->description('Send venue_id (from search-venues) to use a known venue; its address is copied and the address fields here are ignored. A new address without venue_id takes the venue off. Never for a secret location. For in-person events: {venue (display name, max 80 chars — longer is rejected), home (street number), street, city, region, region_long, country, country_long, postal_code, latitude, longitude, hiddenLocationToggle (bool), hiddenLocation}. Use geocode-address to resolve the exact fields from a human address and confirm the match with the user. If the location is a secret (hiddenLocationToggle=true), hiddenLocation must explain how attendees learn the address.'),
+            'location' => $schema->object()->description('First ask the user: is it AT A VENUE (a theatre, bar, hotel, gallery: a named space with its own page) or SOMEWHERE ELSE (a park, the streets, a home, a hidden location)? Say which in kind: "venue" or "place". At a venue: send venue_id (from search-venues; if it is not there, propose-venue) with kind "venue"; its address is copied and the address fields here are ignored. Somewhere else: send the address fields with kind "place" and no venue_id; venue is then just a label for the place, never a venue. Leave kind out only when the user has not said. A new address without venue_id takes the venue off. A hidden location is always "place" and never has a venue. For in-person events: {kind ("venue" or "place"), venue (display name, max 80 chars: longer is rejected), home (street number), street, city, region, region_long, country, country_long, postal_code, latitude, longitude, hiddenLocationToggle (bool), hiddenLocation}. Use geocode-address to resolve the exact fields from a human address and confirm the match with the user. If the location is a secret (hiddenLocationToggle=true), hiddenLocation must explain how attendees learn the address.'),
             'remotelocations' => $schema->array()->description('For remote events, 1-10 platforms, at least 1 required before submission: [{"name": "Zoom"}].'),
             'remote_description' => $schema->string()->description('For remote events: how attendees join, max 3000 chars.'),
             'timezone' => $schema->string()->description('IANA timezone of the event, e.g. "America/New_York". geocode-address results include coordinates you can infer it from.'),

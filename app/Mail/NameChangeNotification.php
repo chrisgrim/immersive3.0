@@ -4,7 +4,6 @@ namespace App\Mail;
 
 use App\Models\NameChangeRequest;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -15,10 +14,15 @@ class NameChangeNotification extends Mailable
     use Queueable, SerializesModels;
 
     public $currentName;
+
     public $newName;
+
     public $reason;
+
     public $isAdmin;
+
     public $type;
+
     public $status;
 
     /**
@@ -39,7 +43,12 @@ class NameChangeNotification extends Mailable
             $this->type = $model->type;
             $this->status = 'approved';
         }
-        
+
+        // People know a project as a show run.
+        if ($this->type === 'Project') {
+            $this->type = 'Show run';
+        }
+
         $this->isAdmin = $isAdmin;
     }
 
@@ -48,9 +57,9 @@ class NameChangeNotification extends Mailable
      */
     public function envelope(): Envelope
     {
-        $subject = $this->isAdmin 
+        $subject = $this->isAdmin
             ? "Name Change Request - {$this->currentName}"
-            : "{$this->type} Name Change Request - " . ($this->status === 'rejected' ? 'Not Approved' : 'Approved');
+            : "{$this->type} Name Change Request - ".($this->status === 'rejected' ? 'Not Approved' : 'Approved');
 
         return new Envelope(
             subject: $subject,

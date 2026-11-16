@@ -15,8 +15,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
 /**
- * The show itself, wherever it plays. A row is made only by
- * App\Actions\Projects\LinkEventToProject, when a second run is approved.
+ * A show run (people see that name): the show itself, wherever it plays.
+ * Rows are made only by App\Actions\Projects\LinkEventToProject: when a
+ * second run is approved, or at once from a live listing duplicated with
+ * "Same show, new run?" (startFrom), which DissolveProject can undo.
  */
 class Project extends Model
 {
@@ -34,6 +36,8 @@ class Project extends Model
             if (! $project->isForceDeleting()) {
                 $project->releaseSlug();
             }
+            // Ended, merged away or undone: a new name waiting for EI has nothing left to rename.
+            $project->nameChangeRequests()->where('status', 'pending')->update(['status' => 'withdrawn']);
         });
 
         // A renamed project keeps its old address as a redirect, and taking an
@@ -246,5 +250,11 @@ class Project extends Model
         }
 
         return $slug;
+    }
+
+    /** A keeper's new name waits for EI (NameChangeRequestService), as an event's does. */
+    public function nameChangeRequests()
+    {
+        return $this->morphMany(NameChangeRequest::class, 'requestable');
     }
 }

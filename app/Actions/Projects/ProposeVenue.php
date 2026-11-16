@@ -34,6 +34,11 @@ class ProposeVenue
         if ($team && $actor->belongsToOrganization($team)) {
             $venue->organizer_id = $team->id;
             $venue->save();
+        } else {
+            // A person with no organization (adding a venue from Your venues)
+            // keeps it themselves, until the real venue claims it.
+            $venue->user_id = $actor->id;
+            $venue->save();
         }
 
         AuditLog::record($venue, 'venue.proposed', $actor);

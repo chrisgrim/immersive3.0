@@ -3,22 +3,23 @@
         <div class="flex justify-end relative z-30 items-center">
             <!-- If user is logged in -->
             <template v-if="user">
+                <!-- On a phone these words would push the picture off screen; the menu has them. -->
                 <div
-                    class="relative ml-8"
-                    v-if="!user.organizer">
+                    class="relative ml-8 hidden md:block"
+                    v-if="!user.organizer && !hosting">
                     <a href="/hosting/getting-started">
                         <span class="text-xl font-medium hover:text-black hover:font-semibold">Submit Your Experience</span>
                     </a>
                 </div>
                 <!-- On the hosting page the organization takes the spot: bigger name, its edit button. -->
                 <div v-if="hosting" class="relative ml-8 flex items-center gap-4 min-w-0">
-                    <a :href="`/organizers/${hosting.slug}/edit`" aria-label="Edit organization" class="flex-shrink-0 rounded-full bg-gray-100 w-16 h-16 flex items-center justify-center hover:bg-gray-200">
+                    <a :href="`/organizers/${hosting.slug}/edit`" aria-label="Edit organization" class="flex-shrink-0 rounded-full bg-gray-100 w-14 h-14 md:w-16 md:h-16 flex items-center justify-center hover:bg-gray-200">
                         <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                     </a>
-                    <a :href="`/organizers/${hosting.slug}`" class="text-[2.6rem] leading-tight font-semibold text-black hover:underline truncate max-w-[48rem]">{{ hosting.name }}</a>
+                    <a :href="`/organizers/${hosting.slug}`" class="text-[2rem] md:text-[2.6rem] leading-tight font-semibold text-black hover:underline truncate max-w-[48rem]">{{ hosting.name }}</a>
                 </div>
                 <div
-                    class="relative ml-8"
+                    class="relative ml-8 hidden md:block"
                     v-else-if="user.organizer">
                     <a href="/hosting/events">
                         <span class="text-xl font-medium hover:text-black hover:font-semibold truncate block max-w-[200px]">
@@ -30,7 +31,7 @@
 
             <!-- If user is guest -->
             <template v-else>
-                <div class="relative ml-8">
+                <div class="relative ml-8 hidden md:block">
                     <a href="/register?create=true">
                         <span class="text-xl font-medium hover:text-black hover:font-semibold">Submit Your Experience</span>
                     </a>
@@ -49,6 +50,8 @@
                                 class="rounded-full bg-default-red w-6 h-6 absolute top-[-0.5rem] right-[-0.5rem] border border-white"
                                 v-if="user.unread"></div>
                             <img v-if="hosting?.thumbImagePath" :src="`${imageUrl}${hosting.thumbImagePath}`" class="w-full h-full object-cover" :alt="hosting.name" />
+                            <!-- Hosting, and the organization has no picture: its first letter. -->
+                            <span v-else-if="hosting" class="text-white text-[1.8rem] font-semibold uppercase leading-none" data-hosting-initial>{{ (hosting.name || '?').trim().charAt(0) }}</span>
                             <template v-else-if="user.thumbImagePath">
                                 <picture>
                                     <source
@@ -120,8 +123,8 @@
                                             <img v-else src="/storage/website-files/Everything_Immersive_logo_Short.png" alt="" class="w-12 h-12" />
                                         </div>
                                         <div class="min-w-0">
-                                            <p class="text-[1.8rem] leading-[2.2rem] font-medium text-[#222222] transform-none truncate">{{ hosting ? 'Create new event' : (user.organizer ? 'Experiences' : 'List your event') }}</p>
-                                            <p class="text-[1.4rem] leading-[1.8rem] text-[#6a6a6a] transform-none mt-1">{{ hosting ? `A new listing for ${hosting.name}` : (user.organizer ? 'Your events and show runs' : 'Put your experience on Everything Immersive') }}</p>
+                                            <p class="text-[1.8rem] leading-[2.2rem] font-medium text-[#222222] transform-none truncate">{{ hosting ? 'Create new event' : (user.organizer ? user.organizer.name : 'List your event') }}</p>
+                                            <p class="text-[1.4rem] leading-[1.8rem] text-[#6a6a6a] transform-none mt-1">{{ hosting ? `A new listing for ${hosting.name}` : (user.organizer ? 'Switch to hosting' : 'Put your experience on Everything Immersive') }}</p>
                                         </div>
                                     </a>
 
@@ -233,6 +236,8 @@ const emit = defineEmits(['close']);
 const imageUrl = import.meta.env.VITE_IMAGE_URL;
 
 const userColor = computed(() => {
+    // An organization's first letter sits on black, Airbnb style.
+    if (props.user && props.hosting && !props.hosting.thumbImagePath) return '#222222';
     return props.user ? props.user.hexColor : '#717171';
 });
 

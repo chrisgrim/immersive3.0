@@ -47,10 +47,36 @@ class AdminRequestsController extends Controller
 
     public function approve(NameChangeRequest $request)
     {
-        $result = $this->nameChangeService->processAdminDirectChange(
-            $request->requestable,
-            $request->requested_name
-        );
+        // A stale screen: already decided, withdrawn, or what it renames is
+        // gone. Claimed under a row lock so two clicks never both apply it.
+        $claimed = \Illuminate\Support\Facades\DB::transaction(function () use ($request) {
+            $locked = NameChangeRequest::whereKey($request->id)->lockForUpdate()->first();
+            if (! $locked || $locked->status !== 'pending' || ! $locked->requestable) {
+                return false;
+            }
+            $locked->update(['status' => 'approving']);
+
+            return true;
+        });
+        if (! $claimed) {
+            return response()->json(['message' => 'This request is no longer waiting.'], 422);
+        }
+
+        try {
+            $result = $this->nameChangeService->processAdminDirectChange(
+                $request->requestable,
+                $request->requested_name,
+                $request->user
+            );
+        } catch (\Throwable $e) {
+            $request->update(['status' => 'pending']);
+            throw $e;
+        }
+
+        // Refused (the name was taken meanwhile): it goes back to waiting.
+        if (! $result['success']) {
+            $request->update(['status' => 'pending']);
+        }
 
         if ($result['success']) {
             $request->update(['status' => 'approved']);
@@ -68,6 +94,10 @@ class AdminRequestsController extends Controller
 
     public function reject(Request $httpRequest, NameChangeRequest $request)
     {
+        if ($request->status !== 'pending') {
+            return response()->json(['message' => 'This request is no longer waiting.'], 422);
+        }
+
         $request->update([
             'status' => 'rejected',
             'reason' => $httpRequest->reason,

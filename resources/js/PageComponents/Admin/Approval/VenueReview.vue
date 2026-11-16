@@ -9,7 +9,13 @@
             <div class="max-w-screen-xl mx-auto px-8 pt-8">
                 <div class="w-full md:w-[61rem] mx-auto pb-24 space-y-8">
                     <!-- Who added it, first so it is seen at a glance. -->
-                    <div v-if="props.venue?.added_by" class="p-8 shadow-custom-1 rounded-3xl">
+                    <!-- Owned by a person (a claim, or added by someone with no organization): they come first. -->
+                    <div v-if="props.venue?.claimed_by" class="p-8 shadow-custom-1 rounded-3xl" data-owned-by>
+                        <h3 class="text-xl font-semibold mb-4">Owned by:</h3>
+                        <h4 class="text-4xl font-medium">{{ props.venue.claimed_by.name }}</h4>
+                        <p class="text-gray-600 text-xl">{{ props.venue.claimed_by.email }}</p>
+                    </div>
+                    <div v-else-if="props.venue?.added_by" class="p-8 shadow-custom-1 rounded-3xl">
                         <h3 class="text-xl font-semibold mb-4">Added by:</h3>
                         <h4 class="text-4xl font-medium">{{ props.venue.added_by.organizer?.name }}</h4>
                         <p v-if="props.venue.added_by.user" class="text-gray-600 text-xl">{{ props.venue.added_by.user.name }} · {{ props.venue.added_by.user.email }}</p>
@@ -66,6 +72,7 @@
 
         <div class="flex-none flex border-t border-gray-200 bg-white justify-end items-center md:h-32">
             <div class="w-full px-6 py-6 md:px-8 flex flex-col md:flex-row gap-4 md:justify-end md:items-center">
+                <p v-if="error && !showQuestionModal && !showRemoveModal" class="text-red-600 md:mr-auto" role="alert">{{ error }}</p>
                 <a :href="`/venues/${props.venue?.slug}/edit`" target="_blank" class="px-6 py-3 rounded-lg transition-colors border border-black bg-white text-black hover:bg-gray-100">
                     <div class="flex items-center justify-center gap-2">Edit Venue</div>
                 </a>
@@ -73,14 +80,25 @@
                 <!-- Ask a question: goes to whoever runs the team that added it. The venue stays waiting. -->
                 <button
                     @click="showQuestionModal = true"
-                    :disabled="processing || !props.venue?.added_by"
+                    :disabled="processing || !(props.venue?.added_by || props.venue?.claimed_by)"
                     class="px-6 py-3 rounded-lg transition-colors border border-black"
-                    :class="processing || !props.venue?.added_by ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-white text-black hover:bg-gray-100'"
+                    :class="processing || !(props.venue?.added_by || props.venue?.claimed_by) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-white text-black hover:bg-gray-100'"
                 >
                     <div class="flex items-center justify-center gap-2">
                         <LoadingSpinner v-if="processing && isAsking" />
                         {{ processing && isAsking ? 'Sending...' : 'Ask a question' }}
                     </div>
+                </button>
+
+                <!-- Remove: junk or not a real place. Only while it waits; a live one is merged instead. -->
+                <button
+                    v-if="props.venue?.status === 'pending'"
+                    @click="showRemoveModal = true"
+                    :disabled="processing"
+                    class="px-6 py-3 rounded-lg transition-colors border border-red-600 text-red-600 bg-white hover:bg-red-50 disabled:opacity-50"
+                    data-venue-remove
+                >
+                    Remove
                 </button>
 
                 <button
@@ -102,7 +120,7 @@
                 <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh]">
                     <div class="p-8 pb-6">
                         <h2 class="text-2xl font-bold mb-2">Ask a question</h2>
-                        <p class="text-gray-500 font-normal">It goes to whoever runs the team that added this venue, by message. The venue keeps waiting here. Nothing is deleted.</p>
+                        <p class="text-gray-500 font-normal">It goes to the venue's owner, or whoever runs the team that added it, by message. The venue keeps waiting here. Nothing is deleted.</p>
                     </div>
                     <div class="p-8 pt-0 overflow-y-auto flex-1">
                         <p class="text-gray-500 font-normal mb-4">Your question</p>
@@ -126,6 +144,40 @@
                                     <LoadingSpinner v-if="processing && isAsking" />
                                     {{ processing && isAsking ? 'Sending...' : 'Send question' }}
                                 </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </teleport>
+
+        <teleport to="body">
+            <div v-if="showRemoveModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50" data-venue-remove-ask>
+                <div class="bg-white w-full md:max-w-2xl md:mx-4 md:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh]">
+                    <div class="p-8 pb-6">
+                        <h2 class="text-2xl font-bold mb-2">Remove {{ props.venue?.name }}?</h2>
+                        <p class="text-gray-500 font-normal">It is deleted for good. Events that picked it keep their address. Whoever added it gets your reason by message.</p>
+                    </div>
+                    <div class="p-8 pt-0 overflow-y-auto flex-1">
+                        <p class="text-gray-500 font-normal mb-4">Why</p>
+                        <textarea
+                            v-model="removeReason"
+                            class="w-full text-xl border border-neutral-400 focus:border-black focus:shadow-[0_0_0_1.5px_black] rounded-2xl p-4"
+                            placeholder="For example: This is not a real venue."
+                            rows="3"
+                        ></textarea>
+                        <p v-if="error" class="text-red-600 mt-4">{{ error }}</p>
+                    </div>
+                    <div class="p-8 border-t border-neutral-400">
+                        <div class="flex justify-end space-x-4">
+                            <button @click="showRemoveModal = false; error = ''" class="px-6 py-3 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl">Cancel</button>
+                            <button
+                                @click="onRemove"
+                                :disabled="processing || !removeReason.trim()"
+                                class="px-6 py-3 bg-red-600 text-white rounded-2xl hover:bg-red-700 text-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                                data-venue-remove-yes
+                            >
+                                {{ processing ? 'Removing...' : 'Remove venue' }}
                             </button>
                         </div>
                     </div>
@@ -185,6 +237,21 @@ const sendQuestion = async () => {
     }
 };
 
+const showRemoveModal = ref(false);
+const removeReason = ref('');
+const onRemove = async () => {
+    if (processing.value || !removeReason.value.trim()) return;
+    try {
+        processing.value = true;
+        error.value = '';
+        await axios.post(`/api/admin/venues/${props.venue.slug}/remove`, { reason: removeReason.value });
+        window.location.href = '/admin/dashboard?view=approve-venues';
+    } catch (failure) {
+        error.value = failure.response?.data?.message || 'That did not go through.';
+        processing.value = false;
+    }
+};
+
 const onApprove = async () => {
     try {
         processing.value = true;
@@ -192,7 +259,7 @@ const onApprove = async () => {
         await axios.post(`/api/admin/venues/${props.venue.slug}/approve`);
         window.location.href = '/admin/dashboard?view=approve-venues';
     } catch (failure) {
-        console.error('Error approving venue:', failure);
+        error.value = failure.response?.data?.message || 'That did not go through.';
         processing.value = false;
         isApproving.value = false;
     }

@@ -41,7 +41,7 @@
 
 @push('after-laravel')
     <script>
-        window.Laravel.page = { venue: {!! Js::from($venue->only(['name', 'latitude', 'longitude'])) !!}, claim: {!! Js::from($claim) !!} };
+        window.Laravel.page = { venue: {!! Js::from($venue->only(['name', 'latitude', 'longitude'])) !!}, claim: {!! Js::from($claim) !!}, amenities: {!! Js::from(\App\Support\Projects\VenueAmenities::clean($venue->amenities)) !!} };
     </script>
 @endpush
 
@@ -59,6 +59,20 @@
 @endsection
 
 @section('content')
+    @if($venue->status !== \App\Models\Venue::APPROVED)
+        {{-- A preview for its keeper and staff: the public cannot see it yet. --}}
+        <div class="bg-[#f7f7f7] border-b border-[#ebebeb]">
+            <div class="max-w-screen-xl mx-auto px-8 py-3 flex items-center justify-between gap-4">
+                @can('update', $venue)
+                    <p class="text-[1.4rem] text-[#222222] transform-none">{{ $venue->status === \App\Models\Venue::DRAFT ? 'A draft: only you can see this page. Finish adding it to send it to EI.' : 'Waiting for EI to approve it: only you can see this page for now.' }}</p>
+                    <a href="{{ $venue->status === \App\Models\Venue::DRAFT ? route('venues.setup', $venue) : route('venues.edit', $venue) }}" class="text-[1.4rem] font-semibold underline whitespace-nowrap">{{ $venue->status === \App\Models\Venue::DRAFT ? 'Finish adding it' : 'Edit' }}</a>
+                @else
+                    {{-- Reached from Add a venue's "we already know a venue here". --}}
+                    <p class="text-[1.4rem] text-[#222222] transform-none">In review: this venue is not public yet. If it is yours, you can still claim it below.</p>
+                @endcan
+            </div>
+        </div>
+    @endif
     {{-- Airbnb's experience page, flipped: the details on the left (405px), a 50px gap,
          and the photos on the right (759px square, 5px apart, 36px outer corners).
          No photos: the map takes their place, as rounded but shorter. --}}
@@ -112,7 +126,7 @@
                     {{-- The organizer page's round edit button: the team that keeps it, and staff. --}}
                     @can('update', $venue)
                         <a href="{{ route('venues.edit', $venue) }}" aria-label="Edit this venue" class="inline-flex mt-[1.6rem] rounded-full bg-gray-100 w-20 h-20 items-center justify-center hover:bg-gray-200">
-                            <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            <svg width="20" height="20" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         </a>
                     @endcan
                     @if($venue->room)
@@ -127,7 +141,7 @@
                                 @if($cardImage)
                                     <img src="{{ config('app.image_url') }}{{ $cardImage }}" alt="{{ $venue->name }}" class="w-full h-full object-cover">
                                 @else
-                                    <svg class="w-[4rem] h-[4rem] text-gray-400" xmlns="http://www.w3.org/2000/svg"><use xlink:href="/storage/website-files/icons.svg#ri-map-pin-line" /></svg>
+                                    <svg width="40" height="40" class="w-[4rem] h-[4rem] text-gray-400" xmlns="http://www.w3.org/2000/svg"><use xlink:href="/storage/website-files/icons.svg#ri-map-pin-line" /></svg>
                                 @endif
                             </div>
                             @if($locality)
@@ -137,7 +151,7 @@
                         <div class="flex-1 flex flex-col justify-center space-y-6">
                             <div>
                                 <p class="text-[3.2rem] leading-none font-semibold text-gray-900 transform-none">{{ $showCount }}</p>
-                                <p class="text-md font-bold text-gray-600 mt-1 transform-none">{{ $showCount === 1 ? 'Project' : 'Projects' }}</p>
+                                <p class="text-md font-bold text-gray-600 mt-1 transform-none">{{ $showCount === 1 ? 'Show run' : 'Show runs' }}</p>
                             </div>
                             @if($current->isNotEmpty())
                                 <div class="w-20 h-px bg-gray-200"></div>
@@ -168,7 +182,7 @@
                     @if($street || $locality)
                         <div class="flex items-center gap-[2.2rem]">
                             <div class="w-[3.6rem] h-[3.6rem] flex-shrink-0 rounded-full bg-[#f7f7f7] flex items-center justify-center">
-                                <svg class="w-[2rem] h-[2rem] text-[#222222]" xmlns="http://www.w3.org/2000/svg"><use xlink:href="/storage/website-files/icons.svg#ri-map-pin-line" /></svg>
+                                <svg width="20" height="20" class="w-[2rem] h-[2rem] text-[#222222]" xmlns="http://www.w3.org/2000/svg"><use xlink:href="/storage/website-files/icons.svg#ri-map-pin-line" /></svg>
                             </div>
                             <div class="min-w-0 text-left">
                                 <p class="text-[1.4rem] leading-[1.8rem] font-medium text-[#222222] transform-none break-words">{{ $street ?: $locality }}</p>
@@ -182,7 +196,7 @@
                     @if($venue->directions)
                         <a href="#how-to-get-there" class="flex items-center gap-[2.2rem] group">
                             <div class="w-[3.6rem] h-[3.6rem] flex-shrink-0 rounded-full bg-[#f7f7f7] flex items-center justify-center">
-                                <svg class="w-[2rem] h-[2rem] text-[#222222]" xmlns="http://www.w3.org/2000/svg"><use xlink:href="/storage/website-files/icons.svg#ri-book-open-line" /></svg>
+                                <svg width="20" height="20" class="w-[2rem] h-[2rem] text-[#222222]" xmlns="http://www.w3.org/2000/svg"><use xlink:href="/storage/website-files/icons.svg#ri-book-open-line" /></svg>
                             </div>
                             <div class="min-w-0 text-left">
                                 <p class="text-[1.4rem] leading-[1.8rem] font-medium text-[#222222] transform-none group-hover:underline">How to get there</p>
@@ -195,7 +209,7 @@
                     @foreach($venue->contactLinks() as [$icon, $label, $href])
                         <a href="{{ $href }}" @if(str_starts_with($href, 'http')) target="_blank" rel="nofollow noopener noreferrer" @endif class="flex items-center gap-[2.2rem] group">
                             <div class="w-[3.6rem] h-[3.6rem] flex-shrink-0 rounded-full bg-[#f7f7f7] flex items-center justify-center">
-                                <svg class="w-[2rem] h-[2rem] text-[#222222]" xmlns="http://www.w3.org/2000/svg"><use xlink:href="/storage/website-files/icons.svg#{{ $icon }}" /></svg>
+                                <svg width="20" height="20" class="w-[2rem] h-[2rem] text-[#222222]" xmlns="http://www.w3.org/2000/svg"><use xlink:href="/storage/website-files/icons.svg#{{ $icon }}" /></svg>
                             </div>
                             <p class="min-w-0 text-left text-[1.4rem] leading-[1.8rem] font-medium text-[#222222] transform-none truncate group-hover:underline">{{ $label }}</p>
                         </a>
@@ -210,6 +224,13 @@
 
             {{-- Below the photos, in the right-hand column on a computer. --}}
             <div class="min-w-0 mt-[4.8rem] lg:col-start-2 lg:row-start-2">
+            {{-- What it has, from the tiles picked when it was added or edited. --}}
+            @if(\App\Support\Projects\VenueAmenities::clean($venue->amenities))
+                <section class="mb-[4.8rem]">
+                    <h2 class="text-[2.2rem] leading-[2.6rem] font-semibold text-[#222222] mb-[2.4rem]">What's there</h2>
+                    <vue-venue-amenities :keys="pageData.amenities"></vue-venue-amenities>
+                </section>
+            @endif
             @if($photos->isNotEmpty() && $hasMap)
                 <section>
                     <h2 class="text-[2.2rem] leading-[2.6rem] font-semibold text-[#222222] mb-[2.4rem]">Where it is</h2>
