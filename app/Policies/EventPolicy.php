@@ -78,6 +78,11 @@ class EventPolicy
      */
     public function duplicate(User $user, Event $event): bool
     {
+        // A draft held for staff (the AI crawler's) is not its team's to copy yet.
+        if ($event->isHeldFrom($user)) {
+            return false;
+        }
+
         return $user->belongsToOrganization($event->organizer) ||
                $user->isModerator() ||
                $user->isAdmin();

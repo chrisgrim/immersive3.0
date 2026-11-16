@@ -1520,7 +1520,9 @@ class Event extends Model
             // Create new event with duplicated attributes (excluding location, ticket, and price data)
             // A copy is its own run: it asks to join the show (below), and a
             // copy of a world premiere at SXSW is neither. special_thanks copies.
-            $newEvent = $this->replicate(['location_latlon', 'ticketUrl', 'price_range', 'closingDate', 'show_times', 'showtype', 'show_history', 'project_id', 'instance_slug', 'edition', 'run_type', 'festival']);
+            // Nor an old go-live date or the "already told followers" stamps:
+            // those belong to the event they were set for.
+            $newEvent = $this->replicate(['location_latlon', 'ticketUrl', 'price_range', 'closingDate', 'show_times', 'showtype', 'show_history', 'project_id', 'instance_slug', 'edition', 'run_type', 'festival', 'embargo_date', 'organizer_notified_at', 'notified_new_dates_at']);
             $newEvent->slug = static::placeholderSlug();
             // The copy is credited to whoever made it (the admin "Submitted by"
             // column), not to the author of the event it was copied from.

@@ -11,11 +11,10 @@ trait FormatsEvents
 {
     /**
      * Refusal for a write to an event that has left its edit window
-     * (Event::EDIT_WINDOW_DAYS). The website's version of this message points
-     * at the Duplicate button; there is no duplicate tool here, so it points
-     * at the draft tool instead.
+     * (Event::EDIT_WINDOW_DAYS). Like the website's Duplicate button, it
+     * points at duplicate-event.
      */
-    protected const EDIT_LOCKED_MESSAGE = 'This event ended more than 90 days ago and is kept as a historical record, so its organizers can no longer edit it (moderators and admins can). To run it again, start a new listing with create-event-draft under the show\'s title and ask to join the same show with update-event (project_id or source_event_id). Need help? Contact support@everythingimmersive.com';
+    protected const EDIT_LOCKED_MESSAGE = 'This event ended more than 90 days ago and is kept as a historical record, so its organizers can no longer edit it (moderators and admins can). To run it again, copy it with duplicate-event (the copy is a new run of the same show) and set its new dates. Need help? Contact support@everythingimmersive.com';
 
     /**
      * Human-readable label for an event status char.

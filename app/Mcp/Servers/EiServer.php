@@ -12,6 +12,7 @@ use App\Mcp\Tools\CopyCredits;
 use App\Mcp\Tools\CreateEventDraft;
 use App\Mcp\Tools\CreateOrganizer;
 use App\Mcp\Tools\DissolveProject;
+use App\Mcp\Tools\DuplicateEvent;
 use App\Mcp\Tools\GeocodeAddress;
 use App\Mcp\Tools\GetEvent;
 use App\Mcp\Tools\GetSiteAnalytics;
@@ -122,6 +123,9 @@ class EiServer extends Server
     these? A new city, new dates, or a remount." If so, send `project_id` (or
     `source_event_id` for a standalone listing) to `update-event`: that asks to
     join, and fills empty fields from the show and the user's own earlier run.
+    A touring show's next city: `duplicate-event` on an earlier run copies its
+    details and pictures as a new run (then `update-event` for the location,
+    dates and tickets); ask the user before `start_show_run` on a live event.
     Then confirm warnings, age range, accessibility, address and tickets with
     the user before `submit-event-for-review` with `details_confirmed`. In person,
     ask venue or somewhere else (step 4) and say it in `location.kind`; a venue
@@ -156,6 +160,7 @@ class EiServer extends Server
         CreateOrganizer::class,
         UpdateOrganizer::class,
         CreateEventDraft::class,
+        DuplicateEvent::class,
         UpdateEvent::class,
         AttachEventImage::class,
         RemoveEventImage::class,

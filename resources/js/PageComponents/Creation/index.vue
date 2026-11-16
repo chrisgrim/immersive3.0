@@ -179,6 +179,9 @@
 								<button type="button" :disabled="duplicatingEvent" class="inline-flex px-5 py-2.5 rounded-full bg-[#222222] text-white text-lg font-medium disabled:opacity-50" @click="addRun(row)">{{ duplicatingEvent ? 'Adding…' : '+ Add a run' }}</button>
 								<a v-if="row.project.kept" :href="`/hosting/show-runs/${row.project.slug}/edit`" class="inline-flex px-5 py-2.5 rounded-full border border-[#222222] text-lg font-medium">Edit show run</a>
 							</div>
+							<!-- The show's events, set in from the card's sides so they read as
+							     inside the show run rather than another show run. -->
+							<div class="mx-4 md:mx-[2.4rem] mt-3" data-show-run-events>
 							<EventRow
 								v-for="event in row.events"
 								:key="event.id"
@@ -195,6 +198,7 @@
 								@duplicate="duplicateEvent(event)"
 								@delete="confirmRemoveEvent(event)"
 							/>
+							</div>
 						</div>
 					</section>
 				</template>

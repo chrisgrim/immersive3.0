@@ -2530,7 +2530,7 @@ test('update-event refuses a published event that ended more than 90 days ago', 
         'acknowledge_duplicate' => true,
     ]);
 
-    $response->assertHasErrors()->assertSee('create-event-draft');
+    $response->assertHasErrors()->assertSee('duplicate-event');
     expect($event->fresh()->name)->toBe('The Archive');
 });
 
