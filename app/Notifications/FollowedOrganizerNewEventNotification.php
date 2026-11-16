@@ -33,10 +33,10 @@ class FollowedOrganizerNewEventNotification extends Notification implements Shou
      * meaning the user has never touched this follow's own "Get updates"
      * toggle) means "do NOT email" — these notifications are opt-in, and
      * following an organizer is not by itself a request to be emailed.
-     * There is no separate account-wide switch layered on
-     * top of this; Account Settings' "Clear all notifications" is a one-time
-     * bulk action that sets every existing row's override to false, not a
-     * persistent flag checked here (see ClearAllNotificationsAction).
+     * The account-wide "Organizers you follow" email switch (key
+     * followed_organizer_events) is an AND gate on top: it can only stop
+     * mail, never start it for a null override. "Clear all notifications" is
+     * a separate one-time bulk action (ClearAllNotificationsAction).
      */
     public function __construct(public Event $event, private ?bool $notifyOverride = null) {}
 
@@ -44,7 +44,7 @@ class FollowedOrganizerNewEventNotification extends Notification implements Shou
     {
         $channels = ['database'];
 
-        if ($this->notifyOverride ?? false) {
+        if (($this->notifyOverride ?? false) && $notifiable->wantsNotification('followed_organizer_events')) {
             $channels[] = 'mail';
         }
 

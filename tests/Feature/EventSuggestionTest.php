@@ -294,3 +294,22 @@ test('regular users cannot see or act on the queue', function () {
 
     expect($suggestion->fresh()->status)->toBe('pending');
 });
+
+test('a guest can leave a name and email to be written back to, and the admin list shows them', function () {
+    $this->postJson('/api/event-suggestions', suggestion(['name' => '  Sam  ', 'email' => 'sam@example.com']))->assertCreated();
+
+    $row = EventSuggestion::sole();
+    expect($row->name)->toBe('Sam')->and($row->email)->toBe('sam@example.com');
+
+    $this->actingAs(App\Models\User::factory()->create(['type' => 'a']))
+        ->getJson('/api/admin/approve/suggestions')
+        ->assertJsonPath('suggestions.0.name', 'Sam')
+        ->assertJsonPath('suggestions.0.email', 'sam@example.com');
+});
+
+test('name and email stay optional, and a bad email is refused', function () {
+    $this->postJson('/api/event-suggestions', suggestion(['name' => '', 'email' => '']))->assertCreated();
+    expect(EventSuggestion::sole()->email)->toBeNull();
+
+    $this->postJson('/api/event-suggestions', suggestion(['email' => 'not an email']))->assertStatus(422)->assertJsonValidationErrors('email');
+});

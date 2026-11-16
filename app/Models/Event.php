@@ -1203,17 +1203,23 @@ class Event extends Model
             return $baseSlug;
         }
 
-        // Try with city if available (e.g., "event-name-london")
-        if ($event->location?->city) {
-            $citySlug = $baseSlug.'-'.Str::slug($event->location->city);
+        // Try with city if available (e.g., "event-name-london"), unless the
+        // name already ends with it ("Show (London)" never becomes
+        // "show-london-london"; it moves on).
+        $endsWith = fn (string $suffix) => $suffix !== '' && ($baseSlug === $suffix || str_ends_with($baseSlug, '-'.$suffix));
+
+        $city = Str::slug((string) $event->location?->city);
+        if ($city !== '' && ! $endsWith($city)) {
+            $citySlug = $baseSlug.'-'.$city;
             if (! static::slugExists($citySlug, $event->id)) {
                 return $citySlug;
             }
         }
 
-        // Try with organizer name (e.g., "event-name-organizername")
-        if ($event->organizer?->name) {
-            $organizerSlug = $baseSlug.'-'.Str::slug($event->organizer->name);
+        // Try with organizer name (e.g., "event-name-organizername"), the same way.
+        $organizer = Str::slug((string) $event->organizer?->name);
+        if ($organizer !== '' && ! $endsWith($organizer)) {
+            $organizerSlug = $baseSlug.'-'.$organizer;
             if (! static::slugExists($organizerSlug, $event->id)) {
                 return $organizerSlug;
             }
@@ -1241,18 +1247,23 @@ class Event extends Model
     }
 
     /**
-     * How many unpublished events (drafts, in-review, rejected) one organizer
-     * may hold at once. Admins are exempt everywhere this is enforced: the web
+     * How many unfinished events (drafts and rejected ones; an event waiting
+     * for EI's review no longer counts, so a batch is not stuck on approvals)
+     * one organizer may hold at once. EI staff (moderators and admins) are
+     * exempt everywhere this is enforced: the web
      * create/duplicate endpoints, the MCP create-event-draft tool, and the
      * client-side pre-check in resources/js/PageComponents/Creation/index.vue
      * (which must be kept in step with this value).
      */
     public const MAX_UNPUBLISHED_EVENTS = 10;
 
+    /** Live, embargoed, or waiting for review: not held against the limit. */
+    public const UNCOUNTED_STATUSES = ['p', 'e', 'r'];
+
     public static function countUnpublishedEvents($organizerId)
     {
         return self::where('organizer_id', $organizerId)
-            ->whereNotIn('status', self::LIVE_STATUSES) // Not published or embargoed
+            ->whereNotIn('status', self::UNCOUNTED_STATUSES)
             ->count();
     }
 
@@ -1272,7 +1283,7 @@ class Event extends Model
         // count anyway, so drop it rather than add it to the grouping.
         return self::withoutGlobalScope(LatestPublishedFirstScope::class)
             ->whereIn('organizer_id', $organizerIds)
-            ->whereNotIn('status', self::LIVE_STATUSES)
+            ->whereNotIn('status', self::UNCOUNTED_STATUSES)
             ->selectRaw('organizer_id, count(*) as aggregate')
             ->groupBy('organizer_id')
             ->pluck('aggregate', 'organizer_id');

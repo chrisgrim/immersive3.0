@@ -22,8 +22,10 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->withoutOverlapping()
                 ->appendOutputTo(storage_path('logs/event-renewals.log'));
 
+            // Every five minutes: an embargo can lift at a time of day (Sunday
+            // 8:00 AM), and the query only reads embargoed events.
             $schedule->command('ei:publish-embargoed')
-                ->everyTwoHours()
+                ->everyFiveMinutes()
                 ->withoutOverlapping()
                 ->appendOutputTo(storage_path('logs/publish-events.log'));
 

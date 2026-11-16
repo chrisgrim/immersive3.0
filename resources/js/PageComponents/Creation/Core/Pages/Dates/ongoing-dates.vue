@@ -193,66 +193,7 @@
                 </div>
 
                 <!-- Embargo Calendar Modal -->
-                <div v-if="showEmbargoModal" role="dialog" aria-modal="true" aria-label="Set embargo date" class="c-embargo fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4 overflow-y-auto">
-                    <div class="bg-white rounded-2xl w-full max-w-[600px] max-h-[90vh] my-auto flex flex-col">
-                        <div class="flex items-center justify-between p-4 md:p-8 pb-4 md:pb-6 border-b border-gray-200">
-                            <h3 class="text-2.5xl font-bold">Select Embargo Date</h3>
-                            <button 
-                                @click="cancelEmbargoDate"
-                                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"
-                            >
-                                <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                                </svg>
-                            </button>
-                        </div>
-                        
-                        <div class="flex-1 overflow-y-auto px-4 md:px-8 pt-4 md:pt-6 pb-0">
-                            <div class="max-h-[400px] overflow-y-auto">
-                                <VueDatePicker
-                                    v-model="tempEmbargoDate"
-                                    :enable-time-picker="false"
-                                    :dark="false"
-                                    :timezone="localTimezone"
-                                    :start-date="new Date()"
-                                    focus-start-date
-                                    :multi-calendars="6"
-                                    multi-calendars-solo
-                                    inline
-                                    auto-apply
-                                    month-name-format="long"
-                                    hide-offset-dates
-                                    :month-change-on-scroll="false"
-                                    week-start="0"
-                                    @update:model-value="selectEmbargoDate"
-                                    class="embargo-calendar modal-calendar"
-                                />
-                            </div>
-                        </div>
-                        
-                        <div class="flex flex-wrap justify-end gap-4 p-4 md:p-8 pt-4 md:pt-6 border-t border-gray-200 bg-white rounded-b-2xl">
-                            <button 
-                                @click="cancelEmbargoDate"
-                                class="px-6 py-2 border rounded-lg hover:bg-gray-100"
-                            >
-                                Cancel
-                            </button>
-                            <button 
-                                @click="confirmEmbargoDate"
-                                :class="[
-                                    'px-6 py-2 rounded-lg transition-colors',
-                                    tempEmbargoDate 
-                                        ? 'bg-black text-white hover:bg-gray-800' 
-                                        : 'border border-gray-300 text-gray-500 cursor-not-allowed'
-                                ]"
-                                :disabled="!tempEmbargoDate"
-                            >
-                                Set Embargo Date
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <EmbargoModal v-if="showEmbargoModal" :embargo-date="event.embargo_date" :timezone="localTimezone" @save="saveEmbargo" @cancel="cancelEmbargoDate" />
 
                 <!-- Start Date Modal -->
                 <div v-if="showStartDateModal" role="dialog" aria-modal="true" aria-label="Select start date" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4 overflow-y-auto">
@@ -442,6 +383,7 @@ import '@vuepic/vue-datepicker/dist/main.css';
 import { required } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
+import EmbargoModal from './embargo-modal.vue';
 import moment from 'moment-timezone';
 import { 
     generateRecurringDates,
@@ -453,7 +395,10 @@ import {
     getBrowserTimezone,
     daysBetween,
     embargoDateForAPI,
-    embargoDateToDate
+    embargoDateToDate,
+    embargoTimeOf,
+    formatEmbargoTime,
+    embargoZoneOf
 } from '@/composables/dateUtils';
 
 // Props and emits
@@ -581,7 +526,6 @@ const canShowMoreFutureMonthsEnd = computed(() => {
 
 // Embargo state
 const showEmbargoModal = ref(false);
-const tempEmbargoDate = ref(null);
 const embargoToggle = ref(false);
 
 // Check if we're in edit mode (vs creation mode)
@@ -623,7 +567,7 @@ const hasEmbargoDate = computed(() => !!event.embargo_date);
 // it is read and shown in that timezone, never the browser's.
 const formattedEmbargoDate = computed(() => {
     if (!event.embargo_date) return '';
-    return formatDateForDisplay(embargoDateToDate(event.embargo_date, localTimezone.value), localTimezone.value);
+    return `${formatDateForDisplay(embargoDateToDate(event.embargo_date, localTimezone.value), localTimezone.value)} at ${formatEmbargoTime(embargoTimeOf(event.embargo_date))} (${embargoZoneOf(event.embargo_date, localTimezone.value)})`;
 });
 
 // Validation rules
@@ -905,23 +849,14 @@ const handleEmbargoToggleChange = (value) => {
 };
 
 const showEmbargoCalendar = () => {
-    if (event.embargo_date) {
-        tempEmbargoDate.value = embargoDateToDate(event.embargo_date, localTimezone.value);
-    }
     showEmbargoModal.value = true;
 };
 
-const selectEmbargoDate = (selectedDate) => {
-    tempEmbargoDate.value = selectedDate;
-};
-
-const confirmEmbargoDate = () => {
-    if (tempEmbargoDate.value) {
-        event.embargo_date = embargoDateForAPI(tempEmbargoDate.value, localTimezone.value);
-        embargoToggle.value = true; // Ensure toggle is set to Yes
-        showEmbargoModal.value = false;
-        tempEmbargoDate.value = null;
-    }
+// The pop-up hands back the stored form: a day and a time where the event is.
+const saveEmbargo = (value) => {
+    event.embargo_date = value;
+    embargoToggle.value = true;
+    showEmbargoModal.value = false;
 };
 
 const cancelEmbargoDate = () => {

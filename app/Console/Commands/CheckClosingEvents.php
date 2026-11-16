@@ -2,11 +2,11 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use App\Models\Event;
-use Illuminate\Support\Facades\Mail;
 use App\Mail\EventClosingSoon;
+use App\Models\Event;
 use Carbon\Carbon;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Mail;
 
 class CheckClosingEvents extends Command
 {
@@ -36,7 +36,7 @@ class CheckClosingEvents extends Command
         /*
         $from = Carbon::now()->addDays(4)->startOfDay();
         $to = Carbon::now()->addDays(5)->endOfDay();
-                
+
         $events = Event::where('status', 'p')
             ->whereBetween('closingDate', [$from, $to])
             ->with(['organizer.user']) // Eager load relationships
@@ -53,14 +53,15 @@ class CheckClosingEvents extends Command
                 }
 
                 $user = $event->organizer->user;
-                
-                // Skip if user has silenced emails
-                if ($user->silence === 'y') {
+
+                // Their "Your events ending soon" switch (which honors the old
+                // "don't email me" setting until they set it themselves).
+                if (! $user->wantsNotification('closing_soon')) {
                     continue;
                 }
 
                 Mail::to($user->email)->send(new EventClosingSoon($event));
-                
+
             } catch (\Exception $e) {
                 $this->error("Failed to send email for event {$event->id}: {$e->getMessage()}");
             }

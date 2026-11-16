@@ -7,6 +7,9 @@ import {
     formatDateForAPI,
     embargoDateForAPI,
     embargoDateToDate,
+    embargoTimeOf,
+    formatEmbargoTime,
+    embargoZoneOf,
     parseDateString,
     addMonths,
     endOfDay,
@@ -121,6 +124,15 @@ describe('dateUtils', () => {
             expect(embargoDateForAPI('2026-01-15', NY)).toBe('2026-01-15 12:00:00');
             expect(embargoDateForAPI('2026-07-15', NY)).toBe('2026-07-15 12:00:00');
             expect(embargoDateForAPI('2026-01-15', 'Asia/Seoul')).toBe('2026-01-15 12:00:00');
+            // A picked time where the event is (Sunday 8:00 AM), read back the same.
+            expect(embargoDateForAPI('2026-01-18', NY, '08:00')).toBe('2026-01-18 08:00:00');
+            expect(embargoTimeOf('2026-01-18 08:00:00')).toBe('08:00');
+            expect(embargoTimeOf(null)).toBe('12:00');
+            expect(formatEmbargoTime('08:00')).toBe('8:00 AM');
+            expect(formatEmbargoTime('00:30')).toBe('12:30 AM');
+            expect(formatEmbargoTime('12:00')).toBe('12:00 PM');
+            expect(embargoZoneOf('2026-11-26 09:30:00', 'America/Los_Angeles')).toBe('PST');
+            expect(embargoZoneOf('2026-07-15 09:30:00', 'America/Los_Angeles')).toBe('PDT');
         });
 
         it('keeps the picked day where the event is, whatever the UTC date of the instant', () => {

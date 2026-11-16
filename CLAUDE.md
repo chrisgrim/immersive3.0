@@ -95,7 +95,7 @@ npm run production   # production
 - Testing uses array drivers for cache/session/mail and sync queue
 
 ### Scheduled Commands
-- `ei:publish-embargoed` — Every 2 hours, publishes events past embargo date (timezone-aware)
+- `ei:publish-embargoed`: every 5 minutes, publishes events past their embargo (a day and time in the event's own timezone, noon unless the organizer picks a time)
 - `ei:check-closing-events` — Daily, notifies creators of events closing soon (currently disabled)
 
 ## Deployment

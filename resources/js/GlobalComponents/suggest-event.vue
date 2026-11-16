@@ -4,65 +4,92 @@
     </button>
 
     <teleport to="body">
+        <!-- Airbnb's pop-up: close on the left, the title in the middle, the
+             fields as cards with their label inside, then a bar with the actions. -->
         <div
             v-if="isOpen"
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-[2000]"
+            class="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-[2000]"
             @click.self="close"
         >
             <div
-                class="relative bg-white w-full md:max-w-[76rem] md:mx-8 md:rounded-3xl rounded-t-3xl shadow-xl flex flex-col max-h-[90vh] text-left"
+                class="relative bg-white w-full md:w-[64rem] md:mx-8 rounded-t-[3.2rem] md:rounded-[3.2rem] shadow-2xl flex flex-col max-h-[92vh] text-left"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="suggest-event-title"
             >
-                <button type="button" class="absolute top-6 right-6 p-2 rounded-full text-neutral-500 hover:text-black hover:bg-neutral-100" aria-label="Close" @click="close">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
+                <div class="relative flex items-center justify-center h-[6.4rem] px-[2.4rem] border-b border-[#ebebeb] flex-shrink-0">
+                    <button type="button" class="absolute left-[1.6rem] w-[4rem] h-[4rem] rounded-full flex items-center justify-center hover:bg-[#f7f7f7]" aria-label="Close" @click="close">
+                        <svg class="w-[1.6rem] h-[1.6rem]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18" /></svg>
+                    </button>
+                    <h2 id="suggest-event-title" class="text-[1.6rem] font-semibold text-[#222222]">Tell us about an event</h2>
+                </div>
 
-                <div class="px-8 pt-12 pb-10 md:px-24 md:pt-16 md:pb-14 overflow-y-auto">
-                    <h2 id="suggest-event-title" class="text-4xl md:text-5xl font-semibold tracking-tight text-neutral-900">Tell us about the event</h2>
-
-                    <!-- Thank-you state -->
-                    <template v-if="sent">
-                        <p class="mt-4 text-2xl text-neutral-500">Thanks! We got your suggestion and will take a look.</p>
-                        <div class="flex justify-end gap-4 mt-12">
-                            <button type="button" class="px-8 py-4 border border-neutral-400 rounded-2xl hover:bg-neutral-50 text-xl font-semibold" @click="reset">
-                                Tell us about another
-                            </button>
-                            <button type="button" class="px-8 py-4 bg-black text-white rounded-2xl hover:bg-neutral-800 text-xl font-semibold" @click="close">
-                                Done
-                            </button>
+                <!-- Thank-you state -->
+                <template v-if="sent">
+                    <div class="px-[2.4rem] md:px-[4rem] py-[4rem] text-center">
+                        <div class="mx-auto w-[5.6rem] h-[5.6rem] rounded-full bg-[#f7f7f7] flex items-center justify-center">
+                            <svg class="w-[2.4rem] h-[2.4rem] text-[#222222]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                         </div>
-                    </template>
+                        <p class="mt-[2rem] text-[2.2rem] font-semibold text-[#222222]">Thanks for the tip!</p>
+                        <p class="mt-[0.8rem] text-[1.6rem] text-[#6a6a6a]">We got your suggestion and will take a look.</p>
+                    </div>
+                    <div class="flex items-center justify-between gap-4 px-[2.4rem] md:px-[4rem] py-[1.6rem] border-t border-[#ebebeb] flex-shrink-0">
+                        <button type="button" class="text-[1.6rem] font-semibold text-[#222222] underline px-2 py-2 rounded-lg hover:bg-[#f7f7f7]" @click="reset">Tell us about another</button>
+                        <button type="button" class="h-[4.8rem] px-[2.4rem] rounded-[0.8rem] bg-[#222222] hover:bg-black text-white text-[1.6rem] font-semibold" @click="close">Done</button>
+                    </div>
+                </template>
 
-                    <!-- Form. The textarea is 16px on phones: iOS zooms the page into any
-                         smaller field it focuses. -->
-                    <form v-else novalidate @submit.prevent="submit">
+                <!-- Form. Fields are 16px on phones: iOS zooms the page into any smaller field it focuses. -->
+                <form v-else novalidate class="flex flex-col min-h-0" @submit.prevent="submit">
+                    <div class="overflow-y-auto px-[2.4rem] md:px-[4rem] py-[2.4rem]">
                         <!-- Creators and PR reps kept using this box to have us list their
                              own show, so point them at the real submission flow first. -->
-                        <div class="mt-6 rounded-2xl bg-neutral-100 p-6">
-                            <p class="text-2xl text-neutral-900">Are you a creator, producer, or press agent for an event?</p>
-                            <a href="/hosting/getting-started" class="mt-2 inline-block text-2xl font-semibold text-black underline hover:text-neutral-700">Submit your event here</a>
-                        </div>
-                        <p class="mt-8 text-2xl text-neutral-500">Otherwise, fans can tell us about an event below: the name, a link, and where it is.</p>
+                        <a href="/hosting/getting-started" class="flex items-center justify-between gap-4 p-[2rem] rounded-[1.6rem] border border-[#dddddd] hover:border-[#222222] transition-colors" data-suggest-hosting>
+                            <span>
+                                <span class="block text-[1.6rem] font-semibold text-[#222222]">Are you the creator, producer or press agent?</span>
+                                <span class="block mt-[0.2rem] text-[1.4rem] text-[#6a6a6a]">Submit your event yourself here instead.</span>
+                            </span>
+                            <svg class="w-[1.6rem] h-[1.6rem] flex-shrink-0 text-[#222222]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                        </a>
 
-                        <textarea
-                            ref="messageInput"
-                            v-model="form.message"
-                            :maxlength="MAX_LENGTH"
-                            rows="9"
-                            aria-labelledby="suggest-event-title"
-                            aria-describedby="suggest-event-count suggest-event-error"
-                            :aria-invalid="!!errors.message"
-                            placeholder="Event name, website, where it is..."
-                            class="mt-10 w-full resize-y rounded-2xl border border-neutral-400 p-6 text-[1.6rem] md:text-2xl leading-relaxed text-neutral-900 placeholder-neutral-400 focus:border-black focus:shadow-[0_0_0_1px_black] focus:outline-none"
-                            :class="{ 'border-red-500': errors.message }"
-                        ></textarea>
-                        <div class="mt-3 flex items-start justify-between gap-6">
-                            <p id="suggest-event-count" class="text-lg font-semibold text-neutral-500">{{ form.message.length }}/{{ MAX_LENGTH }}</p>
-                            <p id="suggest-event-error" role="alert" class="text-lg text-red-500 text-right">{{ errors.message || generalError }}</p>
+                        <p class="mt-[2.4rem] text-[1.6rem] text-[#6a6a6a]">Fans: tell us about an event you love. The name, a link and where it is are a big help.</p>
+
+                        <!-- A guest's way back (a signed-in person is reached through their account).
+                             Airbnb's stacked fields: one box, a line between them. -->
+                        <div v-if="isGuest" class="mt-[1.6rem] rounded-[1.2rem] border divide-y" :class="errors.email ? 'border-[#c13515] divide-[#c13515]' : 'border-[#b0b0b0] divide-[#b0b0b0]'">
+                            <label class="block px-[1.6rem] pt-[1rem] pb-[0.8rem] focus-within:rounded-t-[1.2rem] focus-within:shadow-[inset_0_0_0_2px_#222222]">
+                                <span class="block text-[1.2rem] text-[#6a6a6a]">Name (optional)</span>
+                                <input v-model="form.name" type="text" maxlength="100" autocomplete="name" data-suggest-name
+                                    class="w-full p-0 border-0 bg-transparent text-[1.6rem] text-[#222222] focus:ring-0 focus:outline-none">
+                            </label>
+                            <label class="block px-[1.6rem] pt-[1rem] pb-[0.8rem] focus-within:rounded-b-[1.2rem] focus-within:shadow-[inset_0_0_0_2px_#222222]">
+                                <span class="block text-[1.2rem] text-[#6a6a6a]">Email address (optional)</span>
+                                <input v-model="form.email" type="email" maxlength="255" autocomplete="email" inputmode="email" data-suggest-email
+                                    :aria-invalid="!!errors.email"
+                                    class="w-full p-0 border-0 bg-transparent text-[1.6rem] text-[#222222] focus:ring-0 focus:outline-none">
+                            </label>
+                        </div>
+                        <p v-if="isGuest && errors.email" role="alert" class="mt-[0.8rem] text-[1.4rem] text-[#c13515]">{{ errors.email }}</p>
+                        <p v-else-if="isGuest" class="mt-[0.8rem] text-[1.3rem] text-[#6a6a6a]">So we can write back if we have a question.</p>
+
+                        <label class="mt-[1.6rem] block px-[1.6rem] pt-[1rem] pb-[0.8rem] rounded-[1.2rem] border focus-within:shadow-[inset_0_0_0_1px_#222222]"
+                            :class="errors.message ? 'border-[#c13515]' : 'border-[#b0b0b0] focus-within:border-[#222222]'">
+                            <span class="block text-[1.2rem] text-[#6a6a6a]">Message</span>
+                            <textarea
+                                ref="messageInput"
+                                v-model="form.message"
+                                :maxlength="MAX_LENGTH"
+                                rows="5"
+                                aria-labelledby="suggest-event-title"
+                                aria-describedby="suggest-event-count suggest-event-error"
+                                :aria-invalid="!!errors.message"
+                                placeholder="Event name, website, where it is..."
+                                class="w-full p-0 border-0 bg-transparent resize-none text-[1.6rem] leading-[2.4rem] text-[#222222] placeholder:text-[#b0b0b0] focus:ring-0 focus:outline-none"
+                            ></textarea>
+                        </label>
+                        <div class="mt-[0.8rem] flex items-start justify-between gap-6">
+                            <p id="suggest-event-error" role="alert" class="text-[1.4rem] text-[#c13515]">{{ errors.message || generalError }}</p>
+                            <p id="suggest-event-count" class="text-[1.3rem] text-[#6a6a6a] flex-shrink-0">{{ form.message.length }}/{{ MAX_LENGTH }}</p>
                         </div>
 
                         <!-- Honeypot: invisible to people, tempting to bots. Must stay empty. -->
@@ -70,18 +97,19 @@
                             <label for="suggest-event-extra">Leave this empty</label>
                             <input id="suggest-event-extra" v-model="form[HONEYPOT]" type="text" :name="HONEYPOT" tabindex="-1" autocomplete="off">
                         </div>
+                    </div>
 
-                        <div class="flex justify-end mt-10">
-                            <button
-                                type="submit"
-                                :disabled="submitting"
-                                class="px-8 py-4 bg-black text-white rounded-2xl hover:bg-neutral-800 text-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {{ submitting ? 'Sending…' : 'Send' }}
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                    <div class="flex items-center justify-between gap-4 px-[2.4rem] md:px-[4rem] py-[1.6rem] border-t border-[#ebebeb] flex-shrink-0">
+                        <button type="button" class="text-[1.6rem] font-semibold text-[#222222] underline px-2 py-2 rounded-lg hover:bg-[#f7f7f7]" @click="close">Cancel</button>
+                        <button
+                            type="submit"
+                            :disabled="submitting"
+                            class="h-[4.8rem] px-[2.4rem] rounded-[0.8rem] bg-[#222222] hover:bg-black text-white text-[1.6rem] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {{ submitting ? 'Sending…' : 'Send' }}
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </teleport>
@@ -105,7 +133,9 @@ const messageInput = ref(null);
 const MAX_LENGTH = 500;
 const HONEYPOT = 'ei_hp_extra';
 
-const emptyForm = () => ({ message: '', [HONEYPOT]: '' });
+const emptyForm = () => ({ name: '', email: '', message: '', [HONEYPOT]: '' });
+// Signed in: their account says who they are, so no name or email fields.
+const isGuest = !window.Laravel?.user;
 const form = reactive(emptyForm());
 const errors = reactive({});
 
@@ -217,6 +247,10 @@ async function submit() {
     clearErrors();
     if (!form.message.trim()) {
         errors.message = 'Please tell us about the event.';
+        return;
+    }
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+        errors.email = 'Please check the email address, or leave it empty.';
         return;
     }
 

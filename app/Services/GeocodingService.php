@@ -10,8 +10,9 @@ use Illuminate\Support\Facades\Http;
  * location table stores — no client-side guessing of coordinates.
  *
  * Uses the Google Geocoding API when services.google_geocoding.key is set
- * (best accuracy, matches the wizard's Places data); otherwise falls back to
- * OpenStreetMap Nominatim (no key, fine for occasional MCP use).
+ * (best accuracy, matches the wizard's Places data), falling back to
+ * OpenStreetMap Nominatim (no key) when Google finds nothing or fails, or
+ * when there is no key.
  */
 class GeocodingService
 {
@@ -22,9 +23,20 @@ class GeocodingService
     {
         $googleKey = config('services.google_geocoding.key');
 
-        return $googleKey
-            ? $this->google($query, $googleKey)
-            : $this->nominatim($query);
+        // Google first when there is a key; when it finds nothing or is
+        // unreachable, the free OpenStreetMap lookup gets a try.
+        if ($googleKey) {
+            try {
+                $found = $this->google($query, $googleKey);
+                if ($found !== []) {
+                    return $found;
+                }
+            } catch (\RuntimeException $e) {
+                report($e);
+            }
+        }
+
+        return $this->nominatim($query);
     }
 
     protected function google(string $query, string $key): array
@@ -85,8 +97,10 @@ class GeocodingService
                     : null,
                 'home' => $addr['house_number'] ?? null,
                 'street' => $addr['road'] ?? null,
-                'city' => $addr['city'] ?? $addr['town'] ?? $addr['village'] ?? $addr['municipality'] ?? null,
-                'region' => $addr['state_code'] ?? ($addr['ISO3166-2-lvl4'] ?? null ? substr($addr['ISO3166-2-lvl4'], -2) : null),
+                'city' => $this->nominatimCity($addr),
+                // "GB-ENG" -> "ENG", "AU-NSW" -> "NSW" (the part after the
+                // country, not its last two letters).
+                'region' => $addr['state_code'] ?? (isset($addr['ISO3166-2-lvl4']) ? (explode('-', $addr['ISO3166-2-lvl4'], 2)[1] ?? null) : null),
                 'region_long' => $addr['state'] ?? null,
                 'country' => isset($addr['country_code']) ? strtoupper($addr['country_code']) : null,
                 'country_long' => $addr['country'] ?? null,
@@ -96,5 +110,20 @@ class GeocodingService
                 'source' => 'nominatim',
             ];
         })->all();
+    }
+
+    /**
+     * In Australia and New Zealand a suburb is the address's own locality
+     * (what Google calls it too): Seven Hills, not Sydney. Elsewhere the
+     * city stays the city (Manhattan addresses are New York).
+     */
+    protected function nominatimCity(array $addr): ?string
+    {
+        $country = strtolower($addr['country_code'] ?? '');
+        if (in_array($country, ['au', 'nz'], true) && ! empty($addr['suburb'])) {
+            return $addr['suburb'];
+        }
+
+        return $addr['city'] ?? $addr['town'] ?? $addr['village'] ?? $addr['municipality'] ?? $addr['suburb'] ?? null;
     }
 }

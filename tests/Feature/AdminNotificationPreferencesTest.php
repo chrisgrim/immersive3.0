@@ -43,16 +43,19 @@ test('wantsNotification defaults a missing key to on', function () {
 // Saving preferences via the profile endpoint
 // ---------------------------------------------------------------------------
 
-test('an admin can save notification preferences via their profile', function () {
-    $admin = User::factory()->create(['type' => 'a']);
+test('the old profile endpoint no longer changes email settings (Account Settings > Notifications does)', function () {
+    $admin = User::factory()->create(['type' => 'a', 'notification_preferences' => ['organizers' => true], 'silence' => 'n']);
 
     $this->actingAs($admin)
         ->postJson("/users/{$admin->id}", [
-            'notification_preferences' => ['organizers' => false, 'events' => true],
+            'notification_preferences' => ['organizers' => false],
+            'silence' => 'y',
         ])
         ->assertOk();
 
-    expect($admin->fresh()->notification_preferences)->toMatchArray(['organizers' => false, 'events' => true]);
+    $fresh = $admin->fresh();
+    expect($fresh->wantsNotification('organizers'))->toBeTrue()
+        ->and($fresh->silence)->toBe('n');
 });
 
 test('a moderator cannot change another admin notification preferences', function () {
@@ -76,30 +79,6 @@ test('a non-admin editing self does not persist admin notification preferences',
         ->assertOk();
 
     expect($user->fresh()->notification_preferences)->toBeNull();
-});
-
-test('saving admin notification preferences via the profile endpoint does not clobber Hub keys', function () {
-    // Regression test for a real bug: this endpoint used to *replace* the whole
-    // notification_preferences column with just {organizers, events}, silently
-    // wiping any other keys (e.g. the Hub's saved_event_new_dates) set elsewhere.
-    $admin = User::factory()->create([
-        'type' => 'a',
-        'notification_preferences' => ['saved_event_new_dates' => true, 'followed_organizer_new_event' => true],
-    ]);
-
-    $this->actingAs($admin)
-        ->postJson("/users/{$admin->id}", [
-            'notification_preferences' => ['organizers' => false, 'events' => true],
-        ])
-        ->assertOk();
-
-    $fresh = $admin->fresh()->notification_preferences;
-    expect($fresh)->toMatchArray([
-        'organizers' => false,
-        'events' => true,
-        'saved_event_new_dates' => true,
-        'followed_organizer_new_event' => true,
-    ]);
 });
 
 // ---------------------------------------------------------------------------

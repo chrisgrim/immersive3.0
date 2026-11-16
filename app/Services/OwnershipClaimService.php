@@ -184,7 +184,7 @@ class OwnershipClaimService
 
         // Ownership claims are organizer-domain — respect each admin's opt-out.
         // Per-recipient try/catch so one bad address doesn't abort the rest.
-        $admins = User::where('type', 'a')->get()->filter(fn ($admin) => $admin->wantsNotification('organizers'));
+        $admins = User::where('type', 'a')->get()->filter(fn ($admin) => $admin->wantsNotification('claims'));
         foreach ($admins as $admin) {
             try {
                 Mail::to($admin)->queue(new OwnershipClaimNotification($claim, true));

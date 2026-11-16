@@ -38,7 +38,7 @@ class NameChangeRequestService
 
         // Notify admins (name changes are organizer-domain — respect each admin's opt-out).
         try {
-            $admins = User::where('type', 'a')->get()->filter(fn ($admin) => $admin->wantsNotification('organizers'));
+            $admins = User::where('type', 'a')->get()->filter(fn ($admin) => $admin->wantsNotification('claims'));
             foreach ($admins as $admin) {
                 Mail::to($admin)->queue(new NameChangeNotification($request, true));
             }

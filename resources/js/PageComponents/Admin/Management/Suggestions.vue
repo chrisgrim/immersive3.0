@@ -40,7 +40,8 @@
                             </template>
                         </p>
                         <div class="text-sm text-gray-500">
-                            <template v-if="suggestion.user">From {{ suggestion.user.name }} ({{ suggestion.user.email }})</template>
+                            <template v-if="suggestion.user">From {{ suggestion.user.name }} (<a :href="`mailto:${suggestion.user.email}`" class="underline">{{ suggestion.user.email }}</a>)</template>
+                            <template v-else-if="suggestion.name || suggestion.email">From {{ suggestion.name || 'a guest' }}<template v-if="suggestion.email"> (<a :href="`mailto:${suggestion.email}`" class="underline">{{ suggestion.email }}</a>)</template></template>
                             <template v-else>Anonymous</template>
                         </div>
                         <div v-if="isDone(suggestion)" class="text-sm font-medium text-gray-600">

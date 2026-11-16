@@ -3,11 +3,12 @@
         <!-- Create a flex container for desktop layout -->
         <div class="w-full flex flex-col gap-6 md:mt-[-1rem] md:mt-0" :class="{'md:flex-row': shouldUseRowLayout, 'mt-[-4.5rem]': !isEditMode}">
             <!-- Icon button column (creation mode only) -->
-            <div v-if="showIconButton" class="hidden md:block w-48 px-8">
+            <!-- Level with the month name in the calendar's bar (the calendar sits higher when creating). -->
+            <div v-if="showIconButton" class="hidden md:block w-48 px-8" :class="{ 'md:-mt-[8.8rem]': !isEditMode }">
                 <div class="h-24 md:h-40 w-full items-center justify-center flex">
                     <button 
                         @click="$emit('back-to-selection')"
-                        class="transition-colors"
+                        class="transition-colors md:-translate-x-[2.4rem]"
                         title="Switch Date Type"
                     >
                         <span class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 hover:bg-gray-200">
@@ -29,12 +30,14 @@
             </div>
             
             <!-- Calendar container - take most of the width on desktop -->
-            <div class="flex-grow mt-4 overflow-hidden relative w-full bg-white overflow-y-auto overflow-x-hidden md:min-w-[540px]" :class="[
+            <div ref="calendarScroller" @scroll.capture="followMonth" class="flex-grow mt-4 overflow-hidden relative w-full bg-white overflow-y-auto overflow-x-hidden md:min-w-[540px] md:flex md:flex-col" :class="[
                 {'md:w-2/3': shouldUseRowLayout},
-                layoutMode === 'edit-desktop-sidebar' ? 'md:h-[calc(100vh-39rem)]' : 'md:h-[calc(100vh-24rem)]'
+                layoutMode === 'edit-desktop-sidebar' ? 'md:h-[calc(100vh-39rem)]' : 'md:h-[calc(100vh-24rem)]',
+                // Creating: the calendar starts higher than the sidebar's title, using the room above it.
+                !isEditMode ? 'md:-mt-[6rem] md:h-[calc(100vh-17rem)]' : ''
             ]">
                 <!-- Text button (mobile or edit mode) -->
-                <div v-if="showTextButton" class="mb-6 md:mb-8">
+                <div v-if="showTextButton" class="mb-6 md:mb-8 flex-none">
                     <button 
                         @click="$emit('back-to-selection')"
                         class="text-xl text-left text-gray-500 hover:text-black underline whitespace-nowrap w-full"
@@ -65,7 +68,20 @@
                         1x
                     </button>
                 </div>
-                <div class="w-full h-full overflow-x-hidden md:pb-20">
+                <!-- Airbnb's fixed bar: the month being looked at (two across: the
+                     pair) and the weekdays. The month names below scroll by under it. -->
+                <div ref="monthBar" class="sticky top-0 z-[1000] bg-white pt-2 border-b border-[#ebebeb] flex-none" data-month-bar>
+                    <div class="grid gap-x-[var(--month-gap,0px)]" :class="calendarColumns === 2 ? 'grid-cols-2' : 'grid-cols-1'" :style="{ '--month-gap': `${monthGap}px` }">
+                        <div v-for="label in barLabels" :key="label">
+                            <p class="font-semibold text-[#222222] pr-24" :class="calendarColumns === 2 ? 'text-[2.4rem] leading-[3.2rem]' : 'text-[3.2rem] leading-[4rem]'">{{ label }}</p>
+                            <div class="mt-6 grid grid-cols-7 pb-4 text-center text-[1.4rem] text-[#6a6a6a]">
+                                <span v-for="weekday in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="weekday">{{ weekday }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Fills what is left under the bar, so the months are the only thing that scrolls. -->
+                <div class="w-full h-full md:h-auto md:flex-1 md:min-h-0 overflow-x-hidden md:pb-20">
                     <!-- Admin controls -->
                     <div v-if="isAdmin" class="flex items-center justify-center gap-4 py-8">
                         <button 
@@ -96,7 +112,7 @@
                         :month-change-on-scroll="false"
                         :config="{ noSwipe: true }"
                         week-start="0"
-                        :class="{ 'row-layout': shouldUseRowLayout }"
+                        :class="{ 'row-layout': shouldUseRowLayout, 'month-bar': true }"
                     />
                     
                     <!-- Load More Button - hide when users reach 12 months -->
@@ -128,15 +144,16 @@
                             </div>
 
                             <!-- Header with count and clear button -->
-                            <div v-else class="flex justify-end items-center px-8 md:px-0 w-full gap-3">
-                                <div class="bg-black text-white rounded-full px-6 py-3">
-                                    <span class="text-4xl font-medium">{{ selectedDatesCount }} {{ selectedDatesCount === 1 ? 'night' : 'nights' }}</span>
+                            <div v-else class="flex justify-end items-center px-8 md:px-0 w-full gap-[0.8rem]">
+                                <div class="bg-[#222222] text-white rounded-full h-[4.8rem] px-[2rem] flex items-center">
+                                    <span class="text-[1.6rem] font-semibold">{{ selectedDatesCount }} {{ selectedDatesCount === 1 ? 'night' : 'nights' }}</span>
                                 </div>
                                 <button 
                                     @click="clearAllDates" 
-                                    class="bg-black text-white rounded-full w-20 h-20 flex items-center justify-center hover:bg-gray-800 transition-colors"
+                                    aria-label="Clear all dates"
+                                    class="bg-[#222222] text-white rounded-full w-[4.8rem] h-[4.8rem] flex items-center justify-center hover:bg-black transition-colors"
                                 >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <line x1="18" y1="6" x2="6" y2="18"></line>
                                         <line x1="6" y1="6" x2="18" y2="18"></line>
                                     </svg>
@@ -149,127 +166,78 @@
                             </p>
                             <!-- Select Dates header when no dates selected -->
 
-                            <div v-if="promptVisible" 
-                                 class="p-4 rounded-2xl relative bg-black text-white border-black border hover:bg-neutral-800 transition-colors">
-                                <div class="cursor-pointer" @click="handlePromptYes">
-                                    <p class="text-white">{{ promptMessage }}</p>
-                                </div>
-                            </div>
+                            <!-- Airbnb's dark card with a plus, as "Custom settings" there. -->
+                            <button v-if="promptVisible" type="button"
+                                 class="w-full flex items-center justify-between gap-4 px-[2rem] py-[1.6rem] rounded-[1.6rem] bg-[#222222] hover:bg-black text-white text-left transition-colors"
+                                 @click="handlePromptYes">
+                                <span class="text-[1.6rem] font-medium">{{ promptMessage }}</span>
+                                <svg class="w-[1.8rem] h-[1.8rem] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+                            </button>
 
                             
-                            <div v-if="!promptVisible" class="h-[4.5rem] hidden md:block">
+                            <div v-if="!promptVisible" class="h-[5.4rem] hidden md:block">
                             </div>
+                             <!-- Airbnb's cards: a small grey label, the value under it. -->
                              <div class="flex flex-col">
-                                <textarea 
-                                    name="Show times" 
-                                    class="text-2.5xl md:text-2xl font-normal border rounded-2xl p-4 w-full" 
-                                    :class="{ 
-                                        'border-red-500 focus:shadow-focus-error': showTimesError,
-                                        'border-neutral-300 focus:border-[#222222] focus:shadow-focus-black': !showTimesError
-                                    }"
-                                    v-model="event.show_times" 
-                                    placeholder="Please provide a brief description of your show times, e.g., doors open at 7 PM, show starts at 8 PM"
-                                    :rows="textareaRows"
-                                    style="white-space: pre-wrap;"
-                                ></textarea>
+                                <label class="block px-[2rem] pt-[1.4rem] pb-[1.2rem] rounded-[1.6rem] border transition-colors"
+                                    :class="showTimesError ? 'border-red-500' : 'border-[#dddddd] hover:border-[#222222] focus-within:border-[#222222] focus-within:shadow-[0_0_0_1px_#222222]'">
+                                    <span class="block text-[1.4rem] text-[#6a6a6a]">Show times</span>
+                                    <textarea 
+                                        name="Show times" 
+                                        class="mt-[0.6rem] w-full p-0 border-0 bg-transparent text-[1.6rem] leading-[2.4rem] text-[#222222] font-normal resize-none focus:ring-0 focus:outline-none placeholder:text-[#b0b0b0]" 
+                                        v-model="event.show_times" 
+                                        placeholder="Doors open at 7 PM, show starts at 8 PM"
+                                        :rows="3"
+                                        style="white-space: pre-wrap;"
+                                    ></textarea>
+                                </label>
                                 <p v-if="showTimesError" 
                                    class="text-red-500 text-1xl mt-2 px-4">
                                     Too many characters
                                 </p>
                             </div>
-                            <div class="flex w-full border p-4 rounded-2xl border-neutral-300 hover:border-[#222222] hover:bg-neutral-50 hover:shadow-focus-black transition-all duration-200">
-                                <p class="text-lg">Timezone: </p>
+                            <label for="timezone" class="relative block w-full px-[2rem] pt-[1.4rem] pb-[1.2rem] rounded-[1.6rem] border border-[#dddddd] hover:border-[#222222] focus-within:border-[#222222] focus-within:shadow-[0_0_0_1px_#222222] transition-colors cursor-pointer">
+                                <span class="block text-[1.4rem] text-[#6a6a6a]">Time zone</span>
+                                <svg class="absolute right-[2rem] top-1/2 -translate-y-1/2 w-[1.6rem] h-[1.6rem] pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+                                <span class="block mt-[0.4rem] pr-[3.2rem] text-[1.6rem] font-semibold text-[#222222] truncate">{{ localTimezone }}</span>
+                                <!-- The real menu covers the whole card (invisible), so a click anywhere opens it. -->
                                 <select id="timezone" 
                                         v-model="localTimezone" 
-                                        class="pl-2 ml-2 font-bold w-full cursor-pointer bg-transparent">
+                                        aria-label="Time zone"
+                                        class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                                     <option v-for="timezone in timezones" 
                                             :key="timezone.name" 
                                             :value="timezone.name">
                                         {{ timezone.name }}
                                     </option>
                                 </select>
-                            </div>
+                            </label>
 
-                            <div class="flex flex-col gap-2">
-                                <div class="flex flex-col p-4 border border-neutral-300 rounded-2xl hover:border-[#222222]">
-                                    <div class="mb-2">
-                                        <p class="text-xl font-medium">Does the event have a specific embargo date?</p>
-                                        <p class="text-lg text-gray-600">(i.e. The date you would like it to first appear on EI)</p>
+                            <!-- Go-live (embargo): Airbnb's switch with a cross and a tick. -->
+                            <div class="px-[2rem] py-[1.4rem] rounded-[1.6rem] border border-[#dddddd]" data-embargo-card>
+                                <div class="flex items-center justify-between gap-4">
+                                    <div class="min-w-0">
+                                        <p class="text-[1.6rem] font-medium text-[#222222]">Go-live date</p>
+                                        <p class="mt-[0.2rem] text-[1.4rem] leading-[2rem] text-[#6a6a6a]">Keep it hidden until a day and time you pick</p>
                                     </div>
-                                    <div class="flex justify-between items-center w-full mt-2">
-                                        <ToggleSwitch 
-                                            v-model="embargoToggle" 
-                                            leftLabel="No" 
-                                            rightLabel="Yes" 
-                                            @update:modelValue="handleEmbargoToggleChange"
-                                        />
-                                        <div v-if="hasEmbargoDate" class="flex items-center cursor-pointer" @click="showEmbargoCalendar">
-                                            <p class="underline mr-2 text-1xl">{{ formattedEmbargoDate }}</p>
-                                        </div>
-                                    </div>
+                                    <button type="button" role="switch" :aria-checked="embargoToggle" aria-label="Go-live date"
+                                        class="relative flex-shrink-0 w-[7.2rem] h-[4rem] rounded-full transition-colors"
+                                        :class="embargoToggle ? 'bg-[#222222]' : 'bg-[#dddddd]'"
+                                        data-embargo-switch
+                                        @click="embargoToggle = !embargoToggle; handleEmbargoToggleChange(embargoToggle)">
+                                        <span class="absolute top-[0.4rem] left-[0.4rem] w-[3.2rem] h-[3.2rem] rounded-full bg-white shadow flex items-center justify-center transition-transform" :class="embargoToggle ? 'translate-x-[3.2rem]' : ''">
+                                            <svg v-if="embargoToggle" class="w-[1.4rem] h-[1.4rem] text-[#222222]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                            <svg v-else class="w-[1.2rem] h-[1.2rem] text-[#6a6a6a]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+                                        </span>
+                                    </button>
                                 </div>
+                                <button v-if="hasEmbargoDate" type="button" class="mt-[1.6rem] w-full flex items-center justify-between gap-4 pt-[1.6rem] border-t border-[#ebebeb] text-left" @click="showEmbargoCalendar">
+                                    <span class="text-[1.5rem] font-semibold text-[#222222]">{{ formattedEmbargoDate }}</span>
+                                    <span class="text-[1.4rem] font-semibold underline text-[#222222] flex-shrink-0">Change</span>
+                                </button>
                             </div>
                             <!-- Embargo Calendar Modal -->
-                            <div v-if="showEmbargoModal" role="dialog" aria-modal="true" aria-label="Set embargo date" class="c-embargo fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4 overflow-y-auto">
-                                <div class="bg-white rounded-2xl w-full max-w-[600px] max-h-[90vh] my-auto flex flex-col">
-                                    <div class="flex items-center justify-between p-4 md:p-8 pb-4 md:pb-6 border-b border-gray-200">
-                                        <h3 class="text-2.5xl font-bold">Select Embargo Date</h3>
-                                        <button 
-                                            @click="cancelEmbargoDate"
-                                            class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors flex-shrink-0"
-                                        >
-                                            <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                <line x1="6" y1="6" x2="18" y2="18"></line>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                    
-                                    <div class="flex-1 overflow-y-auto px-4 md:px-8 pt-4 md:pt-6 pb-0">
-                                        <div class="max-h-[400px] overflow-y-auto">
-                                            <VueDatePicker
-                                                v-model="tempEmbargoDate"
-                                                :enable-time-picker="false"
-                                                :dark="isDark"
-                                                :timezone="localTimezone"
-                                                :start-date="new Date()"
-                                                focus-start-date
-                                                :multi-calendars="6"
-                                                multi-calendars-solo
-                                                inline
-                                                auto-apply
-                                                month-name-format="long"
-                                                hide-offset-dates
-                                                :month-change-on-scroll="false"
-                                                week-start="0"
-                                                @update:model-value="selectEmbargoDate"
-                                                class="embargo-calendar modal-calendar"
-                                            />
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="flex flex-wrap justify-end gap-4 p-4 md:p-8 pt-4 md:pt-6 border-t border-gray-200 bg-white rounded-b-2xl">
-                                        <button 
-                                            @click="cancelEmbargoDate"
-                                            class="px-6 py-2 border rounded-lg hover:bg-gray-100"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button 
-                                            @click="confirmEmbargoDate"
-                                            :class="[
-                                                'px-6 py-2 rounded-lg transition-colors',
-                                                tempEmbargoDate 
-                                                    ? 'bg-black text-white hover:bg-gray-800' 
-                                                    : 'border border-gray-300 text-gray-500 cursor-not-allowed'
-                                            ]"
-                                            :disabled="!tempEmbargoDate"
-                                        >
-                                            Set Embargo Date
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                            <EmbargoModal v-if="showEmbargoModal" :embargo-date="event.embargo_date" :timezone="localTimezone" @save="saveEmbargo" @cancel="cancelEmbargoDate" />
                         </div>
                     </div>
                 </div>
@@ -284,7 +252,8 @@ import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
 import { maxLength } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
-import ToggleSwitch from '@/GlobalComponents/toggle-switch.vue';
+import EmbargoModal from './embargo-modal.vue';
+import { useMonthBar } from '@/composables/useMonthBar';
 import moment from 'moment-timezone';
 import { 
     normalizeDateToTimezone,
@@ -293,7 +262,10 @@ import {
     parseDateString,
     formatDateForDisplay,
     embargoDateForAPI,
-    embargoDateToDate
+    embargoDateToDate,
+    embargoTimeOf,
+    formatEmbargoTime,
+    embargoZoneOf
 } from '@/composables/dateUtils';
 
 // Props and emits
@@ -324,6 +296,31 @@ const windowWidth = ref(0);
 const displayedMonths = ref(3);
 const previewDate = ref(new Date());
 const calendarRef = ref(null);
+// The fixed month bar (useMonthBar), shown with one month across.
+const calendarScroller = ref(null);
+const monthBar = ref(null);
+const { shownMonth, shownIndex, monthLabels, followMonth, hideFirstName } = useMonthBar(calendarScroller, monthBar, () => new Date(previewDate.value ?? Date.now()));
+// Two across, the bar names the pair of months in the row being looked at.
+const barLabels = computed(() => {
+    if (calendarColumns.value !== 2) return [shownMonth.value];
+    const start = Math.floor(shownIndex.value / 2) * 2;
+    const pair = monthLabels.value.slice(start, start + 2);
+    return pair.length ? pair : [shownMonth.value];
+});
+// The space between the two month columns, so each weekday row sits over its month.
+const monthGap = ref(0);
+const measureMonthGap = () => {
+    const months = calendarScroller.value?.querySelectorAll('.dp__menu_inner > .dp__instance_calendar') ?? [];
+    monthGap.value = months.length > 1 && calendarColumns.value === 2
+        ? Math.max(0, Math.round(months[1].getBoundingClientRect().left - months[0].getBoundingClientRect().right))
+        : 0;
+};
+// After the calendar redraws its months (more months, earlier months, 1x/2x).
+const settleMonthBar = () => setTimeout(() => {
+    hideFirstName(calendarColumns.value);
+    measureMonthGap();
+    followMonth();
+}, 250);
 const timezones = ref([]);
 const localTimezone = ref(props.selectedTimezone);
 
@@ -335,7 +332,6 @@ const selectedDate = ref(null);
 
 // Embargo state
 const showEmbargoModal = ref(false);
-const tempEmbargoDate = ref(null);
 const embargoToggle = ref(false);
 
 // UI state for header
@@ -411,7 +407,7 @@ const hasEmbargoDate = computed(() => !!event.embargo_date);
 // it is read and shown in that timezone, never the browser's.
 const formattedEmbargoDate = computed(() => {
     if (!event.embargo_date) return '';
-    return formatDateForDisplay(embargoDateToDate(event.embargo_date, localTimezone.value), localTimezone.value);
+    return `${formatDateForDisplay(embargoDateToDate(event.embargo_date, localTimezone.value), localTimezone.value)} at ${formatEmbargoTime(embargoTimeOf(event.embargo_date))} (${embargoZoneOf(event.embargo_date, localTimezone.value)})`;
 });
 
 const showTimesError = computed(() => {
@@ -592,23 +588,14 @@ const handleEmbargoToggleChange = (value) => {
 };
 
 const showEmbargoCalendar = () => {
-    if (event.embargo_date) {
-        tempEmbargoDate.value = embargoDateToDate(event.embargo_date, localTimezone.value);
-    }
     showEmbargoModal.value = true;
 };
 
-const selectEmbargoDate = (selectedDate) => {
-    tempEmbargoDate.value = selectedDate;
-};
-
-const confirmEmbargoDate = () => {
-    if (tempEmbargoDate.value) {
-        event.embargo_date = embargoDateForAPI(tempEmbargoDate.value, localTimezone.value);
-        embargoToggle.value = true; // Ensure toggle is set to Yes
-        showEmbargoModal.value = false;
-        tempEmbargoDate.value = null;
-    }
+// The pop-up hands back the stored form: a day and a time where the event is.
+const saveEmbargo = (value) => {
+    event.embargo_date = value;
+    embargoToggle.value = true;
+    showEmbargoModal.value = false;
 };
 
 const cancelEmbargoDate = () => {
@@ -627,6 +614,7 @@ const setCalendarColumns = (columns) => {
     document.cookie = `calendarColumns=${columns}; path=/; max-age=${60 * 60 * 24 * 365}`; // 1 year
     // Update the CSS dynamically
     updateCalendarColumnsCSS();
+    settleMonthBar();
 };
 
 // Get calendar columns preference from cookie
@@ -709,6 +697,7 @@ const loadMoreMonths = () => {
     setTimeout(() => {
         updateMonthYearElements();
     }, 200);
+    settleMonthBar();
 };
 
 const showPreviousMonths = () => {
@@ -735,6 +724,7 @@ const showPreviousMonths = () => {
         // Update the month/year elements with year data
         updateMonthYearElements();
     }
+    settleMonthBar();
 };
 
 // Add this new function to update month/year elements with the year data attribute
@@ -839,6 +829,7 @@ onMounted(() => {
     
     // Initialize calendar columns CSS
     updateCalendarColumnsCSS();
+    settleMonthBar();
     
     // Apply admin-enabled class to past dates for admins
     if (isAdmin.value) {
@@ -1299,4 +1290,22 @@ const clearAllDates = () => {
     padding-top: 17px;
 }
 
+
+/* One month across: Airbnb's fixed bar (month + weekdays, data-month-bar)
+   does the work of each month's sticky header and weekday row. */
+.month-bar .dp--header-wrap {
+    position: relative !important;
+    top: auto !important;
+    margin: 3.2rem 0 1.6rem !important;
+}
+.month-bar .dp--header-wrap::before,
+.month-bar .dp--header-wrap::after {
+    display: none !important;
+}
+.month-bar .dp__calendar {
+    padding-top: 0 !important;
+}
+.month-bar .dp--header-wrap .dp--arrow-btn-nav {
+    display: none !important;
+}
 </style>

@@ -63,7 +63,7 @@ class EiServer extends Server
        start/end dates (ongoing_config, always_config) are plain calendar
        dates, "Y-m-d"; curtain times go in show_times.
        The one exception is embargo_date: a wall-clock time in the event's own
-       timezone (the website stores noon on the chosen day).
+       timezone (the website stores the chosen day and time, noon unless one is picked).
     7. Primary image via `attach-event-image` (rank 0; gallery = ranks 1-4).
        `remove-event-image` deletes one image by its id (from get-event) —
        for good, so confirm with the user first; a submitted or live event

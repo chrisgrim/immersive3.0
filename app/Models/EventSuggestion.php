@@ -14,6 +14,8 @@ class EventSuggestion extends Model
      */
     protected $fillable = [
         'message',
+        'name',
+        'email',
         'user_id',
     ];
 

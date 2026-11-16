@@ -573,13 +573,13 @@ const deletingEvent = ref(false);
 const createNewEvent = async () => {
 	if (creatingEvent.value) return;
 
-	// Check if organizer is at the unpublished-events cap (bypass for admins)
+	// Unfinished-drafts cap (Event::UNCOUNTED_STATUSES; EI staff exempt)
 	const unpublishedCount = props.organizer.events.filter(
-		event => !['p', 'e'].includes(event.status) && !event.is_deleted
+		event => !['p', 'e', 'r'].includes(event.status) && !event.is_deleted
 	).length;
 
-	if (unpublishedCount >= MAX_UNPUBLISHED_EVENTS && !props.user.isAdmin) {
-		alert(`You can only have ${MAX_UNPUBLISHED_EVENTS} unpublished events at a time. Please publish or delete existing events before creating new ones.`);
+	if (unpublishedCount >= MAX_UNPUBLISHED_EVENTS && !props.user.isModerator) {
+		alert(`You can have ${MAX_UNPUBLISHED_EVENTS} unfinished drafts at a time. Submit one for review or delete one before starting another.`);
 		return;
 	}
 

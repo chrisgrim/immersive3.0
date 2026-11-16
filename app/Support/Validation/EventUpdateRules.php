@@ -217,12 +217,14 @@ class EventUpdateRules
             // Add validation for contact and interactive levels
             'contactLevel' => 'sometimes|array',
             'contactLevel.id' => 'required_with:contactLevel|exists:contact_levels,id',
-            'contactLevel.name' => 'required_with:contactLevel|string|max:255',
+            // Only the id is used (UpdateEventAction); name/description are
+            // optional so a caller can send {id} alone.
+            'contactLevel.name' => 'sometimes|string|max:255',
 
             'interactiveLevel' => 'sometimes|array',
             'interactiveLevel.id' => 'required_with:interactiveLevel|exists:interactive_levels,id',
-            'interactiveLevel.name' => 'required_with:interactiveLevel|string|max:255',
-            'interactiveLevel.description' => 'required_with:interactiveLevel|string',
+            'interactiveLevel.name' => 'sometimes|string|max:255',
+            'interactiveLevel.description' => 'sometimes|nullable|string',
 
             // Add audience role validation
             'advisories' => 'sometimes|array',

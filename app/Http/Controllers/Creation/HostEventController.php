@@ -7,11 +7,11 @@ use App\Actions\Events\UpdateEventAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreEventRequest;
 use App\Models\Event;
-use Illuminate\Validation\ValidationException;
 use App\Models\Organizer;
 use App\Services\NameChangeRequestService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 
 class HostEventController extends Controller
 {
@@ -206,12 +206,12 @@ class HostEventController extends Controller
         $this->authorize('edit', $organizer);
         $organizerId = $organizer->id;
 
-        // Check unpublished events count (bypass for admins)
+        // Unfinished drafts cap (EI staff exempt; events in review don't count)
         $unpublishedCount = Event::countUnpublishedEvents($organizerId);
 
-        if ($unpublishedCount >= Event::MAX_UNPUBLISHED_EVENTS && ! auth()->user()->isAdmin()) {
+        if ($unpublishedCount >= Event::MAX_UNPUBLISHED_EVENTS && ! auth()->user()->isModerator()) {
             return response()->json([
-                'message' => 'You can only have '.Event::MAX_UNPUBLISHED_EVENTS.' unpublished events at a time.',
+                'message' => 'You can have '.Event::MAX_UNPUBLISHED_EVENTS.' unfinished drafts at a time ('.$unpublishedCount.' now). Submit one for review or delete one first.',
             ], 422);
         }
 
@@ -337,12 +337,12 @@ class HostEventController extends Controller
 
     public function duplicate(Event $event)
     {
-        // Check unpublished events count (bypass for admins)
+        // Unfinished drafts cap (EI staff exempt; events in review don't count)
         $unpublishedCount = Event::countUnpublishedEvents($event->organizer_id);
 
-        if ($unpublishedCount >= Event::MAX_UNPUBLISHED_EVENTS && ! auth()->user()->isAdmin()) {
+        if ($unpublishedCount >= Event::MAX_UNPUBLISHED_EVENTS && ! auth()->user()->isModerator()) {
             return response()->json([
-                'message' => 'You can only have '.Event::MAX_UNPUBLISHED_EVENTS.' unpublished events at a time.',
+                'message' => 'You can have '.Event::MAX_UNPUBLISHED_EVENTS.' unfinished drafts at a time ('.$unpublishedCount.' now). Submit one for review or delete one first.',
             ], 422);
         }
 

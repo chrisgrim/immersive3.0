@@ -1,16 +1,17 @@
 <?php
 
+use App\Http\Controllers\AccountNotificationController;
 use App\Http\Controllers\AccountSettings\AccountDeletionController;
 use App\Http\Controllers\AccountSettings\LoginSecurityController;
 use App\Http\Controllers\AccountSettings\PersonalInformationController;
 use App\Http\Controllers\AccountSettings\PrivacyController;
 use App\Http\Controllers\Admin\AdminAdvisoryController;
-use App\Http\Controllers\Admin\AdminCategoryController;
 // Controller Imports - Search
+use App\Http\Controllers\Admin\AdminCategoryController;
 use App\Http\Controllers\Admin\AdminCommunityController;
 use App\Http\Controllers\Admin\AdminDocksController;
-use App\Http\Controllers\Admin\AdminEventController;
 // Controller Imports - Admin
+use App\Http\Controllers\Admin\AdminEventController;
 use App\Http\Controllers\Admin\AdminEventSuggestionController;
 use App\Http\Controllers\Admin\AdminGenreController;
 use App\Http\Controllers\Admin\AdminOrganizerController;
@@ -23,8 +24,8 @@ use App\Http\Controllers\Api\EventScraperController;
 use App\Http\Controllers\Api\GeonamesController;
 use App\Http\Controllers\Api\SimilarEventsController;
 use App\Http\Controllers\CachedDataController;
-use App\Http\Controllers\Creation\EventClickController;
 // Controller Imports - Other
+use App\Http\Controllers\Creation\EventClickController;
 use App\Http\Controllers\Creation\HostEventController;
 use App\Http\Controllers\EventSuggestionController;
 use App\Http\Controllers\FavoriteController;
@@ -188,6 +189,11 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     // per-item override above, not a persistent setting. See
     // NotificationPreferenceController::notifyingCounts() and
     // ClearAllNotificationsAction.
+    // Account Settings > Notifications: the email on/off switches.
+    Route::GET('/account/notification-settings', [AccountNotificationController::class, 'show'])
+        ->name('account.notification-settings');
+    Route::PATCH('/account/notification-settings', [AccountNotificationController::class, 'update'])
+        ->name('account.notification-settings.update');
     Route::GET('/hub/notification-preferences/counts', [NotificationPreferenceController::class, 'counts'])
         ->name('hub.notification-preferences.counts');
     Route::POST('/hub/notification-preferences/clear-all', [NotificationPreferenceController::class, 'clearAll'])

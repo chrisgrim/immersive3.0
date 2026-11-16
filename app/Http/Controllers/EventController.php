@@ -27,11 +27,18 @@ class EventController extends Controller
     {
         $event = Event::where('slug', $event)->first();
 
-        if (! $event || $event->status !== 'p') {
+        // An embargoed event opens as a preview for EI staff and the event's
+        // own team (a banner says when it goes live); everyone else gets the
+        // same 404 as before, so an announcement stays secret.
+        $embargoPreview = $event && $event->status === 'e' && (bool) request()->user()?->can('manage', $event);
+
+        if (! $event || ($event->status !== 'p' && ! $embargoPreview)) {
             abort(404);
         }
 
-        $this->recordView($event, request());
+        if (! $embargoPreview) {
+            $this->recordView($event, request());
+        }
 
         $event->load([
             'currentUserFavorite',
@@ -90,7 +97,9 @@ class EventController extends Controller
         }
         $pageEvent = Js::from($event);
 
-        return view('events.show', compact('event', 'pageEvent'));
+        $embargoLiftsAt = $embargoPreview ? $event->embargoLiftsAt() : null;
+
+        return view('events.show', compact('event', 'pageEvent', 'embargoPreview', 'embargoLiftsAt'));
     }
 
     /** One analytics note per view of a live event page (Analytics::EVENT_VIEW). */

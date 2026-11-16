@@ -32,6 +32,9 @@ class AdminEventSuggestionController extends Controller
                 'created_at' => $s->created_at,
                 'processed_at' => $s->processed_at,
                 'processed_by' => $s->processor?->name,
+                // What a guest left, to write back to.
+                'name' => $s->name,
+                'email' => $s->email,
                 'user' => $s->user ? [
                     'id' => $s->user->id,
                     'name' => $s->user->name,

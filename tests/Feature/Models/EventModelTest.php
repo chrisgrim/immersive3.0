@@ -69,6 +69,18 @@ test('finalSlug falls back to the city when the base slug is taken', function ()
     expect(Event::finalSlug($event))->toBe('shared-title-london');
 });
 
+test('finalSlug never doubles a city the name already ends with', function () {
+    Event::factory()->create(['name' => 'The Magic Table (Hong Kong)', 'slug' => 'the-magic-table-hong-kong']);
+
+    $organizer = Organizer::factory()->create(['name' => 'Magic Table']);
+    $event = Event::factory()->create(['name' => 'The Magic Table (Hong Kong)', 'slug' => 'placeholder-hk', 'organizer_id' => $organizer->id]);
+    Location::factory()->create(['event_id' => $event->id, 'city' => 'Hong Kong']);
+    $event->load(['location', 'organizer']);
+
+    // Not "...-hong-kong-hong-kong": the organizer suffix, or a number.
+    expect(Event::finalSlug($event))->toBe('the-magic-table-hong-kong-magic-table');
+});
+
 test('finalSlug falls back to the organizer name when base and city are taken', function () {
     Event::factory()->create(['name' => 'Shared Title', 'slug' => 'shared-title']);
     Event::factory()->create(['name' => 'x', 'slug' => 'shared-title-paris']);
@@ -160,18 +172,18 @@ test('getMostExpensive ignores published events whose closingDate is in the past
 
 // ----- countUnpublishedEvents() -----
 
-test('countUnpublishedEvents counts every status except published and embargoed', function () {
+test('countUnpublishedEvents counts drafts and rejected, not live, embargoed or in review', function () {
     $organizer = Organizer::factory()->create();
 
     Event::factory()->create(['organizer_id' => $organizer->id, 'status' => 'd']);
     Event::factory()->create(['organizer_id' => $organizer->id, 'status' => '0']);
-    Event::factory()->create(['organizer_id' => $organizer->id, 'status' => 'r']);
     Event::factory()->create(['organizer_id' => $organizer->id, 'status' => 'n']);
-    // excluded:
+    // excluded (in review waits on EI, not on the organizer):
+    Event::factory()->create(['organizer_id' => $organizer->id, 'status' => 'r']);
     Event::factory()->published()->create(['organizer_id' => $organizer->id]);
     Event::factory()->create(['organizer_id' => $organizer->id, 'status' => 'e']);
 
-    expect(Event::countUnpublishedEvents($organizer->id))->toBe(4);
+    expect(Event::countUnpublishedEvents($organizer->id))->toBe(3);
 });
 
 test('countUnpublishedEvents is scoped to the given organizer', function () {

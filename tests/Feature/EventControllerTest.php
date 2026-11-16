@@ -757,3 +757,21 @@ test('the JSON-LD endDate is the closing time in the event\'s own timezone', fun
     $this->get("/events/{$event->slug}")->assertOk()
         ->assertSee('"endDate": "2027-03-02T07:59:59+00:00"', false);
 });
+
+test('an embargoed event is a preview for its team and EI staff, and a 404 for everyone else', function () {
+    $event = makeShowableEvent();
+    $event->forceFill([
+        'status' => 'e',
+        'timezone' => 'America/Los_Angeles',
+        'embargo_date' => now('America/Los_Angeles')->addDays(5)->setTime(8, 0)->format('Y-m-d H:i:s'),
+    ])->save();
+
+    $this->get("/events/{$event->slug}")->assertNotFound();
+    $this->actingAs(App\Models\User::factory()->create(['type' => 'u']))->get("/events/{$event->slug}")->assertNotFound();
+
+    $this->actingAs(App\Models\User::factory()->create(['type' => 'm']))->get("/events/{$event->slug}")
+        ->assertOk()
+        ->assertSee('Not public yet.')
+        ->assertSee('8:00 AM')
+        ->assertSee('noindex', false);
+});

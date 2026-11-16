@@ -55,7 +55,9 @@ class SavedSearchNewEventsNotification extends Notification implements ShouldQue
             return [];
         }
 
-        return ['database', 'mail'];
+        // The account-wide "Saved searches" email switch only stops the mail;
+        // the feed entry still lands (and the search's cursor moves on as usual).
+        return $notifiable->wantsNotification('saved_search_matches') ? ['database', 'mail'] : ['database'];
     }
 
     public function toMail($notifiable): SavedSearchNewEventsMail

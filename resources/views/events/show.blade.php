@@ -32,6 +32,9 @@
 @endphp
 
 @section('meta')
+    @if($embargoPreview ?? false)
+        <meta name="robots" content="noindex, nofollow">
+    @endif
     
     <title>{{$event->name}} {{$event->tag_line ? '- ' . \Illuminate\Support\Str::limit($event->tag_line, 80) : '- ' . \Illuminate\Support\Str::limit($event->description, 80)}} </title>
     @php
@@ -438,6 +441,15 @@
 @endpush
 
 @section('content')
+    {{-- Embargoed: only EI staff and the event's own team get here (EventController::show). --}}
+    @if($embargoPreview ?? false)
+        <div class="sticky top-0 z-[60] w-full bg-[#222222] text-white" role="status" data-embargo-preview>
+            <div class="max-w-screen-xl mx-auto px-10 lg-air:px-16 2xl-air:px-32 py-[1.2rem] flex flex-wrap items-center gap-x-4 gap-y-1 text-[1.5rem]">
+                <span class="font-semibold">&#128274; Not public yet.</span>
+                <span>Goes live {{ $embargoLiftsAt?->format('l, M j \a\t g:i A') }} ({{ $embargoLiftsAt?->format('T') }}). Only you and EI staff can see this page.</span>
+            </div>
+        </div>
+    @endif
     @if (Browser::isMobile())
         @include('events.show-mobile')
     @else

@@ -4,6 +4,7 @@ namespace App\Mcp\Tools;
 
 use App\Models\Event;
 use App\Models\User;
+use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -11,18 +12,38 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[IsReadOnly]
-#[Description('Get the authenticated user and the organizers (teams) they belong to. Call this first: event drafts are created under an organizer, and each organizer can hold at most 10 unpublished events at a time.')]
+#[Description('Get the authenticated user and the organizers (teams) they belong to. Call this first: event drafts are created under an organizer, and each organizer can hold at most 10 unfinished drafts at a time (EI staff exempt). Staff accounts belong to many organizers: the list is paged and searchable (organizer_query).')]
 class Whoami extends Tool
 {
     public function handle(Request $request): Response
     {
+        $validated = $request->validate([
+            'organizer_query' => 'nullable|string|max:100',
+            'with_drafts_only' => 'nullable|boolean',
+            'limit' => 'nullable|integer|min:1|max:'.self::MAX_LIMIT,
+            'offset' => 'nullable|integer|min:0',
+        ]);
         $user = $request->user();
 
-        $teams = $user->teams()->get();
+        // Staff accounts belong to hundreds of organizers: the list is
+        // searchable and comes a page at a time (organizers with unfinished
+        // drafts first), with the total so the client knows there is more.
+        $teams = $user->teams()
+            ->when($validated['organizer_query'] ?? null, fn ($query, $search) => $query->where('organizers.name', 'like', '%'.addcslashes($search, '\\%_').'%'))
+            ->get();
 
         // One grouped query for every team's unpublished count instead of one
         // count query per organizer in the map() below (EI-LARAVEL-W).
         $unpublishedCounts = Event::countUnpublishedEventsForOrganizers($teams->pluck('id')->all());
+
+        if ($validated['with_drafts_only'] ?? false) {
+            $teams = $teams->filter(fn ($organizer) => $unpublishedCounts->get($organizer->id, 0) > 0);
+        }
+        $total = $teams->count();
+        $offset = (int) ($validated['offset'] ?? 0);
+        $limit = (int) ($validated['limit'] ?? self::DEFAULT_LIMIT);
+        $teams = $teams->sortBy(fn ($organizer) => [-$unpublishedCounts->get($organizer->id, 0), mb_strtolower($organizer->name)])
+            ->slice($offset, $limit)->values();
 
         $organizers = $teams->map(function ($organizer) use ($unpublishedCounts) {
             return [
@@ -73,7 +94,24 @@ class Whoami extends Tool
                 'email_verified' => $user->email_verified_at !== null,
             ],
             'organizers' => $organizers,
-            'hint' => $hint,
+            'organizers_total' => $total,
+            'organizers_shown' => ['offset' => $offset, 'limit' => $limit],
+            'unpublished_events_note' => 'unpublished_events counts unfinished drafts (and rejected events); events waiting for review do not count, and EI staff are exempt from the limit.',
+            'hint' => $hint.($total > $offset + $organizers->count() ? " Showing {$organizers->count()} of {$total} organizers: pass organizer_query to search by name, or offset for the next page." : ''),
         ]);
+    }
+
+    public const DEFAULT_LIMIT = 25;
+
+    public const MAX_LIMIT = 100;
+
+    public function schema(JsonSchema $schema): array
+    {
+        return [
+            'organizer_query' => $schema->string()->description('Optional: only organizers whose name contains this.'),
+            'with_drafts_only' => $schema->boolean()->description('Optional: only organizers that have unfinished drafts.'),
+            'limit' => $schema->integer()->description('Optional: how many organizers to return (default '.self::DEFAULT_LIMIT.', max '.self::MAX_LIMIT.').'),
+            'offset' => $schema->integer()->description('Optional: skip this many (for the next page).'),
+        ];
     }
 }
