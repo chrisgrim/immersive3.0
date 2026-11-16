@@ -4,7 +4,7 @@
          Cancel and Save. Shared by the specific-dates and ongoing steps. -->
     <Teleport to="body">
         <div class="c-embargo fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-[1003]" role="dialog" aria-modal="true" aria-labelledby="embargo-title" @click="$emit('cancel')">
-            <div class="bg-white w-full md:w-[64rem] md:mx-4 rounded-t-[3.2rem] md:rounded-[3.2rem] shadow-2xl max-h-[92vh] flex flex-col" data-embargo-modal @click.stop>
+            <div ref="dialog" tabindex="-1" class="bg-white w-full md:w-[64rem] md:mx-4 rounded-t-[3.2rem] md:rounded-[3.2rem] shadow-2xl max-h-[92dvh] flex flex-col focus:outline-none" data-embargo-modal @click.stop>
                 <div class="relative flex items-center justify-center h-[6.4rem] px-[2.4rem] border-b border-[#ebebeb] flex-shrink-0">
                     <button type="button" aria-label="Close" class="absolute left-[1.6rem] w-[4rem] h-[4rem] rounded-full flex items-center justify-center hover:bg-[#f7f7f7]" @click="$emit('cancel')">
                         <svg class="w-[1.6rem] h-[1.6rem]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18" /></svg>
@@ -31,6 +31,8 @@
                             :start-date="new Date()"
                             focus-start-date
                             :min-date="today"
+                            disable-month-select
+                            disable-year-select
                             :multi-calendars="6"
                             multi-calendars-solo
                             inline
@@ -53,8 +55,8 @@
 
                 <div class="flex items-center justify-between gap-4 px-[2.4rem] md:px-[6.4rem] py-[2rem] border-t border-[#ebebeb] flex-shrink-0">
                     <button type="button" class="text-[1.6rem] font-semibold text-[#222222] underline px-2 py-2 rounded-lg hover:bg-[#f7f7f7]" @click="$emit('cancel')">Cancel</button>
-                    <button type="button" :disabled="!day" class="h-[4.8rem] px-[2.4rem] rounded-[0.8rem] bg-[#222222] hover:bg-black text-white text-[1.6rem] font-semibold disabled:bg-[#dddddd] disabled:cursor-not-allowed" data-embargo-save @click="save">
-                        {{ day ? `Go live ${summary}` : 'Pick a day' }}
+                    <button type="button" :disabled="!day || isPast" class="h-[4.8rem] px-[2.4rem] rounded-[0.8rem] bg-[#222222] hover:bg-black text-white text-[1.6rem] font-semibold disabled:bg-[#dddddd] disabled:cursor-not-allowed" data-embargo-save @click="save">
+                        {{ !day ? 'Pick a day' : (isPast ? 'Pick a later time' : `Go live ${summary}`) }}
                     </button>
                 </div>
             </div>
@@ -63,7 +65,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import moment from 'moment-timezone';
 import '@vuepic/vue-datepicker/dist/main.css';
@@ -106,8 +108,30 @@ const summary = computed(() => {
     return `${label}, ${formatEmbargoTime(time.value)} (${zone})`;
 });
 
+// The day and time must still be ahead where the event is (the server refuses a past one).
+const isPast = computed(() => {
+    const picked = normalizeDateToTimezone(day.value, props.timezone);
+    return Boolean(picked) && !moment.tz(`${picked} ${time.value}`, 'YYYY-MM-DD HH:mm', props.timezone).isAfter(moment());
+});
+
+// Escape closes; focus moves into the pop-up and back where it was after.
+const dialog = ref(null);
+let returnFocus = null;
+const onKeydown = (event) => {
+    if (event.key === 'Escape') emit('cancel');
+};
+onMounted(() => {
+    returnFocus = document.activeElement;
+    document.addEventListener('keydown', onKeydown);
+    nextTick(() => dialog.value?.focus());
+});
+onUnmounted(() => {
+    document.removeEventListener('keydown', onKeydown);
+    returnFocus?.focus?.();
+});
+
 const save = () => {
-    if (!day.value) return;
+    if (!day.value || isPast.value) return;
     emit('save', embargoDateForAPI(day.value, props.timezone, time.value));
 };
 </script>

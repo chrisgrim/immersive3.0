@@ -107,3 +107,16 @@ test('when google finds nothing, the free lookup gets a try', function () {
     $match = app(App\Services\GeocodingService::class)->search('Speyer')[0];
     expect($match['source'] ?? null)->not->toBe('google')->and($match['region'])->toBe('RP');
 });
+
+test('when google cannot be reached, the free lookup answers', function () {
+    config(['services.google_geocoding.key' => 'server-key']);
+    Http::fake([
+        'maps.googleapis.com/*' => fn () => throw new Illuminate\Http\Client\ConnectionException('timed out'),
+        'nominatim.openstreetmap.org/*' => Http::response([[
+            'display_name' => 'Somewhere', 'lat' => '1', 'lon' => '2',
+            'address' => ['city' => 'Speyer', 'ISO3166-2-lvl4' => 'DE-RP', 'country_code' => 'de'],
+        ]]),
+    ]);
+
+    expect(app(App\Services\GeocodingService::class)->search('Speyer')[0]['city'])->toBe('Speyer');
+});

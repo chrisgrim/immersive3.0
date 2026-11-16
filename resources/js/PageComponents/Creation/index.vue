@@ -392,6 +392,7 @@
 </template>
 
 <script setup>
+import { formatEmbargoShort } from '@/composables/dateUtils';
 import { ref, onMounted, computed } from 'vue';
 import dayjs from 'dayjs';
 import { RiCloseCircleFill } from "@remixicon/vue";
@@ -535,7 +536,7 @@ const getStatusInfo = (event, cleanDateFn) => {
 		'B': { color: 'bg-orange-400', progress: 'add mobility advisories', view: 'Mobility' },
 		'C': { color: 'bg-yellow-300', progress: 'submit event', view: 'Review' },
 		'p': { color: 'bg-green-500', progress: 'approved', url: `/hosting/event/${event.slug}/edit` },
-		'e': { color: 'bg-green-500', progress: `event live at ${cleanDateFn(event.embargo_date)}`, url: `/hosting/event/${event.slug}/edit` },
+		'e': { color: 'bg-green-500', progress: `goes live ${formatEmbargoShort(event.embargo_date, event.timezone)}`, url: `/hosting/event/${event.slug}/edit` },
 		'r': { color: 'bg-black', progress: 'under moderator review', url: null },
 		'n': { color: 'bg-red-500', progress: 'revise and resubmit', url: `/hosting/event/${event.slug}/edit` },
 	};

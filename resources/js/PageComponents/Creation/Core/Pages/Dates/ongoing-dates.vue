@@ -394,7 +394,6 @@ import {
     utcDateTimeToLocalDate,
     getBrowserTimezone,
     daysBetween,
-    embargoDateForAPI,
     embargoDateToDate,
     embargoTimeOf,
     formatEmbargoTime,

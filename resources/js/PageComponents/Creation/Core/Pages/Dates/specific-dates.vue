@@ -32,9 +32,10 @@
             <!-- Calendar container - take most of the width on desktop -->
             <div ref="calendarScroller" @scroll.capture="followMonth" class="flex-grow mt-4 overflow-hidden relative w-full bg-white overflow-y-auto overflow-x-hidden md:min-w-[540px] md:flex md:flex-col" :class="[
                 {'md:w-2/3': shouldUseRowLayout},
-                layoutMode === 'edit-desktop-sidebar' ? 'md:h-[calc(100vh-39rem)]' : 'md:h-[calc(100vh-24rem)]',
-                // Creating: the calendar starts higher than the sidebar's title, using the room above it.
-                !isEditMode ? 'md:-mt-[6rem] md:h-[calc(100vh-17rem)]' : ''
+                // One height class only (two would fight): creating, the calendar
+                // starts higher than the sidebar's title, using the room above it.
+                !isEditMode ? 'md:-mt-[6rem] md:h-[calc(100vh-17rem)]'
+                    : (layoutMode === 'edit-desktop-sidebar' ? 'md:h-[calc(100vh-39rem)]' : 'md:h-[calc(100vh-24rem)]')
             ]">
                 <!-- Text button (mobile or edit mode) -->
                 <div v-if="showTextButton" class="mb-6 md:mb-8 flex-none">
@@ -70,8 +71,9 @@
                 </div>
                 <!-- Airbnb's fixed bar: the month being looked at (two across: the
                      pair) and the weekdays. The month names below scroll by under it. -->
-                <div ref="monthBar" class="sticky top-0 z-[1000] bg-white pt-2 border-b border-[#ebebeb] flex-none" data-month-bar>
-                    <div class="grid gap-x-[var(--month-gap,0px)]" :class="calendarColumns === 2 ? 'grid-cols-2' : 'grid-cols-1'" :style="{ '--month-gap': `${monthGap}px` }">
+                <!-- Desktop only: on a phone the page itself scrolls, and each month keeps its own heading. -->
+                <div v-if="isDesktop" ref="monthBar" class="sticky top-0 z-[1000] bg-white pt-2 border-b border-[#ebebeb] flex-none" data-month-bar>
+                    <div class="grid gap-x-[var(--month-gap,0px)]" :class="barColumns === 2 ? 'grid-cols-2' : 'grid-cols-1'" :style="{ '--month-gap': `${monthGap}px` }">
                         <div v-for="label in barLabels" :key="label">
                             <p class="font-semibold text-[#222222] pr-24" :class="calendarColumns === 2 ? 'text-[2.4rem] leading-[3.2rem]' : 'text-[3.2rem] leading-[4rem]'">{{ label }}</p>
                             <div class="mt-6 grid grid-cols-7 pb-4 text-center text-[1.4rem] text-[#6a6a6a]">
@@ -112,7 +114,7 @@
                         :month-change-on-scroll="false"
                         :config="{ noSwipe: true }"
                         week-start="0"
-                        :class="{ 'row-layout': shouldUseRowLayout, 'month-bar': true }"
+                        :class="{ 'row-layout': shouldUseRowLayout, 'month-bar': isDesktop, 'bar-1': isDesktop && barColumns === 1, 'bar-2': isDesktop && barColumns === 2 }"
                     />
                     
                     <!-- Load More Button - hide when users reach 12 months -->
@@ -250,7 +252,6 @@
 import { ref, computed, inject, watch, onMounted, onUnmounted } from 'vue';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
-import { maxLength } from '@vuelidate/validators';
 import useVuelidate from '@vuelidate/core';
 import EmbargoModal from './embargo-modal.vue';
 import { useMonthBar } from '@/composables/useMonthBar';
@@ -261,7 +262,6 @@ import {
     formatDateForAPI,
     parseDateString,
     formatDateForDisplay,
-    embargoDateForAPI,
     embargoDateToDate,
     embargoTimeOf,
     formatEmbargoTime,
@@ -299,10 +299,13 @@ const calendarRef = ref(null);
 // The fixed month bar (useMonthBar), shown with one month across.
 const calendarScroller = ref(null);
 const monthBar = ref(null);
-const { shownMonth, shownIndex, monthLabels, followMonth, hideFirstName } = useMonthBar(calendarScroller, monthBar, () => new Date(previewDate.value ?? Date.now()));
+const { shownMonth, shownIndex, monthLabels, followMonth } = useMonthBar(calendarScroller, monthBar, () => new Date(previewDate.value ?? Date.now()));
+// Two across only where the months really sit two across (row layout); a
+// saved 2x preference on a one-column layout shows one month in the bar.
+const barColumns = computed(() => (shouldUseRowLayout.value && calendarColumns.value === 2 ? 2 : 1));
 // Two across, the bar names the pair of months in the row being looked at.
 const barLabels = computed(() => {
-    if (calendarColumns.value !== 2) return [shownMonth.value];
+    if (barColumns.value !== 2) return [shownMonth.value];
     const start = Math.floor(shownIndex.value / 2) * 2;
     const pair = monthLabels.value.slice(start, start + 2);
     return pair.length ? pair : [shownMonth.value];
@@ -311,13 +314,13 @@ const barLabels = computed(() => {
 const monthGap = ref(0);
 const measureMonthGap = () => {
     const months = calendarScroller.value?.querySelectorAll('.dp__menu_inner > .dp__instance_calendar') ?? [];
-    monthGap.value = months.length > 1 && calendarColumns.value === 2
+    monthGap.value = months.length > 1 && barColumns.value === 2
         ? Math.max(0, Math.round(months[1].getBoundingClientRect().left - months[0].getBoundingClientRect().right))
         : 0;
 };
 // After the calendar redraws its months (more months, earlier months, 1x/2x).
+// (The first month names under the bar are hidden by CSS, .bar-1/.bar-2.)
 const settleMonthBar = () => setTimeout(() => {
-    hideFirstName(calendarColumns.value);
     measureMonthGap();
     followMonth();
 }, 250);
@@ -362,10 +365,6 @@ const minDate = computed(() => {
     }
     // Regular users can only select current dates and future
     return new Date();
-});
-
-const textareaRows = computed(() => {
-    return windowWidth.value >= 768 ? 6 : 4;
 });
 
 const isEditMode = computed(() => {
@@ -426,6 +425,7 @@ const $v = useVuelidate(rules, { selectedDates });
 // Methods
 const handleResize = () => {
     windowWidth.value = window?.innerWidth ?? 0;
+    settleMonthBar();
     
     // Update displayedMonths based on screen size
     // Only update if we're not already showing more than default months
@@ -1291,8 +1291,13 @@ const clearAllDates = () => {
 }
 
 
-/* One month across: Airbnb's fixed bar (month + weekdays, data-month-bar)
-   does the work of each month's sticky header and weekday row. */
+/* Desktop: Airbnb's fixed bar (month + weekdays, data-month-bar) does the
+   work of each month's sticky header and weekday row; the month(s) it
+   already names are hidden below it (one, or a pair two across). */
+.month-bar.bar-1 .dp__menu_inner > .dp__instance_calendar:nth-child(1) .dp--header-wrap,
+.month-bar.bar-2 .dp__menu_inner > .dp__instance_calendar:nth-child(-n+2) .dp--header-wrap {
+    display: none !important;
+}
 .month-bar .dp--header-wrap {
     position: relative !important;
     top: auto !important;

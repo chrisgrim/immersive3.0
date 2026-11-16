@@ -775,3 +775,12 @@ test('an embargoed event is a preview for its team and EI staff, and a 404 for e
         ->assertSee('8:00 AM')
         ->assertSee('noindex', false);
 });
+
+test('an embargo preview is not counted as a visit', function () {
+    $event = makeShowableEvent();
+    $event->forceFill(['status' => 'e', 'timezone' => 'America/Los_Angeles', 'embargo_date' => now()->addDays(5)->format('Y-m-d H:i:s')])->save();
+
+    $this->actingAs(App\Models\User::factory()->create(['type' => 'm']))->get("/events/{$event->slug}")->assertOk();
+
+    expect(request()->attributes->has(App\Http\Middleware\RecordPageView::VIEW_ID))->toBeFalse();
+});

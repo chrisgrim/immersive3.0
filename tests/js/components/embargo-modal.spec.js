@@ -30,3 +30,15 @@ describe('go-live pop-up', () => {
         expect(wrapper.emitted('save')[0]).toEqual(['2026-11-22 18:30:00']);
     });
 });
+
+describe('go-live pop-up rules', () => {
+    it('will not save a time that has already passed, and Escape closes it', async () => {
+        const wrapper = mountModal('2020-01-05 08:00:00');
+        expect(wrapper.find('[data-embargo-save]').attributes('disabled')).toBeDefined();
+        expect(wrapper.find('[data-embargo-save]').text()).toContain('later time');
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        expect(wrapper.emitted('cancel')).toHaveLength(1);
+        wrapper.unmount();
+    });
+});

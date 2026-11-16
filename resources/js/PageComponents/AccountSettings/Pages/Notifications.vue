@@ -182,7 +182,8 @@ const toggle = async (key) => {
     errors[key] = '';
     try {
         const { data } = await axios.patch('/api/account/notification-settings', { [key]: next });
-        Object.assign(settings, data.settings);
+        // Only this switch: a reply for another quick toggle may still be on its way.
+        settings[key] = data.settings[key];
     } catch {
         settings[key] = !next;
         errors[key] = 'That did not save. Please try again.';

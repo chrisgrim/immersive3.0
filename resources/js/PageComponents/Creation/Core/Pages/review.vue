@@ -304,6 +304,7 @@
 </template>
 
 <script setup>
+import { formatEmbargoShort } from '@/composables/dateUtils';
 import { wheelchairLevel } from '@/composables/wheelchairAccess';
 import { ref, computed, inject, onMounted } from 'vue';
 import moment from 'moment-timezone';
@@ -321,9 +322,8 @@ const event = inject('event');
 // listing does not read as a one-off (composables/useShowDates.js).
 const scheduleSummary = computed(() => summarizeSchedule(event));
 
-const formatEmbargoDate = (date) => {
-    return moment(date).format('MMM D, YYYY');
-};
+// The go-live day and time where the event is: "Sun, Nov 22, 8:00 AM (PST)".
+const formatEmbargoDate = (date) => formatEmbargoShort(date, event.timezone);
 
 // Regression: this used to hardcode a literal "$" regardless of the
 // ticket's actual currency — same bug, same fix, as the admin approval

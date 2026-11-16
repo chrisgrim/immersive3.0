@@ -65,11 +65,12 @@
                             <label class="block px-[1.6rem] pt-[1rem] pb-[0.8rem] focus-within:rounded-b-[1.2rem] focus-within:shadow-[inset_0_0_0_2px_#222222]">
                                 <span class="block text-[1.2rem] text-[#6a6a6a]">Email address (optional)</span>
                                 <input v-model="form.email" type="email" maxlength="255" autocomplete="email" inputmode="email" data-suggest-email
+                                    aria-describedby="suggest-contact-error"
                                     :aria-invalid="!!errors.email"
                                     class="w-full p-0 border-0 bg-transparent text-[1.6rem] text-[#222222] focus:ring-0 focus:outline-none">
                             </label>
                         </div>
-                        <p v-if="isGuest && errors.email" role="alert" class="mt-[0.8rem] text-[1.4rem] text-[#c13515]">{{ errors.email }}</p>
+                        <p v-if="isGuest && (errors.email || errors.name)" id="suggest-contact-error" role="alert" class="mt-[0.8rem] text-[1.4rem] text-[#c13515]">{{ errors.email || errors.name }}</p>
                         <p v-else-if="isGuest" class="mt-[0.8rem] text-[1.3rem] text-[#6a6a6a]">So we can write back if we have a question.</p>
 
                         <label class="mt-[1.6rem] block px-[1.6rem] pt-[1rem] pb-[0.8rem] rounded-[1.2rem] border focus-within:shadow-[inset_0_0_0_1px_#222222]"

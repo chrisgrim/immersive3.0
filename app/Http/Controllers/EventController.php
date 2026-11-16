@@ -36,7 +36,11 @@ class EventController extends Controller
             abort(404);
         }
 
-        if (! $embargoPreview) {
+        if ($embargoPreview) {
+            // A staff or team preview is not a visit: no page view, and the
+            // secret address stays out of the analytics.
+            request()->attributes->remove(\App\Http\Middleware\RecordPageView::VIEW_ID);
+        } else {
             $this->recordView($event, request());
         }
 

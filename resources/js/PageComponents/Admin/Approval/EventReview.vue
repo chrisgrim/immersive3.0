@@ -563,6 +563,7 @@
 </template>
 
 <script setup>
+import { formatEmbargoShort } from '@/composables/dateUtils';
 import { wheelchairLevel } from '@/composables/wheelchairAccess';
 import { computed, ref } from 'vue';
 import moment from 'moment-timezone';
@@ -595,9 +596,8 @@ const imageUrl = import.meta.env.VITE_IMAGE_URL;
 // listing does not read as a one-off (composables/useShowDates.js).
 const scheduleSummary = computed(() => summarizeSchedule(props.event));
 
-const formatEmbargoDate = (date) => {
-    return moment(date).format('MMM D, YYYY');
-};
+// The go-live day and time where the event is: "Sun, Nov 22, 8:00 AM (PST)".
+const formatEmbargoDate = (date) => formatEmbargoShort(date, props.event.timezone);
 
 // Regression: this used to hardcode a literal "$" regardless of the
 // ticket's actual currency, so every non-USD event's price showed the

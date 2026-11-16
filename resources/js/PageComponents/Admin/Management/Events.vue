@@ -88,7 +88,7 @@
                         </td>
                         <td class="relative px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto">
                             <!-- Embargoed: the lock sits in the gap left of the name. -->
-                            <span v-if="event.status === 'e'" class="absolute left-[-1.6rem] top-1/2 -translate-y-1/2 text-[2.2rem] leading-none" aria-label="Embargoed" title="Embargoed">&#128274;</span>
+                            <span v-if="event.status === 'e'" class="absolute left-[-1.6rem] top-1/2 -translate-y-1/2 text-[2.2rem] leading-none" role="img" aria-label="Embargoed" title="Embargoed">&#128274;</span>
                             <a 
                                 :href="`/events/${event.slug}`"
                                 class="text-blue-600 hover:text-blue-800 hover:underline"

@@ -47,8 +47,9 @@ class EventSuggestionController extends Controller
 
         EventSuggestion::create([
             'message' => trim($validated['message']),
-            'name' => filled($validated['name'] ?? null) ? trim($validated['name']) : null,
-            'email' => filled($validated['email'] ?? null) ? trim($validated['email']) : null,
+            // Only a guest's: a signed-in person is reached through their account.
+            'name' => ! $user && filled($validated['name'] ?? null) ? trim($validated['name']) : null,
+            'email' => ! $user && filled($validated['email'] ?? null) ? trim($validated['email']) : null,
             // A guest is anonymous unless they left a name or email. For a
             // logged-in user we keep only the link
             // (their email is read through it), so deleting the account

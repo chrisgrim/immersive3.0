@@ -313,3 +313,11 @@ test('name and email stay optional, and a bad email is refused', function () {
 
     $this->postJson('/api/event-suggestions', suggestion(['email' => 'not an email']))->assertStatus(422)->assertJsonValidationErrors('email');
 });
+
+test('a signed-in person never leaves a name or email on a suggestion (their account says who they are)', function () {
+    $this->actingAs(App\Models\User::factory()->create())
+        ->postJson('/api/event-suggestions', suggestion(['name' => 'Sam', 'email' => 'sam@example.com']))->assertCreated();
+
+    $row = EventSuggestion::sole();
+    expect($row->name)->toBeNull()->and($row->email)->toBeNull();
+});

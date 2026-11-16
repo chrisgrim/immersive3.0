@@ -31,7 +31,8 @@ class GeocodingService
                 if ($found !== []) {
                     return $found;
                 }
-            } catch (\RuntimeException $e) {
+            } catch (\Throwable $e) {
+                // Unreachable (timeout, DNS) or refused: the free lookup still answers.
                 report($e);
             }
         }
@@ -46,8 +47,11 @@ class GeocodingService
             'key' => $key,
         ]);
 
-        if (! $response->successful() || $response->json('status') === 'REQUEST_DENIED') {
-            throw new \RuntimeException('Google geocoding failed: '.($response->json('error_message') ?? $response->status()));
+        // Anything but a match or "nothing found" (a refused, over-quota or bad
+        // request) is an error, so a dead key is noticed (reported) and the
+        // free lookup answers instead.
+        if (! $response->successful() || ! in_array($response->json('status'), ['OK', 'ZERO_RESULTS'], true)) {
+            throw new \RuntimeException('Google geocoding failed: '.($response->json('status') ?? '').' '.($response->json('error_message') ?? $response->status()));
         }
 
         return collect($response->json('results') ?? [])->take(3)->map(function ($result) {
@@ -113,14 +117,14 @@ class GeocodingService
     }
 
     /**
-     * In Australia and New Zealand a suburb is the address's own locality
-     * (what Google calls it too): Seven Hills, not Sydney. Elsewhere the
-     * city stays the city (Manhattan addresses are New York).
+     * In Australia a suburb is the address's own locality (what Google calls
+     * it too): Seven Hills, not Sydney. Elsewhere the city stays the city
+     * (Manhattan addresses are New York; New Zealand's Google city is the city).
      */
     protected function nominatimCity(array $addr): ?string
     {
         $country = strtolower($addr['country_code'] ?? '');
-        if (in_array($country, ['au', 'nz'], true) && ! empty($addr['suburb'])) {
+        if ($country === 'au' && ! empty($addr['suburb'])) {
             return $addr['suburb'];
         }
 
