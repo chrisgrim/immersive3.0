@@ -154,13 +154,22 @@ class Venue extends Model
 
         return array_values(array_filter([
             $this->website ? ['ri-global-line', preg_replace('#^https?://(www\.)?#', '', rtrim($this->website, '/')), $this->website] : null,
-            $this->email ? ['ri-mail-line', $this->email, 'mailto:'.$this->email] : null,
+            // Only once the venue is its own (claimed, or added by its team): an
+            // address EI found for a venue nobody has claimed stays with staff,
+            // not printed for spam bots to collect.
+            $this->email && $this->showsEmail() ? ['ri-mail-line', $this->email, 'mailto:'.$this->email] : null,
             $this->phone ? ['ri-chat-2-line', $this->phone, 'tel:'.preg_replace('/[^0-9+]/', '', $this->phone)] : null,
             $this->instagramHandle ? ['ri-instagram-line', '@'.$handle($this->instagramHandle), 'https://instagram.com/'.rawurlencode($handle($this->instagramHandle))] : null,
             $this->facebookHandle ? ['ri-facebook-line', $this->facebookHandle, 'https://facebook.com/'.rawurlencode($this->facebookHandle)] : null,
             $this->tiktokHandle ? ['ri-global-line', 'TikTok @'.$handle($this->tiktokHandle), 'https://www.tiktok.com/@'.rawurlencode($handle($this->tiktokHandle))] : null,
             $this->twitterHandle ? ['ri-twitter-line', '@'.$handle($this->twitterHandle), 'https://x.com/'.rawurlencode($handle($this->twitterHandle))] : null,
         ]));
+    }
+
+    /** The email is shown once the venue speaks for itself: claimed, or added by its own team. */
+    public function showsEmail(): bool
+    {
+        return $this->claimed_at !== null || $this->organizer_id !== null;
     }
 
     /** Open to a claim until one is approved; a pending or merged venue is not. */

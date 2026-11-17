@@ -370,3 +370,12 @@ test('a live venue renamed by its team waits for EI; approved, the old address r
     expect($venue->name)->toBe('Grand Hall')->and($venue->slug)->toBe('grand-hall');
     $this->get('/venues/albert-hall')->assertRedirect('/venues/grand-hall');
 });
+
+test('an email EI found for a venue nobody has claimed is not printed on its page; once claimed it is', function () {
+    $venue = App\Models\Venue::factory()->create(['status' => App\Models\Venue::APPROVED, 'email' => 'hello@venue.example', 'phone' => '+1 415 555 0100', 'organizer_id' => null, 'user_id' => App\Models\User::factory()->create(['type' => 'a'])->id, 'claimed_at' => null]);
+
+    $this->get($venue->publicPath())->assertOk()->assertDontSee('hello@venue.example')->assertSee('+1 415 555 0100');
+
+    $venue->forceFill(['claimed_at' => now()])->save();
+    $this->get($venue->publicPath())->assertOk()->assertSee('hello@venue.example');
+});
