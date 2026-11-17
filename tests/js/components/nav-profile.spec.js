@@ -105,6 +105,8 @@ describe('nav-profile.vue', () => {
             expect(menu.text()).toContain('List your event');
             // not an organizer -> no Organizations link
             expect(menu.find('a[href="/teams"]').exists()).toBe(false);
+            // nothing hosted or kept -> no Venues link
+            expect(menu.find('a[href="/hosting/venues"]').exists()).toBe(false);
             expect(menu.text()).toContain('Log out');
         });
 
@@ -149,6 +151,8 @@ describe('nav-profile.vue', () => {
             expect(menu.find('a[href="/admin/dashboard"]').exists()).toBe(true);
             // organizer -> NOT "List your event"
             expect(menu.find('a[href="/hosting/getting-started"]').exists()).toBe(false);
+            // an organizer with no venue yet still finds Venues, where the first is added
+            expect(menu.find('a[href="/hosting/venues"]').text()).toContain('Venues');
         });
     });
 

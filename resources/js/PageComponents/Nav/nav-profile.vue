@@ -313,10 +313,11 @@ const menuTop = computed(() => [
     props.user?.organizer
         ? { label: 'Your organizations', href: '/teams', icon: RiHome4Line }
         : { label: 'List your event', href: '/hosting/getting-started', icon: RiAddLine },
-    // Your venue(s): always the venues page, even for one (it will carry more about each venue).
-    ...(props.user?.venues
+    // Venues: the venues page, where the first one is added too, so anyone
+    // hosting (or keeping a venue) can find it before they have one.
+    ...(props.user?.venues || props.user?.organizer
         ? [{
-            label: props.user.venues === 1 ? 'Your venue' : 'Your venues',
+            label: props.user.venues === 1 ? 'Your venue' : (props.user.venues ? 'Your venues' : 'Venues'),
             href: '/hosting/venues',
             icon: RiMapPinLine,
         }]
