@@ -96,7 +96,7 @@ class FindVenues
                 // the number is in the street when home is blank, a place name
                 // (no digit), or already part of the street.
                 $numberInStreet = blank($venue->home)
-                    || ! preg_match('/\d/', (string) $venue->home)
+                    || ! preg_match('/\p{N}/u', (string) $venue->home)
                     // As a whole word: "4" is not in "W 46th St".
                     || preg_match('/(?<![\p{L}\p{N}])'.preg_quote(trim((string) $venue->home), '/').'(?![\p{L}\p{N}])/iu', (string) $venue->street) === 1;
                 $wholeAddress = $atAddress && ($numberInStreet || $same($venue->home, $home));
