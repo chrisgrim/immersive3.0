@@ -156,12 +156,11 @@ test('adding a place EI already has: found by name or address, and its in-review
 
     // Street and city alone are not its address: no exact place or link without the number.
     $noNumber = $this->actingAs($member)->getJson('/api/venues/known?street=E+D+St&city=Petaluma')->assertOk()->json();
-    expect($noNumber[0]['at_address'])->toBeFalse()
-        ->and($noNumber[0])->not->toHaveKeys(['street', 'latitude'])
+    expect($noNumber[0])->not->toHaveKeys(['street', 'latitude'])
         ->and($noNumber[0]['claim_url'])->toBeNull();
 
     $byAddress = $this->actingAs($member)->getJson('/api/venues/known?home=600&street=e+d+st&city=Petaluma')->assertOk()->json();
-    expect($byAddress[0]['at_address'])->toBeTrue();
+    expect($byAddress[0]['at_address'])->toBeTrue()->and($byAddress[0]['claim_url'])->not->toBeNull();
 
     // In review: not public, but the link opens it, with a Claim button.
     $this->actingAs($member)->get($this->venue->publicPath())->assertNotFound();
@@ -206,4 +205,16 @@ test('staff remove a junk venue waiting for approval; events keep their address 
 test('a live venue cannot be removed, only merged', function () {
     $this->actingAs($this->staff)->postJson("/api/admin/venues/{$this->venue->slug}/remove", ['reason' => 'x'])->assertStatus(422);
     expect(Venue::find($this->venue->id))->not->toBeNull();
+});
+
+test('the website way (number in the street, home the place name or empty) still finds the venue at that address', function () {
+    $this->venue->update(['status' => Venue::PENDING, 'home' => null, 'street' => '340 W 46th St', 'city' => 'New York']);
+    $member = claimTeamMember(Organizer::factory()->create(['status' => 'p']));
+
+    $found = $this->actingAs($member)->getJson('/api/venues/known?home=340+W+46th+St&street=340+W+46th+St&city=New+York')->assertOk()->json();
+    expect($found[0]['at_address'])->toBeTrue()->and($found[0]['claim_url'])->not->toBeNull();
+
+    $this->venue->update(['status' => Venue::APPROVED, 'home' => 'Phoenix Theater']);
+    $approved = $this->actingAs($member)->getJson('/api/venues/known?home=340+W+46th+St&street=340+W+46th+St&city=New+York')->assertOk()->json();
+    expect($approved[0]['at_address'])->toBeTrue();
 });

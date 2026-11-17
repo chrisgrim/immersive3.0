@@ -85,16 +85,19 @@ class FindVenues
             ->get()
             ->map(function (Venue $venue) use ($user, $yours, $byAddress, $home, $street, $city) {
                 $mine = $user !== null && in_array($venue->id, $yours, true);
-                // The whole address, number included: street and city alone
-                // would hand anyone a pending venue's exact place.
                 $same = fn ($a, $b) => mb_strtolower(trim((string) $a)) === mb_strtolower(trim((string) $b));
-                $atAddress = $byAddress && $same($venue->street, $street) && $same($venue->city, $city)
-                    && $same($venue->home, $home);
+                $atAddress = $byAddress && $same($venue->street, $street) && $same($venue->city, $city);
+                // Someone else's pending venue opens only to its whole address,
+                // number included. The website keeps the number in the street
+                // ("340 W 46th St"); the address lookup keeps it in home ("340"),
+                // and then home must match too, or street and city alone would
+                // hand anyone its exact place.
+                $wholeAddress = $atAddress && (blank($venue->home) || preg_match('/\d/', (string) $venue->street) || $same($venue->home, $home));
 
                 // Someone else's venue still in review keeps its address to
                 // itself (Venue::scopeVisibleTo): only its name and city, and
                 // no page link, unless this person typed that very address.
-                if ($venue->status !== Venue::APPROVED && ! $mine && ! $atAddress) {
+                if ($venue->status !== Venue::APPROVED && ! $mine && ! $wholeAddress) {
                     return [
                         'yours' => false,
                         ...$venue->only(['id', 'name', 'room', 'status', 'city', 'region', 'country']),
