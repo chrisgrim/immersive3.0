@@ -108,3 +108,24 @@ test('a venue draft with only a name goes after three untouched days; anything m
     expect(App\Models\Venue::find($nameOnly->id))->toBeNull()
         ->and(App\Models\Venue::whereKey([$withAddress->id, $withWords->id, $withRoom->id, $sent->id, $fresh->id])->count())->toBe(5);
 });
+
+test('a nameless draft with only an address, advisories or a link saved is kept', function () {
+    $address = blankDraft(10);
+    $address->location()->update(['street' => 'Main St', 'latitude' => 1, 'longitude' => 2]);
+
+    $advisory = blankDraft(10);
+    $advisory->advisories()->update(['wheelchairAccess' => 'full']);
+
+    $link = blankDraft(10);
+    $link->forceFill(['ticketUrl' => 'https://tickets.example'])->saveQuietly();
+    DB::table('events')->where('id', $link->id)->update(['updated_at' => now()->subDays(10)]);
+
+    $blank = blankDraft(10);
+
+    $this->artisan('ei:prune-blank-drafts')->assertSuccessful();
+
+    expect(Event::find($address->id))->not->toBeNull()
+        ->and(Event::find($advisory->id))->not->toBeNull()
+        ->and(Event::find($link->id))->not->toBeNull()
+        ->and(Event::withTrashed()->find($blank->id))->toBeNull();
+});

@@ -502,8 +502,18 @@ test('going online takes the venue off', function () {
     expect($draft->fresh()->location->venue_id)->toBeNull();
 });
 
-test('a merged venue cannot be picked', function () {
-    $venue = Venue::factory()->create(['merged_into_id' => Venue::factory()->create()->id]);
+test('a venue merged away while the form was open saves as the one it went into', function () {
+    $winner = Venue::factory()->create(['status' => Venue::APPROVED, 'street' => 'N Dearborn St', 'city' => 'Chicago', 'latitude' => 41.88, 'longitude' => -87.63]);
+    $venue = Venue::factory()->create(['merged_into_id' => $winner->id]);
+    $draft = draftOf($this->organizer);
+
+    saveLocation($draft, ['venue_id' => $venue->id])->assertSuccessful();
+
+    expect($draft->fresh()->location->venue_id)->toBe($winner->id);
+});
+
+test('a venue merged into one that is not open to this company still cannot be picked', function () {
+    $venue = Venue::factory()->create(['merged_into_id' => Venue::factory()->create(['status' => Venue::PENDING])->id]);
 
     saveLocation(draftOf($this->organizer), ['venue_id' => $venue->id])->assertStatus(422);
 });

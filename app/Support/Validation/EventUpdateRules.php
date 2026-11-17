@@ -115,7 +115,9 @@ class EventUpdateRules
             'location.postal_code' => 'sometimes|nullable|string|max:20',
             'location.hiddenLocation' => 'nullable|string|max:255',
             'location.hiddenLocationToggle' => 'sometimes|boolean',
-            'location.venue_id' => ['sometimes', 'nullable', 'integer', Rule::exists('venues', 'id')->whereNull('merged_into_id')],
+            // A venue merged away still exists: ApplyVenue swaps in the one it
+            // went into and checks that one, so a form left open over a merge saves.
+            'location.venue_id' => ['sometimes', 'nullable', 'integer', Rule::exists('venues', 'id')],
             // 80, not 255: the wizard's venue input is maxlength=80 and its
             // Location step refuses to advance past a longer one, so a value the
             // server accepted but the form could not was a Next button that did
