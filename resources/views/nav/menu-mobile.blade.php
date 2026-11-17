@@ -63,11 +63,11 @@
             </a>
         @endif
 
-        {{-- Your venue(s), as in the desktop dropdown: always the venues page. --}}
+        {{-- Venues, as in the desktop dropdown: the venues page, where the first one is added too. --}}
         @php($venueCount = auth()->user()->venuesForMenu())
-        @if($venueCount)
+        @if($venueCount || auth()->user()->getCurrentOrganizer())
             <a href="/hosting/venues" class="flex items-center justify-between text-2xl py-4" data-menu-venues>
-                {{ $venueCount === 1 ? 'Your venue' : 'Your venues' }}
+                {{ $venueCount === 1 ? 'Your venue' : ($venueCount ? 'Your venues' : 'Venues') }}
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 18l6-6-6-6"/>
                 </svg>

@@ -166,10 +166,18 @@ class Venue extends Model
         ]));
     }
 
-    /** The email is shown once the venue speaks for itself: claimed, or added by its own team. */
+    /**
+     * The email is shown once the venue speaks for itself: claimed, added by
+     * its own team, or kept by the person who added it. A venue EI staff keep
+     * until its owner claims it (imported) does not show one.
+     */
     public function showsEmail(): bool
     {
-        return $this->claimed_at !== null || $this->organizer_id !== null;
+        if ($this->claimed_at !== null || $this->organizer_id !== null) {
+            return true;
+        }
+
+        return $this->user_id !== null && ! in_array($this->ownerUser?->type, ['m', 'a'], true);
     }
 
     /** Open to a claim until one is approved; a pending or merged venue is not. */

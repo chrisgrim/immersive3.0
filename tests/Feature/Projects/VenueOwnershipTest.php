@@ -208,7 +208,7 @@ test('your venues lists the ones you keep, and the menu points at them', functio
         ->and(User::factory()->create(['type' => 'u'])->venuesForMenu())->toBe(0);
 });
 
-test('the phone menu shows your venue(s) only when you keep one', function () {
+test('the phone menu shows venues when you keep one or host', function () {
     $loner = User::factory()->create(['type' => 'u']);
     $this->actingAs($loner)->get('/menu')->assertOk()->assertDontSee('data-menu-venues', false);
 
@@ -219,6 +219,10 @@ test('the phone menu shows your venue(s) only when you keep one', function () {
         ->assertDontSee('Your venues');
 
     $this->actingAs(venueTeamMember($this->keeper))->get('/menu')->assertOk()->assertSee('Your venue');
+
+    // Hosting with no venue yet: Venues, where the first one is added.
+    $host = App\Models\Organizer::factory()->create()->owner;
+    $this->actingAs($host)->get('/menu')->assertOk()->assertSee('data-menu-venues', false);
 });
 
 test('what a venue has: known tiles only, one age at most, and they show on its page', function () {
@@ -378,4 +382,10 @@ test('an email EI found for a venue nobody has claimed is not printed on its pag
 
     $venue->forceFill(['claimed_at' => now()])->save();
     $this->get($venue->publicPath())->assertOk()->assertSee('hello@venue.example');
+});
+
+test('a venue its own person added and keeps (no team) shows the email they typed', function () {
+    $venue = App\Models\Venue::factory()->create(['status' => App\Models\Venue::APPROVED, 'email' => 'mine@venue.example', 'organizer_id' => null, 'user_id' => App\Models\User::factory()->create(['type' => 'u'])->id, 'claimed_at' => null]);
+
+    $this->get($venue->publicPath())->assertOk()->assertSee('mine@venue.example');
 });
