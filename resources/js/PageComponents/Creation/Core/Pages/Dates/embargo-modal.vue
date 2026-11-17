@@ -33,7 +33,7 @@
                             :min-date="today"
                             disable-month-select
                             disable-year-select
-                            :multi-calendars="6"
+                            :multi-calendars="monthCount"
                             multi-calendars-solo
                             inline
                             auto-apply
@@ -43,6 +43,10 @@
                             week-start="0"
                             class="embargo-calendar modal-calendar"
                         />
+                        <!-- Six months at a time; a later go-live date is a tap away (up to two years). -->
+                        <button v-if="monthCount < MAX_MONTHS" type="button" class="w-full py-[1.6rem] text-[1.4rem] font-semibold underline text-[#222222]" data-embargo-more-months @click="showMoreMonths">
+                            Show more months
+                        </button>
                     </div>
 
                     <label class="mt-[3.2rem] mb-[3.2rem] flex items-center justify-between gap-4 px-[1.6rem] h-[5.6rem] rounded-[1.2rem] border border-[#b0b0b0] focus-within:border-[#222222] focus-within:shadow-[0_0_0_1px_#222222]">
@@ -93,6 +97,18 @@ onMounted(() => nextTick(() => {
 }));
 
 const day = ref(props.embargoDate ? embargoDateToDate(props.embargoDate, props.timezone) : null);
+
+// Months shown: six, or enough to reach a date already picked further out.
+const MAX_MONTHS = 24;
+const monthsTo = (date) => (date ? (date.getFullYear() - new Date().getFullYear()) * 12 + date.getMonth() - new Date().getMonth() + 1 : 0);
+const monthCount = ref(Math.min(MAX_MONTHS, Math.max(6, monthsTo(day.value))));
+const showMoreMonths = () => {
+    monthCount.value = Math.min(MAX_MONTHS, monthCount.value + 6);
+    nextTick(() => {
+        hideFirstName();
+        followMonth();
+    });
+};
 const time = ref(embargoTimeOf(props.embargoDate));
 
 // Every half hour of the day.

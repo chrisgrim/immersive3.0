@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Organizer;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -65,10 +64,9 @@ class AccountNotificationController extends Controller
             // Show run requests nobody answered (EscalateLinkRequests) go to all staff.
             $keys[] = 'show_run_requests';
         }
-        // The "ending soon" reminder goes to an organization's owner.
-        if (Organizer::where('user_id', $user->id)->exists()) {
-            $keys[] = 'closing_soon';
-        }
+        // The "ending soon" reminder (to an organization's owner) is not sent
+        // while ei:check-closing-events is switched off, so no switch for it
+        // yet. Add 'closing_soon' here for owners when that job comes back.
         if ($user->isAdmin()) {
             array_push($keys, ...User::ADMIN_NOTIFICATION_KEYS);
         }

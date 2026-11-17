@@ -42,3 +42,18 @@ describe('go-live pop-up rules', () => {
         wrapper.unmount();
     });
 });
+
+describe('go-live pop-up months', () => {
+    it('shows six months, more on request, and enough to reach a date already picked', async () => {
+        const wrapper = mountModal(null);
+        await wrapper.find('[data-embargo-more-months]').trigger('click');
+        expect(wrapper.vm.monthCount).toBe(12);
+        wrapper.unmount();
+
+        const later = new Date();
+        later.setMonth(later.getMonth() + 9);
+        const far = mountModal(`${later.getFullYear()}-${String(later.getMonth() + 1).padStart(2, '0')}-15 12:00:00`);
+        expect(far.vm.monthCount).toBeGreaterThanOrEqual(10);
+        far.unmount();
+    });
+});

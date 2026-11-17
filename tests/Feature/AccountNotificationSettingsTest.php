@@ -21,7 +21,9 @@ test('a member sees their switches, on by default; admins and owners see theirs'
     $admin = User::factory()->create(['type' => 'a', 'silence' => 'n']);
     Organizer::factory()->create(['user_id' => $admin->id]);
     $keys = array_keys($this->actingAs($admin)->getJson('/api/account/notification-settings')->json('settings'));
-    expect($keys)->toEqualCanonicalizing(['messages', 'saved_event_dates', 'followed_organizer_events', 'saved_search_matches', 'closing_soon', 'events', 'organizers', 'claims', 'show_run_requests']);
+    expect($keys)->toEqualCanonicalizing(['messages', 'saved_event_dates', 'followed_organizer_events', 'saved_search_matches', 'events', 'organizers', 'claims', 'show_run_requests']);
+    // No "ending soon" switch while that reminder is not sent (ei:check-closing-events is off).
+    expect($keys)->not->toContain('closing_soon');
 
     // A moderator (not an admin) has the switch for the show run request emails they get.
     $moderator = User::factory()->create(['type' => 'm']);
