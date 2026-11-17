@@ -146,6 +146,11 @@ class ListAllEvents extends Tool
         $events = $query->orderBy('id')->offset($offset)->limit($limit)->get();
 
         $this->loadVenuesAndCredits($events);
+        // Each organizer's unfinished drafts against the limit, so a batch can
+        // see where it stands before it starts (one grouped query).
+        $draftCounts = $isModerator
+            ? Event::countUnpublishedEventsForOrganizers($events->pluck('organizer_id')->filter()->unique()->values()->all())
+            : collect();
 
         return Response::json([
             'total_matching' => $total,
@@ -168,7 +173,10 @@ class ListAllEvents extends Tool
                 'shows' => $event->shows_count + ShowHistory::count($event->show_history),
                 'updated_at' => $event->updated_at?->toIso8601String(),
                 'archived' => (bool) $event->archived,
-            ]),
+            ] + ($isModerator ? [
+                'organizer_unfinished_drafts' => $draftCounts->get($event->organizer_id, 0),
+                'organizer_drafts_limit' => Event::MAX_UNPUBLISHED_EVENTS,
+            ] : [])),
         ]);
     }
 

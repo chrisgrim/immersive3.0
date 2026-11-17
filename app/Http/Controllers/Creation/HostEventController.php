@@ -265,12 +265,12 @@ class HostEventController extends Controller
         $this->authorize('edit', $organizer);
         $organizerId = $organizer->id;
 
-        // Check unpublished events count (bypass for admins)
+        // Unfinished drafts cap (EI staff exempt; events in review don't count)
         $unpublishedCount = Event::countUnpublishedEvents($organizerId);
 
-        if ($unpublishedCount >= Event::MAX_UNPUBLISHED_EVENTS && ! auth()->user()->isAdmin()) {
+        if ($unpublishedCount >= Event::MAX_UNPUBLISHED_EVENTS && ! auth()->user()->isModerator()) {
             return response()->json([
-                'message' => 'You can only have '.Event::MAX_UNPUBLISHED_EVENTS.' unpublished events at a time.',
+                'message' => 'You can have '.Event::MAX_UNPUBLISHED_EVENTS.' unfinished drafts at a time ('.$unpublishedCount.' now). Submit one for review or delete one first.',
             ], 422);
         }
 
@@ -424,12 +424,12 @@ class HostEventController extends Controller
         // A new run of the same show (asks to join it), or an event of its own. Left out, a run, as before.
         $asRun = $request->boolean('as_run', true);
 
-        // Check unpublished events count (bypass for admins)
+        // Unfinished drafts cap (EI staff exempt; events in review don't count)
         $unpublishedCount = Event::countUnpublishedEvents($event->organizer_id);
 
-        if ($unpublishedCount >= Event::MAX_UNPUBLISHED_EVENTS && ! auth()->user()->isAdmin()) {
+        if ($unpublishedCount >= Event::MAX_UNPUBLISHED_EVENTS && ! auth()->user()->isModerator()) {
             return response()->json([
-                'message' => 'You can only have '.Event::MAX_UNPUBLISHED_EVENTS.' unpublished events at a time.',
+                'message' => 'You can have '.Event::MAX_UNPUBLISHED_EVENTS.' unfinished drafts at a time ('.$unpublishedCount.' now). Submit one for review or delete one first.',
             ], 422);
         }
 

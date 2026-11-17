@@ -168,7 +168,7 @@ class ApplyVenue
             ->filter();
 
         try {
-            $match = app(GeocodingService::class)->search($parts->implode(' '))[0] ?? null;
+            $match = app(GeocodingService::class)->search($parts->implode(' '), fallback: false)[0] ?? null;
         } catch (Throwable $e) {
             report($e);
             $match = null;

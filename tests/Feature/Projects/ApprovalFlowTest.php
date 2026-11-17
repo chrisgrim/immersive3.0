@@ -199,6 +199,8 @@ test('an embargoed approval links, and the run stays out of sight until it lifts
     approveInQueue($copy->fresh(), ['action' => 'confirm'])->assertOk();
 
     expect($copy->fresh()->status)->toBe('e')->and($copy->fresh()->isLinked())->toBeTrue();
+    // To the public (staff get a preview).
+    auth()->forgetGuards();
     $this->get($copy->fresh()->publicPath())->assertNotFound();
 });
 

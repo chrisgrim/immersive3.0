@@ -10,21 +10,43 @@ use Illuminate\Support\Facades\Http;
  * location table stores — no client-side guessing of coordinates.
  *
  * Uses the Google Geocoding API when services.google_geocoding.key is set
- * (best accuracy, matches the wizard's Places data); otherwise falls back to
- * OpenStreetMap Nominatim (no key, fine for occasional MCP use).
+ * (best accuracy, matches the wizard's Places data), falling back to
+ * OpenStreetMap Nominatim (no key) when Google finds nothing or fails, or
+ * when there is no key.
  */
 class GeocodingService
 {
     /**
      * @return array<int, array<string, mixed>> Up to 3 candidates, best first.
      */
-    public function search(string $query): array
+    public function search(string $query, bool $fallback = true): array
     {
         $googleKey = config('services.google_geocoding.key');
 
-        return $googleKey
-            ? $this->google($query, $googleKey)
-            : $this->nominatim($query);
+        // A save with no person to confirm the match (ApplyVenue) asks Google
+        // only: OpenStreetMap's first hit may be a street or a town.
+        if ($googleKey && ! $fallback) {
+            return $this->google($query, $googleKey);
+        }
+
+        // Google first when there is a key; when it finds nothing or is
+        // unreachable, the free OpenStreetMap lookup gets a try.
+        if ($googleKey) {
+            try {
+                $found = $this->google($query, $googleKey);
+                if ($found !== []) {
+                    return $found;
+                }
+            } catch (\Throwable $e) {
+                // Unreachable (timeout, DNS) or refused: the free lookup still
+                // answers. Reported once every 10 minutes, not on every lookup.
+                if (\Illuminate\Support\Facades\Cache::add('geocoding:google-failed', true, 600)) {
+                    report($e);
+                }
+            }
+        }
+
+        return $this->nominatim($query);
     }
 
     protected function google(string $query, string $key): array
@@ -34,8 +56,11 @@ class GeocodingService
             'key' => $key,
         ]);
 
-        if (! $response->successful() || $response->json('status') === 'REQUEST_DENIED') {
-            throw new \RuntimeException('Google geocoding failed: '.($response->json('error_message') ?? $response->status()));
+        // Anything but a match or "nothing found" (a refused, over-quota or bad
+        // request) is an error, so a dead key is noticed (reported) and the
+        // free lookup answers instead.
+        if (! $response->successful() || ! in_array($response->json('status'), ['OK', 'ZERO_RESULTS'], true)) {
+            throw new \RuntimeException('Google geocoding failed: '.($response->json('status') ?? '').' '.($response->json('error_message') ?? $response->status()));
         }
 
         return collect($response->json('results') ?? [])->take(3)->map(function ($result) {
@@ -85,8 +110,10 @@ class GeocodingService
                     : null,
                 'home' => $addr['house_number'] ?? null,
                 'street' => $addr['road'] ?? null,
-                'city' => $addr['city'] ?? $addr['town'] ?? $addr['village'] ?? $addr['municipality'] ?? null,
-                'region' => $addr['state_code'] ?? ($addr['ISO3166-2-lvl4'] ?? null ? substr($addr['ISO3166-2-lvl4'], -2) : null),
+                'city' => $this->nominatimCity($addr),
+                // "GB-ENG" -> "ENG", "AU-NSW" -> "NSW" (the part after the
+                // country, not its last two letters).
+                'region' => $addr['state_code'] ?? (isset($addr['ISO3166-2-lvl4']) ? (explode('-', $addr['ISO3166-2-lvl4'], 2)[1] ?? null) : null),
                 'region_long' => $addr['state'] ?? null,
                 'country' => isset($addr['country_code']) ? strtoupper($addr['country_code']) : null,
                 'country_long' => $addr['country'] ?? null,
@@ -96,5 +123,20 @@ class GeocodingService
                 'source' => 'nominatim',
             ];
         })->all();
+    }
+
+    /**
+     * In Australia a suburb is the address's own locality (what Google calls
+     * it too): Seven Hills, not Sydney. Elsewhere the city stays the city
+     * (Manhattan addresses are New York; New Zealand's Google city is the city).
+     */
+    protected function nominatimCity(array $addr): ?string
+    {
+        $country = strtolower($addr['country_code'] ?? '');
+        if ($country === 'au' && ! empty($addr['suburb'])) {
+            return $addr['suburb'];
+        }
+
+        return $addr['city'] ?? $addr['town'] ?? $addr['village'] ?? $addr['municipality'] ?? $addr['suburb'] ?? null;
     }
 }

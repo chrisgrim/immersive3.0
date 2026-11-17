@@ -31,6 +31,9 @@ class EventSuggestionController extends Controller
 
         $validated = $request->validate([
             'message' => 'required|string|max:'.EventSuggestion::MAX_LENGTH,
+            // Optional, so a guest can be written back to.
+            'name' => 'nullable|string|max:100',
+            'email' => 'nullable|string|email:rfc|max:255',
             'altcha' => 'required|string',
         ]);
 
@@ -44,7 +47,11 @@ class EventSuggestionController extends Controller
 
         EventSuggestion::create([
             'message' => trim($validated['message']),
-            // Guests are anonymous. For a logged-in user we keep only the link
+            // Only a guest's: a signed-in person is reached through their account.
+            'name' => ! $user && filled($validated['name'] ?? null) ? trim($validated['name']) : null,
+            'email' => ! $user && filled($validated['email'] ?? null) ? trim($validated['email']) : null,
+            // A guest is anonymous unless they left a name or email. For a
+            // logged-in user we keep only the link
             // (their email is read through it), so deleting the account
             // leaves nothing personal behind.
             'user_id' => $user?->id,

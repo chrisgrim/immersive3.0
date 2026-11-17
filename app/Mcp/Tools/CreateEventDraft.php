@@ -45,10 +45,10 @@ class CreateEventDraft extends Tool
             return Response::error('You are not a member of that organizer. Call whoami to see your organizers.');
         }
 
-        // Unpublished-events cap, admins exempt (same as the web flow).
+        // Unfinished-events cap, EI staff exempt (same as the web flow).
         $unpublishedCount = Event::countUnpublishedEvents($organizer->id);
-        if ($unpublishedCount >= Event::MAX_UNPUBLISHED_EVENTS && ! $user->isAdmin()) {
-            return Response::error("\"{$organizer->name}\" already has {$unpublishedCount} unpublished events (limit ".Event::MAX_UNPUBLISHED_EVENTS.'). Submit or delete one first (see list-my-events).');
+        if ($unpublishedCount >= Event::MAX_UNPUBLISHED_EVENTS && ! $user->isModerator()) {
+            return Response::error("\"{$organizer->name}\" already has {$unpublishedCount} unfinished drafts (limit ".Event::MAX_UNPUBLISHED_EVENTS.'; events waiting for review do not count). Submit one for review or delete one first (see list-my-events).');
         }
 
         // Duplicate-name guard, same as the web flow.

@@ -312,14 +312,12 @@ test('StoreProfile accepts each allowed newsletter_type value', function () {
     }
 });
 
-test('StoreProfile rejects a silence value outside y/n', function () {
+test('StoreProfile no longer takes silence (email switches live on Account Settings)', function () {
     $user = User::factory()->create();
     $data = ['silence' => 'maybe'];
     $request = makeRequest(StoreProfileRequest::class, $data, [], $user);
 
-    $validator = validateWith($request, $data);
-    expect($validator->fails())->toBeTrue();
-    expect($validator->errors()->has('silence'))->toBeTrue();
+    expect(array_key_exists('silence', $request->rules()))->toBeFalse();
 });
 
 test('StoreProfile rejects an email already taken by another user', function () {

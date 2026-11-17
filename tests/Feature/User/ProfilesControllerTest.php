@@ -281,13 +281,13 @@ test('update rejects an invalid newsletter_type', function () {
         ->assertJsonValidationErrors(['newsletter_type']);
 });
 
-test('update rejects an invalid silence value', function () {
+test('update ignores the old silence setting (email switches live on Account Settings)', function () {
+    $before = $this->user->fresh()->silence;
     $this->actingAs($this->user)
-        ->postJson("/users/{$this->user->id}", [
-            'silence' => 'maybe',
-        ])
-        ->assertStatus(422)
-        ->assertJsonValidationErrors(['silence']);
+        ->postJson("/users/{$this->user->id}", ['silence' => 'maybe'])
+        ->assertOk();
+
+    expect($this->user->fresh()->silence)->toBe($before);
 });
 
 test('update rejects a non-image upload', function () {

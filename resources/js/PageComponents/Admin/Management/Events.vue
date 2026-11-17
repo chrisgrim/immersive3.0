@@ -56,9 +56,9 @@
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Category</th>
                         <th class="px-6 py-3 text-left text-xl font-medium text-gray-500 uppercase tracking-wider">Days Left</th>
                         <th class="px-2 py-3 text-center text-sm font-medium text-gray-500 uppercase tracking-wider">Clicks</th>
-                        <th class="px-2 py-3 text-center text-sm font-medium text-gray-500 uppercase tracking-wider">Curated</th>
-                        <th class="px-2 py-3 text-center text-sm font-medium text-gray-500 uppercase tracking-wider">Social</th>
-                        <th class="px-2 py-3 text-center text-sm font-medium text-gray-500 uppercase tracking-wider">Newsltr</th>
+                        <th v-if="SHOW_CHECKS" class="px-2 py-3 text-center text-sm font-medium text-gray-500 uppercase tracking-wider">Curated</th>
+                        <th v-if="SHOW_CHECKS" class="px-2 py-3 text-center text-sm font-medium text-gray-500 uppercase tracking-wider">Social</th>
+                        <th v-if="SHOW_CHECKS" class="px-2 py-3 text-center text-sm font-medium text-gray-500 uppercase tracking-wider">Newsltr</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 text-xl">
@@ -86,13 +86,19 @@
                                 >
                             </picture>
                         </td>
-                        <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto">
+                        <td class="relative px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto">
+                            <!-- Embargoed: the lock sits in the gap left of the name. -->
+                            <span v-if="event.status === 'e'" class="absolute left-[-1.6rem] top-1/2 -translate-y-1/2 text-[2.2rem] leading-none" role="img" aria-label="Embargoed" title="Embargoed">&#128274;</span>
                             <a 
                                 :href="event.public_url || `/events/${event.slug}`"
                                 class="text-blue-600 hover:text-blue-800 hover:underline"
                             >
                                 {{ event.name }}
                             </a>
+                            <!-- Embargoed: a small lock and when it lifts. The page opens for staff as a preview. -->
+                            <span v-if="event.status === 'e' && event.embargo_date" class="mt-1 flex items-center gap-1 whitespace-nowrap text-[1.2rem] text-gray-500" :title="'Embargoed: hidden from the public until then'" data-embargo-tag>
+                                Live {{ formatEmbargoShort(event.embargo_date, event.timezone).replace(/^\w{3}, /, '').replace(/[()]/g, '') }}
+                            </span>
                         </td>
                         <td class="px-6 py-4 max-w-[25rem] whitespace-normal break-words hyphens-auto">
                             <button 
@@ -152,7 +158,7 @@
                                 {{ event.total_clicks || 0 }}
                             </template>
                         </td>
-                        <td class="px-2 py-4 whitespace-nowrap text-center">
+                        <td v-if="SHOW_CHECKS" class="px-2 py-4 whitespace-nowrap text-center">
                             <button 
                                 @click="toggleEventCheck(event, 'curated')"
                                 :class="[
@@ -185,7 +191,7 @@
                                 </svg>
                             </button>
                         </td>
-                        <td class="px-2 py-4 whitespace-nowrap text-center">
+                        <td v-if="SHOW_CHECKS" class="px-2 py-4 whitespace-nowrap text-center">
                             <button 
                                 @click="toggleEventCheck(event, 'social')"
                                 :class="[
@@ -218,7 +224,7 @@
                                 </svg>
                             </button>
                         </td>
-                        <td class="px-2 py-4 whitespace-nowrap text-center">
+                        <td v-if="SHOW_CHECKS" class="px-2 py-4 whitespace-nowrap text-center">
                             <button 
                                 @click="toggleEventCheck(event, 'newsletter')"
                                 :class="[
@@ -381,6 +387,9 @@
 </template>
 
 <script setup>
+import { formatEmbargoShort } from '@/composables/dateUtils';
+// Curated / Social / Newsletter checks: hidden while nobody uses them (the data stays).
+const SHOW_CHECKS = false;
 import { ref, onMounted, watch } from 'vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 import dayjs from 'dayjs'

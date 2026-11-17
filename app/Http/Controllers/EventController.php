@@ -49,16 +49,17 @@ class EventController extends Controller
 
         $listing = Event::where('slug', $event)->first();
 
-        if (! $listing || $listing->status !== Event::STATUS_PUBLISHED) {
+        if (! $listing || ($listing->status !== Event::STATUS_PUBLISHED && ! $this->isEmbargoPreview($listing))) {
             abort(404);
         }
 
-        // Linked to a show that is gone, its address is still this one.
+        // Linked to a show that is gone, its address is still this one. (A
+        // preview of an embargoed run goes to its address under the show too.)
         if ($listing->isLinked() && $listing->publicPath() !== '/events/'.$listing->slug) {
             return $this->redirectTo($listing->publicPath(), 301);
         }
 
-        return $this->showListing($listing);
+        return $this->showListing($listing, $this->isEmbargoPreview($listing));
     }
 
     /**
@@ -75,9 +76,10 @@ class EventController extends Controller
             : null;
 
         if ($run) {
-            abort_unless($run->status === Event::STATUS_PUBLISHED, 404);
+            $preview = $this->isEmbargoPreview($run);
+            abort_unless($run->status === Event::STATUS_PUBLISHED || $preview, 404);
 
-            return $this->showListing($run);
+            return $this->showListing($run, $preview);
         }
 
         if ($moved = $this->movedTo("events/{$project}/{$instance}")) {
@@ -145,9 +147,25 @@ class EventController extends Controller
         return redirect($query ? $path.'?'.$query : $path, $status);
     }
 
-    private function showListing(Event $event)
+    /**
+     * An embargoed event opens as a preview for EI staff and the event's own
+     * team (a banner says when it goes live); everyone else gets the same 404
+     * as before, so an announcement stays secret.
+     */
+    private function isEmbargoPreview(Event $event): bool
     {
-        $this->recordView($event, request());
+        return $event->status === Event::STATUS_EMBARGOED && (bool) request()->user()?->can('manage', $event);
+    }
+
+    private function showListing(Event $event, bool $embargoPreview = false)
+    {
+        if ($embargoPreview) {
+            // A staff or team preview is not a visit: no page view, and the
+            // secret address stays out of the analytics.
+            request()->attributes->remove(\App\Http\Middleware\RecordPageView::VIEW_ID);
+        } else {
+            $this->recordView($event, request());
+        }
 
         $event->load([
             'currentUserFavorite',
@@ -214,7 +232,9 @@ class EventController extends Controller
         $pageEvent = Js::from($event);
         $projectLine = ProjectLine::for($event);
 
-        return view('events.show', compact('event', 'pageEvent', 'venue', 'projectLine'));
+        $embargoLiftsAt = $embargoPreview ? $event->embargoLiftsAt() : null;
+
+        return view('events.show', compact('event', 'pageEvent', 'venue', 'projectLine', 'embargoPreview', 'embargoLiftsAt'));
     }
 
     /** One analytics note per view of a live event page (Analytics::EVENT_VIEW). */

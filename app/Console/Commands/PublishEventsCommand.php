@@ -36,15 +36,16 @@ class PublishEventsCommand extends Command
         $now = Carbon::now();
         $debug = $this->option('debug');
 
-        $this->info('Publishing embargoed events');
-
         // Get all embargoed events
         $events = Event::whereNotNull('embargo_date')
             ->where('status', 'e')
             ->get();
 
         $count = $events->count();
-        $this->info("Found {$count} embargoed events to check");
+        // Runs every 5 minutes into a log: only a run that publishes (or --debug) writes.
+        if ($debug) {
+            $this->info("Found {$count} embargoed events to check");
+        }
 
         if ($debug) {
             $this->info('Current server time: '.$now->toDateTimeString());
@@ -85,11 +86,11 @@ class PublishEventsCommand extends Command
 
         // Clear caches only if we've made updates
         if ($publishedCount > 0) {
-            $this->info("Published {$publishedCount} events");
+            $this->info($now->toDateTimeString()." Published {$publishedCount} events");
 
             Cache::forget('active-categories');
             Cache::forget('active-genres');
-        } else {
+        } elseif ($debug) {
             $this->info('No events to publish at this time');
         }
 

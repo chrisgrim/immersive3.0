@@ -157,11 +157,14 @@ test('ignores embargoed events with a null embargo_date', function () {
     expect($event->fresh()->status)->toBe('e');
 });
 
-test('returns success and reports zero when there is nothing to publish', function () {
+test('with nothing to publish it succeeds and writes nothing (it runs every 5 minutes into a log); --debug says so', function () {
     Carbon::setTestNow(Carbon::parse('2026-01-16 01:00:00', 'UTC'));
 
     $exit = Artisan::call('ei:publish-embargoed');
 
     expect($exit)->toBe(0);
+    expect(trim(Artisan::output()))->toBe('');
+
+    Artisan::call('ei:publish-embargoed', ['--debug' => true]);
     expect(Artisan::output())->toContain('No events to publish at this time');
 });

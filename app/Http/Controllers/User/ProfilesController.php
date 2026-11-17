@@ -81,22 +81,10 @@ class ProfilesController extends Controller
             }
 
             // Handle other profile updates. Only persist the fields actually present so a
-            // partial edit (e.g. name only) does not clobber the user's saved
-            // newsletter_type / silence preferences.
-            $userData = $request->only('name', 'email', 'newsletter_type', 'silence');
-
-            // Admin notification opt-outs are personal to each admin — only persist them when
-            // an admin is editing their OWN account (not a moderator editing someone else, and
-            // not a non-admin pre-seeding opt-outs before a future promotion).
-            if ($request->has('notification_preferences') && $request->user()->is($user) && $user->isAdmin()) {
-                // Merge, don't replace — this column also holds keys this endpoint never
-                // sees (e.g. the Hub's saved_event_new_dates/followed_organizer_new_event),
-                // and a plain assignment here would silently wipe them on every profile save.
-                $userData['notification_preferences'] = array_merge(
-                    $user->notification_preferences ?? [],
-                    $request->input('notification_preferences')
-                );
-            }
+            // partial edit (e.g. name only) does not clobber the saved newsletter_type.
+            // Email switches (and the old `silence`, now only a fallback read by
+            // User::wantsNotification) are set on Account Settings > Notifications only.
+            $userData = $request->only('name', 'email', 'newsletter_type');
 
             if ($request->filled('email') && $request->email !== $user->email) {
                 $userData['email_verified_at'] = null;

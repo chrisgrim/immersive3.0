@@ -447,6 +447,7 @@
 </template>
 
 <script setup>
+import { formatEmbargoShort } from '@/composables/dateUtils';
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import EventRow from './event-row.vue';
 import DuplicateAsk from './duplicate-ask.vue';
@@ -760,7 +761,7 @@ const getStatusInfo = (event, cleanDateFn) => {
 		'B': { color: 'bg-orange-400', progress: 'add mobility advisories', view: 'Mobility' },
 		'C': { color: 'bg-yellow-300', progress: 'submit event', view: 'Review' },
 		'p': { color: 'bg-green-500', progress: 'approved', url: `/hosting/event/${event.slug}/edit` },
-		'e': { color: 'bg-green-500', progress: `event live at ${cleanDateFn(event.embargo_date)}`, url: `/hosting/event/${event.slug}/edit` },
+		'e': { color: 'bg-green-500', progress: `goes live ${formatEmbargoShort(event.embargo_date, event.timezone)}`, url: `/hosting/event/${event.slug}/edit` },
 		'r': { color: 'bg-black', progress: 'under moderator review', url: null },
 		'n': { color: 'bg-red-500', progress: 'revise and resubmit', url: `/hosting/event/${event.slug}/edit` },
 	};
@@ -798,13 +799,13 @@ const deletingEvent = ref(false);
 const createNewEvent = async () => {
 	if (creatingEvent.value) return;
 
-	// Check if organizer is at the unpublished-events cap (bypass for admins)
+	// Unfinished-drafts cap (Event::UNCOUNTED_STATUSES; EI staff exempt)
 	const unpublishedCount = props.organizer.events.filter(
-		event => !['p', 'e'].includes(event.status) && !event.is_deleted
+		event => !['p', 'e', 'r'].includes(event.status) && !event.is_deleted
 	).length;
 
-	if (unpublishedCount >= MAX_UNPUBLISHED_EVENTS && !props.user.isAdmin) {
-		alert(`You can only have ${MAX_UNPUBLISHED_EVENTS} unpublished events at a time. Please publish or delete existing events before creating new ones.`);
+	if (unpublishedCount >= MAX_UNPUBLISHED_EVENTS && !props.user.isModerator) {
+		alert(`You can have ${MAX_UNPUBLISHED_EVENTS} unfinished drafts at a time. Submit one for review or delete one before starting another.`);
 		return;
 	}
 

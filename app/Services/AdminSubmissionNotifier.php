@@ -31,7 +31,7 @@ class AdminSubmissionNotifier
     /** Unlike the queue notices, this goes to moderators as well as admins. */
     public function linkRequestEscalated(ProjectLinkRequest $request): void
     {
-        $this->notifyAdmins('events', fn () => new LinkRequestEscalated($request), ['a', 'm']);
+        $this->notifyAdmins('show_run_requests', fn () => new LinkRequestEscalated($request), ['a', 'm']);
     }
 
     /** @param  array<int, string>  $types  who hears about it (User::$type) */

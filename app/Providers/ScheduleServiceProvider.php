@@ -27,9 +27,12 @@ class ScheduleServiceProvider extends ServiceProvider
                 ->hourlyAt(15)
                 ->withoutOverlapping();
 
+            // Every five minutes: an embargo can lift at a time of day (Sunday
+            // 8:00 AM), and the query only reads embargoed events.
             $schedule->command('ei:publish-embargoed')
-                ->everyTwoHours()
-                ->withoutOverlapping()
+                ->everyFiveMinutes()
+                // A run killed mid-way frees its lock in 10 minutes, not 24 hours.
+                ->withoutOverlapping(10)
                 ->appendOutputTo(storage_path('logs/publish-events.log'));
 
             // First-party analytics: the buffer to MySQL every minute (a

@@ -45,12 +45,22 @@ test('after 72 hours it marks the request and mails moderators and admins, once'
 });
 
 test('it respects a moderator\'s opt-out', function () {
+    // Never set: follows the new-events switch, as before it had its own.
     $this->admin->update(['notification_preferences' => ['events' => false]]);
     linkRequestOn(publishedListing('Run', 'Paris'), ['submitted_at' => now()->subHours(73)]);
 
     Artisan::call('ei:escalate-link-requests');
 
     Mail::assertQueued(LinkRequestEscalated::class, 1);
+});
+
+test('its own switch, once set, decides', function () {
+    $this->admin->update(['notification_preferences' => ['events' => false, 'show_run_requests' => true]]);
+    linkRequestOn(publishedListing('Run', 'Paris'), ['submitted_at' => now()->subHours(73)]);
+
+    Artisan::call('ei:escalate-link-requests');
+
+    Mail::assertQueued(LinkRequestEscalated::class, 2);
 });
 
 test('the clock is submitted_at, not created_at', function () {

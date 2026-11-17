@@ -185,7 +185,9 @@ class ConversationsController extends Controller
 
         $receiver->update(['unread' => 'm']);
 
-        if ($wasCaughtUp) {
+        // Their "Messages" email switch (Account Settings > Notifications): off
+        // means the message still lands in the inbox, just no email.
+        if ($wasCaughtUp && $receiver->wantsNotification('messages')) {
             // emails/message.blade.php is shared with App\Mail\Comments and
             // prints $attributes['title']; this array never carried one, so
             // every inbox notification threw inside the view and was swallowed

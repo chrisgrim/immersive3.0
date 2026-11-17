@@ -1,108 +1,88 @@
 /**
- * Specs for PageComponents/AccountSettings/Pages/Notifications.vue
- *
- * Covers:
- *  - Fetch-on-mount loads counts from the notification-preferences counts
- *    endpoint and clears loading.
- *  - Load-error state + retry.
- *  - Counts render with correct singular/plural wording.
- *  - Clicking "Clear all notifications" POSTs to the clear-all endpoint,
- *    disables the button while in flight, and shows a confirmation.
- *  - A failed clear shows an error and doesn't touch the displayed counts.
+ * Account Settings > Notifications: sections of email switches (only the ones
+ * the server sends are shown), saved on each toggle and put back on failure,
+ * the "turn them all off" for per-item follows, and the always-on list.
  */
 import { mount, flushPromises } from '@vue/test-utils';
+import axios from 'axios';
 import Notifications from '@/PageComponents/AccountSettings/Pages/Notifications.vue';
 
-function mockGet(counts = { saved_events_count: 3, followed_organizers_count: 2 }) {
-    window.axios.get.mockResolvedValue({ data: counts });
+vi.mock('axios', () => ({ default: { get: vi.fn(), patch: vi.fn(), post: vi.fn() } }));
+
+const memberSettings = { messages: true, saved_event_dates: true, followed_organizer_events: false };
+
+function mockLoad(settings = memberSettings, counts = { saved_events_count: 3, followed_organizers_count: 1 }) {
+    axios.get.mockImplementation((url) => Promise.resolve({ data: url.includes('counts') ? counts : { settings } }));
 }
 
-async function mountLoaded(counts) {
-    mockGet(counts);
+async function mountLoaded(settings) {
+    mockLoad(settings);
     const wrapper = mount(Notifications);
     await flushPromises();
     return wrapper;
 }
 
-describe('AccountSettings Notifications.vue', () => {
-    it('fetches counts on mount and clears the loading state', async () => {
-        mockGet();
+const switchFor = (wrapper, key) => wrapper.find(`[data-notification-switch="${key}"]`);
+
+describe('Account Settings notifications', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        window.Laravel = { user: { id: 7 } };
+    });
+
+    it('shows only the switches the server sends, each as it is', async () => {
+        const wrapper = await mountLoaded();
+        expect(switchFor(wrapper, 'messages').attributes('aria-checked')).toBe('true');
+        expect(switchFor(wrapper, 'followed_organizer_events').attributes('aria-checked')).toBe('false');
+        expect(switchFor(wrapper, 'events').exists()).toBe(false);
+        expect(wrapper.find('[data-notification-section="admin"]').exists()).toBe(false);
+        expect(wrapper.find('[data-notification-section="always"]').text()).toContain('Always on');
+    });
+
+    it('admins see the review emails', async () => {
+        const wrapper = await mountLoaded({ ...memberSettings, events: true, organizers: false, claims: false });
+        expect(wrapper.find('[data-notification-section="admin"]').text()).toContain('New events to review');
+        expect(switchFor(wrapper, 'organizers').attributes('aria-checked')).toBe('false');
+    });
+
+    it('saves a switch at once', async () => {
+        const wrapper = await mountLoaded();
+        axios.patch.mockResolvedValueOnce({ data: { settings: { ...memberSettings, messages: false } } });
+
+        await switchFor(wrapper, 'messages').trigger('click');
+        await flushPromises();
+
+        expect(axios.patch).toHaveBeenCalledWith('/api/account/notification-settings', { messages: false });
+        expect(switchFor(wrapper, 'messages').attributes('aria-checked')).toBe('false');
+    });
+
+    it('puts a switch back and says so when saving fails', async () => {
+        const wrapper = await mountLoaded();
+        axios.patch.mockRejectedValueOnce(new Error('down'));
+
+        await switchFor(wrapper, 'saved_event_dates').trigger('click');
+        await flushPromises();
+
+        expect(switchFor(wrapper, 'saved_event_dates').attributes('aria-checked')).toBe('true');
+        expect(wrapper.find('[data-notification-row="saved_event_dates"]').text()).toContain('did not save');
+    });
+
+    it('turns every per-item follow email off at once', async () => {
+        const wrapper = await mountLoaded();
+        expect(wrapper.find('[data-notification-clear-all]').text()).toContain('3');
+        axios.post.mockResolvedValueOnce({ data: { saved_events_count: 0, followed_organizers_count: 0 } });
+
+        await wrapper.find('[data-notification-clear-all] button').trigger('click');
+        await flushPromises();
+
+        expect(axios.post).toHaveBeenCalledWith('/api/hub/notification-preferences/clear-all');
+        expect(wrapper.find('[data-notification-clear-all]').text()).toContain('turned off');
+    });
+
+    it('shows a retry when loading fails', async () => {
+        axios.get.mockRejectedValue(new Error('down'));
         const wrapper = mount(Notifications);
-        expect(wrapper.text()).toContain('Loading');
-
         await flushPromises();
-
-        expect(window.axios.get).toHaveBeenCalledWith('/api/hub/notification-preferences/counts');
-        expect(wrapper.text()).not.toContain('Loading');
-    });
-
-    it('shows a load error and a working retry button when the GET fails', async () => {
-        window.axios.get.mockRejectedValueOnce(new Error('network down'));
-        const wrapper = mount(Notifications);
-        await flushPromises();
-
-        expect(wrapper.text()).toContain('Could not load your notification settings.');
-
-        mockGet();
-        await wrapper.find('button').trigger('click');
-        await flushPromises();
-
-        expect(wrapper.text()).not.toContain('Could not load');
-        expect(window.axios.get).toHaveBeenCalledTimes(2);
-    });
-
-    it('renders the saved-events and followed-organizers counts', async () => {
-        const wrapper = await mountLoaded({ saved_events_count: 5, followed_organizers_count: 1 });
-
-        expect(wrapper.text()).toContain('notifications on');
-        expect(wrapper.text()).toContain('1');
-        expect(wrapper.text()).toContain('organizer');
-        expect(wrapper.text()).toContain('5');
-        expect(wrapper.text()).toContain('saved events');
-    });
-
-    it('links the counts to the callers Liked Events page', async () => {
-        const wrapper = await mountLoaded();
-
-        expect(wrapper.find('a').attributes('href')).toBe(`/users/${window.Laravel.user.id}/events`);
-    });
-
-    it('POSTs to the clear-all endpoint and shows a confirmation', async () => {
-        const wrapper = await mountLoaded();
-        window.axios.post.mockResolvedValue({ data: { saved_events_count: 0, followed_organizers_count: 0 } });
-
-        await wrapper.find('button').trigger('click');
-        await flushPromises();
-
-        expect(window.axios.post).toHaveBeenCalledWith('/api/hub/notification-preferences/clear-all');
-        expect(wrapper.text()).toContain('cleared');
-    });
-
-    it('disables the button while a clear is in flight', async () => {
-        const wrapper = await mountLoaded();
-        let resolvePost;
-        window.axios.post.mockReturnValue(new Promise((resolve) => { resolvePost = resolve; }));
-
-        await wrapper.find('button').trigger('click');
-        await flushPromises();
-
-        expect(wrapper.find('button').element.disabled).toBe(true);
-        expect(wrapper.text()).toContain('Clearing');
-
-        resolvePost({ data: { saved_events_count: 0, followed_organizers_count: 0 } });
-        await flushPromises();
-        expect(wrapper.find('button').element.disabled).toBe(false);
-    });
-
-    it('shows an error and leaves the counts unchanged when clearing fails', async () => {
-        const wrapper = await mountLoaded({ saved_events_count: 3, followed_organizers_count: 2 });
-        window.axios.post.mockRejectedValue(new Error('boom'));
-
-        await wrapper.find('button').trigger('click');
-        await flushPromises();
-
-        expect(wrapper.text()).toContain('Could not clear notifications');
-        expect(wrapper.text()).toContain('3');
-        expect(wrapper.text()).toContain('2');
+        expect(wrapper.text()).toContain('Could not load');
     });
 });

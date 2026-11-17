@@ -353,14 +353,51 @@ class User extends Authenticatable implements PasskeyUser
     {
         $prefs = $this->notification_preferences ?? [];
 
-        // Missing key → $default (true = opt-out, existing admin-alert keys; false = opt-in,
-        // for newer user-facing keys). A present value is normalized strictly so a stray
-        // "false" string from a manual write can't re-enable it.
+        // Missing key: its fallback (NOTIFICATION_FALLBACKS), else $default.
+        // A present value is normalized strictly so a stray "false" string
+        // from a manual write can't re-enable it.
         if (! array_key_exists($key, $prefs)) {
-            return $default;
+            return $this->notificationFallback($key) ?? $default;
         }
 
         return filter_var($prefs[$key], FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * The email switches on Account Settings > Notifications (all opt-out,
+     * missing = on unless a fallback says otherwise). Admin keys are honored
+     * only for admins; `closing_soon` only matters to organizer owners;
+     * `saved_search_matches` only to staff (that alert is a staff pilot).
+     */
+    public const NOTIFICATION_KEYS = [
+        'messages', 'saved_event_dates', 'followed_organizer_events', 'saved_search_matches',
+        'closing_soon', 'events', 'organizers', 'claims', 'show_run_requests',
+    ];
+
+    public const ADMIN_NOTIFICATION_KEYS = ['events', 'organizers', 'claims'];
+
+    /**
+     * What a key means while it was never set, so the settings page and every
+     * sender agree: `messages` and `closing_soon` honor the old "don't email
+     * me" setting (users.silence = 'y', which the old profile page wrote);
+     * `claims` follows `organizers`, which covered claims and name changes
+     * before it had a switch of its own.
+     */
+    private function notificationFallback(string $key): ?bool
+    {
+        return match ($key) {
+            'messages', 'closing_soon' => $this->silence !== 'y',
+            'claims' => $this->wantsNotification('organizers'),
+            // Show run requests waiting 72 hours went with new-event emails before.
+            'show_run_requests' => $this->wantsNotification('events'),
+            default => null,
+        };
+    }
+
+    /** Every switch as it is in effect now (stored, or its fallback). */
+    public function notificationSettings(): array
+    {
+        return collect(self::NOTIFICATION_KEYS)->mapWithKeys(fn ($key) => [$key => $this->wantsNotification($key)])->all();
     }
 
     /**

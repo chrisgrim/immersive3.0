@@ -95,6 +95,9 @@ export const formatDateForAPI = (date, timezone) => {
     return m.utc().format('YYYY-MM-DD HH:mm:ss');
 };
 
+/** Noon, where the event is, unless the organizer picks a time. */
+export const EMBARGO_DEFAULT_TIME = '12:00';
+
 /**
  * Format a picked embargo day for the API.
  *
@@ -108,12 +111,40 @@ export const formatDateForAPI = (date, timezone) => {
  *
  * @param {Date|string} date - The day the organizer picked, as the date picker emits it
  * @param {string} timezone - The event's IANA timezone
- * @returns {string|null} "YYYY-MM-DD 12:00:00", or null
+ * @param {string} time - "HH:mm" where the event is (noon when not picked)
+ * @returns {string|null} "YYYY-MM-DD HH:mm:00", or null
  */
-export const embargoDateForAPI = (date, timezone) => {
+export const embargoDateForAPI = (date, timezone, time = EMBARGO_DEFAULT_TIME) => {
     const day = normalizeDateToTimezone(date, timezone);
 
-    return day ? `${day} 12:00:00` : null;
+    return day ? `${day} ${/^\d{2}:\d{2}$/.test(time) ? time : EMBARGO_DEFAULT_TIME}:00` : null;
+};
+
+/** The "HH:mm" of a stored embargo ("YYYY-MM-DD HH:mm:ss"), noon if none. */
+export const embargoTimeOf = (embargoDate) => {
+    const match = String(embargoDate ?? '').match(/\s(\d{2}):(\d{2})/);
+    return match ? `${match[1]}:${match[2]}` : EMBARGO_DEFAULT_TIME;
+};
+
+/** The zone's short name for a stored embargo where the event is ("PST", or "PDT" in summer). */
+export const embargoZoneOf = (embargoDate, timezone) => {
+    if (!embargoDate || !timezone) return '';
+    return moment.tz(String(embargoDate).slice(0, 16), 'YYYY-MM-DD HH:mm', timezone).format('z');
+};
+
+/** A stored embargo in short words where the event is: "Sun, Nov 22, 8:00 AM (PST)". */
+export const formatEmbargoShort = (embargoDate, timezone) => {
+    if (!embargoDate) return '';
+    const zone = timezone || 'UTC';
+    const at = moment.tz(String(embargoDate).slice(0, 16), 'YYYY-MM-DD HH:mm', zone);
+    return `${at.format('ddd, MMM D')}, ${at.format('h:mm A')} (${at.format('z')})`;
+};
+
+/** "8:00 AM" for "08:00". */
+export const formatEmbargoTime = (time) => {
+    const [hours, minutes] = String(time || EMBARGO_DEFAULT_TIME).split(':').map(Number);
+    const suffix = hours < 12 ? 'AM' : 'PM';
+    return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${suffix}`;
 };
 
 /**

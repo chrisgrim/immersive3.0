@@ -79,3 +79,55 @@ test('geocode-address surfaces upstream failures as readable errors', function (
     EiServer::actingAs(geoUser())->tool(GeocodeAddress::class, ['address' => 'somewhere'])
         ->assertHasErrors();
 });
+
+test('regions keep their full code and Australian suburbs stay the city', function () {
+    config(['services.google_geocoding.key' => null]);
+    Http::fake([
+        'nominatim.openstreetmap.org/*' => Http::response([[
+            'display_name' => 'Hudson Hotel, 5 Quinn Ave, Seven Hills NSW 2147', 'lat' => '-33.77', 'lon' => '150.93',
+            'address' => ['house_number' => '5', 'road' => 'Quinn Avenue', 'suburb' => 'Seven Hills', 'city' => 'Sydney',
+                'state' => 'New South Wales', 'ISO3166-2-lvl4' => 'AU-NSW', 'country' => 'Australia', 'country_code' => 'au', 'postcode' => '2147'],
+        ]]),
+    ]);
+
+    $match = app(App\Services\GeocodingService::class)->search('5 Quinn Ave, Seven Hills NSW')[0];
+    expect($match['city'])->toBe('Seven Hills')->and($match['region'])->toBe('NSW');
+});
+
+test('when google finds nothing, the free lookup gets a try', function () {
+    config(['services.google_geocoding.key' => 'server-key']);
+    Http::fake([
+        'maps.googleapis.com/*' => Http::response(['status' => 'ZERO_RESULTS', 'results' => []]),
+        'nominatim.openstreetmap.org/*' => Http::response([[
+            'display_name' => 'Somewhere', 'lat' => '1', 'lon' => '2',
+            'address' => ['city' => 'Speyer', 'ISO3166-2-lvl4' => 'DE-RP', 'country_code' => 'de'],
+        ]]),
+    ]);
+
+    $match = app(App\Services\GeocodingService::class)->search('Speyer')[0];
+    expect($match['source'] ?? null)->not->toBe('google')->and($match['region'])->toBe('RP');
+});
+
+test('when google cannot be reached, the free lookup answers', function () {
+    config(['services.google_geocoding.key' => 'server-key']);
+    Http::fake([
+        'maps.googleapis.com/*' => fn () => throw new Illuminate\Http\Client\ConnectionException('timed out'),
+        'nominatim.openstreetmap.org/*' => Http::response([[
+            'display_name' => 'Somewhere', 'lat' => '1', 'lon' => '2',
+            'address' => ['city' => 'Speyer', 'ISO3166-2-lvl4' => 'DE-RP', 'country_code' => 'de'],
+        ]]),
+    ]);
+
+    expect(app(App\Services\GeocodingService::class)->search('Speyer')[0]['city'])->toBe('Speyer');
+});
+
+test('without the fallback (a save nobody confirms), only Google answers', function () {
+    config(['services.google_geocoding.key' => 'server-key']);
+    Http::fake([
+        'maps.googleapis.com/*' => Http::response(['status' => 'ZERO_RESULTS', 'results' => []]),
+        'nominatim.openstreetmap.org/*' => Http::response([['display_name' => 'Somewhere', 'lat' => '1', 'lon' => '2', 'address' => ['city' => 'X', 'country_code' => 'us']]]),
+    ]);
+
+    expect(app(App\Services\GeocodingService::class)->search('Nowhere', fallback: false))->toBe([]);
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), 'nominatim'));
+});

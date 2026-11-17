@@ -130,6 +130,8 @@ test('an embargoed listing can be linked and stays embargoed', function () {
 
     expect($embargoed->fresh()->status)->toBe('e');
     // The address under the show confirms nothing until it is published.
+    // To the public (staff get a preview).
+    auth()->forgetGuards();
     $this->get($embargoed->fresh()->publicPath())->assertNotFound();
     $this->get('/events/ha-ha-ha-new-york')->assertNotFound();
 });
