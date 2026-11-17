@@ -218,3 +218,15 @@ test('the website way (number in the street, home the place name or empty) still
     $approved = $this->actingAs($member)->getJson('/api/venues/known?home=340+W+46th+St&street=340+W+46th+St&city=New+York')->assertOk()->json();
     expect($approved[0]['at_address'])->toBeTrue();
 });
+
+test('a numbered street is not a house number: 5th Ave alone opens nothing private', function () {
+    $this->venue->update(['status' => Venue::PENDING, 'home' => '350', 'street' => '5th Ave', 'city' => 'New York']);
+    $member = claimTeamMember(Organizer::factory()->create(['status' => 'p']));
+
+    $guess = $this->actingAs($member)->getJson('/api/venues/known?street=5th+Ave&city=New+York')->assertOk()->json();
+    expect($guess[0])->not->toHaveKeys(['home', 'street', 'latitude', 'postal_code'])
+        ->and($guess[0]['claim_url'])->toBeNull();
+
+    $whole = $this->actingAs($member)->getJson('/api/venues/known?home=350&street=5th+Ave&city=New+York')->assertOk()->json();
+    expect($whole[0]['claim_url'])->not->toBeNull();
+});

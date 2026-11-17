@@ -92,7 +92,13 @@ class FindVenues
                 // ("340 W 46th St"); the address lookup keeps it in home ("340"),
                 // and then home must match too, or street and city alone would
                 // hand anyone its exact place.
-                $wholeAddress = $atAddress && (blank($venue->home) || preg_match('/\d/', (string) $venue->street) || $same($venue->home, $home));
+                // Decided from home ("5th Ave" has a digit but no house number):
+                // the number is in the street when home is blank, a place name
+                // (no digit), or already part of the street.
+                $numberInStreet = blank($venue->home)
+                    || ! preg_match('/\d/', (string) $venue->home)
+                    || str_contains(mb_strtolower((string) $venue->street), mb_strtolower(trim((string) $venue->home)));
+                $wholeAddress = $atAddress && ($numberInStreet || $same($venue->home, $home));
 
                 // Someone else's venue still in review keeps its address to
                 // itself (Venue::scopeVisibleTo): only its name and city, and
