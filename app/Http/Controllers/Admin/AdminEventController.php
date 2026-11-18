@@ -6,12 +6,14 @@ use App\Actions\Admin\ModerateSubmission;
 use App\Actions\Projects\LinkEventToProject;
 use App\Actions\Projects\LinkReview;
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Event;
 use App\Models\Messaging\Message;
 use App\Models\Organizer;
 use App\Models\Project;
 use App\Models\ProjectLinkRequest;
 use App\Models\User;
+use App\Models\Venue;
 use App\Scopes\LatestPublishedFirstScope;
 use App\Services\EventNotificationDispatcher;
 use App\Services\ImageHandler;
@@ -133,6 +135,21 @@ class AdminEventController extends Controller
             ->get();
 
         $event->duplicateEvents = $duplicateEvents;
+
+        // The venue it names, so the review shows it beside the organizer and
+        // says when approving this event approves the venue too.
+        $venue = $event->location?->venue_id
+            ? Venue::select('id', 'name', 'slug', 'status', 'merged_into_id', 'street', 'home', 'city', 'region', 'country', 'website', 'created_at')->find($event->location->venue_id)
+            : null;
+        $event->reviewVenue = $venue ? [
+            'id' => $venue->id, 'name' => $venue->name, 'slug' => $venue->slug,
+            'street' => trim($venue->home.' '.$venue->street), 'city' => $venue->city,
+            'region' => $venue->region, 'country' => $venue->country, 'website' => $venue->website,
+            'created_at' => $venue->created_at,
+            'new' => $venue->status === Venue::PENDING && $venue->merged_into_id === null,
+            'secret' => (bool) $event->location->hiddenLocationToggle,
+            'draft' => $venue->status === Venue::DRAFT,
+        ] : null;
 
         // The review screen reloads through here, so it never sees getPending's copy.
         $this->linkReview->attachTo(collect([$event]), request()->user(), withMatches: true);
@@ -345,6 +362,18 @@ class AdminEventController extends Controller
                 // Approve organizer if not already approved
                 if ($event->organizer->status !== 'p') {
                     $event->organizer->update(['status' => 'p']);
+                }
+
+                // Approve its venue too, if one is waiting: the listing would
+                // otherwise go live without naming it. Not a draft (its team
+                // has not sent it), not a merged one, and never for a secret
+                // location (approving would publish the address it keeps).
+                $venue = $event->location?->venue_id && ! $event->location->hiddenLocationToggle
+                    ? Venue::whereKey($event->location->venue_id)->lockForUpdate()->first()
+                    : null;
+                if ($venue && $venue->status === Venue::PENDING && $venue->merged_into_id === null) {
+                    $venue->update(['status' => Venue::APPROVED]);
+                    AuditLog::record($venue, 'venue.approved', $request->user(), ['with_event' => $event->id]);
                 }
 
                 // Create curated check record
