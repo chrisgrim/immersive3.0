@@ -38,6 +38,7 @@ class UpdateSavedSearchAction
             $criteria['NElng'] = null;
             $criteria['SWlat'] = null;
             $criteria['SWlng'] = null;
+            $criteria['area'] = null;
         }
 
         $normalized = $this->normalizeCriteria->handle($criteria);

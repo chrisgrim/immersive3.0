@@ -2,6 +2,7 @@
 import { ref, reactive } from 'vue';
 import axios from 'axios';
 import { normalizeSearchResults } from './searchResults';
+import { areaFromParams } from '@/composables/placeArea.js';
 
 class SearchStore {
     constructor() {
@@ -30,7 +31,9 @@ class SearchStore {
                 city: null,
                 lat: null,
                 lng: null,
-                live: false
+                live: false,
+                // A country or state search's own box (see placeArea.js), or null.
+                area: null
             },
             dates: {
                 start: null,
@@ -62,7 +65,8 @@ class SearchStore {
                 city: cityName || null,
                 lat: params.has('lat') ? parseFloat(params.get('lat')) : null,
                 lng: params.has('lng') ? parseFloat(params.get('lng')) : null,
-                live: params.get('live') === 'true'
+                live: params.get('live') === 'true',
+                area: areaFromParams(params)
             },
             dates: {
                 start: params.get('start') || null,
@@ -134,7 +138,8 @@ class SearchStore {
                 city: newData.location.city !== undefined ? newData.location.city : this.state.location.city,
                 lat: newData.location.lat !== undefined ? newData.location.lat : this.state.location.lat,
                 lng: newData.location.lng !== undefined ? newData.location.lng : this.state.location.lng,
-                live: newData.location.live !== undefined ? newData.location.live : this.state.location.live
+                live: newData.location.live !== undefined ? newData.location.live : this.state.location.live,
+                area: newData.location.area !== undefined ? newData.location.area : this.state.location.area
             };
             
             // Replace the entire object

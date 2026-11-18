@@ -107,7 +107,9 @@ const NElng = parseFloat(params.get('NElng'));
 const SWlat = parseFloat(params.get('SWlat'));
 const SWlng = parseFloat(params.get('SWlng'));
 const savedBounds = [NElat, NElng, SWlat, SWlng].every((n) => Number.isFinite(n))
-    ? [[SWlat, SWlng], [NElat, NElng]]
+    // A box across the date line ends east of where it starts: Leaflet
+    // draws it by carrying the east edge on past 180.
+    ? [[SWlat, SWlng], [NElat, NElng < SWlng ? NElng + 360 : NElng]]
     : null;
 
 const mapConfig = {
@@ -117,7 +119,8 @@ const mapConfig = {
     // See map.vue's identical fix — 4 matches the saved-search picker's own
     // starting zoom, so a saved search drawn at that scale isn't clamped
     // back in on replay.
-    minZoom: 4,
+    // A whole country (placeArea.js) may need to zoom out further than a city.
+    minZoom: params.get('area') === '1' || savedBounds ? 2 : 4,
     tileUrl: "https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=5Pwt4rF8iefMU4hIcRqZJ0GXPqWi5l4NVjEn4owEBKOdGyuJVARXbYTBDO2or3cU",
     attribution: '<a href="http://jawg.io" title="Tiles Courtesy of Jawg Maps" target="_blank">&copy; <b>Jawg</b>Maps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 };
@@ -294,9 +297,11 @@ const initMap = () => {
     // Fit the exact rectangle a "custom map search" was saved with — see
     // map.vue's identical fix for why the listener is detached for just
     // this one call.
+    lastSize = map.getSize();
     if (savedBounds) {
         map.off('moveend', mapMoved);
         map.fitBounds(savedBounds, { animate: false });
+        MapStore.remember(map.getBounds(), map.getCenter(), map.getZoom());
         map.on('moveend', mapMoved);
     }
 
@@ -369,14 +374,25 @@ const updateMarkerStyles = () => {
 };
 
 // Map moved event handler
+let lastSize = null;
 const mapMoved = () => {
     if (!map) return;
+
+    // A size change (phone toolbar, window resize) is not a drag: note the
+    // view without searching, so "in France" stays "in France".
+    const size = map.getSize();
+    const resized = lastSize && (size.x !== lastSize.x || size.y !== lastSize.y);
+    lastSize = size;
+    if (resized) {
+        MapStore.remember(map.getBounds(), map.getCenter(), map.getZoom());
+        return;
+    }
     
     const bounds = map.getBounds();
     const center = map.getCenter();
     
     if (bounds && center) {
-        MapStore.boundsUpdate(bounds, center);
+        MapStore.boundsUpdate(bounds, center, map.getZoom());
     }
 };
 

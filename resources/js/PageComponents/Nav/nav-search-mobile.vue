@@ -187,6 +187,7 @@ import Filters from './Components/filters-mobile.vue';
 import SearchStore from '@/Stores/SearchStore.vue';
 import MapStore from '@/Stores/MapStore.vue';
 import { saveSearch } from '@/composables/useSavedSearches';
+import { savedBoxCriteria, setAreaParams } from '@/composables/placeArea.js';
 
 
 // Props definition
@@ -344,7 +345,8 @@ const handleLocationUpdate = (value) => {
                 city: value.city,
                 lat: value.lat !== undefined ? value.lat : null,
                 lng: value.lng !== undefined ? value.lng : null,
-                live: false
+                live: false,
+                area: value.area || null
             },
             dates: {
                 start: value.start,
@@ -379,6 +381,10 @@ const handleLocationUpdate = (value) => {
 
 const handleSearch = async () => {
     const params = new URLSearchParams(window.location.search);
+    // The place the page is showing now, before this search overwrites it.
+    const shownCity = params.get('city');
+    const shownLat = parseFloat(params.get('lat'));
+    const shownLng = parseFloat(params.get('lng'));
     // A new search is a new result set: drop the depth the last one had
     // opened (page=N means N pages are open), as the desktop nav does.
     params.delete('page');
@@ -404,7 +410,20 @@ const handleSearch = async () => {
         }
         
         params.set('searchType', 'inPerson');
-        params.set('live', 'false');
+        // A country or state searches its own box; a city drops any box
+        // a previous search left in the URL (placeArea.js). The same place
+        // after a drag (live box, no `area`) keeps the dragged view, as on
+        // desktop: only the dates or filters changed.
+        const keepsDraggedView = !state.value.location.area
+            && shownCity === state.value.location.city
+            // A fresh pick of a same-named place (Portland, Maine) has its own centre.
+            && shownLat === parseFloat(state.value.location.lat)
+            && shownLng === parseFloat(state.value.location.lng)
+            && params.get('live') === 'true'
+            && !params.has('area');
+        if (!keepsDraggedView) {
+            setAreaParams(params, state.value.location.area);
+        }
     } else {
         // For remote mode or date-only search
         params.set('searchType', isRemoteMode ? 'atHome' : 'null');
@@ -417,6 +436,7 @@ const handleSearch = async () => {
         params.delete('NElng');
         params.delete('SWlat');
         params.delete('SWlng');
+        params.delete('area');
         params.delete('live');
     }
     
@@ -463,7 +483,9 @@ const handleSearch = async () => {
             lat: state.value.location.lat,
             lng: state.value.location.lng,
             searchType: 'inPerson',
-            live: false,
+            // What these params really search: a country's box, a dragged
+            // map kept from before, or a city circle.
+            ...savedBoxCriteria(params),
             start: state.value.dates.start,
             end: state.value.dates.end,
             categories: state.value.filters.categories,
@@ -638,6 +660,7 @@ const handleFilterUpdate = (filters) => {
             params.delete('NElng');
             params.delete('SWlat');
             params.delete('SWlng');
+            params.delete('area');
             params.delete('live');
         }
         
@@ -703,6 +726,9 @@ const subscribeToMapStore = () => {
         
         // Set search parameters
         params.set('live', 'true');
+        // Dragged: the box is the map's now, not the country's or state's.
+        params.delete('area');
+        SearchStore.updateState({ location: { area: null } });
         params.set('searchType', 'inPerson');
         params.set('lat', mapState.bounds.center[0]);
         params.set('lng', mapState.bounds.center[1]);

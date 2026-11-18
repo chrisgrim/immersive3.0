@@ -225,3 +225,27 @@ describe('MapStore — a repeat of the last viewport', () => {
         unsubscribe();
     });
 });
+
+describe('MapStore — edges past the date line', () => {
+    it('wraps a zoomed-out view into real longitudes the search accepts', () => {
+        MapStore.boundsUpdate(
+            makeBounds({ southWest: { lat: 18, lng: -211.3 }, northEast: { lat: 72, lng: -60 } }),
+            makeCenter({ lng: -200 }),
+            3,
+        );
+        const { southWest, northEast, center } = MapStore.state.value.bounds;
+        expect(southWest.lng).toBeCloseTo(148.7);
+        expect(northEast.lng).toBe(-60);
+        expect(center[1]).toBeCloseTo(160);
+    });
+
+    it('a view a whole world wide searches the whole world', () => {
+        MapStore.boundsUpdate(
+            makeBounds({ southWest: { lat: -60, lng: -351.9 }, northEast: { lat: 80, lng: 20 } }),
+            makeCenter({ lng: -165 }),
+            2,
+        );
+        const { southWest, northEast } = MapStore.state.value.bounds;
+        expect([southWest.lng, northEast.lng]).toEqual([-180, 180]);
+    });
+});

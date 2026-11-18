@@ -177,6 +177,7 @@ import SearchFilterButton from './search-filter-button.vue';
 import RecentSearchesList from './recent-searches-list.vue';
 import { saveSearch } from '@/composables/useSavedSearches';
 import { parseSearchDate } from '@/composables/useSavedSearchDateRange';
+import { PLACE_FIELDS, PLACE_TYPES, keepPrediction, placeArea, areaFromParams, savedBoxCriteria, setAreaParams } from '@/composables/placeArea.js';
 
 // Props
 const props = defineProps({
@@ -421,10 +422,10 @@ const updateLocations = async () => {
        if (autoComplete) {
            const { predictions } = await autoComplete.getPlacePredictions({
                input: searchInput.value,
-               types: ['(cities)']
+               types: PLACE_TYPES
            });
            if (token !== updateLocationsToken) return;
-           places.value = predictions || initializePlaces();
+           places.value = predictions ? predictions.filter(keepPrediction) : initializePlaces();
        }
    } catch (error) {
        if (token !== updateLocationsToken) return;
@@ -442,7 +443,7 @@ const selectLocation = async (location) => {
    dropdown.value = false;
    const cityParts = location.description.split(',');
    searchInput.value = cityParts[0].trim();
-   selectedPlace.value = { name: location.description, lat: null, lng: null };
+   selectedPlace.value = { name: location.description, lat: null, lng: null, area: null };
    // Auto-advance to Dates, the natural next step — also gives a clear
    // signal the pick registered, instead of the pill just quietly updating
    // its text with no other feedback.
@@ -453,9 +454,7 @@ const selectLocation = async (location) => {
        const placeResult = new Place({ id: location.place_id });
 
        // Fetch the necessary fields
-       await placeResult.fetchFields({
-           fields: ["displayName", "formattedAddress", "location"]
-       });
+       await placeResult.fetchFields({ fields: PLACE_FIELDS });
 
        setPlace(placeResult);
    } catch (error) {
@@ -499,7 +498,9 @@ const setPlace = (place) => {
    selectedPlace.value = {
        name: placeName,
        lat: lat,
-       lng: lng
+       lng: lng,
+       // A country or state: searched as its whole box (placeArea.js).
+       area: placeArea(place)
    };
 
    // Show only the city name in the search input for better UX
@@ -537,7 +538,8 @@ onMounted(() => {
         selectedPlace.value = {
             name: fullCityName,
             lat: parseFloat(params.get('lat')),
-            lng: parseFloat(params.get('lng'))
+            lng: parseFloat(params.get('lng')),
+            area: areaFromParams(params)
         };
 
         // Display only the city part in the search input
@@ -710,11 +712,24 @@ const handleSearch = async () => {
     // Check if we're on a search page
     const isSearchPage = window.location.pathname.includes('/search');
 
+    // A country or state searches its own box only when just picked, or
+    // while the URL still holds it: after the map was dragged (no `area` any
+    // more), the place kept here is not what is being searched.
+    const pickedNow = selectedPlace.value !== committedSelectedPlace.value;
+    const area = selectedPlace.value?.area
+        && (pickedNow || new URLSearchParams(window.location.search).get('area') === '1')
+        ? selectedPlace.value.area
+        : null;
+
     // Build search data object
     const searchData = {
         location: {
             city: selectedPlace.value?.name || null,
-            live: false,
+            live: !!area,
+            area,
+            // Picked again just now (not only new dates): the parent drops a
+            // dragged box for it, as for a new place.
+            picked: pickedNow && !!selectedPlace.value,
             lat: selectedPlace.value?.lat ? parseFloat(selectedPlace.value.lat) : null,
             lng: selectedPlace.value?.lng ? parseFloat(selectedPlace.value.lng) : null
         },
@@ -773,7 +788,12 @@ const handleSearch = async () => {
             lat: searchData.location.lat,
             lng: searchData.location.lng,
             searchType: 'inPerson',
-            live: searchData.location.live,
+            // What is really searched: a country's box, else (same place, not
+            // picked again) whatever box the page already searches, such as
+            // a dragged map, else a city circle.
+            ...(searchData.location.area
+                ? { live: true, ...searchData.location.area, area: true }
+                : (pickedNow || !selectedPlace.value ? { live: false } : savedBoxCriteria(new URLSearchParams(window.location.search)))),
             start: searchData.dates.start,
             end: searchData.dates.end,
             categories: filtersState.value.categories,
@@ -810,7 +830,7 @@ const handleSearch = async () => {
         }
 
         params.set('searchType', 'inPerson');
-        params.set('live', 'false');
+        setAreaParams(params, searchData.location.area);
     } else if (hasDates) {
         // For date-only search
         params.set('searchType', 'null');

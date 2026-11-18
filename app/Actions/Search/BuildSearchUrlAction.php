@@ -55,6 +55,10 @@ class BuildSearchUrlAction
             $params['SWlat'] = $criteria['SWlat'];
             $params['SWlng'] = $criteria['SWlng'];
             $params['live'] = 'true';
+            // A country's or state's own box: the results say "in France".
+            if (! empty($criteria['area'])) {
+                $params['area'] = '1';
+            }
         }
 
         if (! empty($criteria['start'])) {

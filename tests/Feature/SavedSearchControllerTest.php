@@ -1074,3 +1074,19 @@ test('replay sends criteria given as a query array, not JSON, to a plain search 
     $this->get('/index/search/replay?criteria[city]=Denver')
         ->assertRedirect(route('search'));
 });
+
+test('a saved country search replays as the country, and older searches keep their fingerprint', function () {
+    $normalize = app(App\Actions\Search\NormalizeSavedSearchCriteriaAction::class);
+    $box = ['NElat' => 51.1, 'NElng' => 9.6, 'SWlat' => 41.3, 'SWlng' => -5.1];
+    $france = ['city' => 'France', 'lat' => 46.2, 'lng' => 2.2, 'searchType' => 'inPerson', 'live' => true, 'area' => true, ...$box];
+
+    $url = app(App\Actions\Search\BuildSearchUrlAction::class)->handle($normalize->handle($france));
+    expect($url)->toContain('area=1')->toContain('live=true')->toContain('NElat=51.1');
+
+    // A dragged map, and every search saved before this flag, carry no `area` key at all.
+    expect($normalize->handle(['area' => false, 'live' => true, ...$box]))->not->toHaveKey('area');
+    expect($normalize->handle(['area' => true, 'live' => false]))->not->toHaveKey('area');
+
+    $user = User::factory()->create();
+    $this->actingAs($user)->postJson('/api/hub/saved-searches', ['name' => 'France', 'criteria' => $france])->assertSuccessful();
+});
