@@ -171,6 +171,7 @@
                             loading="lazy">
                     </a>
                 </div>
+                <p class="mt-4 text-white text-base opacity-80">The Immersive Experience Institute is a 501(c)(3) nonprofit organization. <span class="whitespace-nowrap">EIN: 84-4569232</span></p>
             </div>
             
             <!-- Image - Right Two-Thirds -->

@@ -46,6 +46,15 @@ class Project extends Model
             if ($project->wasChanged('slug')) {
                 SlugRedirect::remember('events/'.$project->getOriginal('slug'), $project);
                 SlugRedirect::forget('events/'.$project->slug, $project);
+                // A run's old address the show now goes by leads to the show,
+                // and one of something gone for good is dropped.
+                SlugRedirect::where('path', 'events/'.$project->slug)->get()
+                    ->filter(fn (SlugRedirect $redirect) => $redirect->isStale())
+                    ->each->delete();
+                SlugRedirect::where('path', 'events/'.$project->slug)
+                    ->where('redirectable_type', (new Event)->getMorphClass())
+                    ->whereIn('redirectable_id', Event::withTrashed()->where('project_id', $project->id)->select('id'))
+                    ->delete();
                 $project->settleRunsAfterMoveFrom();
             }
         });
@@ -195,34 +204,65 @@ class Project extends Model
     }
 
     /**
-     * Whether the address is out of reach for this project: another project
-     * has it, an event does ($first, whose address it is taking over, and a
-     * first listing still holding an address this project has gone by, are
-     * the exceptions), or an old address of something else reserves it.
-     * Deleted projects count, though they all hold a released slug by then.
+     * Whether the address is out of reach for this project. See slugHolder().
+     *
+     * @param  Event|array<int, Event|null>|null  $first  listings taking it over (exempt)
      */
-    public static function slugTaken(string $slug, ?Event $first = null, ?int $projectId = null): bool
+    public static function slugTaken(string $slug, Event|array|null $first = null, ?int $projectId = null): bool
     {
-        // The one permitted collision: only on an address that is, or was, the project's.
-        $ownAddress = $projectId !== null && (
-            static::whereKey($projectId)->where('slug', $slug)->exists()
-            || SlugRedirect::where('path', 'events/'.$slug)
-                ->where('redirectable_type', (new self)->getMorphClass())
-                ->where('redirectable_id', $projectId)
-                ->exists()
-        );
+        return static::slugHolder($slug, $first, $projectId) !== null;
+    }
 
-        return static::withTrashed()->where('slug', $slug)->when($projectId, fn ($q) => $q->whereKeyNot($projectId))->exists()
-            || Event::withTrashed()
-                ->where('slug', $slug)
-                ->when($first, fn ($q) => $q->whereKeyNot($first->id))
-                ->when($ownAddress, fn ($q) => $q->where(fn ($q) => $q->whereNull('project_id')->orWhere('project_id', '!=', $projectId)))
-                ->exists()
-            || SlugRedirect::where('path', 'events/'.$slug)
-                ->where(fn ($q) => $q
-                    ->where(fn ($q) => $q->where('redirectable_type', '!=', (new self)->getMorphClass())->orWhere('redirectable_id', '!=', (int) $projectId))
-                    ->where(fn ($q) => $q->where('redirectable_type', '!=', (new Event)->getMorphClass())->orWhere('redirectable_id', '!=', (int) $first?->id)))
-                ->exists();
+    /**
+     * Who holds the address, in words for the moderator ("the listing
+     * \"X\""), or null when this project may have it: another project has it,
+     * an event does, or an old address of something else reserves it.
+     *
+     * Never a clash: $first (the listings whose address a new show takes
+     * over, a joining run included), this project's own runs (holding it as
+     * their slug, or as an old address from before they joined: visitors
+     * land on the show either way, as EventController::show looks for the
+     * project first), this project's own old addresses, and old addresses of
+     * something gone for good (SlugRedirect::isStale). Deleted projects
+     * count, though they all hold a released slug by then.
+     *
+     * @param  Event|array<int, Event|null>|null  $first
+     */
+    public static function slugHolder(string $slug, Event|array|null $first = null, ?int $projectId = null): ?string
+    {
+        $exempt = collect(is_array($first) ? $first : [$first])->filter()->map(fn (Event $event) => $event->id)->values()->all();
+        $runs = fn () => Event::withTrashed()->where('project_id', (int) $projectId)->pluck('id')->all();
+
+        $show = static::withTrashed()->where('slug', $slug)->when($projectId, fn ($q) => $q->whereKeyNot($projectId))->first(['id', 'name']);
+        if ($show) {
+            return 'the show "'.$show->name.'"';
+        }
+
+        $listing = Event::withTrashed()
+            ->where('slug', $slug)
+            ->whereNotIn('id', $exempt)
+            ->when($projectId, fn ($q) => $q->where(fn ($q) => $q->whereNull('project_id')->orWhere('project_id', '!=', $projectId)))
+            ->first(['id', 'name']);
+        if ($listing) {
+            return 'the listing "'.$listing->name.'"';
+        }
+
+        $redirect = SlugRedirect::where('path', 'events/'.$slug)->first();
+        if ($redirect === null || $redirect->isStale()) {
+            return null;
+        }
+
+        $isEvent = $redirect->redirectable_type === (new Event)->getMorphClass();
+        $own = ($redirect->redirectable_type === (new self)->getMorphClass() && $projectId && (int) $redirect->redirectable_id === $projectId)
+            || ($isEvent && in_array((int) $redirect->redirectable_id, $exempt, true))
+            || ($isEvent && $projectId && in_array((int) $redirect->redirectable_id, $runs(), true));
+        if ($own) {
+            return null;
+        }
+
+        $target = $redirect->target();
+
+        return 'an old address of '.($target instanceof self ? 'the show' : 'the listing').' "'.($target->name ?? 'something else').'"';
     }
 
     /**
@@ -231,12 +271,20 @@ class Project extends Model
      * address because the plain name is someone else's, the project goes by
      * the show's name plus the company's. A moderator can choose another.
      */
-    public static function addressFor(Event $first, Organizer $maker): string
+    public static function addressFor(Event $first, Organizer $maker, ?Event $joining = null): string
     {
         $base = Slug::base($first->name, 'project');
+        $mine = [$first, $joining];
+
+        // The plain name belongs to the listing joining with it (the first
+        // one only got a disambiguated address because of it): the show takes it.
+        if ($joining && $joining->slug === $base && $first->slug !== $base && ! static::slugTaken($base, $mine)) {
+            return $base;
+        }
+
         $disambiguated = Str::startsWith($first->slug, $base.'-') && static::slugTaken($base, $first);
 
-        if (! $disambiguated && ! static::slugTaken($first->slug, $first)) {
+        if (! $disambiguated && ! static::slugTaken($first->slug, $mine)) {
             return $first->slug;
         }
 
@@ -244,7 +292,7 @@ class Project extends Model
         $slug = $company;
         $count = 2;
 
-        while (static::slugTaken($slug, $first)) {
+        while (static::slugTaken($slug, $mine)) {
             $slug = $company.'-'.$count;
             $count++;
         }

@@ -165,6 +165,7 @@ import SearchAtHome from './Components/at-home-search.vue';
 import SearchStore from '@/Stores/SearchStore.vue';
 import { rendersMapView } from '@/composables/useSearchView';
 import MapStore from '@/Stores/MapStore.vue';
+import { areaFromParams, setAreaParams } from '@/composables/placeArea.js';
 
 // Props definition
 const props = defineProps({
@@ -582,6 +583,7 @@ const handleFilterUpdate = async (filters) => {
             params.delete('NElng');
             params.delete('SWlat');
             params.delete('SWlng');
+            params.delete('area');
             params.delete('live');
         }
 
@@ -632,7 +634,8 @@ const handleLocationSearch = (searchData) => {
             city: stripCountry(searchData.location.city),
             lat: searchData.location.lat,
             lng: searchData.location.lng,
-            live: searchData.location.live
+            live: searchData.location.live,
+            area: searchData.location.area || null
         },
         dates: {
             start: searchData.dates.start,
@@ -681,13 +684,23 @@ const handleLocationSearch = (searchData) => {
         // for remote events.
         params.set('searchType', 'inPerson');
 
-        // Clear map bounds if location has changed
-        if (isNewLocation) {
+        // Clear map bounds if location has changed, or the same place was
+        // picked again (a way back from a dragged map).
+        if (isNewLocation || searchData.location.picked) {
             params.delete('NElat');
             params.delete('NElng');
             params.delete('SWlat');
             params.delete('SWlng');
+            params.delete('area');
             params.set('live', 'false');
+        }
+
+        // A country or state searches its own box (placeArea.js). The search
+        // box sends one only for a fresh pick or while the URL still holds it,
+        // so after a drag a date change keeps the dragged view, and picking
+        // the country again brings its box back.
+        if (searchData.location.area) {
+            setAreaParams(params, searchData.location.area);
         }
 
         // Set location parameters
@@ -730,8 +743,13 @@ const handleLocationSearch = (searchData) => {
         params.delete('NElng');
         params.delete('SWlat');
         params.delete('SWlng');
+        params.delete('area');
         params.delete('live');
     }
+
+    // What the URL now searches decides the header: "in France" only while
+    // the box is still the place's own.
+    SearchStore.updateState({ location: { area: areaFromParams(params) } });
 
     // Add price filter params if needed
     const [minPrice, maxPrice] = state.value.filters.price;
@@ -749,7 +767,8 @@ const handleLocationSearch = (searchData) => {
     // Determine whether to redirect or update URL based on conditions.
     // The view test covers the date-only branch above, which drops `live` and
     // so moves a map-view search to the list view without changing the city.
-    if ((hasLocationData && isNewLocation) || rendersMapView(params) !== wasMapView) {
+    // A place picked again reloads too, so the map goes back to it.
+    if ((hasLocationData && (isNewLocation || searchData.location.picked)) || rendersMapView(params) !== wasMapView) {
         window.location.href = `/index/search?${params.toString()}`;
     } else {
         updateUrlParams(params);
@@ -794,6 +813,7 @@ const handleAtHomeSearch = (searchData) => {
     params.delete('NElng');
     params.delete('SWlat');
     params.delete('SWlng');
+    params.delete('area');
     params.delete('live');
 
     if (searchData.remoteLocation) {
@@ -873,6 +893,8 @@ const subscribeToMapStore = () => {
     params.set('SWlat', swLat.toFixed(6));
     params.set('SWlng', swLng.toFixed(6));
     params.set('live', 'true');
+    // Dragged: the box is the map's now, not the country's or state's.
+    params.delete('area');
     params.set('searchType', 'inPerson');
     // A new viewport is a new result set. Without this a pan carried the old
     // page number, so panning from page 3 into a sparser area returned a real
@@ -889,7 +911,7 @@ const subscribeToMapStore = () => {
     // Left unset, the header went on naming Los Angeles after you panned to
     // San Diego — the exact case the map-area wording exists for.
     SearchStore.updateState({
-        location: { ...SearchStore.state.location, live: true },
+        location: { ...SearchStore.state.location, live: true, area: null },
     });
 
     // Update URL without reload

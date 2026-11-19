@@ -118,6 +118,16 @@ test('a search records the place, the result count and the filters', function ()
         ]);
 });
 
+test('a typed country is a typed search, a dragged map is a map search', function () {
+    FakeSearchEngine::install([]);
+    $box = 'NElat=51.1&NElng=9.6&SWlat=41.3&SWlng=-5.1&searchType=inPerson&live=true';
+
+    $this->getJson('/api/index/search?city=France&lat=46.2&lng=2.2&area=1&'.$box)->assertOk();
+    $this->getJson('/api/index/search?city=France&lat=46.2&lng=2.2&'.$box)->assertOk();
+
+    expect(analyticsRows()->pluck('source')->all())->toBe(['list', 'map']);
+});
+
 test('a search that finds nothing is recorded with zero results', function () {
     FakeSearchEngine::install([]);
 

@@ -102,7 +102,9 @@ const NElng = parseFloat(params.get('NElng'));
 const SWlat = parseFloat(params.get('SWlat'));
 const SWlng = parseFloat(params.get('SWlng'));
 const savedBounds = [NElat, NElng, SWlat, SWlng].every((n) => Number.isFinite(n))
-    ? [[SWlat, SWlng], [NElat, NElng]]
+    // A box across the date line ends east of where it starts: Leaflet
+    // draws it by carrying the east edge on past 180.
+    ? [[SWlat, SWlng], [NElat, NElng < SWlng ? NElng + 360 : NElng]]
     : null;
 
 const mapConfig = {
@@ -117,20 +119,32 @@ const mapConfig = {
     // this limit — the server-side pin cap (ListingsController::MAX_MAP_PINS)
     // already bounds the data itself regardless of how far zoomed out the
     // view is.
-    minZoom: 4,
+    // A whole country (placeArea.js) may need to zoom out further than a city.
+    minZoom: params.get('area') === '1' || savedBounds ? 2 : 4,
     tileUrl: "https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=5Pwt4rF8iefMU4hIcRqZJ0GXPqWi5l4NVjEn4owEBKOdGyuJVARXbYTBDO2or3cU",
     attribution: '<a href="http://jawg.io" title="Tiles Courtesy of Jawg Maps" target="_blank">&copy; <b>Jawg</b>Maps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 };
 
 // Map moved event handler
+let lastSize = null;
 const onMapMoved = () => {
     if (!map) return;
+
+    // A size change (phone toolbar, window resize) is not a drag: note the
+    // view without searching, so "in France" stays "in France".
+    const size = map.getSize();
+    const resized = lastSize && (size.x !== lastSize.x || size.y !== lastSize.y);
+    lastSize = size;
+    if (resized) {
+        MapStore.remember(map.getBounds(), map.getCenter(), map.getZoom());
+        return;
+    }
     
     const bounds = map.getBounds();
     const center = map.getCenter();
     
     if (bounds && center) {
-        MapStore.boundsUpdate(bounds, center);
+        MapStore.boundsUpdate(bounds, center, map.getZoom());
         
     }
 };
@@ -141,7 +155,8 @@ const toggleMap = () => {
     nextTick(() => {
         if (map) {
             map.invalidateSize();
-            onMapMoved();
+            // The wider or narrower map is a new view to search, on purpose.
+            MapStore.boundsUpdate(map.getBounds(), map.getCenter(), map.getZoom(), { force: true });
         }
     });
 };
@@ -323,9 +338,11 @@ const initMap = () => {
         // saved/shared map-boundary link, and produces a visible
         // loading-state flicker immediately after initial paint for a
         // re-fetch that returns the same results the page already has.
+        lastSize = map.getSize();
         if (savedBounds) {
             map.off('moveend', onMapMoved);
             map.fitBounds(savedBounds, { animate: false });
+            MapStore.remember(map.getBounds(), map.getCenter(), map.getZoom());
             map.on('moveend', onMapMoved);
         }
 

@@ -113,6 +113,8 @@ const onMoveEnd = () => {
         lng: c.lng,
         city: 'Custom Map Search',
         live: true,
+        // A dragged box, not a country's own (placeArea.js).
+        area: false,
         NElat: bounds.getNorthEast().lat,
         NElng: bounds.getNorthEast().lng,
         SWlat: bounds.getSouthWest().lat,
@@ -157,6 +159,7 @@ const handleCitySelect = (place) => {
         lng: place.lng,
         city: place.name,
         live: false,
+        area: false,
         NElat: null,
         NElng: null,
         SWlat: null,

@@ -156,6 +156,20 @@ class Event extends Model
         static::restored(function (Event $event) {
             SlugRedirect::forget($event->addressPath(), $event);
 
+            // An old address someone else took while this was deleted is
+            // theirs now: never let it lead back here.
+            SlugRedirect::where('redirectable_type', $event->getMorphClass())
+                ->where('redirectable_id', $event->id)
+                ->where('path', 'like', 'events/%')
+                ->get()
+                ->filter(function (SlugRedirect $redirect) {
+                    $slug = substr($redirect->path, strlen('events/'));
+
+                    return ! str_contains($slug, '/')
+                        && (static::where('slug', $slug)->exists() || Project::where('slug', $slug)->exists());
+                })
+                ->each->delete();
+
             // Off a show that no longer exists, it is a plain listing again,
             // and keeps the writers it had through that show.
             if ($event->restoredWithoutProject !== null) {
@@ -191,6 +205,17 @@ class Event extends Model
 
         // scopeStillRunning caches the timezones in use; a zone it has not
         // seen would be read as UTC until the cache expired.
+        // Taking an address an old, gone-for-good listing left behind: that
+        // row is ignored by the checks (SlugRedirect::isStale) and deleted
+        // here, so a later restore of its listing cannot take the address back.
+        static::saved(function (Event $event) {
+            if (($event->wasRecentlyCreated || $event->wasChanged('slug')) && $event->slug && ! $event->trashed()) {
+                SlugRedirect::where('path', 'events/'.$event->slug)->get()
+                    ->filter(fn (SlugRedirect $redirect) => $redirect->isStale())
+                    ->each->delete();
+            }
+        });
+
         static::saved(function (Event $event) {
             $zones = Cache::get(self::TIMEZONES_IN_USE_CACHE);
 

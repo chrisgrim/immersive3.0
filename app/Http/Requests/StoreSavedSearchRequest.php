@@ -34,6 +34,8 @@ class StoreSavedSearchRequest extends FormRequest
             'criteria.searchType' => 'nullable|in:inPerson,atHome',
             'criteria.remoteLocation' => 'nullable|string|max:255',
             'criteria.live' => 'nullable|boolean',
+            // The box is a country's or state's own (placeArea.js), not a dragged map.
+            'criteria.area' => 'nullable|boolean',
             // See UpdateSavedSearchRequest's identical fields — not currently
             // sent by the nav's own auto-save (only the Hub's editor sets a
             // custom-map-search bounds), but accepted here too for schema

@@ -32,7 +32,8 @@ export function useSearchContext() {
     // viewport, no longer the city the search started from, and naming that
     // city would be wrong.
     const context = computed(() => {
-        if (location.value.live) return 'in the map area';
+        // A country or state search is a box too, but its own: still "in France".
+        if (location.value.live && !location.value.area) return 'in the map area';
         if (location.value.city) return `in ${location.value.city}`;
         if (filters.value.atHome) {
             return remoteLocationName.value ? `in ${remoteLocationName.value}` : 'at home';

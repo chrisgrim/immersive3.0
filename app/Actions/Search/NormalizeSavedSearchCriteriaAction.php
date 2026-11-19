@@ -51,6 +51,9 @@ class NormalizeSavedSearchCriteriaAction
             'categories' => $categories,
             'tags' => $tags,
             'price' => is_array($price) ? [$price[0] ?? null, $price[1] ?? null] : null,
+            // A country's or state's own box (placeArea.js). Only present when
+            // set, so every older search keeps the fingerprint it was saved with.
+            ...(! empty($criteria['area']) && ! empty($criteria['live']) ? ['area' => true] : []),
         ];
     }
 }

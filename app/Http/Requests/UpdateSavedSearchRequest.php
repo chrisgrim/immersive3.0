@@ -34,6 +34,8 @@ class UpdateSavedSearchRequest extends FormRequest
             'criteria.remoteLocation' => 'required_if:criteria.searchType,atHome|nullable|string|max:255',
 
             'criteria.live' => 'nullable|boolean',
+            // The box is a country's or state's own (placeArea.js), not a dragged map.
+            'criteria.area' => 'nullable|boolean',
             // A "custom map search" (dragging/zooming the map rather than
             // picking a city) — see BuildSearchUrlAction/ListingsController::
             // buildMapBoundaryFilter(). Optional even in Location mode; a

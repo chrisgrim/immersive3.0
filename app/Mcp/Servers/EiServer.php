@@ -69,7 +69,8 @@ class EiServer extends Server
        list-event-attributes), then 1-10 genres
     4. In person: first ask "is it at a venue, or somewhere else?" (a park,
        the streets, a home, a hidden place). At a venue: `search-venues`, then
-       location.venue_id with kind "venue" (propose-venue if it is new).
+       location.venue_id with kind "venue" (propose-venue if it is new, with
+       event_slug so the listing's company keeps it).
        Somewhere else: resolve the address with `geocode-address`, confirm the
        match with the user (never guess coordinates) and send it with kind
        "place"; any name is just a label. Ask if the exact location is a

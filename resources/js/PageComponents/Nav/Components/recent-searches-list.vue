@@ -90,7 +90,8 @@ const summaryFor = (search) => {
     // criteria.live is only ever true for a custom-map-bounds search (see
     // BuildSearchUrlAction) — not a "happening now" date filter, which this
     // criteria schema doesn't have.
-    if (criteria.live) parts.push('Custom map area');
+    // A country or state search (criteria.area) is named by its place, not a map area.
+    if (criteria.live && !criteria.area) parts.push('Custom map area');
     if (criteria.categories?.length) {
         parts.push(`${criteria.categories.length} ${criteria.categories.length === 1 ? 'category' : 'categories'}`);
     }

@@ -56,4 +56,15 @@ describe('go-live pop-up months', () => {
         expect(far.vm.monthCount).toBeGreaterThanOrEqual(10);
         far.unmount();
     });
+
+    it('keeps the page behind from scrolling while open, and gives it back on close', () => {
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = 'auto';
+        const wrapper = mountModal();
+        expect(document.body.style.overflow).toBe('hidden');
+        expect(document.documentElement.style.overflow).toBe('hidden');
+        wrapper.unmount();
+        expect(document.body.style.overflow).toBe('auto');
+        expect(document.documentElement.style.overflow).toBe('');
+    });
 });

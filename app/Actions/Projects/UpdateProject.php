@@ -29,8 +29,9 @@ class UpdateProject
         return DB::transaction(function () use ($project, $changes, $actor) {
             Project::whereKey($project->id)->lockForUpdate()->firstOrFail();
 
-            if (isset($changes['slug']) && $changes['slug'] !== $project->slug && Project::slugTaken($changes['slug'], null, $project->id)) {
-                throw ValidationException::withMessages(['slug' => "The address \"{$changes['slug']}\" is taken."]);
+            if (isset($changes['slug']) && $changes['slug'] !== $project->slug
+                && ($holder = Project::slugHolder($changes['slug'], null, $project->id)) !== null) {
+                throw ValidationException::withMessages(['slug' => "The address \"{$changes['slug']}\" is taken by {$holder}."]);
             }
 
             if (isset($changes['organizer_id']) && ! Organizer::whereKey($changes['organizer_id'])->exists()) {

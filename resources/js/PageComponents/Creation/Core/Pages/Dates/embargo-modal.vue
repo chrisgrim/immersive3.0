@@ -12,17 +12,19 @@
                     <h2 id="embargo-title" class="text-[1.6rem] font-semibold text-[#222222]">When should it go live?</h2>
                 </div>
 
-                <div class="flex-1 overflow-y-auto px-[2.4rem] md:px-[6.4rem] pt-[2.8rem]">
+                <div class="flex-1 min-h-0 flex flex-col px-[2.4rem] md:px-[6.4rem] pt-[2.8rem]">
 
                     <!-- Airbnb's fixed bar: the month being looked at and the weekdays.
                          The month names below scroll by; when one reaches the top this follows it. -->
-                    <div ref="bar" data-embargo-bar>
+                    <div ref="bar" class="flex-shrink-0" data-embargo-bar>
                         <p class="text-[2.2rem] leading-[2.8rem] font-semibold text-[#222222]">{{ shownMonth }}</p>
                         <div class="mt-[1.2rem] grid grid-cols-7 pb-[1rem] border-b border-[#ebebeb] text-center text-[1.3rem] text-[#6a6a6a]">
                             <span v-for="weekday in WEEKDAYS" :key="weekday">{{ weekday }}</span>
                         </div>
                     </div>
-                    <div ref="scroller" class="max-h-[34rem] overflow-y-auto border-b border-[#ebebeb]" @scroll="followMonth">
+                    <!-- The one thing that scrolls: on a phone it takes whatever height is left
+                         (two nested scrollers left the last months out of reach). -->
+                    <div ref="scroller" class="flex-1 min-h-0 md:flex-initial md:max-h-[34rem] overflow-y-auto overscroll-contain border-b border-[#ebebeb]" @scroll="followMonth">
                         <VueDatePicker
                             v-model="day"
                             :enable-time-picker="false"
@@ -48,8 +50,12 @@
                             Show more months
                         </button>
                     </div>
+                </div>
 
-                    <label class="mt-[3.2rem] mb-[3.2rem] flex items-center justify-between gap-4 px-[1.6rem] h-[5.6rem] rounded-[1.2rem] border border-[#b0b0b0] focus-within:border-[#222222] focus-within:shadow-[0_0_0_1px_#222222]">
+                <!-- The time stays in view under the months, not after them: on a
+                     phone the months fill the screen and the menu was a long scroll away. -->
+                <div class="px-[2.4rem] md:px-[6.4rem] pt-[1.6rem] pb-[0.4rem] flex-shrink-0">
+                    <label class="flex items-center justify-between gap-4 px-[1.6rem] h-[5.6rem] rounded-[1.2rem] border border-[#b0b0b0] focus-within:border-[#222222] focus-within:shadow-[0_0_0_1px_#222222]">
                         <span class="text-[1.4rem] text-[#6a6a6a]">Time</span>
                         <select v-model="time" class="flex-1 min-w-0 text-right text-[1.6rem] font-medium text-[#222222] bg-transparent border-0 shadow-none outline-none focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-0 focus:shadow-none cursor-pointer" data-embargo-time>
                             <option v-for="option in times" :key="option" :value="option">{{ formatEmbargoTime(option) }}</option>
@@ -140,11 +146,28 @@ onMounted(() => {
     returnFocus = document.activeElement;
     document.addEventListener('keydown', onKeydown);
     nextTick(() => dialog.value?.focus());
+    lockPage();
 });
 onUnmounted(() => {
     document.removeEventListener('keydown', onKeydown);
+    unlockPage();
     returnFocus?.focus?.();
 });
+
+// The page behind stays put while the pop-up is open (it scrolled along
+// under it). The old values come back on close, so a page that set its own
+// keeps it.
+let lockedOverflow = null;
+const lockPage = () => {
+    lockedOverflow = [document.documentElement.style.overflow, document.body.style.overflow];
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+};
+const unlockPage = () => {
+    if (!lockedOverflow) return;
+    [document.documentElement.style.overflow, document.body.style.overflow] = lockedOverflow;
+    lockedOverflow = null;
+};
 
 const save = () => {
     if (!day.value || isPast.value) return;

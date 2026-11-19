@@ -372,11 +372,26 @@ test('a run that returns to one of its own old paths loses the alias', function 
         ->and(SlugRedirect::where('path', 'events/other-name/chicago-2026')->exists())->toBeFalse();
 });
 
-test('a project cannot take the slug of one of its own runs that it never went by', function () {
-    $project = Project::factory()->create(['slug' => 'a-show']);
+test('a project may take the slug one of its own runs holds, and its page opens the show', function () {
+    // Handle With Care: the plain name was a run's own slug from before it
+    // joined. The show page wins at /events/{slug} (EventController::show).
+    $project = Project::factory()->create(['slug' => 'a-show', 'name' => 'A Show']);
     runIn($project, 'Chicago', 'chicago-2026', ['name' => 'Second Run']);
 
-    expect(Project::slugTaken('second-run', null, $project->id))->toBeTrue();
+    expect(Project::slugTaken('second-run', null, $project->id))->toBeFalse()
+        ->and(Project::slugTaken('second-run'))->toBeTrue();
+
+    app(App\Actions\Projects\UpdateProject::class)->handle($project, ['slug' => 'second-run'], $this->moderator);
+
+    $this->withoutVite()->get('/events/second-run')->assertOk()->assertSee('A Show');
+});
+
+test('a taken address says who holds it', function () {
+    $project = Project::factory()->create(['slug' => 'a-show']);
+    publishedListing('Someone Else', 'Paris');
+
+    expect(fn () => app(App\Actions\Projects\UpdateProject::class)->handle($project, ['slug' => 'someone-else'], $this->moderator))
+        ->toThrow(Illuminate\Validation\ValidationException::class, 'taken by the listing "Someone Else"');
 });
 
 test('it can go back to an address it held, though its first listing still has that slug', function () {

@@ -51,6 +51,13 @@ return [
         'id' => env('ANALYTICS_ID'),
     ],
 
+    // Givebutter Donate button (the Immersive Experience Institute's), shown
+    // in the footer while the account id is set. Both are public values.
+    'givebutter' => [
+        'account' => env('GIVEBUTTER_ACCOUNT'),
+        'widget' => env('GIVEBUTTER_WIDGET', 'LZoG2q'),
+    ],
+
     // Umami (cookieless page counts): loaded only while a website id is set.
     'umami' => [
         'website_id' => env('UMAMI_WEBSITE_ID'),

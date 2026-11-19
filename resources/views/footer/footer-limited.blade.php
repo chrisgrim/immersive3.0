@@ -1,5 +1,5 @@
 <footer id="footer" class="bg-neutral-50 border-t border-neutral-200 mt-24">
-    <div class="mx-auto max-w-screen-xl px-8 py-16 lg-air:px-16 2xl-air:px-32">
+    <div class="mx-auto max-w-screen-xl px-8 pt-16 lg-air:px-16 2xl-air:px-32">
         {{-- 6-col grid: brand spans 2, four single-col link sections (Discover/Create/About/IEI) --}}
         <div class="grid grid-cols-2 md:grid-cols-6 gap-10 md:gap-10">
             {{-- Brand (2 cols on desktop) --}}
@@ -38,6 +38,7 @@
             <div>
                 <h3 class="text-neutral-900 font-semibold text-base uppercase tracking-wider mb-5">About</h3>
                 <ul class="list-none p-0 m-0 space-y-3 text-lg">
+                    <li><a href="/changelog" class="text-neutral-600 hover:text-black transition-colors">What's new</a></li>
                     <li><a href="/sitemap" class="text-neutral-600 hover:text-black transition-colors">Sitemap</a></li>
                     <li><a href="/terms" class="text-neutral-600 hover:text-black transition-colors">Terms</a></li>
                     <li><a href="/privacy" class="text-neutral-600 hover:text-black transition-colors">Privacy</a></li>
@@ -59,12 +60,14 @@
                         class="h-16 w-auto"
                         loading="lazy">
                 </a>
+                @include('footer.nonprofit', ['class' => 'mt-5 text-neutral-600 text-base leading-snug'])
             </div>
         </div>
 
-        {{-- Copyright --}}
-        <div class="border-t border-neutral-200 mt-12 pt-6 text-neutral-500 text-base">
-            © {{ date('Y') }} Everything Immersive, Inc. All rights reserved.
+        {{-- Copyright, with the Donate button in the middle of the line. --}}
+        <div class="border-t border-neutral-200 mt-12 py-8 grid grid-cols-1 md:grid-cols-3 items-center gap-6 text-neutral-500 text-base">
+            <span>© {{ date('Y') }} Everything Immersive, Inc. All rights reserved.</span>
+            <div class="md:justify-self-center">@include('footer.nonprofit', ['part' => 'button'])</div>
         </div>
     </div>
 </footer>

@@ -247,6 +247,26 @@
                         </div>
                     </div>
 
+                    <!-- Venue Section: the known venue it names, beside the organizer -->
+                    <div v-if="props.event?.reviewVenue" class="p-8 shadow-custom-1 rounded-3xl" data-test="review-venue">
+                        <h3 class="text-xl font-semibold mb-4">Venue:</h3>
+                        <div class="flex items-center gap-4 flex-wrap">
+                            <a :href="`/venues/${props.event.reviewVenue.slug}`" target="_blank" rel="noopener noreferrer"
+                               class="text-4xl font-medium hover:underline">{{ props.event.reviewVenue.name }}</a>
+                            <span v-if="props.event.reviewVenue.new && !props.event.reviewVenue.secret"
+                                  class="px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xl">New venue: approving this event publishes it too, open it to check</span>
+                            <span v-else-if="props.event.reviewVenue.new"
+                                  class="px-3 py-1 rounded-full bg-neutral-100 text-neutral-700 text-xl">New venue: stays waiting (secret location)</span>
+                            <span v-else-if="props.event.reviewVenue.draft"
+                                  class="px-3 py-1 rounded-full bg-neutral-100 text-neutral-700 text-xl">Draft venue: not sent yet</span>
+                        </div>
+                        <p class="text-gray-600 text-xl mt-2">Created: {{ formatDate(props.event.reviewVenue.created_at) }}</p>
+                        <p class="text-neutral-500 text-1xl mt-4">{{ props.event.reviewVenue.street }}</p>
+                        <p class="text-neutral-500 text-1xl">{{ [props.event.reviewVenue.city, props.event.reviewVenue.region, props.event.reviewVenue.country].filter(Boolean).join(', ') }}</p>
+                        <a v-if="props.event.reviewVenue.website" :href="props.event.reviewVenue.website" target="_blank" rel="noopener noreferrer"
+                           class="block mt-4 truncate hover:underline">{{ props.event.reviewVenue.website }}</a>
+                    </div>
+
                     <!-- Location Section -->
                     <div class="p-8 shadow-custom-1 rounded-3xl">
                         <h3 class="text-xl font-semibold mb-4">

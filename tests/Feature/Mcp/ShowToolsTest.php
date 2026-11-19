@@ -231,3 +231,38 @@ test('update-event no longer takes a run name, run type or festival, and says wh
 
     expect($draft->fresh())->edition->toBeNull()->run_type->toBeNull()->festival->toBeNull();
 });
+
+test('propose-venue files the venue under the listing\'s company, not the last team selected', function () {
+    // Kathryn's assistant added venues for many companies; each went to
+    // whichever team her account last had selected.
+    $other = App\Models\Organizer::factory()->create(['status' => 'p']);
+    $listing = publishedListing('Their Party', 'Los Angeles', [], $other);
+    $place = ['street' => '1 Main', 'city' => 'Los Angeles', 'latitude' => 34.05, 'longitude' => -118.24];
+
+    asMod($this)->tool(ProposeVenue::class, ['name' => 'No Listing Hall', ...$place])->assertHasErrors();
+    asMod($this)->tool(ProposeVenue::class, ['name' => 'Party Hall', 'event_slug' => $listing->slug, ...$place])->assertOk();
+
+    expect(Venue::where('name', 'Party Hall')->sole()->organizer_id)->toBe($other->id);
+
+    // An organizer cannot file one under a listing they cannot edit.
+    viaToken($this->owner)->tool(ProposeVenue::class, ['name' => 'Sneaky Hall', 'event_slug' => $listing->slug, ...$place])->assertHasErrors();
+    expect(Venue::where('name', 'Sneaky Hall')->exists())->toBeFalse();
+});
+
+test('a person on two teams must say which listing a new venue is for', function () {
+    $second = App\Models\Organizer::factory()->create(['status' => 'p']);
+    $second->users()->attach($this->owner->id, ['role' => 'admin']);
+    $place = ['street' => '2 Main', 'city' => 'Rome', 'latitude' => 41.9, 'longitude' => 12.5];
+
+    viaToken($this->owner)->tool(ProposeVenue::class, ['name' => 'Which Team Hall', ...$place])->assertHasErrors();
+});
+
+test('the company keeping a waiting venue staff added for it can find and pick it', function () {
+    $company = App\Models\Organizer::factory()->create(['status' => 'p']);
+    $listing = publishedListing('Their Show', 'Rome', [], $company);
+    asMod($this)->tool(ProposeVenue::class, ['name' => 'Staff Added Hall', 'event_slug' => $listing->slug, 'street' => '3 Main', 'city' => 'Rome', 'latitude' => 41.9, 'longitude' => 12.5])->assertOk();
+    $venue = Venue::where('name', 'Staff Added Hall')->sole();
+
+    expect(Venue::visibleToOrganizer($company->id)->whereKey($venue->id)->exists())->toBeTrue()
+        ->and(Venue::visibleToOrganizer($this->organizer->id)->whereKey($venue->id)->exists())->toBeFalse();
+});

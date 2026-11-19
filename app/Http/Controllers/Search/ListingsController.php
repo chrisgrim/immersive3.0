@@ -575,7 +575,8 @@ class ListingsController extends Controller
         Analytics::record(Analytics::SEARCH, [
             // live=true is the map moved by hand (bounds search); not
             // $applyGeoFilter, which is on whenever `live` is present at all.
-            'source' => $criteria['live'] ? 'map' : 'list',
+            // A typed country or state is a box too (area=1), but typed: 'list'.
+            'source' => $criteria['live'] && $request->input('area') !== '1' ? 'map' : 'list',
             'search_id' => $searchId,
             // Anything shaped like an email address or a phone number is
             // blanked: the box takes free text, and a place name has neither.

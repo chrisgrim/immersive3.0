@@ -43,7 +43,17 @@ class VenueController extends Controller
     public function store(Request $request, ProposeVenue $propose, FindVenues $venues)
     {
         $this->authorize('propose', Venue::class);
+        $validated = $request->validate([...ProposeVenue::RULES, 'event_slug' => ['nullable', 'string']]);
 
-        return response()->json(['venue' => $venues->present($propose->handle($request->validate(ProposeVenue::RULES), $request->user()))], 201);
+        // Added from a listing's Location step: kept by that listing's company,
+        // not by whichever team the person last had selected.
+        $for = null;
+        if (filled($validated['event_slug'] ?? null)) {
+            $for = \App\Models\Event::where('slug', $validated['event_slug'])->first();
+            abort_unless($for !== null && $request->user()->can('manage', $for) && $for->organizer_id, 403);
+        }
+        unset($validated['event_slug']);
+
+        return response()->json(['venue' => $venues->present($propose->handle($validated, $request->user(), $for))], 201);
     }
 }

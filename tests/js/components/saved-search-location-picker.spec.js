@@ -95,6 +95,7 @@ describe('saved-search-location-picker.vue', () => {
             lng: -118.2437,
             city: 'Los Angeles, CA',
             live: false,
+            area: false,
             NElat: null,
             NElng: null,
             SWlat: null,

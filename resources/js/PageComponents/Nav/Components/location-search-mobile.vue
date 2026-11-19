@@ -171,6 +171,7 @@ import { LazyDatePicker as VueDatePicker, preloadDatePicker } from '@/composable
 import axios from 'axios';
 import { importMapsLibrary } from '@/composables/useGoogleMaps';
 import RecentSearchesList from './recent-searches-list.vue';
+import { PLACE_FIELDS, PLACE_TYPES, keepPrediction, placeArea, areaFromParams, setAreaParams } from '@/composables/placeArea.js';
 
 const props = defineProps({
     initialCity: String,
@@ -268,9 +269,9 @@ const updateLocations = async () => {
         try {
             const response = await autoComplete.getPlacePredictions({
                 input: searchInput.value,
-                types: ['(cities)']
+                types: PLACE_TYPES
             });
-            places.value = response?.predictions || initializePlaces();
+            places.value = response?.predictions ? response.predictions.filter(keepPrediction) : initializePlaces();
         } catch (error) {
             console.error('Error fetching place predictions:', error);
             places.value = initializePlaces();
@@ -287,9 +288,7 @@ const selectLocation = async (location) => {
        const placeResult = new Place({ id: location.place_id });
        
        // Fetch the necessary fields
-       await placeResult.fetchFields({
-           fields: ["displayName", "formattedAddress", "location"]
-       });
+       await placeResult.fetchFields({ fields: PLACE_FIELDS });
        
        setPlace(placeResult);
    } catch (error) {
@@ -357,7 +356,9 @@ const setPlace = (place) => {
    selectedPlace.value = {
        name: name,
        lat: lat,
-       lng: lng
+       lng: lng,
+       // A country or state: searched as its whole box (placeArea.js).
+       area: placeArea(place)
    };
    
    searchInput.value = selectedPlace.value.name;
@@ -372,6 +373,7 @@ const setPlace = (place) => {
        city: selectedPlace.value.name, 
        lat: lat,
        lng: lng,
+       area: selectedPlace.value.area,
        start: formattedStartDate,
        end: formattedEndDate
    });
@@ -418,7 +420,8 @@ onMounted(() => {
         selectedPlace.value = {
             name: params.get('city'),
             lat: parseFloat(params.get('lat')),
-            lng: parseFloat(params.get('lng'))
+            lng: parseFloat(params.get('lng')),
+            area: areaFromParams(params)
         };
     } else if (props.initialCity) {
         searchInput.value = props.initialCity;
@@ -566,7 +569,8 @@ const handleSearch = () => {
         searchData.city = selectedPlace.value.name;
         searchData.lat = selectedPlace.value.lat;
         searchData.lng = selectedPlace.value.lng;
-        searchData.live = false;
+        searchData.area = selectedPlace.value.area || null;
+        searchData.live = !!searchData.area;
     }
 
     // Add date data if we have dates selected
@@ -596,7 +600,7 @@ const handleSearch = () => {
             }
             
             params.set('searchType', 'inPerson');
-            params.set('live', 'false');
+            setAreaParams(params, searchData.area);
         } else if (searchData.start) {
             // For date-only search, use 'null' searchType
             params.set('searchType', 'null');
