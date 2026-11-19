@@ -130,7 +130,16 @@ describe('show-more.vue', () => {
                 props: { text: words(20), limit: 5, blockquote: true },
             });
             expect(wrapper.find('blockquote').exists()).toBe(true);
-            expect(wrapper.find('blockquote span').text()).toBe('"w1 w2 w3 w4 w5..."');
+            expect(wrapper.vm.adjustedText).toBe('w1 w2 w3 w4 w5...');
+        });
+
+        it('keeps the whole text in the page while collapsed, the rest only hidden', () => {
+            // Google reads the rendered page: a sliced string meant it only
+            // ever saw the first N words of a description.
+            const wrapper = mount(ShowMore, { props: { text: words(20), limit: 5 } });
+            expect(wrapper.html()).toContain('w20');
+            const tail = wrapper.findAll('span').find((s) => s.text().trim().startsWith('w6'));
+            expect(tail.isVisible()).toBe(false);
         });
     });
 
