@@ -67,6 +67,10 @@ Route::view('/privacy', 'privacy')->name('privacy');
 Route::view('/sitemap', 'sitemap')->name('sitemap');
 Route::view('/help', 'help')->name('help');
 
+// What's new on EI: posts are Markdown files in resources/changelog.
+Route::get('/changelog', [App\Http\Controllers\ChangelogController::class, 'index'])->name('changelog');
+Route::get('/changelog/{slug}', [App\Http\Controllers\ChangelogController::class, 'show'])->where('slug', '[a-z0-9-]+')->name('changelog.show');
+
 // Public profile viewing — ProfilesController::show() is already guest-aware
 // ($isOwner is false for a guest/other viewer, and the Blade view guards
 // every owner-only bit behind auth()->check()), and there's a dedicated
