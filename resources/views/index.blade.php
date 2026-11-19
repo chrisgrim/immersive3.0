@@ -1,7 +1,7 @@
 @extends('layouts.master-container')
 
 @section('meta')
-    <title>Everything Immersive</title>
+    <title>Everything Immersive | Find immersive theatre, experiences and events</title>
     <meta name="description" content="Explore our database of curated events, containing everything from immersive theatre to installation art to escape rooms and beyond.">
     <meta name="keywords" content="immersive events, interactive theatre, immersive art, escape rooms, immersive experiences">
     <meta property="og:locale" content="en_US" />
@@ -119,7 +119,7 @@
         "address": {
             "@type": "PostalAddress",
             "addressLocality": "Petaluma",
-            "addressRegion": "SF",
+            "addressRegion": "CA",
             "postalCode": "94952",
             "streetAddress": "600 East D St"
         },
@@ -128,12 +128,7 @@
             "https://www.linkedin.com/company/everythingimmersive",
             "https://www.instagram.com/everythingimmersive/",
             "https://twitter.com/everythingimmersive"
-        ],
-        "potentialAction": {
-            "@type": "SearchAction",
-            "target": "https://everythingimmersive.com/index/search?q={search_term}",
-            "query-input": "required name=search_term"
-        }
+        ]
     }
     </script>
 

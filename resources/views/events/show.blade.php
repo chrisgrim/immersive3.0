@@ -36,17 +36,19 @@
         <meta name="robots" content="noindex, nofollow">
     @endif
     
-    <title>{{$event->name}} {{$event->tag_line ? '- ' . \Illuminate\Support\Str::limit($event->tag_line, 80) : '- ' . \Illuminate\Support\Str::limit($event->description, 80)}} </title>
     @php
         // Generate a clean canonical URL without any query parameters
         $url = url($event->publicPath());
+        // What Google shows: city, dates, venue and price (App\Support\Seo\PageMeta).
+        $metaDescription = \App\Support\Seo\PageMeta::eventDescription($event, $venue?->name);
     @endphp
+    <title>{{ \App\Support\Seo\PageMeta::eventTitle($event) }}</title>
     <link rel="canonical" href="{{ $url }}">
-    <meta name="description" content="{{$event->tag_line ? $event->tag_line : $event->description}}"/>
+    <meta name="description" content="{{ $metaDescription }}"/>
     <meta property="og:locale" content="en_US" />
     <meta property="og:type" content="event" />
     <meta property="og:title" content="{{$event->name}}" />
-    <meta property="og:description" content="{{$event->tag_line ? $event->tag_line : $event->description}}" />
+    <meta property="og:description" content="{{ $metaDescription }}" />
     <meta property="og:url" content="{{ $url }}" />
     <meta property="og:site_name" content="Everything Immersive" />
     <meta property="article:publisher" content="https://www.everythingimmersive.com" />
@@ -86,7 +88,7 @@
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:image" content="{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}" />
     @endif
-    <meta name="twitter:description" content="{{$event->tag_line ? $event->tag_line : $event->description}}" />
+    <meta name="twitter:description" content="{{ $metaDescription }}" />
     <meta name="twitter:title" content="{{$event->name}}" />
     <meta name="twitter:site" content="@everythingimmersive" />
     <meta name="twitter:creator" content="@everythingimmersive" />

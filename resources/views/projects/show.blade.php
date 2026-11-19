@@ -1,14 +1,14 @@
 @extends('layouts.master-container')
 
 @php
-    $description = \Illuminate\Support\Str::limit(preg_replace('/\s+/', ' ', strip_tags((string) $project->description)), 157);
+    $description = \App\Support\Seo\PageMeta::projectDescription($project, $page);
     $url = url($project->publicPath());
     $image = $page['image'] ? config('app.image_url').$page['image'] : null;
     $sections = ['Now running' => $page['now'], 'Coming up' => $page['coming'], 'Past' => $page['past']];
 @endphp
 
 @section('meta')
-    <title>{{ $project->name }}</title>
+    <title>{{ \App\Support\Seo\PageMeta::projectTitle($project, $page) }}</title>
     <link rel="canonical" href="{{ $url }}" />
     @if($description)
         <meta name="description" content="{{ $description }}" />

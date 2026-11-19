@@ -24,7 +24,7 @@
         <meta property="og:image:secure_url" content="{{ config('app.image_url') }}{{$organizer->largeImagePath}}" />
         <meta name="twitter:image" content="{{ config('app.image_url') }}{{$organizer->largeImagePath}}" />
     @endif
-    <title>{{$organizer->name}}</title>
+    <title>{{ \App\Support\Seo\PageMeta::organizerTitle($organizer->name) }}</title>
     @if ($organizer->description)
         <meta name="description" content="{{ Str::limit(preg_replace('/\s+/', ' ', strip_tags($organizer->description)), 157) }}" />
     @endif

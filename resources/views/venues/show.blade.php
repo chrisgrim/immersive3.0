@@ -9,7 +9,7 @@
 @endphp
 
 @section('meta')
-    <title>{{ $venue->name }}</title>
+    <title>{{ \App\Support\Seo\PageMeta::venueTitle($venue->name, $venue->city) }}</title>
     <link rel="canonical" href="{{ $url }}" />
     @if($description)
         <meta name="description" content="{{ $description }}" />
