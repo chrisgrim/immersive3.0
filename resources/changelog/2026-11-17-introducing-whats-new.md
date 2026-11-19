@@ -1,17 +1,15 @@
 ---
 title: Introducing What's new
-summary: A new page where we share every new feature and change on Everything Immersive.
+summary: A new page where we post the changes we make to Everything Immersive.
 image: /images/changelog/whats-new-page.jpg
 image_alt: The What's new page on Everything Immersive, with a card for each update
 ---
-We are adding to Everything Immersive all the time, and until now there was no easy way to find out what changed.
+We make changes to Everything Immersive all the time, but until now there was no single place to see what changed. **What's new** is that place.
 
-So here it is: **What's new**, a page where we share new features and changes, with pictures of what they look like. You can find it any time in the footer of the site.
+Each time we add a feature or change how something works, we will post a short update here with screenshots. You can find What's new in the footer of the site.
 
-## What you'll find here
+## What we will post about
 
-- New tools for creators, and changes to how you submit and update your events.
+- New tools for creators, and changes to how you submit and update events.
 - New ways to find immersive experiences.
-- Small fixes that make the site easier to use.
-
-Check back often: there is a lot more on the way.
+- Fixes that make the site easier to use.
