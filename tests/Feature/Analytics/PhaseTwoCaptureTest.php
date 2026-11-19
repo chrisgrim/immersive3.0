@@ -436,7 +436,9 @@ test('an event page records its real slug as the path', function () {
     captureOn('page_views');
     $event = showableEvent();
 
-    $this->withoutVite()->get('/events/'.rawurlencode($event->slug).'%00')->assertSuccessful();
+    // A junk spelling of the address now moves to the real one (301) first.
+    $this->withoutVite()->get('/events/'.rawurlencode($event->slug).'%00')->assertRedirect('/events/'.$event->slug);
+    $this->withoutVite()->get('/events/'.$event->slug)->assertSuccessful();
 
     expect(flushedRows()->pluck('path')->filter()->unique()->values()->all())->toBe(['/events/'.$event->slug]);
 })->skip(fn () => false);

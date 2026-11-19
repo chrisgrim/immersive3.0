@@ -796,3 +796,35 @@ test('an embargoed run of a show opens as a preview for its team at its address 
     $this->actingAs($owner)->get($path)->assertOk()->assertSee('Goes live');
     $this->actingAs(App\Models\User::factory()->create())->get($path)->assertNotFound();
 });
+
+// ----- what Google reads -----
+
+test('the title says the city and dates, and stays short enough to show whole', function () {
+    $event = makeShowableEvent(['name' => 'Night Walk', 'tag_line' => 'A walk in the dark']);
+    $event->location->update(['city' => 'Toronto']);
+
+    $html = $this->get("/events/{$event->slug}")->assertOk()->getContent();
+    preg_match('#<title>(.*?)</title>#s', $html, $title);
+
+    expect($title[1])->toStartWith('Night Walk in Toronto · Until ')
+        ->and(mb_strlen(html_entity_decode($title[1])))->toBeLessThanOrEqual(\App\Support\Seo\PageMeta::TITLE_MAX);
+});
+
+test('an ended run says so, and its structured data no longer claims it is on', function () {
+    $event = makeShowableEvent(['closingDate' => now()->subDays(10)]);
+
+    $html = $this->get("/events/{$event->slug}")->assertOk()->assertSee('This run ended', false)->getContent();
+
+    preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $html, $matches);
+    $jsonLd = json_decode($matches[1]);
+    expect(json_last_error())->toBe(JSON_ERROR_NONE)
+        ->and(isset($jsonLd->eventStatus))->toBeFalse()
+        ->and(isset($jsonLd->offers->availability))->toBeFalse();
+});
+
+test('another spelling of an event address moves to the real one, keeping the query', function () {
+    $event = makeShowableEvent();
+
+    $this->get('/events/'.strtoupper($event->slug).'?ref=x')->assertRedirect("/events/{$event->slug}?ref=x")->assertStatus(301);
+    $this->get("/events/{$event->slug}?ref=x")->assertOk();
+});

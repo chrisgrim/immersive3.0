@@ -124,6 +124,10 @@ class PageMeta
             return null;
         }
 
+        if ($start && $start->gt($end)) {
+            $start = null;
+        }
+
         $today = Carbon::now(\App\Models\Events\Show::validTimezone($event->timezone))->startOfDay();
 
         if ($end->lt($today)) {

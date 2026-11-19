@@ -40,7 +40,7 @@ class EventController extends Controller
         $project = Project::where('slug', $event)->first();
 
         if ($project) {
-            return $this->showProject($project);
+            return $this->canonicalRedirect($project->publicPath()) ?? $this->showProject($project);
         }
 
         if ($moved = $this->movedTo('events/'.$event)) {
@@ -59,7 +59,23 @@ class EventController extends Controller
             return $this->redirectTo($listing->publicPath(), 301);
         }
 
+        if ($canonical = $this->canonicalRedirect($listing->publicPath())) {
+            return $canonical;
+        }
+
         return $this->showListing($listing, $this->isEmbargoPreview($listing));
+    }
+
+    /**
+     * "/events/Peaky-Blinders/" and "/events/peaky-blinders" are one page:
+     * any other spelling of the address (case, a trailing slash) moves to the
+     * real one, so Google keeps one copy. The query string comes along.
+     */
+    private function canonicalRedirect(string $path)
+    {
+        return rawurldecode(request()->getPathInfo()) !== $path
+            ? $this->redirectTo($path, 301)
+            : null;
     }
 
     /**
@@ -78,6 +94,10 @@ class EventController extends Controller
         if ($run) {
             $preview = $this->isEmbargoPreview($run);
             abort_unless($run->status === Event::STATUS_PUBLISHED || $preview, 404);
+
+            if ($canonical = $this->canonicalRedirect($run->publicPath())) {
+                return $canonical;
+            }
 
             return $this->showListing($run, $preview);
         }

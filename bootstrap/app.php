@@ -31,6 +31,8 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\RecordLoginHistory::class,
             // First-party page views (off until analytics.capture.page_views).
             \App\Http\Middleware\RecordPageView::class,
+            // Phone and computer layouts come from one address.
+            \App\Http\Middleware\VaryByUserAgent::class,
         ]);
 
         $middleware->alias([
