@@ -4,6 +4,14 @@
     $description = \App\Support\Seo\PageMeta::projectDescription($project, $page);
     $url = url($project->publicPath());
     $image = $page['image'] ? config('app.image_url').$page['image'] : null;
+    // The runs on now or coming up, for the series block Google reads.
+    $subEvents = collect($page['now'])->concat($page['coming'])->take(20)->map(fn ($run) => array_filter([
+        '@type' => 'Event',
+        'name' => $run['name'] ?: $project->name,
+        'url' => url($run['url']),
+        'startDate' => $run['start'],
+        'location' => $run['place'] ? ['@type' => 'Place', 'name' => $run['place'], 'address' => $run['place']] : null,
+    ]))->values();
     $sections = ['Now running' => $page['now'], 'Coming up' => $page['coming'], 'Past' => $page['past']];
 @endphp
 
@@ -42,6 +50,9 @@
             "name": @json($project->organizer->name),
             "url": @json(url($project->organizer->publicPath()))
         },
+        @endif
+        @if($subEvents->isNotEmpty())
+        "subEvent": @json($subEvents),
         @endif
         "url": @json($url)
     }

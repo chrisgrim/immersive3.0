@@ -41,6 +41,10 @@
         $url = url($event->publicPath());
         // What Google shows: city, dates, venue and price (App\Support\Seo\PageMeta).
         $metaDescription = \App\Support\Seo\PageMeta::eventDescription($event, $venue?->name);
+        // The event block's description is the real one, not the slogan.
+        $schemaDescription = \App\Support\Seo\PageMeta::trimWords(trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($event->description ?: $event->tag_line)))), 300);
+        $runIsOn = ! $event->closingAt() || $event->closingAt()->isFuture();
+        $schemaStreet = $event->location ? trim(implode(' ', array_filter([$event->location->home !== $event->location->street ? $event->location->home : null, $event->location->street]))) : null;
     @endphp
     <title>{{ \App\Support\Seo\PageMeta::eventTitle($event) }}</title>
     <link rel="canonical" href="{{ $url }}">
@@ -99,7 +103,7 @@
         "@@context": "https://schema.org",
         "@type": "Event",
         "name": @json($event->name),
-        "description": @json($event->tag_line ? $event->tag_line : $event->description),
+        "description": @json($schemaDescription),
         @if($event->showtype === 'a')
         {{-- Always available: the one show row is a
              placeholder on the closing day (often just "six months from now"), not
@@ -119,11 +123,14 @@
         "endDate": "{{ $event->closingAt()->toIso8601String() }}",
         @endif
         @endif
+        @if($runIsOn)
         "eventStatus": "https://schema.org/EventScheduled",
+        @endif
         "eventAttendanceMode": "{{ $event->hasLocation ? 'https://schema.org/OfflineEventAttendanceMode' : 'https://schema.org/OnlineEventAttendanceMode' }}",
         "image": [
             @if($mainImage)
-                "{{ $imageUrl . $mainImage->large_image_path }}"
+                "{{ $imageUrl . $mainImage->large_image_path }}"@if(!empty($mainImage->thumb_image_path)),
+                "{{ $imageUrl . $mainImage->thumb_image_path }}"@endif
             @else
                 "{{ asset('storage/website-files/Everything_Immersive_logo_Short.png') }}"
             @endif
@@ -178,19 +185,24 @@
                     $highestPrice = $event->priceranges->max('price');
                 }
                 
-                // Default if we couldn't find any prices
-                if ($lowestPrice === null) {
-                    $lowestPrice = 0;
-                }
+                // No price known: say nothing rather than "0", which reads as free.
+                $priceKnown = $lowestPrice !== null;
                 if ($highestPrice === null) {
                     $highestPrice = $lowestPrice;
                 }
+                $validFrom = $event->priceranges[0]->created_at ?? $event->created_at;
             @endphp
+            @if($priceKnown)
             "lowPrice": "{{$lowestPrice}}",
             "highPrice": "{{$highestPrice}}",
+            @endif
             "priceCurrency": "{{$currencyCode}}",
+            @if($runIsOn)
             "availability": "https://schema.org/InStock",
-            "validFrom": "{{ $event->priceranges[0]->created_at ?? $event->created_at }}",
+            @endif
+            @if($validFrom)
+            "validFrom": "{{ \Carbon\Carbon::parse($validFrom)->toIso8601String() }}",
+            @endif
             "priceSpecification": [
                 @if($hasPWYC)
                 {
@@ -226,11 +238,11 @@
         @if($event->hasLocation)
         "location": {
             "@type": "Place",
-            "name": @json($venue?->name ?: ($event->location->publicVenueName() ?: $event->name)),
+            "name": @json($venue?->name ?: ($event->location->publicVenueName() ?: ($event->location->placeLabel() ?: $event->name))),
             "address": {
                 "@type": "PostalAddress",
                 @unless($event->location->hiddenLocationToggle)
-                "streetAddress": @json($event->location->home . ' ' . $event->location->street),
+                "streetAddress": @json($schemaStreet),
                 "postalCode": @json($event->location->postal_code),
                 @endunless
                 "addressLocality": @json($event->location->city),
@@ -244,10 +256,15 @@
             "url": "{{$event->websiteUrl ? $event->websiteUrl : ($event->ticketUrl && ! $event->ticketsByEmail() ? $event->ticketUrl : Request::url())}}"
         },
         @endif
-        "performer": {
-            "@type": "PerformingGroup",
-            "name": @json($event->organizer->name)
+        "url": @json($url),
+        @if($projectLine['project'] ?? null)
+        {{-- A run of a show that plays in many places: the show's page is its series. --}}
+        "superEvent": {
+            "@type": "EventSeries",
+            "name": @json($projectLine['project']->name),
+            "url": @json(url($projectLine['project']->publicPath()))
         },
+        @endif
         "keywords": @json(collect($event->genres)->pluck('name')),
         "isAccessibleForFree": {{ ($hasFreeTicket || (isset($event->priceranges[0]) && $event->priceranges[0]->price == 0)) ? 'true' : 'false' }},
         @if($event->advisories?->wheelchairLevel() === \App\Models\Events\Advisory::WHEELCHAIR_NONE)
@@ -449,6 +466,20 @@
             <div class="max-w-screen-xl mx-auto px-10 lg-air:px-16 2xl-air:px-32 py-[1.2rem] flex flex-wrap items-center gap-x-4 gap-y-1 text-[1.5rem]">
                 <span class="font-semibold">&#128274; Not public yet.</span>
                 <span>Goes live {{ $embargoLiftsAt?->format('l, M j \a\t g:i A') }} ({{ $embargoLiftsAt?->format('T') }}). Only you and EI staff can see this page.</span>
+            </div>
+        </div>
+    @endif
+    {{-- An ended run says so up front, and where to go next, so someone who
+         found it in a search is not left at a dead end (both layouts). --}}
+    @if(! ($embargoPreview ?? false) && ! $runIsOn && $event->closingAt())
+        <div class="w-full bg-[#f7f7f7] border-b border-[#dddddd]" role="status" data-run-ended>
+            <div class="max-w-screen-xl mx-auto px-10 lg-air:px-16 2xl-air:px-32 py-[1.2rem] flex flex-wrap items-center gap-x-4 gap-y-1 text-[1.5rem] text-[#222222]">
+                <span class="font-semibold">This run ended {{ \Carbon\Carbon::parse($event->closingDate)->format('M j, Y') }}.</span>
+                @if($projectLine['project'] ?? null)
+                    <a href="{{ $projectLine['project']->publicPath() }}" class="underline hover:text-neutral-600">See where {{ $projectLine['project']->name }} is playing now</a>
+                @else
+                    <a href="{{ $event->organizer->publicPath() }}" class="underline hover:text-neutral-600">See what {{ $event->organizer->name }} has on now</a>
+                @endif
             </div>
         </div>
     @endif

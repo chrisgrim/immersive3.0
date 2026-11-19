@@ -61,7 +61,7 @@ test('show emits valid JSON-LD even when text fields contain newlines and quotes
     $jsonLd = json_decode($matches[1]);
     expect(json_last_error())->toBe(JSON_ERROR_NONE)
         ->and($jsonLd->name)->toBe('An "Immersive" Show')
-        ->and($jsonLd->description)->toContain("First line\nSecond line");
+        ->and($jsonLd->description)->toBe("Multi-line description");
 });
 
 test('show appends the first_show_tickets attribute to the event', function () {
