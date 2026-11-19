@@ -24,13 +24,39 @@ class SlugRedirect extends Model
         return $this->morphTo();
     }
 
-    /** Whether $path is reserved for anything but this one record. */
+    /**
+     * Whether $path is reserved for anything but this one record. An old
+     * address of something gone for good (see isStale) reserves nothing:
+     * whoever takes it next overwrites the row (remember()).
+     */
     public static function pointsElsewhere(string $path, string $type, ?int $id): bool
     {
         return static::where('path', $path)
             ->where(fn ($q) => $q->where('redirectable_type', '!=', $type)
                 ->orWhere('redirectable_id', '!=', (int) $id))
-            ->exists();
+            ->get()
+            ->contains(fn (self $redirect) => ! $redirect->isStale());
+    }
+
+    /**
+     * An old address that can lead nowhere any more: its record is gone, or
+     * deleted, except a deleted run whose show lives on (its addresses fall
+     * back to the show, see destination()). A deleted listing's own slug is
+     * released on delete; its old addresses go the same way here.
+     */
+    public function isStale(): bool
+    {
+        $record = $this->target();
+
+        if ($record === null) {
+            return true;
+        }
+
+        if (! method_exists($record, 'trashed') || ! $record->trashed()) {
+            return false;
+        }
+
+        return ! ($record instanceof Event && $record->project_id && Project::whereKey($record->project_id)->exists());
     }
 
     /** Point $path at $record, whoever held it before. */

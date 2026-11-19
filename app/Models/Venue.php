@@ -35,6 +35,17 @@ class Venue extends Model
             }
         });
 
+        // Taking the name of a venue merged into it: that row gives the slug
+        // up first (slugs are unique), and keeps a released one. One way: an
+        // unmerge, if ever built, must give the merged venue a fresh uniqueSlug. Its address
+        // already redirects here (MergeVenues), and forget() below drops that.
+        static::updating(function (Venue $venue) {
+            if ($venue->isDirty('slug')) {
+                static::where('slug', $venue->slug)->where('merged_into_id', $venue->id)->get()
+                    ->each(fn (Venue $merged) => $merged->updateQuietly(['slug' => 'merged--'.$merged->id]));
+            }
+        });
+
         // Renamed, it keeps its old address as a redirect.
         static::updated(function (Venue $venue) {
             if ($venue->wasChanged('slug')) {
@@ -91,7 +102,13 @@ class Venue extends Model
 
     private static function slugTaken(string $slug, ?int $exceptId): bool
     {
-        return static::where('slug', $slug)->when($exceptId, fn ($q) => $q->whereKeyNot($exceptId))->exists()
+        // A venue merged into this one holds its old name for it (its page
+        // redirects here): no clash, and it gives the slug up when this one
+        // takes it (the updating hook).
+        return static::where('slug', $slug)
+            ->when($exceptId, fn ($q) => $q->whereKeyNot($exceptId)
+                ->where(fn ($q) => $q->whereNull('merged_into_id')->orWhere('merged_into_id', '!=', $exceptId)))
+            ->exists()
             || SlugRedirect::pointsElsewhere('venues/'.$slug, (new self)->getMorphClass(), $exceptId);
     }
 
@@ -135,6 +152,9 @@ class Venue extends Model
     private function approvedOrProposedBy(Builder $query, \Closure $organizers): Builder
     {
         return $query->where(fn ($q) => $q->where('venues.status', self::APPROVED)
+            // The team keeping a waiting venue sees it, whoever proposed it
+            // (staff often add one for a company's listing).
+            ->orWhere(fn ($kept) => $kept->where('venues.status', self::PENDING)->whereIn('venues.organizer_id', $organizers))
             ->orWhereExists(fn ($proposed) => $proposed->selectRaw('1')->from('audit_logs')
                 ->where('audit_logs.subject_type', $this->getMorphClass())
                 ->whereColumn('audit_logs.subject_id', 'venues.id')

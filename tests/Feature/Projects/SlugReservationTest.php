@@ -125,3 +125,98 @@ test('deleting an organizer never touches another presenter\'s run of its show',
     expect(fn () => $maker->deleteOrganizer($maker))->toThrow(ValidationException::class);
     expect($run->fresh())->not->toBeNull();
 });
+
+test('a show can take the plain address one of its own runs went by before joining', function () {
+    // Handle With Care: the show started from the London listing, then the
+    // standalone listing at /events/handle-with-care joined it, leaving that
+    // address as a redirect to its run. The show must be able to take it.
+    $moderator = staffModerator();
+    $this->actingAs($moderator);
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $london = publishedListing('Care Show London', 'London', [], $organizer);
+    app(LinkEventToProject::class)->link(publishedListing('Care Show Edinburgh', 'Edinburgh', [], $organizer), $london, $moderator);
+    $project = $london->refresh()->project;
+
+    $plain = publishedListing('Care Show', 'Battersea', [], $organizer);
+    expect($plain->slug)->toBe('care-show');
+    app(LinkEventToProject::class)->link($plain, $project, $moderator);
+    // Renamed after joining, as Kathryn did: the run moves off the plain
+    // address, which stays behind as a redirect to it.
+    app(NameChangeRequestService::class)->processAdminDirectChange($plain->fresh(), 'Care Show (Battersea)');
+    expect($plain->fresh()->slug)->not->toBe('care-show')
+        ->and(SlugRedirect::where('path', 'events/care-show')->exists())->toBeTrue();
+
+    // Something else's old address still blocks it.
+    SlugRedirect::remember('events/someone-else', publishedListing('Someone Else', 'Paris'));
+    expect(Project::slugTaken('someone-else', null, $project->id))->toBeTrue()
+        ->and(Project::slugTaken('care-show', null, $project->id))->toBeFalse();
+
+    app(App\Actions\Projects\UpdateProject::class)->handle($project, ['slug' => 'care-show'], $moderator);
+
+    // The old link now opens the show itself.
+    expect(SlugRedirect::where('path', 'events/care-show')->exists())->toBeFalse();
+    $this->withoutVite()->get('/events/care-show')->assertOk()->assertSee('Care Show');
+});
+
+test('linking a listing and giving the show its address happens in one decision', function () {
+    $moderator = staffModerator();
+    $this->actingAs($moderator);
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $london = publishedListing('Duo London', 'London', [], $organizer);
+    app(LinkEventToProject::class)->link(publishedListing('Duo Paris', 'Paris', [], $organizer), $london, $moderator);
+    $project = $london->refresh()->project;
+    $plain = publishedListing('Duo', 'Berlin', [], $organizer);
+
+    app(LinkEventToProject::class)->decide($plain, null, $project, $moderator, null, 'duo');
+
+    expect($project->refresh()->slug)->toBe('duo')
+        ->and($plain->refresh()->project_id)->toBe($project->id);
+});
+
+test('a new show takes the plain name of the listing joining it', function () {
+    $moderator = staffModerator();
+    $this->actingAs($moderator);
+    $organizer = Organizer::factory()->create(['status' => 'p']);
+    $plain = publishedListing('Trio', 'Berlin', [], $organizer);
+    $chicago = publishedListing('Trio', 'Chicago', [], $organizer);
+    expect($chicago->slug)->toBe('trio-chicago');
+
+    // Chicago starts the show; the listing at /events/trio joins it.
+    app(LinkEventToProject::class)->link($plain, $chicago, $moderator);
+
+    expect($chicago->refresh()->project->slug)->toBe('trio');
+    $this->withoutVite()->get('/events/trio')->assertOk();
+});
+
+test('an old address of a deleted listing reserves nothing', function () {
+    $listing = publishedListing('Gone Show', 'Rome');
+    app(NameChangeRequestService::class)->processAdminDirectChange($listing, 'Renamed Show');
+    expect(SlugRedirect::where('path', 'events/gone-show')->exists())->toBeTrue();
+    $listing->fresh()->delete();
+
+    $newcomer = publishedListing('Gone Show', 'Oslo');
+    expect($newcomer->slug)->toBe('gone-show')
+        ->and(Project::slugTaken('gone-show'))->toBeTrue() // the new listing holds it now
+        ->and(SlugRedirect::where('path', 'events/gone-show')->exists())->toBeFalse();
+
+    // Restoring the old one does not take the address back.
+    $listing->fresh()->restore();
+    $this->withoutVite()->get('/events/gone-show')->assertOk()->assertSee('Gone Show');
+    expect(SlugRedirect::where('path', 'events/gone-show')->exists())->toBeFalse();
+});
+
+test('a venue can take the name of a venue merged into it', function () {
+    $staff = staffModerator();
+    $winner = App\Models\Venue::factory()->create(['name' => 'Vaults Theatre', 'slug' => 'vaults-theatre']);
+    $loser = App\Models\Venue::factory()->create(['name' => 'The Vaults', 'slug' => 'the-vaults']);
+    app(App\Actions\Projects\MergeVenues::class)->handle($loser, $winner, $staff);
+
+    expect(App\Models\Venue::uniqueSlug('The Vaults', $winner->id))->toBe('the-vaults');
+    $winner->refresh()->update(['name' => 'The Vaults', 'slug' => 'the-vaults']);
+
+    expect($loser->refresh()->slug)->toBe('merged--'.$loser->id)
+        ->and(SlugRedirect::where('path', 'venues/the-vaults')->exists())->toBeFalse();
+    $this->withoutVite()->get('/venues/the-vaults')->assertOk();
+    // Someone else still cannot have it.
+    expect(App\Models\Venue::uniqueSlug('The Vaults'))->toBe('the-vaults-2');
+});

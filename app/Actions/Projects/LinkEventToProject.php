@@ -72,14 +72,23 @@ class LinkEventToProject
         return DB::transaction(function () use ($event, $request, $target, $resolved, $project, $actor, $maker, $slug) {
             $options = array_filter(['maker' => $maker, 'slug' => $slug]);
 
-            if ($project && $options !== []) {
-                app(UpdateProject::class)->handle($project, array_filter(['organizer_id' => $maker?->id, 'slug' => $slug]), $actor);
+            // An existing show is corrected after the link, so it may take the
+            // address of the listing that has just joined it.
+            $changes = $project ? array_filter(['organizer_id' => $maker?->id, 'slug' => $slug]) : [];
+            if ($project) {
                 $options = [];
             }
 
-            return $request
+            $linked = $request
                 ? $this->approve($request, $actor, $options, $target)
                 : $this->link($event, $resolved, $actor, $options);
+
+            if ($changes !== []) {
+                app(UpdateProject::class)->handle($project->refresh(), $changes, $actor);
+                $linked->refresh();
+            }
+
+            return $linked;
         });
     }
 
@@ -194,7 +203,10 @@ class LinkEventToProject
 
         // After commit, so a rolled-back link tells nobody. Runs at once
         // when no transaction is open around this one.
-        DB::afterCommit(fn () => $this->notify($outcome['run'], $outcome['project'], $actor));
+        // Fresh copies then: a moderator's decide() may change the show's maker
+        // after the link in the same transaction, and the old keeper must not
+        // be the one told (nor see an embargoed listing's name).
+        DB::afterCommit(fn () => $this->notify($outcome['run']->fresh() ?? $outcome['run'], $outcome['project']->fresh() ?? $outcome['project'], $actor));
 
         return $event->refresh();
     }
@@ -235,7 +247,7 @@ class LinkEventToProject
             }
         } else {
             $this->assertCanBeFirst($source, $run);
-            $project = $this->createProject($source, $actor, $options);
+            $project = $this->createProject($source, $actor, $options, $run);
             $this->attach($source, $project, $actor);
         }
 
@@ -303,7 +315,8 @@ class LinkEventToProject
         }
     }
 
-    private function createProject(Event $first, User $actor, array $options): Project
+    /** $joining: the listing joining it at once, whose address the show may take too. */
+    private function createProject(Event $first, User $actor, array $options, ?Event $joining = null): Project
     {
         $maker = $options['maker'] ?? $first->organizer;
 
@@ -311,10 +324,10 @@ class LinkEventToProject
             $this->refuse('A show needs a company that made it.');
         }
 
-        $slug = $options['slug'] ?? Project::addressFor($first, $maker);
+        $slug = $options['slug'] ?? Project::addressFor($first, $maker, $joining);
 
-        if (Project::slugTaken($slug, $first)) {
-            $this->refuse("The address \"{$slug}\" is taken.");
+        if (($holder = Project::slugHolder($slug, [$first, $joining])) !== null) {
+            $this->refuse("The address \"{$slug}\" is taken by {$holder}.");
         }
 
         $project = Project::create([

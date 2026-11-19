@@ -787,3 +787,18 @@ test('a soft-deleted run cannot be unlinked into a released address', function (
     expect(fn () => app(UnlinkEvent::class)->handle(Event::withTrashed()->find($second->id), $this->moderator))
         ->toThrow(ValidationException::class);
 });
+
+test('changing the maker in the same decision tells the new keeper, not the old one', function () {
+    $first = publishedListing('Ha Ha Ha', 'Chicago');
+    $this->link->link(publishedListing('Ha Ha Ha', 'New York'), $first, $this->moderator);
+    $oldKeeper = $first->organizer->owner;
+    $newMaker = App\Models\Organizer::factory()->create(['status' => 'p']);
+    Mail::fake();
+    $this->actingAs($this->moderator);
+    $third = publishedListing('Ha Ha Ha', 'Boston');
+
+    $this->link->decide($third, null, Project::sole(), $this->moderator, $newMaker);
+
+    Mail::assertQueued(App\Mail\Comments::class, fn ($mail) => $mail->hasTo($newMaker->owner->email));
+    Mail::assertNotQueued(App\Mail\Comments::class, fn ($mail) => $mail->hasTo($oldKeeper->email));
+});
