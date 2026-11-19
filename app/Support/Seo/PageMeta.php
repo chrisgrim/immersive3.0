@@ -65,7 +65,7 @@ class PageMeta
         return self::sentences([...$facts, $words]);
     }
 
-    /** "Run name: 3 cities including London, Paris, New York" for a show with many runs. */
+    /** "Run name: 3 cities incl. London, Paris" for a show with many runs. */
     public static function projectTitle(Project $project, array $page): string
     {
         $cities = self::runPlaces($page);
@@ -130,11 +130,13 @@ class PageMeta
 
         $today = Carbon::now(\App\Models\Events\Show::validTimezone($event->timezone))->startOfDay();
 
-        if ($end->lt($today)) {
+        // Calendar days, not instants: closingDate is a wall time in the
+        // event's own timezone. Ended means what the page's banner means.
+        if ($event->closingAt() && ! $event->closingAt()->isFuture()) {
             return 'Ended '.$end->format('M j, Y');
         }
 
-        if ($start && $start->gt($today)) {
+        if ($start && $start->toDateString() > $today->toDateString()) {
             if ($start->isSameDay($end)) {
                 return $start->format('M j, Y');
             }
@@ -160,6 +162,7 @@ class PageMeta
     private static function runPlaces(array $page): Collection
     {
         return collect($page['now'] ?? [])->concat($page['coming'] ?? [])
+            ->filter(fn ($run) => $run['in_person'] ?? true)
             ->map(fn ($run) => trim(Str::before((string) $run['place'], ',')))
             ->filter()
             ->unique()

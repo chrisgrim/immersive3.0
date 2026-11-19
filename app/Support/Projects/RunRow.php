@@ -31,6 +31,8 @@ class RunRow
             // Only when it goes by a name of its own.
             'name' => $run->name !== $showName ? $run->name : null,
             'place' => self::place($run),
+            // Online runs name a platform, not a city.
+            'in_person' => (bool) $run->hasLocation,
             'dates' => self::dates($run, $start),
             'start' => $start,
             'bucket' => self::bucket($run, $start),

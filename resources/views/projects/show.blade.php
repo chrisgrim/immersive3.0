@@ -10,7 +10,9 @@
         'name' => $run['name'] ?: $project->name,
         'url' => url($run['url']),
         'startDate' => $run['start'],
-        'location' => $run['place'] ? ['@type' => 'Place', 'name' => $run['place'], 'address' => $run['place']] : null,
+        'location' => ! $run['place'] ? null : (($run['in_person'] ?? true)
+            ? ['@type' => 'Place', 'name' => $run['place'], 'address' => $run['place']]
+            : ['@type' => 'VirtualLocation', 'name' => $run['place']]),
     ]))->values();
     $sections = ['Now running' => $page['now'], 'Coming up' => $page['coming'], 'Past' => $page['past']];
 @endphp

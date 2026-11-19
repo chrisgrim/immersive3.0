@@ -136,7 +136,7 @@
             @endif
         ],
         "offers": {
-            "@type": "AggregateOffer",
+            "@type": "{{ ($event->priceranges->isNotEmpty() || collect($event->first_show_tickets ?? [])->contains(fn ($t) => isset($t->ticket_price))) ? 'AggregateOffer' : 'Offer' }}",
             "url": "{{$event->ticketUrl && ! $event->ticketsByEmail() ? $event->ticketUrl : ($event->websiteUrl ? $event->websiteUrl : Request::url())}}",
             @php
                 $hasPWYC = false;
