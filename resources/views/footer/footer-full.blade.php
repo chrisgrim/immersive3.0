@@ -20,7 +20,7 @@
                     <span class="mx-2">·</span>
                     <a href="/privacy" class="hover:underline">Privacy</a>
                     <span class="mx-2">·</span>
-                    <a href="/changelog" class="hover:underline">What's new</a>
+                    <a href="/changelog" class="hover:underline">What's New</a>
                     <span class="mx-2">·</span>
                     <vue-suggest-event class="hover:underline">Tell us about an event</vue-suggest-event>
                 </div>

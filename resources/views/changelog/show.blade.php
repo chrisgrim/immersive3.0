@@ -24,7 +24,7 @@
 @section('content')
 {{-- One post, laid out as Airbnb's newsroom articles: a narrow column of
      text (about 67rem), a medium-weight title, a small "By ... · date ·
-     What's new" line, Key takeaways, one picture a little wider than the
+     What's New" line, Key takeaways, one picture a little wider than the
      text, then the post. Pictures inside the post stay as wide as the text,
      framed and captioned, so a screenshot reads as an example, not a page. --}}
 <article class="pt-16 md:pt-24 text-[#222222]">
@@ -32,7 +32,7 @@
         <h1 class="text-[3.4rem] leading-[4rem] md:text-[4.6rem] md:leading-[5.2rem] font-medium tracking-tight">{{ $post['title'] }}</h1>
         <p class="mt-[2.4rem] text-[1.4rem] leading-[2rem]">
             By Everything Immersive · {{ $post['date']->format('F j, Y') }} ·
-            <a href="{{ route('changelog') }}" class="underline font-medium">What's new</a>
+            <a href="{{ route('changelog') }}" class="underline font-medium">What's New</a>
         </p>
 
         @if($post['takeaways'])

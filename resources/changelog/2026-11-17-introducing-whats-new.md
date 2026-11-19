@@ -1,12 +1,12 @@
 ---
-title: Introducing What's new
+title: Introducing What's New
 summary: A new page where we post the changes we make to Everything Immersive.
 image: /images/changelog/whats-new-page.jpg
-image_alt: The What's new page on Everything Immersive, with a card for each update
+image_alt: The What's New page on Everything Immersive, with a card for each update
 ---
-We make changes to Everything Immersive all the time, but until now there was no single place to see what changed. **What's new** is that place.
+We make changes to Everything Immersive all the time, but until now there was no single place to see what changed. **What's New** is that place.
 
-Each time we add a feature or change how something works, we will post a short update here with screenshots. You can find What's new in the footer of the site.
+Each time we add a feature or change how something works, we will post a short update here with screenshots. You can find What's New in the footer of the site.
 
 ## What we will post about
 
