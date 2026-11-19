@@ -124,7 +124,7 @@
                                         </div>
                                         <div class="min-w-0">
                                             <p class="text-[1.8rem] leading-[2.2rem] font-medium text-[#222222] transform-none truncate">{{ hosting ? 'Create new event' : (user.organizer ? user.organizer.name : 'List your event') }}</p>
-                                            <p class="text-[1.4rem] leading-[1.8rem] text-[#6a6a6a] transform-none mt-1">{{ hosting ? `A new listing for ${hosting.name}` : (user.organizer ? 'Create and manage events' : 'Put your experience on Everything Immersive') }}</p>
+                                            <p class="text-[1.4rem] leading-[1.8rem] text-[#6a6a6a] transform-none mt-1">{{ hosting ? `Add a new event for ${hosting.name}` : (user.organizer ? 'Create and manage events' : 'Put your experience on Everything Immersive') }}</p>
                                         </div>
                                     </a>
 
