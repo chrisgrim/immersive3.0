@@ -46,7 +46,7 @@
             @if(request()->boolean('added'))
                 {{-- Just added through the steps: it waits for EI before it shows on the site.
                      A fixed message: nothing from the address bar is shown. --}}
-                <p class="mb-10 px-6 py-4 rounded-[1.2rem] bg-[#f7f7f7] text-[1.5rem] text-[#222222] transform-none">Your venue was sent to EI. It shows on the site once it is approved.</p>
+                <p class="mb-10 px-6 py-4 rounded-[1.2rem] bg-[#f7f7f7] text-[1.5rem] text-[#222222] transform-none">Your venue was sent for review. It shows on the site once a moderator approves it.</p>
             @endif
 
             @if($venues->isEmpty())

@@ -99,7 +99,7 @@
                                         placeholder="Enter the venue's name"
                                         class="text-4xl p-4 border rounded-2xl mt-6 block w-full border-[#222222] focus:border-black focus:shadow-focus-black"
                                     />
-                                    <p v-if="venue.pending_name && !venue.renames_directly" class="mt-3 text-[1.4rem] text-[#6a6a6a]" data-pending-name>Waiting for EI to approve this name. Until then the venue is still called "{{ venue.name }}".</p>
+                                    <p v-if="venue.pending_name && !venue.renames_directly" class="mt-3 text-[1.4rem] text-[#6a6a6a]" data-pending-name>Waiting for a moderator to approve this name. Until then the venue is still called "{{ venue.name }}".</p>
                                     <p class="text-black font-medium mt-10 mb-4">Room or space (optional)</p>
                                     <input
                                         v-model="form.room"

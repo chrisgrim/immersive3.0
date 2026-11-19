@@ -240,7 +240,7 @@
 					<h2 id="event-pop-title" class="mt-[2rem] text-[1.8rem] leading-[2.4rem] font-semibold text-[#222222] break-words hyphens-auto">{{ selectedEvent.name || 'No name yet' }}</h2>
 					<p v-if="eventPlace(selectedEvent)" class="mt-1 text-[1.6rem] text-[#6a6a6a] font-normal">{{ eventPlace(selectedEvent) }}</p>
 					<p v-if="selectedEvent.is_deleted" class="mt-4 text-[1.5rem] text-[#6a6a6a] font-normal">This event has been deleted.</p>
-					<p v-else-if="underReview(selectedEvent)" class="mt-4 text-[1.5rem] text-[#6a6a6a] font-normal">EI is looking at it. You can edit it again once it is reviewed.</p>
+					<p v-else-if="underReview(selectedEvent)" class="mt-4 text-[1.5rem] text-[#6a6a6a] font-normal">A moderator is looking at it. You can edit it again once it is reviewed.</p>
 				</div>
 				<template v-if="!selectedEvent.is_deleted">
 					<button v-if="!underReview(selectedEvent)" type="button" class="mt-[3.2rem] w-full h-[5.2rem] rounded-[1.2rem] bg-[#222222] hover:bg-black text-white text-[1.6rem] font-semibold" data-pop-edit @click="editEvent(selectedEvent)">Edit event</button>

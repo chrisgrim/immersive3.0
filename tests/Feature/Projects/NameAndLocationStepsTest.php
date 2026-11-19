@@ -246,7 +246,7 @@ test('a team member proposes a venue, which waits for a moderator', function () 
         ->assertCreated()->assertJsonPath('venue.status', Venue::PENDING);
 
     // Its team sees a preview while it waits; the public does not.
-    $this->get('/venues/new-hall')->assertOk()->assertSee('Waiting for EI to approve it');
+    $this->get('/venues/new-hall')->assertOk()->assertSee('Waiting for a moderator to approve it');
     $this->actingAs(User::factory()->create(['type' => 'u']))->get('/venues/new-hall')->assertNotFound();
 
     $this->actingAs(User::factory()->create(['type' => 'u']))

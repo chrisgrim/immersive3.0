@@ -64,7 +64,7 @@
         <div class="bg-[#f7f7f7] border-b border-[#ebebeb]">
             <div class="max-w-screen-xl mx-auto px-8 py-3 flex items-center justify-between gap-4">
                 @can('update', $venue)
-                    <p class="text-[1.4rem] text-[#222222] transform-none">{{ $venue->status === \App\Models\Venue::DRAFT ? 'A draft: only you can see this page. Finish adding it to send it to EI.' : 'Waiting for EI to approve it: only you can see this page for now.' }}</p>
+                    <p class="text-[1.4rem] text-[#222222] transform-none">{{ $venue->status === \App\Models\Venue::DRAFT ? 'A draft: only you can see this page. Finish adding it to send it for review.' : 'Waiting for a moderator to approve it: only you can see this page for now.' }}</p>
                     <a href="{{ $venue->status === \App\Models\Venue::DRAFT ? route('venues.setup', $venue) : route('venues.edit', $venue) }}" class="text-[1.4rem] font-semibold underline whitespace-nowrap">{{ $venue->status === \App\Models\Venue::DRAFT ? 'Finish adding it' : 'Edit' }}</a>
                 @else
                     {{-- Reached from Add a venue's "we already know a venue here". --}}

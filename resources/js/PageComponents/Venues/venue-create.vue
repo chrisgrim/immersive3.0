@@ -31,7 +31,7 @@
 
                     <!-- Already on EI under this name? A look at its page, where its owner can claim it. Nothing stops you carrying on. -->
                     <div v-if="nameMatches.length" class="mt-4 rounded-[1.2rem] border border-[#dddddd] divide-y divide-[#ebebeb]" data-venue-name-matches>
-                        <p class="px-[2rem] pt-[1.6rem] pb-[1.2rem] text-[1.4rem] text-[#6a6a6a] font-normal">{{ nameMatches.some((match) => match.yours) ? 'You may already have this venue, or it is already on Everything Immersive.' : 'We think this venue may already be on EI. Check it out, and claim it there if you own it.' }}</p>
+                        <p class="px-[2rem] pt-[1.6rem] pb-[1.2rem] text-[1.4rem] text-[#6a6a6a] font-normal">{{ nameMatches.some((match) => match.yours) ? 'You may already have this venue, or it is already on Everything Immersive.' : 'We think this venue may already be on Everything Immersive. Check it out, and claim it there if you own it.' }}</p>
                         <div v-for="match in nameMatches" :key="match.id" class="flex items-center justify-between gap-4 px-[2rem] py-[1.4rem]">
                             <div class="min-w-0">
                                 <p class="text-[1.5rem] font-medium text-[#222222] truncate">{{ match.name }}<span v-if="match.room" class="font-normal text-[#6a6a6a]">, {{ match.room }}</span><span v-if="match.status !== 'approved'" class="ml-2 px-2 py-0.5 rounded-full bg-[#f2f2f2] text-[1.2rem] font-medium text-[#6a6a6a]">In review</span></p>
@@ -112,7 +112,7 @@
                 <!-- 7. Review -->
                 <main v-else-if="step === 'Review'">
                     <h2 class="text-black">Check it over</h2>
-                    <p class="mt-3 mb-10 text-[1.6rem] text-[#6a6a6a] font-normal">When you finish, EI takes a look before it shows on the site.</p>
+                    <p class="mt-3 mb-10 text-[1.6rem] text-[#6a6a6a] font-normal">When you finish, a moderator takes a look before it shows on the site.</p>
                     <!-- Airbnb's listing review: the card as people will see it, then
                          each part with what it says and Edit to go back to it. -->
                     <div class="rounded-[1.6rem] shadow-[0_6px_20px_rgba(0,0,0,0.12)] overflow-hidden" data-review-card>

@@ -56,7 +56,7 @@ describe('the hosting events list', () => {
         const wrapper = mountDashboard([{ ...draft, status: 'r' }]);
         await row(wrapper, 1).trigger('click');
         const pop = wrapper.find('[data-event-pop]');
-        expect(pop.text()).toContain('EI is looking at it');
+        expect(pop.text()).toContain('A moderator is looking at it');
         expect(pop.find('[data-pop-edit]').exists()).toBe(false);
         expect(window.location.href).toBe('');
     });

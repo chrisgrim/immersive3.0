@@ -136,8 +136,8 @@ const panelRow = 'w-full flex items-center justify-between gap-4 py-[2.4rem] bor
 const chevron = 'w-[1.8rem] h-[1.8rem] flex-shrink-0';
 
 const dot = (venue) => (venue.draft ? 'bg-orange-400' : venue.pending ? 'bg-yellow-300' : 'bg-green-500');
-const shortStatus = (venue) => (venue.draft ? 'Draft' : venue.pending ? 'Waiting for EI' : 'Live');
-const longStatus = (venue) => (venue.draft ? 'Draft: finish adding it' : venue.pending ? 'Waiting for EI' : 'Live');
+const shortStatus = (venue) => (venue.draft ? 'Draft' : venue.pending ? 'Waiting for a moderator' : 'Live');
+const longStatus = (venue) => (venue.draft ? 'Draft: finish adding it' : venue.pending ? 'Waiting for a moderator to approve' : 'Live');
 
 // Picked rows: the side panel opens while any are.
 const picked = ref(new Set());

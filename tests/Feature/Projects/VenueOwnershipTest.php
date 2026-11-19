@@ -317,7 +317,7 @@ test('a venue waiting for EI, or a draft, shows to its keeper and staff as a pre
     $member = venueTeamMember($this->keeper);
     $this->venue->update(['status' => Venue::PENDING]);
 
-    $this->actingAs($member)->get($this->venue->publicPath())->assertOk()->assertSee('Waiting for EI to approve it');
+    $this->actingAs($member)->get($this->venue->publicPath())->assertOk()->assertSee('Waiting for a moderator to approve it');
     $this->actingAs(User::factory()->create(['type' => 'm']))->get($this->venue->publicPath())->assertOk();
 
     $this->actingAs(venueTeamMember(Organizer::factory()->create(['status' => 'p'])))->get($this->venue->publicPath())->assertNotFound();

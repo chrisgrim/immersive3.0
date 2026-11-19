@@ -96,7 +96,7 @@
                                             <div class="min-w-0">
                                                 <p class="text-2xl text-black">{{ request.event?.name }}</p>
                                                 <p class="text-neutral-500">{{ request.event?.organizer?.name }}</p>
-                                                <p v-if="request.event?.status === 'r'" class="text-neutral-500">Waiting for EI to approve the listing first.</p>
+                                                <p v-if="request.event?.status === 'r'" class="text-neutral-500">Waiting for a moderator to approve the listing first.</p>
                                             </div>
                                             <div class="flex gap-3 flex-shrink-0">
                                                 <button type="button" class="px-6 py-3 rounded-lg bg-black text-white hover:bg-gray-800 disabled:opacity-50" :disabled="busy || !['p', 'e'].includes(request.event?.status)" @click="decide(request, 'approve')">Approve</button>
@@ -115,7 +115,7 @@
                                         placeholder="Enter the show's name"
                                         class="text-4xl p-4 border rounded-2xl mt-6 block w-full border-[#222222] focus:border-black focus:shadow-focus-black"
                                     />
-                                    <p v-if="page.pending_name && !page.renames_directly" class="mt-3 text-[1.4rem] text-[#6a6a6a]" data-pending-name>Waiting for EI to approve this name. Until then the show run is still called "{{ page.name }}".</p>
+                                    <p v-if="page.pending_name && !page.renames_directly" class="mt-3 text-[1.4rem] text-[#6a6a6a]" data-pending-name>Waiting for a moderator to approve this name. Until then the show run is still called "{{ page.name }}".</p>
                                     <p class="text-black font-medium mt-10 mb-4">About the show</p>
                                     <textarea
                                         v-model="form.description"
