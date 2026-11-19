@@ -18,8 +18,12 @@ use Illuminate\Support\Str;
  *     summary: One line for the card and the page description.
  *     image: /images/changelog/countries.jpg   (optional)
  *     image_alt: The map zoomed out over France  (optional)
+ *     takeaways: First point | Second point  (optional, "Key takeaways")
  *     ---
  *     The post, in Markdown.
+ *
+ * A picture on a line of its own (![what it shows](/images/changelog/x.jpg))
+ * becomes a figure, its description printed under it as the caption.
  *
  * The date comes from the file name, so the newest post sorts first.
  */
@@ -51,6 +55,16 @@ class Changelog
         self::$posts = null;
     }
 
+    /** A picture alone in its paragraph: a figure, captioned with its (already escaped) description. */
+    private static function figures(string $html): string
+    {
+        return preg_replace(
+            '#<p>\s*<img src="([^"]*)" alt="([^"]*)"\s*/?>\s*</p>#',
+            '<figure><img src="$1" alt="$2" loading="lazy"><figcaption>$2</figcaption></figure>',
+            $html
+        ) ?? $html;
+    }
+
     private static function read(string $path): ?array
     {
         if (! preg_match(self::PATTERN, basename($path), $name)) {
@@ -79,8 +93,9 @@ class Changelog
             'summary' => $meta['summary'] ?? null,
             'image' => filled($meta['image'] ?? null) ? $meta['image'] : null,
             'image_alt' => $meta['image_alt'] ?? '',
+            'takeaways' => array_values(array_filter(array_map('trim', explode('|', $meta['takeaways'] ?? '')))),
             // Our own words, but still no raw HTML or javascript: links.
-            'html' => Str::markdown($text, ['html_input' => 'escape', 'allow_unsafe_links' => false]),
+            'html' => self::figures(Str::markdown($text, ['html_input' => 'escape', 'allow_unsafe_links' => false])),
         ];
     }
 }

@@ -2,15 +2,14 @@
 title: Venues, show runs and searching a whole country
 summary: Venues get their own pages, a show that tours or comes back keeps one home, and you can now search a whole country or state.
 image: /images/changelog/whats-new-november-2026.jpg
+takeaways: Theaters, warehouses and other places now have their own venue pages, which their owners can claim. | A show that tours, comes back or remounts keeps one home, with every city or season listed together. | You can search a whole country or state, like France or California. | You can pick the time an event goes live, and the picker is easier on a phone.
 image_alt: Screens from Everything Immersive: a search across France, a venue page, a show run and the go-live picker
 ---
-We are always adding to Everything Immersive. This page is where we will tell you what's new.
-
 ## Venues
 
 Theaters, warehouses, escape room buildings and other places that host immersive work now have their own venue pages. An event can name its venue, and the venue page lists what is playing there.
 
-If you run a venue, you can claim its page and keep it up to date. Find it under **Venues** in your menu.
+If you run a venue, you can claim its page from the venue page itself. Once it is yours, you will find it under **Venues** in your menu.
 
 ![The PHI Centre venue page in Montreal, with its map and the shows that played there](/images/changelog/venue-page.jpg)
 
@@ -31,5 +30,7 @@ You can now type a country or a state into the search, like **France**, **German
 ## Pick the time your event goes live
 
 When you schedule an event to go live later, you can now pick the time as well as the day, in your event's own time zone.
+
+It is easier on a phone too: the time sits right above the buttons, so you no longer scroll past every month to find it, and the page behind stays still while you pick.
 
 ![The go-live picker with a day and a time chosen](/images/changelog/go-live-picker.jpg)
