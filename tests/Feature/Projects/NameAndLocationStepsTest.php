@@ -618,3 +618,17 @@ test('the show run switch also lists the other company show run this draft is na
     $this->actingAs($mine->owner)->getJson("/hosting/event/{$draft->slug}/show-runs")
         ->assertOk()->assertJsonPath('choices.0.id', $project->id);
 });
+
+test('a venue added at a listing\'s Location step is kept by that listing\'s company', function () {
+    $moderator = staffModerator();
+    $company = Organizer::factory()->create(['status' => 'p']);
+    $listing = publishedListing('Their Gala', 'Chicago', [], $company);
+    $place = ['street' => '5 Main St', 'city' => 'Chicago', 'latitude' => 41.8, 'longitude' => -87.6];
+
+    $this->actingAs($moderator)->postJson('/api/venues', ['name' => 'Gala Hall', 'event_slug' => $listing->slug, ...$place])->assertCreated();
+    expect(Venue::where('name', 'Gala Hall')->sole()->organizer_id)->toBe($company->id);
+
+    // Not someone else's listing.
+    $this->actingAs(User::factory()->create(['type' => 'u']))
+        ->postJson('/api/venues', ['name' => 'Other Hall', 'event_slug' => $listing->slug, ...$place])->assertForbidden();
+});

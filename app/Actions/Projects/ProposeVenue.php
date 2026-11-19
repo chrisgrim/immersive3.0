@@ -3,6 +3,7 @@
 namespace App\Actions\Projects;
 
 use App\Models\AuditLog;
+use App\Models\Event;
 use App\Models\User;
 use App\Models\Venue;
 
@@ -24,9 +25,23 @@ class ProposeVenue
         'longitude' => ['required', 'numeric', 'between:-180,180'],
     ];
 
-    public function handle(array $validated, User $actor): Venue
+    /**
+     * $for: the listing the venue is for. Its company keeps the venue, not
+     * whichever team the person last had selected (an assistant working
+     * across many companies filed hundreds under the wrong one). The caller
+     * has checked the person may manage that listing.
+     */
+    public function handle(array $validated, User $actor, ?Event $for = null): Venue
     {
         $venue = Venue::create([...$validated, 'status' => Venue::PENDING]);
+
+        if ($for?->organizer_id) {
+            $venue->organizer_id = $for->organizer_id;
+            $venue->save();
+            AuditLog::record($venue, 'venue.proposed', $actor, ['for_event_id' => $for->id]);
+
+            return $venue;
+        }
 
         // The team adding it keeps it until the venue itself claims it. Set by
         // hand, never from the request, so nobody can hand a venue to a team.

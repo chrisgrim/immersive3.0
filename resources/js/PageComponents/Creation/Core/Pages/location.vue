@@ -636,6 +636,8 @@ const addVenue = async () => {
             name: newVenueName.value.trim(),
             room: differentSpace.value ? roomName.value.trim() : null,
             ...Object.fromEntries(ADDRESS_FIELDS.map((field) => [field, event.location[field]])),
+            // The listing's company keeps the new venue, not the team last selected.
+            event_slug: event.slug,
         });
         const venue = response.data.venue;
         ADDRESS_FIELDS.forEach((field) => { event.location[field] = venue[field]; });
