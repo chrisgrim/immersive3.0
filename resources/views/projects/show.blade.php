@@ -7,7 +7,10 @@
     // The runs on now or coming up, for the series block Google reads.
     // Google checks each one as an Event, so each says who puts it on and
     // where tickets are (the run's own page, which has the prices).
-    $subEvents = collect($page['now'])->concat($page['coming'])->take(20)->map(fn ($run) => array_filter([
+    // An in-person run with no place to name is left out: Google needs one.
+    $subEvents = collect($page['now'])->concat($page['coming'])
+        ->reject(fn ($run) => ($run['in_person'] ?? true) && ! $run['place'])
+        ->take(20)->map(fn ($run) => array_filter([
         '@type' => 'Event',
         'name' => $run['name'] ?: $project->name,
         'url' => url($run['url']),
@@ -24,11 +27,14 @@
             'name' => $run['presenter']->name,
             'url' => url($run['presenter']->publicPath()),
         ] : null,
-        'offers' => [
+        'offers' => array_filter([
             '@type' => 'Offer',
             'url' => url($run['url']),
+            'price' => isset($run['price']) ? (string) $run['price'] : null,
+            'priceCurrency' => $run['currency'] ?? null,
+            'validFrom' => $run['on_sale_from'] ?? null,
             'availability' => 'https://schema.org/InStock',
-        ],
+        ], fn ($value) => $value !== null),
     ]))->values();
     $sections = ['Now running' => $page['now'], 'Coming up' => $page['coming'], 'Past' => $page['past']];
 @endphp

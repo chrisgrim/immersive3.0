@@ -59,6 +59,8 @@ test('the page carries the name, about, maker, count and a canonical of its own'
 
 test('each run Google reads off the page says who puts it on and where tickets are', function () {
     $run = runOf($this->project, 'Chicago', ['closingDate' => now()->addDays(30)], now()->addDays(5)->format('Y-m-d').' 00:00:00');
+    ticketOn($run, 45, 'GBP');
+    ticketOn($run, 30, 'GBP');
 
     $html = $this->get('/events/ha-ha-ha')->assertOk()->getContent();
     preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $html, $matches);
@@ -69,6 +71,8 @@ test('each run Google reads off the page says who puts it on and where tickets a
     expect($sub->organizer->name)->toBe($run->organizer->name)
         ->and($sub->offers->url)->toBe(url($run->publicPath()))
         ->and($sub->offers->availability)->toBe('https://schema.org/InStock')
+        ->and($sub->offers->price)->toBe('30')
+        ->and($sub->offers->priceCurrency)->toBe('GBP')
         ->and($sub->eventStatus)->toBe('https://schema.org/EventScheduled')
         ->and($sub->endDate)->toBe(now()->addDays(30)->toDateString());
 });
