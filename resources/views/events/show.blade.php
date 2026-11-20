@@ -123,9 +123,8 @@
         "endDate": "{{ $event->closingAt()->toIso8601String() }}",
         @endif
         @endif
-        @if($runIsOn)
+        {{-- A run that ended went ahead as planned: still "scheduled" to Google. --}}
         "eventStatus": "https://schema.org/EventScheduled",
-        @endif
         "eventAttendanceMode": "{{ $event->hasLocation ? 'https://schema.org/OfflineEventAttendanceMode' : 'https://schema.org/OnlineEventAttendanceMode' }}",
         "image": [
             @if($mainImage)

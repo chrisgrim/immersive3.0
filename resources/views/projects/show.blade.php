@@ -5,14 +5,30 @@
     $url = url($project->publicPath());
     $image = $page['image'] ? config('app.image_url').$page['image'] : null;
     // The runs on now or coming up, for the series block Google reads.
+    // Google checks each one as an Event, so each says who puts it on and
+    // where tickets are (the run's own page, which has the prices).
     $subEvents = collect($page['now'])->concat($page['coming'])->take(20)->map(fn ($run) => array_filter([
         '@type' => 'Event',
         'name' => $run['name'] ?: $project->name,
         'url' => url($run['url']),
         'startDate' => $run['start'],
+        'endDate' => $run['end'] ?? null,
+        'eventStatus' => 'https://schema.org/EventScheduled',
+        'eventAttendanceMode' => ($run['in_person'] ?? true) ? 'https://schema.org/OfflineEventAttendanceMode' : 'https://schema.org/OnlineEventAttendanceMode',
+        'image' => $run['large_image'] ? config('app.image_url').$run['large_image'] : $image,
         'location' => ! $run['place'] ? null : (($run['in_person'] ?? true)
             ? ['@type' => 'Place', 'name' => $run['place'], 'address' => $run['place']]
-            : ['@type' => 'VirtualLocation', 'name' => $run['place']]),
+            : ['@type' => 'VirtualLocation', 'url' => url($run['url'])]),
+        'organizer' => $run['presenter'] ? [
+            '@type' => 'Organization',
+            'name' => $run['presenter']->name,
+            'url' => url($run['presenter']->publicPath()),
+        ] : null,
+        'offers' => [
+            '@type' => 'Offer',
+            'url' => url($run['url']),
+            'availability' => 'https://schema.org/InStock',
+        ],
     ]))->values();
     $sections = ['Now running' => $page['now'], 'Coming up' => $page['coming'], 'Past' => $page['past']];
 @endphp

@@ -57,6 +57,22 @@ test('the page carries the name, about, maker, count and a canonical of its own'
         ->assertSee('data-run-count>2<', false);
 });
 
+test('each run Google reads off the page says who puts it on and where tickets are', function () {
+    $run = runOf($this->project, 'Chicago', ['closingDate' => now()->addDays(30)], now()->addDays(5)->format('Y-m-d').' 00:00:00');
+
+    $html = $this->get('/events/ha-ha-ha')->assertOk()->getContent();
+    preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $html, $matches);
+    $series = json_decode($matches[1]);
+
+    expect(json_last_error())->toBe(JSON_ERROR_NONE);
+    $sub = $series->subEvent[0];
+    expect($sub->organizer->name)->toBe($run->organizer->name)
+        ->and($sub->offers->url)->toBe(url($run->publicPath()))
+        ->and($sub->offers->availability)->toBe('https://schema.org/InStock')
+        ->and($sub->eventStatus)->toBe('https://schema.org/EventScheduled')
+        ->and($sub->endDate)->toBe(now()->addDays(30)->toDateString());
+});
+
 test('runs split into now running, coming up and past', function () {
     runOf($this->project, 'Nowville', ['closingDate' => now()->addDays(5)], now()->subDays(5)->format('Y-m-d').' 00:00:00');
     runOf($this->project, 'Soonville', ['closingDate' => now()->addDays(40)], now()->addDays(20)->format('Y-m-d').' 00:00:00');

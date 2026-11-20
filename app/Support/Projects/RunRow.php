@@ -35,6 +35,8 @@ class RunRow
             'in_person' => (bool) $run->hasLocation,
             'dates' => self::dates($run, $start),
             'start' => $start,
+            // The closing day, a plain date in the run's own timezone.
+            'end' => $run->closingDate ? Carbon::parse($run->closingDate)->toDateString() : null,
             'bucket' => self::bucket($run, $start),
             'presenter' => $run->organizer,
             'run_type' => RunType::tryFrom((string) $run->run_type)?->label(),
