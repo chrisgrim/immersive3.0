@@ -10,9 +10,8 @@
 
                 <!-- Right: Questions? and Save & exit, Airbnb's outlined pills -->
                 <div class="flex items-center gap-3">
-                    <!-- Tips: opens this step's Helper Boxes in a pop-up. It gives a little
-                         shake on the first page for a first listing or after a month away. -->
-                    <TipsButton :shake="shakeTips" @open="nudgeTips = false" />
+                    <!-- Tips: opens this step's Helper Boxes in a pop-up. -->
+                    <TipsButton />
 
                     <a 
                         href="mailto:support@everythingimmersive.com?subject=Event Creation Question"
@@ -411,26 +410,10 @@ const setStep = (step) => {
     }
 };
 
-// Helper Boxes (components/helper-tip.vue read this): the Tips button opens
-// them in a pop-up. On the first page the button shakes for someone's first
-// listing, or when their last one was more than a month ago.
-const TIPS_AWAY_DAYS = 30;
+// Helper Boxes (components/helper-tip.vue read this): the Tips button opens them in a pop-up.
 const tips = reactive({ open: false, count: 0 });
-const nudgeTips = ref(false);
-const shakeTips = computed(() => nudgeTips.value && isFirstStep.value);
-
-const startTips = async () => {
-    try {
-        const { data } = await axios.get('/hosting/event/user/has-created-events');
-        const last = data.lastListingAt ? new Date(data.lastListingAt) : null;
-        nudgeTips.value = !data.hasCreatedEvents || !last || (Date.now() - last.getTime()) > TIPS_AWAY_DAYS * 86400000;
-    } catch (e) {
-        nudgeTips.value = false;
-    }
-};
 
 onMounted(() => {
-    startTips();
     // Remove the automatic hasLocation override
     // Check for view parameter in URL
     const urlParams = new URLSearchParams(window.location.search);

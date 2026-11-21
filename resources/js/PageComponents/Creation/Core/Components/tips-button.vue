@@ -6,7 +6,6 @@
         type="button"
         aria-haspopup="dialog"
         class="inline-flex items-center gap-[0.6rem] h-[3.6rem] md:h-[4rem] px-[1.1rem] md:px-[1.5rem] rounded-full border border-[#dddddd] hover:border-[#222222] bg-white text-[1.3rem] md:text-[1.4rem] font-semibold text-[#222222] transition-colors"
-        :class="{ 'tips-shake': shake }"
         aria-label="Tips"
         data-tips-toggle
         @click="open"
@@ -55,31 +54,14 @@
 <script setup>
 import { inject, nextTick, ref } from 'vue';
 
-defineProps({
-    // A little wiggle, twice, to point a newcomer at the tips.
-    shake: { type: Boolean, default: false },
-});
-const emit = defineEmits(['open']);
 
 const tips = inject('helperTips');
 const dialog = ref(null);
 
 const open = async () => {
-    emit('open');
     tips.open = true;
     await nextTick();
     dialog.value?.focus();
 };
 </script>
 
-<style scoped>
-.tips-shake { animation: tips-shake 4s ease-in-out 0.8s 1 both; }
-@keyframes tips-shake {
-    0%, 15%, 50%, 65%, 100% { transform: rotate(0); }
-    3%, 53% { transform: rotate(-8deg); }
-    6%, 56% { transform: rotate(8deg); }
-    9%, 59% { transform: rotate(-6deg); }
-    12%, 62% { transform: rotate(4deg); }
-}
-@media (prefers-reduced-motion: reduce) { .tips-shake { animation: none; } }
-</style>
