@@ -2,8 +2,8 @@
     <main class="w-full min-h-fit">
         <div class="flex flex-col w-full">
             <div>
-                <h2 class="text-black">Describe your event</h2>
-                <p class="text-neutral-500 font-normal mt-4">Let our users know everything about your event.</p>
+                <h2 class="text-black">Describe the experience</h2>
+                <p class="text-neutral-500 font-normal mt-4">Make your best case for why someone should come!</p>
                 <div class="mt-6">
                     <textarea 
                         name="description" 
@@ -14,7 +14,7 @@
                         }"
                         v-model="event.description" 
                         @input="handleInput"
-                        placeholder="Tell us about your event..."
+                        placeholder="Tell us about the experience..."
                         rows="14" 
                     />
                     <div class="flex justify-end mt-1" 

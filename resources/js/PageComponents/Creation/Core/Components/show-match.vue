@@ -17,7 +17,7 @@
                     <span v-if="match.organizer" class="block text-xl text-gray-500">{{ match.organizer.name }}</span>
                 </button>
             </div>
-            <button type="button" class="mt-4 text-2xl underline" @click="dismissed = true">No, this is a new show</button>
+            <button type="button" class="mt-4 text-2xl underline" @click="dismissed = true">No, this is a new listing</button>
             <p v-if="error" class="text-red-500 text-1xl mt-2">{{ error }}</p>
         </div>
 

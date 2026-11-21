@@ -9,6 +9,9 @@
                             Let's create your organization
                         </h3>
                     </div>
+                    <p class="-mt-8 sm:-mt-16 mb-12 text-[1.5rem] leading-[2.2rem] text-neutral-500" data-browse-note>
+                        Just looking to browse, search, and favorite? Head back to the <a href="/" class="underline">front page</a> or your <a href="/account-settings" class="underline">profile</a>. You can skip all this!
+                    </p>
                     
                     <!-- Name and Image Section -->
                     <div class="flex flex-col sm:flex-row items-center sm:items-start w-full gap-8">
@@ -121,7 +124,8 @@
 
                     <!-- Social Media Section -->
                     <div v-if="team.description" class="w-full mt-8 sm:mt-12">
-                        <p class="text-black font-medium mb-4">Social Media</p>
+                        <p class="text-black font-medium">Social Media</p>
+                        <p class="mt-1 mb-4 text-[1.4rem] leading-[2rem] text-neutral-500">These will be public. Put in as many as you want. They will help people find the organization online.</p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             <div 
                                 v-for="media in socialMediaList" 

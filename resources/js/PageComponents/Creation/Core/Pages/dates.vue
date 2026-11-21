@@ -7,7 +7,7 @@
                 </button>
             </div>
         <div class="mx-auto" :class="selectionWidthClass" v-if="event.showtype=== null">
-            <h2>Do you have specific dates?</h2>
+            <h2>When does it happen?</h2>
         </div>
         <div class="mx-auto" :class="selectionWidthClass" v-if="event.showtype=== null">
             <div class="flex flex-col w-full">
@@ -24,10 +24,10 @@
                     >
                         <div class="w-full text-left">
                             <p class="font-bold text-3xl">
-                                Show has specific dates
+                                Event has specific dates
                             </p>
                             <p class="text-1xl mt-4 text-neutral-700 font-light">
-                                Select all show dates.
+                                Select all event dates.
                             </p>
                         </div>
                     </button>
@@ -46,7 +46,7 @@
                                 Ongoing/Recurring
                             </p>
                             <p class="text-1xl mt-4 text-neutral-700 font-light">
-                                Select days of the week for recurring shows.
+                                Select days of the week for recurring events.
                             </p>
                         </div>
                     </button>
@@ -65,7 +65,7 @@
                                 Always
                             </p>
                             <p class="text-1xl mt-4 text-neutral-700 font-light">
-                                Show is available at any time.
+                                Event may be experienced at any time a guest chooses.
                             </p>
                         </div>
                     </button>

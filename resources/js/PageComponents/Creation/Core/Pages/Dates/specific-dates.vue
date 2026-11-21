@@ -219,10 +219,10 @@
                             <div class="px-[2rem] py-[1.4rem] rounded-[1.6rem] border border-[#dddddd]" data-embargo-card>
                                 <div class="flex items-center justify-between gap-4">
                                     <div class="min-w-0">
-                                        <p class="text-[1.6rem] font-medium text-[#222222]">Go-live date</p>
-                                        <p class="mt-[0.2rem] text-[1.4rem] leading-[2rem] text-[#6a6a6a]">Keep it hidden until a day and time you pick</p>
+                                        <p class="text-[1.6rem] font-medium text-[#222222]">Go Live (Embargo) Date</p>
+                                        <p class="mt-[0.2rem] text-[1.4rem] leading-[2rem] text-[#6a6a6a]">Keep it hidden until a day and time you pick.</p>
                                     </div>
-                                    <button type="button" role="switch" :aria-checked="embargoToggle" aria-label="Go-live date"
+                                    <button type="button" role="switch" :aria-checked="embargoToggle" aria-label="Go Live (Embargo) Date"
                                         class="relative flex-shrink-0 w-[7.2rem] h-[4rem] rounded-full transition-colors"
                                         :class="embargoToggle ? 'bg-[#222222]' : 'bg-[#dddddd]'"
                                         data-embargo-switch

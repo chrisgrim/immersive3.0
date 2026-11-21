@@ -173,8 +173,8 @@
                         <div class="flex flex-col gap-2">
                             <div class="flex flex-col p-4 border border-neutral-300 rounded-2xl hover:border-[#222222]">
                                 <div class="mb-2">
-                                    <p class="text-xl font-medium">Does the event have a specific embargo date?</p>
-                                    <p class="text-lg text-gray-600">(i.e. The date you would like it to first appear on EI)</p>
+                                    <p class="text-xl font-medium">Go Live (Embargo) Date</p>
+                                    <p class="text-lg text-gray-600">Keep it hidden until a day and time you pick.</p>
                                 </div>
                                 <div class="flex justify-between items-center w-full mt-2">
                                     <ToggleSwitch 

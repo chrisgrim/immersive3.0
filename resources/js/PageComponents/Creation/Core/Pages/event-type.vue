@@ -12,8 +12,11 @@
         <div v-else-if="!state.userAccepts && event.hasLocation === null && !state.hasCreatedEventBefore" class="w-full">
             <div class="flex justify-center w-full">
                 <div class="w-full">
-                    <h3 class="mt-10 text-6xl mb-8">Before We Start:</h3>
-                    <p class="text-2xl">Does the project you are submitting belong on Everything Immersive?</p>
+                    <p class="mt-10 text-3xl font-medium">Great! Now you're ready to make a listing!</p>
+                        <h3 class="mt-6 text-6xl mb-8">Before We Start:</h3>
+                    <p class="text-2xl">Not every project belongs on Everything Immersive.</p>
+                        <p class="text-2xl mt-4 font-light">The ones that do usually have some form of audience agency, be it the ability to explore a space freely, interact with characters and/or installations, impact the story from inside a story, or work together to create the experience with other audience members. There are exceptions, of course, and the questions below will help determine if the listing will be approved.</p>
+                        <p class="text-2xl mt-8">To get technical:</p>
                     
                     <div class="mt-8">
                         <p class="text-2xl">We define "immersive" as:</p>
@@ -30,12 +33,12 @@
                             <li>• Is the work a site-specific performance or a work of installation art?</li>
                             <li>• Is this an escape game, theatrical game, puzzle hunt, or murder mystery style experience?</li>
                             <li>• Is this a LARP?</li>
-                            <li>• Is this a piece of themed entertainment, a roadside attraction, a museum, or a themed bar/restaurant?</li>
+                            <li>• Is this a piece of themed entertainment, a roadside attraction, an interactive museum, or a themed bar/restaurant?</li>
                             <li>• Is this a work of virtual or augmented reality?</li>
                             <li>• Is the work a magic performance, experiential marketing pop-up, or make extensive use of projection mapping?</li>
                             <li>• Is this a gathering or class for immersive, themed entertainment, XR and/or experiential professionals?</li>
                         </ul>
-                        <p class="font-medium text-xl mt-4">If you answered "yes" to ANY of the questions above, you're good to submit!</p>
+                        <p class="font-medium text-xl mt-4">If you answered "yes" to ANY of the questions above, you're good to go!</p>
                     </div>
                 </div>
             </div>
@@ -43,8 +46,8 @@
                 <button 
                     class="p-4 bg-black text-white rounded-2xl hover:bg-neutral-800 transition-colors" 
                     @click="handleAccept"
-                >
-                    I accept
+                    >
+                        Understood!
                 </button>
             </div>
             <p v-if="showAcceptanceError" 

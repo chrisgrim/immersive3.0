@@ -2,51 +2,8 @@
     <main class="w-full min-h-fit">
         <div class="flex flex-col w-full">
             <div class="flex flex-col gap-24">
-                <h2 class="text-black">Contact Advisories</h2>
+                <h2 class="text-black">Age, Contact, and Interaction Advisories</h2>
                 
-                <!-- Contact Level Section -->
-                <div class="w-full">
-                    <h4 class="mb-8">Audience Contact Level</h4>
-                    <div v-if="!selectedContact" class="flex flex-col w-full">
-                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                            <div 
-                                v-for="contact in contactLevelList" 
-                                :key="contact.id" 
-                                @click="selectContactLevel(contact)"
-                                class="relative cursor-pointer items-end flex justify-between p-8 min-h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
-                            >
-                                <div class="w-full">
-                                    <p class="text-2xl leading-tight break-words hyphens-auto">{{ contact.name }}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div v-else class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 transition-all duration-200">
-                        <div>
-                            <p class="text-1xl leading-tight break-words hyphens-auto"
-                                :class="{
-                                    'text-neutral-400': selectedContact.model,
-                                    'text-black': selectedContact.model 
-                                }"
-                            >
-                                {{ selectedContact.name }}
-                            </p>
-                        </div>
-                        <div 
-                            @mouseenter="hoveredLocation = 'close'"
-                            @mouseleave="hoveredLocation = null"
-                            @click="deselectContactLevel" 
-                            class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white"
-                        >
-                            <component :is="hoveredLocation === 'close' ? RiCloseCircleFill : RiCloseCircleLine" />
-                        </div>
-                    </div>
-                    <p v-if="$v.selectedContact.$error" 
-                       class="text-red-500 text-1xl mt-2 py-2 leading-tight">
-                        Please select a contact level
-                    </p>
-                </div>
-
                 <!-- Age Limit Section -->
                 <div class="w-full">
                     <h4 class="mb-8">{{ customAge && !selectedAge ? 'Custom Age Requirement' : 'Age Requirement' }}</h4>
@@ -120,6 +77,49 @@
                     <p v-else-if="$v.selectedAge.$error" 
                        class="text-red-500 text-1xl mt-2 py-2 leading-tight">
                         Please select an age requirement
+                    </p>
+                </div>
+
+                <!-- Contact Level Section -->
+                <div class="w-full">
+                    <h4 class="mb-8">Audience Contact Level</h4>
+                    <div v-if="!selectedContact" class="flex flex-col w-full">
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div 
+                                v-for="contact in contactLevelList" 
+                                :key="contact.id" 
+                                @click="selectContactLevel(contact)"
+                                class="relative cursor-pointer items-end flex justify-between p-8 min-h-48 border border-neutral-300 rounded-2xl hover:border-[#222222] hover:shadow-focus-black transition-all duration-200"
+                            >
+                                <div class="w-full">
+                                    <p class="text-2xl leading-tight break-words hyphens-auto">{{ contact.name }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 transition-all duration-200">
+                        <div>
+                            <p class="text-1xl leading-tight break-words hyphens-auto"
+                                :class="{
+                                    'text-neutral-400': selectedContact.model,
+                                    'text-black': selectedContact.model 
+                                }"
+                            >
+                                {{ selectedContact.name }}
+                            </p>
+                        </div>
+                        <div 
+                            @mouseenter="hoveredLocation = 'close'"
+                            @mouseleave="hoveredLocation = null"
+                            @click="deselectContactLevel" 
+                            class="absolute top-[-1rem] right-[-1rem] cursor-pointer bg-white"
+                        >
+                            <component :is="hoveredLocation === 'close' ? RiCloseCircleFill : RiCloseCircleLine" />
+                        </div>
+                    </div>
+                    <p v-if="$v.selectedContact.$error" 
+                       class="text-red-500 text-1xl mt-2 py-2 leading-tight">
+                        Please select a contact level
                     </p>
                 </div>
 
