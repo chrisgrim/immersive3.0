@@ -121,6 +121,9 @@
                        class="text-red-500 text-1xl mt-2 py-2 leading-tight">
                         Please select a contact level
                     </p>
+                    <HelperTip v-if="!selectedContact" title="Disclose physical contact">
+                        <p>So guests know what to expect, we ask every listing to say how much physical contact is possible between the audience and performers, or is encouraged between audience members in LARPs and other social experiences. It lets people decide for themselves whether to take part.</p>
+                    </HelperTip>
                 </div>
 
                 <!-- Interactive Level Section -->
@@ -138,6 +141,10 @@
                                 <p class="text-lg leading-snug text-neutral-600 break-words hyphens-auto">{{ interactive.description }}</p>
                             </div>
                         </div>
+                        <HelperTip title="Which to click?" class="!mt-[0.8rem]">
+                        <p>Pick the option that best matches the baseline audience experience. If most tickets are for watching and a select few offer or require interaction, choose Optional Interaction.</p>
+                        <p><strong>Best practice:</strong> make it clear in your ticket types which ones are interactive and which are not.</p>
+                        </HelperTip>
                     </div>
                     <div v-else>
                         <div class="relative inline-block p-8 border-2 rounded-2xl border-[#222222] hover:bg-neutral-50 w-full transition-all duration-200">
@@ -165,6 +172,11 @@
                         <!-- Audience Role Textarea -->
                         <div class="mt-8">
                             <h4 class="mb-4 text-1xl">Audience Role</h4>
+                            <HelperTip title="What's an audience role?" class="!mt-0 mb-[1.6rem]">
+                                <p>What part do they play in the whole experience? Witness? Sidekick? Protagonist? Are they exploring a space at their own pace?</p>
+                                <p>This is secretly the most important question on the whole form! In immersive work, the audience's actions are their experience.</p>
+                                <p><strong>Best practice:</strong> share the verbs the audience will use, like running, eating, gossiping, dancing, exploring. Verbs are action words, and the action is the experience!</p>
+                            </HelperTip>
                             <textarea 
                                 v-model="event.advisories.audience"
                                 @input="handleAudienceInput"
@@ -205,6 +217,7 @@
 </template>
 
 <script setup>
+import HelperTip from '../Components/helper-tip.vue';
 // 1. Imports
 import { ref, inject, onMounted, computed, nextTick } from 'vue';
 import { required, maxLength } from '@vuelidate/validators';

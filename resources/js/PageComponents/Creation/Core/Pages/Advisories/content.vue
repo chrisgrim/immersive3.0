@@ -21,6 +21,11 @@
                    class="text-red-500 text-1xl mt-2 py-2 leading-tight">
                     Please select whether there is sexual content
                 </p>
+                <HelperTip title="How we define sexual content">
+                    <p>Nudity, and references to, depictions of, or simulations of sexual acts.</p>
+                    <p>What doesn't count: hugs, or familial kisses on the cheek or forehead. You should still mention those in the audience role section, so if performers hug guests or kiss them on the cheek, go back and add it there. Your audience will thank you.</p>
+                    <p>We will not list experiences that depict or simulate sexual acts involving anyone under the age of consent, and any that are found to will be removed.</p>
+                </HelperTip>
             </div>
 
             <!-- Additional Advisories Selection -->
@@ -50,6 +55,11 @@
                     :item-height="'h-24'"
                     @onSelect="itemRemoved"
                 />
+                <HelperTip title="What are content advisories for?">
+                    <p>EI's curation is rooted in informed consent and clear expectations. The site exists so audiences can make informed decisions about what to attend, and audience members always know their limits better than any stranger could.</p>
+                    <p>So we ask you to disclose anything known or expected to cause some people distress. Pick everything in the list that applies to the experience. It helps audiences and experiences that are right for each other find each other.</p>
+                    <p>The curation team may add advisories they find apply, and may delist an experience if content seems to have been hidden on purpose to mislead audiences.</p>
+                </HelperTip>
 
                 <!-- Sexual Content Description -->
                 <div v-if="Boolean(event.advisories.sexual)" class="mt-12">
@@ -79,6 +89,7 @@
     </main>
 </template>
 <script setup>
+import HelperTip from '../../Components/helper-tip.vue';
 // 1. Imports
 import { ref, inject, onMounted, computed } from 'vue';
 import { required, maxLength } from '@vuelidate/validators';

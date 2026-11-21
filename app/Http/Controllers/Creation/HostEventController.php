@@ -414,8 +414,14 @@ class HostEventController extends Controller
      */
     public function hasCreatedEvents()
     {
+        // The newest event is the draft being made now; the one before it is
+        // the last listing (the listing tips come back after a month away).
+        $previous = auth()->user()->events()->withoutGlobalScopes()
+            ->orderByDesc('created_at')->skip(1)->value('created_at');
+
         return response()->json([
             'hasCreatedEvents' => auth()->user()->events()->count() > 1,
+            'lastListingAt' => $previous ? \Carbon\Carbon::parse($previous)->toIso8601String() : null,
         ]);
     }
 

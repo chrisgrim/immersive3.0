@@ -52,6 +52,10 @@
                     :selections="mobilityAdvisories" 
                     @onSelect="itemRemoved"
                 />
+                <HelperTip title="Which advisories apply?">
+                    <p>Let audiences know what to expect about moving around the space, or if they will stand for long periods. Pick everything in the list that applies.</p>
+                    <p>This is also where to say if there is a mandatory bag check, or if restrooms are not available.</p>
+                </HelperTip>
 
                 <!-- Wheelchair Description (anything short of full access) -->
                 <div v-if="needsDescription" class="mt-12">
@@ -80,6 +84,7 @@
 </template>
 
 <script setup>
+import HelperTip from '../../Components/helper-tip.vue';
 // 1. Imports
 import { ref, inject, onMounted, computed } from 'vue';
 import { required } from '@vuelidate/validators';

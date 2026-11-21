@@ -10,6 +10,23 @@
 
                 <!-- Right: Questions? and Save & exit, Airbnb's outlined pills -->
                 <div class="flex items-center gap-3">
+                    <!-- Tips: the Helper Boxes under each question. On for a first listing
+                         or after a month away; this switches them for this listing. -->
+                    <button
+                        type="button"
+                        :aria-pressed="tips.on"
+                        :aria-label="tips.on ? 'Hide tips' : 'Show tips'"
+                        class="inline-flex items-center gap-[0.6rem] h-[3.6rem] md:h-[4rem] px-[1.1rem] md:px-[1.5rem] rounded-full border bg-white text-[1.3rem] md:text-[1.4rem] font-semibold text-[#222222] transition-colors"
+                        :class="tips.on ? 'border-[#222222] shadow-[inset_0_0_0_1px_#222222]' : 'border-[#dddddd] hover:border-[#222222]'"
+                        data-tips-toggle
+                        @click="toggleTips"
+                    >
+                        <svg class="w-[1.8rem] h-[1.8rem]" :fill="tips.on ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3a6 6 0 00-3.6 10.8c.7.5 1.1 1.3 1.1 2.2h5c0-.9.4-1.7 1.1-2.2A6 6 0 0012 3z" />
+                            <path stroke-linecap="round" d="M9.5 18.5h5M10.5 21h3" fill="none" />
+                        </svg>
+                        <span class="hidden sm:inline">Tips</span>
+                    </button>
 
                     <a 
                         href="mailto:support@everythingimmersive.com?subject=Event Creation Question"
@@ -407,7 +424,36 @@ const setStep = (step) => {
     }
 };
 
+// Helper Boxes (components/helper-tip.vue read this). A choice made with the
+// Tips pill is kept for this listing; otherwise they are on for someone's
+// first listing, or when their last one was more than a month ago.
+const TIPS_AWAY_DAYS = 30;
+const tips = reactive({ on: false });
+const tipsKey = `ei_tips_${event.id}`;
+
+const toggleTips = () => {
+    tips.on = !tips.on;
+    try { localStorage.setItem(tipsKey, tips.on ? '1' : '0'); } catch (e) { /* private window */ }
+};
+
+const startTips = async () => {
+    let saved = null;
+    try { saved = localStorage.getItem(tipsKey); } catch (e) { /* private window */ }
+    if (saved !== null) {
+        tips.on = saved === '1';
+        return;
+    }
+    try {
+        const { data } = await axios.get('/hosting/event/user/has-created-events');
+        const last = data.lastListingAt ? new Date(data.lastListingAt) : null;
+        tips.on = !data.hasCreatedEvents || !last || (Date.now() - last.getTime()) > TIPS_AWAY_DAYS * 86400000;
+    } catch (e) {
+        tips.on = false;
+    }
+};
+
 onMounted(() => {
+    startTips();
     // Remove the automatic hasLocation override
     // Check for view parameter in URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -447,6 +493,7 @@ provide('event', event);
 provide('user', user);
 provide('isSubmitting', isSubmitting);
 provide('errors', errors);
+provide('helperTips', tips);
 </script>
 
 <style scoped>

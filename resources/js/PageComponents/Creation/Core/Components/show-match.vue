@@ -3,7 +3,7 @@
         <!-- Which show run it joins (and changing it) lives in the bottom bar's picker. -->
         <!-- The match question -->
         <div v-if="asking && matches.length && !event.link_request" class="p-5 rounded-2xl border border-neutral-300" data-match-question>
-            <p class="text-2.5xl font-semibold">Is this a new run of one of these? A new city, new dates, or a remount.</p>
+            <p class="text-2.5xl font-semibold">There's another event named this. Is this a new run of one of the following, with a new location, new dates, or other updates?</p>
             <div class="mt-4 space-y-3">
                 <button
                     v-for="match in matches"
@@ -19,6 +19,11 @@
             </div>
             <button type="button" class="mt-4 text-2xl underline" @click="dismissed = true">No, this is a new listing</button>
             <p v-if="error" class="text-red-500 text-1xl mt-2">{{ error }}</p>
+            <HelperTip title="What's a run?">
+                <p>Sometimes an experience tours, or plays in different places around the world. To keep it all organized, EI collects these separate instances and calls each one a "run". (It's quicker to type than "instance", and less mechanical.) EI has pages that collect every run of an experience, so people can discover work both on and off the site.</p>
+                <p><strong>What should I click?</strong> If this is a run of an existing work, pick the match with the same experience and organizer. If there are several, just pick one: they are all connected. We'll copy the description and other text in from that run, saving you time.</p>
+                <p>If this is a brand new experience unrelated to the ones above, or one made by an entirely different team from the same base script, click "No, this is a new listing."</p>
+            </HelperTip>
         </div>
 
         <!-- A run's own name, run type and festival used to be asked here. Tags cover
@@ -27,6 +32,7 @@
 </template>
 
 <script setup>
+import HelperTip from './helper-tip.vue';
 import { computed, inject, onUnmounted, ref, watch } from 'vue';
 import axios from 'axios';
 

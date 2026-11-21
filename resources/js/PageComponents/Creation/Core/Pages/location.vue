@@ -26,6 +26,12 @@
                 </button>
             </div>
 
+            <HelperTip v-if="!mode" title="Which do I choose?">
+                <p>All the world's a stage, but every experience happens somewhere, so we split the choice into a venue or somewhere else. Choose "At a venue" if the listing takes place at a known space with a name. EI keeps track of venues and the events they have hosted, so people can discover your event by looking up the venue.</p>
+                <p>For private homes, public spaces, or places you'd like to keep out of the public eye, choose "Somewhere else".</p>
+                <p><strong>Hiding the location?</strong> Even at a known venue, a hidden location has to use "Somewhere else".</p>
+            </HelperTip>
+
             <p v-if="locationError" class="mb-6 text-red-500 text-[1.4rem]" role="alert" data-location-error>{{ locationError }}</p>
 
             <!-- At a venue -->
@@ -198,6 +204,7 @@
 
 
 <script setup>
+import HelperTip from '../Components/helper-tip.vue';
 import { ref, onMounted, onUnmounted, inject, computed } from 'vue';
 import { LMap, LTileLayer, LMarker, LIcon } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet";

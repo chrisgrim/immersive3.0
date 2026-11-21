@@ -70,6 +70,11 @@
                         </div>
                     </button>
                 </div>
+                <HelperTip title="Which should I click?">
+                    <p>If this run (see, we're using "run") has just a few dates, or irregular ones, choose "Event has specific dates".</p>
+                    <p>If it goes on for a while on the same days of the week, choose "Ongoing/Recurring". This is the best fit for installations and other experiences with regular hours.</p>
+                    <p>Only if the experience can happen at any time, like a podplay, an alternate reality experience, or a public installation, choose "Always". We really do mean always. If guests can book it in advance for any time they like, this is the one too.</p>
+                </HelperTip>
                 <div class="h-[6.3rem]"></div>
             </div>
         </div>
@@ -116,6 +121,7 @@
 </template>
 
 <script setup>
+import HelperTip from '../Components/helper-tip.vue';
 // 1. Core Imports
 import { ref, computed, inject, onMounted } from 'vue';
 import { maxLength, required } from '@vuelidate/validators';

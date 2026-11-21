@@ -1,6 +1,6 @@
 /**
  * The Name step's join and the Location step's venue picker: what they ask,
- * in Kathryn's exact words, and what they send.
+ * in the team's exact words, and what they send.
  */
 import { mount, flushPromises } from '@vue/test-utils';
 import { reactive } from 'vue';
@@ -11,7 +11,7 @@ import ConfirmDetails from '@/PageComponents/Creation/Core/Components/confirm-de
 
 vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }));
 
-const QUESTION = 'Is this a new run of one of these? A new city, new dates, or a remount.';
+const QUESTION = "There's another event named this. Is this a new run of one of the following, with a new location, new dates, or other updates?";
 
 const withEvent = (component, event) => mount(component, { global: { provide: { event: reactive(event) } } });
 
@@ -29,7 +29,7 @@ describe('show-match.vue', () => {
         await flushPromises();
     };
 
-    it('asks the question in Kathryn\'s words when a similar show is found', async () => {
+    it('asks the question in Noah\'s words when a similar show is found', async () => {
         axios.get.mockResolvedValue({ data: [{ type: 'project', id: 3, name: 'Ha Ha Ha' }] });
         const wrapper = withEvent(ShowMatch, { id: 1, slug: 'x', name: 'Ha Ha Ha', status: '1' });
 

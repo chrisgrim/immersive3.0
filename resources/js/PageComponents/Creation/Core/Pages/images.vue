@@ -125,6 +125,9 @@
                 />
             </div>
         </div>
+        <HelperTip v-if="!showCropper" title="About your images">
+            <p>Your first image must be a vertical "poster", and our built-in editor will crop it for you. More images can be portrait or landscape. These, along with any YouTube or TikTok videos you add, appear in a gallery on the listing.</p>
+        </HelperTip>
     </main>
 
     <!-- Teleport the cropper to body for fullscreen -->
@@ -222,6 +225,7 @@
 </template>
 
 <script setup>
+import HelperTip from '../Components/helper-tip.vue';
 import { imageType } from '@/composables/imageType';
 import { ref, computed, onMounted, inject, watch, watchEffect } from 'vue';
 import { RiImageCircleLine, RiCloseCircleLine, RiCloseCircleFill } from "@remixicon/vue";

@@ -109,12 +109,12 @@ const eventTypeOptions = [
     {
         value: true,
         label: 'In Person',
-        description: 'Real world events that guests will be part of.'
+        description: 'Guests go to a physical location for the experience.'
     },
     {
         value: false,
         label: 'Online Only',
-        description: 'Guests will join the event virtually.'
+        description: 'Guests use the web, an app, or a phone to connect to the experience.'
     }
 ];
 

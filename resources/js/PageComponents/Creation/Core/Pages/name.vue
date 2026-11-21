@@ -5,7 +5,7 @@
                 <h2 class="text-black">What's your event called?</h2>
                 <!-- A run of a show run: say whose run it is, and how a run is usually named. -->
                 <p v-if="runOf" class="text-neutral-500 font-normal mt-4">This is a run of <span class="font-semibold text-neutral-700">{{ runOf }}</span>. Name it so people can tell it apart, for example "{{ runOf }} (Texas or {{ nextYear }})".</p>
-                <p v-else class="text-neutral-500 font-normal mt-4">Enter a unique name for your event</p>
+                <p v-else class="text-neutral-500 font-normal mt-4">Enter the event's name</p>
                 <div class="mt-6">
                     <!-- Event Name Input -->
                     <textarea 
@@ -140,6 +140,9 @@
                                 Tag line is required
                             </p>
                         </div>
+                        <HelperTip class="!mt-[1.6rem]" title="What's a tag line?">
+                            <p>A small bit of marketing copy, like Alien's "In space, no one can hear you scream." It can also be a logline: one short line that tells someone all they need to know to decide to keep reading.</p>
+                        </HelperTip>
                     </div>
                 </div>
             </div>
@@ -250,6 +253,7 @@
 </template>
 
 <script setup>
+import HelperTip from '../Components/helper-tip.vue';
 // The example name for a new run: next year's, so it never looks out of date.
 const nextYear = new Date().getFullYear() + 1;
 import { inject, computed, ref, reactive } from 'vue';

@@ -1563,3 +1563,21 @@ test('renaming a restored listing never deletes pictures another listing still u
         $disk->assertExists('public/'.$image->large_image_path);
     }
 });
+
+// ----- the listing tips: a first listing, or a month away -----
+
+test('the history check gives the last listing before the draft being made', function () {
+    $organizer = Organizer::factory()->create();
+    $user = memberOf($organizer);
+
+    $this->actingAs($user)->getJson(route('hosting.event.user.has-created-events'))
+        ->assertOk()->assertJson(['hasCreatedEvents' => false, 'lastListingAt' => null]);
+
+    Event::factory()->create(['organizer_id' => $organizer->id, 'user_id' => $user->id, 'created_at' => now()->subDays(45)]);
+    Event::factory()->create(['organizer_id' => $organizer->id, 'user_id' => $user->id, 'created_at' => now()]);
+
+    $data = $this->actingAs($user)->getJson(route('hosting.event.user.has-created-events'))->assertOk()->json();
+
+    expect($data['hasCreatedEvents'])->toBeTrue()
+        ->and(Carbon::parse($data['lastListingAt'])->diffInDays(now()))->toBeGreaterThanOrEqual(44);
+});

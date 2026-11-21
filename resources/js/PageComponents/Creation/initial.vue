@@ -3,6 +3,13 @@
         <div class="max-w-screen-xl p-10 m-auto">
             <div class="w-full md:w-1/2 m-auto my-12 sm:my-28">
                 <div>
+                    <!-- First Time Page (Noah's): a hello, and the first Helper Box. -->
+                    <div class="mb-12" data-first-time>
+                        <p class="text-[2.2rem] leading-[2.8rem] font-semibold text-[#222222]">Looks like this is your first time making a listing with us!</p>
+                        <HelperTip :show="true" title="Tips along the way">
+                            <p>Look for boxes like this one to help you along the way.</p>
+                        </HelperTip>
+                    </div>
                     <div class="h-40 sm:h-60" id="intro" :class="{ shrink: !!team.name || !!team.description }">
                         <h5 class="font-bold">Step 1</h5>
                         <h3 class="mt-6 sm:mt-10 mb-16 sm:mb-28 text-4xl sm:text-6xl leading-[3rem] sm:leading-[4rem]">
@@ -213,6 +220,12 @@
                     </div>
                 </div>
 
+                <!-- Always at the bottom, under whatever part of the form is showing. -->
+                <HelperTip :show="true" title="What's an organization?" class="mt-[4rem]">
+                    <p>On Everything Immersive, every listing belongs to an artist, producer, presenter, promoter, or creator. To keep things simple, we call all of these people and companies "organizations".</p>
+                    <p>Not sure what to put? Use the name of whoever is presenting, publishing, or otherwise bringing the experience into the world.</p>
+                </HelperTip>
+
                 <!-- Duplicate Name / Ownership Claim Modal (claim-first) -->
                 <teleport to="body">
                     <div v-if="showDuplicateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -287,6 +300,7 @@
 </template>
 
 <script setup>
+import HelperTip from './Core/Components/helper-tip.vue';
 import { ref, reactive, nextTick, computed } from 'vue';
 import { useVuelidate } from '@vuelidate/core';
 import { required, email, maxLength, helpers } from '@vuelidate/validators';

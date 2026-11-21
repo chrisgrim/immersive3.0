@@ -285,10 +285,14 @@
                 </div>
             </div>
         </div>
+        <HelperTip title="List ticket types one at a time">
+            <p>Put all your ticket types in, and we encourage you to. Start with your first type and add more as needed. You can change the prices or the ticket types at any time, even after the listing is published.</p>
+        </HelperTip>
     </main>
 </template>
 
 <script setup>
+import HelperTip from '../Components/helper-tip.vue';
 // 1. Imports
 import { ref, reactive, inject, watch, onMounted, computed } from 'vue';
 import useVuelidate from '@vuelidate/core';
