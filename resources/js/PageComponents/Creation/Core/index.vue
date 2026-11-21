@@ -58,20 +58,20 @@
             @click="tips.open = false"
             @keydown.esc="tips.open = false"
         >
-            <div ref="tipsDialog" tabindex="-1" class="bg-white w-full md:w-[56rem] md:mx-4 rounded-t-[3.2rem] md:rounded-[3.2rem] shadow-2xl max-h-[88dvh] flex flex-col focus:outline-none" @click.stop>
+            <div ref="tipsDialog" tabindex="-1" class="bg-white w-full md:w-[52rem] md:mx-4 rounded-t-[3.2rem] md:rounded-[3.2rem] shadow-2xl max-h-[88dvh] flex flex-col focus:outline-none" @click.stop>
                 <div class="relative flex items-center justify-center h-[6.4rem] px-[2.4rem] border-b border-[#ebebeb] flex-shrink-0">
                     <button type="button" aria-label="Close" class="absolute left-[1.6rem] w-[4rem] h-[4rem] rounded-full flex items-center justify-center hover:bg-[#f7f7f7]" @click="tips.open = false">
                         <svg class="w-[1.6rem] h-[1.6rem]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18" /></svg>
                     </button>
                     <h2 id="helper-tips-title" class="text-[1.6rem] font-semibold text-[#222222]">Tips</h2>
                 </div>
-                <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-[2.4rem] md:px-[3.2rem] py-[2.8rem]">
+                <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-[2.4rem] md:px-[3.2rem] pt-[3.2rem] pb-[3.6rem]">
                     <div id="helper-tips-body"></div>
                     <p v-if="!tips.count" class="text-[1.6rem] leading-[2.4rem] text-[#6a6a6a]" data-tips-none>
                         Nothing tricky on this step. Stuck anyway? Email us with the Questions? button.
                     </p>
                 </div>
-                <div class="flex justify-end px-[2.4rem] py-[1.6rem] border-t border-[#ebebeb] flex-shrink-0">
+                <div class="flex justify-end px-[2.4rem] md:px-[3.2rem] py-[1.6rem] border-t border-[#ebebeb] flex-shrink-0">
                     <button type="button" class="h-[4.8rem] px-[2.4rem] rounded-[0.8rem] bg-[#222222] hover:bg-black text-white text-[1.6rem] font-semibold" @click="tips.open = false">
                         Got it
                     </button>

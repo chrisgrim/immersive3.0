@@ -25,8 +25,8 @@
     <!-- The pop-up's body is always in the page (hidden while closed), so it is there to land in. -->
     <Teleport v-else-if="tips?.open" to="#helper-tips-body">
         <section class="helper-tip-section text-left" data-helper-tip>
-            <h3 class="text-[1.8rem] leading-[2.4rem] font-semibold text-[#222222]">{{ title }}</h3>
-            <div class="helper-tip-body mt-[0.8rem] text-[1.6rem] leading-[2.4rem] font-normal text-[#6a6a6a]">
+            <h3 class="text-[2rem] leading-[2.6rem] font-semibold text-[#222222]">{{ title }}</h3>
+            <div class="helper-tip-body is-modal mt-[1.2rem] text-[1.5rem] leading-[2.3rem] font-normal text-[#484848]">
                 <slot />
             </div>
         </section>
@@ -53,5 +53,6 @@ onUnmounted(() => { if (tips) tips.count--; });
 <style scoped>
 .helper-tip-body :deep(p + p) { margin-top: 0.8rem; }
 .helper-tip-body :deep(strong) { color: #222222; font-weight: 600; }
-.helper-tip-section + .helper-tip-section { margin-top: 2.4rem; padding-top: 2.4rem; border-top: 1px solid #ebebeb; }
+.helper-tip-body.is-modal :deep(p + p) { margin-top: 2rem; }
+.helper-tip-section + .helper-tip-section { margin-top: 3.2rem; padding-top: 3.2rem; border-top: 1px solid #ebebeb; }
 </style>
