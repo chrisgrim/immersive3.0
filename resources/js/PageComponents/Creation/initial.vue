@@ -1,15 +1,41 @@
 <template>
     <div class="w-full min-h-screen">
         <div class="max-w-screen-xl p-10 m-auto">
-            <div class="w-full md:w-1/2 m-auto my-12 sm:my-28">
-                <div>
-                    <!-- First Time Page (Noah's): a hello, and where the tips live. -->
-                    <div class="mb-12" data-first-time>
-                        <p class="text-[2.2rem] leading-[2.8rem] font-semibold text-[#222222]">Looks like this is your first time making a listing with us!</p>
-                        <HelperTip :show="true" title="Tips along the way">
-                            <p>Stuck on a step? Click Tips at the top of the page for a hand.</p>
-                        </HelperTip>
-                    </div>
+            <!-- Top right: Tips (opens "What's an organization?" in a pop-up) and Questions?. -->
+            <div class="flex justify-end items-center gap-3">
+                <TipsButton shake />
+                <a
+                    href="mailto:support@everythingimmersive.com?subject=Event Creation Question"
+                    class="inline-flex items-center h-[3.6rem] md:h-[4rem] px-[1.3rem] md:px-[1.7rem] rounded-full border border-[#dddddd] hover:border-[#222222] bg-white text-[1.3rem] md:text-[1.4rem] font-semibold text-[#222222] transition-colors"
+                >
+                    Questions?
+                </a>
+            </div>
+            <div class="w-full md:w-1/2 m-auto" :class="{ 'my-12 sm:my-28': started }">
+                <!-- First Time Page: a hello and how it goes, then Got it fades Step 1 up. -->
+                <Transition
+                    mode="out-in"
+                    enter-active-class="transition duration-300 ease-out"
+                    enter-from-class="opacity-0 translate-y-[2rem]"
+                    leave-active-class="transition duration-150 ease-in"
+                    leave-to-class="opacity-0"
+                >
+                <!-- Centered in the screen under the top bars. -->
+                <div v-if="!started" key="hello" class="min-h-[calc(100dvh-22rem)] flex flex-col justify-center items-start pb-[4rem]" data-first-time>
+                    <h2 class="text-[3.2rem] leading-[3.8rem] font-semibold text-[#222222]">Looks like this is your first time making a listing with us!</h2>
+                    <p class="mt-[1.6rem] text-[1.8rem] leading-[2.6rem] text-[#6a6a6a]">
+                        First you'll make your organization, then your first listing. If you have any questions, don't hesitate to use the Tips in the top right or click the Questions button.
+                    </p>
+                    <button
+                        type="button"
+                        class="mt-[3.2rem] h-[4.8rem] px-[3.2rem] rounded-[0.8rem] bg-[#222222] hover:bg-black text-white text-[1.6rem] font-semibold"
+                        data-first-time-start
+                        @click="started = true"
+                    >
+                        Got it
+                    </button>
+                </div>
+                <div v-else key="step">
                     <div class="h-40 sm:h-60" id="intro" :class="{ shrink: !!team.name || !!team.description }">
                         <h5 class="font-bold">Step 1</h5>
                         <h3 class="mt-6 sm:mt-10 mb-16 sm:mb-28 text-4xl sm:text-6xl leading-[3rem] sm:leading-[4rem]">
@@ -219,9 +245,10 @@
                         </button>
                     </div>
                 </div>
+                </Transition>
 
-                <!-- Always at the bottom, under whatever part of the form is showing. -->
-                <HelperTip :show="true" title="What's an organization?" class="mt-[4rem]">
+                <!-- Lands in the Tips pop-up. -->
+                <HelperTip title="What's an organization?">
                     <p>On Everything Immersive, every listing belongs to an artist, producer, presenter, promoter, or creator. To keep things simple, we call all of these people and companies "organizations".</p>
                     <p>Not sure what to put? Use the name of whoever is presenting, publishing, or otherwise bringing the experience into the world.</p>
                 </HelperTip>
@@ -301,7 +328,14 @@
 
 <script setup>
 import HelperTip from './Core/Components/helper-tip.vue';
-import { ref, reactive, nextTick, computed } from 'vue';
+import TipsButton from './Core/Components/tips-button.vue';
+import { ref, reactive, nextTick, computed, provide } from 'vue';
+
+// The Tips pop-up's state, read by TipsButton and HelperTip.
+provide('helperTips', reactive({ open: false, count: 0 }));
+
+// The hello comes first; Got it shows Step 1.
+const started = ref(false);
 import { useVuelidate } from '@vuelidate/core';
 import { required, email, maxLength, helpers } from '@vuelidate/validators';
 import axios from 'axios';

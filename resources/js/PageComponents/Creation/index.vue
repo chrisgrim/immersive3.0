@@ -55,7 +55,7 @@
 
 				<!-- Events: the list as before, with its filters. On a phone the same pills
 				     in one row that scrolls sideways, as Airbnb does, with New event last. -->
-				<div v-if="tab === 'events'" class="flex gap-4 mb-8 md:mb-4 overflow-x-auto md:flex-wrap md:overflow-visible -mx-8 px-8 md:mx-0 md:px-0 [scrollbar-width:none]">
+				<div v-if="tab === 'events' && !noEventsYet" class="flex gap-4 mb-8 md:mb-4 overflow-x-auto md:flex-wrap md:overflow-visible -mx-8 px-8 md:mx-0 md:px-0 [scrollbar-width:none]">
 					<button 
 						v-for="filter in filters" 
 						:key="filter.id"
@@ -88,7 +88,7 @@
 			</div>
 
 			<!-- Event List Headers -->
-			<div v-if="tab === 'events'" class="w-full hidden md:block">
+			<div v-if="tab === 'events' && !noEventsYet" class="w-full hidden md:block">
 				<div class="relative grid gap-8 py-4 md:-ml-[4rem] md:pl-[4rem] md:pr-4 h-36 items-center grid-cols-[8rem_auto] md:grid-cols-[6.4rem_36%_minmax(0,1fr)_12rem_16rem]">
 					<!-- While any are picked: pick all of this list, or none (a dash when only some). -->
 					<button v-if="picking" type="button" class="absolute left-[0.4rem] top-1/2 -translate-y-1/2 w-[3.2rem] h-[3.2rem] flex items-center justify-center" :aria-label="allPicked ? 'Pick none' : 'Pick all'" data-pick-all @click="allPicked ? clearPicked() : pickAll()">
@@ -202,6 +202,30 @@
 						</div>
 					</section>
 				</template>
+			</div>
+
+			<!-- A brand new organization: one big, clear next step. -->
+			<div v-else-if="tab === 'events' && noEventsYet" class="flex flex-col items-center text-center pt-[6rem] md:pt-[10rem] pb-[8rem]" data-first-listing>
+				<div class="w-[7.2rem] h-[7.2rem] rounded-full bg-[#f7f7f7] flex items-center justify-center">
+					<svg class="w-[3.2rem] h-[3.2rem] text-[#222222]" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" aria-hidden="true">
+						<rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+						<path stroke-linecap="round" d="M3.5 10h17M8 3v4M16 3v4M12 13v4M10 15h4" />
+					</svg>
+				</div>
+				<h2 class="mt-[2.4rem] text-[3.2rem] md:text-[4rem] leading-[1.15] font-semibold text-[#222222]">Make your first listing</h2>
+				<p class="mt-[1.2rem] max-w-[46rem] text-[1.6rem] md:text-[1.8rem] leading-[2.6rem] text-[#6a6a6a]">
+					Tell us about your experience, step by step. You can save and come back to it any time.
+				</p>
+				<button
+					type="button"
+					:disabled="creatingEvent"
+					class="mt-[3.2rem] inline-flex items-center gap-[1rem] h-[5.6rem] px-[3.2rem] rounded-[1.2rem] bg-[#222222] hover:bg-black text-white text-[1.8rem] font-semibold transition-colors disabled:opacity-50"
+					data-first-listing-start
+					@click="createNewEvent"
+				>
+					<svg class="w-[2rem] h-[2rem]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 4v16M4 12h16"/></svg>
+					{{ creatingEvent ? 'Creating…' : 'Create a new listing' }}
+				</button>
 			</div>
 
 			<div v-else-if="tab === 'events' && organizer && organizer.events && !filteredEvents.length" class="py-12">
@@ -861,6 +885,9 @@ const isActive = (event) => {
 };
 
 // Function to get filtered events based on current filter
+// No events at all yet (in any list): the page shows one big "Make your first listing".
+const noEventsYet = computed(() => filters.every((filter) => getFilteredEvents(filter.id).length === 0));
+
 const getFilteredEvents = (filterId) => {
 	if (!props.organizer?.events) return [];
 	
