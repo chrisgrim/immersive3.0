@@ -10,18 +10,18 @@
 
                 <!-- Right: Questions? and Save & exit, Airbnb's outlined pills -->
                 <div class="flex items-center gap-3">
-                    <!-- Tips: the Helper Boxes under each question. On for a first listing
-                         or after a month away; this switches them for this listing. -->
+                    <!-- Tips: opens this step's Helper Boxes in a pop-up. It gives a little
+                         shake on the first page for a first listing or after a month away. -->
                     <button
                         type="button"
-                        :aria-pressed="tips.on"
-                        :aria-label="tips.on ? 'Hide tips' : 'Show tips'"
-                        class="inline-flex items-center gap-[0.6rem] h-[3.6rem] md:h-[4rem] px-[1.1rem] md:px-[1.5rem] rounded-full border bg-white text-[1.3rem] md:text-[1.4rem] font-semibold text-[#222222] transition-colors"
-                        :class="tips.on ? 'border-[#222222] shadow-[inset_0_0_0_1px_#222222]' : 'border-[#dddddd] hover:border-[#222222]'"
+                        aria-haspopup="dialog"
+                        class="inline-flex items-center gap-[0.6rem] h-[3.6rem] md:h-[4rem] px-[1.1rem] md:px-[1.5rem] rounded-full border border-[#dddddd] hover:border-[#222222] bg-white text-[1.3rem] md:text-[1.4rem] font-semibold text-[#222222] transition-colors"
+                        :class="{ 'tips-shake': shakeTips }"
+                        aria-label="Tips for this step"
                         data-tips-toggle
-                        @click="toggleTips"
+                        @click="openTips"
                     >
-                        <svg class="w-[1.8rem] h-[1.8rem]" :fill="tips.on ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" aria-hidden="true">
+                        <svg class="w-[1.8rem] h-[1.8rem]" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 3a6 6 0 00-3.6 10.8c.7.5 1.1 1.3 1.1 2.2h5c0-.9.4-1.7 1.1-2.2A6 6 0 0012 3z" />
                             <path stroke-linecap="round" d="M9.5 18.5h5M10.5 21h3" fill="none" />
                         </svg>
@@ -41,6 +41,39 @@
                         @click="saveAndExit"
                     >
                         {{ exiting ? 'Saving…' : 'Save & exit' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- The Tips pop-up, Airbnb style: close on the left, this step's tips, Got it.
+             Always in the page (hidden while closed) so each step's tips can land in it. -->
+        <div
+            v-show="tips.open"
+            class="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-[1003]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="helper-tips-title"
+            data-tips-modal
+            @click="tips.open = false"
+            @keydown.esc="tips.open = false"
+        >
+            <div ref="tipsDialog" tabindex="-1" class="bg-white w-full md:w-[56rem] md:mx-4 rounded-t-[3.2rem] md:rounded-[3.2rem] shadow-2xl max-h-[88dvh] flex flex-col focus:outline-none" @click.stop>
+                <div class="relative flex items-center justify-center h-[6.4rem] px-[2.4rem] border-b border-[#ebebeb] flex-shrink-0">
+                    <button type="button" aria-label="Close" class="absolute left-[1.6rem] w-[4rem] h-[4rem] rounded-full flex items-center justify-center hover:bg-[#f7f7f7]" @click="tips.open = false">
+                        <svg class="w-[1.6rem] h-[1.6rem]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18" /></svg>
+                    </button>
+                    <h2 id="helper-tips-title" class="text-[1.6rem] font-semibold text-[#222222]">Tips</h2>
+                </div>
+                <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-[2.4rem] md:px-[3.2rem] py-[2.8rem]">
+                    <div id="helper-tips-body"></div>
+                    <p v-if="!tips.count" class="text-[1.6rem] leading-[2.4rem] text-[#6a6a6a]" data-tips-none>
+                        Nothing tricky on this step. Stuck anyway? Email us with the Questions? button.
+                    </p>
+                </div>
+                <div class="flex justify-end px-[2.4rem] py-[1.6rem] border-t border-[#ebebeb] flex-shrink-0">
+                    <button type="button" class="h-[4.8rem] px-[2.4rem] rounded-[0.8rem] bg-[#222222] hover:bg-black text-white text-[1.6rem] font-semibold" @click="tips.open = false">
+                        Got it
                     </button>
                 </div>
             </div>
@@ -117,7 +150,7 @@
 </template>
 
 <script setup>
-import { ref, provide, reactive, computed, onMounted } from 'vue';
+import { ref, provide, reactive, computed, onMounted, nextTick } from 'vue';
 import EventType from './Pages/event-type.vue';
 import Category from './Pages/category.vue';
 import Genres from './Pages/genres.vue';
@@ -424,31 +457,29 @@ const setStep = (step) => {
     }
 };
 
-// Helper Boxes (components/helper-tip.vue read this). A choice made with the
-// Tips pill is kept for this listing; otherwise they are on for someone's
-// first listing, or when their last one was more than a month ago.
+// Helper Boxes (components/helper-tip.vue read this): the Tips button opens
+// them in a pop-up. On the first page the button shakes for someone's first
+// listing, or when their last one was more than a month ago.
 const TIPS_AWAY_DAYS = 30;
-const tips = reactive({ on: false });
-const tipsKey = `ei_tips_${event.id}`;
+const tips = reactive({ open: false, count: 0 });
+const tipsDialog = ref(null);
+const nudgeTips = ref(false);
+const shakeTips = computed(() => nudgeTips.value && isFirstStep.value);
 
-const toggleTips = () => {
-    tips.on = !tips.on;
-    try { localStorage.setItem(tipsKey, tips.on ? '1' : '0'); } catch (e) { /* private window */ }
+const openTips = async () => {
+    nudgeTips.value = false;
+    tips.open = true;
+    await nextTick();
+    tipsDialog.value?.focus();
 };
 
 const startTips = async () => {
-    let saved = null;
-    try { saved = localStorage.getItem(tipsKey); } catch (e) { /* private window */ }
-    if (saved !== null) {
-        tips.on = saved === '1';
-        return;
-    }
     try {
         const { data } = await axios.get('/hosting/event/user/has-created-events');
         const last = data.lastListingAt ? new Date(data.lastListingAt) : null;
-        tips.on = !data.hasCreatedEvents || !last || (Date.now() - last.getTime()) > TIPS_AWAY_DAYS * 86400000;
+        nudgeTips.value = !data.hasCreatedEvents || !last || (Date.now() - last.getTime()) > TIPS_AWAY_DAYS * 86400000;
     } catch (e) {
-        tips.on = false;
+        nudgeTips.value = false;
     }
 };
 
@@ -501,4 +532,15 @@ provide('helperTips', tips);
 a, button {
     transition: all 0.2s ease-in-out;
 }
+
+/* The Tips button's nudge: a little wiggle, twice, then it rests. */
+.tips-shake { animation: tips-shake 4s ease-in-out 0.8s 1 both; }
+@keyframes tips-shake {
+    0%, 15%, 50%, 65%, 100% { transform: rotate(0); }
+    3%, 53% { transform: rotate(-8deg); }
+    6%, 56% { transform: rotate(8deg); }
+    9%, 59% { transform: rotate(-6deg); }
+    12%, 62% { transform: rotate(4deg); }
+}
+@media (prefers-reduced-motion: reduce) { .tips-shake { animation: none; } }
 </style>

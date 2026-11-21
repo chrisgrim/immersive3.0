@@ -1,6 +1,6 @@
 /**
- * The Helper Box: shown while the top bar's Tips switch is on, or when the
- * page says so itself (the organization page has no top bar).
+ * The Helper Box: in the listing steps its words open in the Tips pop-up;
+ * on the organization page (`show`) it is a card on the page itself.
  */
 import { mount } from '@vue/test-utils';
 import { nextTick, reactive } from 'vue';
@@ -13,19 +13,32 @@ const mountTip = (tips, props = {}) => mount(HelperTip, {
 });
 
 describe('helper-tip', () => {
-    it('follows the Tips switch', async () => {
-        const tips = reactive({ on: false });
-        const wrapper = mountTip(tips);
-        expect(wrapper.find('[data-helper-tip]').exists()).toBe(false);
+    let target;
+    beforeEach(() => {
+        target = document.createElement('div');
+        target.id = 'helper-tips-body';
+        document.body.appendChild(target);
+    });
+    afterEach(() => target.remove());
 
-        tips.on = true;
+    it('lands in the Tips pop-up only while it is open, and counts itself', async () => {
+        const tips = reactive({ open: false, count: 0 });
+        const wrapper = mountTip(tips);
+        expect(tips.count).toBe(1);
+        expect(target.textContent).toBe('');
+
+        tips.open = true;
         await nextTick();
-        expect(wrapper.find('[data-helper-tip]').text()).toContain("What's a run?");
-        expect(wrapper.text()).toContain('Runs are instances.');
+        expect(target.textContent).toContain("What's a run?");
+        expect(target.textContent).toContain('Runs are instances.');
+
+        wrapper.unmount();
+        expect(tips.count).toBe(0);
     });
 
-    it('stays hidden with no switch, unless the page shows it', () => {
-        expect(mountTip(null).find('[data-helper-tip]').exists()).toBe(false);
-        expect(mountTip(null, { show: true }).find('[data-helper-tip]').exists()).toBe(true);
+    it('is a card on the page when the page shows it', () => {
+        const wrapper = mountTip(null, { show: true });
+        expect(wrapper.find('[data-helper-tip]').text()).toContain("What's a run?");
+        expect(target.textContent).toBe('');
     });
 });
