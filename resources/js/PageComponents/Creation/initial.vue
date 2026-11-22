@@ -3,7 +3,7 @@
         <div class="max-w-screen-xl p-10 m-auto">
             <!-- Top right: Tips (opens "What's an organization?" in a pop-up) and Questions?. -->
             <div class="flex justify-end items-center gap-3">
-                <TipsButton />
+                <TipsButton shake />
                 <a
                     href="mailto:support@everythingimmersive.com?subject=Event Creation Question"
                     class="inline-flex items-center h-[3.6rem] md:h-[4rem] px-[1.3rem] md:px-[1.7rem] rounded-full border border-[#dddddd] hover:border-[#222222] bg-white text-[1.3rem] md:text-[1.4rem] font-semibold text-[#222222] transition-colors"
