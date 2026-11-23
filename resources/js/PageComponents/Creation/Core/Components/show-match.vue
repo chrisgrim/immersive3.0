@@ -14,7 +14,10 @@
                     @click="join(match)"
                 >
                     {{ match.name }}
-                    <span v-if="match.organizer" class="block text-xl text-gray-500">{{ match.organizer.name }}</span>
+                    <!-- Who and where, so runs with the same name can be told apart. -->
+                    <span v-if="match.organizer || match.place" class="block text-xl text-gray-500" data-match-detail>
+                        {{ [match.organizer?.name, match.place].filter(Boolean).join(' · ') }}
+                    </span>
                 </button>
             </div>
             <button type="button" class="mt-4 text-2xl underline" @click="dismissed = true">No, this is a new listing</button>

@@ -6,6 +6,7 @@ use App\Actions\Search\SearchActions;
 use App\Models\Event;
 use App\Models\Project;
 use App\Models\User;
+use App\Support\Projects\RunRow;
 use App\Support\Search\SearchGuard;
 use Elastic\ScoutDriverPlus\Support\Query;
 use Illuminate\Http\Request;
@@ -76,7 +77,9 @@ class SuggestShows
     {
         $like = '%'.addcslashes($name, '\\%_').'%';
 
-        return Project::with('organizer:id,name')
+        return Project::with(['organizer:id,name', 'runs' => fn ($query) => $query
+            ->where('status', Event::STATUS_PUBLISHED)
+            ->with(['location', 'remotelocations'])])
             ->where(fn ($query) => $query->where('name', 'like', $like)
                 // "Ha Ha Ha in Chicago" is a run of "Ha Ha Ha".
                 ->orWhereRaw("? LIKE CONCAT('%', name, '%')", [$name]))
@@ -90,7 +93,20 @@ class SuggestShows
                 'name' => $project->name,
                 'public_url' => $project->publicPath(),
                 'organizer' => $project->organizer?->only(['id', 'name']),
+                'place' => self::places($project->runs),
             ]);
+    }
+
+    /**
+     * Where a show's runs are, so runs with the same name can be told apart:
+     * "New York, NY · Brooklyn, NY", or the first three "and 2 more".
+     */
+    public static function places(Collection $runs): ?string
+    {
+        $places = $runs->map(fn (Event $run) => RunRow::place($run))->filter()->unique()->values();
+        $more = $places->count() - 3;
+
+        return $places->isEmpty() ? null : $places->take(3)->implode(' · ').($more > 0 ? " and {$more} more" : '');
     }
 
     private function listings(string $name, ?int $exceptEventId): Collection
@@ -99,7 +115,7 @@ class SuggestShows
 
         $hits = SearchGuard::run(fn () => Event::searchQuery(
             Query::bool()->must($this->search->nameSearch($request))->filter(Event::publishedSearchFilter())
-        )->load(['organizer'])->size(self::LIMIT * 2)->trackScores(true)->execute()->hits(), fn () => collect());
+        )->load(['organizer', 'location', 'remotelocations'])->size(self::LIMIT * 2)->trackScores(true)->execute()->hits(), fn () => collect());
 
         return collect($hits)
             ->map(fn ($hit) => $hit->model())
@@ -113,6 +129,7 @@ class SuggestShows
                 'name' => $event->name,
                 'public_url' => $event->publicPath(),
                 'organizer' => $event->organizer?->only(['id', 'name']),
+                'place' => RunRow::place($event) ?: null,
             ]);
     }
 }

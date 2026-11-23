@@ -13,6 +13,7 @@ use App\Services\GeocodingService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tests\Support\FakeSearchEngine;
 
 beforeEach(function () {
@@ -50,6 +51,20 @@ test('suggestions hold shows, then published standalone listings, never linked r
         ->assertJsonCount(2)
         ->assertJsonPath('0.type', 'project')
         ->assertJsonPath('1.id', $standalone->id);
+});
+
+test('each suggestion says where it plays, so runs with one name can be told apart', function () {
+    $project = Project::factory()->create(['name' => 'Prison Break']);
+    foreach (['New York', 'Brooklyn'] as $city) {
+        publishedListing("Prison Break {$city}", $city)->update(['project_id' => $project->id, 'instance_slug' => Str::slug($city)]);
+    }
+    $standalone = publishedListing('Prison Break Live', 'Rome');
+    FakeSearchEngine::install([$standalone->id]);
+
+    $matches = $this->getJson('/api/projects/suggest?keywords=Prison%20Break')->assertOk()->json();
+
+    expect($matches[0]['place'])->toContain('Brooklyn')->toContain('New York')->toContain(' · ')
+        ->and($matches[1]['place'])->toStartWith('Rome');
 });
 
 test('someone on no team cannot ask', function () {
