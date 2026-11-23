@@ -33,6 +33,7 @@
                             :start-date="new Date()"
                             focus-start-date
                             :min-date="today"
+                            :max-date="maxDate"
                             disable-month-select
                             disable-year-select
                             :multi-calendars="monthCount"
@@ -86,10 +87,13 @@ const props = defineProps({
     // As stored: "YYYY-MM-DD HH:mm:ss" in the event's timezone, or null.
     embargoDate: { type: String, default: null },
     timezone: { type: String, required: true },
+    // The last show day ("YYYY-MM-DD"): no later day can be picked, the listing would go live once it is over.
+    lastDay: { type: String, default: null },
 });
 const emit = defineEmits(['save', 'cancel']);
 
 const today = new Date();
+const maxDate = props.lastDay ? embargoDateToDate(`${props.lastDay} 23:59:00`, props.timezone) : null;
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const scroller = ref(null);

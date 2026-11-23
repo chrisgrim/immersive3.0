@@ -13,8 +13,10 @@ use App\Models\Events\RemoteLocation;
 use App\Models\Events\Show;
 use App\Models\Events\Ticket;
 use App\Models\Genre;
+use App\Scopes\DateScope;
 use App\Services\EventNotificationDispatcher;
 use App\Services\ImageHandler;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -128,6 +130,47 @@ class UpdateEventAction
         });
     }
 
+    /**
+     * A Go Live (embargo) date after the last show would bring the listing out
+     * once it is already over. Checked here, after the schedule this save
+     * produced: the Go Live date and the dates are often sent together. Only
+     * the Go Live date is refused (put back as it was, with the status the
+     * embargo may have flipped); the rest of the save stands, and the 422
+     * keeps the wizard on the Dates step with the reason.
+     *
+     * Only for schedules of real show days (specific and ongoing): an always
+     * available or limited run has no last show, just a rolling default.
+     */
+    private function refuseGoLiveAfterLastShow(Request $request, Event $event, ?string $oldEmbargo, ?string $oldStatus): void
+    {
+        // A finished run's embargo is already refused, with its own warning.
+        // Staff keep a re-launch embargo on a finished run (Show::applyEmbargo).
+        if ($this->embargoRefused || auth()->user()?->isModerator() || ! $request->filled('embargo_date')
+            || ! in_array($event->showtype, ['s', 'o'], true) || ! $event->closingDate
+            // No show days yet (a draft mid-creation): nothing to be after.
+            || ! $event->shows()->withoutGlobalScope(DateScope::class)->exists()) {
+            return;
+        }
+
+        $goLive = Carbon::parse((string) $request->embargo_date);
+        $lastShow = Carbon::parse((string) $event->closingDate);
+
+        if ($goLive->toDateString() <= $lastShow->toDateString()) {
+            return;
+        }
+
+        $event->update([
+            'embargo_date' => $oldEmbargo,
+            'status' => $event->status === 'e' && $oldStatus !== 'e' ? $oldStatus : $event->status,
+        ]);
+        $event->syncSearchIndex();
+
+        throw ValidationException::withMessages([
+            'embargo_date' => 'The Go Live date ('.$goLive->format('M j, Y').') is after the last show ('
+                .$lastShow->format('M j, Y').'), so the listing would go live once it is over. Pick a day on or before the last show.',
+        ]);
+    }
+
     private function apply(Event $event, array $validatedData, Request $request): Event
     {
         $wasPublished = in_array($event->status, Event::LIVE_STATUSES);
@@ -139,6 +182,8 @@ class UpdateEventAction
         $oldShowtype = $event->showtype;
         // Same for the timezone: the rows already stored were written for it.
         $oldTimezone = $event->timezone;
+        // What to put back if the Go Live date lands after the last show.
+        $oldEmbargo = $event->getRawOriginal('embargo_date');
 
         // Guard the showtype/shows invariant: switching INTO a specific/ongoing
         // type with no dates would flip showtype (mass-assigned below) while the
@@ -262,6 +307,8 @@ class UpdateEventAction
             // An embargo sent without a schedule — see Show::applyEmbargo.
             $this->embargoRefused = Show::applyEmbargo($request, $event);
         }
+
+        $this->refuseGoLiveAfterLastShow($request, $event, $oldEmbargo, $oldStatus);
 
         // Handle all advisory-related updates
         if (isset($validatedData['contentAdvisories'])) {

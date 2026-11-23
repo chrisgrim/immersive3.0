@@ -187,13 +187,14 @@
                                         <p class="underline mr-2 text-1xl">{{ formattedEmbargoDate }}</p>
                                     </div>
                                 </div>
+                                <p v-if="errors?.embargo_date" class="mt-[1.2rem] text-[1.4rem] leading-[2rem] text-[#c13515]" role="alert" data-embargo-error>{{ errors.embargo_date[0] }}</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Embargo Calendar Modal -->
-                <EmbargoModal v-if="showEmbargoModal" :embargo-date="event.embargo_date" :timezone="localTimezone" @save="saveEmbargo" @cancel="cancelEmbargoDate" />
+                <EmbargoModal v-if="showEmbargoModal" :embargo-date="event.embargo_date" :timezone="localTimezone" :last-day="lastShowDay" @save="saveEmbargo" @cancel="cancelEmbargoDate" />
 
                 <!-- Start Date Modal -->
                 <div v-if="showStartDateModal" role="dialog" aria-modal="true" aria-label="Select start date" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4 overflow-y-auto">
@@ -636,6 +637,8 @@ const generatedDates = computed(() => {
 });
 
 const selectedDatesCount = computed(() => generatedDateStrings.value.length);
+// The Go Live date can be no later than this.
+const lastShowDay = computed(() => generatedDateStrings.value.map((day) => String(day).slice(0, 10)).sort().at(-1) ?? null);
 
 
 // Methods

@@ -682,6 +682,44 @@ test('an organizer cannot re-announce a finished event to the organizer follower
     expect($event->fresh()->status)->toBe('p');
 });
 
+test('a Go Live date after the last show is refused with the reason, and the dates still save', function () {
+    // Noah's case: the listing would go live once the run is over.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'status' => '1', 'showtype' => 's', 'timezone' => 'UTC']);
+    $last = now()->addDays(10)->setTime(12, 0);
+
+    $this->actingAs(memberOf($organizer))
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [$last->format('Y-m-d H:i:s')],
+            'embargo_date' => now()->addDays(20)->format('Y-m-d').' 12:00:00',
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['embargo_date' => 'after the last show ('.$last->format('M j, Y').')']);
+
+    $event->refresh();
+    expect($event->embargo_date)->toBeNull()
+        ->and($event->shows()->count())->toBe(1);
+});
+
+test('a Go Live date on the last show day is fine', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'status' => '1', 'showtype' => 's', 'timezone' => 'UTC']);
+    $last = now()->addDays(10)->setTime(12, 0);
+
+    $this->actingAs(memberOf($organizer))
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [$last->format('Y-m-d H:i:s')],
+            'embargo_date' => $last->format('Y-m-d').' 09:00:00',
+        ])
+        ->assertOk();
+
+    expect(substr((string) $event->fresh()->embargo_date, 0, 10))->toBe($last->format('Y-m-d'));
+});
+
 test('embargo still works when the same save gives the event a real future run', function () {
     // The test is the schedule AFTER the save, not before it — an organizer
     // relaunching with genuine future dates is embargoing an upcoming run.

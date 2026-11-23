@@ -237,9 +237,10 @@
                                     <span class="text-[1.5rem] font-semibold text-[#222222]">{{ formattedEmbargoDate }}</span>
                                     <span class="text-[1.4rem] font-semibold underline text-[#222222] flex-shrink-0">Change</span>
                                 </button>
+                                <p v-if="errors?.embargo_date" class="mt-[1.2rem] text-[1.4rem] leading-[2rem] text-[#c13515]" role="alert" data-embargo-error>{{ errors.embargo_date[0] }}</p>
                             </div>
                             <!-- Embargo Calendar Modal -->
-                            <EmbargoModal v-if="showEmbargoModal" :embargo-date="event.embargo_date" :timezone="localTimezone" @save="saveEmbargo" @cancel="cancelEmbargoDate" />
+                            <EmbargoModal v-if="showEmbargoModal" :embargo-date="event.embargo_date" :timezone="localTimezone" :last-day="lastShowDay" @save="saveEmbargo" @cancel="cancelEmbargoDate" />
                         </div>
                     </div>
                 </div>
@@ -353,6 +354,8 @@ const initialMonthsToShow = computed(() => isDesktop.value ? 6 : 3);
 // the picker allows selecting a date at all.
 const isAdmin = computed(() => user && (user.isAdmin || user.isModerator || false));
 const selectedDatesCount = computed(() => selectedDates.value.length);
+// The Go Live date can be no later than this.
+const lastShowDay = computed(() => selectedDates.value.map((day) => String(day).slice(0, 10)).sort().at(-1) ?? null);
 const selectedTimezone = computed(() => props.selectedTimezone);
 
 const minDate = computed(() => {
